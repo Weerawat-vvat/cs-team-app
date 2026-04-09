@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express    = require('express');
 const cors       = require('cors');
 const path       = require('path');
@@ -6,6 +7,7 @@ const Anthropic  = require('@anthropic-ai/sdk');
 
 const app     = express();
 const PORT    = process.env.PORT || 3010;
+const AI_MODEL = process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001';
 const claude  = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 app.use(cors());
@@ -416,7 +418,7 @@ app.post('/api/ai/chat', async (req, res) => {
     ];
 
     const response = await claude.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: AI_MODEL,
       max_tokens: 1024,
       system: systemPrompt,
       messages
@@ -445,7 +447,7 @@ ${context}
 ตอบเป็นภาษาไทย กระชับ อ่านง่าย ไม่เกิน 200 คำ`;
 
     const response = await claude.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: AI_MODEL,
       max_tokens: 800,
       messages: [{ role: 'user', content: prompt }]
     });
@@ -499,7 +501,7 @@ ${JSON.stringify(approvedLeaves, null, 2)}
 ตอบเฉพาะ JSON เท่านั้น ไม่ต้องมีคำอธิบาย`;
 
     const response = await claude.messages.create({
-      model: 'claude-sonnet-4-6',
+      model: AI_MODEL,
       max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }]
     });
@@ -545,7 +547,7 @@ ${JSON.stringify(kpiData, null, 2)}
 ตอบเป็นภาษาไทย ชัดเจน มีข้อมูลเชิงตัวเลขสนับสนุน`;
 
     const response = await claude.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: AI_MODEL,
       max_tokens: 1200,
       messages: [{ role: 'user', content: prompt }]
     });
