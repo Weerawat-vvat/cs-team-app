@@ -546,9 +546,10 @@ textarea{resize:vertical;min-height:80px}
 
   <!-- Sub-tabs -->
   <div class="tabs" style="margin-bottom:1.25rem">
-    <button class="tab active" id="utab-accounts" onclick="switchUserTab('accounts',this)">👥 บัญชีผู้ใช้</button>
-    <button class="tab"        id="utab-teams"    onclick="switchUserTab('teams',this)">🏷️ จัดการทีม</button>
-    <button class="tab"        id="utab-mapping"  onclick="switchUserTab('mapping',this)">🔗 Mapping Username</button>
+    <button class="tab active" id="utab-accounts"  onclick="switchUserTab('accounts',this)">👥 บัญชีผู้ใช้</button>
+    <button class="tab"        id="utab-employees" onclick="switchUserTab('employees',this)">🧑‍💼 พนักงาน</button>
+    <button class="tab"        id="utab-teams"     onclick="switchUserTab('teams',this)">🏷️ จัดการทีม</button>
+    <button class="tab"        id="utab-mapping"   onclick="switchUserTab('mapping',this)">🔗 Mapping Username</button>
   </div>
 
   <!-- ── Tab: Accounts ── -->
@@ -567,6 +568,24 @@ textarea{resize:vertical;min-height:80px}
             </tr>
           </thead>
           <tbody id="users-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Tab: Employees ── -->
+  <div id="usertab-employees" style="display:none">
+    <div class="section-header" style="margin-bottom:.75rem">
+      <div class="section-title" style="font-size:1rem">พนักงานทั้งหมด</div>
+      <button class="btn btn-primary btn-sm" onclick="openAddEmployee()">+ เพิ่มพนักงานใหม่</button>
+    </div>
+    <div class="card">
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>#</th><th>ชื่อ</th><th>ชื่อเล่น</th><th>ทีม</th><th>ตำแหน่ง</th><th>เบอร์โทร</th><th>วันเริ่มงาน</th><th>สถานะ</th><th>จัดการ</th></tr>
+          </thead>
+          <tbody id="emp-tbody"></tbody>
         </table>
       </div>
     </div>
@@ -878,6 +897,72 @@ textarea{resize:vertical;min-height:80px}
     <div class="btn-group">
       <button class="btn btn-primary" onclick="saveUser()">บันทึก</button>
       <button class="btn btn-ghost" onclick="closeModal('modal-user')">ยกเลิก</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Add/Edit Employee -->
+<div class="overlay" id="modal-employee">
+  <div class="modal">
+    <div class="modal-title">🧑‍💼 <span id="modal-emp-title">เพิ่มพนักงานใหม่</span> <button class="modal-close" onclick="closeModal('modal-employee')">×</button></div>
+    <input type="hidden" id="emp-id"/>
+    <div class="grid-2">
+      <div class="form-group">
+        <label>ชื่อ-นามสกุล *</label>
+        <input id="emp-name" placeholder="เช่น สมชาย ใจดี"/>
+      </div>
+      <div class="form-group">
+        <label>ชื่อเล่น</label>
+        <input id="emp-nickname" placeholder="เช่น ชาย"/>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="form-group">
+        <label>ทีม *</label>
+        <select id="emp-team"></select>
+      </div>
+      <div class="form-group">
+        <label>ตำแหน่ง</label>
+        <select id="emp-role">
+          <option value="staff">Staff</option>
+          <option value="team_lead">Team Lead</option>
+          <option value="department_head">Department Head</option>
+          <option value="manager">Manager</option>
+        </select>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="form-group">
+        <label>เบอร์โทร</label>
+        <input id="emp-phone" placeholder="0812345678"/>
+      </div>
+      <div class="form-group">
+        <label>วันเริ่มงาน</label>
+        <input type="date" id="emp-start"/>
+      </div>
+    </div>
+    <div class="form-group" id="emp-active-wrap" style="display:none">
+      <label>สถานะ</label>
+      <select id="emp-active">
+        <option value="1">✅ ใช้งานอยู่</option>
+        <option value="0">❌ ออกจากงานแล้ว</option>
+      </select>
+    </div>
+    <hr style="border:none;border-top:1px solid var(--border);margin:.75rem 0"/>
+    <div style="font-size:.82rem;color:var(--muted);margin-bottom:.6rem">📌 สร้างบัญชี Login พร้อมกัน (ไม่บังคับ)</div>
+    <div class="grid-2">
+      <div class="form-group">
+        <label>Username สำหรับ Login</label>
+        <input id="emp-username" placeholder="เช่น somchai"/>
+      </div>
+      <div class="form-group">
+        <label>รหัสผ่าน</label>
+        <input type="password" id="emp-password" placeholder="กรอกถ้าต้องการสร้างบัญชี"/>
+      </div>
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="saveEmployee()">💾 บันทึก</button>
+      <button class="btn btn-ghost" onclick="closeModal('modal-employee')">ยกเลิก</button>
     </div>
   </div>
 </div>
@@ -2210,12 +2295,147 @@ async function saveExtMapping(userId, empId) {
 
 // ── User tab switcher ──────────────────────────────────────
 function switchUserTab(tab, btn) {
-  ['accounts','teams','mapping'].forEach(t => {
-    document.getElementById(`usertab-${t}`).style.display = t === tab ? '' : 'none';
+  ['accounts','employees','teams','mapping'].forEach(t => {
+    const el = document.getElementById(`usertab-${t}`);
+    if (el) el.style.display = t === tab ? '' : 'none';
     document.getElementById(`utab-${t}`)?.classList.toggle('active', t === tab);
   });
-  if (tab === 'teams')   loadTeamsTab();
-  if (tab === 'mapping') loadMappingTab();
+  if (tab === 'employees') loadEmployeesTab();
+  if (tab === 'teams')     loadTeamsTab();
+  if (tab === 'mapping')   loadMappingTab();
+}
+
+// ══════════════════════════════════════════════════════════
+//  EMPLOYEE MANAGEMENT
+// ══════════════════════════════════════════════════════════
+let editEmpId = null;
+
+async function loadEmployeesTab() {
+  // reload fresh list including inactive
+  const data = await api('/api/employees?include_inactive=1');
+  const roleLbl = { staff:'Staff', team_lead:'Team Lead', department_head:'Dept. Head', manager:'Manager' };
+  const tbody = document.getElementById('emp-tbody');
+  if (!data.length) {
+    tbody.innerHTML = '<tr><td colspan="9" class="empty">ยังไม่มีพนักงาน</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map(e => `
+    <tr style="${!e.active ? 'opacity:.5' : ''}">
+      <td>${e.id}</td>
+      <td><b>${e.name}</b></td>
+      <td>${e.nickname || '—'}</td>
+      <td>${teamBadgeHtml(e.team)}</td>
+      <td style="font-size:.82rem">${roleLbl[e.role] || e.role}</td>
+      <td style="font-size:.82rem">${e.phone || '—'}</td>
+      <td style="font-size:.82rem">${e.start_date ? fmtDate(e.start_date) : '—'}</td>
+      <td><span class="badge" style="${e.active ? 'background:#dcfce7;color:#166534' : 'background:#fef2f2;color:#b91c1c'}">${e.active ? 'ใช้งาน' : 'ออกแล้ว'}</span></td>
+      <td>
+        <div class="btn-group">
+          <button class="btn btn-ghost btn-sm" onclick='openEditEmployee(${JSON.stringify(e).replace(/'/g,"&#39;")})'>✏️</button>
+          ${e.active
+            ? `<button class="btn btn-sm" style="background:#fef2f2;color:#b91c1c" onclick="deactivateEmployee(${e.id},'${e.name}')">🗑 ลบ</button>`
+            : `<button class="btn btn-sm" style="background:#f0fdf4;color:#15803d" onclick="reactivateEmployee(${e.id})">↩ คืนสภาพ</button>`}
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+function openAddEmployee() {
+  editEmpId = null;
+  document.getElementById('modal-emp-title').textContent = 'เพิ่มพนักงานใหม่';
+  document.getElementById('emp-id').value       = '';
+  document.getElementById('emp-name').value     = '';
+  document.getElementById('emp-nickname').value = '';
+  document.getElementById('emp-phone').value    = '';
+  document.getElementById('emp-start').value    = '';
+  document.getElementById('emp-role').value     = 'staff';
+  document.getElementById('emp-username').value = '';
+  document.getElementById('emp-password').value = '';
+  document.getElementById('emp-active-wrap').style.display = 'none';
+  // fill team select
+  const tsel = document.getElementById('emp-team');
+  tsel.innerHTML = allTeams.map(t => `<option value="${t.name}">${t.display_name}</option>`).join('');
+  openModal('modal-employee');
+}
+
+function openEditEmployee(e) {
+  editEmpId = e.id;
+  document.getElementById('modal-emp-title').textContent = 'แก้ไขข้อมูลพนักงาน';
+  document.getElementById('emp-id').value       = e.id;
+  document.getElementById('emp-name').value     = e.name;
+  document.getElementById('emp-nickname').value = e.nickname || '';
+  document.getElementById('emp-phone').value    = e.phone || '';
+  document.getElementById('emp-start').value    = e.start_date ? e.start_date.toString().split('T')[0] : '';
+  document.getElementById('emp-role').value     = e.role || 'staff';
+  document.getElementById('emp-active-wrap').style.display = '';
+  document.getElementById('emp-active').value   = e.active ? '1' : '0';
+  document.getElementById('emp-username').value = '';
+  document.getElementById('emp-password').value = '';
+  // fill team select
+  const tsel = document.getElementById('emp-team');
+  tsel.innerHTML = allTeams.map(t => `<option value="${t.name}" ${t.name===e.team?'selected':''}>${t.display_name}</option>`).join('');
+  openModal('modal-employee');
+}
+
+async function saveEmployee() {
+  const name = document.getElementById('emp-name').value.trim();
+  if (!name) { alert('กรุณากรอกชื่อพนักงาน'); return; }
+  const body = {
+    name,
+    nickname:   document.getElementById('emp-nickname').value.trim() || null,
+    team:       document.getElementById('emp-team').value,
+    role:       document.getElementById('emp-role').value,
+    phone:      document.getElementById('emp-phone').value.trim() || null,
+    start_date: document.getElementById('emp-start').value || null,
+    active:     parseInt(document.getElementById('emp-active').value || '1')
+  };
+  try {
+    let empId = editEmpId;
+    if (editEmpId) {
+      await api(`/api/employees/${editEmpId}`, { method:'PUT', body });
+    } else {
+      const res = await api('/api/employees', { method:'POST', body });
+      empId = res.id;
+    }
+    // optionally create login account
+    const uname = document.getElementById('emp-username').value.trim();
+    const pwd   = document.getElementById('emp-password').value;
+    if (!editEmpId && uname && pwd) {
+      await api('/api/users', { method:'POST', body: {
+        employee_id: empId,
+        username: uname,
+        password: pwd,
+        role: body.role === 'manager' ? 'manager' : body.role === 'team_lead' ? 'team_lead' : 'staff'
+      }});
+    }
+    closeModal('modal-employee');
+    loadEmployeesTab();
+    // refresh employees global
+    allEmployees = await api('/api/employees');
+    fillEmpSelects();
+  } catch { /* error shown by api() */ }
+}
+
+async function deactivateEmployee(id, name) {
+  if (!confirm(`ลบ "${name}" ออกจากระบบ?\n(ข้อมูลจะยังอยู่ แต่พนักงานจะไม่แสดงในระบบ)`)) return;
+  try {
+    await api(`/api/employees/${id}`, { method:'DELETE' });
+    loadEmployeesTab();
+    allEmployees = await api('/api/employees');
+    fillEmpSelects();
+  } catch {}
+}
+
+async function reactivateEmployee(id) {
+  try {
+    // need the current employee data to PUT
+    const emp = (await api('/api/employees?include_inactive=1')).find(e => e.id === id);
+    if (!emp) return;
+    await api(`/api/employees/${id}`, { method:'PUT', body: { ...emp, active: 1 } });
+    loadEmployeesTab();
+    allEmployees = await api('/api/employees');
+    fillEmpSelects();
+  } catch {}
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2245,6 +2465,7 @@ function renderUsersTable() {
       <td>
         <div class="btn-group">
           <button class="btn btn-ghost btn-sm" onclick="openEditUser(${JSON.stringify(u).replace(/"/g,'&quot;')})">✏️ แก้ไข</button>
+          <button class="btn btn-sm" style="background:#fef2f2;color:#b91c1c" onclick="deleteUser(${u.id},'${u.username}')">🗑</button>
         </div>
       </td>
     </tr>`).join('');
@@ -2288,6 +2509,14 @@ function openEditUser(u) {
   sel.innerHTML = '<option value="">— ไม่เชื่อมกับพนักงาน —</option>' +
     allEmployees.map(e => `<option value="${e.id}" ${e.id == u.employee_id ? 'selected' : ''}>${e.name} (${teamLabel(e.team)})</option>`).join('');
   openModal('modal-user');
+}
+
+async function deleteUser(id, username) {
+  if (!confirm(`ลบบัญชี "${username}" ออกจากระบบ?\n(บัญชีนี้จะไม่สามารถ Login ได้อีก)`)) return;
+  try {
+    await api(`/api/users/${id}`, { method:'DELETE' });
+    loadUsers();
+  } catch {}
 }
 
 async function saveUser() {
