@@ -25,8 +25,12 @@ const mainConfig = {
 };
 
 // ── External DB config (LicenseDB) ───────────────────────
+// รองรับ format "host,port" หรือ "host" เฉยๆ
+const extServerRaw = process.env.EXT_DB_SERVER || '';
+const [extHost, extPortStr] = extServerRaw.split(',');
 const extConfig = {
-  server:   process.env.EXT_DB_SERVER   || '',
+  server:   extHost,
+  port:     extPortStr ? parseInt(extPortStr) : 1433,
   database: process.env.EXT_DB_NAME     || 'LicenseDB',
   user:     process.env.EXT_DB_USER     || 'cs',
   password: process.env.EXT_DB_PASSWORD || '',
