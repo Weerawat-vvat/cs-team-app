@@ -987,6 +987,11 @@ let allTickets    = [];
 let allKpi        = [];
 let allUsers      = [];
 let allTeams      = [];
+let nameMap       = {};  // ext_username → employee display name
+
+function dn(username) {  // displayName: map LicenseDB username → real name
+  return nameMap[username] || username;
+}
 let currentUser   = null;
 let authToken     = localStorage.getItem('cs_token') || null;
 let currentWeekStart = getMondayOfDate(new Date());
@@ -1145,6 +1150,9 @@ async function loadDashboard() {
   const d = await api('/api/dashboard');
   if (!d || !d.serverTime) return;
 
+  // Update nameMap
+  if (d.nameMap) Object.assign(nameMap, d.nameMap);
+
   // server time
   document.getElementById('dash-time').textContent =
     'อัปเดต: ' + new Date(d.serverTime).toLocaleTimeString('th-TH');
@@ -1193,7 +1201,7 @@ async function loadDashboard() {
       return `<div class="lb-item">
         <div class="lb-rank ${rankClass}">${rankIcon}</div>
         <div class="lb-info">
-          <div class="lb-name">${r.UserName}</div>
+          <div class="lb-name">${dn(r.UserName)}</div>
           <div class="lb-bar-wrap"><div class="lb-bar" style="width:${pct}%"></div></div>
         </div>
         <div class="lb-count">${r.total_cases} เคส</div>
@@ -1238,7 +1246,7 @@ async function loadDashboard() {
           <td><b>#${t.id}</b></td>
           <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${t.title||''}">${t.title||'—'}</td>
           <td style="font-size:.8rem">${t.CompanyName||'—'}</td>
-          <td>${t.assigned_name||'—'}</td>
+          <td>${dn(t.assigned_name)||'—'}</td>
           <td><span class="badge" style="background:#fef2f2;color:#b91c1c;font-size:.72rem">${t.status}</span></td>
           <td style="white-space:nowrap;font-size:.78rem;color:#b91c1c"><b>${timeAgo(t.opened_at)}</b></td>
         </tr>`).join('')}
@@ -1302,6 +1310,7 @@ async function loadDashboardCharts() {
   try { data = await api('/api/dashboard/charts'); } catch { return; }
   if (!data || !data.dailyTrend) return;
 
+  if (data.nameMap) Object.assign(nameMap, data.nameMap);
   const { dailyTrend, catStats, agentThis, agentLast, agentCat } = data;
 
   // ── 1. Daily Trend (Line) ──────────────────────────────
@@ -1383,13 +1392,13 @@ async function loadDashboardCharts() {
     const thisMap  = Object.fromEntries(agentThis.map(r=>[r.UserName, r.cnt]));
     // Sort by this month desc
     agents.sort((a,b) => (thisMap[b]||0) - (thisMap[a]||0));
-    const maxAgents = Math.min(agents.length, 15); // limit to top 15
+    const maxAgents = Math.min(agents.length, 15);
     const shownAgents = agents.slice(0, maxAgents);
 
     chartAgentWorkload = new Chart(ctxWL, {
       type: 'bar',
       data: {
-        labels: shownAgents,
+        labels: shownAgents.map(a => dn(a)),
         datasets: [
           {
             label: 'เดือนนี้',
@@ -1426,7 +1435,8 @@ async function loadDashboardCharts() {
     // Get agent list sorted by total this month
     const agentTotals = {};
     agentCat.forEach(r => { agentTotals[r.UserName] = (agentTotals[r.UserName]||0) + r.cnt; });
-    const agentList = Object.entries(agentTotals).sort((a,b)=>b[1]-a[1]).slice(0,12).map(e=>e[0]);
+    const agentKeys = Object.entries(agentTotals).sort((a,b)=>b[1]-a[1]).slice(0,12).map(e=>e[0]);
+    const agentList = agentKeys; // keep original keys for lookup
 
     // Build matrix
     const acLookup = {};
@@ -1445,7 +1455,7 @@ async function loadDashboardCharts() {
 
     chartAgentCat = new Chart(ctxAC, {
       type: 'bar',
-      data: { labels: agentList, datasets },
+      data: { labels: agentList.map(a => dn(a)), datasets },
       options: {
         indexAxis: 'y', responsive: true,
         plugins: {

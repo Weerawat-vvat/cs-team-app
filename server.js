@@ -484,13 +484,22 @@ app.get('/api/dashboard', async (_, res) => {
       .query(`SELECT lr.*, e.name AS emp_name, e.team
               FROM leave_requests lr JOIN employees e ON e.id=lr.employee_id
               WHERE lr.status='pending' ORDER BY lr.leave_date`)).recordset;
+    // Build ext_username → employee name map
+    const nameMapRows = (await req().query(`
+      SELECT au.ext_username, e.name
+      FROM app_users au JOIN employees e ON e.id = au.employee_id
+      WHERE au.ext_username IS NOT NULL AND au.active = 1 AND e.active = 1
+    `)).recordset;
+    const nameMap = {};
+    nameMapRows.forEach(r => { nameMap[r.ext_username] = r.name; });
+
     res.json({
       ticketsToday, overdueTickets, ticketStats,
       kpiSummary, onShift, pendingLeaves,
       currentShifts, serverTime: now.toISOString(),
       extConnected: !!ext,
       dailyTrend, monthTotal, lastMonthTotal, totalYear, closedThisMonth,
-      todayTotal, weekTotal, weekStart
+      todayTotal, weekTotal, weekStart, nameMap
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -936,12 +945,22 @@ app.get('/api/dashboard/charts', async (_, res) => {
       `)
     ]);
 
+    // Build ext_username → employee name map
+    const nameMapRows = (await req().query(`
+      SELECT au.ext_username, e.name
+      FROM app_users au JOIN employees e ON e.id = au.employee_id
+      WHERE au.ext_username IS NOT NULL AND au.active = 1 AND e.active = 1
+    `)).recordset;
+    const nameMap = {};
+    nameMapRows.forEach(r => { nameMap[r.ext_username] = r.name; });
+
     res.json({
       dailyTrend:  dailyTrend.recordset,
       catStats:    catStats.recordset,
       agentThis:   agentThis.recordset,
       agentLast:   agentLast.recordset,
-      agentCat:    agentCat.recordset
+      agentCat:    agentCat.recordset,
+      nameMap
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
