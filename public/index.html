@@ -1044,7 +1044,13 @@ async function api(path, opts = {}) {
     body: opts.body ? JSON.stringify(opts.body) : undefined
   });
   if (res.status === 401) { doLogout(); return {}; }
-  return res.json();
+  const data = await res.json();
+  if (!res.ok) {
+    const msg = data?.error || `Error ${res.status}`;
+    alert('❌ ' + msg);
+    throw new Error(msg);
+  }
+  return data;
 }
 
 function openModal(id) { document.getElementById(id).classList.add('open'); }
@@ -2296,13 +2302,17 @@ async function saveUser() {
   if (!body.username) { alert('กรุณากรอก Username'); return; }
   if (!editUserId && !pwd) { alert('กรุณากรอกรหัสผ่าน'); return; }
 
-  if (editUserId) {
-    await api(`/api/users/${editUserId}`, { method:'PUT', body });
-  } else {
-    await api('/api/users', { method:'POST', body });
+  try {
+    if (editUserId) {
+      await api(`/api/users/${editUserId}`, { method:'PUT', body });
+    } else {
+      await api('/api/users', { method:'POST', body });
+    }
+    closeModal('modal-user');
+    loadUsers();
+  } catch {
+    // error already shown by api()
   }
-  closeModal('modal-user');
-  loadUsers();
 }
 
 async function init() {
