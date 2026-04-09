@@ -722,6 +722,57 @@ ${JSON.stringify(history, null, 2)}
 });
 
 // ══════════════════════════════════════════════════════════
+//  TEAMS (cs_team)
+// ══════════════════════════════════════════════════════════
+app.get('/api/teams', async (request, res) => {
+  try {
+    const result = await req().query(
+      'SELECT * FROM teams WHERE active=1 ORDER BY sort_order, display_name'
+    );
+    res.json(result.recordset);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/teams', async (request, res) => {
+  const { name, display_name, color, sort_order } = request.body;
+  if (!name || !display_name) return res.status(400).json({ error: 'name and display_name required' });
+  try {
+    const result = await req()
+      .input('name',         sql.NVarChar, name.toLowerCase().replace(/\s+/g,'_'))
+      .input('display_name', sql.NVarChar, display_name)
+      .input('color',        sql.NVarChar, color      || '#2563eb')
+      .input('sort_order',   sql.Int,      sort_order || 0)
+      .query(`INSERT INTO teams (name, display_name, color, sort_order)
+              OUTPUT INSERTED.id VALUES (@name, @display_name, @color, @sort_order)`);
+    res.json({ id: result.recordset[0].id });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/teams/:id', async (request, res) => {
+  const { name, display_name, color, sort_order, active } = request.body;
+  try {
+    await req()
+      .input('name',         sql.NVarChar, name)
+      .input('display_name', sql.NVarChar, display_name)
+      .input('color',        sql.NVarChar, color      || '#2563eb')
+      .input('sort_order',   sql.Int,      sort_order || 0)
+      .input('active',       sql.Bit,      active     ?? 1)
+      .input('id',           sql.Int,      request.params.id)
+      .query(`UPDATE teams SET name=@name, display_name=@display_name,
+              color=@color, sort_order=@sort_order, active=@active WHERE id=@id`);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/teams/:id', async (request, res) => {
+  try {
+    await req().input('id', sql.Int, request.params.id)
+      .query('UPDATE teams SET active=0 WHERE id=@id');
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════
 //  AUTH
 // ══════════════════════════════════════════════════════════
 app.post('/api/auth/login', async (request, res) => {

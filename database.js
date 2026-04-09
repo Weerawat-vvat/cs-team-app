@@ -115,6 +115,25 @@ async function init() {
         created_at    DATETIME DEFAULT GETDATE()
       )
     `);
+    // Teams table
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='teams' AND xtype='U')
+      BEGIN
+        CREATE TABLE teams (
+          id           INT IDENTITY(1,1) PRIMARY KEY,
+          name         NVARCHAR(50)  NOT NULL UNIQUE,
+          display_name NVARCHAR(100) NOT NULL,
+          color        NVARCHAR(20)  DEFAULT '#2563eb',
+          active       BIT           DEFAULT 1,
+          sort_order   INT           DEFAULT 0,
+          created_at   DATETIME      DEFAULT GETDATE()
+        )
+        INSERT INTO teams (name, display_name, color, sort_order) VALUES
+          ('call_center', 'Call Center', '#16a34a', 1),
+          ('helpdesk',    'Helpdesk',    '#2563eb', 2),
+          ('repair',      'Repair',      '#ca8a04', 3)
+      END
+    `);
     console.log('✅ Migrations done');
   } catch (err) {
     console.error('❌ Migration error:', err.message);

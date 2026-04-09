@@ -386,13 +386,8 @@ textarea{resize:vertical;min-height:80px}
   <!-- Coverage warning -->
   <div id="coverage-warn" style="margin-bottom:.75rem"></div>
 
-  <!-- Team filter tabs -->
-  <div class="tabs">
-    <button class="tab active" onclick="setShiftTeam('all',this)">ทุกทีม</button>
-    <button class="tab" onclick="setShiftTeam('call_center',this)">Call Center</button>
-    <button class="tab" onclick="setShiftTeam('helpdesk',this)">Helpdesk</button>
-    <button class="tab" onclick="setShiftTeam('repair',this)">Repair</button>
-  </div>
+  <!-- Team filter tabs (filled dynamically) -->
+  <div class="tabs" id="schedule-tabs"></div>
 
   <div class="card">
     <div class="tbl-wrap">
@@ -526,22 +521,67 @@ textarea{resize:vertical;min-height:80px}
 
 <!-- ═══════════════════ PAGE: USERS ═══════════════════ -->
 <div id="page-users" class="page">
-  <div class="section-header">
-    <div class="section-title">👥 จัดการ User / บัญชีผู้ใช้</div>
-    <button class="btn btn-primary" onclick="openAddUser()">+ เพิ่ม User ใหม่</button>
+
+  <!-- Sub-tabs -->
+  <div class="tabs" style="margin-bottom:1.25rem">
+    <button class="tab active" id="utab-accounts" onclick="switchUserTab('accounts',this)">👥 บัญชีผู้ใช้</button>
+    <button class="tab"        id="utab-teams"    onclick="switchUserTab('teams',this)">🏷️ จัดการทีม</button>
+    <button class="tab"        id="utab-mapping"  onclick="switchUserTab('mapping',this)">🔗 Mapping Username</button>
   </div>
 
-  <div class="card">
-    <div class="tbl-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>#</th><th>Username</th><th>ชื่อพนักงาน</th><th>ทีม</th>
-            <th>บทบาท</th><th>Username (LicenseDB)</th><th>สถานะ</th><th>จัดการ</th>
-          </tr>
-        </thead>
-        <tbody id="users-tbody"></tbody>
-      </table>
+  <!-- ── Tab: Accounts ── -->
+  <div id="usertab-accounts">
+    <div class="section-header" style="margin-bottom:.75rem">
+      <div class="section-title" style="font-size:1rem">บัญชีผู้ใช้งานระบบ</div>
+      <button class="btn btn-primary btn-sm" onclick="openAddUser()">+ เพิ่ม User ใหม่</button>
+    </div>
+    <div class="card">
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th><th>Username</th><th>ชื่อพนักงาน</th><th>ทีม</th>
+              <th>บทบาท</th><th>Username (LicenseDB)</th><th>สถานะ</th><th>จัดการ</th>
+            </tr>
+          </thead>
+          <tbody id="users-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Tab: Teams ── -->
+  <div id="usertab-teams" style="display:none">
+    <div class="section-header" style="margin-bottom:.75rem">
+      <div class="section-title" style="font-size:1rem">ทีมทั้งหมด</div>
+      <button class="btn btn-primary btn-sm" onclick="openAddTeam()">+ สร้างทีมใหม่</button>
+    </div>
+    <div class="card">
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>#</th><th>ชื่อ (key)</th><th>ชื่อแสดงผล</th><th>สี</th><th>ลำดับ</th><th>จัดการ</th></tr>
+          </thead>
+          <tbody id="teams-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Tab: Mapping ── -->
+  <div id="usertab-mapping" style="display:none">
+    <div class="alert alert-info" style="margin-bottom:1rem">
+      🔗 ตั้งค่า <b>Username LicenseDB</b> ให้กับพนักงานแต่ละคน เพื่อให้ระบบดึง Calllog ของตัวเองได้
+    </div>
+    <div class="card">
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>ชื่อพนักงาน</th><th>ทีม</th><th>บัญชีระบบ</th><th>Username LicenseDB</th><th>จัดการ</th></tr>
+          </thead>
+          <tbody id="mapping-tbody"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>
@@ -731,6 +771,49 @@ textarea{resize:vertical;min-height:80px}
   </div>
 </div>
 
+<!-- Modal: Add/Edit Team -->
+<div class="overlay" id="modal-team">
+  <div class="modal">
+    <div class="modal-title">🏷️ <span id="modal-team-title">สร้างทีมใหม่</span> <button class="modal-close" onclick="closeModal('modal-team')">×</button></div>
+    <input type="hidden" id="tm-id"/>
+    <div class="form-group">
+      <label>ชื่อ key (ภาษาอังกฤษ ไม่มีช่องว่าง)</label>
+      <input id="tm-name" placeholder="เช่น support, network, cloud"/>
+    </div>
+    <div class="form-group">
+      <label>ชื่อแสดงผล (ภาษาไทย/อังกฤษ)</label>
+      <input id="tm-display" placeholder="เช่น Support, ทีมเครือข่าย"/>
+    </div>
+    <div class="grid-2">
+      <div class="form-group">
+        <label>สี (hex color)</label>
+        <div style="display:flex;gap:.5rem;align-items:center">
+          <input type="color" id="tm-color-picker" value="#2563eb" oninput="document.getElementById('tm-color').value=this.value" style="width:40px;height:36px;border:none;cursor:pointer;padding:0;border-radius:6px"/>
+          <input id="tm-color" value="#2563eb" placeholder="#2563eb" oninput="document.getElementById('tm-color-picker').value=this.value" style="flex:1"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>ลำดับการแสดงผล</label>
+        <input type="number" id="tm-order" value="0" min="0"/>
+      </div>
+    </div>
+    <div class="form-group" id="tm-active-wrap" style="display:none">
+      <label>สถานะ</label>
+      <select id="tm-active">
+        <option value="1">✅ ใช้งาน</option>
+        <option value="0">❌ ปิดใช้งาน</option>
+      </select>
+    </div>
+    <div style="font-size:.8rem;color:var(--muted);background:#f8fafc;padding:.6rem .8rem;border-radius:8px;margin-bottom:.9rem">
+      💡 หลังสร้างทีม ไปที่ <b>พนักงาน</b> แล้วเลือกทีมนี้ให้กับพนักงานได้เลย
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="saveTeam()">บันทึก</button>
+      <button class="btn btn-ghost" onclick="closeModal('modal-team')">ยกเลิก</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: Add/Edit User -->
 <div class="overlay" id="modal-user">
   <div class="modal">
@@ -849,12 +932,14 @@ let allEmployees  = [];
 let allTickets    = [];
 let allKpi        = [];
 let allUsers      = [];
+let allTeams      = [];
 let currentUser   = null;
 let authToken     = localStorage.getItem('cs_token') || null;
 let currentWeekStart = getMondayOfDate(new Date());
 let shiftTeamFilter  = 'all';
 let editTicketId     = null;
 let editUserId       = null;
+let editTeamId       = null;
 let chartCases = null, chartScore = null;
 
 // ══════════════════════════════════════════════════════════
@@ -884,10 +969,26 @@ function timeAgo(dtStr) {
   return `${Math.floor(h/24)} วันที่แล้ว`;
 }
 function teamLabel(t) {
-  return {call_center:'Call Center', helpdesk:'Helpdesk', repair:'Repair'}[t] || t;
+  const found = allTeams.find(tm => tm.name === t);
+  return found ? found.display_name : ({call_center:'Call Center', helpdesk:'Helpdesk', repair:'Repair'}[t] || t);
 }
 function teamBadgeClass(t) {
   return {call_center:'badge-cc', helpdesk:'badge-hd', repair:'badge-rp'}[t] || '';
+}
+function teamColor(t) {
+  const found = allTeams.find(tm => tm.name === t);
+  return found ? found.color : ({call_center:'#16a34a', helpdesk:'#2563eb', repair:'#ca8a04'}[t] || '#475569');
+}
+function teamBadgeStyle(t) {
+  // For teams without a CSS class, use inline style from team color
+  if (['call_center','helpdesk','repair'].includes(t)) return '';
+  const color = teamColor(t);
+  return `style="background:${color}22;color:${color};border:1px solid ${color}44"`;
+}
+function teamBadgeHtml(t) {
+  const cls   = teamBadgeClass(t);
+  const style = teamBadgeStyle(t);
+  return `<span class="badge ${cls}" ${style}>${teamLabel(t)}</span>`;
 }
 function shiftLabel(s) {
   return {morning:'🌅 เช้า', afternoon:'🌤 บ่าย', night:'🌙 ดึก'}[s] || s;
@@ -1134,6 +1235,15 @@ async function rejectLeaveDash(id) {
 // ══════════════════════════════════════════════════════════
 //  SCHEDULE
 // ══════════════════════════════════════════════════════════
+function renderShiftTabs() {
+  const tabs = document.getElementById('schedule-tabs');
+  if (!tabs) return;
+  tabs.innerHTML = `<button class="tab ${shiftTeamFilter==='all'?'active':''}" onclick="setShiftTeam('all',this)">ทุกทีม</button>` +
+    allTeams.map(t =>
+      `<button class="tab ${shiftTeamFilter===t.name?'active':''}" onclick="setShiftTeam('${t.name}',this)" style="${shiftTeamFilter===t.name?`border-bottom-color:${t.color};color:${t.color}`:''}">${t.display_name}</button>`
+    ).join('');
+}
+
 function changeWeek(dir) {
   currentWeekStart = new Date(currentWeekStart);
   currentWeekStart.setDate(currentWeekStart.getDate() + dir * 7);
@@ -1142,8 +1252,8 @@ function changeWeek(dir) {
 function resetWeek() { currentWeekStart = getMondayOfDate(new Date()); loadSchedule(); }
 function setShiftTeam(t, btn) {
   shiftTeamFilter = t;
-  document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
+  document.querySelectorAll('#schedule-tabs .tab').forEach(b => b.classList.remove('active'));
+  if (btn) { btn.classList.add('active'); }
   loadSchedule();
 }
 
@@ -1168,68 +1278,89 @@ async function loadSchedule() {
 function renderShiftTable(shifts, ws) {
   const days = [];
   for (let i = 0; i < 7; i++) {
-    const d = new Date(ws);
-    d.setDate(d.getDate() + i);
-    days.push(d);
+    const d = new Date(ws); d.setDate(d.getDate() + i); days.push(d);
   }
-
   const dayNames = ['จ','อ','พ','พฤ','ศ','ส','อา'];
-  const today = fmtDateISO(new Date());
+  const todayISO = fmtDateISO(new Date());
+  const colCount = 1 + days.length;
 
-  // build header
-  let hdr = '<tr><th>พนักงาน</th>';
+  // ── Header ──────────────────────────────────────────────
+  let hdr = '<tr><th style="min-width:110px">พนักงาน</th>';
   days.forEach((d, i) => {
     const iso = fmtDateISO(d);
-    const isToday = iso === today;
-    hdr += `<th style="${isToday?'background:#dbeafe;color:#1e3a8a':''}">${dayNames[i]}<br/><span style="font-weight:400;font-size:.75rem">${d.getDate()}/${d.getMonth()+1}</span></th>`;
+    const isToday = iso === todayISO;
+    hdr += `<th style="text-align:center;${isToday?'background:#dbeafe;color:#1e3a8a':''}">
+      ${dayNames[i]}<br/><span style="font-weight:400;font-size:.72rem">${d.getDate()}/${d.getMonth()+1}</span>
+    </th>`;
   });
   hdr += '</tr>';
   document.getElementById('shift-thead').innerHTML = hdr;
 
-  // group shifts by employee and date
-  const empMap = {};
+  // ── Build shift lookup: employee_id → date → shift ──────
+  const shiftMap = {};
   shifts.forEach(s => {
-    if (!empMap[s.employee_id]) empMap[s.employee_id] = { name:s.name, team:s.team, role:s.role, dates:{} };
-    empMap[s.employee_id].dates[s.shift_date] = s;
+    const dateKey = (s.shift_date || '').toString().split('T')[0];
+    if (!shiftMap[s.employee_id]) shiftMap[s.employee_id] = {};
+    shiftMap[s.employee_id][dateKey] = s;
   });
 
-  // order by team, role, id
-  const empIds = Object.keys(empMap).sort((a,b) => {
-    const ta = empMap[a].team, tb = empMap[b].team;
-    const order = ['call_center','helpdesk','repair'];
-    if (order.indexOf(ta) !== order.indexOf(tb)) return order.indexOf(ta)-order.indexOf(tb);
-    return a - b;
+  // ── Get employees to show ────────────────────────────────
+  let empsToShow = allEmployees.filter(e => e.active !== 0 && e.active !== false);
+  if (shiftTeamFilter !== 'all') {
+    empsToShow = empsToShow.filter(e => e.team === shiftTeamFilter);
+  }
+
+  // Sort: team sort_order → role (lead first) → name
+  const teamOrder = allTeams.map(t => t.name);
+  empsToShow.sort((a, b) => {
+    const ta = teamOrder.indexOf(a.team), tb = teamOrder.indexOf(b.team);
+    if (ta !== tb) return (ta === -1 ? 99 : ta) - (tb === -1 ? 99 : tb);
+    const roleOrder = { team_lead:0, department_head:0, manager:0, staff:1 };
+    return (roleOrder[a.role]||1) - (roleOrder[b.role]||1);
   });
 
-  let prevTeam = '';
+  if (empsToShow.length === 0) {
+    document.getElementById('shift-tbody').innerHTML =
+      `<tr><td colspan="${colCount}" class="empty">ไม่มีพนักงานในทีมนี้</td></tr>`;
+    return;
+  }
+
+  // ── Rows ─────────────────────────────────────────────────
   let rows = '';
-  empIds.forEach(eid => {
-    const emp = empMap[eid];
+  let prevTeam = '';
+  empsToShow.forEach(emp => {
     if (emp.team !== prevTeam) {
-      const colors = {call_center:'#16a34a',helpdesk:'#2563eb',repair:'#ca8a04'};
-      rows += `<tr><td colspan="8" style="background:${colors[emp.team]}11;color:${colors[emp.team]};font-weight:700;font-size:.8rem;padding:.4rem .8rem;">${teamLabel(emp.team)}</td></tr>`;
+      const color = teamColor(emp.team);
+      rows += `<tr><td colspan="${colCount}" style="background:${color}18;color:${color};font-weight:700;font-size:.79rem;padding:.35rem .8rem">${teamLabel(emp.team)}</td></tr>`;
       prevTeam = emp.team;
     }
-    rows += `<tr><td style="white-space:nowrap">${emp.name}${emp.role!=='staff'?` <span style="font-size:.7rem;color:var(--muted)">(หน.)</span>`:''}</td>`;
+    const isLead = !['staff'].includes(emp.role);
+    rows += `<tr><td style="white-space:nowrap;font-size:.84rem">${emp.name}${isLead?` <span style="font-size:.68rem;color:var(--muted)">(หน.)</span>`:''}</td>`;
     days.forEach(d => {
       const iso = fmtDateISO(d);
-      const s = emp.dates[iso];
+      const s   = shiftMap[emp.id]?.[iso];
       if (s) {
         const isLeave = s.status === 'leave' || s.status === 'approved_leave';
-        rows += `<td>
+        rows += `<td style="padding:.3rem .25rem">
           <div style="background:${isLeave?'#fef2f2':shiftBg(s.shift_type)};color:${isLeave?'#b91c1c':shiftColor(s.shift_type)};
-               border-radius:6px;padding:.2rem .45rem;font-size:.72rem;font-weight:600;cursor:pointer"
+               border-radius:6px;padding:.18rem .4rem;font-size:.72rem;font-weight:600;cursor:pointer;text-align:center"
                onclick="editShiftModal(${s.id},'${s.shift_type}','${s.status}')">
             ${isLeave?'🏖 หยุด':shiftLabel(s.shift_type)}
           </div></td>`;
       } else {
-        rows += `<td><div style="color:var(--muted);font-size:.75rem;text-align:center">—</div></td>`;
+        // Clickable empty cell → quick add shift
+        rows += `<td style="padding:.3rem .25rem">
+          <div style="color:#cbd5e1;font-size:.78rem;text-align:center;cursor:pointer;border-radius:6px;padding:.18rem .4rem;transition:.15s"
+               onmouseover="this.style.background='#f1f5f9';this.style.color='#2563eb'"
+               onmouseout="this.style.background='';this.style.color='#cbd5e1'"
+               onclick="quickAddShift(${emp.id},'${iso}')" title="เพิ่มกะ">+</div>
+        </td>`;
       }
     });
     rows += '</tr>';
   });
 
-  document.getElementById('shift-tbody').innerHTML = rows || '<tr><td colspan="8" class="empty">ไม่มีข้อมูลกะในสัปดาห์นี้</td></tr>';
+  document.getElementById('shift-tbody').innerHTML = rows;
 }
 
 function renderCoverageWarn(coverage) {
@@ -1242,9 +1373,14 @@ function renderCoverageWarn(coverage) {
     : '';
 }
 
+function quickAddShift(empId, dateStr) {
+  document.getElementById('s-emp').value  = empId;
+  document.getElementById('s-date').value = dateStr;
+  openModal('modal-add-shift');
+}
+
 function editShiftModal(id, type, status) {
-  // just show info for now — could extend to full edit
-  if (confirm(`ลบกะนี้ออก?`)) {
+  if (confirm(`ลบกะ${shiftLabel(type)} ออก?`)) {
     api(`/api/shifts/${id}`, { method:'DELETE' }).then(() => loadSchedule());
   }
 }
@@ -1573,43 +1709,6 @@ function loginKeydown(e) {
   if (e.key === 'Enter') doLogin();
 }
 
-async function doLogin() {
-  const username = document.getElementById('login-username').value.trim();
-  const password = document.getElementById('login-password').value;
-  const errEl    = document.getElementById('login-error');
-  errEl.classList.remove('show');
-  if (!username || !password) {
-    errEl.textContent = 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน';
-    errEl.classList.add('show');
-    return;
-  }
-  try {
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      errEl.textContent = data.error || 'เข้าสู่ระบบไม่สำเร็จ';
-      errEl.classList.add('show');
-      return;
-    }
-    authToken   = data.token;
-    currentUser = data.user;
-    localStorage.setItem('cs_token', authToken);
-    hideLoginOverlay();
-    applyUserContext();
-    await loadEmployees();
-    initKpiMonthFilter();
-    initDateDefaults();
-    loadDashboard();
-  } catch (e) {
-    errEl.textContent = 'ไม่สามารถเชื่อมต่อ server ได้';
-    errEl.classList.add('show');
-  }
-}
-
 function doLogout() {
   authToken   = null;
   currentUser = null;
@@ -1648,12 +1747,193 @@ async function tryAutoLogin() {
     currentUser = await res.json();
     hideLoginOverlay();
     applyUserContext();
-    await loadEmployees();
+    await Promise.all([loadEmployees(), loadTeams()]);
     initKpiMonthFilter();
     initDateDefaults();
     loadDashboard();
     setInterval(updateClock, 1000);
   } catch { showLoginOverlay(); }
+}
+
+async function doLogin() {
+  const username = document.getElementById('login-username').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl    = document.getElementById('login-error');
+  errEl.classList.remove('show');
+  if (!username || !password) {
+    errEl.textContent = 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน';
+    errEl.classList.add('show');
+    return;
+  }
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errEl.textContent = data.error || 'เข้าสู่ระบบไม่สำเร็จ';
+      errEl.classList.add('show');
+      return;
+    }
+    authToken   = data.token;
+    currentUser = data.user;
+    localStorage.setItem('cs_token', authToken);
+    hideLoginOverlay();
+    applyUserContext();
+    await Promise.all([loadEmployees(), loadTeams()]);
+    initKpiMonthFilter();
+    initDateDefaults();
+    loadDashboard();
+  } catch (e) {
+    errEl.textContent = 'ไม่สามารถเชื่อมต่อ server ได้';
+    errEl.classList.add('show');
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+//  TEAMS
+// ══════════════════════════════════════════════════════════
+async function loadTeams() {
+  allTeams = await api('/api/teams');
+  renderShiftTabs();
+  // Refresh team dropdowns in employees modal
+  refreshTeamDropdowns();
+}
+
+function refreshTeamDropdowns() {
+  const opts = allTeams.map(t => `<option value="${t.name}">${t.display_name}</option>`).join('');
+  const optsAll = '<option value="">ทุกทีม</option>' + opts;
+
+  // Generic team-select class (for add/edit modals)
+  document.querySelectorAll('.team-select').forEach(sel => {
+    const cur = sel.value;
+    sel.innerHTML = opts;
+    if (cur) sel.value = cur;
+  });
+  // Ticket team filter
+  const tkTeam = document.getElementById('tk-filter-team');
+  if (tkTeam) { const v=tkTeam.value; tkTeam.innerHTML = optsAll; tkTeam.value = v; }
+  // KPI team filter
+  const kpiTeam = document.getElementById('kpi-filter-team');
+  if (kpiTeam) { const v=kpiTeam.value; kpiTeam.innerHTML = optsAll; kpiTeam.value = v; }
+  // New ticket team select
+  const ntTeam = document.getElementById('nt-team');
+  if (ntTeam) { const v=ntTeam.value; ntTeam.innerHTML = opts; ntTeam.value = v||allTeams[0]?.name; }
+  // Shift tabs
+  renderShiftTabs();
+}
+
+async function loadTeamsTab() {
+  const tbody = document.getElementById('teams-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = allTeams.map(t => `
+    <tr>
+      <td>${t.id}</td>
+      <td><code style="background:#f1f5f9;padding:.1rem .4rem;border-radius:4px">${t.name}</code></td>
+      <td><b>${t.display_name}</b></td>
+      <td><span style="display:inline-block;width:18px;height:18px;border-radius:4px;background:${t.color};vertical-align:middle;margin-right:.4rem"></span>${t.color}</td>
+      <td>${t.sort_order}</td>
+      <td>
+        <div class="btn-group">
+          <button class="btn btn-ghost btn-sm" onclick="openEditTeam(${JSON.stringify(t).replace(/"/g,'&quot;')})">✏️ แก้ไข</button>
+        </div>
+      </td>
+    </tr>`).join('') || '<tr><td colspan="6" class="empty">ยังไม่มีทีม</td></tr>';
+}
+
+function openAddTeam() {
+  editTeamId = null;
+  document.getElementById('modal-team-title').textContent = 'สร้างทีมใหม่';
+  document.getElementById('tm-id').value       = '';
+  document.getElementById('tm-name').value     = '';
+  document.getElementById('tm-display').value  = '';
+  document.getElementById('tm-color').value    = '#2563eb';
+  document.getElementById('tm-color-picker').value = '#2563eb';
+  document.getElementById('tm-order').value    = allTeams.length + 1;
+  document.getElementById('tm-active-wrap').style.display = 'none';
+  openModal('modal-team');
+}
+
+function openEditTeam(t) {
+  editTeamId = t.id;
+  document.getElementById('modal-team-title').textContent = 'แก้ไขทีม';
+  document.getElementById('tm-id').value       = t.id;
+  document.getElementById('tm-name').value     = t.name;
+  document.getElementById('tm-display').value  = t.display_name;
+  document.getElementById('tm-color').value    = t.color;
+  document.getElementById('tm-color-picker').value = t.color;
+  document.getElementById('tm-order').value    = t.sort_order;
+  document.getElementById('tm-active-wrap').style.display = '';
+  document.getElementById('tm-active').value   = t.active ? '1' : '0';
+  openModal('modal-team');
+}
+
+async function saveTeam() {
+  const body = {
+    name:         document.getElementById('tm-name').value.trim().toLowerCase().replace(/\s+/g,'_'),
+    display_name: document.getElementById('tm-display').value.trim(),
+    color:        document.getElementById('tm-color').value,
+    sort_order:   parseInt(document.getElementById('tm-order').value) || 0,
+    active:       parseInt(document.getElementById('tm-active').value || '1')
+  };
+  if (!body.name || !body.display_name) { alert('กรุณากรอกชื่อทีม'); return; }
+  if (editTeamId) {
+    await api(`/api/teams/${editTeamId}`, { method:'PUT', body });
+  } else {
+    await api('/api/teams', { method:'POST', body });
+  }
+  closeModal('modal-team');
+  await loadTeams();
+  loadTeamsTab();
+}
+
+// ── Mapping Tab ────────────────────────────────────────────
+async function loadMappingTab() {
+  const tbody = document.getElementById('mapping-tbody');
+  if (!tbody) return;
+  await loadUsers(); // ensure allUsers is fresh
+  tbody.innerHTML = allEmployees.map(emp => {
+    const appUser = allUsers.find(u => u.employee_id === emp.id);
+    return `<tr>
+      <td><b>${emp.name}</b></td>
+      <td>${teamBadgeHtml(emp.team)}</td>
+      <td style="font-size:.82rem;color:var(--muted)">${appUser ? `<b style="color:#1e293b">${appUser.username}</b>` : '— ยังไม่มีบัญชี'}</td>
+      <td>
+        <input id="ext-${emp.id}" value="${appUser?.ext_username || ''}"
+          placeholder="ชื่อใน LicenseDB..."
+          style="border:1.5px solid var(--border);border-radius:6px;padding:.3rem .55rem;font-size:.84rem;width:160px"/>
+      </td>
+      <td>
+        ${appUser
+          ? `<button class="btn btn-primary btn-sm" onclick="saveExtMapping(${appUser.id},${emp.id})">💾 บันทึก</button>`
+          : `<button class="btn btn-ghost btn-sm" onclick="openAddUser(${emp.id})">+ สร้างบัญชี</button>`}
+      </td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="5" class="empty">ไม่มีพนักงาน</td></tr>';
+}
+
+async function saveExtMapping(userId, empId) {
+  const extUsername = document.getElementById(`ext-${empId}`).value.trim();
+  const user = allUsers.find(u => u.id === userId);
+  if (!user) return;
+  await api(`/api/users/${userId}`, {
+    method: 'PUT',
+    body: { username: user.username, role: user.role, ext_username: extUsername, active: user.active }
+  });
+  alert(`✅ บันทึก mapping "${extUsername}" สำเร็จ`);
+  loadMappingTab();
+}
+
+// ── User tab switcher ──────────────────────────────────────
+function switchUserTab(tab, btn) {
+  ['accounts','teams','mapping'].forEach(t => {
+    document.getElementById(`usertab-${t}`).style.display = t === tab ? '' : 'none';
+    document.getElementById(`utab-${t}`)?.classList.toggle('active', t === tab);
+  });
+  if (tab === 'teams')   loadTeamsTab();
+  if (tab === 'mapping') loadMappingTab();
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1688,21 +1968,24 @@ function renderUsersTable() {
     </tr>`).join('');
 }
 
-function openAddUser() {
+function openAddUser(preEmpId = null) {
   editUserId = null;
   document.getElementById('modal-user-title').textContent = 'เพิ่ม User ใหม่';
   document.getElementById('u-id').value          = '';
-  document.getElementById('u-emp').value         = '';
   document.getElementById('u-username').value    = '';
   document.getElementById('u-password').value    = '';
   document.getElementById('u-role').value        = 'staff';
   document.getElementById('u-ext-username').value= '';
   document.getElementById('u-pwd-label').textContent = 'รหัสผ่าน';
   document.getElementById('u-active-wrap').style.display = 'none';
-  // fill employee select
   const sel = document.getElementById('u-emp');
   sel.innerHTML = '<option value="">— ไม่เชื่อมกับพนักงาน —</option>' +
-    allEmployees.map(e => `<option value="${e.id}">${e.name} (${teamLabel(e.team)})</option>`).join('');
+    allEmployees.map(e => `<option value="${e.id}" ${e.id==preEmpId?'selected':''}>${e.name} (${teamLabel(e.team)})</option>`).join('');
+  if (preEmpId) {
+    // pre-fill username from employee name
+    const emp = allEmployees.find(e => e.id == preEmpId);
+    if (emp) document.getElementById('u-username').value = (emp.nickname || emp.name.split(' ')[0]).toLowerCase();
+  }
   openModal('modal-user');
 }
 
