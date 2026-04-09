@@ -47,7 +47,7 @@ const CALLLOG_SELECT = `
     cl.CalllogDesc      AS description,
     cl.Solution,
     cs.StatusName       AS status,
-    ic.IssueCategoryDesc AS category,
+    cl.Subject          AS category,
     u.UserName          AS assigned_name,
     cl.IssueURL,
     cl.Subject          AS title,
@@ -55,7 +55,6 @@ const CALLLOG_SELECT = `
   FROM Calllog cl
   INNER JOIN CustomerRegistration cr ON cr.RegistrationId  = cl.RegistrationId
   INNER JOIN CallStatus           cs ON cs.StatusId        = cl.StatusId
-  INNER JOIN IssueCategory        ic ON ic.IssueCategoryId = cl.IssueCategoryId
   INNER JOIN Users                u  ON u.UserId           = cl.SupportId
   INNER JOIN Project              p  ON p.ProjectId        = cl.ProjectId
   INNER JOIN ProblemType          pt ON pt.ProblemTypeId   = cl.ProblemTypeId
@@ -284,8 +283,8 @@ app.get('/api/tickets/meta/statuses', async (_, res) => {
 app.get('/api/tickets/meta/categories', async (_, res) => {
   try {
     if (!getExtPool()) return res.json([]);
-    const result = await extReq().query('SELECT DISTINCT IssueCategoryDesc FROM IssueCategory ORDER BY IssueCategoryDesc');
-    res.json(result.recordset.map(r => r.IssueCategoryDesc));
+    const result = await extReq().query('SELECT DISTINCT Subject AS category FROM Calllog WHERE Subject IS NOT NULL ORDER BY Subject');
+    res.json(result.recordset.map(r => r.category));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -927,11 +926,10 @@ app.get('/api/dashboard/charts', async (_, res) => {
       `),
       // Cases by category — this month
       extReq().input('ms', sql.DateTime, new Date(ms)).input('me', sql.DateTime, me).query(`
-        SELECT ic.IssueCategoryDesc AS category, COUNT(*) AS cnt
+        SELECT cl.Subject AS category, COUNT(*) AS cnt
         FROM Calllog cl
-        INNER JOIN IssueCategory ic ON ic.IssueCategoryId = cl.IssueCategoryId
         WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me
-        GROUP BY ic.IssueCategoryDesc ORDER BY cnt DESC
+        GROUP BY cl.Subject ORDER BY cnt DESC
       `),
       // Agent cases — this month
       extReq().input('ms', sql.DateTime, new Date(ms)).input('me', sql.DateTime, me).query(`
@@ -950,12 +948,11 @@ app.get('/api/dashboard/charts', async (_, res) => {
       // Agent × category — this month (for difficulty breakdown)
       extReq().input('ms', sql.DateTime, new Date(ms)).input('me', sql.DateTime, me).query(`
         SELECT TOP 300
-          u.UserName, ic.IssueCategoryDesc AS category, COUNT(*) AS cnt
+          u.UserName, cl.Subject AS category, COUNT(*) AS cnt
         FROM Calllog cl
         INNER JOIN Users u ON u.UserId = cl.SupportId
-        INNER JOIN IssueCategory ic ON ic.IssueCategoryId = cl.IssueCategoryId
         WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me
-        GROUP BY u.UserName, ic.IssueCategoryDesc ORDER BY u.UserName, cnt DESC
+        GROUP BY u.UserName, cl.Subject ORDER BY u.UserName, cnt DESC
       `)
     ]);
 
