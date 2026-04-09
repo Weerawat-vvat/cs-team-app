@@ -882,6 +882,70 @@ app.delete('/api/users/:id', authRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ══════════════════════════════════════════════════════════
+//  DASHBOARD CHARTS — trend + category + agent workload
+// ══════════════════════════════════════════════════════════
+app.get('/api/dashboard/charts', async (_, res) => {
+  try {
+    if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
+
+    const today = new Date().toISOString().split('T')[0];
+    const ms    = today.substring(0, 7) + '-01';
+    const me    = new Date(new Date(ms).setMonth(new Date(ms).getMonth() + 1));
+    const lms   = new Date(new Date(ms).setMonth(new Date(ms).getMonth() - 1));
+
+    const [dailyTrend, catStats, agentThis, agentLast, agentCat] = await Promise.all([
+      // Daily count — last 60 days
+      extReq().query(`
+        SELECT CAST(cl.ReceiveDate AS DATE) AS day, COUNT(*) AS cnt
+        FROM Calllog cl
+        WHERE cl.ReceiveDate >= DATEADD(day,-60,GETDATE())
+        GROUP BY CAST(cl.ReceiveDate AS DATE) ORDER BY day
+      `),
+      // Cases by category — this month
+      extReq().input('ms', sql.DateTime, new Date(ms)).input('me', sql.DateTime, me).query(`
+        SELECT ic.IssueCategoryDesc AS category, COUNT(*) AS cnt
+        FROM Calllog cl
+        INNER JOIN IssueCategory ic ON ic.IssueCategoryId = cl.IssueCategoryId
+        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me
+        GROUP BY ic.IssueCategoryDesc ORDER BY cnt DESC
+      `),
+      // Agent cases — this month
+      extReq().input('ms', sql.DateTime, new Date(ms)).input('me', sql.DateTime, me).query(`
+        SELECT u.UserName, COUNT(*) AS cnt
+        FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
+        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me
+        GROUP BY u.UserName ORDER BY cnt DESC
+      `),
+      // Agent cases — last month
+      extReq().input('lms', sql.DateTime, lms).input('lme', sql.DateTime, new Date(ms)).query(`
+        SELECT u.UserName, COUNT(*) AS cnt
+        FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
+        WHERE cl.ReceiveDate >= @lms AND cl.ReceiveDate < @lme
+        GROUP BY u.UserName
+      `),
+      // Agent × category — this month (for difficulty breakdown)
+      extReq().input('ms', sql.DateTime, new Date(ms)).input('me', sql.DateTime, me).query(`
+        SELECT TOP 300
+          u.UserName, ic.IssueCategoryDesc AS category, COUNT(*) AS cnt
+        FROM Calllog cl
+        INNER JOIN Users u ON u.UserId = cl.SupportId
+        INNER JOIN IssueCategory ic ON ic.IssueCategoryId = cl.IssueCategoryId
+        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me
+        GROUP BY u.UserName, ic.IssueCategoryDesc ORDER BY u.UserName, cnt DESC
+      `)
+    ]);
+
+    res.json({
+      dailyTrend:  dailyTrend.recordset,
+      catStats:    catStats.recordset,
+      agentThis:   agentThis.recordset,
+      agentLast:   agentLast.recordset,
+      agentCat:    agentCat.recordset
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── Start ─────────────────────────────────────────────────
 init().then(() => {
   app.listen(PORT, () => console.log(`🚀 CS Team App running at http://localhost:${PORT}`));

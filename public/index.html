@@ -256,6 +256,17 @@ textarea{resize:vertical;min-height:80px}
 .dash-main{display:grid;grid-template-columns:2fr 1fr;gap:1rem}
 @media(max-width:900px){.dash-main{grid-template-columns:1fr}}
 
+/* ── TICKET EXPAND ── */
+.tk-row-main td { cursor:default; }
+.tk-row-main .tk-toggle { cursor:pointer; user-select:none; color:var(--muted); font-size:.9rem; transition:.2s; }
+.tk-row-main:hover td { background:#f8fafc; }
+.tk-row-detail td { background:#f8fafc; border-bottom:2px solid var(--border); }
+.tk-detail-box { padding:.75rem 1rem; border-radius:8px; background:#fff; border:1px solid var(--border); }
+.tk-detail-label { font-size:.75rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; margin-bottom:.25rem; }
+.tk-detail-text { font-size:.85rem; line-height:1.7; color:var(--text); white-space:pre-wrap; }
+.tk-solution-box { background:#f0fdf4; border:1px solid #86efac; }
+.tk-solution-box .tk-detail-label { color:#15803d; }
+
 /* ── USER TABLE ── */
 .role-badge{display:inline-block;padding:.15rem .55rem;border-radius:20px;font-size:.72rem;font-weight:700}
 .role-manager{background:#ede9fe;color:#5b21b6}
@@ -310,6 +321,28 @@ textarea{resize:vertical;min-height:80px}
 
   <!-- Stat Cards Row -->
   <div class="grid-4" id="dash-stats"></div>
+
+  <!-- Chart Section -->
+  <div class="grid-2" id="dash-charts-row1" style="margin-top:1rem">
+    <div class="card">
+      <div class="card-title">📈 แนวโน้ม Calllog 60 วันล่าสุด</div>
+      <canvas id="chart-daily-trend" height="180"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-title">🗂️ เคสแยกตามหมวดหมู่ (เดือนนี้)</div>
+      <canvas id="chart-categories" height="180"></canvas>
+    </div>
+  </div>
+  <div class="grid-2" id="dash-charts-row2" style="margin-top:0">
+    <div class="card">
+      <div class="card-title">👤 Workload ของแต่ละคน (เดือนนี้ vs เดือนก่อน)</div>
+      <canvas id="chart-agent-workload" height="220"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-title">🧩 ประเภทงานของแต่ละคน (เดือนนี้)</div>
+      <canvas id="chart-agent-cat" height="220"></canvas>
+    </div>
+  </div>
 
   <!-- Main Content: Leaderboard + On Shift -->
   <div class="dash-main" style="margin-top:1rem">
@@ -417,45 +450,34 @@ textarea{resize:vertical;min-height:80px}
 <!-- ═══════════════════ PAGE: TICKETS ═══════════════════ -->
 <div id="page-tickets" class="page">
   <div class="section-header">
-    <div class="section-title">🎫 ติดตามเคส / Ticket</div>
-    <button class="btn btn-primary" onclick="openModal('modal-new-ticket')">+ เปิดเคสใหม่</button>
+    <div class="section-title">🎫 ติดตามเคส — Calllog</div>
+    <div style="font-size:.82rem;color:var(--muted)" id="tk-count-label"></div>
   </div>
 
-  <div class="filter-bar">
-    <select id="tk-filter-team" onchange="loadTickets()">
-      <option value="">ทุกทีม</option>
-      <option value="call_center">Call Center</option>
-      <option value="helpdesk">Helpdesk</option>
-      <option value="repair">Repair</option>
-    </select>
+  <div class="filter-bar" style="flex-wrap:wrap;gap:.5rem">
     <select id="tk-filter-status" onchange="loadTickets()">
       <option value="">ทุกสถานะ</option>
-      <option value="open">Open</option>
-      <option value="in_progress">In Progress</option>
-      <option value="waiting_vendor">Waiting Vendor</option>
-      <option value="closed">Closed</option>
     </select>
-    <input id="tk-search" placeholder="🔍 ค้นหาชื่อเคส..." oninput="renderTickets()" style="min-width:180px"/>
+    <select id="tk-filter-agent" onchange="loadTickets()">
+      <option value="">ทุก Agent</option>
+    </select>
+    <input id="tk-date-from" type="date" value="2026-01-01" onchange="loadTickets()" style="max-width:140px" title="วันที่เริ่มต้น"/>
+    <input id="tk-date-to"   type="date" onchange="loadTickets()" style="max-width:140px" title="วันที่สิ้นสุด"/>
+    <input id="tk-search" placeholder="🔍 ค้นหา..." oninput="renderTickets()" style="min-width:160px;flex:1"/>
   </div>
 
-  <!-- Status flow indicator -->
-  <div class="status-flow">
-    <div class="status-step">🔵 Open</div>
-    <div class="status-arrow">→</div>
-    <div class="status-step">🟡 In Progress</div>
-    <div class="status-arrow">→</div>
-    <div class="status-step">🔴 Waiting Vendor</div>
-    <div class="status-arrow">→</div>
-    <div class="status-step">✅ Closed</div>
-  </div>
-
-  <div class="card">
+  <div class="card" style="padding:.5rem 0">
     <div class="tbl-wrap">
       <table id="ticket-table">
         <thead>
           <tr>
-            <th>#</th><th>ชื่อเคส</th><th>ทีม</th><th>สถานะ</th><th>ความสำคัญ</th>
-            <th>ผู้รับผิดชอบ</th><th>Vendor</th><th>เปิดมา</th><th>จัดการ</th>
+            <th style="width:32px"></th>
+            <th>#</th>
+            <th>บริษัท / หัวข้อ</th>
+            <th>หมวดหมู่</th>
+            <th>Agent</th>
+            <th>สถานะ</th>
+            <th>วันที่รับ</th>
           </tr>
         </thead>
         <tbody id="ticket-tbody"></tbody>
@@ -1041,7 +1063,7 @@ function showPage(name, btn) {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
   if (btn) btn.classList.add('active');
-  if (name === 'dashboard') loadDashboard();
+  if (name === 'dashboard') { loadDashboard(); loadDashboardCharts(); }
   if (name === 'schedule')  loadSchedule();
   if (name === 'tickets')   loadTickets();
   if (name === 'kpi')       loadKpi();
@@ -1230,6 +1252,175 @@ async function approveLeaveDash(id) {
 async function rejectLeaveDash(id) {
   await api(`/api/leave-requests/${id}/reject`, { method:'PUT', body:{ approved_by: 1 } });
   loadDashboard();
+}
+
+// ══════════════════════════════════════════════════════════
+//  DASHBOARD CHARTS
+// ══════════════════════════════════════════════════════════
+let chartDailyTrend = null, chartCategories = null, chartAgentWorkload = null, chartAgentCat = null;
+
+async function loadDashboardCharts() {
+  let data;
+  try { data = await api('/api/dashboard/charts'); } catch { return; }
+  if (!data || !data.dailyTrend) return;
+
+  const { dailyTrend, catStats, agentThis, agentLast, agentCat } = data;
+
+  // ── 1. Daily Trend (Line) ──────────────────────────────
+  const trendLabels = dailyTrend.map(r => {
+    const d = new Date(r.day);
+    return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
+  });
+  const trendData   = dailyTrend.map(r => r.cnt);
+
+  // Simple 7-day moving average
+  const ma7 = trendData.map((_, i, arr) => {
+    const slice = arr.slice(Math.max(0,i-6), i+1);
+    return Math.round(slice.reduce((s,v)=>s+v,0)/slice.length * 10)/10;
+  });
+
+  if (chartDailyTrend) { chartDailyTrend.destroy(); chartDailyTrend = null; }
+  const ctxTrend = document.getElementById('chart-daily-trend');
+  if (ctxTrend && trendLabels.length) {
+    chartDailyTrend = new Chart(ctxTrend, {
+      type: 'line',
+      data: {
+        labels: trendLabels,
+        datasets: [
+          {
+            label: 'จำนวนเคส',
+            data: trendData,
+            borderColor: '#2563eb', backgroundColor: '#2563eb22',
+            fill: true, tension: 0.35, pointRadius: 1, pointHoverRadius: 5,
+            borderWidth: 2
+          },
+          {
+            label: 'MA 7 วัน',
+            data: ma7,
+            borderColor: '#f59e0b', backgroundColor: 'transparent',
+            borderWidth: 2, borderDash: [5,3], pointRadius: 0, tension: 0.4
+          }
+        ]
+      },
+      options: {
+        responsive: true, interaction: { mode:'index', intersect:false },
+        plugins: { legend: { position:'bottom', labels:{ font:{ size:11 } } } },
+        scales: {
+          x: { ticks: { maxTicksLimit:10, font:{ size:10 } } },
+          y: { beginAtZero: true, ticks: { stepSize:1, font:{ size:10 } } }
+        }
+      }
+    });
+  }
+
+  // ── 2. Category Doughnut ───────────────────────────────
+  if (chartCategories) { chartCategories.destroy(); chartCategories = null; }
+  const ctxCat = document.getElementById('chart-categories');
+  if (ctxCat && catStats.length) {
+    const catColors = ['#2563eb','#16a34a','#ca8a04','#dc2626','#7c3aed','#0891b2','#db2777','#059669','#d97706','#6366f1'];
+    chartCategories = new Chart(ctxCat, {
+      type: 'doughnut',
+      data: {
+        labels: catStats.map(r => r.category),
+        datasets: [{ data: catStats.map(r => r.cnt), backgroundColor: catColors, borderWidth: 2 }]
+      },
+      options: {
+        responsive: true, cutout: '55%',
+        plugins: {
+          legend: { position:'right', labels:{ font:{ size:10 }, boxWidth:12 } },
+          tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed} เคส` } }
+        }
+      }
+    });
+  }
+
+  // ── 3. Agent Workload (Horizontal Bar — this month vs last) ──
+  if (chartAgentWorkload) { chartAgentWorkload.destroy(); chartAgentWorkload = null; }
+  const ctxWL = document.getElementById('chart-agent-workload');
+  if (ctxWL && agentThis.length) {
+    // Build unified agent list
+    const agentSet = new Set([...agentThis.map(r=>r.UserName), ...agentLast.map(r=>r.UserName)]);
+    const agents   = [...agentSet];
+    const lastMap  = Object.fromEntries(agentLast.map(r=>[r.UserName, r.cnt]));
+    const thisMap  = Object.fromEntries(agentThis.map(r=>[r.UserName, r.cnt]));
+    // Sort by this month desc
+    agents.sort((a,b) => (thisMap[b]||0) - (thisMap[a]||0));
+    const maxAgents = Math.min(agents.length, 15); // limit to top 15
+    const shownAgents = agents.slice(0, maxAgents);
+
+    chartAgentWorkload = new Chart(ctxWL, {
+      type: 'bar',
+      data: {
+        labels: shownAgents,
+        datasets: [
+          {
+            label: 'เดือนนี้',
+            data: shownAgents.map(a => thisMap[a]||0),
+            backgroundColor: '#2563eb', borderRadius: 4
+          },
+          {
+            label: 'เดือนก่อน',
+            data: shownAgents.map(a => lastMap[a]||0),
+            backgroundColor: '#93c5fd', borderRadius: 4
+          }
+        ]
+      },
+      options: {
+        indexAxis: 'y', responsive: true,
+        plugins: { legend: { position:'bottom', labels:{ font:{size:11} } } },
+        scales: {
+          x: { beginAtZero:true, ticks:{ font:{size:10} } },
+          y: { ticks:{ font:{size:10} } }
+        }
+      }
+    });
+  }
+
+  // ── 4. Agent × Category Stacked Bar ──────────────────────
+  if (chartAgentCat) { chartAgentCat.destroy(); chartAgentCat = null; }
+  const ctxAC = document.getElementById('chart-agent-cat');
+  if (ctxAC && agentCat.length) {
+    // Get unique categories (top 8)
+    const catMap = {};
+    agentCat.forEach(r => { catMap[r.category] = (catMap[r.category]||0) + r.cnt; });
+    const topCats = Object.entries(catMap).sort((a,b)=>b[1]-a[1]).slice(0,8).map(e=>e[0]);
+
+    // Get agent list sorted by total this month
+    const agentTotals = {};
+    agentCat.forEach(r => { agentTotals[r.UserName] = (agentTotals[r.UserName]||0) + r.cnt; });
+    const agentList = Object.entries(agentTotals).sort((a,b)=>b[1]-a[1]).slice(0,12).map(e=>e[0]);
+
+    // Build matrix
+    const acLookup = {};
+    agentCat.forEach(r => {
+      if (!acLookup[r.UserName]) acLookup[r.UserName] = {};
+      acLookup[r.UserName][r.category] = r.cnt;
+    });
+
+    const acColors = ['#2563eb','#16a34a','#ca8a04','#dc2626','#7c3aed','#0891b2','#db2777','#059669'];
+    const datasets = topCats.map((cat, i) => ({
+      label: cat,
+      data: agentList.map(a => acLookup[a]?.[cat] || 0),
+      backgroundColor: acColors[i % acColors.length],
+      borderRadius: 2
+    }));
+
+    chartAgentCat = new Chart(ctxAC, {
+      type: 'bar',
+      data: { labels: agentList, datasets },
+      options: {
+        indexAxis: 'y', responsive: true,
+        plugins: {
+          legend: { position:'bottom', labels:{ font:{size:10}, boxWidth:10 } },
+          tooltip: { mode:'index' }
+        },
+        scales: {
+          x: { stacked:true, beginAtZero:true, ticks:{ font:{size:10} } },
+          y: { stacked:true, ticks:{ font:{size:10} } }
+        }
+      }
+    });
+  }
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1442,48 +1633,131 @@ async function rejectLeave(id) {
 // ══════════════════════════════════════════════════════════
 //  TICKETS
 // ══════════════════════════════════════════════════════════
+let tkStatusesLoaded = false;
+const tkExpandedRows = new Set();
+
+async function initTicketFilters() {
+  if (tkStatusesLoaded) return;
+  tkStatusesLoaded = true;
+  try {
+    const statuses = await api('/api/tickets/meta/statuses');
+    const sel = document.getElementById('tk-filter-status');
+    sel.innerHTML = '<option value="">ทุกสถานะ</option>' +
+      statuses.map(s => `<option value="${s}">${s}</option>`).join('');
+  } catch {}
+}
+
 async function loadTickets() {
-  const team   = document.getElementById('tk-filter-team').value;
-  const status = document.getElementById('tk-filter-status').value;
+  await initTicketFilters();
+  const status   = document.getElementById('tk-filter-status').value;
+  const agent    = document.getElementById('tk-filter-agent').value;
+  const dateFrom = document.getElementById('tk-date-from').value;
+  const dateTo   = document.getElementById('tk-date-to').value;
   let url = '/api/tickets?';
-  if (team)   url += `team=${team}&`;
-  if (status) url += `status=${status}&`;
+  if (status)   url += `status=${encodeURIComponent(status)}&`;
+  if (dateFrom) url += `dateFrom=${dateFrom}&`;
+  if (dateTo)   url += `dateTo=${dateTo}&`;
   allTickets = await api(url);
+
+  // Populate agent filter from results
+  const agentSel = document.getElementById('tk-filter-agent');
+  const curAgent = agentSel.value;
+  const agents   = [...new Set(allTickets.map(t => t.assigned_name).filter(Boolean))].sort();
+  agentSel.innerHTML = '<option value="">ทุก Agent</option>' +
+    agents.map(a => `<option value="${a}" ${a===curAgent?'selected':''}>${a}</option>`).join('');
+
+  tkExpandedRows.clear();
   renderTickets();
 }
 
 function renderTickets() {
-  const q = (document.getElementById('tk-search').value||'').toLowerCase();
-  const filtered = allTickets.filter(t =>
-    !q || t.title.toLowerCase().includes(q) || (t.description||'').toLowerCase().includes(q)
-  );
-
-  const statusOrder = { open:0, in_progress:1, waiting_vendor:2, closed:3 };
-  filtered.sort((a,b) => {
-    if (statusOrder[a.status] !== statusOrder[b.status]) return statusOrder[a.status]-statusOrder[b.status];
-    const pOrder = {high:0,normal:1,low:2};
-    return pOrder[a.priority]-pOrder[b.priority];
+  const q     = (document.getElementById('tk-search').value||'').toLowerCase();
+  const agent = document.getElementById('tk-filter-agent').value;
+  const filtered = allTickets.filter(t => {
+    if (agent && t.assigned_name !== agent) return false;
+    if (!q) return true;
+    return (t.title||'').toLowerCase().includes(q)
+      || (t.CompanyName||'').toLowerCase().includes(q)
+      || (t.description||'').toLowerCase().includes(q)
+      || (t.assigned_name||'').toLowerCase().includes(q)
+      || (t.category||'').toLowerCase().includes(q);
   });
+
+  const lbl = document.getElementById('tk-count-label');
+  if (lbl) lbl.textContent = `แสดง ${filtered.length} จาก ${allTickets.length} เคส`;
 
   const tbody = document.getElementById('ticket-tbody');
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" class="empty"><div class="icon">🎫</div>ไม่พบเคส</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="empty"><div class="icon">🎫</div>ไม่พบเคส</td></tr>';
     return;
   }
-  tbody.innerHTML = filtered.map(t => {
-    const isOverdue = t.status !== 'closed' && (Date.now() - new Date(t.opened_at).getTime()) > 86400000;
-    return `<tr class="${isOverdue?'overdue-row':''}">
-      <td><b>#${t.id}</b>${t.escalated_from?`<br/><span style="font-size:.7rem;color:var(--warn)">⬆️ Escalated</span>`:''}</td>
-      <td><span title="${t.description||''}">${t.title}</span></td>
-      <td><span class="badge ${teamBadgeClass(t.team)}">${teamLabel(t.team)}</span></td>
-      <td><span class="badge badge-${t.status}">${statusLabel(t.status)}</span></td>
-      <td><span class="badge badge-${t.priority}">${{low:'🟢 ต่ำ',normal:'🟡 ปกติ',high:'🔴 สูง'}[t.priority]}</span></td>
-      <td>${t.assigned_name||'—'}</td>
-      <td>${t.vendor_name||'—'}</td>
-      <td style="white-space:nowrap;font-size:.78rem">${timeAgo(t.opened_at)}${isOverdue?'<br/><span style="color:#b91c1c;font-weight:700">⚠️ ค้างนาน</span>':''}</td>
-      <td><button class="btn btn-ghost btn-sm" onclick="openEditTicket(${t.id})">✏️ แก้ไข</button></td>
-    </tr>`;
-  }).join('');
+
+  const rows = [];
+  filtered.forEach(t => {
+    const opened = new Date(t.opened_at);
+    const isOverdue = t.status && !t.status.match(/close|ปิด|complete/i)
+      && (Date.now() - opened.getTime()) > 86400000;
+    const expanded = tkExpandedRows.has(t.id);
+    const hasDetail = (t.description && t.description.trim()) || (t.Solution && t.Solution.trim());
+
+    const dateStr = opened.toLocaleDateString('th-TH', {day:'2-digit',month:'short',year:'2-digit'});
+    const timeStr = opened.toLocaleTimeString('th-TH', {hour:'2-digit',minute:'2-digit'});
+
+    // Main row
+    rows.push(`<tr class="tk-row-main" style="${isOverdue?'background:#fff7f7':''}" >
+      <td style="text-align:center;padding:.4rem .25rem">
+        ${hasDetail ? `<span class="tk-toggle" onclick="toggleTicketDetail(${t.id})">${expanded?'▼':'▶'}</span>` : ''}
+      </td>
+      <td style="font-size:.82rem;white-space:nowrap"><b>#${t.id}</b></td>
+      <td style="max-width:300px">
+        <div style="font-weight:600;font-size:.87rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+             title="${(t.title||'').replace(/"/g,'&quot;')}">${t.title || '—'}</div>
+        <div style="font-size:.77rem;color:var(--muted)">${t.CompanyName||''}</div>
+      </td>
+      <td><span class="badge" style="background:#ede9fe;color:#5b21b6;font-size:.72rem">${t.category||'—'}</span></td>
+      <td style="font-size:.84rem;white-space:nowrap">${t.assigned_name||'—'}</td>
+      <td>
+        <span class="badge" style="background:#f1f5f9;color:#334155;font-size:.72rem;max-width:120px;overflow:hidden;text-overflow:ellipsis;display:inline-block"
+              title="${t.status||''}">${t.status||'—'}</span>
+        ${isOverdue ? `<div style="font-size:.7rem;color:#b91c1c;font-weight:700">⚠️ ค้างนาน</div>` : ''}
+      </td>
+      <td style="font-size:.79rem;white-space:nowrap;color:var(--muted)">${dateStr}<br/>${timeStr}</td>
+    </tr>`);
+
+    // Detail expand row
+    if (expanded && hasDetail) {
+      const desc = (t.description||'').trim();
+      const sol  = (t.Solution||'').trim();
+      const url  = t.IssueURL ? `<a href="${t.IssueURL}" target="_blank" style="font-size:.78rem;color:var(--hd)">🔗 ดูใน LicenseDB</a>` : '';
+      rows.push(`<tr class="tk-row-detail">
+        <td colspan="7" style="padding:.75rem 1rem 1rem">
+          <div style="display:grid;grid-template-columns:${sol?'1fr 1fr':'1fr'};gap:1rem">
+            ${desc ? `<div class="tk-detail-box">
+              <div class="tk-detail-label">📋 รายละเอียดปัญหา (CalllogDesc)</div>
+              <div class="tk-detail-text">${escHtml(desc)}</div>
+            </div>` : ''}
+            ${sol ? `<div class="tk-detail-box tk-solution-box">
+              <div class="tk-detail-label">✅ วิธีแก้ไข (Solution)</div>
+              <div class="tk-detail-text">${escHtml(sol)}</div>
+            </div>` : ''}
+          </div>
+          ${url ? `<div style="margin-top:.5rem">${url}</div>` : ''}
+        </td>
+      </tr>`);
+    }
+  });
+
+  tbody.innerHTML = rows.join('');
+}
+
+function escHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function toggleTicketDetail(id) {
+  if (tkExpandedRows.has(id)) tkExpandedRows.delete(id);
+  else tkExpandedRows.add(id);
+  renderTickets();
 }
 
 async function saveTicket() {
@@ -1751,6 +2025,7 @@ async function tryAutoLogin() {
     initKpiMonthFilter();
     initDateDefaults();
     loadDashboard();
+    loadDashboardCharts();
     setInterval(updateClock, 1000);
   } catch { showLoginOverlay(); }
 }
@@ -1786,6 +2061,7 @@ async function doLogin() {
     initKpiMonthFilter();
     initDateDefaults();
     loadDashboard();
+    loadDashboardCharts();
   } catch (e) {
     errEl.textContent = 'ไม่สามารถเชื่อมต่อ server ได้';
     errEl.classList.add('show');
