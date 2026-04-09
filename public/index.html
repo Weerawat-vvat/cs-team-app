@@ -853,7 +853,7 @@ textarea{resize:vertical;min-height:80px}
     </div>
     <div class="form-group">
       <label id="u-pwd-label">รหัสผ่าน</label>
-      <input type="password" id="u-password" placeholder="รหัสผ่าน (ไม่กรอก = ไม่เปลี่ยน)"/>
+      <input type="password" id="u-password" placeholder="กรอกรหัสผ่าน"/>
     </div>
     <div class="form-group">
       <label>บทบาท</label>
@@ -2258,7 +2258,8 @@ function openAddUser(preEmpId = null) {
   document.getElementById('u-password').value    = '';
   document.getElementById('u-role').value        = 'staff';
   document.getElementById('u-ext-username').value= '';
-  document.getElementById('u-pwd-label').textContent = 'รหัสผ่าน';
+  document.getElementById('u-pwd-label').textContent = 'รหัสผ่าน *';
+  document.getElementById('u-password').placeholder = 'กรอกรหัสผ่าน (จำเป็น)';
   document.getElementById('u-active-wrap').style.display = 'none';
   const sel = document.getElementById('u-emp');
   sel.innerHTML = '<option value="">— ไม่เชื่อมกับพนักงาน —</option>' +
@@ -2279,7 +2280,8 @@ function openEditUser(u) {
   document.getElementById('u-password').value    = '';
   document.getElementById('u-role').value        = u.role;
   document.getElementById('u-ext-username').value= u.ext_username || '';
-  document.getElementById('u-pwd-label').textContent = 'รหัสผ่านใหม่ (เว้นว่าง = ไม่เปลี่ยน)';
+  document.getElementById('u-pwd-label').textContent = 'รหัสผ่านใหม่';
+  document.getElementById('u-password').placeholder = 'เว้นว่างไว้ = ไม่เปลี่ยนรหัสผ่าน';
   document.getElementById('u-active-wrap').style.display = '';
   document.getElementById('u-active').value      = u.active ? '1' : '0';
   const sel = document.getElementById('u-emp');
