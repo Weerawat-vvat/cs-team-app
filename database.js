@@ -102,6 +102,19 @@ async function init() {
         created_at   DATETIME DEFAULT GETDATE()
       )
     `);
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='app_users' AND xtype='U')
+      CREATE TABLE app_users (
+        id            INT IDENTITY(1,1) PRIMARY KEY,
+        employee_id   INT REFERENCES employees(id),
+        username      NVARCHAR(50) NOT NULL UNIQUE,
+        password_hash NVARCHAR(255) NOT NULL,
+        role          NVARCHAR(20) NOT NULL DEFAULT 'staff',
+        ext_username  NVARCHAR(100),
+        active        BIT DEFAULT 1,
+        created_at    DATETIME DEFAULT GETDATE()
+      )
+    `);
     console.log('✅ Migrations done');
   } catch (err) {
     console.error('❌ Migration error:', err.message);

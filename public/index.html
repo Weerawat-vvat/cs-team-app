@@ -221,58 +221,130 @@ textarea{resize:vertical;min-height:80px}
 .ai-forecast-box{background:linear-gradient(135deg,#fff7ed,#fef9c3);border:1px solid #fed7aa;border-radius:12px;padding:1.1rem 1.25rem;margin-top:1rem;display:none}
 .ai-forecast-box.open{display:block}
 .ai-forecast-body{font-size:.86rem;line-height:1.75;white-space:pre-wrap;color:#1e293b}
+
+/* ── LOGIN OVERLAY ── */
+#login-overlay{position:fixed;inset:0;background:linear-gradient(135deg,#1e293b,#0f172a);z-index:9999;display:flex;align-items:center;justify-content:center}
+#login-overlay.hidden{display:none}
+.login-card{background:#fff;border-radius:20px;padding:2.5rem 2rem;width:100%;max-width:380px;box-shadow:0 24px 80px #0008}
+.login-logo{font-size:1.3rem;font-weight:800;color:#1e293b;margin-bottom:.3rem}
+.login-subtitle{font-size:.83rem;color:var(--muted);margin-bottom:1.75rem}
+.login-error{background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;border-radius:8px;padding:.6rem .9rem;font-size:.84rem;margin-bottom:1rem;display:none}
+.login-error.show{display:block}
+
+/* ── NAV USER ── */
+.nav-user{display:flex;align-items:center;gap:.6rem;margin-left:auto;flex-shrink:0}
+.nav-user-name{color:#e2e8f0;font-size:.82rem;font-weight:600;white-space:nowrap}
+.nav-user-role{color:#94a3b8;font-size:.72rem}
+.nav-logout{background:#334155;border:none;color:#94a3b8;cursor:pointer;padding:.35rem .75rem;border-radius:6px;font-size:.78rem;transition:.2s}
+.nav-logout:hover{background:#ef4444;color:#fff}
+
+/* ── LEADERBOARD ── */
+.lb-item{display:flex;align-items:center;gap:.75rem;padding:.55rem 0;border-bottom:1px solid var(--border)}
+.lb-item:last-child{border-bottom:none}
+.lb-rank{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:800;flex-shrink:0}
+.lb-rank-1{background:#fef9c3;color:#854d0e}
+.lb-rank-2{background:#f1f5f9;color:#475569}
+.lb-rank-3{background:#fff7ed;color:#9a3412}
+.lb-rank-n{background:#f1f5f9;color:#64748b}
+.lb-info{flex:1;min-width:0}
+.lb-name{font-weight:600;font-size:.87rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb-bar-wrap{height:5px;background:#e2e8f0;border-radius:99px;overflow:hidden;margin-top:3px}
+.lb-bar{height:100%;border-radius:99px;background:linear-gradient(90deg,#2563eb,#7c3aed);transition:width .6s}
+.lb-count{font-size:.82rem;font-weight:700;color:var(--hd);white-space:nowrap}
+
+/* ── DASH GRID OVERRIDE ── */
+.dash-main{display:grid;grid-template-columns:2fr 1fr;gap:1rem}
+@media(max-width:900px){.dash-main{grid-template-columns:1fr}}
+
+/* ── USER TABLE ── */
+.role-badge{display:inline-block;padding:.15rem .55rem;border-radius:20px;font-size:.72rem;font-weight:700}
+.role-manager{background:#ede9fe;color:#5b21b6}
+.role-team_lead{background:#dbeafe;color:#1e3a8a}
+.role-staff{background:#f1f5f9;color:#475569}
+.role-admin{background:#fef2f2;color:#b91c1c}
 </style>
 </head>
 <body>
 
+<!-- LOGIN OVERLAY -->
+<div id="login-overlay">
+  <div class="login-card">
+    <div class="login-logo">🎧 CS Team Manager</div>
+    <div class="login-subtitle">ระบบบริหารทีม Customer Service</div>
+    <div class="login-error" id="login-error"></div>
+    <div class="form-group">
+      <label>ชื่อผู้ใช้</label>
+      <input type="text" id="login-username" placeholder="username" autocomplete="username" onkeydown="loginKeydown(event)"/>
+    </div>
+    <div class="form-group">
+      <label>รหัสผ่าน</label>
+      <input type="password" id="login-password" placeholder="password" autocomplete="current-password" onkeydown="loginKeydown(event)"/>
+    </div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center;padding:.65rem" onclick="doLogin()">เข้าสู่ระบบ</button>
+  </div>
+</div>
+
 <!-- NAV -->
 <nav class="nav">
   <div class="nav-logo">🎧 CS Team Manager <span>ระบบบริหารทีม Customer Service</span></div>
-  <button class="nav-btn active" onclick="showPage('dashboard')">📊 Dashboard</button>
-  <button class="nav-btn" onclick="showPage('schedule')">📅 ตารางกะ & วันหยุด</button>
-  <button class="nav-btn" onclick="showPage('tickets')">🎫 ติดตามเคส</button>
-  <button class="nav-btn" onclick="showPage('kpi')">📈 ประเมินผลทีม</button>
+  <button class="nav-btn active" id="nav-btn-dashboard" onclick="showPage('dashboard',this)">📊 Dashboard</button>
+  <button class="nav-btn" id="nav-btn-schedule"  onclick="showPage('schedule',this)">📅 ตารางกะ & วันหยุด</button>
+  <button class="nav-btn" id="nav-btn-tickets"   onclick="showPage('tickets',this)">🎫 ติดตามเคส</button>
+  <button class="nav-btn" id="nav-btn-kpi"       onclick="showPage('kpi',this)">📈 ประเมินผลทีม</button>
+  <button class="nav-btn" id="nav-btn-users"     onclick="showPage('users',this)" style="display:none">👥 จัดการ User</button>
+  <div class="nav-user" id="nav-user-info" style="display:none">
+    <div>
+      <div class="nav-user-name" id="nav-display-name">—</div>
+      <div class="nav-user-role" id="nav-display-role">—</div>
+    </div>
+    <button class="nav-logout" onclick="doLogout()">ออกจากระบบ</button>
+  </div>
 </nav>
 
 <!-- ═══════════════════ PAGE: DASHBOARD ═══════════════════ -->
 <div id="page-dashboard" class="page active">
-  <div class="section-header">
-    <div class="section-title">📊 Dashboard ภาพรวม</div>
+  <div class="section-header" style="margin-bottom:1rem">
+    <div class="section-title">📊 Dashboard ภาพรวมผู้จัดการ</div>
     <div style="font-size:.82rem;color:var(--muted)" id="dash-time"></div>
   </div>
 
-  <!-- Stat Cards -->
+  <!-- Stat Cards Row -->
   <div class="grid-4" id="dash-stats"></div>
 
-  <!-- Overdue Alert -->
-  <div id="dash-overdue-wrap" style="margin-top:1rem"></div>
-
-  <!-- On Shift & Today Tickets -->
-  <div class="grid-2" style="margin-top:1rem">
+  <!-- Main Content: Leaderboard + On Shift -->
+  <div class="dash-main" style="margin-top:1rem">
+    <div class="card">
+      <div class="card-title">🏆 Leaderboard — Calllog เดือนนี้</div>
+      <div id="dash-leaderboard"><div class="empty"><div class="icon">📊</div>กำลังโหลด...</div></div>
+    </div>
     <div class="card">
       <div class="card-title">🟢 พนักงานกะปัจจุบัน</div>
       <div id="dash-onshift"></div>
     </div>
-    <div class="card">
-      <div class="card-title">📋 เคสวันนี้ แยกตามทีม</div>
-      <div id="dash-today-tickets"></div>
+  </div>
+
+  <!-- Overdue Cases Table -->
+  <div class="card" style="margin-top:1rem">
+    <div class="card-title" style="color:#dc2626">⚠️ เคสค้างเกิน 24 ชม. — ต้องเร่งแก้ไข <span id="dash-overdue-badge" style="background:#fecaca;color:#991b1b;padding:.1rem .5rem;border-radius:20px;font-size:.75rem;font-weight:700;margin-left:.5rem"></span></div>
+    <div id="dash-overdue">
+      <div class="empty"><div class="icon">⏳</div>กำลังโหลด...</div>
     </div>
   </div>
 
-  <!-- KPI Summary & Pending Leaves -->
+  <!-- Pending Leaves + Today Status -->
   <div class="grid-2" style="margin-top:1rem">
-    <div class="card">
-      <div class="card-title">📈 KPI เดือนนี้ (ค่าเฉลี่ยรายทีม)</div>
-      <div id="dash-kpi"></div>
-    </div>
     <div class="card">
       <div class="card-title">📩 คำขอวันหยุดที่รออนุมัติ</div>
       <div id="dash-leaves"></div>
     </div>
+    <div class="card">
+      <div class="card-title">📋 สถานะเคสวันนี้</div>
+      <div id="dash-today-tickets"></div>
+    </div>
   </div>
 
   <!-- AI Insight Card -->
-  <div class="ai-insight-box">
+  <div class="ai-insight-box" style="margin-top:1rem">
     <div class="ai-label">
       🤖 AI วิเคราะห์สถานการณ์
       <button class="btn btn-sm" style="background:#7c3aed;color:#fff;margin-left:auto" onclick="loadAiInsight()">🔄 วิเคราะห์ใหม่</button>
@@ -447,6 +519,28 @@ textarea{resize:vertical;min-height:80px}
           </tr>
         </thead>
         <tbody id="kpi-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ PAGE: USERS ═══════════════════ -->
+<div id="page-users" class="page">
+  <div class="section-header">
+    <div class="section-title">👥 จัดการ User / บัญชีผู้ใช้</div>
+    <button class="btn btn-primary" onclick="openAddUser()">+ เพิ่ม User ใหม่</button>
+  </div>
+
+  <div class="card">
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Username</th><th>ชื่อพนักงาน</th><th>ทีม</th>
+            <th>บทบาท</th><th>Username (LicenseDB)</th><th>สถานะ</th><th>จัดการ</th>
+          </tr>
+        </thead>
+        <tbody id="users-tbody"></tbody>
       </table>
     </div>
   </div>
@@ -637,6 +731,52 @@ textarea{resize:vertical;min-height:80px}
   </div>
 </div>
 
+<!-- Modal: Add/Edit User -->
+<div class="overlay" id="modal-user">
+  <div class="modal">
+    <div class="modal-title">👤 <span id="modal-user-title">เพิ่ม User ใหม่</span> <button class="modal-close" onclick="closeModal('modal-user')">×</button></div>
+    <input type="hidden" id="u-id"/>
+    <div class="form-group">
+      <label>พนักงาน (เชื่อมกับข้อมูลในระบบ)</label>
+      <select id="u-emp" class="emp-select">
+        <option value="">— ไม่เชื่อมกับพนักงาน —</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Username (สำหรับเข้าสู่ระบบ)</label>
+      <input id="u-username" placeholder="เช่น john.doe"/>
+    </div>
+    <div class="form-group">
+      <label id="u-pwd-label">รหัสผ่าน</label>
+      <input type="password" id="u-password" placeholder="รหัสผ่าน (ไม่กรอก = ไม่เปลี่ยน)"/>
+    </div>
+    <div class="form-group">
+      <label>บทบาท</label>
+      <select id="u-role">
+        <option value="staff">Staff — เห็นเฉพาะข้อมูลตัวเอง</option>
+        <option value="team_lead">Team Lead — เห็นทุกคนในทีม</option>
+        <option value="manager">Manager — เห็นทุกอย่าง</option>
+        <option value="admin">Admin — สิทธิ์เต็ม</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Username ใน LicenseDB (สำหรับดึง Calllog ของตัวเอง)</label>
+      <input id="u-ext-username" placeholder="เช่น john (ตาม LicenseDB Users)"/>
+    </div>
+    <div class="form-group" id="u-active-wrap" style="display:none">
+      <label>สถานะ</label>
+      <select id="u-active">
+        <option value="1">✅ ใช้งานอยู่</option>
+        <option value="0">❌ ปิดใช้งาน</option>
+      </select>
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="saveUser()">บันทึก</button>
+      <button class="btn btn-ghost" onclick="closeModal('modal-user')">ยกเลิก</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: Edit KPI Comment -->
 <div class="overlay" id="modal-edit-kpi">
   <div class="modal">
@@ -705,12 +845,16 @@ textarea{resize:vertical;min-height:80px}
 //  STATE
 // ══════════════════════════════════════════════════════════
 const API = '';
-let allEmployees = [];
-let allTickets   = [];
-let allKpi       = [];
+let allEmployees  = [];
+let allTickets    = [];
+let allKpi        = [];
+let allUsers      = [];
+let currentUser   = null;
+let authToken     = localStorage.getItem('cs_token') || null;
 let currentWeekStart = getMondayOfDate(new Date());
 let shiftTeamFilter  = 'all';
 let editTicketId     = null;
+let editUserId       = null;
 let chartCases = null, chartScore = null;
 
 // ══════════════════════════════════════════════════════════
@@ -769,11 +913,14 @@ function stars(n) {
 }
 
 async function api(path, opts = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
   const res = await fetch(API + path, {
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     ...opts,
     body: opts.body ? JSON.stringify(opts.body) : undefined
   });
+  if (res.status === 401) { doLogout(); return {}; }
   return res.json();
 }
 
@@ -788,15 +935,16 @@ document.querySelectorAll('.overlay').forEach(el => {
 // ══════════════════════════════════════════════════════════
 //  NAV
 // ══════════════════════════════════════════════════════════
-function showPage(name) {
+function showPage(name, btn) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
-  event.currentTarget.classList.add('active');
+  if (btn) btn.classList.add('active');
   if (name === 'dashboard') loadDashboard();
   if (name === 'schedule')  loadSchedule();
   if (name === 'tickets')   loadTickets();
   if (name === 'kpi')       loadKpi();
+  if (name === 'users')     loadUsers();
 }
 
 // ══════════════════════════════════════════════════════════
@@ -809,6 +957,7 @@ async function loadEmployees() {
 
 function fillEmpSelects() {
   document.querySelectorAll('.emp-select').forEach(sel => {
+    if (sel.id === 'u-emp') return; // user modal fills its own select
     const cur = sel.value;
     sel.innerHTML = allEmployees.map(e =>
       `<option value="${e.id}">${e.name} (${teamLabel(e.team)})</option>`
@@ -829,130 +978,115 @@ function filterAssigneeByTeam() {
 }
 
 // ══════════════════════════════════════════════════════════
-//  DASHBOARD
+//  DASHBOARD (Manager View)
 // ══════════════════════════════════════════════════════════
 async function loadDashboard() {
   const d = await api('/api/dashboard');
+  if (!d || !d.serverTime) return;
 
   // server time
-  const dt = new Date(d.serverTime);
   document.getElementById('dash-time').textContent =
-    'อัปเดต: ' + dt.toLocaleTimeString('th-TH');
+    'อัปเดต: ' + new Date(d.serverTime).toLocaleTimeString('th-TH');
 
-  // stat cards
-  const statMap = {};
-  d.ticketStats.forEach(r => statMap[r.status] = r.cnt);
-  const total = Object.values(statMap).reduce((a,b)=>a+b,0);
-
-  const today = d.ticketsToday || [];
-  const todayCnt = today.reduce((a,r)=>a+r.cnt,0);
-  const overdue  = d.overdueTickets.length;
+  // ── Stat Cards ───────────────────────────────────────────
+  const overdueCnt  = (d.overdueTickets || []).length;
+  const pendingCnt  = (d.pendingLeaves || []).length;
+  const todayCnt    = d.todayTotal || 0;
+  const weekCnt     = d.weekTotal  || 0;
 
   document.getElementById('dash-stats').innerHTML = `
-    <div class="stat stat-cc">
-      <div class="label">เปิดอยู่ทั้งหมด</div>
-      <div class="value">${(statMap['open']||0)+(statMap['in_progress']||0)+(statMap['waiting_vendor']||0)}</div>
-      <div class="sub">เคสที่ยังไม่ปิด</div>
-    </div>
     <div class="stat stat-hd">
-      <div class="label">เคสวันนี้</div>
+      <div class="label">📞 Calllog วันนี้</div>
       <div class="value">${todayCnt}</div>
-      <div class="sub">ทุกทีม</div>
+      <div class="sub">เคสที่รับวันนี้</div>
+    </div>
+    <div class="stat stat-cc">
+      <div class="label">📅 Calllog สัปดาห์นี้</div>
+      <div class="value">${weekCnt}</div>
+      <div class="sub">จันทร์ – วันนี้</div>
+    </div>
+    <div class="stat" style="background:linear-gradient(135deg,${overdueCnt>0?'#dc2626,#b91c1c':'#475569,#334155'})">
+      <div class="label">⚠️ เคสค้างเกิน 24 ชม.</div>
+      <div class="value">${overdueCnt}</div>
+      <div class="sub">${overdueCnt > 0 ? 'ต้องเร่งแก้ไข!' : 'ดีมาก ไม่มีค้าง'}</div>
     </div>
     <div class="stat stat-rp">
-      <div class="label">ค้างเกิน 24 ชม.</div>
-      <div class="value">${overdue}</div>
-      <div class="sub">ต้องเร่งแก้ไข</div>
-    </div>
-    <div class="stat stat-gray">
-      <div class="label">รออนุมัติวันหยุด</div>
-      <div class="value">${d.pendingLeaves.length}</div>
-      <div class="sub">คำขอที่รอการตรวจสอบ</div>
+      <div class="label">📩 รออนุมัติวันหยุด</div>
+      <div class="value">${pendingCnt}</div>
+      <div class="sub">คำขอที่รอตรวจสอบ</div>
     </div>
   `;
 
-  // overdue
-  const odWrap = document.getElementById('dash-overdue-wrap');
-  if (d.overdueTickets.length > 0) {
-    odWrap.innerHTML = `<div class="alert alert-danger" style="margin-bottom:.5rem">
-      ⚠️ มีเคสค้างนานเกิน 24 ชม. จำนวน <b>${d.overdueTickets.length}</b> เคส</div>
-      <div class="card"><div class="tbl-wrap"><table>
-        <thead><tr><th>#</th><th>ชื่อเคส</th><th>ทีม</th><th>ผู้รับผิดชอบ</th><th>เปิดมา</th></tr></thead>
-        <tbody>${d.overdueTickets.map(t=>`
-          <tr class="overdue-row">
-            <td>#${t.id}</td>
-            <td>${t.title}</td>
-            <td><span class="badge ${teamBadgeClass(t.team)}">${teamLabel(t.team)}</span></td>
-            <td>${t.assigned_name||'—'}</td>
-            <td>${timeAgo(t.opened_at)}</td>
-          </tr>`).join('')}
-        </tbody></table></div></div>`;
+  // ── Leaderboard ──────────────────────────────────────────
+  const lb = d.kpiSummary || [];
+  const lbEl = document.getElementById('dash-leaderboard');
+  if (lb.length === 0) {
+    lbEl.innerHTML = '<div class="empty"><div class="icon">🏆</div>ยังไม่มีข้อมูลเดือนนี้</div>';
   } else {
-    odWrap.innerHTML = '';
+    const maxCases = Math.max(...lb.map(r => r.total_cases), 1);
+    lbEl.innerHTML = lb.map((r, i) => {
+      const rank = i + 1;
+      const rankClass = rank === 1 ? 'lb-rank-1' : rank === 2 ? 'lb-rank-2' : rank === 3 ? 'lb-rank-3' : 'lb-rank-n';
+      const rankIcon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
+      const pct = Math.round(r.total_cases / maxCases * 100);
+      return `<div class="lb-item">
+        <div class="lb-rank ${rankClass}">${rankIcon}</div>
+        <div class="lb-info">
+          <div class="lb-name">${r.UserName}</div>
+          <div class="lb-bar-wrap"><div class="lb-bar" style="width:${pct}%"></div></div>
+        </div>
+        <div class="lb-count">${r.total_cases} เคส</div>
+      </div>`;
+    }).join('');
   }
 
-  // on-shift
+  // ── On Shift ─────────────────────────────────────────────
   const teamOrder = ['call_center','helpdesk','repair'];
   const onShiftByTeam = {};
   (d.onShift || []).forEach(e => {
     if (!onShiftByTeam[e.team]) onShiftByTeam[e.team] = [];
     onShiftByTeam[e.team].push(e);
   });
-  const shiftColors = {call_center:['#dcfce7','#166534'], helpdesk:['#dbeafe','#1e3a8a'], repair:['#fef9c3','#713f12']};
+  const shiftColors = {call_center:['#dcfce7','#166534'],helpdesk:['#dbeafe','#1e3a8a'],repair:['#fef9c3','#713f12']};
   document.getElementById('dash-onshift').innerHTML = teamOrder.map(tm => {
     const emps = onShiftByTeam[tm] || [];
     const [bg, col] = shiftColors[tm] || ['#f1f5f9','#334155'];
     return `<div style="margin-bottom:.75rem">
-      <div style="font-size:.8rem;font-weight:700;color:var(--muted);margin-bottom:.35rem">${teamLabel(tm)}</div>
-      <div class="onshift-grid">${emps.length === 0
-        ? `<div class="alert alert-warn" style="margin:0">ไม่มีพนักงาน!</div>`
+      <div style="font-size:.78rem;font-weight:700;color:var(--muted);margin-bottom:.35rem">${teamLabel(tm)}</div>
+      ${emps.length === 0
+        ? `<div style="font-size:.8rem;color:#b45309;background:#fef9c3;padding:.3rem .6rem;border-radius:6px">⚠️ ไม่มีพนักงาน</div>`
         : emps.map(e=>`
-          <div class="onshift-card" style="background:${bg};border-color:${col};color:${col}">
+          <div class="onshift-card" style="background:${bg};border-color:${col};color:${col};margin-bottom:4px">
             <div class="emp-name">${e.name}</div>
             <div class="emp-shift">${shiftLabel(e.shift_type)}</div>
-          </div>`).join('')}</div></div>`;
+          </div>`).join('')}
+    </div>`;
   }).join('');
 
-  // today tickets by team/status
-  const tkByTeam = {};
-  today.forEach(r => {
-    if (!tkByTeam[r.team]) tkByTeam[r.team] = {};
-    tkByTeam[r.team][r.status] = r.cnt;
-  });
-  document.getElementById('dash-today-tickets').innerHTML = teamOrder.map(tm => {
-    const rec = tkByTeam[tm] || {};
-    const tot = Object.values(rec).reduce((a,b)=>a+b,0);
-    return `<div style="margin-bottom:.75rem">
-      <div style="display:flex;justify-content:space-between;font-size:.83rem;margin-bottom:.35rem">
-        <span class="badge ${teamBadgeClass(tm)}">${teamLabel(tm)}</span>
-        <b>${tot} เคส</b>
-      </div>
-      <div style="display:flex;gap:.4rem;flex-wrap:wrap">
-        ${['open','in_progress','waiting_vendor','closed'].map(s=>
-          `<span class="badge badge-${s}">${statusLabel(s)}: ${rec[s]||0}</span>`
-        ).join('')}
-      </div></div>`;
-  }).join('');
-
-  // KPI summary
-  const kpiSumEl = document.getElementById('dash-kpi');
-  if (d.kpiSummary.length === 0) {
-    kpiSumEl.innerHTML = '<div class="empty"><div class="icon">📊</div>ยังไม่มีข้อมูล KPI</div>';
+  // ── Overdue Table ─────────────────────────────────────────
+  const od = d.overdueTickets || [];
+  document.getElementById('dash-overdue-badge').textContent = od.length > 0 ? `${od.length} เคส` : '';
+  const odEl = document.getElementById('dash-overdue');
+  if (od.length === 0) {
+    odEl.innerHTML = '<div class="empty" style="padding:1.5rem"><div class="icon">✅</div>ไม่มีเคสค้างนาน — ดีมาก!</div>';
   } else {
-    kpiSumEl.innerHTML = d.kpiSummary.map(k => `
-      <div style="margin-bottom:.75rem">
-        <div style="display:flex;justify-content:space-between;margin-bottom:.3rem">
-          <span class="badge ${teamBadgeClass(k.team)}">${teamLabel(k.team)}</span>
-          <span style="font-size:.82rem">${stars(k.avg_score)}</span>
-        </div>
-        <div style="font-size:.82rem;color:var(--muted)">เฉลี่ย ${Math.round(k.avg_cases)} เคส/คน</div>
-        <div class="progress"><div class="progress-bar" style="width:${Math.min(100,k.avg_cases/100*100)}%;background:${k.team==='call_center'?'var(--cc)':k.team==='helpdesk'?'var(--hd)':'var(--rp)'}"></div></div>
-      </div>`).join('');
+    odEl.innerHTML = `<div class="tbl-wrap"><table>
+      <thead><tr><th>#</th><th>หัวข้อ</th><th>บริษัท</th><th>ผู้รับผิดชอบ</th><th>สถานะ</th><th>เปิดมา</th></tr></thead>
+      <tbody>${od.map(t=>`
+        <tr class="overdue-row">
+          <td><b>#${t.id}</b></td>
+          <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${t.title||''}">${t.title||'—'}</td>
+          <td style="font-size:.8rem">${t.CompanyName||'—'}</td>
+          <td>${t.assigned_name||'—'}</td>
+          <td><span class="badge" style="background:#fef2f2;color:#b91c1c;font-size:.72rem">${t.status}</span></td>
+          <td style="white-space:nowrap;font-size:.78rem;color:#b91c1c"><b>${timeAgo(t.opened_at)}</b></td>
+        </tr>`).join('')}
+      </tbody></table></div>`;
   }
 
-  // pending leaves on dashboard
+  // ── Pending Leaves ────────────────────────────────────────
   const lvEl = document.getElementById('dash-leaves');
-  if (d.pendingLeaves.length === 0) {
+  if ((d.pendingLeaves || []).length === 0) {
     lvEl.innerHTML = '<div class="empty"><div class="icon">✅</div>ไม่มีคำขอค้างอยู่</div>';
   } else {
     lvEl.innerHTML = d.pendingLeaves.map(lr => `
@@ -968,10 +1102,28 @@ async function loadDashboard() {
         </div>
       </div>`).join('');
   }
+
+  // ── Today Tickets by Status ────────────────────────────────
+  const today = d.ticketsToday || [];
+  const byStatus = {};
+  today.forEach(r => { byStatus[r.status] = (byStatus[r.status] || 0) + r.cnt; });
+  const tkEl = document.getElementById('dash-today-tickets');
+  if (today.length === 0) {
+    tkEl.innerHTML = `<div class="empty"><div class="icon">📋</div>${d.extConnected ? 'ยังไม่มีเคสวันนี้' : 'ไม่ได้เชื่อมต่อ LicenseDB'}</div>`;
+  } else {
+    tkEl.innerHTML = Object.entries(byStatus).map(([status, cnt]) =>
+      `<div style="display:flex;justify-content:space-between;align-items:center;padding:.45rem 0;border-bottom:1px solid var(--border)">
+        <span class="badge" style="background:#f1f5f9;color:#334155;font-size:.8rem">${status}</span>
+        <b style="font-size:1.1rem;color:var(--hd)">${cnt}</b>
+      </div>`
+    ).join('') +
+    `<div style="margin-top:.5rem;font-size:.8rem;color:var(--muted);text-align:right">รวม ${todayCnt} เคส</div>`;
+  }
 }
 
 async function approveLeaveDash(id) {
-  await api(`/api/leave-requests/${id}/approve`, { method:'PUT', body:{ approved_by: allEmployees.find(e=>e.role==='team_lead'||e.role==='department_head')?.id || 1 } });
+  const lead = allEmployees.find(e=>e.role==='team_lead'||e.role==='department_head');
+  await api(`/api/leave-requests/${id}/approve`, { method:'PUT', body:{ approved_by: lead?.id || 1 } });
   loadDashboard();
 }
 async function rejectLeaveDash(id) {
@@ -1404,7 +1556,9 @@ function initDateDefaults() {
 // Periodic dashboard clock
 function updateClock() {
   const el = document.getElementById('dash-time');
-  if (el) el.textContent = 'เวลา: ' + new Date().toLocaleTimeString('th-TH');
+  if (el && document.getElementById('page-dashboard').classList.contains('active')) {
+    el.textContent = 'เวลา: ' + new Date().toLocaleTimeString('th-TH');
+  }
 }
 
 // Watch nt-team to toggle vendor field
@@ -1412,12 +1566,189 @@ document.getElementById('nt-team').addEventListener('change', function() {
   document.getElementById('nt-vendor-wrap').style.display = this.value === 'repair' ? '' : 'none';
 });
 
+// ══════════════════════════════════════════════════════════
+//  AUTH
+// ══════════════════════════════════════════════════════════
+function loginKeydown(e) {
+  if (e.key === 'Enter') doLogin();
+}
+
+async function doLogin() {
+  const username = document.getElementById('login-username').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl    = document.getElementById('login-error');
+  errEl.classList.remove('show');
+  if (!username || !password) {
+    errEl.textContent = 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน';
+    errEl.classList.add('show');
+    return;
+  }
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errEl.textContent = data.error || 'เข้าสู่ระบบไม่สำเร็จ';
+      errEl.classList.add('show');
+      return;
+    }
+    authToken   = data.token;
+    currentUser = data.user;
+    localStorage.setItem('cs_token', authToken);
+    hideLoginOverlay();
+    applyUserContext();
+    await loadEmployees();
+    initKpiMonthFilter();
+    initDateDefaults();
+    loadDashboard();
+  } catch (e) {
+    errEl.textContent = 'ไม่สามารถเชื่อมต่อ server ได้';
+    errEl.classList.add('show');
+  }
+}
+
+function doLogout() {
+  authToken   = null;
+  currentUser = null;
+  localStorage.removeItem('cs_token');
+  showLoginOverlay();
+}
+
+function showLoginOverlay() {
+  document.getElementById('login-overlay').classList.remove('hidden');
+  document.getElementById('nav-user-info').style.display = 'none';
+}
+
+function hideLoginOverlay() {
+  document.getElementById('login-overlay').classList.add('hidden');
+  document.getElementById('nav-user-info').style.display = 'flex';
+}
+
+function applyUserContext() {
+  if (!currentUser) return;
+  const roleLabel = {staff:'Staff',team_lead:'Team Lead',manager:'Manager',admin:'Admin'};
+  document.getElementById('nav-display-name').textContent = currentUser.name || currentUser.username;
+  document.getElementById('nav-display-role').textContent = roleLabel[currentUser.role] || currentUser.role;
+
+  // Show Users tab only for managers/admins
+  const isManager = ['manager','admin','team_lead'].includes(currentUser.role);
+  document.getElementById('nav-btn-users').style.display = isManager ? '' : 'none';
+}
+
+async function tryAutoLogin() {
+  if (!authToken) { showLoginOverlay(); return; }
+  try {
+    const res = await fetch('/api/auth/me', {
+      headers: { Authorization: 'Bearer ' + authToken }
+    });
+    if (!res.ok) { doLogout(); return; }
+    currentUser = await res.json();
+    hideLoginOverlay();
+    applyUserContext();
+    await loadEmployees();
+    initKpiMonthFilter();
+    initDateDefaults();
+    loadDashboard();
+    setInterval(updateClock, 1000);
+  } catch { showLoginOverlay(); }
+}
+
+// ══════════════════════════════════════════════════════════
+//  USER MANAGEMENT
+// ══════════════════════════════════════════════════════════
+async function loadUsers() {
+  allUsers = await api('/api/users');
+  renderUsersTable();
+}
+
+function renderUsersTable() {
+  const roleLbl = {staff:'Staff',team_lead:'Team Lead',manager:'Manager',admin:'Admin'};
+  const tbody = document.getElementById('users-tbody');
+  if (!allUsers.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">ยังไม่มี User</td></tr>';
+    return;
+  }
+  tbody.innerHTML = allUsers.map(u => `
+    <tr>
+      <td>${u.id}</td>
+      <td><b>${u.username}</b></td>
+      <td>${u.name || '<span style="color:var(--muted)">—</span>'}</td>
+      <td>${u.team ? `<span class="badge ${teamBadgeClass(u.team)}">${teamLabel(u.team)}</span>` : '—'}</td>
+      <td><span class="role-badge role-${u.role}">${roleLbl[u.role]||u.role}</span></td>
+      <td style="font-size:.8rem;color:var(--muted)">${u.ext_username||'—'}</td>
+      <td><span class="badge" style="${u.active?'background:#dcfce7;color:#166534':'background:#fef2f2;color:#b91c1c'}">${u.active?'ใช้งาน':'ปิด'}</span></td>
+      <td>
+        <div class="btn-group">
+          <button class="btn btn-ghost btn-sm" onclick="openEditUser(${JSON.stringify(u).replace(/"/g,'&quot;')})">✏️ แก้ไข</button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+function openAddUser() {
+  editUserId = null;
+  document.getElementById('modal-user-title').textContent = 'เพิ่ม User ใหม่';
+  document.getElementById('u-id').value          = '';
+  document.getElementById('u-emp').value         = '';
+  document.getElementById('u-username').value    = '';
+  document.getElementById('u-password').value    = '';
+  document.getElementById('u-role').value        = 'staff';
+  document.getElementById('u-ext-username').value= '';
+  document.getElementById('u-pwd-label').textContent = 'รหัสผ่าน';
+  document.getElementById('u-active-wrap').style.display = 'none';
+  // fill employee select
+  const sel = document.getElementById('u-emp');
+  sel.innerHTML = '<option value="">— ไม่เชื่อมกับพนักงาน —</option>' +
+    allEmployees.map(e => `<option value="${e.id}">${e.name} (${teamLabel(e.team)})</option>`).join('');
+  openModal('modal-user');
+}
+
+function openEditUser(u) {
+  editUserId = u.id;
+  document.getElementById('modal-user-title').textContent = 'แก้ไข User';
+  document.getElementById('u-id').value          = u.id;
+  document.getElementById('u-username').value    = u.username;
+  document.getElementById('u-password').value    = '';
+  document.getElementById('u-role').value        = u.role;
+  document.getElementById('u-ext-username').value= u.ext_username || '';
+  document.getElementById('u-pwd-label').textContent = 'รหัสผ่านใหม่ (เว้นว่าง = ไม่เปลี่ยน)';
+  document.getElementById('u-active-wrap').style.display = '';
+  document.getElementById('u-active').value      = u.active ? '1' : '0';
+  const sel = document.getElementById('u-emp');
+  sel.innerHTML = '<option value="">— ไม่เชื่อมกับพนักงาน —</option>' +
+    allEmployees.map(e => `<option value="${e.id}" ${e.id == u.employee_id ? 'selected' : ''}>${e.name} (${teamLabel(e.team)})</option>`).join('');
+  openModal('modal-user');
+}
+
+async function saveUser() {
+  const body = {
+    employee_id:  document.getElementById('u-emp').value         || null,
+    username:     document.getElementById('u-username').value.trim(),
+    role:         document.getElementById('u-role').value,
+    ext_username: document.getElementById('u-ext-username').value.trim() || null,
+    active:       parseInt(document.getElementById('u-active').value || '1')
+  };
+  const pwd = document.getElementById('u-password').value;
+  if (pwd) body.password = pwd;
+
+  if (!body.username) { alert('กรุณากรอก Username'); return; }
+  if (!editUserId && !pwd) { alert('กรุณากรอกรหัสผ่าน'); return; }
+
+  if (editUserId) {
+    await api(`/api/users/${editUserId}`, { method:'PUT', body });
+  } else {
+    await api('/api/users', { method:'POST', body });
+  }
+  closeModal('modal-user');
+  loadUsers();
+}
+
 async function init() {
-  await loadEmployees();
-  initKpiMonthFilter();
-  initDateDefaults();
-  loadDashboard();
   setInterval(updateClock, 1000);
+  tryAutoLogin();
 }
 
 init();

@@ -2,13 +2,16 @@ require('dotenv').config();
 const express                    = require('express');
 const cors                       = require('cors');
 const path                       = require('path');
+const bcrypt                     = require('bcryptjs');
+const jwt                        = require('jsonwebtoken');
 const { init, getPool, getExtPool, sql } = require('./database');
 const Anthropic                  = require('@anthropic-ai/sdk');
 
-const app      = express();
-const PORT     = process.env.PORT || 3010;
-const AI_MODEL = process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001';
-const claude   = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const app        = express();
+const PORT       = process.env.PORT || 3010;
+const AI_MODEL   = process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001';
+const JWT_SECRET = process.env.JWT_SECRET || 'cs-team-jwt-secret-change-in-prod';
+const claude     = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 app.use(cors());
 app.use(express.json());
@@ -16,6 +19,24 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const req    = () => getPool().request();
 const extReq = () => getExtPool().request();
+
+// ── Auth Middleware ───────────────────────────────────────
+function authRequired(request, res, next) {
+  const auth = request.headers['authorization'] || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    request.user = jwt.verify(token, JWT_SECRET);
+    next();
+  } catch { res.status(401).json({ error: 'Invalid or expired token' }); }
+}
+
+function managerRequired(request, res, next) {
+  if (!['manager', 'team_lead', 'admin'].includes(request.user?.role)) {
+    return res.status(403).json({ error: 'Manager access required' });
+  }
+  next();
+}
 
 // ── Calllog base query (LicenseDB) ───────────────────────
 const CALLLOG_SELECT = `
@@ -378,6 +399,7 @@ app.get('/api/dashboard', async (_, res) => {
     const ext = getExtPool();
     let ticketsToday = [], overdueTickets = [], ticketStats = [], kpiSummary = [];
     let dailyTrend = [], monthTotal = 0, lastMonthTotal = 0, totalYear = 0, closedThisMonth = 0;
+    let todayTotal = 0, weekTotal = 0, weekStart = '';
     if (ext) {
       ticketsToday = (await extReq()
         .input('today', sql.Date, today)
@@ -386,6 +408,15 @@ app.get('/api/dashboard', async (_, res) => {
                 INNER JOIN CallStatus cs ON cs.StatusId=cl.StatusId
                 WHERE CAST(cl.ReceiveDate AS DATE)=@today
                 GROUP BY cs.StatusName`)).recordset;
+      todayTotal = ticketsToday.reduce((s,r) => s + r.cnt, 0);
+
+      // This week (Mon–today)
+      weekStart = getMonday(today);
+      weekTotal = (await extReq()
+        .input('ws', sql.Date, weekStart).input('we', sql.Date, today)
+        .query(`SELECT COUNT(*) AS cnt FROM Calllog cl
+                WHERE CAST(cl.ReceiveDate AS DATE) BETWEEN @ws AND @we`)).recordset[0]?.cnt || 0;
+
       overdueTickets = (await extReq()
         .query(`SELECT TOP 20
                   cl.CalllogId AS id, cl.Subject AS title,
@@ -458,7 +489,8 @@ app.get('/api/dashboard', async (_, res) => {
       kpiSummary, onShift, pendingLeaves,
       currentShifts, serverTime: now.toISOString(),
       extConnected: !!ext,
-      dailyTrend, monthTotal, lastMonthTotal, totalYear, closedThisMonth
+      dailyTrend, monthTotal, lastMonthTotal, totalYear, closedThisMonth,
+      todayTotal, weekTotal, weekStart
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -687,6 +719,116 @@ ${JSON.stringify(history, null, 2)}
     console.error('AI forecast error:', e.message);
     res.status(500).json({ error: e.message });
   }
+});
+
+// ══════════════════════════════════════════════════════════
+//  AUTH
+// ══════════════════════════════════════════════════════════
+app.post('/api/auth/login', async (request, res) => {
+  const { username, password } = request.body;
+  if (!username || !password) return res.status(400).json({ error: 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน' });
+  try {
+    const result = await req()
+      .input('uname', sql.NVarChar, username)
+      .query(`SELECT au.id, au.username, au.password_hash, au.role, au.ext_username,
+                     au.employee_id, e.name, e.team, e.nickname
+              FROM app_users au
+              LEFT JOIN employees e ON e.id = au.employee_id
+              WHERE au.username = @uname AND au.active = 1`);
+    const user = result.recordset[0];
+    if (!user) return res.status(401).json({ error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' });
+    const ok = await bcrypt.compare(password, user.password_hash);
+    if (!ok) return res.status(401).json({ error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' });
+    const payload = {
+      id: user.id, username: user.username, role: user.role,
+      employee_id: user.employee_id, ext_username: user.ext_username,
+      name: user.name, team: user.team
+    };
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '10h' });
+    res.json({ token, user: payload });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/auth/me', authRequired, (request, res) => {
+  res.json(request.user);
+});
+
+// ── Change own password ────────────────────────────────────
+app.post('/api/auth/change-password', authRequired, async (request, res) => {
+  const { old_password, new_password } = request.body;
+  try {
+    const result = await req()
+      .input('id', sql.Int, request.user.id)
+      .query('SELECT password_hash FROM app_users WHERE id=@id');
+    const user = result.recordset[0];
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const ok = await bcrypt.compare(old_password, user.password_hash);
+    if (!ok) return res.status(401).json({ error: 'รหัสผ่านเดิมไม่ถูกต้อง' });
+    const hash = await bcrypt.hash(new_password, 10);
+    await req().input('hash', sql.NVarChar, hash).input('id', sql.Int, request.user.id)
+      .query('UPDATE app_users SET password_hash=@hash WHERE id=@id');
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════
+//  USER MANAGEMENT (admin/manager only)
+// ══════════════════════════════════════════════════════════
+app.get('/api/users', authRequired, async (request, res) => {
+  try {
+    const result = await req().query(`
+      SELECT au.id, au.username, au.role, au.ext_username, au.active, au.created_at,
+             au.employee_id, e.name, e.team, e.nickname
+      FROM app_users au
+      LEFT JOIN employees e ON e.id = au.employee_id
+      ORDER BY e.team, au.username`);
+    res.json(result.recordset);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/users', authRequired, async (request, res) => {
+  const { employee_id, username, password, role, ext_username } = request.body;
+  if (!username || !password) return res.status(400).json({ error: 'username and password required' });
+  try {
+    const hash = await bcrypt.hash(password, 10);
+    const result = await req()
+      .input('eid',      sql.Int,      employee_id  || null)
+      .input('uname',    sql.NVarChar, username)
+      .input('hash',     sql.NVarChar, hash)
+      .input('role',     sql.NVarChar, role         || 'staff')
+      .input('extuname', sql.NVarChar, ext_username || null)
+      .query(`INSERT INTO app_users (employee_id, username, password_hash, role, ext_username)
+              OUTPUT INSERTED.id VALUES (@eid,@uname,@hash,@role,@extuname)`);
+    res.json({ id: result.recordset[0].id });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/users/:id', authRequired, async (request, res) => {
+  const { username, password, role, ext_username, active } = request.body;
+  try {
+    const r = req()
+      .input('uname',    sql.NVarChar, username)
+      .input('role',     sql.NVarChar, role)
+      .input('extuname', sql.NVarChar, ext_username || null)
+      .input('active',   sql.Bit,      active ?? 1)
+      .input('id',       sql.Int,      request.params.id);
+    let q = 'UPDATE app_users SET username=@uname,role=@role,ext_username=@extuname,active=@active';
+    if (password) {
+      const hash = await bcrypt.hash(password, 10);
+      r.input('hash', sql.NVarChar, hash);
+      q += ',password_hash=@hash';
+    }
+    await r.query(q + ' WHERE id=@id');
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/users/:id', authRequired, async (request, res) => {
+  try {
+    await req().input('id', sql.Int, request.params.id)
+      .query('UPDATE app_users SET active=0 WHERE id=@id');
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── Start ─────────────────────────────────────────────────
