@@ -990,7 +990,15 @@ let allTeams      = [];
 let nameMap       = {};  // ext_username → employee display name
 
 function dn(username) {  // displayName: map LicenseDB username → real name
+  if (!username) return username;
   return nameMap[username] || username;
+}
+
+async function refreshNameMap() {
+  try {
+    const m = await api('/api/name-map');
+    if (m && typeof m === 'object') Object.assign(nameMap, m);
+  } catch {}
 }
 let currentUser   = null;
 let authToken     = localStorage.getItem('cs_token') || null;
@@ -1707,12 +1715,12 @@ async function loadTickets() {
   if (dateTo)   url += `dateTo=${dateTo}&`;
   allTickets = await api(url);
 
-  // Populate agent filter from results
+  // Populate agent filter — value=LicenseDB username, label=real name
   const agentSel = document.getElementById('tk-filter-agent');
   const curAgent = agentSel.value;
   const agents   = [...new Set(allTickets.map(t => t.assigned_name).filter(Boolean))].sort();
   agentSel.innerHTML = '<option value="">ทุก Agent</option>' +
-    agents.map(a => `<option value="${a}" ${a===curAgent?'selected':''}>${a}</option>`).join('');
+    agents.map(a => `<option value="${a}" ${a===curAgent?'selected':''}>${dn(a)}</option>`).join('');
 
   tkExpandedRows.clear();
   renderTickets();
@@ -1728,6 +1736,7 @@ function renderTickets() {
       || (t.CompanyName||'').toLowerCase().includes(q)
       || (t.description||'').toLowerCase().includes(q)
       || (t.assigned_name||'').toLowerCase().includes(q)
+      || dn(t.assigned_name||'').toLowerCase().includes(q)
       || (t.category||'').toLowerCase().includes(q);
   });
 
@@ -1763,7 +1772,7 @@ function renderTickets() {
         <div style="font-size:.77rem;color:var(--muted)">${t.CompanyName||''}</div>
       </td>
       <td><span class="badge" style="background:#ede9fe;color:#5b21b6;font-size:.72rem">${t.category||'—'}</span></td>
-      <td style="font-size:.84rem;white-space:nowrap">${t.assigned_name||'—'}</td>
+      <td style="font-size:.84rem;white-space:nowrap">${dn(t.assigned_name)||'—'}</td>
       <td>
         <span class="badge" style="background:#f1f5f9;color:#334155;font-size:.72rem;max-width:120px;overflow:hidden;text-overflow:ellipsis;display:inline-block"
               title="${t.status||''}">${t.status||'—'}</span>
@@ -2069,7 +2078,7 @@ async function tryAutoLogin() {
     currentUser = await res.json();
     hideLoginOverlay();
     applyUserContext();
-    await Promise.all([loadEmployees(), loadTeams()]);
+    await Promise.all([loadEmployees(), loadTeams(), refreshNameMap()]);
     initKpiMonthFilter();
     initDateDefaults();
     loadDashboard();
@@ -2105,7 +2114,7 @@ async function doLogin() {
     localStorage.setItem('cs_token', authToken);
     hideLoginOverlay();
     applyUserContext();
-    await Promise.all([loadEmployees(), loadTeams()]);
+    await Promise.all([loadEmployees(), loadTeams(), refreshNameMap()]);
     initKpiMonthFilter();
     initDateDefaults();
     loadDashboard();
@@ -2419,7 +2428,7 @@ async function savePerson() {
     }
 
     closeModal('modal-person');
-    loadPeople();
+    await Promise.all([loadPeople(), refreshNameMap()]);
   } catch { /* error shown by api() */ }
 }
 

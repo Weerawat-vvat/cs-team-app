@@ -289,6 +289,20 @@ app.get('/api/tickets/meta/categories', async (_, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Name Map: ext_username → employee name ────────────────
+app.get('/api/name-map', authRequired, async (_, res) => {
+  try {
+    const rows = (await req().query(`
+      SELECT au.ext_username, e.name
+      FROM app_users au JOIN employees e ON e.id = au.employee_id
+      WHERE au.ext_username IS NOT NULL AND au.active = 1 AND e.active = 1
+    `)).recordset;
+    const map = {};
+    rows.forEach(r => { map[r.ext_username] = r.name; });
+    res.json(map);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ══════════════════════════════════════════════════════════
 //  KPI — คำนวณจาก LicenseDB + comment จาก cs_team
 // ══════════════════════════════════════════════════════════
