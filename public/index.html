@@ -1887,10 +1887,26 @@ async function loadDashboardCharts() {
 function renderShiftTabs() {
   const tabs = document.getElementById('schedule-tabs');
   if (!tabs) return;
-  tabs.innerHTML = `<button class="tab ${shiftTeamFilter==='all'?'active':''}" onclick="setShiftTeam('all',this)">ทุกทีม</button>` +
-    allTeams.map(t =>
-      `<button class="tab ${shiftTeamFilter===t.name?'active':''}" onclick="setShiftTeam('${t.name}',this)" style="${shiftTeamFilter===t.name?`border-bottom-color:${t.color};color:${t.color}`:''}">${t.display_name}</button>`
-    ).join('');
+  const role = currentUser?.role;
+
+  if (role === 'staff') {
+    // staff: no team tabs — they only see themselves
+    tabs.innerHTML = `<span style="font-size:.8rem;color:var(--muted);padding:.25rem .5rem">📋 ตารางกะของฉัน</span>`;
+    return;
+  }
+
+  // team_lead: only their team + remove "ทุกทีม" (no cross-team view)
+  const visibleTeams = role === 'team_lead'
+    ? allTeams.filter(t => t.name === currentUser.team)
+    : allTeams;
+
+  const allBtn = role === 'team_lead' ? '' :
+    `<button class="tab ${shiftTeamFilter==='all'?'active':''}" onclick="setShiftTeam('all',this)">ทุกทีม</button>`;
+
+  tabs.innerHTML = allBtn + visibleTeams.map(t =>
+    `<button class="tab ${shiftTeamFilter===t.name?'active':''}" onclick="setShiftTeam('${t.name}',this)"
+       style="${shiftTeamFilter===t.name?`border-bottom-color:${t.color};color:${t.color}`:''}">${t.display_name}</button>`
+  ).join('');
 }
 
 function changeWeek(dir) {
@@ -1907,6 +1923,13 @@ function setShiftTeam(t, btn) {
 }
 
 async function loadSchedule() {
+  // Auto-lock filter to own team for team_lead, ignore filter for staff (server scopes anyway)
+  const role = currentUser?.role;
+  if (role === 'team_lead' && shiftTeamFilter === 'all') {
+    shiftTeamFilter = currentUser.team || 'all';
+  }
+  if (role === 'staff') shiftTeamFilter = 'all'; // server handles scope
+
   const ws = fmtDateISO(currentWeekStart);
   const endD = new Date(currentWeekStart);
   endD.setDate(endD.getDate() + 6);
@@ -1986,10 +2009,12 @@ function renderShiftTable(shifts, ws) {
   });
 
   // ── Rows ─────────────────────────────────────────────────
+  const canEdit = isLeadRole(); // only lead/manager/admin can edit shifts
   let rows = '';
   let prevTeam = '';
   empsToShow.forEach(emp => {
-    if (emp.team !== prevTeam) {
+    // Team separator header — skip for staff (only 1 person, no header needed)
+    if (currentUser?.role !== 'staff' && emp.team !== prevTeam) {
       const color = teamColor(emp.team);
       rows += `<tr><td colspan="${colCount}" style="background:${color}18;color:${color};font-weight:700;font-size:.79rem;padding:.35rem .8rem">${teamLabel(emp.team)}</td></tr>`;
       prevTeam = emp.team;
@@ -2006,21 +2031,28 @@ function renderShiftTable(shifts, ws) {
       const iso = fmtDateISO(d);
       const s   = shiftMap[emp.id]?.[iso];
       if (s) {
-        const isLeave  = s.status === 'leave' || s.status === 'approved_leave';
+        const isLeave = s.status === 'leave' || s.status === 'approved_leave';
+        // Lead+ can click to edit; staff sees read-only badge
+        const clickAttr = canEdit
+          ? `onclick="editShiftModal(${s.id},'${s.shift_type}','${s.status}')" style="cursor:pointer"`
+          : `style="cursor:default"`;
         rows += `<td style="padding:.3rem .25rem">
           <div style="background:${isLeave?'#fef2f2':shiftBg(s.shift_type)};color:${isLeave?'#b91c1c':shiftColor(s.shift_type)};
-               border-radius:6px;padding:.18rem .4rem;font-size:.72rem;font-weight:600;cursor:pointer;text-align:center"
-               title="${isLeave?'วันหยุด':shiftLabel(s.shift_type,true)}"
-               onclick="editShiftModal(${s.id},'${s.shift_type}','${s.status}')">
+               border-radius:6px;padding:.18rem .4rem;font-size:.72rem;font-weight:600;text-align:center"
+               title="${isLeave?'วันหยุด':shiftLabel(s.shift_type,true)}" ${clickAttr}>
             ${isLeave?'🏖 หยุด':shiftLabel(s.shift_type)}
           </div></td>`;
       } else {
-        rows += `<td style="padding:.3rem .25rem">
-          <div style="color:#cbd5e1;font-size:.78rem;text-align:center;cursor:pointer;border-radius:6px;padding:.18rem .4rem;transition:.15s"
-               onmouseover="this.style.background='#f1f5f9';this.style.color='#2563eb'"
-               onmouseout="this.style.background='';this.style.color='#cbd5e1'"
-               onclick="quickAddShift(${emp.id},'${iso}')" title="เพิ่มกะ">+</div>
-        </td>`;
+        if (canEdit) {
+          rows += `<td style="padding:.3rem .25rem">
+            <div style="color:#cbd5e1;font-size:.78rem;text-align:center;cursor:pointer;border-radius:6px;padding:.18rem .4rem;transition:.15s"
+                 onmouseover="this.style.background='#f1f5f9';this.style.color='#2563eb'"
+                 onmouseout="this.style.background='';this.style.color='#cbd5e1'"
+                 onclick="quickAddShift(${emp.id},'${iso}')" title="เพิ่มกะ">+</div>
+          </td>`;
+        } else {
+          rows += `<td style="padding:.3rem .25rem"></td>`; // staff: empty, no "+"
+        }
       }
     });
     rows += '</tr>';
@@ -2039,15 +2071,23 @@ function renderCoverageWarn(coverage, ws) {
     covMap[dk][r.team][r.shift_type] = r.cnt;
   });
 
-  // Minimum staffing rules (company open 08:30–23:59 every day)
-  const minRules = [
+  const role = currentUser?.role;
+
+  // staff: no coverage warning (single person, not meaningful)
+  const warnEl = document.getElementById('coverage-warn');
+  if (role === 'staff') { if (warnEl) warnEl.innerHTML = ''; return; }
+
+  // Minimum staffing rules — scoped to what this role can see
+  const allRules = [
     { team:'call_center', shifts:['morning','afternoon','night'], min:2, days:'all' },
     { team:'helpdesk',    shifts:['morning','afternoon'],         min:1, days:'weekday' },
     { team:'repair',      shifts:['morning'],                     min:1, days:'weekday' }
   ];
+  const minRules = role === 'team_lead'
+    ? allRules.filter(r => r.team === currentUser?.team)
+    : allRules;
 
   const issues = [];
-  const over5  = [];
 
   // Generate 7 days of this week
   const days = [];
@@ -2072,18 +2112,6 @@ function renderCoverageWarn(coverage, ws) {
     });
   });
 
-  // Check 5-day rule per employee
-  allEmployees.filter(e=>e.active!==0).forEach(emp => {
-    let wc = 0;
-    days.forEach(d => {
-      const iso = fmtDateISO(d);
-      const eShifts = coverage.filter
-        ? null  // coverage doesn't have per-emp data; skip here (handled in table)
-        : null;
-    });
-  });
-
-  const warnEl = document.getElementById('coverage-warn');
   if (!warnEl) return;
 
   if (issues.length === 0) {
