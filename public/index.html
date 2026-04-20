@@ -392,7 +392,10 @@ textarea{resize:vertical;min-height:80px}
 <div id="page-dashboard" class="page active">
 
   <div class="section-header" style="margin-bottom:.65rem">
-    <div class="section-title">📊 Overview — ภาพรวมทีม CS</div>
+    <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+      <div class="section-title">📊 Overview — ภาพรวมทีม CS</div>
+      <span id="dash-scope-badge" style="display:none;font-size:.72rem;font-weight:700;padding:.15rem .6rem;border-radius:20px;background:#dbeafe;color:#1e40af"></span>
+    </div>
     <div style="font-size:.75rem;color:var(--muted)" id="dash-time"></div>
   </div>
 
@@ -541,9 +544,9 @@ textarea{resize:vertical;min-height:80px}
   <div class="section-header">
     <div class="section-title">📅 ตารางกะ & วันหยุด</div>
     <div class="btn-group">
-      <button class="btn btn-primary btn-sm" onclick="openModal('modal-add-shift')">+ กำหนดกะ</button>
+      <button id="btn-add-shift" class="btn btn-primary btn-sm" onclick="openModal('modal-add-shift')">+ กำหนดกะ</button>
       <button class="btn btn-warn btn-sm" onclick="openModal('modal-leave-req')">📩 ขอวันหยุด</button>
-      <button class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="aiSuggestShifts()">✨ AI แนะนำกะ</button>
+      <button id="btn-ai-shifts" class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="aiSuggestShifts()">✨ AI แนะนำกะ</button>
     </div>
   </div>
 
@@ -1506,10 +1509,10 @@ async function loadDashboard() {
           <span class="badge ${teamBadgeClass(lr.team)}" style="margin-left:.35rem">${teamLabel(lr.team)}</span>
           <div style="font-size:.75rem;color:var(--muted)">${fmtDate(lr.leave_date)} — ${lr.reason||'—'}</div>
         </div>
-        <div class="btn-group">
+        ${isLeadRole() ? `<div class="btn-group">
           <button class="btn btn-success btn-sm" onclick="approveLeaveDash(${lr.id})">✓</button>
           <button class="btn btn-danger btn-sm"  onclick="rejectLeaveDash(${lr.id})">✗</button>
-        </div>
+        </div>` : ''}
       </div>`).join('');
   }
 }
@@ -2147,8 +2150,8 @@ async function loadLeaveRequests() {
       <td>${lr.approver_name||'—'}</td>
       <td>${lr.status==='pending'?`
         <div class="btn-group">
-          <button class="btn btn-success btn-sm" onclick="approveLeave(${lr.id})">✓ อนุมัติ</button>
-          <button class="btn btn-danger btn-sm" onclick="rejectLeave(${lr.id})">✗ ปฏิเสธ</button>
+          ${isLeadRole() ? `<button class="btn btn-success btn-sm" onclick="approveLeave(${lr.id})">✓ อนุมัติ</button>
+          <button class="btn btn-danger btn-sm" onclick="rejectLeave(${lr.id})">✗ ปฏิเสธ</button>` : ''}
         </div>`:''}</td>
     </tr>`).join('') || '<tr><td colspan="7" class="empty">ไม่มีคำขอ</td></tr>';
 }
@@ -2613,15 +2616,48 @@ function hideLoginOverlay() {
   document.getElementById('nav-user-info').style.display = 'flex';
 }
 
+function isLeadRole() {
+  return currentUser && ['team_lead','manager','admin'].includes(currentUser.role);
+}
 function applyUserContext() {
   if (!currentUser) return;
-  const roleLabel = {staff:'Staff',team_lead:'Team Lead',manager:'Manager',admin:'Admin'};
+  const role = currentUser.role;
+  const roleLabel = { staff:'Staff', team_lead:'Team Lead', manager:'Manager', admin:'Admin' };
   document.getElementById('nav-display-name').textContent = currentUser.name || currentUser.username;
-  document.getElementById('nav-display-role').textContent = roleLabel[currentUser.role] || currentUser.role;
+  document.getElementById('nav-display-role').textContent = roleLabel[role] || role;
 
-  // Show Users tab only for managers/admins
-  const isManager = ['manager','admin','team_lead'].includes(currentUser.role);
+  const isAdmin   = role === 'admin';
+  const isManager = ['manager','admin'].includes(role);
+  const isLead    = ['team_lead','manager','admin'].includes(role);
+
+  // Nav: Users tab — manager/admin only
   document.getElementById('nav-btn-users').style.display = isManager ? '' : 'none';
+
+  // Schedule: hide "+ กำหนดกะ" and "AI แนะนำกะ" for staff
+  const addShiftBtn  = document.getElementById('btn-add-shift');
+  const aiShiftsBtn  = document.getElementById('btn-ai-shifts');
+  if (addShiftBtn)  addShiftBtn.style.display  = isLead ? '' : 'none';
+  if (aiShiftsBtn)  aiShiftsBtn.style.display  = isLead ? '' : 'none';
+
+  // Dashboard scope badge
+  const badge = document.getElementById('dash-scope-badge');
+  if (badge) {
+    if (role === 'staff') {
+      badge.textContent = `👤 งานของฉัน`;
+      badge.style.display = '';
+      badge.style.background = '#f0fdf4'; badge.style.color = '#15803d';
+    } else if (role === 'team_lead') {
+      badge.textContent = `👥 ทีม: ${currentUser.team || '—'}`;
+      badge.style.display = '';
+      badge.style.background = '#dbeafe'; badge.style.color = '#1e40af';
+    } else if (isAdmin) {
+      badge.textContent = '🔑 Admin';
+      badge.style.display = '';
+      badge.style.background = '#fef2f2'; badge.style.color = '#b91c1c';
+    } else {
+      badge.style.display = 'none';
+    }
+  }
 }
 
 async function tryAutoLogin() {
