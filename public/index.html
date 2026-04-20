@@ -144,6 +144,12 @@ textarea{resize:vertical;min-height:80px}
 .btn-ghost{background:transparent;border:1.5px solid var(--border);color:var(--text)}
 .btn-ghost:hover{background:#f1f5f9;border-color:var(--hd)}
 .btn-group{display:flex;gap:.5rem;flex-wrap:wrap}
+/* ── DATE RANGE BAR ── */
+.drb{display:flex;flex-wrap:wrap;gap:.3rem;align-items:center}
+.drb-btn{border:1px solid var(--border);background:var(--card);color:var(--text);padding:.28rem .72rem;border-radius:20px;font-size:.77rem;cursor:pointer;white-space:nowrap;transition:background .12s,border-color .12s,color .12s;line-height:1.4}
+.drb-btn:hover{border-color:#f59e0b;color:#b45309}
+.drb-btn.active{background:#f59e0b;border-color:#f59e0b;color:#fff;font-weight:600}
+.drb-custom{display:none;align-items:center;gap:.45rem;flex-wrap:wrap;margin-top:.35rem}
 
 /* ── MODAL ── */
 .overlay{display:none;position:fixed;inset:0;background:#0006;z-index:200;align-items:center;justify-content:center}
@@ -400,27 +406,36 @@ textarea{resize:vertical;min-height:80px}
   </div>
 
   <!-- Date Picker Bar -->
-  <div class="page-datebar" id="dash-datebar">
-    <label>📅 ช่วงเวลา:</label>
-    <button class="btn btn-sm btn-ghost" onclick="dashSetToday()" id="dp-today">วันนี้</button>
-    <button class="btn btn-sm btn-ghost" onclick="dashSet7d()"   id="dp-7d">7 วันล่าสุด</button>
-    <button class="btn btn-sm btn-ghost" onclick="dashSet30d()"  id="dp-month">เดือนนี้</button>
-    <span style="color:var(--border)">|</span>
-    <input type="date" id="dash-date-from" style="max-width:130px"/>
-    <span style="color:var(--muted);font-size:.8rem">ถึง</span>
-    <input type="date" id="dash-date-to" style="max-width:130px"/>
-    <button class="btn btn-sm btn-primary" onclick="loadDashboard();loadDashboardCharts()">ค้นหา</button>
-    <span style="color:var(--border)">|</span>
-    <label style="font-size:.78rem;color:var(--muted);white-space:nowrap">ทีม:</label>
-    <select id="dash-filter-team" onchange="loadDashboard();loadDashboardCharts()" style="max-width:130px">
-      <option value="">ทุกทีม</option>
-    </select>
-    <span style="color:var(--border)">|</span>
-    <label style="font-size:.8rem;color:var(--muted);white-space:nowrap">🎯 Target:</label>
-    <input type="number" id="dash-target" class="target-input" min="1" max="9999" value="10"
-      title="จำนวน tickets เป้าหมายต่อคนต่อวัน"
-      onchange="saveTarget();recalcTarget()" oninput="recalcTarget()"/>
-    <label style="font-size:.78rem;color:var(--muted);white-space:nowrap">tickets/คน/วัน</label>
+  <div class="page-datebar" id="dash-datebar" style="flex-direction:column;align-items:flex-start;gap:.45rem">
+    <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;width:100%">
+      <div class="drb" id="dash-drb">
+        <button class="drb-btn" onclick="dashRange('today',this)">วันนี้</button>
+        <button class="drb-btn" onclick="dashRange('yesterday',this)">เมื่อวานนี้</button>
+        <button class="drb-btn" onclick="dashRange('thisweek',this)">สัปดาห์นี้</button>
+        <button class="drb-btn active" onclick="dashRange('thismonth',this)">เดือนนี้</button>
+        <button class="drb-btn" onclick="dashRange('lastmonth',this)">เดือนที่แล้ว</button>
+        <button class="drb-btn" onclick="dashRange('7d',this)">7 วันที่แล้ว</button>
+        <button class="drb-btn" onclick="dashRange('30d',this)">30 วันที่ผ่านมา</button>
+        <button class="drb-btn" onclick="dashRange('custom',this)">กำหนดเอง</button>
+      </div>
+      <span style="color:var(--border)">|</span>
+      <label style="font-size:.78rem;color:var(--muted);white-space:nowrap">ทีม:</label>
+      <select id="dash-filter-team" onchange="loadDashboard();loadDashboardCharts()" style="max-width:130px">
+        <option value="">ทุกทีม</option>
+      </select>
+      <span style="color:var(--border)">|</span>
+      <label style="font-size:.8rem;color:var(--muted);white-space:nowrap">🎯 Target:</label>
+      <input type="number" id="dash-target" class="target-input" min="1" max="9999" value="10"
+        title="จำนวน tickets เป้าหมายต่อคนต่อวัน"
+        onchange="saveTarget();recalcTarget()" oninput="recalcTarget()"/>
+      <label style="font-size:.78rem;color:var(--muted);white-space:nowrap">tickets/คน/วัน</label>
+    </div>
+    <div class="drb-custom" id="dash-custom-range">
+      <input type="date" id="dash-date-from" style="max-width:130px"/>
+      <span style="color:var(--muted);font-size:.8rem">ถึง</span>
+      <input type="date" id="dash-date-to" style="max-width:130px"/>
+      <button class="btn btn-sm btn-primary" onclick="loadDashboard();loadDashboardCharts()">ค้นหา</button>
+    </div>
   </div>
 
   <!-- ── 6 Stat Cards ── -->
@@ -637,27 +652,36 @@ textarea{resize:vertical;min-height:80px}
   </div>
 
   <!-- Date & Filter Bar -->
-  <div class="page-datebar">
-    <label>📅 วันที่:</label>
-    <button class="btn btn-sm btn-ghost" onclick="tkSetToday()">วันนี้</button>
-    <button class="btn btn-sm btn-ghost" onclick="tkSet7d()">7 วัน</button>
-    <button class="btn btn-sm btn-ghost" onclick="tkSetMonth()">เดือนนี้</button>
-    <span style="color:var(--border)">|</span>
-    <input id="tk-date-from" type="date" onchange="loadTickets()" style="max-width:135px" title="วันที่เริ่มต้น"/>
-    <span style="color:var(--muted);font-size:.8rem">ถึง</span>
-    <input id="tk-date-to" type="date" onchange="loadTickets()" style="max-width:135px" title="วันที่สิ้นสุด"/>
-    <button class="btn btn-sm btn-primary" onclick="loadTickets()">ค้นหา</button>
-    <span style="color:var(--border)">|</span>
-    <select id="tk-filter-team" onchange="loadTickets()">
-      <option value="">ทุกทีม</option>
-    </select>
-    <select id="tk-filter-status" onchange="loadTickets()">
-      <option value="">ทุกสถานะ</option>
-    </select>
-    <select id="tk-filter-agent" onchange="loadTickets()">
-      <option value="">ทุก Agent</option>
-    </select>
-    <input id="tk-search" type="text" placeholder="🔍 ค้นหา..." oninput="tkSearchDebounce()" style="min-width:150px;flex:1"/>
+  <div class="page-datebar" style="flex-direction:column;align-items:flex-start;gap:.45rem">
+    <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;width:100%">
+      <div class="drb" id="tk-drb">
+        <button class="drb-btn" onclick="tkRange('today',this)">วันนี้</button>
+        <button class="drb-btn" onclick="tkRange('yesterday',this)">เมื่อวานนี้</button>
+        <button class="drb-btn" onclick="tkRange('thisweek',this)">สัปดาห์นี้</button>
+        <button class="drb-btn active" onclick="tkRange('thismonth',this)">เดือนนี้</button>
+        <button class="drb-btn" onclick="tkRange('lastmonth',this)">เดือนที่แล้ว</button>
+        <button class="drb-btn" onclick="tkRange('7d',this)">7 วันที่แล้ว</button>
+        <button class="drb-btn" onclick="tkRange('30d',this)">30 วันที่ผ่านมา</button>
+        <button class="drb-btn" onclick="tkRange('custom',this)">กำหนดเอง</button>
+      </div>
+      <span style="color:var(--border)">|</span>
+      <select id="tk-filter-team" onchange="loadTickets()">
+        <option value="">ทุกทีม</option>
+      </select>
+      <select id="tk-filter-status" onchange="loadTickets()">
+        <option value="">ทุกสถานะ</option>
+      </select>
+      <select id="tk-filter-agent" onchange="loadTickets()">
+        <option value="">ทุก Agent</option>
+      </select>
+      <input id="tk-search" type="text" placeholder="🔍 ค้นหา..." oninput="tkSearchDebounce()" style="min-width:150px;flex:1"/>
+    </div>
+    <div class="drb-custom" id="tk-custom-range">
+      <input id="tk-date-from" type="date" style="max-width:135px" title="วันที่เริ่มต้น"/>
+      <span style="color:var(--muted);font-size:.8rem">ถึง</span>
+      <input id="tk-date-to" type="date" style="max-width:135px" title="วันที่สิ้นสุด"/>
+      <button class="btn btn-sm btn-primary" onclick="loadTickets()">ค้นหา</button>
+    </div>
   </div>
 
   <div class="card" style="padding:.5rem 0">
@@ -1228,26 +1252,39 @@ async function refreshNameMap() {
   } catch {}
 }
 
-// ── Dashboard date preset helpers ──
-function dashSetToday() {
-  const t = new Date().toISOString().split('T')[0];
-  document.getElementById('dash-date-from').value = t;
-  document.getElementById('dash-date-to').value = t;
-  loadDashboard(); loadDashboardCharts();
+// ── Date Range Bar (shared) ──
+function _applyRange(preset, btn, fromId, toId, drbId, customId, loadFn) {
+  // Mark active pill
+  document.querySelectorAll(`#${drbId} .drb-btn`).forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  // Show/hide custom input row
+  const customEl = document.getElementById(customId);
+  if (preset === 'custom') { customEl.style.display = 'flex'; return; }
+  customEl.style.display = 'none';
+  // Compute dates
+  const today = new Date();
+  let from = new Date(today), to = new Date(today);
+  switch (preset) {
+    case 'yesterday': from.setDate(today.getDate()-1); to.setDate(today.getDate()-1); break;
+    case 'thisweek':  from.setDate(today.getDate() - ((today.getDay()+6)%7)); break;
+    case 'thismonth': from = new Date(today.getFullYear(), today.getMonth(), 1); break;
+    case 'lastmonth':
+      from = new Date(today.getFullYear(), today.getMonth()-1, 1);
+      to   = new Date(today.getFullYear(), today.getMonth(), 0); break;
+    case '7d':  from.setDate(today.getDate()-6); break;
+    case '30d': from.setDate(today.getDate()-29); break;
+    // 'today' — already from=to=today
+  }
+  document.getElementById(fromId).value = fmtDateISO(from);
+  document.getElementById(toId).value   = fmtDateISO(to);
+  loadFn();
 }
-function dashSet7d() {
-  const to = new Date();
-  const fr = new Date(); fr.setDate(to.getDate() - 6);
-  document.getElementById('dash-date-from').value = fr.toISOString().split('T')[0];
-  document.getElementById('dash-date-to').value = to.toISOString().split('T')[0];
-  loadDashboard(); loadDashboardCharts();
+function dashRange(preset, btn) {
+  _applyRange(preset, btn, 'dash-date-from', 'dash-date-to', 'dash-drb', 'dash-custom-range',
+    () => { loadDashboard(); loadDashboardCharts(); });
 }
-function dashSet30d() {
-  const to = new Date();
-  const fr = new Date(to.getFullYear(), to.getMonth(), 1);
-  document.getElementById('dash-date-from').value = fr.toISOString().split('T')[0];
-  document.getElementById('dash-date-to').value = to.toISOString().split('T')[0];
-  loadDashboard(); loadDashboardCharts();
+function tkRange(preset, btn) {
+  _applyRange(preset, btn, 'tk-date-from', 'tk-date-to', 'tk-drb', 'tk-custom-range', loadTickets);
 }
 
 let currentUser   = null;
@@ -2245,25 +2282,6 @@ function tkSearchDebounce() {
   clearTimeout(_tkSearchTimer);
   _tkSearchTimer = setTimeout(() => renderTickets(), 280);
 }
-function tkSetToday() {
-  const t = new Date().toISOString().split('T')[0];
-  document.getElementById('tk-date-from').value = t;
-  document.getElementById('tk-date-to').value = t;
-  loadTickets();
-}
-function tkSet7d() {
-  const to = new Date(); const fr = new Date(); fr.setDate(to.getDate()-6);
-  document.getElementById('tk-date-from').value = fr.toISOString().split('T')[0];
-  document.getElementById('tk-date-to').value   = to.toISOString().split('T')[0];
-  loadTickets();
-}
-function tkSetMonth() {
-  const now = new Date();
-  document.getElementById('tk-date-from').value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
-  document.getElementById('tk-date-to').value   = now.toISOString().split('T')[0];
-  loadTickets();
-}
-
 async function loadTickets() {
   await initTicketFilters();
   const status   = document.getElementById('tk-filter-status').value;
@@ -2646,12 +2664,16 @@ function initDateDefaults() {
   document.getElementById('lr-date').value = today;
   const now = new Date();
   const monthStart = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
-  // Dashboard — default to current month
+  // Pre-fill date inputs (inside custom-range divs) with current month
+  // so load functions can read a valid date even before user touches them
   const dashFrom = document.getElementById('dash-date-from');
+  const dashTo   = document.getElementById('dash-date-to');
   if (dashFrom && !dashFrom.value) dashFrom.value = monthStart;
-  // Tickets — default to current month
+  if (dashTo   && !dashTo.value)   dashTo.value   = today;
   const tkFrom = document.getElementById('tk-date-from');
+  const tkTo   = document.getElementById('tk-date-to');
   if (tkFrom && !tkFrom.value) tkFrom.value = monthStart;
+  if (tkTo   && !tkTo.value)   tkTo.value   = today;
   document.getElementById('kpi-month').value =
     `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
 }
