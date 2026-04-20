@@ -51,13 +51,19 @@ const CALLLOG_SELECT = `
     u.UserName          AS assigned_name,
     cl.IssueURL,
     cl.Subject          AS title,
-    pt.Note             AS problem_type
+    pt.Note             AS problem_type,
+    cl.CloseDate,
+    CASE WHEN cl.CloseDate IS NOT NULL
+         THEN DATEDIFF(MINUTE, cl.ReceiveDate, cl.CloseDate)
+         ELSE NULL END  AS TimeDiff_Minutes,
+    ic.IssueCategoryDesc
   FROM Calllog cl
   INNER JOIN CustomerRegistration cr ON cr.RegistrationId  = cl.RegistrationId
   INNER JOIN CallStatus           cs ON cs.StatusId        = cl.StatusId
   INNER JOIN Users                u  ON u.UserId           = cl.SupportId
   INNER JOIN Project              p  ON p.ProjectId        = cl.ProjectId
   INNER JOIN ProblemType          pt ON pt.ProblemTypeId   = cl.ProblemTypeId
+  LEFT  JOIN IssueCategory        ic ON ic.IssueCategoryId = cl.IssueCategoryId
 `;
 
 // ══════════════════════════════════════════════════════════
@@ -336,9 +342,20 @@ app.get('/api/kpi', async (request, res) => {
               WHERE month = @month`);
     const commentMap = {};
     comments.recordset.forEach(c => { commentMap[c.ext_username] = c; });
+    // Enrich with team from cs_team employees via ext_username
+    const empRows = (await req().query(`
+      SELECT au.ext_username, e.name, e.team
+      FROM app_users au JOIN employees e ON e.id = au.employee_id
+      WHERE au.ext_username IS NOT NULL AND au.active=1 AND e.active=1
+    `)).recordset;
+    const empMap = {};
+    empRows.forEach(r => { empMap[r.ext_username] = r; });
+
     const result = kpiRows.recordset.map(r => ({
       ...r,
-      month: monthStart,
+      month:         monthStart,
+      name:          empMap[r.UserName]?.name || r.UserName,
+      team:          empMap[r.UserName]?.team || null,
       comment:       commentMap[r.UserName]?.comment       || null,
       recorded_by:   commentMap[r.UserName]?.recorded_by   || null,
       recorder_name: commentMap[r.UserName]?.recorder_name || null,
@@ -431,16 +448,21 @@ app.get('/api/dashboard', async (_, res) => {
                 WHERE CAST(cl.ReceiveDate AS DATE) BETWEEN @ws AND @we`)).recordset[0]?.cnt || 0;
 
       overdueTickets = (await extReq()
-        .query(`SELECT TOP 20
-                  cl.CalllogId AS id, cl.Subject AS title,
-                  cr.CompanyName, cs.StatusName AS status,
-                  u.UserName AS assigned_name, cl.ReceiveDate AS opened_at
+        .query(`SELECT TOP 30
+                  cl.CalllogId AS id,
+                  cl.Subject AS title,
+                  cr.CompanyName,
+                  cs.StatusName AS status,
+                  u.UserName AS assigned_name,
+                  cl.ReceiveDate AS opened_at,
+                  ic.IssueCategoryDesc
                 FROM Calllog cl
                 INNER JOIN CustomerRegistration cr ON cr.RegistrationId=cl.RegistrationId
                 INNER JOIN CallStatus cs ON cs.StatusId=cl.StatusId
                 INNER JOIN Users u ON u.UserId=cl.SupportId
                 INNER JOIN Project p ON p.ProjectId=cl.ProjectId
                 INNER JOIN ProblemType pt ON pt.ProblemTypeId=cl.ProblemTypeId
+                LEFT  JOIN IssueCategory ic ON ic.IssueCategoryId=cl.IssueCategoryId
                 WHERE cl.ReceiveDate >= '2026-01-01'
                   AND cl.ReceiveDate <= DATEADD(hour,-24,GETDATE())
                   AND cs.StatusName NOT LIKE '%close%'
@@ -907,46 +929,55 @@ app.delete('/api/users/:id', authRequired, async (request, res) => {
 // ══════════════════════════════════════════════════════════
 //  DASHBOARD CHARTS — trend + category + agent workload
 // ══════════════════════════════════════════════════════════
-app.get('/api/dashboard/charts', async (_, res) => {
+app.get('/api/dashboard/charts', async (request, res) => {
   try {
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
 
     const today = new Date().toISOString().split('T')[0];
-    const ms    = today.substring(0, 7) + '-01';
-    const me    = new Date(new Date(ms).setMonth(new Date(ms).getMonth() + 1));
-    const lms   = new Date(new Date(ms).setMonth(new Date(ms).getMonth() - 1));
+    const ms    = (request.query.dateFrom || today.substring(0, 7) + '-01');
+    const me    = request.query.dateTo   ? new Date(request.query.dateTo + 'T23:59:59')
+                                         : new Date(new Date(ms).setMonth(new Date(ms).getMonth() + 1));
+    // last-period = same duration before dateFrom
+    const msDt  = new Date(ms);
+    const meDt  = new Date(me);
+    const durMs = meDt - msDt;
+    const lms   = new Date(msDt - durMs);
+    const lme   = msDt;
 
     const [dailyTrend, catStats, agentThis, agentLast, agentCat] = await Promise.all([
-      // Daily count — last 60 days
-      extReq().query(`
-        SELECT CAST(cl.ReceiveDate AS DATE) AS day, COUNT(*) AS cnt
-        FROM Calllog cl
-        WHERE cl.ReceiveDate >= DATEADD(day,-60,GETDATE())
-        GROUP BY CAST(cl.ReceiveDate AS DATE) ORDER BY day
-      `),
-      // Cases by category — this month
-      extReq().input('ms', sql.DateTime, new Date(ms)).input('me', sql.DateTime, me).query(`
+      // Daily count — within selected range
+      extReq()
+        .input('dFrom', sql.DateTime, msDt)
+        .input('dTo',   sql.DateTime, meDt)
+        .query(`
+          SELECT CAST(cl.ReceiveDate AS DATE) AS day, COUNT(*) AS cnt
+          FROM Calllog cl
+          WHERE cl.ReceiveDate >= @dFrom AND cl.ReceiveDate < @dTo
+          GROUP BY CAST(cl.ReceiveDate AS DATE) ORDER BY day
+        `),
+      // Cases by category — selected range
+      extReq().input('ms', sql.DateTime, msDt).input('me', sql.DateTime, meDt).query(`
         SELECT cl.Subject AS category, COUNT(*) AS cnt
         FROM Calllog cl
-        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me
+        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me AND cl.Subject IS NOT NULL
         GROUP BY cl.Subject ORDER BY cnt DESC
       `),
-      // Agent cases — this month
-      extReq().input('ms', sql.DateTime, new Date(ms)).input('me', sql.DateTime, me).query(`
+      // Agent cases — selected range
+      extReq().input('ms', sql.DateTime, msDt).input('me', sql.DateTime, meDt).query(`
         SELECT u.UserName, COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
         WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me
         GROUP BY u.UserName ORDER BY cnt DESC
       `),
-      // Agent cases — last month
-      extReq().input('lms', sql.DateTime, lms).input('lme', sql.DateTime, new Date(ms)).query(`
+      // Agent cases — previous period
+      extReq().input('lms', sql.DateTime, lms).input('lme', sql.DateTime, lme).query(`
         SELECT u.UserName, COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
         WHERE cl.ReceiveDate >= @lms AND cl.ReceiveDate < @lme
         GROUP BY u.UserName
       `),
-      // Agent × category — this month (for difficulty breakdown)
-      extReq().input('ms', sql.DateTime, new Date(ms)).input('me', sql.DateTime, me).query(`
+      // Agent × category — selected range
+      extReq().input('ms', sql.DateTime, msDt).input('me', sql.DateTime, meDt).query(`
         SELECT TOP 300
           u.UserName, cl.Subject AS category, COUNT(*) AS cnt
         FROM Calllog cl
