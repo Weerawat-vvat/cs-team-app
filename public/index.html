@@ -1585,7 +1585,9 @@ async function loadDashboardCharts() {
   if (data.nameMap) Object.assign(nameMap, data.nameMap);
 
   const { catStats = [], agentThis = [], agentLast = [], agentCat = [],
-          dailyTrend = [], hourlyStats = [], dowStats = [], catDailyTrend = [] } = data;
+          dailyTrend = [], hourlyStats = [], dowStats = [], catDailyTrend = [],
+          daysThis = 30, daysPrev = 30,
+          thisFrom = '', thisTo = '', prevFrom = '', prevTo = '' } = data;
 
   // ── Compute & fill stat cards ───────────────────────────
   const totalMonth  = agentThis.reduce((s, r) => s + (r.cnt || 0), 0);
@@ -1643,38 +1645,45 @@ async function loadDashboardCharts() {
   if (dashCharts.bar) { dashCharts.bar.destroy(); dashCharts.bar = null; }
   const ctxBar = document.getElementById('chart-agent-compare');
   if (ctxBar && agentThis.length) {
-    const topN = agentThis.slice(0, 12);
-    // Compute target line = target/person/day × days-in-range
-    const _tgt    = parseInt(document.getElementById('dash-target')?.value) || 0;
-    const _frVal  = document.getElementById('dash-date-from')?.value;
-    const _toVal  = document.getElementById('dash-date-to')?.value;
-    const _days   = (_frVal && _toVal)
-      ? Math.max(1, Math.round((new Date(_toVal) - new Date(_frVal)) / 86400000) + 1)
-      : 30;
-    const _targetLine = _tgt ? _tgt * _days : null;
+    const topN   = agentThis.slice(0, 12);
+    const _tgt   = parseInt(document.getElementById('dash-target')?.value) || 0;
+
+    // Format short date label e.g. "1 เม.ย." using th-TH locale
+    const _fmtShort = s => s ? new Date(s).toLocaleDateString('th-TH',{day:'numeric',month:'short'}) : '';
+    const labelThis = (thisFrom && thisTo) ? `${_fmtShort(thisFrom)}–${_fmtShort(thisTo)} (${daysThis}วัน)` : 'ช่วงนี้';
+    const labelPrev = (prevFrom && prevTo) ? `${_fmtShort(prevFrom)}–${_fmtShort(prevTo)} (${daysPrev}วัน)` : 'ช่วงก่อน';
+
+    // Use per-day average so both periods are always comparable
+    const avgThis = r => +((r.cnt || 0) / daysThis).toFixed(2);
+    const avgPrev = r => +((lastMap[r.UserName] || 0) / daysPrev).toFixed(2);
+
+    // Update chart card title dynamically
+    const barTitle = document.querySelector('#chart-agent-compare')?.closest('.card')?.querySelector('.card-title');
+    if (barTitle) barTitle.textContent = `📅 Workload Agent — เฉลี่ย tickets/วัน`;
+
     const barDatasets = [
       {
         type: 'bar',
-        label: 'ช่วงนี้',
-        data: topN.map(r => r.cnt || 0),
+        label: labelThis,
+        data: topN.map(avgThis),
         backgroundColor: '#38bdf8',
         borderRadius: 4,
         order: 2
       },
       {
         type: 'bar',
-        label: 'ช่วงก่อน',
-        data: topN.map(r => lastMap[r.UserName] || 0),
+        label: labelPrev,
+        data: topN.map(avgPrev),
         backgroundColor: '#cbd5e1',
         borderRadius: 4,
         order: 3
       }
     ];
-    if (_targetLine) {
+    if (_tgt) {
       barDatasets.push({
         type: 'line',
         label: `Target (${_tgt}/วัน)`,
-        data: topN.map(() => _targetLine),
+        data: topN.map(() => _tgt),
         borderColor: '#f59e0b',
         borderWidth: 2,
         borderDash: [6, 4],
@@ -1689,11 +1698,28 @@ async function loadDashboardCharts() {
       options: {
         responsive: true,
         plugins: {
-          legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 10 } }
+          legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 10 } },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                const raw = ctx.raw;
+                if (ctx.dataset.type === 'line') return ` Target: ${raw} tickets/วัน`;
+                const agent = topN[ctx.dataIndex];
+                const total = ctx.datasetIndex === 0
+                  ? (agent?.cnt || 0)
+                  : (lastMap[agent?.UserName] || 0);
+                return ` ${ctx.dataset.label}: ${raw} tickets/วัน (รวม ${total})`;
+              }
+            }
+          }
         },
         scales: {
           x: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#e2e8f0' } },
-          y: { beginAtZero: true, ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#e2e8f0' } }
+          y: {
+            beginAtZero: true,
+            ticks: { color: '#64748b', font: { size: 10 }, callback: v => v + '/วัน' },
+            grid: { color: '#e2e8f0' }
+          }
         }
       }
     });
@@ -1703,11 +1729,14 @@ async function loadDashboardCharts() {
   if (dashCharts.scatter) { dashCharts.scatter.destroy(); dashCharts.scatter = null; }
   const ctxScatter = document.getElementById('chart-scatter-wl');
   if (ctxScatter && agentThis.length) {
-    const scatterData = agentThis.map(r => {
-      const thisV = r.cnt || 0;
-      const lastV = lastMap[r.UserName] || 0;
-      return { x: lastV, y: thisV, name: dn(r.UserName) };
-    });
+    // Use avg/day so both axes are comparable regardless of period length
+    const scatterData = agentThis.map(r => ({
+      x: +((lastMap[r.UserName] || 0) / daysPrev).toFixed(2),
+      y: +((r.cnt || 0) / daysThis).toFixed(2),
+      name: dn(r.UserName),
+      totalThis: r.cnt || 0,
+      totalPrev: lastMap[r.UserName] || 0
+    }));
     const colors = scatterData.map(p =>
       p.y > p.x ? '#22c55e' : p.y < p.x ? '#ef4444' : '#38bdf8'
     );
@@ -1730,21 +1759,21 @@ async function loadDashboardCharts() {
             callbacks: {
               label: ctx => {
                 const p = ctx.raw;
-                const diff = p.y - p.x;
+                const diff = +(p.y - p.x).toFixed(2);
                 const sign = diff >= 0 ? '+' : '';
-                return `${p.name}: เดือนก่อน ${p.x} · เดือนนี้ ${p.y} (${sign}${diff})`;
+                return `${p.name}: ก่อน ${p.x}/วัน · นี้ ${p.y}/วัน (${sign}${diff}) [รวม: ${p.totalPrev}→${p.totalThis}]`;
               }
             }
           }
         },
         scales: {
           x: {
-            title: { display: true, text: 'เดือนก่อน (tickets)', color: '#64748b' },
+            title: { display: true, text: `ช่วงก่อน (tickets/วัน)`, color: '#64748b' },
             ticks: { color: '#64748b', font: { size: 10 } },
             grid: { color: '#e2e8f0' }
           },
           y: {
-            title: { display: true, text: 'เดือนนี้ (tickets)', color: '#64748b' },
+            title: { display: true, text: `ช่วงนี้ (tickets/วัน)`, color: '#64748b' },
             ticks: { color: '#64748b', font: { size: 10 } },
             grid: { color: '#e2e8f0' }
           }
@@ -1756,14 +1785,14 @@ async function loadDashboardCharts() {
     const chips = document.getElementById('dash-agent-chips');
     if (chips) {
       chips.innerHTML = agentThis.slice(0, 15).map(r => {
-        const thisV = r.cnt || 0;
-        const lastV = lastMap[r.UserName] || 0;
-        const diff  = thisV - lastV;
+        const avgT = +((r.cnt || 0) / daysThis).toFixed(1);
+        const avgP = +((lastMap[r.UserName] || 0) / daysPrev).toFixed(1);
+        const diff  = +(avgT - avgP).toFixed(1);
         const col   = diff > 0 ? '#22c55e' : diff < 0 ? '#ef4444' : '#94a3b8';
         const sign  = diff >= 0 ? '+' : '';
-        return `<span class="agent-chip">
+        return `<span class="agent-chip" title="รวม ${r.cnt || 0} tickets ใน ${daysThis} วัน">
           <b>${dn(r.UserName)}</b>
-          <span style="color:var(--accent)">${thisV}t</span>
+          <span style="color:var(--accent)">${avgT}/วัน</span>
           <span style="color:${col};font-size:.68rem">${sign}${diff}</span>
         </span>`;
       }).join('');

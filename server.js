@@ -964,7 +964,12 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
     const msStr = dateFrom || (today.substring(0, 7) + '-01');
     const msDate = new Date(msStr);
     const meDate = dateTo ? new Date(dateTo + 'T23:59:59') : new Date(new Date(msStr).setMonth(msDate.getMonth() + 1));
-    const lmsDate = new Date(new Date(msStr).setMonth(msDate.getMonth() - 1));
+
+    // Previous period = same duration shifted back (fair comparison)
+    const durationMs  = meDate - msDate;
+    const daysThis    = Math.max(1, Math.ceil(durationMs / 86400000));
+    const prevToDate  = new Date(msDate);                          // exclusive = start of current period
+    const prevFromDate = new Date(msDate.getTime() - durationMs); // shift back by same duration
 
     // Resolve RBAC scope; apply optional team override
     let scope = await getScopedUsernames(request.user);
@@ -992,8 +997,8 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
     const r2 = mkR(msDate, meDate);   const sc2 = appendScopeClause(r2, scope);
     const r3 = mkR(msDate, meDate);   const sc3 = appendScopeClause(r3, scope);
     const r4 = extReq()
-      .input('ms', sql.DateTime, lmsDate)
-      .input('me', sql.DateTime, msDate); const sc4 = appendScopeClause(r4, scope);
+      .input('ms', sql.DateTime, prevFromDate)
+      .input('me', sql.DateTime, prevToDate); const sc4 = appendScopeClause(r4, scope);
     const r5 = mkR(msDate, meDate);   const sc5 = appendScopeClause(r5, scope);
     const r6 = mkR(msDate, meDate);   const sc6 = appendScopeClause(r6, scope);
     const r7 = mkR(msDate, meDate);   const sc7 = appendScopeClause(r7, scope);
@@ -1051,6 +1056,7 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
     const nameMap = {};
     nameMapRows.forEach(r => { nameMap[r.ext_username] = r.name; });
 
+    const fmt = d => d.toISOString().split('T')[0];
     res.json({
       dailyTrend:    d1.recordset,
       catStats:      d2.recordset,
@@ -1060,7 +1066,13 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
       hourlyStats:   d6.recordset,
       dowStats:      d7.recordset,
       catDailyTrend: d8.recordset,
-      nameMap
+      nameMap,
+      daysThis,
+      daysPrev:  daysThis,             // same duration
+      thisFrom:  msStr,
+      thisTo:    fmt(new Date(meDate.getTime() - 1)),
+      prevFrom:  fmt(prevFromDate),
+      prevTo:    fmt(new Date(prevToDate.getTime() - 1)),
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
