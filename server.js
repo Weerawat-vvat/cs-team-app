@@ -80,6 +80,12 @@ const CALLLOG_SELECT = `
     cl.CalllogId        AS id,
     cr.CompanyName,
     cl.ReceiveDate      AS opened_at,
+    cl.CloseDate        AS CloseDate,
+    CASE
+      WHEN cl.CloseDate IS NOT NULL AND cl.ReceiveDate IS NOT NULL
+      THEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate)
+      ELSE NULL
+    END                 AS TimeDiff_Minutes,
     cl.CalllogDesc      AS description,
     cl.Solution,
     cs.StatusName       AS status,
