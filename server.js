@@ -944,7 +944,8 @@ app.get('/api/dashboard/charts', async (request, res) => {
     const lms   = new Date(msDt - durMs);
     const lme   = msDt;
 
-    const [dailyTrend, catStats, agentThis, agentLast, agentCat] = await Promise.all([
+    const [dailyTrend, catStats, agentThis, agentLast, agentCat,
+           hourlyStats, dowStats, catDailyTrend] = await Promise.all([
       // Daily count — within selected range
       extReq()
         .input('dFrom', sql.DateTime, msDt)
@@ -984,6 +985,32 @@ app.get('/api/dashboard/charts', async (request, res) => {
         INNER JOIN Users u ON u.UserId = cl.SupportId
         WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me
         GROUP BY u.UserName, cl.Subject ORDER BY u.UserName, cnt DESC
+      `),
+      // Hourly distribution — hour 0-23
+      extReq().input('ms', sql.DateTime, msDt).input('me', sql.DateTime, meDt).query(`
+        SELECT DATEPART(HOUR, cl.ReceiveDate) AS hr, COUNT(*) AS cnt
+        FROM Calllog cl
+        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me
+        GROUP BY DATEPART(HOUR, cl.ReceiveDate) ORDER BY hr
+      `),
+      // Day-of-week distribution — 1=Sun..7=Sat (SQL Server DATEPART)
+      extReq().input('ms', sql.DateTime, msDt).input('me', sql.DateTime, meDt).query(`
+        SELECT DATEPART(WEEKDAY, cl.ReceiveDate) AS dow, COUNT(*) AS cnt
+        FROM Calllog cl
+        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me
+        GROUP BY DATEPART(WEEKDAY, cl.ReceiveDate) ORDER BY dow
+      `),
+      // Category × day trend — top categories over time
+      extReq().input('ms', sql.DateTime, msDt).input('me', sql.DateTime, meDt).query(`
+        SELECT TOP 600
+          CAST(cl.ReceiveDate AS DATE) AS day,
+          cl.Subject AS category,
+          COUNT(*) AS cnt
+        FROM Calllog cl
+        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me
+          AND cl.Subject IS NOT NULL
+        GROUP BY CAST(cl.ReceiveDate AS DATE), cl.Subject
+        ORDER BY day, cnt DESC
       `)
     ]);
 
@@ -997,11 +1024,14 @@ app.get('/api/dashboard/charts', async (request, res) => {
     nameMapRows.forEach(r => { nameMap[r.ext_username] = r.name; });
 
     res.json({
-      dailyTrend:  dailyTrend.recordset,
-      catStats:    catStats.recordset,
-      agentThis:   agentThis.recordset,
-      agentLast:   agentLast.recordset,
-      agentCat:    agentCat.recordset,
+      dailyTrend:    dailyTrend.recordset,
+      catStats:      catStats.recordset,
+      agentThis:     agentThis.recordset,
+      agentLast:     agentLast.recordset,
+      agentCat:      agentCat.recordset,
+      hourlyStats:   hourlyStats.recordset,
+      dowStats:      dowStats.recordset,
+      catDailyTrend: catDailyTrend.recordset,
       nameMap
     });
   } catch (e) { res.status(500).json({ error: e.message }); }

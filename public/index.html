@@ -322,6 +322,9 @@ textarea{resize:vertical;min-height:80px}
 .agent-chips{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.6rem}
 .agent-chip{display:inline-flex;align-items:center;gap:.35rem;background:#f1f5f9;border:1px solid var(--border);border-radius:20px;padding:.2rem .65rem;font-size:.75rem;cursor:default}
 .agent-chip b{color:var(--text)}
+/* peak/trend section */
+.section-divider{font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin:1.25rem 0 .6rem;display:flex;align-items:center;gap:.5rem}
+.section-divider::after{content:'';flex:1;height:1px;background:var(--border)}
 /* target tracker */
 .target-tracker-bar{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:.6rem 1rem;margin-bottom:.75rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
 .tt-track{flex:1;min-width:200px}
@@ -460,6 +463,37 @@ textarea{resize:vertical;min-height:80px}
     </div>
     <canvas id="chart-scatter-wl" height="130"></canvas>
     <div class="agent-chips" id="dash-agent-chips"></div>
+  </div>
+
+  <!-- ── Trends & Peak Analysis ── -->
+  <div class="section-divider">📈 Trends &amp; Peak Analysis</div>
+
+  <!-- Row: Daily Trend (wide) + Day-of-Week (narrow) -->
+  <div class="grid-2" style="grid-template-columns:2fr 1fr">
+    <div class="card">
+      <div class="card-title">📅 แนวโน้มรายวัน
+        <span id="trend-summary" style="font-size:.72rem;font-weight:400;color:var(--muted);margin-left:.5rem"></span>
+      </div>
+      <canvas id="chart-daily-trend" height="160"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-title">📆 วันที่ยุ่งที่สุด</div>
+      <canvas id="chart-dow" height="160"></canvas>
+    </div>
+  </div>
+
+  <!-- Row: Peak Hour (wide) + Category Trend (wide) -->
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">⏰ Peak Hour — ชั่วโมงที่ Ticket เยอะที่สุด
+        <span id="peak-hour-badge" style="font-size:.75rem;font-weight:700;padding:.1rem .55rem;border-radius:20px;background:#fef3c7;color:#92400e;margin-left:.4rem"></span>
+      </div>
+      <canvas id="chart-peak-hour" height="160"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-title">📊 Category Trend — แนวโน้มประเภทปัญหา Top 5</div>
+      <canvas id="chart-cat-trend" height="160"></canvas>
+    </div>
   </div>
 
   <!-- ── Bottom: Overdue + OnShift/Leaves ── -->
@@ -1478,7 +1512,7 @@ async function loadDashboard() {
 }
 
 
-const dashCharts = { donut: null, bar: null, scatter: null };
+const dashCharts = { donut: null, bar: null, scatter: null, trend: null, dow: null, peak: null, catTrend: null };
 
 async function loadDashboardCharts() {
   let data;
@@ -1491,7 +1525,8 @@ async function loadDashboardCharts() {
   if (!data) return;
   if (data.nameMap) Object.assign(nameMap, data.nameMap);
 
-  const { catStats = [], agentThis = [], agentLast = [], agentCat = [] } = data;
+  const { catStats = [], agentThis = [], agentLast = [], agentCat = [],
+          dailyTrend = [], hourlyStats = [], dowStats = [], catDailyTrend = [] } = data;
 
   // ── Compute & fill stat cards ───────────────────────────
   const totalMonth  = agentThis.reduce((s, r) => s + (r.cnt || 0), 0);
@@ -1674,6 +1709,168 @@ async function loadDashboardCharts() {
         </span>`;
       }).join('');
     }
+  }
+
+  // ── 4. Daily Trend Line ──────────────────────────────────
+  if (dashCharts.trend) { dashCharts.trend.destroy(); dashCharts.trend = null; }
+  const ctxTrend = document.getElementById('chart-daily-trend');
+  if (ctxTrend && dailyTrend.length) {
+    // 7-day moving average
+    const trendCnts  = dailyTrend.map(r => r.cnt);
+    const maWindow   = Math.min(7, Math.ceil(dailyTrend.length / 3));
+    const movingAvg  = trendCnts.map((_, i) => {
+      const slice = trendCnts.slice(Math.max(0, i - maWindow + 1), i + 1);
+      return +(slice.reduce((a, b) => a + b, 0) / slice.length).toFixed(1);
+    });
+    // Trend direction label
+    const first3 = trendCnts.slice(0, Math.min(3, trendCnts.length)).reduce((a,b)=>a+b,0)/Math.min(3,trendCnts.length);
+    const last3  = trendCnts.slice(-Math.min(3, trendCnts.length)).reduce((a,b)=>a+b,0)/Math.min(3,trendCnts.length);
+    const trendDir = last3 > first3 * 1.1 ? '📈 เพิ่มขึ้น' : last3 < first3 * 0.9 ? '📉 ลดลง' : '➡️ ทรงตัว';
+    const trendEl  = document.getElementById('trend-summary');
+    if (trendEl) trendEl.textContent = trendDir;
+
+    dashCharts.trend = new Chart(ctxTrend, {
+      type: 'line',
+      data: {
+        labels: dailyTrend.map(r => r.day),
+        datasets: [
+          {
+            label: 'Tickets/วัน',
+            data: trendCnts,
+            borderColor: '#38bdf8',
+            backgroundColor: 'rgba(56,189,248,0.12)',
+            borderWidth: 2,
+            pointRadius: dailyTrend.length > 30 ? 0 : 3,
+            tension: 0.3,
+            fill: true
+          },
+          {
+            label: `${maWindow}-day MA`,
+            data: movingAvg,
+            borderColor: '#f59e0b',
+            borderWidth: 2,
+            borderDash: [5, 3],
+            pointRadius: 0,
+            tension: 0.3,
+            fill: false
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 10 } }
+        },
+        scales: {
+          x: { ticks: { color: '#64748b', font: { size: 9 }, maxTicksLimit: 10 }, grid: { color: '#e2e8f0' } },
+          y: { beginAtZero: true, ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#e2e8f0' } }
+        }
+      }
+    });
+  }
+
+  // ── 5. Day-of-Week Bar ───────────────────────────────────
+  if (dashCharts.dow) { dashCharts.dow.destroy(); dashCharts.dow = null; }
+  const ctxDow = document.getElementById('chart-dow');
+  if (ctxDow) {
+    const dowLabels = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];  // Sun=1..Sat=7
+    const dowData   = Array(7).fill(0);
+    dowStats.forEach(r => { dowData[(r.dow - 1) % 7] = r.cnt; });
+    const maxDow    = Math.max(...dowData);
+    const dowColors = dowData.map(v => v === maxDow ? '#f59e0b' : '#38bdf8');
+    dashCharts.dow = new Chart(ctxDow, {
+      type: 'bar',
+      data: {
+        labels: dowLabels,
+        datasets: [{ label: 'Tickets', data: dowData, backgroundColor: dowColors, borderRadius: 5 }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#64748b', font: { size: 11 } }, grid: { display: false } },
+          y: { beginAtZero: true, ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#e2e8f0' } }
+        }
+      }
+    });
+  }
+
+  // ── 6. Peak Hour Bar ─────────────────────────────────────
+  if (dashCharts.peak) { dashCharts.peak.destroy(); dashCharts.peak = null; }
+  const ctxPeak = document.getElementById('chart-peak-hour');
+  if (ctxPeak) {
+    const hrData   = Array(24).fill(0);
+    hourlyStats.forEach(r => { hrData[r.hr] = r.cnt; });
+    const maxHr    = hrData.indexOf(Math.max(...hrData));
+    const peakBadge = document.getElementById('peak-hour-badge');
+    if (peakBadge && hrData[maxHr] > 0) peakBadge.textContent = `⏰ ${maxHr}:00–${maxHr}:59 น. (${hrData[maxHr]} tickets)`;
+    const hrColors = hrData.map((v, i) => {
+      if (i === maxHr) return '#ef4444';
+      if (v >= hrData[maxHr] * 0.7) return '#f97316';
+      if (v >= hrData[maxHr] * 0.4) return '#38bdf8';
+      return '#cbd5e1';
+    });
+    dashCharts.peak = new Chart(ctxPeak, {
+      type: 'bar',
+      data: {
+        labels: Array.from({ length: 24 }, (_, i) => i + ':00'),
+        datasets: [{ label: 'Tickets', data: hrData, backgroundColor: hrColors, borderRadius: 3 }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => `${ctx.parsed.y} tickets` } }
+        },
+        scales: {
+          x: { ticks: { color: '#64748b', font: { size: 9 } }, grid: { display: false } },
+          y: { beginAtZero: true, ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#e2e8f0' } }
+        }
+      }
+    });
+  }
+
+  // ── 7. Category Trend Multi-Line ─────────────────────────
+  if (dashCharts.catTrend) { dashCharts.catTrend.destroy(); dashCharts.catTrend = null; }
+  const ctxCatTrend = document.getElementById('chart-cat-trend');
+  if (ctxCatTrend && catDailyTrend.length) {
+    // Top 5 categories from catStats
+    const top5cats = catStats.slice(0, 5).map(r => r.category);
+    // All unique days
+    const allDays  = [...new Set(catDailyTrend.map(r => r.day))].sort();
+    // Build lookup: cat → day → cnt
+    const lookup   = {};
+    catDailyTrend.forEach(r => {
+      if (!lookup[r.category]) lookup[r.category] = {};
+      lookup[r.category][r.day] = r.cnt;
+    });
+    const catColors = ['#38bdf8','#818cf8','#34d399','#fb923c','#f472b6'];
+    const catDatasets = top5cats.map((cat, i) => ({
+      label: cat || 'อื่นๆ',
+      data: allDays.map(d => lookup[cat]?.[d] || 0),
+      borderColor: catColors[i],
+      backgroundColor: catColors[i] + '22',
+      borderWidth: 2,
+      pointRadius: allDays.length > 30 ? 0 : 2,
+      tension: 0.3,
+      fill: false
+    }));
+    dashCharts.catTrend = new Chart(ctxCatTrend, {
+      type: 'line',
+      data: { labels: allDays, datasets: catDatasets },
+      options: {
+        responsive: true,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 10 } }
+        },
+        scales: {
+          x: { ticks: { color: '#64748b', font: { size: 9 }, maxTicksLimit: 10 }, grid: { color: '#e2e8f0' } },
+          y: { beginAtZero: true, ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#e2e8f0' } }
+        }
+      }
+    });
   }
 }
 
