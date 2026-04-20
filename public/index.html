@@ -7,74 +7,109 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 :root {
-  --cc:  #16a34a; --cc-light: #dcfce7; --cc-dark: #14532d;
-  --hd:  #2563eb; --hd-light: #dbeafe; --hd-dark: #1e3a8a;
-  --rp:  #ca8a04; --rp-light: #fef9c3; --rp-dark: #713f12;
-  --bg:  #f1f5f9; --card: #ffffff;
-  --text:#1e293b; --muted:#64748b; --border:#e2e8f0;
-  --danger:#ef4444; --warn:#f59e0b; --success:#22c55e;
+  --cc:#16a34a; --cc-light:#14532d; --cc-dark:#4ade80;
+  --hd:#3b82f6; --hd-light:#1e3a8a; --hd-dark:#93c5fd;
+  --rp:#f59e0b; --rp-light:#713f12; --rp-dark:#fcd34d;
+  --bg:#0f172a; --card:#1e293b; --card2:#263548;
+  --text:#e2e8f0; --muted:#94a3b8; --border:#334155;
+  --danger:#ef4444; --warn:#f59e0b; --success:#22c55e; --accent:#38bdf8;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+body{font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex}
 
-/* ── NAV ── */
-.nav{background:#1e293b;display:flex;align-items:center;padding:0 1.5rem;gap:1rem;height:60px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px #0004}
-.nav-logo{color:#fff;font-size:1.1rem;font-weight:700;white-space:nowrap;flex:1}
-.nav-logo span{font-size:.75rem;font-weight:400;color:#94a3b8;display:block}
-.nav-btn{background:none;border:none;color:#94a3b8;cursor:pointer;padding:.5rem .9rem;border-radius:8px;font-size:.85rem;transition:all .2s;white-space:nowrap}
-.nav-btn:hover{background:#334155;color:#fff}
-.nav-btn.active{background:#334155;color:#fff;font-weight:600}
+/* ── SIDEBAR ── */
+.sidebar{width:200px;min-width:200px;background:#0a1628;border-right:1px solid var(--border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;z-index:100;flex-shrink:0}
+.sidebar-brand{padding:1rem .85rem .75rem;border-bottom:1px solid var(--border)}
+.sidebar-logo-icon{font-size:1.4rem;line-height:1}
+.sidebar-name{font-size:.88rem;font-weight:800;color:#fff;margin-top:.3rem}
+.sidebar-sub{font-size:.68rem;color:var(--muted);margin-top:.1rem}
+.sidebar-nav{display:flex;flex-direction:column;gap:.2rem;padding:.75rem .6rem;flex:1}
+.s-tab{background:none;border:none;color:var(--muted);cursor:pointer;padding:.52rem .75rem;border-radius:8px;font-size:.83rem;text-align:left;display:flex;align-items:center;gap:.55rem;transition:all .15s;width:100%;font-family:inherit}
+.s-tab:hover{background:#1e293b;color:#fff}
+.s-tab.active{background:#1d4ed8;color:#fff;font-weight:600}
+.s-tab-icon{font-size:1rem;flex-shrink:0;width:1.2rem;text-align:center}
+.sidebar-footer{padding:.75rem .85rem;border-top:1px solid var(--border);margin-top:auto}
+.sidebar-user-name{font-size:.82rem;font-weight:700;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sidebar-user-role{font-size:.7rem;color:var(--muted);margin-top:.1rem}
+.sidebar-logout{background:#1e293b;border:1px solid var(--border);color:var(--muted);cursor:pointer;padding:.35rem .7rem;border-radius:6px;font-size:.75rem;width:100%;margin-top:.5rem;transition:.2s;font-family:inherit}
+.sidebar-logout:hover{background:#ef4444;color:#fff;border-color:#ef4444}
+
+/* ── MAIN WRAP ── */
+.main-wrap{flex:1;overflow-y:auto;min-height:100vh;min-width:0}
 
 /* ── LAYOUT ── */
-.page{display:none;padding:1.5rem;max-width:1400px;margin:0 auto}
+.page{display:none;padding:1.25rem 1.5rem;max-width:1500px;margin:0 auto}
 .page.active{display:block}
 
+/* ── PAGE DATE BAR ── */
+.page-datebar{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:.6rem 1rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem}
+.page-datebar label{font-size:.75rem;color:var(--muted);white-space:nowrap}
+.page-datebar select,.page-datebar input[type=date]{background:var(--card2);border:1px solid var(--border);color:var(--text);padding:.28rem .65rem;border-radius:6px;font-size:.78rem;outline:none}
+.page-datebar select:focus,.page-datebar input[type=date]:focus{border-color:var(--accent)}
+.page-datebar input[type=text],.page-datebar input[type=search]{background:var(--card2);border:1px solid var(--border);color:var(--text);padding:.28rem .65rem;border-radius:6px;font-size:.78rem;outline:none;flex:1;min-width:140px}
+.page-datebar input:focus{border-color:var(--accent)}
+
+/* ── STAT ROW ── */
+.stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem;margin-bottom:1rem}
+@media(max-width:900px){.stat-row{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:600px){.stat-row{grid-template-columns:1fr}}
+
 /* ── CARDS ── */
-.card{background:var(--card);border-radius:12px;padding:1.25rem;box-shadow:0 1px 4px #0001;border:1px solid var(--border);margin-bottom:1rem}
-.card-title{font-size:1rem;font-weight:700;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem}
+.card{background:var(--card);border-radius:12px;padding:1.1rem 1.25rem;border:1px solid var(--border);margin-bottom:1rem}
+.card-title{font-size:.92rem;font-weight:700;margin-bottom:.85rem;display:flex;align-items:center;gap:.5rem;color:var(--accent);border-bottom:1px solid var(--border);padding-bottom:.5rem}
 
 /* ── GRID ── */
-.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem}
-.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}
-.grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:1rem}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem}
+.grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:.75rem}
 @media(max-width:900px){.grid-4,.grid-3{grid-template-columns:repeat(2,1fr)}.grid-2{grid-template-columns:1fr}}
 @media(max-width:600px){.grid-4,.grid-3,.grid-2{grid-template-columns:1fr}}
 
-/* ── STAT CARDS ── */
-.stat{border-radius:12px;padding:1.1rem 1.25rem;color:#fff;display:flex;flex-direction:column;gap:.25rem}
-.stat .label{font-size:.8rem;opacity:.85}
-.stat .value{font-size:2rem;font-weight:800;line-height:1}
-.stat .sub{font-size:.75rem;opacity:.75}
+/* ── STAT CARDS (gradient) ── */
+.stat{border-radius:12px;padding:1rem 1.1rem;color:#fff;display:flex;flex-direction:column;gap:.2rem;border:1px solid transparent}
+.stat .label{font-size:.73rem;opacity:.85;text-transform:uppercase;letter-spacing:.04em}
+.stat .value{font-size:1.9rem;font-weight:800;line-height:1}
+.stat .sub{font-size:.72rem;opacity:.75}
 .stat-cc{background:linear-gradient(135deg,var(--cc),#15803d)}
 .stat-hd{background:linear-gradient(135deg,var(--hd),#1d4ed8)}
 .stat-rp{background:linear-gradient(135deg,var(--rp),#d97706)}
 .stat-gray{background:linear-gradient(135deg,#475569,#334155)}
+/* flat stat (for tickets/kpi pages) */
+.stat-flat{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:1rem 1.1rem;display:flex;flex-direction:column;gap:.2rem}
+.stat-flat .label{font-size:.73rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.stat-flat .value{font-size:1.9rem;font-weight:800;line-height:1}
+.stat-flat .sub{font-size:.72rem;color:var(--muted)}
+.stat-flat .value.blue{color:var(--accent)}
+.stat-flat .value.green{color:var(--success)}
+.stat-flat .value.red{color:var(--danger)}
+.stat-flat .value.yellow{color:var(--warn)}
 
 /* ── TEAM BADGE ── */
-.badge{display:inline-block;padding:.2rem .6rem;border-radius:20px;font-size:.72rem;font-weight:600;white-space:nowrap}
-.badge-cc{background:var(--cc-light);color:var(--cc-dark)}
-.badge-hd{background:var(--hd-light);color:var(--hd-dark)}
-.badge-rp{background:var(--rp-light);color:var(--rp-dark)}
-.badge-open{background:#fef2f2;color:#b91c1c}
-.badge-in_progress{background:#fff7ed;color:#c2410c}
-.badge-waiting_vendor{background:#fefce8;color:#854d0e}
-.badge-closed{background:#f0fdf4;color:#166534}
-.badge-pending{background:#fff7ed;color:#c2410c}
-.badge-approved{background:#f0fdf4;color:#166534}
-.badge-rejected{background:#fef2f2;color:#b91c1c}
-.badge-morning{background:#dbeafe;color:#1e40af}
-.badge-afternoon{background:#fef3c7;color:#92400e}
-.badge-night{background:#ede9fe;color:#5b21b6}
-.badge-high{background:#fef2f2;color:#b91c1c}
-.badge-normal{background:#f0f9ff;color:#0369a1}
-.badge-low{background:#f0fdf4;color:#166534}
+.badge{display:inline-block;padding:.15rem .55rem;border-radius:4px;font-size:.72rem;font-weight:600;white-space:nowrap}
+.badge-cc{background:#14532d;color:#4ade80}
+.badge-hd{background:#1e3a8a;color:#93c5fd}
+.badge-rp{background:#713f12;color:#fcd34d}
+.badge-open{background:#7f1d1d;color:#fca5a5}
+.badge-in_progress{background:#7c2d12;color:#fed7aa}
+.badge-waiting_vendor{background:#713f12;color:#fcd34d}
+.badge-closed{background:#14532d;color:#4ade80}
+.badge-pending{background:#7c2d12;color:#fed7aa}
+.badge-approved{background:#14532d;color:#4ade80}
+.badge-rejected{background:#7f1d1d;color:#fca5a5}
+.badge-morning{background:#1e3a8a;color:#93c5fd}
+.badge-afternoon{background:#713f12;color:#fcd34d}
+.badge-night{background:#4c1d95;color:#c4b5fd}
+.badge-high{background:#7f1d1d;color:#fca5a5}
+.badge-normal{background:#0c4a6e;color:#7dd3fc}
+.badge-low{background:#14532d;color:#4ade80}
 
 /* ── TABLE ── */
 .tbl-wrap{overflow-x:auto}
-table{width:100%;border-collapse:collapse;font-size:.87rem}
-th{background:#f8fafc;color:var(--muted);font-weight:600;padding:.6rem .8rem;text-align:left;border-bottom:2px solid var(--border);white-space:nowrap}
-td{padding:.6rem .8rem;border-bottom:1px solid var(--border);vertical-align:middle}
-tr:hover td{background:#f8fafc}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+thead tr{background:var(--card2)}
+th{color:var(--muted);font-weight:600;padding:.5rem .7rem;text-align:left;border-bottom:2px solid var(--border);white-space:nowrap;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em}
+td{padding:.45rem .7rem;border-bottom:1px solid #1a2942;vertical-align:middle}
+tr:hover td{background:var(--card2)}
 
 /* ── SHIFT TABLE ── */
 .shift-table{min-width:800px}
@@ -85,99 +120,100 @@ tr:hover td{background:#f8fafc}
 
 /* ── FORMS ── */
 .form-group{margin-bottom:.9rem}
-.form-group label{display:block;font-size:.83rem;font-weight:600;margin-bottom:.3rem;color:var(--muted)}
+.form-group label{display:block;font-size:.82rem;font-weight:600;margin-bottom:.3rem;color:var(--muted)}
 .form-group input,.form-group select,.form-group textarea{
-  width:100%;padding:.55rem .75rem;border:1.5px solid var(--border);border-radius:8px;
-  font-size:.87rem;font-family:inherit;background:#fff;color:var(--text);transition:.2s
+  width:100%;padding:.52rem .75rem;border:1.5px solid var(--border);border-radius:8px;
+  font-size:.85rem;font-family:inherit;background:var(--card2);color:var(--text);transition:.2s
 }
 .form-group input:focus,.form-group select:focus,.form-group textarea:focus{
-  outline:none;border-color:var(--hd);box-shadow:0 0 0 3px #2563eb22
+  outline:none;border-color:var(--accent);box-shadow:0 0 0 3px #38bdf822
 }
 textarea{resize:vertical;min-height:80px}
 
 /* ── BUTTONS ── */
-.btn{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem 1rem;border-radius:8px;border:none;cursor:pointer;font-size:.85rem;font-weight:600;transition:.2s;white-space:nowrap}
+.btn{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem 1rem;border-radius:8px;border:none;cursor:pointer;font-size:.83rem;font-weight:600;transition:.2s;white-space:nowrap}
 .btn:hover{opacity:.85;transform:translateY(-1px)}
 .btn-primary{background:var(--hd);color:#fff}
 .btn-success{background:var(--success);color:#fff}
 .btn-danger{background:var(--danger);color:#fff}
 .btn-warn{background:var(--warn);color:#fff}
 .btn-cc{background:var(--cc);color:#fff}
-.btn-sm{padding:.3rem .7rem;font-size:.78rem}
+.btn-sm{padding:.3rem .65rem;font-size:.75rem}
 .btn-ghost{background:transparent;border:1.5px solid var(--border);color:var(--text)}
+.btn-ghost:hover{background:var(--card2);border-color:var(--accent)}
 .btn-group{display:flex;gap:.5rem;flex-wrap:wrap}
 
 /* ── MODAL ── */
-.overlay{display:none;position:fixed;inset:0;background:#0007;z-index:200;align-items:center;justify-content:center}
+.overlay{display:none;position:fixed;inset:0;background:#0009;z-index:200;align-items:center;justify-content:center}
 .overlay.open{display:flex}
-.modal{background:#fff;border-radius:16px;padding:1.5rem;max-width:500px;width:95%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px #0004}
-.modal-title{font-size:1.05rem;font-weight:700;margin-bottom:1.2rem;display:flex;justify-content:space-between;align-items:center}
+.modal{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:1.5rem;max-width:520px;width:95%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px #0006}
+.modal-title{font-size:1rem;font-weight:700;margin-bottom:1.2rem;display:flex;justify-content:space-between;align-items:center;color:#fff}
 .modal-close{background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--muted);line-height:1}
 .modal-close:hover{color:var(--danger)}
 
 /* ── WEEK NAV ── */
 .week-nav{display:flex;align-items:center;gap:.75rem;margin-bottom:1rem}
-.week-nav span{font-weight:600;min-width:200px;text-align:center}
+.week-nav span{font-weight:600;min-width:200px;text-align:center;color:#fff}
 
 /* ── ALERT ── */
-.alert{border-radius:10px;padding:.75rem 1rem;font-size:.85rem;margin-bottom.75rem;display:flex;align-items:center;gap:.5rem}
-.alert-warn{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412}
-.alert-info{background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a}
-.alert-danger{background:#fef2f2;border:1px solid #fecaca;color:#991b1b}
+.alert{border-radius:10px;padding:.75rem 1rem;font-size:.84rem;margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem}
+.alert-warn{background:#431407;border:1px solid #7c2d12;color:#fed7aa}
+.alert-info{background:#1e1b4b;border:1px solid #312e81;color:#a5b4fc}
+.alert-danger{background:#7f1d1d;border:1px solid #991b1b;color:#fca5a5}
 
 /* ── KPI STAR ── */
 .stars{color:#f59e0b;letter-spacing:2px;font-size:1rem}
 
 /* ── PROGRESS ── */
-.progress{height:8px;background:#e2e8f0;border-radius:99px;overflow:hidden;margin-top:4px}
+.progress{height:8px;background:var(--border);border-radius:99px;overflow:hidden;margin-top:4px}
 .progress-bar{height:100%;border-radius:99px;transition:width .5s}
 
 /* ── OVERDUE ── */
-.overdue-row{background:#fef2f2!important}
-.overdue-row td{color:#7f1d1d}
+.overdue-row{background:#2d1515!important}
+.overdue-row td{color:#fca5a5}
 
 /* ── SECTION HEADER ── */
-.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:gap}
-.section-title{font-size:1.15rem;font-weight:700}
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem}
+.section-title{font-size:1.1rem;font-weight:700;color:#fff}
 
-/* ── TAB ── */
+/* ── TAB (sub-tabs) ── */
 .tabs{display:flex;gap:.25rem;margin-bottom:1rem;border-bottom:2px solid var(--border);padding-bottom:0}
-.tab{padding:.5rem 1rem;border:none;background:none;cursor:pointer;font-size:.88rem;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-2px;transition:.2s}
-.tab.active{color:var(--hd);border-bottom-color:var(--hd)}
+.tab{padding:.5rem 1rem;border:none;background:none;cursor:pointer;font-size:.85rem;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-2px;transition:.2s;font-family:inherit}
+.tab:hover{color:#fff}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
 
 /* ── FILTER BAR ── */
 .filter-bar{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center}
-.filter-bar select,.filter-bar input{padding:.42rem .7rem;border:1.5px solid var(--border);border-radius:8px;font-size:.83rem;background:#fff}
+.filter-bar select,.filter-bar input{padding:.38rem .65rem;border:1.5px solid var(--border);border-radius:8px;font-size:.8rem;background:var(--card2);color:var(--text);outline:none}
+.filter-bar select:focus,.filter-bar input:focus{border-color:var(--accent)}
 
 /* ── SCROLL ── */
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:99px}
+::-webkit-scrollbar-thumb{background:#334155;border-radius:99px}
+::-webkit-scrollbar-thumb:hover{background:#475569}
 
 /* ── STATUS FLOW ── */
 .status-flow{display:flex;align-items:center;gap:.25rem;flex-wrap:wrap;margin:1rem 0}
-.status-step{padding:.3rem .8rem;border-radius:20px;font-size:.78rem;font-weight:600;background:var(--bg);color:var(--muted)}
+.status-step{padding:.3rem .8rem;border-radius:20px;font-size:.75rem;font-weight:600;background:var(--card2);color:var(--muted)}
 .status-step.active{background:var(--hd);color:#fff}
 .status-arrow{color:var(--muted);font-size:.8rem}
 
 /* ── ON-SHIFT ── */
-.onshift-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:.6rem}
+.onshift-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:.6rem}
 .onshift-card{border-radius:10px;padding:.6rem .8rem;border:2px solid;font-size:.82rem}
-.onshift-card .emp-name{font-weight:600}
+.onshift-card .emp-name{font-weight:600;color:#fff}
 .onshift-card .emp-shift{font-size:.72rem;opacity:.75}
 
 /* ── EMPTY ── */
 .empty{text-align:center;padding:3rem 1rem;color:var(--muted)}
-.empty .icon{font-size:3rem;margin-bottom:.5rem}
+.empty .icon{font-size:2.5rem;margin-bottom:.5rem}
 
 /* ══════════ AI STYLES ══════════ */
-/* Floating Chat Button */
 #ai-fab{position:fixed;bottom:1.5rem;right:1.5rem;z-index:500;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;border:none;font-size:1.5rem;cursor:pointer;box-shadow:0 4px 20px #7c3aed55;display:flex;align-items:center;justify-content:center;transition:.2s}
 #ai-fab:hover{transform:scale(1.1);box-shadow:0 6px 28px #7c3aed77}
 #ai-fab .badge-unread{position:absolute;top:-4px;right:-4px;background:#ef4444;color:#fff;border-radius:50%;width:18px;height:18px;font-size:.65rem;display:none;align-items:center;justify-content:center;font-weight:700}
-
-/* Chat Panel */
-#ai-panel{position:fixed;bottom:5rem;right:1.5rem;z-index:499;width:370px;max-width:95vw;background:#fff;border-radius:16px;box-shadow:0 8px 40px #0003;display:none;flex-direction:column;overflow:hidden;border:1px solid #e2e8f0;max-height:75vh}
+#ai-panel{position:fixed;bottom:5rem;right:1.5rem;z-index:499;width:370px;max-width:95vw;background:var(--card);border-radius:16px;box-shadow:0 8px 40px #0006;display:none;flex-direction:column;overflow:hidden;border:1px solid var(--border);max-height:75vh}
 #ai-panel.open{display:flex}
 #ai-panel-header{background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;padding:.9rem 1.1rem;display:flex;align-items:center;gap:.6rem;font-weight:700;font-size:.95rem}
 #ai-panel-header .close-btn{margin-left:auto;background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer;line-height:1;opacity:.8}
@@ -185,27 +221,25 @@ textarea{resize:vertical;min-height:80px}
 #ai-messages{flex:1;overflow-y:auto;padding:.9rem;display:flex;flex-direction:column;gap:.6rem;min-height:200px}
 .ai-msg{display:flex;gap:.5rem;align-items:flex-start}
 .ai-msg.user{flex-direction:row-reverse}
-.ai-msg .bubble{padding:.6rem .85rem;border-radius:12px;font-size:.85rem;line-height:1.5;max-width:80%;white-space:pre-wrap;word-break:break-word}
+.ai-msg .bubble{padding:.6rem .85rem;border-radius:12px;font-size:.84rem;line-height:1.5;max-width:80%;white-space:pre-wrap;word-break:break-word}
 .ai-msg.user .bubble{background:#4f46e5;color:#fff;border-bottom-right-radius:3px}
-.ai-msg.bot .bubble{background:#f1f5f9;color:#1e293b;border-bottom-left-radius:3px}
+.ai-msg.bot .bubble{background:var(--card2);color:var(--text);border-bottom-left-radius:3px}
 .ai-msg .avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0}
-.ai-msg.bot .avatar{background:#ede9fe}
-.ai-msg.user .avatar{background:#dbeafe}
-.ai-typing{padding:.4rem .85rem;border-radius:12px;background:#f1f5f9;font-size:.82rem;color:#64748b;display:flex;gap:4px;align-items:center}
+.ai-msg.bot .avatar{background:#2d1b69}
+.ai-msg.user .avatar{background:#1e3a8a}
+.ai-typing{padding:.4rem .85rem;border-radius:12px;background:var(--card2);font-size:.82rem;color:var(--muted);display:flex;gap:4px;align-items:center}
 .ai-typing span{animation:blink 1.2s infinite;font-size:1.1rem;line-height:1}
 .ai-typing span:nth-child(2){animation-delay:.2s}
 .ai-typing span:nth-child(3){animation-delay:.4s}
 @keyframes blink{0%,80%,100%{opacity:.2}40%{opacity:1}}
-#ai-input-wrap{display:flex;gap:.5rem;padding:.75rem;border-top:1px solid #e2e8f0;background:#fff}
-#ai-input{flex:1;padding:.55rem .75rem;border:1.5px solid #e2e8f0;border-radius:10px;font-size:.85rem;font-family:inherit;outline:none;resize:none;line-height:1.4;max-height:80px}
+#ai-input-wrap{display:flex;gap:.5rem;padding:.75rem;border-top:1px solid var(--border);background:var(--card)}
+#ai-input{flex:1;padding:.52rem .75rem;border:1.5px solid var(--border);border-radius:10px;font-size:.84rem;font-family:inherit;outline:none;resize:none;line-height:1.4;max-height:80px;background:var(--card2);color:var(--text)}
 #ai-input:focus{border-color:#7c3aed;box-shadow:0 0 0 3px #7c3aed22}
-#ai-send{background:#4f46e5;color:#fff;border:none;border-radius:10px;padding:.55rem .85rem;cursor:pointer;font-size:1rem;transition:.2s;flex-shrink:0}
+#ai-send{background:#4f46e5;color:#fff;border:none;border-radius:10px;padding:.52rem .85rem;cursor:pointer;font-size:1rem;transition:.2s;flex-shrink:0}
 #ai-send:hover{background:#4338ca}
 .quick-chips{display:flex;flex-wrap:wrap;gap:.35rem;padding:0 .9rem .7rem}
-.chip{background:#ede9fe;color:#5b21b6;border:none;border-radius:20px;padding:.25rem .7rem;font-size:.75rem;cursor:pointer;font-family:inherit;transition:.15s}
-.chip:hover{background:#ddd6fe}
-
-/* AI Insight Card */
+.chip{background:#2d1b69;color:#c4b5fd;border:none;border-radius:20px;padding:.25rem .7rem;font-size:.75rem;cursor:pointer;font-family:inherit;transition:.15s}
+.chip:hover{background:#4c1d95}
 .ai-insight-box{background:linear-gradient(135deg,#13111c,#1a1730,#1e293b);border:1.5px solid #4f46e5;border-radius:12px;padding:1.1rem 1.25rem;margin-top:1rem;color:#ddd8ff}
 .ai-insight-box .ai-label{font-size:.82rem;font-weight:700;color:#a78bfa;margin-bottom:.5rem;display:flex;align-items:center;gap:.4rem}
 .ai-insight-box .ai-label button{background:linear-gradient(135deg,#4f46e5,#7c3aed)!important;color:#fff!important;border:none!important;transition:all .2s!important}
@@ -226,68 +260,57 @@ textarea{resize:vertical;min-height:80px}
 .ai-footer-bar{display:flex;justify-content:space-between;align-items:center;margin-top:.6rem;padding-top:.45rem;border-top:1px solid #2d2b4e;font-size:.71rem;color:#4f46e5}
 .ai-spinner{display:inline-block;width:18px;height:18px;border:2px solid #c4b5fd;border-top-color:#7c3aed;border-radius:50%;animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-
-/* AI Shift Suggestion Panel */
-.ai-suggest-box{background:#f0fdf4;border:1px solid #86efac;border-radius:12px;padding:1rem 1.25rem;margin-bottom:1rem;display:none}
+.ai-suggest-box{background:#052e16;border:1px solid #166534;border-radius:12px;padding:1rem 1.25rem;margin-bottom:1rem;display:none}
 .ai-suggest-box.open{display:block}
 .ai-suggest-actions{display:flex;gap:.5rem;margin-top:.75rem;flex-wrap:wrap}
-
-/* AI KPI Forecast */
-.ai-forecast-box{background:linear-gradient(135deg,#fff7ed,#fef9c3);border:1px solid #fed7aa;border-radius:12px;padding:1.1rem 1.25rem;margin-top:1rem;display:none}
+.ai-forecast-box{background:#1c1505;border:1px solid #7c5101;border-radius:12px;padding:1.1rem 1.25rem;margin-top:1rem;display:none}
 .ai-forecast-box.open{display:block}
-.ai-forecast-body{font-size:.86rem;line-height:1.75;white-space:pre-wrap;color:#1e293b}
+.ai-forecast-body{font-size:.86rem;line-height:1.75;white-space:pre-wrap;color:var(--text)}
 
 /* ── LOGIN OVERLAY ── */
 #login-overlay{position:fixed;inset:0;background:linear-gradient(135deg,#1e293b,#0f172a);z-index:9999;display:flex;align-items:center;justify-content:center}
 #login-overlay.hidden{display:none}
-.login-card{background:#fff;border-radius:20px;padding:2.5rem 2rem;width:100%;max-width:380px;box-shadow:0 24px 80px #0008}
-.login-logo{font-size:1.3rem;font-weight:800;color:#1e293b;margin-bottom:.3rem}
+.login-card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:2.5rem 2rem;width:100%;max-width:380px;box-shadow:0 24px 80px #0008}
+.login-logo{font-size:1.3rem;font-weight:800;color:#fff;margin-bottom:.3rem}
 .login-subtitle{font-size:.83rem;color:var(--muted);margin-bottom:1.75rem}
-.login-error{background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;border-radius:8px;padding:.6rem .9rem;font-size:.84rem;margin-bottom:1rem;display:none}
+.login-error{background:#7f1d1d;border:1px solid #991b1b;color:#fca5a5;border-radius:8px;padding:.6rem .9rem;font-size:.84rem;margin-bottom:1rem;display:none}
 .login-error.show{display:block}
 
-/* ── NAV USER ── */
-.nav-user{display:flex;align-items:center;gap:.6rem;margin-left:auto;flex-shrink:0}
-.nav-user-name{color:#e2e8f0;font-size:.82rem;font-weight:600;white-space:nowrap}
-.nav-user-role{color:#94a3b8;font-size:.72rem}
-.nav-logout{background:#334155;border:none;color:#94a3b8;cursor:pointer;padding:.35rem .75rem;border-radius:6px;font-size:.78rem;transition:.2s}
-.nav-logout:hover{background:#ef4444;color:#fff}
-
 /* ── LEADERBOARD ── */
-.lb-item{display:flex;align-items:center;gap:.75rem;padding:.55rem 0;border-bottom:1px solid var(--border)}
+.lb-item{display:flex;align-items:center;gap:.75rem;padding:.52rem 0;border-bottom:1px solid var(--border)}
 .lb-item:last-child{border-bottom:none}
-.lb-rank{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:800;flex-shrink:0}
-.lb-rank-1{background:#fef9c3;color:#854d0e}
-.lb-rank-2{background:#f1f5f9;color:#475569}
-.lb-rank-3{background:#fff7ed;color:#9a3412}
-.lb-rank-n{background:#f1f5f9;color:#64748b}
+.lb-rank{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:800;flex-shrink:0}
+.lb-rank-1{background:#713f12;color:#fcd34d}
+.lb-rank-2{background:#334155;color:#94a3b8}
+.lb-rank-3{background:#431407;color:#fca5a5}
+.lb-rank-n{background:#1e293b;color:#64748b}
 .lb-info{flex:1;min-width:0}
-.lb-name{font-weight:600;font-size:.87rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.lb-bar-wrap{height:5px;background:#e2e8f0;border-radius:99px;overflow:hidden;margin-top:3px}
+.lb-name{font-weight:600;font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff}
+.lb-bar-wrap{height:4px;background:var(--border);border-radius:99px;overflow:hidden;margin-top:3px}
 .lb-bar{height:100%;border-radius:99px;background:linear-gradient(90deg,#2563eb,#7c3aed);transition:width .6s}
-.lb-count{font-size:.82rem;font-weight:700;color:var(--hd);white-space:nowrap}
+.lb-count{font-size:.82rem;font-weight:700;color:var(--accent);white-space:nowrap}
 
 /* ── DASH GRID OVERRIDE ── */
-.dash-main{display:grid;grid-template-columns:2fr 1fr;gap:1rem}
+.dash-main{display:grid;grid-template-columns:2fr 1fr;gap:.75rem}
 @media(max-width:900px){.dash-main{grid-template-columns:1fr}}
 
 /* ── TICKET EXPAND ── */
-.tk-row-main td { cursor:default; }
-.tk-row-main .tk-toggle { cursor:pointer; user-select:none; color:var(--muted); font-size:.9rem; transition:.2s; }
-.tk-row-main:hover td { background:#f8fafc; }
-.tk-row-detail td { background:#f8fafc; border-bottom:2px solid var(--border); }
-.tk-detail-box { padding:.75rem 1rem; border-radius:8px; background:#fff; border:1px solid var(--border); }
-.tk-detail-label { font-size:.75rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; margin-bottom:.25rem; }
-.tk-detail-text { font-size:.85rem; line-height:1.7; color:var(--text); white-space:pre-wrap; }
-.tk-solution-box { background:#f0fdf4; border:1px solid #86efac; }
-.tk-solution-box .tk-detail-label { color:#15803d; }
+.tk-row-main td{cursor:default}
+.tk-row-main .tk-toggle{cursor:pointer;user-select:none;color:var(--muted);font-size:.9rem;transition:.2s}
+.tk-row-main:hover td{background:var(--card2)}
+.tk-row-detail td{background:#0d1e33;border-bottom:2px solid var(--border)}
+.tk-detail-box{padding:.75rem 1rem;border-radius:8px;background:var(--card2);border:1px solid var(--border)}
+.tk-detail-label{font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:.25rem}
+.tk-detail-text{font-size:.84rem;line-height:1.7;color:var(--text);white-space:pre-wrap}
+.tk-solution-box{background:#0d2218;border:1px solid #166534}
+.tk-solution-box .tk-detail-label{color:#22c55e}
 
 /* ── USER TABLE ── */
-.role-badge{display:inline-block;padding:.15rem .55rem;border-radius:20px;font-size:.72rem;font-weight:700}
-.role-manager{background:#ede9fe;color:#5b21b6}
-.role-team_lead{background:#dbeafe;color:#1e3a8a}
-.role-staff{background:#f1f5f9;color:#475569}
-.role-admin{background:#fef2f2;color:#b91c1c}
+.role-badge{display:inline-block;padding:.15rem .5rem;border-radius:20px;font-size:.72rem;font-weight:700}
+.role-manager{background:#4c1d95;color:#c4b5fd}
+.role-team_lead{background:#1e3a8a;color:#93c5fd}
+.role-staff{background:#1e293b;color:#94a3b8}
+.role-admin{background:#7f1d1d;color:#fca5a5}
 </style>
 </head>
 <body>
@@ -310,32 +333,59 @@ textarea{resize:vertical;min-height:80px}
   </div>
 </div>
 
-<!-- NAV -->
-<nav class="nav">
-  <div class="nav-logo">🎧 CS Team Manager <span>ระบบบริหารทีม Customer Service</span></div>
-  <button class="nav-btn active" id="nav-btn-dashboard" onclick="showPage('dashboard',this)">📊 Dashboard</button>
-  <button class="nav-btn" id="nav-btn-schedule"  onclick="showPage('schedule',this)">📅 ตารางกะ & วันหยุด</button>
-  <button class="nav-btn" id="nav-btn-tickets"   onclick="showPage('tickets',this)">🎫 ติดตามเคส</button>
-  <button class="nav-btn" id="nav-btn-kpi"       onclick="showPage('kpi',this)">📈 ประเมินผลทีม</button>
-  <button class="nav-btn" id="nav-btn-users"     onclick="showPage('users',this)" style="display:none">👥 จัดการ User</button>
-  <div class="nav-user" id="nav-user-info" style="display:none">
-    <div>
-      <div class="nav-user-name" id="nav-display-name">—</div>
-      <div class="nav-user-role" id="nav-display-role">—</div>
-    </div>
-    <button class="nav-logout" onclick="doLogout()">ออกจากระบบ</button>
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div class="sidebar-logo-icon">🎧</div>
+    <div class="sidebar-name">CS Team Manager</div>
+    <div class="sidebar-sub">ระบบบริหารทีม CS</div>
   </div>
-</nav>
+  <nav class="sidebar-nav">
+    <button class="s-tab active" id="nav-btn-dashboard" onclick="showPage('dashboard',this)">
+      <span class="s-tab-icon">📊</span> Dashboard
+    </button>
+    <button class="s-tab" id="nav-btn-schedule" onclick="showPage('schedule',this)">
+      <span class="s-tab-icon">📅</span> ตารางกะ &amp; วันหยุด
+    </button>
+    <button class="s-tab" id="nav-btn-tickets" onclick="showPage('tickets',this)">
+      <span class="s-tab-icon">🎫</span> ติดตามเคส
+    </button>
+    <button class="s-tab" id="nav-btn-kpi" onclick="showPage('kpi',this)">
+      <span class="s-tab-icon">📈</span> ประเมินผลทีม
+    </button>
+    <button class="s-tab" id="nav-btn-users" onclick="showPage('users',this)" style="display:none">
+      <span class="s-tab-icon">👥</span> จัดการ User
+    </button>
+  </nav>
+  <div class="sidebar-footer" id="nav-user-info" style="display:none">
+    <div class="sidebar-user-name" id="nav-display-name">—</div>
+    <div class="sidebar-user-role" id="nav-display-role">—</div>
+    <button class="sidebar-logout" onclick="doLogout()">ออกจากระบบ</button>
+  </div>
+</aside>
+
+<main class="main-wrap">
 
 <!-- ═══════════════════ PAGE: DASHBOARD ═══════════════════ -->
 <div id="page-dashboard" class="page active">
-  <div class="section-header" style="margin-bottom:1rem">
+  <div class="section-header" style="margin-bottom:.75rem">
     <div class="section-title">📊 Dashboard ภาพรวมผู้จัดการ</div>
-    <div style="font-size:.82rem;color:var(--muted)" id="dash-time"></div>
+    <div style="font-size:.78rem;color:var(--muted)" id="dash-time"></div>
   </div>
 
   <!-- Stat Cards Row -->
-  <div class="grid-4" id="dash-stats"></div>
+  <div class="stat-row" id="dash-stats"></div>
+
+  <!-- Date Picker -->
+  <div class="page-datebar" id="dash-datebar">
+    <label>📅 ช่วงเวลา:</label>
+    <input type="date" id="dash-date-from" value="2026-01-01" onchange="loadDashboard();loadDashboardCharts()" style="max-width:135px"/>
+    <span style="color:var(--muted);font-size:.8rem">ถึง</span>
+    <input type="date" id="dash-date-to" onchange="loadDashboard();loadDashboardCharts()" style="max-width:135px"/>
+    <button class="btn btn-sm btn-primary" onclick="dashSetToday()">วันนี้</button>
+    <button class="btn btn-sm btn-ghost" onclick="dashSet7d()">7 วัน</button>
+    <button class="btn btn-sm btn-ghost" onclick="dashSet30d()">เดือนนี้</button>
+  </div>
 
   <!-- Chart Section -->
   <div class="grid-2" id="dash-charts-row1" style="margin-top:1rem">
@@ -474,21 +524,48 @@ textarea{resize:vertical;min-height:80px}
 
 <!-- ═══════════════════ PAGE: TICKETS ═══════════════════ -->
 <div id="page-tickets" class="page">
-  <div class="section-header">
+  <div class="section-header" style="margin-bottom:.75rem">
     <div class="section-title">🎫 ติดตามเคส — Calllog</div>
-    <div style="font-size:.82rem;color:var(--muted)" id="tk-count-label"></div>
+    <div style="font-size:.78rem;color:var(--muted)" id="tk-count-label"></div>
   </div>
 
-  <div class="filter-bar" style="flex-wrap:wrap;gap:.5rem">
+  <!-- Stat Cards -->
+  <div class="stat-row" id="tk-stats">
+    <div class="stat-flat">
+      <div class="label">📋 ทั้งหมด</div>
+      <div class="value blue" id="tk-stat-total">—</div>
+      <div class="sub">เคสในช่วงเวลา</div>
+    </div>
+    <div class="stat-flat">
+      <div class="label">🔴 เปิดอยู่</div>
+      <div class="value red" id="tk-stat-open">—</div>
+      <div class="sub">รอดำเนินการ</div>
+    </div>
+    <div class="stat-flat">
+      <div class="label">⚠️ เกิน 24 ชม.</div>
+      <div class="value yellow" id="tk-stat-overdue">—</div>
+      <div class="sub">ต้องเร่งแก้ไข</div>
+    </div>
+    <div class="stat-flat">
+      <div class="label">✅ ปิดแล้ว</div>
+      <div class="value green" id="tk-stat-closed">—</div>
+      <div class="sub">เสร็จสิ้น</div>
+    </div>
+  </div>
+
+  <!-- Date & Filter Bar -->
+  <div class="page-datebar">
+    <label>📅 วันที่:</label>
+    <input id="tk-date-from" type="date" value="2026-01-01" onchange="loadTickets()" style="max-width:135px" title="วันที่เริ่มต้น"/>
+    <span style="color:var(--muted);font-size:.8rem">ถึง</span>
+    <input id="tk-date-to" type="date" onchange="loadTickets()" style="max-width:135px" title="วันที่สิ้นสุด"/>
     <select id="tk-filter-status" onchange="loadTickets()">
       <option value="">ทุกสถานะ</option>
     </select>
     <select id="tk-filter-agent" onchange="loadTickets()">
       <option value="">ทุก Agent</option>
     </select>
-    <input id="tk-date-from" type="date" value="2026-01-01" onchange="loadTickets()" style="max-width:140px" title="วันที่เริ่มต้น"/>
-    <input id="tk-date-to"   type="date" onchange="loadTickets()" style="max-width:140px" title="วันที่สิ้นสุด"/>
-    <input id="tk-search" placeholder="🔍 ค้นหา..." oninput="renderTickets()" style="min-width:160px;flex:1"/>
+    <input id="tk-search" type="text" placeholder="🔍 ค้นหา..." oninput="renderTickets()" style="min-width:150px;flex:1"/>
   </div>
 
   <div class="card" style="padding:.5rem 0">
@@ -513,24 +590,51 @@ textarea{resize:vertical;min-height:80px}
 
 <!-- ═══════════════════ PAGE: KPI ═══════════════════ -->
 <div id="page-kpi" class="page">
-  <div class="section-header">
+  <div class="section-header" style="margin-bottom:.75rem">
     <div class="section-title">📈 ประเมินผลทีม (KPI)</div>
     <div class="btn-group">
-      <button class="btn btn-primary" onclick="openModal('modal-add-kpi')">+ บันทึก KPI</button>
-      <button class="btn" style="background:#7c3aed;color:#fff" onclick="loadAiForecast()">🔮 AI พยากรณ์</button>
+      <button class="btn btn-primary btn-sm" onclick="openModal('modal-add-kpi')">+ บันทึก KPI</button>
+      <button class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="loadAiForecast()">🔮 AI พยากรณ์</button>
     </div>
   </div>
 
   <!-- AI Forecast Box -->
   <div class="ai-forecast-box" id="ai-forecast-box">
-    <div style="font-weight:700;color:#9a3412;margin-bottom:.6rem;font-size:.95rem">🔮 AI วิเคราะห์ KPI และพยากรณ์แนวโน้ม</div>
+    <div style="font-weight:700;color:#fcd34d;margin-bottom:.6rem;font-size:.9rem">🔮 AI วิเคราะห์ KPI และพยากรณ์แนวโน้ม</div>
     <div id="ai-forecast-body" class="ai-forecast-body"></div>
   </div>
 
-  <div class="filter-bar">
+  <!-- Stat Cards -->
+  <div class="stat-row" id="kpi-stats">
+    <div class="stat-flat">
+      <div class="label">📊 เคสเฉลี่ย/คน</div>
+      <div class="value blue" id="kpi-stat-avg">—</div>
+      <div class="sub">เดือนที่เลือก</div>
+    </div>
+    <div class="stat-flat">
+      <div class="label">⭐ คะแนนเฉลี่ย</div>
+      <div class="value yellow" id="kpi-stat-score">—</div>
+      <div class="sub">ความพึงพอใจ</div>
+    </div>
+    <div class="stat-flat">
+      <div class="label">🏆 Top Agent</div>
+      <div class="value" id="kpi-stat-top" style="font-size:1rem;color:var(--accent);padding-top:.3rem">—</div>
+      <div class="sub">เคสมากสุด</div>
+    </div>
+    <div class="stat-flat">
+      <div class="label">👥 จำนวนพนักงาน</div>
+      <div class="value green" id="kpi-stat-count">—</div>
+      <div class="sub">ในช่วงเวลา</div>
+    </div>
+  </div>
+
+  <!-- Date & Filter Bar -->
+  <div class="page-datebar">
+    <label>📅 เดือน:</label>
     <select id="kpi-filter-month" onchange="loadKpi()">
       <!-- filled by JS -->
     </select>
+    <label style="margin-left:.25rem">ทีม:</label>
     <select id="kpi-filter-team" onchange="loadKpi()">
       <option value="">ทุกทีม</option>
       <option value="call_center">Call Center</option>
@@ -620,6 +724,8 @@ textarea{resize:vertical;min-height:80px}
     </div>
   </div>
 </div>
+
+</main>
 
 <!-- ══════════ MODALS ══════════ -->
 
@@ -1025,6 +1131,29 @@ async function refreshNameMap() {
     if (m && typeof m === 'object') Object.assign(nameMap, m);
   } catch {}
 }
+
+// ── Dashboard date preset helpers ──
+function dashSetToday() {
+  const t = new Date().toISOString().split('T')[0];
+  document.getElementById('dash-date-from').value = t;
+  document.getElementById('dash-date-to').value = t;
+  loadDashboard(); loadDashboardCharts();
+}
+function dashSet7d() {
+  const to = new Date();
+  const fr = new Date(); fr.setDate(to.getDate() - 6);
+  document.getElementById('dash-date-from').value = fr.toISOString().split('T')[0];
+  document.getElementById('dash-date-to').value = to.toISOString().split('T')[0];
+  loadDashboard(); loadDashboardCharts();
+}
+function dashSet30d() {
+  const to = new Date();
+  const fr = new Date(to.getFullYear(), to.getMonth(), 1);
+  document.getElementById('dash-date-from').value = fr.toISOString().split('T')[0];
+  document.getElementById('dash-date-to').value = to.toISOString().split('T')[0];
+  loadDashboard(); loadDashboardCharts();
+}
+
 let currentUser   = null;
 let authToken     = localStorage.getItem('cs_token') || null;
 let currentWeekStart = getMondayOfDate(new Date());
@@ -1136,7 +1265,7 @@ document.querySelectorAll('.overlay').forEach(el => {
 // ══════════════════════════════════════════════════════════
 function showPage(name, btn) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.s-tab').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
   if (btn) btn.classList.add('active');
   if (name === 'dashboard') { loadDashboard(); loadDashboardCharts(); }
@@ -1765,6 +1894,18 @@ function renderTickets() {
       || (t.category||'').toLowerCase().includes(q);
   });
 
+  // Update ticket stat cards
+  const tkTotal   = filtered.length;
+  const tkOpen    = filtered.filter(t => t.status === 'open').length;
+  const tkClosed  = filtered.filter(t => t.status === 'closed').length;
+  const now24h    = Date.now() - 24 * 3600 * 1000;
+  const tkOverdue = filtered.filter(t => t.status !== 'closed' && new Date(t.created_at).getTime() < now24h).length;
+  const _setEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  _setEl('tk-stat-total',   tkTotal);
+  _setEl('tk-stat-open',    tkOpen);
+  _setEl('tk-stat-overdue', tkOverdue);
+  _setEl('tk-stat-closed',  tkClosed);
+
   const lbl = document.getElementById('tk-count-label');
   if (lbl) lbl.textContent = `แสดง ${filtered.length} จาก ${allTickets.length} เคส`;
 
@@ -1917,6 +2058,23 @@ async function loadKpi() {
 }
 
 function renderKpiTable() {
+  // Update KPI stat cards
+  if (allKpi.length > 0) {
+    const totalCases  = allKpi.reduce((s,k) => s + (k.total_cases||0), 0);
+    const avgCases    = (totalCases / allKpi.length).toFixed(1);
+    const avgScore    = (allKpi.reduce((s,k) => s + (k.satisfaction_score||0), 0) / allKpi.length).toFixed(2);
+    const top         = allKpi.reduce((a,b) => (b.total_cases||0) > (a.total_cases||0) ? b : a);
+    const _s = (id, v) => { const el = document.getElementById(id); if(el) el.textContent = v; };
+    _s('kpi-stat-avg',   avgCases);
+    _s('kpi-stat-score', avgScore);
+    _s('kpi-stat-top',   top.name || '—');
+    _s('kpi-stat-count', allKpi.length);
+  } else {
+    ['kpi-stat-avg','kpi-stat-score','kpi-stat-top','kpi-stat-count'].forEach(id => {
+      const el = document.getElementById(id); if(el) el.textContent = '—';
+    });
+  }
+
   const tbody = document.getElementById('kpi-tbody');
   if (allKpi.length === 0) {
     tbody.innerHTML = '<tr><td colspan="8" class="empty"><div class="icon">📊</div>ไม่พบข้อมูล KPI</td></tr>';
