@@ -38,45 +38,6 @@ function managerRequired(request, res, next) {
   next();
 }
 
-function leadRequired(request, res, next) {
-  if (!['team_lead', 'manager', 'admin'].includes(request.user?.role)) {
-    return res.status(403).json({ error: 'Team lead or above required' });
-  }
-  next();
-}
-
-// Returns usernames to filter Calllog by, or undefined = no restriction
-// null = block all access
-async function getScopedUsernames(user) {
-  if (!user) return null;
-  if (['manager', 'admin'].includes(user.role)) return undefined; // no restriction
-  if (user.role === 'staff') {
-    return user.ext_username ? [user.ext_username] : null;
-  }
-  if (user.role === 'team_lead') {
-    const rows = (await req()
-      .input('tm', sql.NVarChar, user.team)
-      .query(`SELECT DISTINCT au.ext_username FROM app_users au
-              JOIN employees e ON e.id = au.employee_id
-              WHERE e.team = @tm AND au.active = 1 AND e.active = 1
-                AND au.ext_username IS NOT NULL`)).recordset;
-    return rows.map(r => r.ext_username);
-  }
-  return undefined;
-}
-
-// Append scope WHERE clause to a query; mutates the mssql request object
-function appendScopeClause(r, scopeUsernames) {
-  if (scopeUsernames === undefined) return ''; // no restriction
-  if (!scopeUsernames || scopeUsernames.length === 0) return ' AND 1=0';
-  if (scopeUsernames.length === 1) {
-    r.input('_su0', sql.NVarChar, scopeUsernames[0]);
-    return ' AND u.UserName = @_su0';
-  }
-  scopeUsernames.forEach((u, i) => r.input(`_su${i}`, sql.NVarChar, u));
-  return ` AND u.UserName IN (${scopeUsernames.map((_,i) => `@_su${i}`).join(',')})`;
-}
-
 // ── Calllog base query (LicenseDB) ───────────────────────
 const CALLLOG_SELECT = `
   SELECT
@@ -90,47 +51,34 @@ const CALLLOG_SELECT = `
     u.UserName          AS assigned_name,
     cl.IssueURL,
     cl.Subject          AS title,
-    pt.Note             AS problem_type,
-    cl.CloseDate,
-    CASE WHEN cl.CloseDate IS NOT NULL
-         THEN DATEDIFF(MINUTE, cl.ReceiveDate, cl.CloseDate)
-         ELSE NULL END  AS TimeDiff_Minutes,
-    ic.IssueCategoryDesc
+    pt.Note             AS problem_type
   FROM Calllog cl
   INNER JOIN CustomerRegistration cr ON cr.RegistrationId  = cl.RegistrationId
   INNER JOIN CallStatus           cs ON cs.StatusId        = cl.StatusId
   INNER JOIN Users                u  ON u.UserId           = cl.SupportId
   INNER JOIN Project              p  ON p.ProjectId        = cl.ProjectId
   INNER JOIN ProblemType          pt ON pt.ProblemTypeId   = cl.ProblemTypeId
-  LEFT  JOIN IssueCategory        ic ON ic.IssueCategoryId = cl.IssueCategoryId
 `;
 
 // ══════════════════════════════════════════════════════════
 //  EMPLOYEES (cs_team)
 // ══════════════════════════════════════════════════════════
-app.get('/api/employees', authRequired, async (request, res) => {
+app.get('/api/employees', async (request, res) => {
   try {
     const { team, include_inactive } = request.query;
-    const user = request.user;
     const r = req();
-    let q = `SELECT id, name, nickname, team, role, phone, start_date, active, created_at FROM employees`;
+    let q = `SELECT id, name, nickname, team, role, phone, start_date, active, created_at
+             FROM employees`;
     const conds = [];
     if (!include_inactive) conds.push('active=1');
-    // Scope: staff sees only themselves; team_lead sees their team; manager/admin sees all
-    if (user.role === 'staff') {
-      conds.push('id=@_eid'); r.input('_eid', sql.Int, user.employee_id);
-    } else if (user.role === 'team_lead') {
-      conds.push('team=@_tm'); r.input('_tm', sql.NVarChar, user.team);
-    } else if (team) {
-      conds.push('team=@team'); r.input('team', sql.NVarChar, team);
-    }
+    if (team) { conds.push('team=@team'); r.input('team', sql.NVarChar, team); }
     if (conds.length) q += ' WHERE ' + conds.join(' AND ');
     q += ' ORDER BY team, role DESC, id';
     res.json((await r.query(q)).recordset);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/employees', authRequired, leadRequired, async (request, res) => {
+app.post('/api/employees', async (request, res) => {
   try {
     const { name, nickname, team, role, phone, start_date } = request.body;
     const result = await req()
@@ -146,7 +94,7 @@ app.post('/api/employees', authRequired, leadRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.put('/api/employees/:id', authRequired, leadRequired, async (request, res) => {
+app.put('/api/employees/:id', async (request, res) => {
   try {
     const { name, nickname, team, role, phone, start_date, active } = request.body;
     await req()
@@ -166,7 +114,7 @@ app.put('/api/employees/:id', authRequired, leadRequired, async (request, res) =
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.delete('/api/employees/:id', authRequired, managerRequired, async (request, res) => {
+app.delete('/api/employees/:id', async (request, res) => {
   try {
     await req()
       .input('id', sql.Int, request.params.id)
@@ -185,9 +133,8 @@ function getMonday(dateStr) {
   return d.toISOString().split('T')[0];
 }
 
-app.get('/api/shifts', authRequired, async (request, res) => {
+app.get('/api/shifts', async (request, res) => {
   try {
-    const user = request.user;
     const { week_start, team } = request.query;
     const startDate = getMonday(week_start);
     const endD = new Date(startDate); endD.setDate(endD.getDate() + 6);
@@ -196,19 +143,13 @@ app.get('/api/shifts', authRequired, async (request, res) => {
     let q = `SELECT s.*, e.name, e.team, e.role
              FROM shifts s JOIN employees e ON e.id=s.employee_id
              WHERE e.active=1 AND s.shift_date BETWEEN @s AND @e`;
-    if (user.role === 'staff') {
-      q += ' AND s.employee_id=@_eid'; r.input('_eid', sql.Int, user.employee_id);
-    } else if (user.role === 'team_lead') {
-      q += ' AND e.team=@_tm'; r.input('_tm', sql.NVarChar, user.team);
-    } else if (team) {
-      q += ' AND e.team=@team'; r.input('team', sql.NVarChar, team);
-    }
+    if (team) { q += ' AND e.team=@team'; r.input('team', sql.NVarChar, team); }
     q += ' ORDER BY s.shift_date, e.team, s.shift_type, e.id';
     res.json((await r.query(q)).recordset);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/shifts', authRequired, async (request, res) => {
+app.post('/api/shifts', async (request, res) => {
   try {
     const { employee_id, shift_type, shift_date } = request.body;
     await req().input('eid', sql.Int, employee_id).input('date', sql.Date, shift_date)
@@ -221,7 +162,7 @@ app.post('/api/shifts', authRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.put('/api/shifts/:id', authRequired, async (request, res) => {
+app.put('/api/shifts/:id', async (request, res) => {
   try {
     const { shift_type, status } = request.body;
     await req().input('stype', sql.NVarChar, shift_type).input('status', sql.NVarChar, status)
@@ -231,14 +172,14 @@ app.put('/api/shifts/:id', authRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.delete('/api/shifts/:id', authRequired, async (request, res) => {
+app.delete('/api/shifts/:id', async (request, res) => {
   try {
     await req().input('id', sql.Int, request.params.id).query('DELETE FROM shifts WHERE id=@id');
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.get('/api/shifts/coverage', authRequired, async (request, res) => {
+app.get('/api/shifts/coverage', async (request, res) => {
   try {
     const startDate = getMonday(request.query.week_start);
     const endD = new Date(startDate); endD.setDate(endD.getDate() + 6);
@@ -256,24 +197,19 @@ app.get('/api/shifts/coverage', authRequired, async (request, res) => {
 // ══════════════════════════════════════════════════════════
 //  LEAVE REQUESTS (cs_team)
 // ══════════════════════════════════════════════════════════
-app.get('/api/leave-requests', authRequired, async (request, res) => {
+app.get('/api/leave-requests', async (_, res) => {
   try {
-    const user = request.user;
-    const r = req();
-    let q = `SELECT lr.*, e.name AS emp_name, e.team, a.name AS approver_name
-             FROM leave_requests lr JOIN employees e ON e.id=lr.employee_id
-             LEFT JOIN employees a ON a.id=lr.approved_by WHERE 1=1`;
-    if (user.role === 'staff') {
-      q += ' AND lr.employee_id=@_eid'; r.input('_eid', sql.Int, user.employee_id);
-    } else if (user.role === 'team_lead') {
-      q += ' AND e.team=@_tm'; r.input('_tm', sql.NVarChar, user.team);
-    }
-    q += ' ORDER BY lr.created_at DESC';
-    res.json((await r.query(q)).recordset);
+    const result = await req().query(`
+      SELECT lr.*, e.name AS emp_name, e.team, a.name AS approver_name
+      FROM leave_requests lr
+      JOIN employees e ON e.id=lr.employee_id
+      LEFT JOIN employees a ON a.id=lr.approved_by
+      ORDER BY lr.created_at DESC`);
+    res.json(result.recordset);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/leave-requests', authRequired, async (request, res) => {
+app.post('/api/leave-requests', async (request, res) => {
   try {
     const { employee_id, leave_date, reason } = request.body;
     const result = await req()
@@ -284,7 +220,7 @@ app.post('/api/leave-requests', authRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.put('/api/leave-requests/:id/approve', authRequired, leadRequired, async (request, res) => {
+app.put('/api/leave-requests/:id/approve', async (request, res) => {
   try {
     const { approved_by } = request.body;
     const lr = (await req().input('id', sql.Int, request.params.id)
@@ -298,7 +234,7 @@ app.put('/api/leave-requests/:id/approve', authRequired, leadRequired, async (re
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.put('/api/leave-requests/:id/reject', authRequired, leadRequired, async (request, res) => {
+app.put('/api/leave-requests/:id/reject', async (request, res) => {
   try {
     await req().input('by', sql.Int, request.body.approved_by).input('id', sql.Int, request.params.id)
       .query("UPDATE leave_requests SET status='rejected',approved_by=@by WHERE id=@id");
@@ -309,20 +245,18 @@ app.put('/api/leave-requests/:id/reject', authRequired, leadRequired, async (req
 // ══════════════════════════════════════════════════════════
 //  TICKETS — ดึงจาก LicenseDB (read-only)
 // ══════════════════════════════════════════════════════════
-app.get('/api/tickets', authRequired, async (request, res) => {
+app.get('/api/tickets', async (request, res) => {
   try {
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
     const { status, search, dateFrom, dateTo } = request.query;
     const defaultFrom = dateFrom || '2026-01-01';
-    const scope = await getScopedUsernames(request.user);
-    if (scope === null) return res.json([]);
     const r = extReq();
     let q = CALLLOG_SELECT + ' WHERE cl.ReceiveDate >= @df';
     r.input('df', sql.DateTime, new Date(defaultFrom));
-    q += appendScopeClause(r, scope);
-    if (status) { q += ' AND cs.StatusName=@status'; r.input('status', sql.NVarChar, status); }
-    if (search) { q += ' AND (cl.Subject LIKE @s OR cr.CompanyName LIKE @s OR u.UserName LIKE @s)'; r.input('s', sql.NVarChar, `%${search}%`); }
-    if (dateTo) { q += ' AND cl.ReceiveDate <= @dt'; r.input('dt', sql.DateTime, new Date(dateTo + 'T23:59:59')); }
+    if (status)   { q += ' AND cs.StatusName=@status';                    r.input('status',   sql.NVarChar, status); }
+    if (search)   { q += ' AND (cl.Subject LIKE @s OR cr.CompanyName LIKE @s OR u.UserName LIKE @s)';
+                                                                           r.input('s',        sql.NVarChar, `%${search}%`); }
+    if (dateTo)   { q += ' AND cl.ReceiveDate <= @dt';                    r.input('dt',       sql.DateTime, new Date(dateTo + 'T23:59:59')); }
     q += ' ORDER BY cl.ReceiveDate DESC';
     res.json((await r.query(q)).recordset);
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -374,21 +308,37 @@ app.get('/api/name-map', authRequired, async (_, res) => {
 app.get('/api/kpi', authRequired, async (request, res) => {
   try {
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
-    const scope = await getScopedUsernames(request.user);
-    if (scope === null) return res.json([]);
-    const { month } = request.query;
+    const { month, team } = request.query;
     const ym = (month || new Date().toISOString().substring(0, 7));
     const monthStart = ym + '-01';
     const monthEnd   = new Date(new Date(monthStart).setMonth(new Date(monthStart).getMonth() + 1));
-    const kr = extReq().input('s', sql.DateTime, new Date(monthStart)).input('e', sql.DateTime, monthEnd);
-    let kpiQ = `
-      SELECT u.UserName, COUNT(cl.CalllogId) AS total_cases,
-             MIN(cl.ReceiveDate) AS first_case, MAX(cl.ReceiveDate) AS last_case
-      FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
-      WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e`;
-    kpiQ += appendScopeClause(kr, scope);
-    kpiQ += ' GROUP BY u.UserName, u.UserId ORDER BY total_cases DESC';
-    const kpiRows = await kr.query(kpiQ);
+
+    // Resolve RBAC scope + optional team filter
+    let scope = await getScopedUsernames(request.user);
+    if (scope === null) return res.json([]);
+    if (team) {
+      const teamRows = (await req().input('tm', sql.NVarChar, team).query(
+        `SELECT DISTINCT au.ext_username FROM app_users au JOIN employees e ON e.id=au.employee_id
+         WHERE e.team=@tm AND au.active=1 AND e.active=1 AND au.ext_username IS NOT NULL`
+      )).recordset;
+      const teamScope = teamRows.map(r => r.ext_username);
+      scope = scope === undefined ? teamScope : scope.filter(u => teamScope.includes(u));
+    }
+
+    const r = extReq().input('s', sql.DateTime, new Date(monthStart)).input('e', sql.DateTime, monthEnd);
+    const sc = appendScopeClause(r, scope);
+    const kpiRows = await r.query(`
+        SELECT
+          u.UserName,
+          COUNT(cl.CalllogId) AS total_cases,
+          MIN(cl.ReceiveDate) AS first_case,
+          MAX(cl.ReceiveDate) AS last_case
+        FROM Calllog cl
+        INNER JOIN Users u ON u.UserId = cl.SupportId
+        WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e${sc}
+        GROUP BY u.UserName, u.UserId
+        ORDER BY total_cases DESC
+      `);
     const comments = await req()
       .input('month', sql.Date, monthStart)
       .query(`SELECT ext_username, comment, recorded_by,
@@ -398,20 +348,9 @@ app.get('/api/kpi', authRequired, async (request, res) => {
               WHERE month = @month`);
     const commentMap = {};
     comments.recordset.forEach(c => { commentMap[c.ext_username] = c; });
-    // Enrich with team from cs_team employees via ext_username
-    const empRows = (await req().query(`
-      SELECT au.ext_username, e.name, e.team
-      FROM app_users au JOIN employees e ON e.id = au.employee_id
-      WHERE au.ext_username IS NOT NULL AND au.active=1 AND e.active=1
-    `)).recordset;
-    const empMap = {};
-    empRows.forEach(r => { empMap[r.ext_username] = r; });
-
     const result = kpiRows.recordset.map(r => ({
       ...r,
-      month:         monthStart,
-      name:          empMap[r.UserName]?.name || r.UserName,
-      team:          empMap[r.UserName]?.team || null,
+      month: monthStart,
       comment:       commentMap[r.UserName]?.comment       || null,
       recorded_by:   commentMap[r.UserName]?.recorded_by   || null,
       recorder_name: commentMap[r.UserName]?.recorder_name || null,
@@ -420,7 +359,7 @@ app.get('/api/kpi', authRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/kpi/comment', authRequired, leadRequired, async (request, res) => {
+app.post('/api/kpi/comment', async (request, res) => {
   try {
     const { ext_username, month, comment, recorded_by } = request.body;
     const monthDate = month + '-01';
@@ -471,32 +410,29 @@ app.get('/api/kpi/history', async (request, res) => {
 // ══════════════════════════════════════════════════════════
 //  DASHBOARD — Calllog (LicenseDB) + shifts/leaves (cs_team)
 // ══════════════════════════════════════════════════════════
-app.get('/api/dashboard', authRequired, async (request, res) => {
+app.get('/api/dashboard', async (_, res) => {
   try {
-    const scope = await getScopedUsernames(request.user);
-    if (scope === null) return res.json({ overdueTickets:[], todayTotal:0, onShift:[], pendingLeaves:[], serverTime: new Date().toISOString() });
     const now     = new Date();
     const today   = now.toISOString().split('T')[0];
     const hour    = now.getHours(), minute = now.getMinutes();
     const timeVal = hour * 60 + minute;
     const currentShifts = [];
     if (timeVal >= 8*60+30 && timeVal <= 16*60+30)  currentShifts.push('morning');
-    if (timeVal >= 15*60+30 && timeVal <= 23*60+59) currentShifts.push('afternoon');
-    if (timeVal >= 16*60   && timeVal <= 23*60+59)  currentShifts.push('night');
+    if (timeVal >= 15*60+30 && timeVal <= 23*60+30) currentShifts.push('afternoon');
+    if (timeVal >= 16*60 || timeVal <= 0)            currentShifts.push('night');
     if (currentShifts.length === 0) currentShifts.push('morning');
     const ext = getExtPool();
     let ticketsToday = [], overdueTickets = [], ticketStats = [], kpiSummary = [];
     let dailyTrend = [], monthTotal = 0, lastMonthTotal = 0, totalYear = 0, closedThisMonth = 0;
     let todayTotal = 0, weekTotal = 0, weekStart = '';
     if (ext) {
-      const ttr = extReq().input('today', sql.Date, today);
-      let ttQ = `SELECT cs.StatusName AS status, COUNT(*) AS cnt
-                 FROM Calllog cl INNER JOIN CallStatus cs ON cs.StatusId=cl.StatusId
-                 INNER JOIN Users u ON u.UserId=cl.SupportId
-                 WHERE CAST(cl.ReceiveDate AS DATE)=@today`;
-      ttQ += appendScopeClause(ttr, scope);
-      ttQ += ' GROUP BY cs.StatusName';
-      ticketsToday = (await ttr.query(ttQ)).recordset;
+      ticketsToday = (await extReq()
+        .input('today', sql.Date, today)
+        .query(`SELECT cs.StatusName AS status, COUNT(*) AS cnt
+                FROM Calllog cl
+                INNER JOIN CallStatus cs ON cs.StatusId=cl.StatusId
+                WHERE CAST(cl.ReceiveDate AS DATE)=@today
+                GROUP BY cs.StatusName`)).recordset;
       todayTotal = ticketsToday.reduce((s,r) => s + r.cnt, 0);
 
       // This week (Mon–today)
@@ -506,25 +442,23 @@ app.get('/api/dashboard', authRequired, async (request, res) => {
         .query(`SELECT COUNT(*) AS cnt FROM Calllog cl
                 WHERE CAST(cl.ReceiveDate AS DATE) BETWEEN @ws AND @we`)).recordset[0]?.cnt || 0;
 
-      const odr = extReq();
-      let odQ = `SELECT TOP 30 cl.CalllogId AS id, cl.Subject AS title,
-                   cr.CompanyName, cs.StatusName AS status, u.UserName AS assigned_name,
-                   cl.ReceiveDate AS opened_at, ic.IssueCategoryDesc
-                 FROM Calllog cl
-                 INNER JOIN CustomerRegistration cr ON cr.RegistrationId=cl.RegistrationId
-                 INNER JOIN CallStatus cs ON cs.StatusId=cl.StatusId
-                 INNER JOIN Users u ON u.UserId=cl.SupportId
-                 INNER JOIN Project p ON p.ProjectId=cl.ProjectId
-                 INNER JOIN ProblemType pt ON pt.ProblemTypeId=cl.ProblemTypeId
-                 LEFT  JOIN IssueCategory ic ON ic.IssueCategoryId=cl.IssueCategoryId
-                 WHERE cl.ReceiveDate >= '2026-01-01'
-                   AND cl.ReceiveDate <= DATEADD(hour,-24,GETDATE())
-                   AND cs.StatusName NOT LIKE '%close%'
-                   AND cs.StatusName NOT LIKE '%ปิด%'
-                   AND cs.StatusName NOT LIKE '%complete%'`;
-      odQ += appendScopeClause(odr, scope);
-      odQ += ' ORDER BY cl.ReceiveDate ASC';
-      overdueTickets = (await odr.query(odQ)).recordset;
+      overdueTickets = (await extReq()
+        .query(`SELECT TOP 20
+                  cl.CalllogId AS id, cl.Subject AS title,
+                  cr.CompanyName, cs.StatusName AS status,
+                  u.UserName AS assigned_name, cl.ReceiveDate AS opened_at
+                FROM Calllog cl
+                INNER JOIN CustomerRegistration cr ON cr.RegistrationId=cl.RegistrationId
+                INNER JOIN CallStatus cs ON cs.StatusId=cl.StatusId
+                INNER JOIN Users u ON u.UserId=cl.SupportId
+                INNER JOIN Project p ON p.ProjectId=cl.ProjectId
+                INNER JOIN ProblemType pt ON pt.ProblemTypeId=cl.ProblemTypeId
+                WHERE cl.ReceiveDate >= '2026-01-01'
+                  AND cl.ReceiveDate <= DATEADD(hour,-24,GETDATE())
+                  AND cs.StatusName NOT LIKE '%close%'
+                  AND cs.StatusName NOT LIKE '%ปิด%'
+                  AND cs.StatusName NOT LIKE '%complete%'
+                ORDER BY cl.ReceiveDate ASC`)).recordset;
       ticketStats = (await extReq()
         .query(`SELECT cs.StatusName AS status, COUNT(*) AS cnt
                 FROM Calllog cl
@@ -590,8 +524,7 @@ app.get('/api/dashboard', authRequired, async (request, res) => {
       currentShifts, serverTime: now.toISOString(),
       extConnected: !!ext,
       dailyTrend, monthTotal, lastMonthTotal, totalYear, closedThisMonth,
-      todayTotal, weekTotal, weekStart, nameMap,
-      scopeRole: request.user.role, scopeTeam: request.user.team
+      todayTotal, weekTotal, weekStart, nameMap
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -735,7 +668,7 @@ ${context}
 });
 
 // ── 3. AI Suggest Shifts ───────────────────────────────────
-app.post('/api/ai/suggest-shifts', authRequired, leadRequired, async (request, res) => {
+app.post('/api/ai/suggest-shifts', async (request, res) => {
   const { week_start, team } = request.body;
   try {
     const startDate = getMonday(week_start);
@@ -762,14 +695,12 @@ ${JSON.stringify(employees, null, 2)}
 ${JSON.stringify(approvedLeaves, null, 2)}
 
 กฎการจัดกะ:
-- บริษัทเปิดทำการ 08:30–23:59 ทุกวัน ไม่มีวันหยุดราชการ
-- กะ: morning (08:30-16:30), afternoon (15:30-23:59), night (16:00-23:59)
-- call_center: ต้องมีอย่างน้อย 2 คน/กะ ทุกวัน รวมเสาร์-อาทิตย์, team_lead ควรอยู่กะเช้า
+- กะ: morning (08:30-16:30), afternoon (15:30-23:30), night (23:00-07:00)
+- call_center: ต้องมีอย่างน้อย 2 คน/กะ ทุกวัน, team_lead ควรอยู่กะเช้า
 - helpdesk: ต้องมีอย่างน้อย 1 คน/กะ วันจันทร์-ศุกร์
 - repair: morning เท่านั้น วันจันทร์-ศุกร์
-- พนักงาน 1 คนทำได้ 1 กะ/วัน, ทำงาน 5 วัน/สัปดาห์ หยุด 2 วัน
+- พนักงาน 1 คนทำได้ 1 กะ/วัน และไม่ควรทำติดกัน >5 วัน
 - ห้ามจัดกะในวันที่ได้รับอนุมัติลา
-- กระจายวันหยุดให้สมดุล ไม่ให้ใครหยุดพร้อมกันมากเกินไปในทีมเดียว
 
 ตอบเป็น JSON array เท่านั้น:
 [{"employee_id": 1, "shift_date": "YYYY-MM-DD", "shift_type": "morning|afternoon|night"}]`;
@@ -867,9 +798,12 @@ app.put('/api/teams/:id', async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// DELETE /api/teams/:id — disabled: teams cannot be deleted
-app.delete('/api/teams/:id', authRequired, (_, res) => {
-  res.status(403).json({ error: 'ไม่อนุญาตให้ลบทีม — สามารถปิดใช้งานได้จากหน้าแก้ไขแทน' });
+app.delete('/api/teams/:id', async (request, res) => {
+  try {
+    await req().input('id', sql.Int, request.params.id)
+      .query('UPDATE teams SET active=0 WHERE id=@id');
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ══════════════════════════════════════════════════════════
@@ -988,76 +922,88 @@ app.delete('/api/users/:id', authRequired, async (request, res) => {
 app.get('/api/dashboard/charts', authRequired, async (request, res) => {
   try {
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
-    const scope = await getScopedUsernames(request.user);
-    if (scope === null) return res.json({ catStats:[], agentThis:[], agentLast:[], agentCat:[], dailyTrend:[], hourlyStats:[], dowStats:[], catDailyTrend:[] });
 
+    const { dateFrom, dateTo, team } = request.query;
     const today = new Date().toISOString().split('T')[0];
-    const ms    = (request.query.dateFrom || today.substring(0, 7) + '-01');
-    const me    = request.query.dateTo   ? new Date(request.query.dateTo + 'T23:59:59')
-                                         : new Date(new Date(ms).setMonth(new Date(ms).getMonth() + 1));
-    const msDt  = new Date(ms);
-    const meDt  = new Date(me);
-    const durMs = meDt - msDt;
-    const lms   = new Date(msDt - durMs);
-    const lme   = msDt;
+    const msStr = dateFrom || (today.substring(0, 7) + '-01');
+    const msDate = new Date(msStr);
+    const meDate = dateTo ? new Date(dateTo + 'T23:59:59') : new Date(new Date(msStr).setMonth(msDate.getMonth() + 1));
+    const lmsDate = new Date(new Date(msStr).setMonth(msDate.getMonth() - 1));
 
-    // Helper: create a scoped extReq with date params
-    const sReq = (fromP, toP, fv, tv) => {
-      const r = extReq().input(fromP, sql.DateTime, fv).input(toP, sql.DateTime, tv);
-      return { r, sc: appendScopeClause(r, scope) };
-    };
+    // Resolve RBAC scope; apply optional team override
+    let scope = await getScopedUsernames(request.user);
+    if (scope === null) {
+      return res.json({ catStats:[], agentThis:[], agentLast:[], agentCat:[],
+                        dailyTrend:[], hourlyStats:[], dowStats:[], catDailyTrend:[], nameMap:{} });
+    }
+    if (team) {
+      const teamRows = (await req().input('tm', sql.NVarChar, team).query(
+        `SELECT DISTINCT au.ext_username FROM app_users au JOIN employees e ON e.id=au.employee_id
+         WHERE e.team=@tm AND au.active=1 AND e.active=1 AND au.ext_username IS NOT NULL`
+      )).recordset;
+      const teamScope = teamRows.map(r => r.ext_username);
+      // Intersect: if user already has a restricted scope, keep intersection
+      scope = scope === undefined ? teamScope
+            : scope.filter(u => teamScope.includes(u));
+    }
 
-    const { r: trR, sc: trSc } = sReq('dFrom','dTo', msDt, meDt);
-    const { r: catR, sc: catSc } = sReq('ms','me', msDt, meDt);
-    const { r: atR, sc: atSc } = sReq('ms','me', msDt, meDt);
-    const { r: alR, sc: alSc } = sReq('lms','lme', lms, lme);
-    const { r: acR, sc: acSc } = sReq('ms','me', msDt, meDt);
-    const { r: hrR, sc: hrSc } = sReq('ms','me', msDt, meDt);
-    const { r: dwR, sc: dwSc } = sReq('ms','me', msDt, meDt);
-    const { r: cdR, sc: cdSc } = sReq('ms','me', msDt, meDt);
+    // Build each request separately so appendScopeClause can bind params independently
+    const mkR = (from, to) => extReq()
+      .input('ms', sql.DateTime, from)
+      .input('me', sql.DateTime, to);
 
-    const [dailyTrend, catStats, agentThis, agentLast, agentCat,
-           hourlyStats, dowStats, catDailyTrend] = await Promise.all([
-      // Daily count
-      trR.query(`SELECT CAST(cl.ReceiveDate AS DATE) AS day, COUNT(*) AS cnt
-                 FROM Calllog cl INNER JOIN Users u ON u.UserId=cl.SupportId
-                 WHERE cl.ReceiveDate >= @dFrom AND cl.ReceiveDate < @dTo${trSc}
-                 GROUP BY CAST(cl.ReceiveDate AS DATE) ORDER BY day`),
-      // Cases by category
-      catR.query(`SELECT cl.Subject AS category, COUNT(*) AS cnt
-                  FROM Calllog cl INNER JOIN Users u ON u.UserId=cl.SupportId
-                  WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me AND cl.Subject IS NOT NULL${catSc}
-                  GROUP BY cl.Subject ORDER BY cnt DESC`),
-      // Agent cases — selected range
-      atR.query(`SELECT u.UserName, COUNT(*) AS cnt FROM Calllog cl
-                 INNER JOIN Users u ON u.UserId=cl.SupportId
-                 WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${atSc}
-                 GROUP BY u.UserName ORDER BY cnt DESC`),
+    const r1 = mkR(msDate, meDate);   const sc1 = appendScopeClause(r1, scope);
+    const r2 = mkR(msDate, meDate);   const sc2 = appendScopeClause(r2, scope);
+    const r3 = mkR(msDate, meDate);   const sc3 = appendScopeClause(r3, scope);
+    const r4 = extReq()
+      .input('ms', sql.DateTime, lmsDate)
+      .input('me', sql.DateTime, msDate); const sc4 = appendScopeClause(r4, scope);
+    const r5 = mkR(msDate, meDate);   const sc5 = appendScopeClause(r5, scope);
+    const r6 = mkR(msDate, meDate);   const sc6 = appendScopeClause(r6, scope);
+    const r7 = mkR(msDate, meDate);   const sc7 = appendScopeClause(r7, scope);
+    const r8 = mkR(msDate, meDate);   const sc8 = appendScopeClause(r8, scope);
+
+    const [d1, d2, d3, d4, d5, d6, d7, d8] = await Promise.all([
+      // Daily trend
+      r1.query(`SELECT CAST(cl.ReceiveDate AS DATE) AS day, COUNT(*) AS cnt
+        FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
+        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc1}
+        GROUP BY CAST(cl.ReceiveDate AS DATE) ORDER BY day`),
+      // Category stats
+      r2.query(`SELECT cl.Subject AS category, COUNT(*) AS cnt
+        FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
+        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc2}
+        GROUP BY cl.Subject ORDER BY cnt DESC`),
+      // Agent cases — this period
+      r3.query(`SELECT u.UserName, COUNT(*) AS cnt
+        FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
+        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc3}
+        GROUP BY u.UserName ORDER BY cnt DESC`),
       // Agent cases — previous period
-      alR.query(`SELECT u.UserName, COUNT(*) AS cnt FROM Calllog cl
-                 INNER JOIN Users u ON u.UserId=cl.SupportId
-                 WHERE cl.ReceiveDate >= @lms AND cl.ReceiveDate < @lme${alSc}
-                 GROUP BY u.UserName`),
-      // Agent × category — selected range
-      acR.query(`SELECT TOP 300 u.UserName, cl.Subject AS category, COUNT(*) AS cnt
-                 FROM Calllog cl INNER JOIN Users u ON u.UserId=cl.SupportId
-                 WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${acSc}
-                 GROUP BY u.UserName, cl.Subject ORDER BY u.UserName, cnt DESC`),
+      r4.query(`SELECT u.UserName, COUNT(*) AS cnt
+        FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
+        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc4}
+        GROUP BY u.UserName`),
+      // Agent × category
+      r5.query(`SELECT TOP 300 u.UserName, cl.Subject AS category, COUNT(*) AS cnt
+        FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
+        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc5}
+        GROUP BY u.UserName, cl.Subject ORDER BY u.UserName, cnt DESC`),
       // Hourly distribution
-      hrR.query(`SELECT DATEPART(HOUR, cl.ReceiveDate) AS hr, COUNT(*) AS cnt
-                 FROM Calllog cl INNER JOIN Users u ON u.UserId=cl.SupportId
-                 WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${hrSc}
-                 GROUP BY DATEPART(HOUR, cl.ReceiveDate) ORDER BY hr`),
+      r6.query(`SELECT DATEPART(hour, cl.ReceiveDate) AS hr, COUNT(*) AS cnt
+        FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
+        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc6}
+        GROUP BY DATEPART(hour, cl.ReceiveDate) ORDER BY hr`),
       // Day-of-week distribution
-      dwR.query(`SELECT DATEPART(WEEKDAY, cl.ReceiveDate) AS dow, COUNT(*) AS cnt
-                 FROM Calllog cl INNER JOIN Users u ON u.UserId=cl.SupportId
-                 WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${dwSc}
-                 GROUP BY DATEPART(WEEKDAY, cl.ReceiveDate) ORDER BY dow`),
-      // Category × day trend
-      cdR.query(`SELECT TOP 600 CAST(cl.ReceiveDate AS DATE) AS day, cl.Subject AS category, COUNT(*) AS cnt
-                 FROM Calllog cl INNER JOIN Users u ON u.UserId=cl.SupportId
-                 WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me AND cl.Subject IS NOT NULL${cdSc}
-                 GROUP BY CAST(cl.ReceiveDate AS DATE), cl.Subject ORDER BY day, cnt DESC`)
+      r7.query(`SELECT DATEPART(weekday, cl.ReceiveDate) AS dow, COUNT(*) AS cnt
+        FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
+        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc7}
+        GROUP BY DATEPART(weekday, cl.ReceiveDate) ORDER BY dow`),
+      // Category daily trend (top cats over time)
+      r8.query(`SELECT TOP 500 CAST(cl.ReceiveDate AS DATE) AS day, cl.Subject AS cat, COUNT(*) AS cnt
+        FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
+        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc8}
+        GROUP BY CAST(cl.ReceiveDate AS DATE), cl.Subject ORDER BY day, cnt DESC`),
     ]);
 
     // Build ext_username → employee name map
@@ -1070,14 +1016,14 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
     nameMapRows.forEach(r => { nameMap[r.ext_username] = r.name; });
 
     res.json({
-      dailyTrend:    dailyTrend.recordset,
-      catStats:      catStats.recordset,
-      agentThis:     agentThis.recordset,
-      agentLast:     agentLast.recordset,
-      agentCat:      agentCat.recordset,
-      hourlyStats:   hourlyStats.recordset,
-      dowStats:      dowStats.recordset,
-      catDailyTrend: catDailyTrend.recordset,
+      dailyTrend:    d1.recordset,
+      catStats:      d2.recordset,
+      agentThis:     d3.recordset,
+      agentLast:     d4.recordset,
+      agentCat:      d5.recordset,
+      hourlyStats:   d6.recordset,
+      dowStats:      d7.recordset,
+      catDailyTrend: d8.recordset,
       nameMap
     });
   } catch (e) { res.status(500).json({ error: e.message }); }

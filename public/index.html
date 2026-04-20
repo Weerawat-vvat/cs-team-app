@@ -406,10 +406,15 @@ textarea{resize:vertical;min-height:80px}
     <button class="btn btn-sm btn-ghost" onclick="dashSet7d()"   id="dp-7d">7 วันล่าสุด</button>
     <button class="btn btn-sm btn-ghost" onclick="dashSet30d()"  id="dp-month">เดือนนี้</button>
     <span style="color:var(--border)">|</span>
-    <input type="date" id="dash-date-from" value="2026-01-01" style="max-width:130px"/>
+    <input type="date" id="dash-date-from" style="max-width:130px"/>
     <span style="color:var(--muted);font-size:.8rem">ถึง</span>
     <input type="date" id="dash-date-to" style="max-width:130px"/>
     <button class="btn btn-sm btn-primary" onclick="loadDashboard();loadDashboardCharts()">ค้นหา</button>
+    <span style="color:var(--border)">|</span>
+    <label style="font-size:.78rem;color:var(--muted);white-space:nowrap">ทีม:</label>
+    <select id="dash-filter-team" onchange="loadDashboard();loadDashboardCharts()" style="max-width:130px">
+      <option value="">ทุกทีม</option>
+    </select>
     <span style="color:var(--border)">|</span>
     <label style="font-size:.8rem;color:var(--muted);white-space:nowrap">🎯 Target:</label>
     <input type="number" id="dash-target" class="target-input" min="1" max="9999" value="10"
@@ -634,16 +639,25 @@ textarea{resize:vertical;min-height:80px}
   <!-- Date & Filter Bar -->
   <div class="page-datebar">
     <label>📅 วันที่:</label>
-    <input id="tk-date-from" type="date" value="2026-01-01" onchange="loadTickets()" style="max-width:135px" title="วันที่เริ่มต้น"/>
+    <button class="btn btn-sm btn-ghost" onclick="tkSetToday()">วันนี้</button>
+    <button class="btn btn-sm btn-ghost" onclick="tkSet7d()">7 วัน</button>
+    <button class="btn btn-sm btn-ghost" onclick="tkSetMonth()">เดือนนี้</button>
+    <span style="color:var(--border)">|</span>
+    <input id="tk-date-from" type="date" onchange="loadTickets()" style="max-width:135px" title="วันที่เริ่มต้น"/>
     <span style="color:var(--muted);font-size:.8rem">ถึง</span>
     <input id="tk-date-to" type="date" onchange="loadTickets()" style="max-width:135px" title="วันที่สิ้นสุด"/>
+    <button class="btn btn-sm btn-primary" onclick="loadTickets()">ค้นหา</button>
+    <span style="color:var(--border)">|</span>
+    <select id="tk-filter-team" onchange="loadTickets()">
+      <option value="">ทุกทีม</option>
+    </select>
     <select id="tk-filter-status" onchange="loadTickets()">
       <option value="">ทุกสถานะ</option>
     </select>
     <select id="tk-filter-agent" onchange="loadTickets()">
       <option value="">ทุก Agent</option>
     </select>
-    <input id="tk-search" type="text" placeholder="🔍 ค้นหา..." oninput="renderTickets()" style="min-width:150px;flex:1"/>
+    <input id="tk-search" type="text" placeholder="🔍 ค้นหา..." oninput="tkSearchDebounce()" style="min-width:150px;flex:1"/>
   </div>
 
   <div class="card" style="padding:.5rem 0">
@@ -1524,9 +1538,11 @@ async function loadDashboardCharts() {
   let data;
   const _from = document.getElementById('dash-date-from')?.value || '';
   const _to   = document.getElementById('dash-date-to')?.value   || '';
+  const _team = document.getElementById('dash-filter-team')?.value || '';
   let _qs = '/api/dashboard/charts?';
   if (_from) _qs += `dateFrom=${_from}&`;
   if (_to)   _qs += `dateTo=${_to}&`;
+  if (_team) _qs += `team=${encodeURIComponent(_team)}&`;
   try { data = await api(_qs); } catch { return; }
   if (!data) return;
   if (data.nameMap) Object.assign(nameMap, data.nameMap);
@@ -2224,14 +2240,40 @@ async function initTicketFilters() {
   } catch {}
 }
 
+let _tkSearchTimer = null;
+function tkSearchDebounce() {
+  clearTimeout(_tkSearchTimer);
+  _tkSearchTimer = setTimeout(() => renderTickets(), 280);
+}
+function tkSetToday() {
+  const t = new Date().toISOString().split('T')[0];
+  document.getElementById('tk-date-from').value = t;
+  document.getElementById('tk-date-to').value = t;
+  loadTickets();
+}
+function tkSet7d() {
+  const to = new Date(); const fr = new Date(); fr.setDate(to.getDate()-6);
+  document.getElementById('tk-date-from').value = fr.toISOString().split('T')[0];
+  document.getElementById('tk-date-to').value   = to.toISOString().split('T')[0];
+  loadTickets();
+}
+function tkSetMonth() {
+  const now = new Date();
+  document.getElementById('tk-date-from').value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+  document.getElementById('tk-date-to').value   = now.toISOString().split('T')[0];
+  loadTickets();
+}
+
 async function loadTickets() {
   await initTicketFilters();
   const status   = document.getElementById('tk-filter-status').value;
   const agent    = document.getElementById('tk-filter-agent').value;
+  const team     = document.getElementById('tk-filter-team')?.value || '';
   const dateFrom = document.getElementById('tk-date-from').value;
   const dateTo   = document.getElementById('tk-date-to').value;
   let url = '/api/tickets?';
   if (status)   url += `status=${encodeURIComponent(status)}&`;
+  if (team)     url += `team=${encodeURIComponent(team)}&`;
   if (dateFrom) url += `dateFrom=${dateFrom}&`;
   if (dateTo)   url += `dateTo=${dateTo}&`;
   allTickets = await api(url);
@@ -2603,6 +2645,13 @@ function initDateDefaults() {
   document.getElementById('s-date').value  = today;
   document.getElementById('lr-date').value = today;
   const now = new Date();
+  const monthStart = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+  // Dashboard — default to current month
+  const dashFrom = document.getElementById('dash-date-from');
+  if (dashFrom && !dashFrom.value) dashFrom.value = monthStart;
+  // Tickets — default to current month
+  const tkFrom = document.getElementById('tk-date-from');
+  if (tkFrom && !tkFrom.value) tkFrom.value = monthStart;
   document.getElementById('kpi-month').value =
     `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
 }
@@ -2770,6 +2819,9 @@ function refreshTeamDropdowns() {
   // Ticket team filter
   const tkTeam = document.getElementById('tk-filter-team');
   if (tkTeam) { const v=tkTeam.value; tkTeam.innerHTML = optsAll; tkTeam.value = v; }
+  // Dashboard team filter
+  const dashTeam = document.getElementById('dash-filter-team');
+  if (dashTeam) { const v=dashTeam.value; dashTeam.innerHTML = optsAll; dashTeam.value = v; }
   // KPI team filter
   const kpiTeam = document.getElementById('kpi-filter-team');
   if (kpiTeam) { const v=kpiTeam.value; kpiTeam.innerHTML = optsAll; kpiTeam.value = v; }
