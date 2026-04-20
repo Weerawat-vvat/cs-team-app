@@ -38,6 +38,42 @@ function managerRequired(request, res, next) {
   next();
 }
 
+function leadRequired(request, res, next) {
+  if (!['team_lead', 'manager', 'admin'].includes(request.user?.role)) {
+    return res.status(403).json({ error: 'Team lead or above required' });
+  }
+  next();
+}
+
+async function getScopedUsernames(user) {
+  if (!user) return null;
+  if (['manager', 'admin'].includes(user.role)) return undefined; // no restriction
+  if (user.role === 'staff') {
+    return user.ext_username ? [user.ext_username] : null;
+  }
+  if (user.role === 'team_lead') {
+    const rows = (await req()
+      .input('tm', sql.NVarChar, user.team)
+      .query(`SELECT DISTINCT au.ext_username FROM app_users au
+              JOIN employees e ON e.id = au.employee_id
+              WHERE e.team = @tm AND au.active = 1 AND e.active = 1
+                AND au.ext_username IS NOT NULL`)).recordset;
+    return rows.map(r => r.ext_username);
+  }
+  return undefined;
+}
+
+function appendScopeClause(r, scopeUsernames) {
+  if (scopeUsernames === undefined) return '';
+  if (!scopeUsernames || scopeUsernames.length === 0) return ' AND 1=0';
+  if (scopeUsernames.length === 1) {
+    r.input('_su0', sql.NVarChar, scopeUsernames[0]);
+    return ' AND u.UserName = @_su0';
+  }
+  scopeUsernames.forEach((u, i) => r.input(`_su${i}`, sql.NVarChar, u));
+  return ` AND u.UserName IN (${scopeUsernames.map((_, i) => `@_su${i}`).join(',')})`;
+}
+
 // ── Calllog base query (LicenseDB) ───────────────────────
 const CALLLOG_SELECT = `
   SELECT
