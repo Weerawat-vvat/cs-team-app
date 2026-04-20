@@ -2351,11 +2351,13 @@ function renderTickets() {
   });
 
   // Update ticket stat cards
+  // status from LicenseDB is StatusName e.g. "Close Job", "Open Job" — match case-insensitively
+  const isClosed  = t => (t.status || '').toLowerCase().includes('close');
   const tkTotal   = filtered.length;
-  const tkOpen    = filtered.filter(t => t.status === 'open').length;
-  const tkClosed  = filtered.filter(t => t.status === 'closed').length;
+  const tkClosed  = filtered.filter(isClosed).length;
+  const tkOpen    = filtered.filter(t => !isClosed(t)).length;
   const now24h    = Date.now() - 24 * 3600 * 1000;
-  const tkOverdue = filtered.filter(t => t.status !== 'closed' && new Date(t.created_at).getTime() < now24h).length;
+  const tkOverdue = filtered.filter(t => !isClosed(t) && new Date(t.opened_at).getTime() < now24h).length;
   const _setEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   _setEl('tk-stat-total',   tkTotal);
   _setEl('tk-stat-open',    tkOpen);
