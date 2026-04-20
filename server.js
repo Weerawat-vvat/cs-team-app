@@ -976,6 +976,166 @@ app.get('/api/dashboard/charts', async (_, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ══════════════════════════════════════════════════════════
+//  AI ANALYSIS — SSE streaming (real-time situation analysis)
+// ══════════════════════════════════════════════════════════
+app.get('/api/ai-analysis', async (_, res) => {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.status(503).json({ error: 'ANTHROPIC_API_KEY ยังไม่ได้ตั้งค่าใน .env' });
+  }
+
+  // ── SSE headers
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const send = (type, payload = {}) =>
+    res.write(`data: ${JSON.stringify({ type, ...payload })}\n\n`);
+
+  try {
+    const now   = new Date();
+    const today = now.toISOString().split('T')[0];
+    const ext   = getExtPool();
+
+    let snap = {
+      date: today,
+      time: now.toLocaleTimeString('th-TH'),
+      extConnected: !!ext,
+    };
+
+    if (ext) {
+      // Today's tickets by status
+      const todayRows = (await extReq()
+        .input('today', sql.Date, today)
+        .query(`SELECT cs.StatusName AS status, COUNT(*) AS cnt
+                FROM Calllog cl INNER JOIN CallStatus cs ON cs.StatusId=cl.StatusId
+                WHERE CAST(cl.ReceiveDate AS DATE)=@today
+                GROUP BY cs.StatusName`)).recordset;
+
+      // Overdue count (open > 24h)
+      const overdueCount = (await extReq()
+        .query(`SELECT COUNT(*) AS cnt FROM Calllog cl
+                INNER JOIN CallStatus cs ON cs.StatusId=cl.StatusId
+                WHERE cl.ReceiveDate >= '2026-01-01'
+                  AND cl.ReceiveDate <= DATEADD(hour,-24,GETDATE())
+                  AND cs.StatusName NOT LIKE '%close%'
+                  AND cs.StatusName NOT LIKE '%ปิด%'
+                  AND cs.StatusName NOT LIKE '%complete%'`)).recordset[0]?.cnt || 0;
+
+      // Month totals (this month vs last month)
+      const ms  = today.substring(0,7) + '-01';
+      const me  = new Date(new Date(ms).setMonth(new Date(ms).getMonth()+1));
+      const lms = (() => { const d=new Date(ms); d.setMonth(d.getMonth()-1); return d.toISOString().split('T')[0].substring(0,7)+'-01'; })();
+      const lme = new Date(ms);
+
+      const monthTotal = (await extReq()
+        .input('ms', sql.DateTime, new Date(ms)).input('me', sql.DateTime, me)
+        .query(`SELECT COUNT(*) AS cnt FROM Calllog cl
+                WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me`)).recordset[0]?.cnt || 0;
+
+      const lastMonthTotal = (await extReq()
+        .input('lms', sql.DateTime, new Date(lms)).input('lme', sql.DateTime, lme)
+        .query(`SELECT COUNT(*) AS cnt FROM Calllog cl
+                WHERE cl.ReceiveDate >= @lms AND cl.ReceiveDate < @lme`)).recordset[0]?.cnt || 0;
+
+      // Top 5 agents this month
+      const topAgents = (await extReq()
+        .input('s', sql.DateTime, new Date(ms)).input('e', sql.DateTime, me)
+        .query(`SELECT TOP 5 u.UserName, COUNT(cl.CalllogId) AS total_cases
+                FROM Calllog cl INNER JOIN Users u ON u.UserId=cl.SupportId
+                WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e
+                GROUP BY u.UserName ORDER BY total_cases DESC`)).recordset;
+
+      snap = {
+        ...snap,
+        todayTotal: todayRows.reduce((a,r)=>a+r.cnt, 0),
+        todayByStatus: todayRows,
+        overdueCount,
+        monthTotal,
+        lastMonthTotal,
+        monthChangePercent: lastMonthTotal > 0 ? Math.round(((monthTotal-lastMonthTotal)/lastMonthTotal)*100) : null,
+        topAgentsThisMonth: topAgents,
+      };
+    }
+
+    // On-shift employees
+    const hour    = now.getHours(), minute = now.getMinutes();
+    const timeVal = hour * 60 + minute;
+    const curShifts = [];
+    if (timeVal >= 8*60+30  && timeVal <= 16*60+30) curShifts.push('morning');
+    if (timeVal >= 15*60+30 && timeVal <= 23*60+30) curShifts.push('afternoon');
+    if (timeVal >= 16*60   || timeVal <= 0)          curShifts.push('night');
+    if (!curShifts.length) curShifts.push('morning');
+
+    const shiftIn  = curShifts.map((_,i) => `@st${i}`).join(',');
+    const shiftReq = req().input('today', sql.Date, today);
+    curShifts.forEach((s,i) => shiftReq.input(`st${i}`, sql.NVarChar, s));
+    const onShift = (await shiftReq.query(`
+      SELECT s.shift_type, e.name, e.team
+      FROM shifts s JOIN employees e ON e.id=s.employee_id
+      WHERE s.shift_date=@today AND s.shift_type IN (${shiftIn})
+        AND s.status='scheduled' AND e.active=1`)).recordset;
+
+    const pendingLeaves = (await req()
+      .query(`SELECT COUNT(*) AS cnt FROM leave_requests WHERE status='pending'`))
+      .recordset[0]?.cnt || 0;
+
+    snap = {
+      ...snap,
+      onShiftCount: onShift.length,
+      onShiftByTeam: onShift.reduce((a,e)=>{ a[e.team]=(a[e.team]||0)+1; return a; }, {}),
+      pendingLeaveRequests: pendingLeaves,
+    };
+
+    // ── Build prompt & stream ─────────────────────────────
+    const prompt = `คุณคือ "CS Assistant" ผู้ช่วย AI ของผู้จัดการทีม Customer Service
+วันที่: ${snap.date}  เวลา: ${snap.time}
+
+สถานะปัจจุบัน:
+${JSON.stringify(snap, null, 2)}
+
+กรุณาวิเคราะห์และรายงานเป็นภาษาไทย ในรูปแบบต่อไปนี้ (ห้ามออกนอกหัวข้อที่กำหนด):
+
+## 🌅 สรุปสถานการณ์วันนี้
+[2-3 ประโยค ภาพรวมสิ่งที่เกิดขึ้น]
+
+## ⚠️ จุดที่ต้องระวัง
+[สิ่งที่น่ากังวล เช่น เคสค้างนาน, ปริมาณงานสูง, ขาดแคลนพนักงาน]
+
+## 🔍 ความผิดปกติที่ตรวจพบ
+[ความผิดปกติในข้อมูล เช่น การกระจายเคสไม่สม่ำเสมอ, หมวดหมู่พุ่งขึ้นผิดปกติ]
+
+## 💡 คำแนะนำสำหรับผู้จัดการ
+[การกระทำที่แนะนำ 2-3 ข้อ ระบุเป็นข้อๆ]`;
+
+    send('start', { message: 'กำลังส่งข้อมูลให้ AI วิเคราะห์...' });
+
+    const stream = claude.messages.stream({
+      model:      AI_MODEL,
+      max_tokens: 1024,
+      messages:   [{ role: 'user', content: prompt }],
+    });
+
+    for await (const chunk of stream) {
+      if (chunk.type === 'content_block_delta' && chunk.delta?.type === 'text_delta') {
+        send('delta', { text: chunk.delta.text });
+      }
+    }
+
+    const final = await stream.finalMessage();
+    send('done', {
+      inputTokens:  final.usage.input_tokens,
+      outputTokens: final.usage.output_tokens,
+    });
+
+  } catch (err) {
+    send('error', { message: err.message });
+  } finally {
+    res.end();
+  }
+});
+
 // ── Start ─────────────────────────────────────────────────
 init().then(() => {
   app.listen(PORT, () => console.log(`🚀 CS Team App running at http://localhost:${PORT}`));

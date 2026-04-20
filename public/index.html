@@ -206,9 +206,24 @@ textarea{resize:vertical;min-height:80px}
 .chip:hover{background:#ddd6fe}
 
 /* AI Insight Card */
-.ai-insight-box{background:linear-gradient(135deg,#ede9fe,#dbeafe);border:1px solid #c4b5fd;border-radius:12px;padding:1.1rem 1.25rem;margin-top:1rem}
-.ai-insight-box .ai-label{font-size:.78rem;font-weight:700;color:#5b21b6;margin-bottom:.4rem;display:flex;align-items:center;gap:.4rem}
-.ai-insight-body{font-size:.85rem;line-height:1.7;white-space:pre-wrap;color:#1e293b}
+.ai-insight-box{background:linear-gradient(135deg,#13111c,#1a1730,#1e293b);border:1.5px solid #4f46e5;border-radius:12px;padding:1.1rem 1.25rem;margin-top:1rem;color:#ddd8ff}
+.ai-insight-box .ai-label{font-size:.82rem;font-weight:700;color:#a78bfa;margin-bottom:.5rem;display:flex;align-items:center;gap:.4rem}
+.ai-insight-box .ai-label button{background:linear-gradient(135deg,#4f46e5,#7c3aed)!important;color:#fff!important;border:none!important;transition:all .2s!important}
+.ai-insight-box .ai-label button:hover{opacity:.88!important;box-shadow:0 3px 12px #7c3aed44!important}
+.ai-insight-body{font-size:.87rem;line-height:1.75;color:#c7d2fe;min-height:60px}
+.ai-insight-body .ai-h{display:block;color:#a78bfa;font-weight:700;font-size:.92rem;margin:.8rem 0 .25rem;border-bottom:1px solid #312e8155;padding-bottom:.2rem}
+.ai-insight-body .ai-h:first-child{margin-top:0}
+.ai-insight-body b{color:#e2e8ff}
+.ai-insight-body .ai-li{display:flex;gap:.5rem;padding:.1rem 0}.ai-insight-body .ai-li::before{content:'▪';color:#6d28d9;flex-shrink:0}
+.ai-cursor{display:inline-block;width:2px;height:.9em;background:#a78bfa;animation:aiCursorBlink .75s infinite;vertical-align:text-bottom;margin-left:1px}
+@keyframes aiCursorBlink{0%,100%{opacity:1}50%{opacity:0}}
+.ai-status-bar{font-size:.75rem;color:#818cf8;min-height:1.1em;margin-bottom:.4rem}
+.ai-tags{display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.6rem}
+.ai-tag{padding:.18rem .6rem;border-radius:20px;font-size:.72rem;font-weight:600}
+.ai-tag-warn{background:#431407;color:#fed7aa;border:1px solid #7c2d12}
+.ai-tag-ok{background:#052e16;color:#86efac;border:1px solid #14532d}
+.ai-tag-info{background:#1e1b4b;color:#a5b4fc;border:1px solid #312e81}
+.ai-footer-bar{display:flex;justify-content:space-between;align-items:center;margin-top:.6rem;padding-top:.45rem;border-top:1px solid #2d2b4e;font-size:.71rem;color:#4f46e5}
 .ai-spinner{display:inline-block;width:18px;height:18px;border:2px solid #c4b5fd;border-top-color:#7c3aed;border-radius:50%;animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 
@@ -376,13 +391,23 @@ textarea{resize:vertical;min-height:80px}
     </div>
   </div>
 
-  <!-- AI Insight Card -->
+  <!-- AI Insight Card (SSE streaming) -->
   <div class="ai-insight-box" style="margin-top:1rem">
     <div class="ai-label">
-      🤖 AI วิเคราะห์สถานการณ์
-      <button class="btn btn-sm" style="background:#7c3aed;color:#fff;margin-left:auto" onclick="loadAiInsight()">🔄 วิเคราะห์ใหม่</button>
+      🤖 AI Situation Analysis
+      <span style="font-size:.68rem;opacity:.55;font-weight:400">powered by Claude</span>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:.5rem">
+        <span id="ai-last-run" style="font-size:.7rem;color:#4f46e5"></span>
+        <button class="btn btn-sm" id="ai-run-btn" onclick="loadAiInsight()">✨ วิเคราะห์สถานการณ์</button>
+      </div>
     </div>
-    <div id="ai-insight-body" class="ai-insight-body" style="color:#64748b">กด "วิเคราะห์ใหม่" เพื่อให้ AI สรุปสถานการณ์ปัจจุบัน</div>
+    <div id="ai-status-bar" class="ai-status-bar">กด "วิเคราะห์สถานการณ์" เพื่อให้ AI ประเมินภาพรวมทีมและตรวจจับความผิดปกติประจำวัน</div>
+    <div id="ai-insight-body" class="ai-insight-body" style="color:#4c4982;font-style:italic;font-size:.83rem">ยังไม่มีผลการวิเคราะห์</div>
+    <div id="ai-tags" class="ai-tags"></div>
+    <div id="ai-footer-bar" class="ai-footer-bar" style="display:none">
+      <span id="ai-token-info"></span>
+      <span>ข้อมูล ณ เวลาที่กดวิเคราะห์</span>
+    </div>
   </div>
 </div>
 
@@ -2567,16 +2592,108 @@ async function sendAiMessage() {
 }
 
 // ── Dashboard AI Insight ───────────────────────────────────
+// ── AI Analysis — SSE streaming ───────────────────────────
+let _aiAbortCtrl = null;
+
 async function loadAiInsight() {
-  const body = document.getElementById('ai-insight-body');
-  body.innerHTML = '<div style="display:flex;align-items:center;gap:.5rem"><div class="ai-spinner"></div> กำลังวิเคราะห์...</div>';
+  const btn      = document.getElementById('ai-run-btn');
+  const statusEl = document.getElementById('ai-status-bar');
+  const bodyEl   = document.getElementById('ai-insight-body');
+  const tagsEl   = document.getElementById('ai-tags');
+  const footerEl = document.getElementById('ai-footer-bar');
+  const tokenEl  = document.getElementById('ai-token-info');
+  const lastEl   = document.getElementById('ai-last-run');
+
+  // Cancel if running
+  if (_aiAbortCtrl) { _aiAbortCtrl.abort(); return; }
+
+  btn.disabled    = true;
+  btn.textContent = '⏳ กำลังวิเคราะห์...';
+  statusEl.textContent  = '🔄 กำลังรวบรวมข้อมูลจากระบบ...';
+  bodyEl.innerHTML      = '';
+  tagsEl.innerHTML      = '';
+  footerEl.style.display = 'none';
+
+  _aiAbortCtrl = new AbortController();
+
   try {
-    const res = await fetch('/api/ai/dashboard-summary');
-    const data = await res.json();
-    body.textContent = data.summary || 'ไม่สามารถวิเคราะห์ได้';
-  } catch {
-    body.textContent = '❌ เกิดข้อผิดพลาด กรุณาลองใหม่';
+    const resp = await fetch('/api/ai-analysis', { signal: _aiAbortCtrl.signal });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: resp.statusText }));
+      bodyEl.innerHTML = `<span style="color:#f87171">❌ ${err.error || 'เกิดข้อผิดพลาด'}</span>`;
+      statusEl.textContent = '';
+      return;
+    }
+
+    const reader  = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '', fullText = '';
+
+    statusEl.textContent = '✍️ AI กำลังวิเคราะห์...';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n');
+      buffer = parts.pop();
+
+      for (const line of parts) {
+        if (!line.startsWith('data: ')) continue;
+        let msg;
+        try { msg = JSON.parse(line.slice(6)); } catch { continue; }
+
+        if (msg.type === 'start') {
+          statusEl.textContent = '✍️ ' + msg.message;
+        } else if (msg.type === 'delta') {
+          fullText += msg.text;
+          bodyEl.innerHTML = _aiFormatText(fullText) + '<span class="ai-cursor"></span>';
+        } else if (msg.type === 'done') {
+          bodyEl.innerHTML    = _aiFormatText(fullText);
+          statusEl.textContent = '✅ วิเคราะห์เสร็จสิ้น';
+          tokenEl.textContent  = `🔢 ${msg.inputTokens} in / ${msg.outputTokens} out tokens`;
+          footerEl.style.display = '';
+          lastEl.textContent     = 'อัปเดต ' + new Date().toLocaleTimeString('th-TH');
+          _aiRenderTags(fullText, tagsEl);
+        } else if (msg.type === 'error') {
+          bodyEl.innerHTML += `<br/><span style="color:#f87171">❌ ${msg.message}</span>`;
+          statusEl.textContent = '⚠️ เกิดข้อผิดพลาดระหว่างการวิเคราะห์';
+        }
+      }
+    }
+  } catch (e) {
+    statusEl.textContent = e.name === 'AbortError' ? '🛑 ยกเลิกการวิเคราะห์' : '❌ ' + e.message;
+  } finally {
+    _aiAbortCtrl    = null;
+    btn.disabled    = false;
+    btn.textContent = '✨ วิเคราะห์อีกครั้ง';
   }
+}
+
+function _aiFormatText(raw) {
+  return raw
+    .replace(/^## (.+)$/gm, '<span class="ai-h">$1</span>')
+    .replace(/^\d+\.\s+(.+)$/gm, '<div class="ai-li">$1</div>')
+    .replace(/^[-*]\s+(.+)$/gm, '<div class="ai-li">$1</div>')
+    .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+    .replace(/\n\n/g, '<div style="height:.35rem"></div>')
+    .replace(/\n/g, '<br/>');
+}
+
+function _aiRenderTags(text, el) {
+  const rules = [
+    { test:/เคสค้าง|overdue|ค้างนาน/i,             cls:'ai-tag-warn', label:'⚠️ มีเคสค้าง' },
+    { test:/เพิ่มขึ้น|สูงขึ้น|มากกว่าเดือนก่อน/i,  cls:'ai-tag-warn', label:'📈 ปริมาณเพิ่ม' },
+    { test:/ลดลง|น้อยกว่าเดือนก่อน/i,               cls:'ai-tag-info', label:'📉 ปริมาณลด' },
+    { test:/ปกติ|เรียบร้อย|ไม่มีปัญหา/i,             cls:'ai-tag-ok',   label:'✅ ภาพรวมปกติ' },
+    { test:/เร่งด่วน|ต้องดำเนินการ|ควรดำเนินการ/i,  cls:'ai-tag-warn', label:'🚨 ต้องเร่งดำเนินการ' },
+    { test:/ขาดแคลน|ไม่เพียงพอ/i,                   cls:'ai-tag-warn', label:'👥 ขาดกำลังคน' },
+    { test:/ผิดปกติ|anomaly|spike/i,                cls:'ai-tag-warn', label:'🔍 พบความผิดปกติ' },
+  ];
+  el.innerHTML = rules.filter(r => r.test.test(text))
+    .map(t => `<span class="ai-tag ${t.cls}">${t.label}</span>`).join('');
 }
 
 // ── AI Shift Suggestion ────────────────────────────────────
