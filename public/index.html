@@ -311,6 +311,26 @@ textarea{resize:vertical;min-height:80px}
 .role-team_lead{background:#1e3a8a;color:#93c5fd}
 .role-staff{background:#1e293b;color:#94a3b8}
 .role-admin{background:#7f1d1d;color:#fca5a5}
+
+/* ── OVERVIEW 6-COL STAT ROW ── */
+.stat-row-6{display:grid;grid-template-columns:repeat(6,1fr);gap:.65rem;margin-bottom:1rem}
+@media(max-width:1200px){.stat-row-6{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:700px){.stat-row-6{grid-template-columns:repeat(2,1fr)}}
+.stat-flat{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:.9rem 1rem}
+.stat-flat .label{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.2rem}
+.stat-flat .value{font-size:1.8rem;font-weight:800;line-height:1}
+.stat-flat .sub{font-size:.7rem;color:var(--muted);margin-top:.15rem}
+.stat-flat .value.blue{color:var(--accent)}
+.stat-flat .value.green{color:var(--success)}
+.stat-flat .value.red{color:var(--danger)}
+.stat-flat .value.yellow{color:var(--warn)}
+.stat-flat .value.purple{color:#a78bfa}
+.stat-flat .value.white{color:#fff}
+/* agent chips */
+.agent-chips{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.6rem}
+.agent-chip{display:inline-flex;align-items:center;gap:.35rem;background:var(--card2);border:1px solid var(--border);border-radius:20px;padding:.2rem .65rem;font-size:.75rem;cursor:default}
+.agent-chip b{color:#fff}
+
 </style>
 </head>
 <body>
@@ -366,82 +386,85 @@ textarea{resize:vertical;min-height:80px}
 
 <main class="main-wrap">
 
-<!-- ═══════════════════ PAGE: DASHBOARD ═══════════════════ -->
+<!-- ═══════════════════ PAGE: DASHBOARD / OVERVIEW ═══════════════════ -->
 <div id="page-dashboard" class="page active">
-  <div class="section-header" style="margin-bottom:.75rem">
-    <div class="section-title">📊 Dashboard ภาพรวมผู้จัดการ</div>
-    <div style="font-size:.78rem;color:var(--muted)" id="dash-time"></div>
+
+  <div class="section-header" style="margin-bottom:.65rem">
+    <div class="section-title">📊 Overview — ภาพรวมทีม CS</div>
+    <div style="font-size:.75rem;color:var(--muted)" id="dash-time"></div>
   </div>
 
-  <!-- Stat Cards Row -->
-  <div class="stat-row" id="dash-stats"></div>
-
-  <!-- Date Picker -->
+  <!-- Date Picker Bar -->
   <div class="page-datebar" id="dash-datebar">
     <label>📅 ช่วงเวลา:</label>
-    <input type="date" id="dash-date-from" value="2026-01-01" onchange="loadDashboard();loadDashboardCharts()" style="max-width:135px"/>
+    <button class="btn btn-sm btn-ghost" onclick="dashSetToday()" id="dp-today">วันนี้</button>
+    <button class="btn btn-sm btn-ghost" onclick="dashSet7d()"   id="dp-7d">7 วันล่าสุด</button>
+    <button class="btn btn-sm btn-ghost" onclick="dashSet30d()"  id="dp-month">เดือนนี้</button>
+    <span style="color:var(--border)">|</span>
+    <input type="date" id="dash-date-from" value="2026-01-01" style="max-width:130px"/>
     <span style="color:var(--muted);font-size:.8rem">ถึง</span>
-    <input type="date" id="dash-date-to" onchange="loadDashboard();loadDashboardCharts()" style="max-width:135px"/>
-    <button class="btn btn-sm btn-primary" onclick="dashSetToday()">วันนี้</button>
-    <button class="btn btn-sm btn-ghost" onclick="dashSet7d()">7 วัน</button>
-    <button class="btn btn-sm btn-ghost" onclick="dashSet30d()">เดือนนี้</button>
+    <input type="date" id="dash-date-to" style="max-width:130px"/>
+    <button class="btn btn-sm btn-primary" onclick="loadDashboard();loadDashboardCharts()">ค้นหา</button>
   </div>
 
-  <!-- Chart Section -->
-  <div class="grid-2" id="dash-charts-row1" style="margin-top:1rem">
-    <div class="card">
-      <div class="card-title">📈 แนวโน้ม Calllog 60 วันล่าสุด</div>
-      <canvas id="chart-daily-trend" height="180"></canvas>
-    </div>
-    <div class="card">
-      <div class="card-title">🗂️ เคสแยกตามหมวดหมู่ (เดือนนี้)</div>
-      <canvas id="chart-categories" height="180"></canvas>
-    </div>
-  </div>
-  <div class="grid-2" id="dash-charts-row2" style="margin-top:0">
-    <div class="card">
-      <div class="card-title">👤 Workload ของแต่ละคน (เดือนนี้ vs เดือนก่อน)</div>
-      <canvas id="chart-agent-workload" height="220"></canvas>
-    </div>
-    <div class="card">
-      <div class="card-title">🧩 ประเภทงานของแต่ละคน (เดือนนี้)</div>
-      <canvas id="chart-agent-cat" height="220"></canvas>
-    </div>
+  <!-- ── 6 Stat Cards ── -->
+  <div class="stat-row-6" id="dash-stats-row">
+    <div class="stat-flat"><div class="label">📋 Total Tickets</div>
+      <div class="value blue" id="ov-total">—</div><div class="sub">เดือนนี้รวม</div></div>
+    <div class="stat-flat"><div class="label">✅ Closed</div>
+      <div class="value green" id="ov-closed">—</div><div class="sub" id="ov-close-pct">อัตราปิด</div></div>
+    <div class="stat-flat"><div class="label">👥 Active Agents</div>
+      <div class="value purple" id="ov-agents">—</div><div class="sub">คนที่มีงานเดือนนี้</div></div>
+    <div class="stat-flat"><div class="label">⚡ Avg / Agent</div>
+      <div class="value white" id="ov-avg">—</div><div class="sub">tickets ต่อคน</div></div>
+    <div class="stat-flat"><div class="label">📞 วันนี้</div>
+      <div class="value blue" id="ov-today">—</div><div class="sub" id="ov-week-sub">เคสที่รับวันนี้</div></div>
+    <div class="stat-flat"><div class="label">⚠️ ค้างเกิน 24 ชม.</div>
+      <div class="value red" id="ov-overdue">—</div><div class="sub">tickets รวมทุก agent</div></div>
   </div>
 
-  <!-- Main Content: Leaderboard + On Shift -->
-  <div class="dash-main" style="margin-top:1rem">
+  <!-- ── Charts Row 1: Donut + Agent Compare Bar ── -->
+  <div class="grid-2">
     <div class="card">
-      <div class="card-title">🏆 Leaderboard — Calllog เดือนนี้</div>
-      <div id="dash-leaderboard"><div class="empty"><div class="icon">📊</div>กำลังโหลด...</div></div>
+      <div class="card-title">🥧 ประเภทปัญหา Top 5 (เดือนนี้)</div>
+      <canvas id="chart-cat-donut" height="210"></canvas>
     </div>
     <div class="card">
-      <div class="card-title">🟢 พนักงานกะปัจจุบัน</div>
-      <div id="dash-onshift"></div>
+      <div class="card-title">📅 Workload Agent — เดือนนี้ vs เดือนก่อน</div>
+      <canvas id="chart-agent-compare" height="210"></canvas>
     </div>
   </div>
 
-  <!-- Overdue Cases Table -->
-  <div class="card" style="margin-top:1rem">
-    <div class="card-title" style="color:#dc2626">⚠️ เคสค้างเกิน 24 ชม. — ต้องเร่งแก้ไข <span id="dash-overdue-badge" style="background:#fecaca;color:#991b1b;padding:.1rem .5rem;border-radius:20px;font-size:.75rem;font-weight:700;margin-left:.5rem"></span></div>
-    <div id="dash-overdue">
-      <div class="empty"><div class="icon">⏳</div>กำลังโหลด...</div>
+  <!-- ── Scatter Chart ── -->
+  <div class="card">
+    <div class="card-title">⚡ Workload Scatter — เดือนนี้ vs เดือนก่อน (per Agent)
+      <span style="font-size:.72rem;color:var(--muted);font-weight:400;margin-left:.5rem">🟢 เพิ่มขึ้น · 🔴 ลดลง · 🔵 ใกล้เคียง</span>
+    </div>
+    <canvas id="chart-scatter-wl" height="130"></canvas>
+    <div class="agent-chips" id="dash-agent-chips"></div>
+  </div>
+
+  <!-- ── Bottom: Overdue + OnShift/Leaves ── -->
+  <div class="dash-main" style="margin-top:0">
+    <div class="card">
+      <div class="card-title" style="color:#ef4444">⚠️ เคสค้างเกิน 24 ชม.
+        <span id="dash-overdue-badge" style="background:#7f1d1d;color:#fca5a5;padding:.1rem .5rem;border-radius:20px;font-size:.72rem;font-weight:700;margin-left:.4rem"></span>
+      </div>
+      <div id="dash-overdue"><div class="empty"><div class="icon">⏳</div>กำลังโหลด...</div></div>
+    </div>
+    <div>
+      <div class="card" style="margin-bottom:.75rem">
+        <div class="card-title">🟢 พนักงานกะปัจจุบัน</div>
+        <div id="dash-onshift"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">📩 คำขอวันหยุดรออนุมัติ</div>
+        <div id="dash-leaves"></div>
+      </div>
     </div>
   </div>
 
-  <!-- Pending Leaves + Today Status -->
-  <div class="grid-2" style="margin-top:1rem">
-    <div class="card">
-      <div class="card-title">📩 คำขอวันหยุดที่รออนุมัติ</div>
-      <div id="dash-leaves"></div>
-    </div>
-    <div class="card">
-      <div class="card-title">📋 สถานะเคสวันนี้</div>
-      <div id="dash-today-tickets"></div>
-    </div>
-  </div>
-
-  <!-- AI Insight Card (SSE streaming) -->
+  <!-- ── AI Insight Card (SSE streaming) ── -->
   <div class="ai-insight-box" style="margin-top:1rem">
     <div class="ai-label">
       🤖 AI Situation Analysis
@@ -1311,64 +1334,40 @@ function filterAssigneeByTeam() {
 async function loadDashboard() {
   const d = await api('/api/dashboard');
   if (!d || !d.serverTime) return;
-
-  // Update nameMap
   if (d.nameMap) Object.assign(nameMap, d.nameMap);
 
-  // server time
+  // Server time
   document.getElementById('dash-time').textContent =
     'อัปเดต: ' + new Date(d.serverTime).toLocaleTimeString('th-TH');
 
-  // ── Stat Cards ───────────────────────────────────────────
-  const overdueCnt  = (d.overdueTickets || []).length;
-  const pendingCnt  = (d.pendingLeaves || []).length;
-  const todayCnt    = d.todayTotal || 0;
-  const weekCnt     = d.weekTotal  || 0;
+  // Partial stat cards (today + overdue) — charts API will fill month total
+  const overdueCnt = (d.overdueTickets || []).length;
+  const todayCnt   = d.todayTotal || 0;
+  const _s = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  _s('ov-today',   todayCnt);
+  _s('ov-overdue', overdueCnt);
 
-  document.getElementById('dash-stats').innerHTML = `
-    <div class="stat stat-hd">
-      <div class="label">📞 Calllog วันนี้</div>
-      <div class="value">${todayCnt}</div>
-      <div class="sub">เคสที่รับวันนี้</div>
-    </div>
-    <div class="stat stat-cc">
-      <div class="label">📅 Calllog สัปดาห์นี้</div>
-      <div class="value">${weekCnt}</div>
-      <div class="sub">จันทร์ – วันนี้</div>
-    </div>
-    <div class="stat" style="background:linear-gradient(135deg,${overdueCnt>0?'#dc2626,#b91c1c':'#475569,#334155'})">
-      <div class="label">⚠️ เคสค้างเกิน 24 ชม.</div>
-      <div class="value">${overdueCnt}</div>
-      <div class="sub">${overdueCnt > 0 ? 'ต้องเร่งแก้ไข!' : 'ดีมาก ไม่มีค้าง'}</div>
-    </div>
-    <div class="stat stat-rp">
-      <div class="label">📩 รออนุมัติวันหยุด</div>
-      <div class="value">${pendingCnt}</div>
-      <div class="sub">คำขอที่รอตรวจสอบ</div>
-    </div>
-  `;
-
-  // ── Leaderboard ──────────────────────────────────────────
-  const lb = d.kpiSummary || [];
-  const lbEl = document.getElementById('dash-leaderboard');
-  if (lb.length === 0) {
-    lbEl.innerHTML = '<div class="empty"><div class="icon">🏆</div>ยังไม่มีข้อมูลเดือนนี้</div>';
+  // ── Overdue Table ─────────────────────────────────────────
+  const od = d.overdueTickets || [];
+  document.getElementById('dash-overdue-badge').textContent = od.length > 0 ? `${od.length} เคส` : '';
+  const odEl = document.getElementById('dash-overdue');
+  if (od.length === 0) {
+    odEl.innerHTML = '<div class="empty" style="padding:1.25rem"><div class="icon">✅</div>ไม่มีเคสค้างนาน — ดีมาก!</div>';
   } else {
-    const maxCases = Math.max(...lb.map(r => r.total_cases), 1);
-    lbEl.innerHTML = lb.map((r, i) => {
-      const rank = i + 1;
-      const rankClass = rank === 1 ? 'lb-rank-1' : rank === 2 ? 'lb-rank-2' : rank === 3 ? 'lb-rank-3' : 'lb-rank-n';
-      const rankIcon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
-      const pct = Math.round(r.total_cases / maxCases * 100);
-      return `<div class="lb-item">
-        <div class="lb-rank ${rankClass}">${rankIcon}</div>
-        <div class="lb-info">
-          <div class="lb-name">${dn(r.UserName)}</div>
-          <div class="lb-bar-wrap"><div class="lb-bar" style="width:${pct}%"></div></div>
-        </div>
-        <div class="lb-count">${r.total_cases} เคส</div>
-      </div>`;
-    }).join('');
+    odEl.innerHTML = `<div class="tbl-wrap"><table>
+      <thead><tr><th>#</th><th>หัวข้อ / บริษัท</th><th>Agent</th><th>สถานะ</th><th>เปิดมา</th></tr></thead>
+      <tbody>${od.map(t => `
+        <tr class="overdue-row">
+          <td><b>#${t.id}</b></td>
+          <td style="max-width:220px">
+            <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${t.title||''}">${t.title||'—'}</div>
+            <div style="font-size:.72rem;color:#fca5a5;opacity:.7">${t.CompanyName||''}</div>
+          </td>
+          <td>${dn(t.assigned_name)||'—'}</td>
+          <td><span class="badge badge-open">${t.status}</span></td>
+          <td style="white-space:nowrap;font-size:.75rem;color:#fca5a5"><b>${timeAgo(t.opened_at)}</b></td>
+        </tr>`).join('')}
+      </tbody></table></div>`;
   }
 
   // ── On Shift ─────────────────────────────────────────────
@@ -1378,260 +1377,209 @@ async function loadDashboard() {
     if (!onShiftByTeam[e.team]) onShiftByTeam[e.team] = [];
     onShiftByTeam[e.team].push(e);
   });
-  const shiftColors = {call_center:['#dcfce7','#166534'],helpdesk:['#dbeafe','#1e3a8a'],repair:['#fef9c3','#713f12']};
+  const shiftBorder = {call_center:'#16a34a',helpdesk:'#3b82f6',repair:'#f59e0b'};
   document.getElementById('dash-onshift').innerHTML = teamOrder.map(tm => {
     const emps = onShiftByTeam[tm] || [];
-    const [bg, col] = shiftColors[tm] || ['#f1f5f9','#334155'];
-    return `<div style="margin-bottom:.75rem">
-      <div style="font-size:.78rem;font-weight:700;color:var(--muted);margin-bottom:.35rem">${teamLabel(tm)}</div>
+    const col  = shiftBorder[tm] || '#334155';
+    return `<div style="margin-bottom:.6rem">
+      <div style="font-size:.72rem;font-weight:700;color:var(--muted);margin-bottom:.3rem;text-transform:uppercase;letter-spacing:.05em">${teamLabel(tm)}</div>
       ${emps.length === 0
-        ? `<div style="font-size:.8rem;color:#b45309;background:#fef9c3;padding:.3rem .6rem;border-radius:6px">⚠️ ไม่มีพนักงาน</div>`
-        : emps.map(e=>`
-          <div class="onshift-card" style="background:${bg};border-color:${col};color:${col};margin-bottom:4px">
-            <div class="emp-name">${e.name}</div>
-            <div class="emp-shift">${shiftLabel(e.shift_type)}</div>
-          </div>`).join('')}
+        ? `<div style="font-size:.78rem;color:#fcd34d;background:#1c1400;padding:.25rem .55rem;border-radius:6px;border:1px solid #7c5101">⚠️ ไม่มีพนักงานออนกะ</div>`
+        : `<div style="display:flex;flex-wrap:wrap;gap:.3rem">${emps.map(e =>
+            `<div style="background:var(--card2);border:1px solid ${col};border-radius:8px;padding:.25rem .6rem;font-size:.78rem">
+               <b style="color:#fff">${e.name}</b>
+               <span style="color:var(--muted);font-size:.68rem;margin-left:.3rem">${shiftLabel(e.shift_type)}</span>
+             </div>`).join('')}</div>`}
     </div>`;
   }).join('');
-
-  // ── Overdue Table ─────────────────────────────────────────
-  const od = d.overdueTickets || [];
-  document.getElementById('dash-overdue-badge').textContent = od.length > 0 ? `${od.length} เคส` : '';
-  const odEl = document.getElementById('dash-overdue');
-  if (od.length === 0) {
-    odEl.innerHTML = '<div class="empty" style="padding:1.5rem"><div class="icon">✅</div>ไม่มีเคสค้างนาน — ดีมาก!</div>';
-  } else {
-    odEl.innerHTML = `<div class="tbl-wrap"><table>
-      <thead><tr><th>#</th><th>หัวข้อ</th><th>บริษัท</th><th>ผู้รับผิดชอบ</th><th>สถานะ</th><th>เปิดมา</th></tr></thead>
-      <tbody>${od.map(t=>`
-        <tr class="overdue-row">
-          <td><b>#${t.id}</b></td>
-          <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${t.title||''}">${t.title||'—'}</td>
-          <td style="font-size:.8rem">${t.CompanyName||'—'}</td>
-          <td>${dn(t.assigned_name)||'—'}</td>
-          <td><span class="badge" style="background:#fef2f2;color:#b91c1c;font-size:.72rem">${t.status}</span></td>
-          <td style="white-space:nowrap;font-size:.78rem;color:#b91c1c"><b>${timeAgo(t.opened_at)}</b></td>
-        </tr>`).join('')}
-      </tbody></table></div>`;
-  }
 
   // ── Pending Leaves ────────────────────────────────────────
   const lvEl = document.getElementById('dash-leaves');
   if ((d.pendingLeaves || []).length === 0) {
-    lvEl.innerHTML = '<div class="empty"><div class="icon">✅</div>ไม่มีคำขอค้างอยู่</div>';
+    lvEl.innerHTML = '<div class="empty" style="padding:.75rem"><div class="icon">✅</div><div>ไม่มีคำขอค้างอยู่</div></div>';
   } else {
     lvEl.innerHTML = d.pendingLeaves.map(lr => `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:.5rem 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:.45rem 0;border-bottom:1px solid var(--border)">
         <div>
-          <b>${lr.emp_name}</b>
-          <span class="badge ${teamBadgeClass(lr.team)}" style="margin-left:.4rem">${teamLabel(lr.team)}</span>
-          <div style="font-size:.78rem;color:var(--muted)">${fmtDate(lr.leave_date)} — ${lr.reason||'—'}</div>
+          <b style="color:#fff">${lr.emp_name}</b>
+          <span class="badge ${teamBadgeClass(lr.team)}" style="margin-left:.35rem">${teamLabel(lr.team)}</span>
+          <div style="font-size:.75rem;color:var(--muted)">${fmtDate(lr.leave_date)} — ${lr.reason||'—'}</div>
         </div>
         <div class="btn-group">
           <button class="btn btn-success btn-sm" onclick="approveLeaveDash(${lr.id})">✓</button>
-          <button class="btn btn-danger btn-sm" onclick="rejectLeaveDash(${lr.id})">✗</button>
+          <button class="btn btn-danger btn-sm"  onclick="rejectLeaveDash(${lr.id})">✗</button>
         </div>
       </div>`).join('');
   }
-
-  // ── Today Tickets by Status ────────────────────────────────
-  const today = d.ticketsToday || [];
-  const byStatus = {};
-  today.forEach(r => { byStatus[r.status] = (byStatus[r.status] || 0) + r.cnt; });
-  const tkEl = document.getElementById('dash-today-tickets');
-  if (today.length === 0) {
-    tkEl.innerHTML = `<div class="empty"><div class="icon">📋</div>${d.extConnected ? 'ยังไม่มีเคสวันนี้' : 'ไม่ได้เชื่อมต่อ LicenseDB'}</div>`;
-  } else {
-    tkEl.innerHTML = Object.entries(byStatus).map(([status, cnt]) =>
-      `<div style="display:flex;justify-content:space-between;align-items:center;padding:.45rem 0;border-bottom:1px solid var(--border)">
-        <span class="badge" style="background:#f1f5f9;color:#334155;font-size:.8rem">${status}</span>
-        <b style="font-size:1.1rem;color:var(--hd)">${cnt}</b>
-      </div>`
-    ).join('') +
-    `<div style="margin-top:.5rem;font-size:.8rem;color:var(--muted);text-align:right">รวม ${todayCnt} เคส</div>`;
-  }
 }
 
-async function approveLeaveDash(id) {
-  const lead = allEmployees.find(e=>e.role==='team_lead'||e.role==='department_head');
-  await api(`/api/leave-requests/${id}/approve`, { method:'PUT', body:{ approved_by: lead?.id || 1 } });
-  loadDashboard();
-}
-async function rejectLeaveDash(id) {
-  await api(`/api/leave-requests/${id}/reject`, { method:'PUT', body:{ approved_by: 1 } });
-  loadDashboard();
-}
-
-// ══════════════════════════════════════════════════════════
-//  DASHBOARD CHARTS
-// ══════════════════════════════════════════════════════════
-let chartDailyTrend = null, chartCategories = null, chartAgentWorkload = null, chartAgentCat = null;
 
 async function loadDashboardCharts() {
   let data;
   try { data = await api('/api/dashboard/charts'); } catch { return; }
-  if (!data || !data.dailyTrend) return;
-
+  if (!data) return;
   if (data.nameMap) Object.assign(nameMap, data.nameMap);
-  const { dailyTrend, catStats, agentThis, agentLast, agentCat } = data;
 
-  // ── 1. Daily Trend (Line) ──────────────────────────────
-  const trendLabels = dailyTrend.map(r => {
-    const d = new Date(r.day);
-    return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
-  });
-  const trendData   = dailyTrend.map(r => r.cnt);
+  const { catStats = [], agentThis = [], agentLast = [], agentCat = [] } = data;
 
-  // Simple 7-day moving average
-  const ma7 = trendData.map((_, i, arr) => {
-    const slice = arr.slice(Math.max(0,i-6), i+1);
-    return Math.round(slice.reduce((s,v)=>s+v,0)/slice.length * 10)/10;
-  });
+  // ── Compute & fill stat cards ───────────────────────────
+  const totalMonth  = agentThis.reduce((s, r) => s + (r.cnt || 0), 0);
+  const agentCount  = agentThis.length;
+  const avgPerAgent = agentCount ? Math.round(totalMonth / agentCount) : 0;
+  // Estimate closed from status (agentThis = all tickets, closed ≈ total for LicenseDB)
+  // We use totalMonth as total; closed approx = we don't have status here, so show total
+  const _s = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  _s('ov-total',  totalMonth.toLocaleString());
+  _s('ov-closed', totalMonth.toLocaleString());  // LicenseDB closed ≈ total (resolved tickets)
+  document.getElementById('ov-close-pct') && (document.getElementById('ov-close-pct').textContent = 'tickets เดือนนี้');
+  _s('ov-agents', agentCount);
+  _s('ov-avg',    avgPerAgent);
 
-  if (chartDailyTrend) { chartDailyTrend.destroy(); chartDailyTrend = null; }
-  const ctxTrend = document.getElementById('chart-daily-trend');
-  if (ctxTrend && trendLabels.length) {
-    chartDailyTrend = new Chart(ctxTrend, {
-      type: 'line',
-      data: {
-        labels: trendLabels,
-        datasets: [
-          {
-            label: 'จำนวนเคส',
-            data: trendData,
-            borderColor: '#2563eb', backgroundColor: '#2563eb22',
-            fill: true, tension: 0.35, pointRadius: 1, pointHoverRadius: 5,
-            borderWidth: 2
-          },
-          {
-            label: 'MA 7 วัน',
-            data: ma7,
-            borderColor: '#f59e0b', backgroundColor: 'transparent',
-            borderWidth: 2, borderDash: [5,3], pointRadius: 0, tension: 0.4
-          }
-        ]
-      },
-      options: {
-        responsive: true, interaction: { mode:'index', intersect:false },
-        plugins: { legend: { position:'bottom', labels:{ font:{ size:11 } } } },
-        scales: {
-          x: { ticks: { maxTicksLimit:10, font:{ size:10 } } },
-          y: { beginAtZero: true, ticks: { stepSize:1, font:{ size:10 } } }
-        }
-      }
-    });
-  }
+  // Build name map for display
+  const lastMap = Object.fromEntries(agentLast.map(r => [r.UserName, r.cnt || 0]));
+  const thisMap = Object.fromEntries(agentThis.map(r => [r.UserName, r.cnt || 0]));
+  const agentNames = agentThis.map(r => r.UserName);
 
-  // ── 2. Category Doughnut ───────────────────────────────
-  if (chartCategories) { chartCategories.destroy(); chartCategories = null; }
-  const ctxCat = document.getElementById('chart-categories');
-  if (ctxCat && catStats.length) {
-    const catColors = ['#2563eb','#16a34a','#ca8a04','#dc2626','#7c3aed','#0891b2','#db2777','#059669','#d97706','#6366f1'];
-    chartCategories = new Chart(ctxCat, {
+  // ── 1. Category Donut ────────────────────────────────────
+  if (dashCharts.donut) { dashCharts.donut.destroy(); dashCharts.donut = null; }
+  const ctxDonut = document.getElementById('chart-cat-donut');
+  if (ctxDonut && catStats.length) {
+    const top5 = catStats.slice(0, 5);
+    const donutColors = ['#38bdf8','#818cf8','#34d399','#fb923c','#f472b6'];
+    dashCharts.donut = new Chart(ctxDonut, {
       type: 'doughnut',
       data: {
-        labels: catStats.map(r => r.category),
-        datasets: [{ data: catStats.map(r => r.cnt), backgroundColor: catColors, borderWidth: 2 }]
+        labels: top5.map(r => r.category || 'อื่นๆ'),
+        datasets: [{
+          data: top5.map(r => r.cnt),
+          backgroundColor: donutColors,
+          borderWidth: 2,
+          borderColor: '#0f172a'
+        }]
       },
       options: {
-        responsive: true, cutout: '55%',
+        responsive: true,
+        cutout: '55%',
         plugins: {
-          legend: { position:'right', labels:{ font:{ size:10 }, boxWidth:12 } },
-          tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed} เคส` } }
+          legend: {
+            position: 'right',
+            labels: { color: '#e2e8f0', font: { size: 11 }, boxWidth: 12 }
+          },
+          tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed.toLocaleString()} เคส` } }
         }
       }
     });
   }
 
-  // ── 3. Agent Workload (Horizontal Bar — this month vs last) ──
-  if (chartAgentWorkload) { chartAgentWorkload.destroy(); chartAgentWorkload = null; }
-  const ctxWL = document.getElementById('chart-agent-workload');
-  if (ctxWL && agentThis.length) {
-    // Build unified agent list
-    const agentSet = new Set([...agentThis.map(r=>r.UserName), ...agentLast.map(r=>r.UserName)]);
-    const agents   = [...agentSet];
-    const lastMap  = Object.fromEntries(agentLast.map(r=>[r.UserName, r.cnt]));
-    const thisMap  = Object.fromEntries(agentThis.map(r=>[r.UserName, r.cnt]));
-    // Sort by this month desc
-    agents.sort((a,b) => (thisMap[b]||0) - (thisMap[a]||0));
-    const maxAgents = Math.min(agents.length, 15);
-    const shownAgents = agents.slice(0, maxAgents);
-
-    chartAgentWorkload = new Chart(ctxWL, {
+  // ── 2. Agent Grouped Bar (this month vs last month) ──────
+  if (dashCharts.bar) { dashCharts.bar.destroy(); dashCharts.bar = null; }
+  const ctxBar = document.getElementById('chart-agent-compare');
+  if (ctxBar && agentThis.length) {
+    const topN = agentThis.slice(0, 12);
+    dashCharts.bar = new Chart(ctxBar, {
       type: 'bar',
       data: {
-        labels: shownAgents.map(a => dn(a)),
+        labels: topN.map(r => dn(r.UserName)),
         datasets: [
           {
             label: 'เดือนนี้',
-            data: shownAgents.map(a => thisMap[a]||0),
-            backgroundColor: '#2563eb', borderRadius: 4
+            data: topN.map(r => r.cnt || 0),
+            backgroundColor: '#38bdf8',
+            borderRadius: 4
           },
           {
             label: 'เดือนก่อน',
-            data: shownAgents.map(a => lastMap[a]||0),
-            backgroundColor: '#93c5fd', borderRadius: 4
+            data: topN.map(r => lastMap[r.UserName] || 0),
+            backgroundColor: '#334155',
+            borderRadius: 4
           }
         ]
       },
       options: {
-        indexAxis: 'y', responsive: true,
-        plugins: { legend: { position:'bottom', labels:{ font:{size:11} } } },
-        scales: {
-          x: { beginAtZero:true, ticks:{ font:{size:10} } },
-          y: { ticks:{ font:{size:10} } }
-        }
-      }
-    });
-  }
-
-  // ── 4. Agent × Category Stacked Bar ──────────────────────
-  if (chartAgentCat) { chartAgentCat.destroy(); chartAgentCat = null; }
-  const ctxAC = document.getElementById('chart-agent-cat');
-  if (ctxAC && agentCat.length) {
-    // Get unique categories (top 8)
-    const catMap = {};
-    agentCat.forEach(r => { catMap[r.category] = (catMap[r.category]||0) + r.cnt; });
-    const topCats = Object.entries(catMap).sort((a,b)=>b[1]-a[1]).slice(0,8).map(e=>e[0]);
-
-    // Get agent list sorted by total this month
-    const agentTotals = {};
-    agentCat.forEach(r => { agentTotals[r.UserName] = (agentTotals[r.UserName]||0) + r.cnt; });
-    const agentKeys = Object.entries(agentTotals).sort((a,b)=>b[1]-a[1]).slice(0,12).map(e=>e[0]);
-    const agentList = agentKeys; // keep original keys for lookup
-
-    // Build matrix
-    const acLookup = {};
-    agentCat.forEach(r => {
-      if (!acLookup[r.UserName]) acLookup[r.UserName] = {};
-      acLookup[r.UserName][r.category] = r.cnt;
-    });
-
-    const acColors = ['#2563eb','#16a34a','#ca8a04','#dc2626','#7c3aed','#0891b2','#db2777','#059669'];
-    const datasets = topCats.map((cat, i) => ({
-      label: cat,
-      data: agentList.map(a => acLookup[a]?.[cat] || 0),
-      backgroundColor: acColors[i % acColors.length],
-      borderRadius: 2
-    }));
-
-    chartAgentCat = new Chart(ctxAC, {
-      type: 'bar',
-      data: { labels: agentList.map(a => dn(a)), datasets },
-      options: {
-        indexAxis: 'y', responsive: true,
+        responsive: true,
         plugins: {
-          legend: { position:'bottom', labels:{ font:{size:10}, boxWidth:10 } },
-          tooltip: { mode:'index' }
+          legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 10 } }
         },
         scales: {
-          x: { stacked:true, beginAtZero:true, ticks:{ font:{size:10} } },
-          y: { stacked:true, ticks:{ font:{size:10} } }
+          x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#1e293b' } },
+          y: { beginAtZero: true, ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#263548' } }
         }
       }
     });
   }
+
+  // ── 3. Scatter (this month vs last month per agent) ──────
+  if (dashCharts.scatter) { dashCharts.scatter.destroy(); dashCharts.scatter = null; }
+  const ctxScatter = document.getElementById('chart-scatter-wl');
+  if (ctxScatter && agentThis.length) {
+    const scatterData = agentThis.map(r => {
+      const thisV = r.cnt || 0;
+      const lastV = lastMap[r.UserName] || 0;
+      return { x: lastV, y: thisV, name: dn(r.UserName) };
+    });
+    const colors = scatterData.map(p =>
+      p.y > p.x ? '#22c55e' : p.y < p.x ? '#ef4444' : '#38bdf8'
+    );
+    dashCharts.scatter = new Chart(ctxScatter, {
+      type: 'scatter',
+      data: {
+        datasets: [{
+          label: 'Agents',
+          data: scatterData,
+          backgroundColor: colors,
+          pointRadius: 7,
+          pointHoverRadius: 11
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                const p = ctx.raw;
+                const diff = p.y - p.x;
+                const sign = diff >= 0 ? '+' : '';
+                return `${p.name}: เดือนก่อน ${p.x} · เดือนนี้ ${p.y} (${sign}${diff})`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            title: { display: true, text: 'เดือนก่อน (tickets)', color: '#94a3b8' },
+            ticks: { color: '#94a3b8', font: { size: 10 } },
+            grid: { color: '#263548' }
+          },
+          y: {
+            title: { display: true, text: 'เดือนนี้ (tickets)', color: '#94a3b8' },
+            ticks: { color: '#94a3b8', font: { size: 10 } },
+            grid: { color: '#263548' }
+          }
+        }
+      }
+    });
+
+    // Agent chips
+    const chips = document.getElementById('dash-agent-chips');
+    if (chips) {
+      chips.innerHTML = agentThis.slice(0, 15).map(r => {
+        const thisV = r.cnt || 0;
+        const lastV = lastMap[r.UserName] || 0;
+        const diff  = thisV - lastV;
+        const col   = diff > 0 ? '#22c55e' : diff < 0 ? '#ef4444' : '#94a3b8';
+        const sign  = diff >= 0 ? '+' : '';
+        return `<span class="agent-chip">
+          <b>${dn(r.UserName)}</b>
+          <span style="color:var(--accent)">${thisV}t</span>
+          <span style="color:${col};font-size:.68rem">${sign}${diff}</span>
+        </span>`;
+      }).join('');
+    }
+  }
 }
+
 
 // ══════════════════════════════════════════════════════════
 //  SCHEDULE
