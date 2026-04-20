@@ -423,8 +423,8 @@ app.get('/api/dashboard', async (_, res) => {
     const timeVal = hour * 60 + minute;
     const currentShifts = [];
     if (timeVal >= 8*60+30 && timeVal <= 16*60+30)  currentShifts.push('morning');
-    if (timeVal >= 15*60+30 && timeVal <= 23*60+30) currentShifts.push('afternoon');
-    if (timeVal >= 16*60 || timeVal <= 0)            currentShifts.push('night');
+    if (timeVal >= 15*60+30 && timeVal <= 23*60+59) currentShifts.push('afternoon');
+    if (timeVal >= 16*60   && timeVal <= 23*60+59)  currentShifts.push('night');
     if (currentShifts.length === 0) currentShifts.push('morning');
     const ext = getExtPool();
     let ticketsToday = [], overdueTickets = [], ticketStats = [], kpiSummary = [];
@@ -705,12 +705,14 @@ ${JSON.stringify(employees, null, 2)}
 ${JSON.stringify(approvedLeaves, null, 2)}
 
 กฎการจัดกะ:
-- กะ: morning (08:30-16:30), afternoon (15:30-23:30), night (23:00-07:00)
-- call_center: ต้องมีอย่างน้อย 2 คน/กะ ทุกวัน, team_lead ควรอยู่กะเช้า
+- บริษัทเปิดทำการ 08:30–23:59 ทุกวัน ไม่มีวันหยุดราชการ
+- กะ: morning (08:30-16:30), afternoon (15:30-23:59), night (16:00-23:59)
+- call_center: ต้องมีอย่างน้อย 2 คน/กะ ทุกวัน รวมเสาร์-อาทิตย์, team_lead ควรอยู่กะเช้า
 - helpdesk: ต้องมีอย่างน้อย 1 คน/กะ วันจันทร์-ศุกร์
 - repair: morning เท่านั้น วันจันทร์-ศุกร์
-- พนักงาน 1 คนทำได้ 1 กะ/วัน และไม่ควรทำติดกัน >5 วัน
+- พนักงาน 1 คนทำได้ 1 กะ/วัน, ทำงาน 5 วัน/สัปดาห์ หยุด 2 วัน
 - ห้ามจัดกะในวันที่ได้รับอนุมัติลา
+- กระจายวันหยุดให้สมดุล ไม่ให้ใครหยุดพร้อมกันมากเกินไปในทีมเดียว
 
 ตอบเป็น JSON array เท่านั้น:
 [{"employee_id": 1, "shift_date": "YYYY-MM-DD", "shift_type": "morning|afternoon|night"}]`;

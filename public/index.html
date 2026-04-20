@@ -820,8 +820,8 @@ textarea{resize:vertical;min-height:80px}
       <label>กะ</label>
       <select id="s-type">
         <option value="morning">🌅 เช้า (08:30–16:30)</option>
-        <option value="afternoon">🌤 บ่าย (15:30–23:30)</option>
-        <option value="night">🌙 ดึก (16:00–24:00)</option>
+        <option value="afternoon">🌤 บ่าย (15:30–23:59)</option>
+        <option value="night">🌙 ดึก (16:00–23:59)</option>
       </select>
     </div>
     <div class="form-group">
@@ -1290,8 +1290,11 @@ function teamBadgeHtml(t) {
   const style = teamBadgeStyle(t);
   return `<span class="badge ${cls}" ${style}>${teamLabel(t)}</span>`;
 }
-function shiftLabel(s) {
-  return {morning:'🌅 เช้า', afternoon:'🌤 บ่าย', night:'🌙 ดึก'}[s] || s;
+function shiftLabel(s, withTime) {
+  const base = {morning:'🌅 เช้า', afternoon:'🌤 บ่าย', night:'🌙 ดึก'}[s] || s;
+  if (!withTime) return base;
+  const time = {morning:'08:30–16:30', afternoon:'15:30–23:59', night:'16:00–23:59'}[s] || '';
+  return time ? `${base} (${time})` : base;
 }
 function shiftBg(s) {
   return {morning:'#dbeafe', afternoon:'#fef3c7', night:'#ede9fe'}[s] || '#f1f5f9';
@@ -1914,7 +1917,7 @@ async function loadSchedule() {
   ]);
 
   renderShiftTable(shifts, ws);
-  renderCoverageWarn(coverage);
+  renderCoverageWarn(coverage, ws);
   loadLeaveRequests();
 }
 
@@ -1968,6 +1971,17 @@ function renderShiftTable(shifts, ws) {
     return;
   }
 
+  // ── Count working days per employee this week ─────────────
+  const workCount = {};
+  empsToShow.forEach(emp => {
+    let wc = 0;
+    days.forEach(d => {
+      const s = shiftMap[emp.id]?.[fmtDateISO(d)];
+      if (s && s.status !== 'leave' && s.status !== 'approved_leave') wc++;
+    });
+    workCount[emp.id] = wc;
+  });
+
   // ── Rows ─────────────────────────────────────────────────
   let rows = '';
   let prevTeam = '';
@@ -1977,21 +1991,27 @@ function renderShiftTable(shifts, ws) {
       rows += `<tr><td colspan="${colCount}" style="background:${color}18;color:${color};font-weight:700;font-size:.79rem;padding:.35rem .8rem">${teamLabel(emp.team)}</td></tr>`;
       prevTeam = emp.team;
     }
-    const isLead = !['staff'].includes(emp.role);
-    rows += `<tr><td style="white-space:nowrap;font-size:.84rem">${emp.name}${isLead?` <span style="font-size:.68rem;color:var(--muted)">(หน.)</span>`:''}</td>`;
+    const isLead  = !['staff'].includes(emp.role);
+    const wc      = workCount[emp.id];
+    const wcColor = wc > 5 ? '#ef4444' : wc === 5 ? '#16a34a' : '#64748b';
+    const wcTitle = wc > 5 ? `⚠️ เกิน! ${wc} วัน (สูงสุด 5)` : `ทำงาน ${wc}/5 วันสัปดาห์นี้`;
+    rows += `<tr><td style="white-space:nowrap;font-size:.84rem">
+      ${emp.name}${isLead?` <span style="font-size:.68rem;color:var(--muted)">(หน.)</span>`:''}
+      <span title="${wcTitle}" style="font-size:.68rem;font-weight:700;color:${wcColor};margin-left:.3rem;cursor:default">${wc}/5</span>
+    </td>`;
     days.forEach(d => {
       const iso = fmtDateISO(d);
       const s   = shiftMap[emp.id]?.[iso];
       if (s) {
-        const isLeave = s.status === 'leave' || s.status === 'approved_leave';
+        const isLeave  = s.status === 'leave' || s.status === 'approved_leave';
         rows += `<td style="padding:.3rem .25rem">
           <div style="background:${isLeave?'#fef2f2':shiftBg(s.shift_type)};color:${isLeave?'#b91c1c':shiftColor(s.shift_type)};
                border-radius:6px;padding:.18rem .4rem;font-size:.72rem;font-weight:600;cursor:pointer;text-align:center"
+               title="${isLeave?'วันหยุด':shiftLabel(s.shift_type,true)}"
                onclick="editShiftModal(${s.id},'${s.shift_type}','${s.status}')">
             ${isLeave?'🏖 หยุด':shiftLabel(s.shift_type)}
           </div></td>`;
       } else {
-        // Clickable empty cell → quick add shift
         rows += `<td style="padding:.3rem .25rem">
           <div style="color:#cbd5e1;font-size:.78rem;text-align:center;cursor:pointer;border-radius:6px;padding:.18rem .4rem;transition:.15s"
                onmouseover="this.style.background='#f1f5f9';this.style.color='#2563eb'"
@@ -2006,14 +2026,88 @@ function renderShiftTable(shifts, ws) {
   document.getElementById('shift-tbody').innerHTML = rows;
 }
 
-function renderCoverageWarn(coverage) {
-  const issues = [];
+function renderCoverageWarn(coverage, ws) {
+  // Build lookup: date → team → shift_type → cnt
+  const covMap = {};
   coverage.forEach(r => {
-    if (r.cnt === 0) issues.push(`${teamLabel(r.team)} วัน ${r.shift_date} กะ${shiftLabel(r.shift_type)} — ไม่มีพนักงาน!`);
+    const dk = (r.shift_date || '').toString().split('T')[0];
+    if (!covMap[dk]) covMap[dk] = {};
+    if (!covMap[dk][r.team]) covMap[dk][r.team] = {};
+    covMap[dk][r.team][r.shift_type] = r.cnt;
   });
-  document.getElementById('coverage-warn').innerHTML = issues.length > 0
-    ? `<div class="alert alert-warn">⚠️ กะที่ไม่มีคนครอบคลุม: ${issues.join(' | ')}</div>`
-    : '';
+
+  // Minimum staffing rules (company open 08:30–23:59 every day)
+  const minRules = [
+    { team:'call_center', shifts:['morning','afternoon','night'], min:2, days:'all' },
+    { team:'helpdesk',    shifts:['morning','afternoon'],         min:1, days:'weekday' },
+    { team:'repair',      shifts:['morning'],                     min:1, days:'weekday' }
+  ];
+
+  const issues = [];
+  const over5  = [];
+
+  // Generate 7 days of this week
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(ws); d.setDate(d.getDate() + i); days.push(d);
+  }
+
+  days.forEach(d => {
+    const iso     = fmtDateISO(d);
+    const dow     = d.getDay(); // 0=Sun, 6=Sat
+    const isWkday = dow >= 1 && dow <= 5;
+
+    minRules.forEach(rule => {
+      if (rule.days === 'weekday' && !isWkday) return;
+      rule.shifts.forEach(st => {
+        const cnt = covMap[iso]?.[rule.team]?.[st] || 0;
+        if (cnt < rule.min) {
+          const dayLabel = ['อา','จ','อ','พ','พฤ','ศ','ส'][dow];
+          issues.push({ day: dayLabel, date: iso, team: rule.team, shift: st, cnt, min: rule.min });
+        }
+      });
+    });
+  });
+
+  // Check 5-day rule per employee
+  allEmployees.filter(e=>e.active!==0).forEach(emp => {
+    let wc = 0;
+    days.forEach(d => {
+      const iso = fmtDateISO(d);
+      const eShifts = coverage.filter
+        ? null  // coverage doesn't have per-emp data; skip here (handled in table)
+        : null;
+    });
+  });
+
+  const warnEl = document.getElementById('coverage-warn');
+  if (!warnEl) return;
+
+  if (issues.length === 0) {
+    warnEl.innerHTML = `<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:.5rem .9rem;font-size:.8rem;color:#166534">
+      ✅ ครอบคลุมทุกกะตามเกณฑ์ขั้นต่ำ (call_center ≥2/กะ · helpdesk ≥1/กะวันธรรมดา · repair เช้าวันธรรมดา)
+    </div>`;
+    return;
+  }
+
+  // Group issues by team for cleaner display
+  const byTeam = {};
+  issues.forEach(i => {
+    if (!byTeam[i.team]) byTeam[i.team] = [];
+    byTeam[i.team].push(i);
+  });
+
+  const lines = Object.entries(byTeam).map(([team, rows]) => {
+    const detail = rows.map(r =>
+      `<span style="background:#fef2f2;border:1px solid #fecaca;border-radius:4px;padding:.05rem .35rem;font-size:.72rem;margin:.1rem">${r.day} ${r.date.slice(5)} ${shiftLabel(r.shift)} ${r.cnt}/${r.min}</span>`
+    ).join(' ');
+    return `<div style="margin:.2rem 0"><b style="color:#b91c1c">${teamLabel(team)}</b> ${detail}</div>`;
+  }).join('');
+
+  warnEl.innerHTML = `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.6rem .9rem;font-size:.8rem">
+    <div style="font-weight:700;color:#b91c1c;margin-bottom:.35rem">⚠️ กะที่ยังขาดคน (${issues.length} รายการ)</div>
+    ${lines}
+  </div>`;
 }
 
 function quickAddShift(empId, dateStr) {
