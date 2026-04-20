@@ -867,12 +867,9 @@ app.put('/api/teams/:id', async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.delete('/api/teams/:id', async (request, res) => {
-  try {
-    await req().input('id', sql.Int, request.params.id)
-      .query('UPDATE teams SET active=0 WHERE id=@id');
-    res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+// DELETE /api/teams/:id — disabled: teams cannot be deleted
+app.delete('/api/teams/:id', authRequired, (_, res) => {
+  res.status(403).json({ error: 'ไม่อนุญาตให้ลบทีม — สามารถปิดใช้งานได้จากหน้าแก้ไขแทน' });
 });
 
 // ══════════════════════════════════════════════════════════

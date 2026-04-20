@@ -798,7 +798,7 @@ textarea{resize:vertical;min-height:80px}
       <div class="tbl-wrap">
         <table>
           <thead>
-            <tr><th>#</th><th>ชื่อ (key)</th><th>ชื่อแสดงผล</th><th>สี</th><th>ลำดับ</th><th>จัดการ</th></tr>
+            <tr><th>#</th><th>ชื่อ (key)</th><th>ชื่อแสดงผล</th><th>สี</th><th>ลำดับ</th><th>สถานะ</th><th>จัดการ</th></tr>
           </thead>
           <tbody id="teams-tbody"></tbody>
         </table>
@@ -2790,12 +2790,11 @@ async function loadTeamsTab() {
       <td><b>${t.display_name}</b></td>
       <td><span style="display:inline-block;width:18px;height:18px;border-radius:4px;background:${t.color};vertical-align:middle;margin-right:.4rem"></span>${t.color}</td>
       <td>${t.sort_order}</td>
+      <td><span class="badge" style="background:${t.active?'#dcfce7':'#f1f5f9'};color:${t.active?'#15803d':'#64748b'}">${t.active?'ใช้งาน':'ปิดใช้'}</span></td>
       <td>
-        <div class="btn-group">
-          <button class="btn btn-ghost btn-sm" onclick="openEditTeam(${JSON.stringify(t).replace(/"/g,'&quot;')})">✏️ แก้ไข</button>
-        </div>
+        <button class="btn btn-ghost btn-sm" onclick="openEditTeam(${JSON.stringify(t).replace(/"/g,'&quot;')})">✏️ แก้ไข</button>
       </td>
-    </tr>`).join('') || '<tr><td colspan="6" class="empty">ยังไม่มีทีม</td></tr>';
+    </tr>`).join('') || '<tr><td colspan="7" class="empty">ยังไม่มีทีม</td></tr>';
 }
 
 function openAddTeam() {
