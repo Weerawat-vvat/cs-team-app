@@ -315,13 +315,21 @@ textarea{resize:vertical;min-height:80px}
 .role-admin{background:#fef2f2;color:#b91c1c}
 
 /* ── OVERVIEW 6-COL STAT ROW ── */
-.stat-row-6{display:grid;grid-template-columns:repeat(6,1fr);gap:.65rem;margin-bottom:1rem}
+.stat-row-6{display:grid;grid-template-columns:repeat(6,1fr);gap:.65rem;margin-bottom:.75rem}
 @media(max-width:1200px){.stat-row-6{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:700px){.stat-row-6{grid-template-columns:repeat(2,1fr)}}
 /* agent chips */
 .agent-chips{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.6rem}
 .agent-chip{display:inline-flex;align-items:center;gap:.35rem;background:#f1f5f9;border:1px solid var(--border);border-radius:20px;padding:.2rem .65rem;font-size:.75rem;cursor:default}
 .agent-chip b{color:var(--text)}
+/* target tracker */
+.target-tracker-bar{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:.6rem 1rem;margin-bottom:.75rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
+.tt-track{flex:1;min-width:200px}
+.tt-labels{display:flex;justify-content:space-between;font-size:.78rem;margin-bottom:.3rem}
+.tt-rail{background:var(--border);border-radius:20px;height:8px;overflow:hidden}
+.tt-fill{height:8px;border-radius:20px;transition:width .5s,background .5s;width:0%}
+.target-input{width:64px;text-align:center;border:1px solid var(--border);border-radius:6px;padding:.2rem .35rem;font-size:.85rem;background:var(--card2);color:var(--text)}
+.target-input:focus{outline:2px solid var(--accent);border-color:var(--accent)}
 </style>
 </head>
 <body>
@@ -396,6 +404,12 @@ textarea{resize:vertical;min-height:80px}
     <span style="color:var(--muted);font-size:.8rem">ถึง</span>
     <input type="date" id="dash-date-to" style="max-width:130px"/>
     <button class="btn btn-sm btn-primary" onclick="loadDashboard();loadDashboardCharts()">ค้นหา</button>
+    <span style="color:var(--border)">|</span>
+    <label style="font-size:.8rem;color:var(--muted);white-space:nowrap">🎯 Target:</label>
+    <input type="number" id="dash-target" class="target-input" min="1" max="9999" value="10"
+      title="จำนวน tickets เป้าหมายต่อคนต่อวัน"
+      onchange="saveTarget();recalcTarget()" oninput="recalcTarget()"/>
+    <label style="font-size:.78rem;color:var(--muted);white-space:nowrap">tickets/คน/วัน</label>
   </div>
 
   <!-- ── 6 Stat Cards ── -->
@@ -412,6 +426,19 @@ textarea{resize:vertical;min-height:80px}
       <div class="value blue" id="ov-today">—</div><div class="sub" id="ov-week-sub">เคสที่รับวันนี้</div></div>
     <div class="stat-flat"><div class="label">⚠️ ค้างเกิน 24 ชม.</div>
       <div class="value red" id="ov-overdue">—</div><div class="sub">tickets รวมทุก agent</div></div>
+  </div>
+
+  <!-- ── Target Tracker ── -->
+  <div class="target-tracker-bar" id="target-tracker" style="display:none">
+    <div style="font-size:.8rem;font-weight:700;color:var(--muted);white-space:nowrap">🎯 Target Tracker</div>
+    <div class="tt-track">
+      <div class="tt-labels">
+        <span id="tt-label" style="color:var(--text)">—</span>
+        <span id="tt-pct" style="font-weight:700">—%</span>
+      </div>
+      <div class="tt-rail"><div class="tt-fill" id="tt-fill"></div></div>
+    </div>
+    <div id="tt-details" style="font-size:.75rem;color:var(--muted);white-space:nowrap"></div>
   </div>
 
   <!-- ── Charts Row 1: Donut + Agent Compare Bar ── -->
@@ -1326,6 +1353,49 @@ function filterAssigneeByTeam() {
 // ══════════════════════════════════════════════════════════
 //  DASHBOARD (Manager View)
 // ══════════════════════════════════════════════════════════
+// ── Target Tracker state ──────────────────────────────────
+let _dashLastTotal  = 0;
+let _dashLastAgents = 0;
+
+function saveTarget() {
+  const v = document.getElementById('dash-target')?.value;
+  if (v) localStorage.setItem('cs_daily_target', v);
+}
+function loadTarget() {
+  const saved = localStorage.getItem('cs_daily_target');
+  const el    = document.getElementById('dash-target');
+  if (saved && el) el.value = saved;
+}
+function recalcTarget() {
+  const target = parseInt(document.getElementById('dash-target')?.value) || 0;
+  const tracker = document.getElementById('target-tracker');
+  if (!target || !_dashLastAgents) { if (tracker) tracker.style.display = 'none'; return; }
+
+  // Count total days in selected range
+  const frVal = document.getElementById('dash-date-from')?.value;
+  const toVal = document.getElementById('dash-date-to')?.value;
+  let days = 1;
+  if (frVal && toVal) {
+    const d1 = new Date(frVal), d2 = new Date(toVal);
+    days = Math.max(1, Math.round((d2 - d1) / 86400000) + 1);
+  }
+
+  const expected = target * _dashLastAgents * days;
+  const actual   = _dashLastTotal;
+  const pct      = expected > 0 ? Math.round(actual / expected * 100) : 0;
+  const color    = pct >= 100 ? '#22c55e' : pct >= 70 ? '#f59e0b' : '#ef4444';
+
+  if (tracker) tracker.style.display = '';
+  const labelEl = document.getElementById('tt-label');
+  const pctEl   = document.getElementById('tt-pct');
+  const fillEl  = document.getElementById('tt-fill');
+  const detEl   = document.getElementById('tt-details');
+  if (labelEl) labelEl.textContent = `ทำได้ ${actual.toLocaleString()} / ${expected.toLocaleString()} tickets`;
+  if (pctEl)   { pctEl.textContent = `${pct}%`; pctEl.style.color = color; }
+  if (fillEl)  { fillEl.style.width = Math.min(pct, 100) + '%'; fillEl.style.background = color; }
+  if (detEl)   detEl.textContent = `${_dashLastAgents} คน × ${days} วัน × ${target} tickets/คน/วัน`;
+}
+
 async function loadDashboard() {
   const d = await api('/api/dashboard');
   if (!d || !d.serverTime) return;
@@ -1427,14 +1497,17 @@ async function loadDashboardCharts() {
   const totalMonth  = agentThis.reduce((s, r) => s + (r.cnt || 0), 0);
   const agentCount  = agentThis.length;
   const avgPerAgent = agentCount ? Math.round(totalMonth / agentCount) : 0;
-  // Estimate closed from status (agentThis = all tickets, closed ≈ total for LicenseDB)
-  // We use totalMonth as total; closed approx = we don't have status here, so show total
   const _s = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   _s('ov-total',  totalMonth.toLocaleString());
-  _s('ov-closed', totalMonth.toLocaleString());  // LicenseDB closed ≈ total (resolved tickets)
+  _s('ov-closed', totalMonth.toLocaleString());
   document.getElementById('ov-close-pct') && (document.getElementById('ov-close-pct').textContent = 'tickets เดือนนี้');
   _s('ov-agents', agentCount);
   _s('ov-avg',    avgPerAgent);
+
+  // ── Target Tracker ───────────────────────────────────────
+  _dashLastTotal  = totalMonth;
+  _dashLastAgents = agentCount;
+  recalcTarget();
 
   // Build name map for display
   const lastMap = Object.fromEntries(agentLast.map(r => [r.UserName, r.cnt || 0]));
@@ -1477,25 +1550,48 @@ async function loadDashboardCharts() {
   const ctxBar = document.getElementById('chart-agent-compare');
   if (ctxBar && agentThis.length) {
     const topN = agentThis.slice(0, 12);
+    // Compute target line = target/person/day × days-in-range
+    const _tgt    = parseInt(document.getElementById('dash-target')?.value) || 0;
+    const _frVal  = document.getElementById('dash-date-from')?.value;
+    const _toVal  = document.getElementById('dash-date-to')?.value;
+    const _days   = (_frVal && _toVal)
+      ? Math.max(1, Math.round((new Date(_toVal) - new Date(_frVal)) / 86400000) + 1)
+      : 30;
+    const _targetLine = _tgt ? _tgt * _days : null;
+    const barDatasets = [
+      {
+        type: 'bar',
+        label: 'ช่วงนี้',
+        data: topN.map(r => r.cnt || 0),
+        backgroundColor: '#38bdf8',
+        borderRadius: 4,
+        order: 2
+      },
+      {
+        type: 'bar',
+        label: 'ช่วงก่อน',
+        data: topN.map(r => lastMap[r.UserName] || 0),
+        backgroundColor: '#cbd5e1',
+        borderRadius: 4,
+        order: 3
+      }
+    ];
+    if (_targetLine) {
+      barDatasets.push({
+        type: 'line',
+        label: `Target (${_tgt}/วัน)`,
+        data: topN.map(() => _targetLine),
+        borderColor: '#f59e0b',
+        borderWidth: 2,
+        borderDash: [6, 4],
+        pointRadius: 0,
+        fill: false,
+        order: 1
+      });
+    }
     dashCharts.bar = new Chart(ctxBar, {
       type: 'bar',
-      data: {
-        labels: topN.map(r => dn(r.UserName)),
-        datasets: [
-          {
-            label: 'เดือนนี้',
-            data: topN.map(r => r.cnt || 0),
-            backgroundColor: '#38bdf8',
-            borderRadius: 4
-          },
-          {
-            label: 'เดือนก่อน',
-            data: topN.map(r => lastMap[r.UserName] || 0),
-            backgroundColor: '#334155',
-            borderRadius: 4
-          }
-        ]
-      },
+      data: { labels: topN.map(r => dn(r.UserName)), datasets: barDatasets },
       options: {
         responsive: true,
         plugins: {
@@ -2250,6 +2346,7 @@ async function tryAutoLogin() {
     await Promise.all([loadEmployees(), loadTeams(), refreshNameMap()]);
     initKpiMonthFilter();
     initDateDefaults();
+    loadTarget();
     loadDashboard();
     loadDashboardCharts();
     setInterval(updateClock, 1000);
@@ -2286,6 +2383,7 @@ async function doLogin() {
     await Promise.all([loadEmployees(), loadTeams(), refreshNameMap()]);
     initKpiMonthFilter();
     initDateDefaults();
+    loadTarget();
     loadDashboard();
     loadDashboardCharts();
   } catch (e) {
