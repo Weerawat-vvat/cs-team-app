@@ -7,54 +7,90 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 :root {
-  --cc:  #16a34a; --cc-light: #dcfce7; --cc-dark: #14532d;
-  --hd:  #2563eb; --hd-light: #dbeafe; --hd-dark: #1e3a8a;
-  --rp:  #ca8a04; --rp-light: #fef9c3; --rp-dark: #713f12;
-  --bg:  #f1f5f9; --card: #ffffff;
+  --cc:#16a34a; --cc-light:#dcfce7; --cc-dark:#14532d;
+  --hd:#2563eb; --hd-light:#dbeafe; --hd-dark:#1e3a8a;
+  --rp:#ca8a04; --rp-light:#fef9c3; --rp-dark:#713f12;
+  --bg:#f1f5f9; --card:#ffffff; --card2:#f8fafc;
   --text:#1e293b; --muted:#64748b; --border:#e2e8f0;
-  --danger:#ef4444; --warn:#f59e0b; --success:#22c55e;
+  --danger:#ef4444; --warn:#f59e0b; --success:#22c55e; --accent:#2563eb;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+body{font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex}
 
-/* ── NAV ── */
-.nav{background:#1e293b;display:flex;align-items:center;padding:0 1.5rem;gap:1rem;height:60px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px #0004}
-.nav-logo{color:#fff;font-size:1.1rem;font-weight:700;white-space:nowrap;flex:1}
-.nav-logo span{font-size:.75rem;font-weight:400;color:#94a3b8;display:block}
-.nav-btn{background:none;border:none;color:#94a3b8;cursor:pointer;padding:.5rem .9rem;border-radius:8px;font-size:.85rem;transition:all .2s;white-space:nowrap}
-.nav-btn:hover{background:#334155;color:#fff}
-.nav-btn.active{background:#334155;color:#fff;font-weight:600}
+/* ── SIDEBAR (keep slightly dark for contrast) ── */
+.sidebar{width:200px;min-width:200px;background:#1e293b;border-right:1px solid #334155;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;z-index:100;flex-shrink:0}
+.sidebar-brand{padding:1rem .85rem .75rem;border-bottom:1px solid #334155}
+.sidebar-logo-icon{font-size:1.4rem;line-height:1}
+.sidebar-name{font-size:.88rem;font-weight:800;color:#fff;margin-top:.3rem}
+.sidebar-sub{font-size:.68rem;color:#94a3b8;margin-top:.1rem}
+.sidebar-nav{display:flex;flex-direction:column;gap:.2rem;padding:.75rem .6rem;flex:1}
+.s-tab{background:none;border:none;color:#94a3b8;cursor:pointer;padding:.52rem .75rem;border-radius:8px;font-size:.83rem;text-align:left;display:flex;align-items:center;gap:.55rem;transition:all .15s;width:100%;font-family:inherit}
+.s-tab:hover{background:#334155;color:#fff}
+.s-tab.active{background:#2563eb;color:#fff;font-weight:600}
+.s-tab-icon{font-size:1rem;flex-shrink:0;width:1.2rem;text-align:center}
+.sidebar-footer{padding:.75rem .85rem;border-top:1px solid #334155;margin-top:auto}
+.sidebar-user-name{font-size:.82rem;font-weight:700;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sidebar-user-role{font-size:.7rem;color:#94a3b8;margin-top:.1rem}
+.sidebar-logout{background:#334155;border:1px solid #475569;color:#94a3b8;cursor:pointer;padding:.35rem .7rem;border-radius:6px;font-size:.75rem;width:100%;margin-top:.5rem;transition:.2s;font-family:inherit}
+.sidebar-logout:hover{background:#ef4444;color:#fff;border-color:#ef4444}
+
+/* ── MAIN WRAP ── */
+.main-wrap{flex:1;overflow-y:auto;min-height:100vh;min-width:0}
 
 /* ── LAYOUT ── */
-.page{display:none;padding:1.5rem;max-width:1400px;margin:0 auto}
+.page{display:none;padding:1.25rem 1.5rem;max-width:1500px;margin:0 auto}
 .page.active{display:block}
 
+/* ── PAGE DATE BAR ── */
+.page-datebar{background:#fff;border:1px solid var(--border);border-radius:10px;padding:.6rem 1rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem;box-shadow:0 1px 3px #0001}
+.page-datebar label{font-size:.75rem;color:var(--muted);white-space:nowrap}
+.page-datebar select,.page-datebar input[type=date]{background:#fff;border:1px solid var(--border);color:var(--text);padding:.28rem .65rem;border-radius:6px;font-size:.78rem;outline:none}
+.page-datebar select:focus,.page-datebar input[type=date]:focus{border-color:var(--hd);box-shadow:0 0 0 2px #2563eb22}
+.page-datebar input[type=text],.page-datebar input[type=search]{background:#fff;border:1px solid var(--border);color:var(--text);padding:.28rem .65rem;border-radius:6px;font-size:.78rem;outline:none;flex:1;min-width:140px}
+.page-datebar input:focus{border-color:var(--hd)}
+
+/* ── STAT ROW ── */
+.stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem;margin-bottom:1rem}
+@media(max-width:900px){.stat-row{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:600px){.stat-row{grid-template-columns:1fr}}
+
 /* ── CARDS ── */
-.card{background:var(--card);border-radius:12px;padding:1.25rem;box-shadow:0 1px 4px #0001;border:1px solid var(--border);margin-bottom:1rem}
-.card-title{font-size:1rem;font-weight:700;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem}
+.card{background:#fff;border-radius:12px;padding:1.1rem 1.25rem;border:1px solid var(--border);margin-bottom:1rem;box-shadow:0 1px 4px #0001}
+.card-title{font-size:.92rem;font-weight:700;margin-bottom:.85rem;display:flex;align-items:center;gap:.5rem;color:var(--text);border-bottom:1px solid var(--border);padding-bottom:.5rem}
 
 /* ── GRID ── */
-.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem}
-.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}
-.grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:1rem}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem}
+.grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:.75rem}
 @media(max-width:900px){.grid-4,.grid-3{grid-template-columns:repeat(2,1fr)}.grid-2{grid-template-columns:1fr}}
 @media(max-width:600px){.grid-4,.grid-3,.grid-2{grid-template-columns:1fr}}
 
-/* ── STAT CARDS ── */
-.stat{border-radius:12px;padding:1.1rem 1.25rem;color:#fff;display:flex;flex-direction:column;gap:.25rem}
-.stat .label{font-size:.8rem;opacity:.85}
-.stat .value{font-size:2rem;font-weight:800;line-height:1}
-.stat .sub{font-size:.75rem;opacity:.75}
+/* ── STAT CARDS (gradient) ── */
+.stat{border-radius:12px;padding:1rem 1.1rem;color:#fff;display:flex;flex-direction:column;gap:.2rem;border:1px solid transparent}
+.stat .label{font-size:.73rem;opacity:.9;text-transform:uppercase;letter-spacing:.04em}
+.stat .value{font-size:1.9rem;font-weight:800;line-height:1}
+.stat .sub{font-size:.72rem;opacity:.8}
 .stat-cc{background:linear-gradient(135deg,var(--cc),#15803d)}
 .stat-hd{background:linear-gradient(135deg,var(--hd),#1d4ed8)}
 .stat-rp{background:linear-gradient(135deg,var(--rp),#d97706)}
 .stat-gray{background:linear-gradient(135deg,#475569,#334155)}
+/* flat stat */
+.stat-flat{background:#fff;border:1px solid var(--border);border-radius:12px;padding:1rem 1.1rem;display:flex;flex-direction:column;gap:.2rem;box-shadow:0 1px 4px #0001}
+.stat-flat .label{font-size:.73rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.stat-flat .value{font-size:1.9rem;font-weight:800;line-height:1;color:var(--text)}
+.stat-flat .sub{font-size:.72rem;color:var(--muted)}
+.stat-flat .value.blue{color:var(--hd)}
+.stat-flat .value.green{color:var(--success)}
+.stat-flat .value.red{color:var(--danger)}
+.stat-flat .value.yellow{color:#b45309}
+.stat-flat .value.purple{color:#7c3aed}
+.stat-flat .value.white{color:var(--text)}
 
 /* ── TEAM BADGE ── */
-.badge{display:inline-block;padding:.2rem .6rem;border-radius:20px;font-size:.72rem;font-weight:600;white-space:nowrap}
-.badge-cc{background:var(--cc-light);color:var(--cc-dark)}
-.badge-hd{background:var(--hd-light);color:var(--hd-dark)}
-.badge-rp{background:var(--rp-light);color:var(--rp-dark)}
+.badge{display:inline-block;padding:.15rem .55rem;border-radius:4px;font-size:.72rem;font-weight:600;white-space:nowrap}
+.badge-cc{background:#dcfce7;color:#166534}
+.badge-hd{background:#dbeafe;color:#1e3a8a}
+.badge-rp{background:#fef9c3;color:#854d0e}
 .badge-open{background:#fef2f2;color:#b91c1c}
 .badge-in_progress{background:#fff7ed;color:#c2410c}
 .badge-waiting_vendor{background:#fefce8;color:#854d0e}
@@ -71,9 +107,10 @@ body{font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--t
 
 /* ── TABLE ── */
 .tbl-wrap{overflow-x:auto}
-table{width:100%;border-collapse:collapse;font-size:.87rem}
-th{background:#f8fafc;color:var(--muted);font-weight:600;padding:.6rem .8rem;text-align:left;border-bottom:2px solid var(--border);white-space:nowrap}
-td{padding:.6rem .8rem;border-bottom:1px solid var(--border);vertical-align:middle}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+thead tr{background:#f8fafc}
+th{color:var(--muted);font-weight:600;padding:.5rem .7rem;text-align:left;border-bottom:2px solid var(--border);white-space:nowrap;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em}
+td{padding:.45rem .7rem;border-bottom:1px solid var(--border);vertical-align:middle}
 tr:hover td{background:#f8fafc}
 
 /* ── SHIFT TABLE ── */
@@ -85,10 +122,10 @@ tr:hover td{background:#f8fafc}
 
 /* ── FORMS ── */
 .form-group{margin-bottom:.9rem}
-.form-group label{display:block;font-size:.83rem;font-weight:600;margin-bottom:.3rem;color:var(--muted)}
+.form-group label{display:block;font-size:.82rem;font-weight:600;margin-bottom:.3rem;color:var(--muted)}
 .form-group input,.form-group select,.form-group textarea{
-  width:100%;padding:.55rem .75rem;border:1.5px solid var(--border);border-radius:8px;
-  font-size:.87rem;font-family:inherit;background:#fff;color:var(--text);transition:.2s
+  width:100%;padding:.52rem .75rem;border:1.5px solid var(--border);border-radius:8px;
+  font-size:.85rem;font-family:inherit;background:#fff;color:var(--text);transition:.2s
 }
 .form-group input:focus,.form-group select:focus,.form-group textarea:focus{
   outline:none;border-color:var(--hd);box-shadow:0 0 0 3px #2563eb22
@@ -96,31 +133,38 @@ tr:hover td{background:#f8fafc}
 textarea{resize:vertical;min-height:80px}
 
 /* ── BUTTONS ── */
-.btn{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem 1rem;border-radius:8px;border:none;cursor:pointer;font-size:.85rem;font-weight:600;transition:.2s;white-space:nowrap}
+.btn{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem 1rem;border-radius:8px;border:none;cursor:pointer;font-size:.83rem;font-weight:600;transition:.2s;white-space:nowrap}
 .btn:hover{opacity:.85;transform:translateY(-1px)}
 .btn-primary{background:var(--hd);color:#fff}
 .btn-success{background:var(--success);color:#fff}
 .btn-danger{background:var(--danger);color:#fff}
 .btn-warn{background:var(--warn);color:#fff}
 .btn-cc{background:var(--cc);color:#fff}
-.btn-sm{padding:.3rem .7rem;font-size:.78rem}
+.btn-sm{padding:.3rem .65rem;font-size:.75rem}
 .btn-ghost{background:transparent;border:1.5px solid var(--border);color:var(--text)}
+.btn-ghost:hover{background:#f1f5f9;border-color:var(--hd)}
 .btn-group{display:flex;gap:.5rem;flex-wrap:wrap}
+/* ── DATE RANGE BAR ── */
+.drb{display:flex;flex-wrap:wrap;gap:.3rem;align-items:center}
+.drb-btn{border:1px solid var(--border);background:var(--card);color:var(--text);padding:.28rem .72rem;border-radius:20px;font-size:.77rem;cursor:pointer;white-space:nowrap;transition:background .12s,border-color .12s,color .12s;line-height:1.4}
+.drb-btn:hover{border-color:#f59e0b;color:#b45309}
+.drb-btn.active{background:#f59e0b;border-color:#f59e0b;color:#fff;font-weight:600}
+.drb-custom{display:none;align-items:center;gap:.45rem;flex-wrap:wrap;margin-top:.35rem}
 
 /* ── MODAL ── */
-.overlay{display:none;position:fixed;inset:0;background:#0007;z-index:200;align-items:center;justify-content:center}
+.overlay{display:none;position:fixed;inset:0;background:#0006;z-index:200;align-items:center;justify-content:center}
 .overlay.open{display:flex}
-.modal{background:#fff;border-radius:16px;padding:1.5rem;max-width:500px;width:95%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px #0004}
-.modal-title{font-size:1.05rem;font-weight:700;margin-bottom:1.2rem;display:flex;justify-content:space-between;align-items:center}
+.modal{background:#fff;border:1px solid var(--border);border-radius:16px;padding:1.5rem;max-width:520px;width:95%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px #0003}
+.modal-title{font-size:1rem;font-weight:700;margin-bottom:1.2rem;display:flex;justify-content:space-between;align-items:center;color:var(--text)}
 .modal-close{background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--muted);line-height:1}
 .modal-close:hover{color:var(--danger)}
 
 /* ── WEEK NAV ── */
 .week-nav{display:flex;align-items:center;gap:.75rem;margin-bottom:1rem}
-.week-nav span{font-weight:600;min-width:200px;text-align:center}
+.week-nav span{font-weight:600;min-width:200px;text-align:center;color:var(--text)}
 
 /* ── ALERT ── */
-.alert{border-radius:10px;padding:.75rem 1rem;font-size:.85rem;margin-bottom.75rem;display:flex;align-items:center;gap:.5rem}
+.alert{border-radius:10px;padding:.75rem 1rem;font-size:.84rem;margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem}
 .alert-warn{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412}
 .alert-info{background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a}
 .alert-danger{background:#fef2f2;border:1px solid #fecaca;color:#991b1b}
@@ -129,55 +173,55 @@ textarea{resize:vertical;min-height:80px}
 .stars{color:#f59e0b;letter-spacing:2px;font-size:1rem}
 
 /* ── PROGRESS ── */
-.progress{height:8px;background:#e2e8f0;border-radius:99px;overflow:hidden;margin-top:4px}
+.progress{height:8px;background:var(--border);border-radius:99px;overflow:hidden;margin-top:4px}
 .progress-bar{height:100%;border-radius:99px;transition:width .5s}
 
 /* ── OVERDUE ── */
-.overdue-row{background:#fef2f2!important}
+.overdue-row{background:#fff7f7!important}
 .overdue-row td{color:#7f1d1d}
 
 /* ── SECTION HEADER ── */
-.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:gap}
-.section-title{font-size:1.15rem;font-weight:700}
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem}
+.section-title{font-size:1.1rem;font-weight:700;color:var(--text)}
 
-/* ── TAB ── */
+/* ── TAB (sub-tabs) ── */
 .tabs{display:flex;gap:.25rem;margin-bottom:1rem;border-bottom:2px solid var(--border);padding-bottom:0}
-.tab{padding:.5rem 1rem;border:none;background:none;cursor:pointer;font-size:.88rem;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-2px;transition:.2s}
+.tab{padding:.5rem 1rem;border:none;background:none;cursor:pointer;font-size:.85rem;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-2px;transition:.2s;font-family:inherit}
+.tab:hover{color:var(--text)}
 .tab.active{color:var(--hd);border-bottom-color:var(--hd)}
 
 /* ── FILTER BAR ── */
 .filter-bar{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center}
-.filter-bar select,.filter-bar input{padding:.42rem .7rem;border:1.5px solid var(--border);border-radius:8px;font-size:.83rem;background:#fff}
+.filter-bar select,.filter-bar input{padding:.38rem .65rem;border:1.5px solid var(--border);border-radius:8px;font-size:.8rem;background:#fff;color:var(--text);outline:none}
+.filter-bar select:focus,.filter-bar input:focus{border-color:var(--hd)}
 
 /* ── SCROLL ── */
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:99px}
+::-webkit-scrollbar-thumb:hover{background:#94a3b8}
 
 /* ── STATUS FLOW ── */
 .status-flow{display:flex;align-items:center;gap:.25rem;flex-wrap:wrap;margin:1rem 0}
-.status-step{padding:.3rem .8rem;border-radius:20px;font-size:.78rem;font-weight:600;background:var(--bg);color:var(--muted)}
+.status-step{padding:.3rem .8rem;border-radius:20px;font-size:.75rem;font-weight:600;background:var(--bg);color:var(--muted)}
 .status-step.active{background:var(--hd);color:#fff}
 .status-arrow{color:var(--muted);font-size:.8rem}
 
 /* ── ON-SHIFT ── */
-.onshift-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:.6rem}
+.onshift-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:.6rem}
 .onshift-card{border-radius:10px;padding:.6rem .8rem;border:2px solid;font-size:.82rem}
-.onshift-card .emp-name{font-weight:600}
+.onshift-card .emp-name{font-weight:600;color:var(--text)}
 .onshift-card .emp-shift{font-size:.72rem;opacity:.75}
 
 /* ── EMPTY ── */
 .empty{text-align:center;padding:3rem 1rem;color:var(--muted)}
-.empty .icon{font-size:3rem;margin-bottom:.5rem}
+.empty .icon{font-size:2.5rem;margin-bottom:.5rem}
 
 /* ══════════ AI STYLES ══════════ */
-/* Floating Chat Button */
-#ai-fab{position:fixed;bottom:1.5rem;right:1.5rem;z-index:500;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;border:none;font-size:1.5rem;cursor:pointer;box-shadow:0 4px 20px #7c3aed55;display:flex;align-items:center;justify-content:center;transition:.2s}
-#ai-fab:hover{transform:scale(1.1);box-shadow:0 6px 28px #7c3aed77}
+#ai-fab{position:fixed;bottom:1.5rem;right:1.5rem;z-index:500;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;border:none;font-size:1.5rem;cursor:pointer;box-shadow:0 4px 20px #7c3aed44;display:flex;align-items:center;justify-content:center;transition:.2s}
+#ai-fab:hover{transform:scale(1.1);box-shadow:0 6px 28px #7c3aed66}
 #ai-fab .badge-unread{position:absolute;top:-4px;right:-4px;background:#ef4444;color:#fff;border-radius:50%;width:18px;height:18px;font-size:.65rem;display:none;align-items:center;justify-content:center;font-weight:700}
-
-/* Chat Panel */
-#ai-panel{position:fixed;bottom:5rem;right:1.5rem;z-index:499;width:370px;max-width:95vw;background:#fff;border-radius:16px;box-shadow:0 8px 40px #0003;display:none;flex-direction:column;overflow:hidden;border:1px solid #e2e8f0;max-height:75vh}
+#ai-panel{position:fixed;bottom:5rem;right:1.5rem;z-index:499;width:370px;max-width:95vw;background:#fff;border-radius:16px;box-shadow:0 8px 40px #0002;display:none;flex-direction:column;overflow:hidden;border:1px solid var(--border);max-height:75vh}
 #ai-panel.open{display:flex}
 #ai-panel-header{background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;padding:.9rem 1.1rem;display:flex;align-items:center;gap:.6rem;font-weight:700;font-size:.95rem}
 #ai-panel-header .close-btn{margin-left:auto;background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer;line-height:1;opacity:.8}
@@ -185,9 +229,9 @@ textarea{resize:vertical;min-height:80px}
 #ai-messages{flex:1;overflow-y:auto;padding:.9rem;display:flex;flex-direction:column;gap:.6rem;min-height:200px}
 .ai-msg{display:flex;gap:.5rem;align-items:flex-start}
 .ai-msg.user{flex-direction:row-reverse}
-.ai-msg .bubble{padding:.6rem .85rem;border-radius:12px;font-size:.85rem;line-height:1.5;max-width:80%;white-space:pre-wrap;word-break:break-word}
+.ai-msg .bubble{padding:.6rem .85rem;border-radius:12px;font-size:.84rem;line-height:1.5;max-width:80%;white-space:pre-wrap;word-break:break-word}
 .ai-msg.user .bubble{background:#4f46e5;color:#fff;border-bottom-right-radius:3px}
-.ai-msg.bot .bubble{background:#f1f5f9;color:#1e293b;border-bottom-left-radius:3px}
+.ai-msg.bot .bubble{background:#f1f5f9;color:var(--text);border-bottom-left-radius:3px}
 .ai-msg .avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0}
 .ai-msg.bot .avatar{background:#ede9fe}
 .ai-msg.user .avatar{background:#dbeafe}
@@ -196,83 +240,125 @@ textarea{resize:vertical;min-height:80px}
 .ai-typing span:nth-child(2){animation-delay:.2s}
 .ai-typing span:nth-child(3){animation-delay:.4s}
 @keyframes blink{0%,80%,100%{opacity:.2}40%{opacity:1}}
-#ai-input-wrap{display:flex;gap:.5rem;padding:.75rem;border-top:1px solid #e2e8f0;background:#fff}
-#ai-input{flex:1;padding:.55rem .75rem;border:1.5px solid #e2e8f0;border-radius:10px;font-size:.85rem;font-family:inherit;outline:none;resize:none;line-height:1.4;max-height:80px}
+#ai-input-wrap{display:flex;gap:.5rem;padding:.75rem;border-top:1px solid var(--border);background:#fff}
+#ai-input{flex:1;padding:.52rem .75rem;border:1.5px solid var(--border);border-radius:10px;font-size:.84rem;font-family:inherit;outline:none;resize:none;line-height:1.4;max-height:80px;background:#fff;color:var(--text)}
 #ai-input:focus{border-color:#7c3aed;box-shadow:0 0 0 3px #7c3aed22}
-#ai-send{background:#4f46e5;color:#fff;border:none;border-radius:10px;padding:.55rem .85rem;cursor:pointer;font-size:1rem;transition:.2s;flex-shrink:0}
+#ai-send{background:#4f46e5;color:#fff;border:none;border-radius:10px;padding:.52rem .85rem;cursor:pointer;font-size:1rem;transition:.2s;flex-shrink:0}
 #ai-send:hover{background:#4338ca}
 .quick-chips{display:flex;flex-wrap:wrap;gap:.35rem;padding:0 .9rem .7rem}
 .chip{background:#ede9fe;color:#5b21b6;border:none;border-radius:20px;padding:.25rem .7rem;font-size:.75rem;cursor:pointer;font-family:inherit;transition:.15s}
 .chip:hover{background:#ddd6fe}
-
-/* AI Insight Card */
-.ai-insight-box{background:linear-gradient(135deg,#ede9fe,#dbeafe);border:1px solid #c4b5fd;border-radius:12px;padding:1.1rem 1.25rem;margin-top:1rem}
-.ai-insight-box .ai-label{font-size:.78rem;font-weight:700;color:#5b21b6;margin-bottom:.4rem;display:flex;align-items:center;gap:.4rem}
-.ai-insight-body{font-size:.85rem;line-height:1.7;white-space:pre-wrap;color:#1e293b}
+.ai-insight-box{background:linear-gradient(135deg,#13111c,#1a1730,#1e293b);border:1.5px solid #4f46e5;border-radius:12px;padding:1.1rem 1.25rem;margin-top:1rem;color:#ddd8ff}
+.ai-insight-box .ai-label{font-size:.82rem;font-weight:700;color:#a78bfa;margin-bottom:.5rem;display:flex;align-items:center;gap:.4rem}
+.ai-insight-box .ai-label button{background:linear-gradient(135deg,#4f46e5,#7c3aed)!important;color:#fff!important;border:none!important;transition:all .2s!important}
+.ai-insight-box .ai-label button:hover{opacity:.88!important;box-shadow:0 3px 12px #7c3aed44!important}
+.ai-insight-body{font-size:.87rem;line-height:1.75;color:#c7d2fe;min-height:60px}
+.ai-insight-body .ai-h{display:block;color:#a78bfa;font-weight:700;font-size:.92rem;margin:.8rem 0 .25rem;border-bottom:1px solid #312e8155;padding-bottom:.2rem}
+.ai-insight-body .ai-h:first-child{margin-top:0}
+.ai-insight-body b{color:#e2e8ff}
+.ai-insight-body .ai-li{display:flex;gap:.5rem;padding:.1rem 0}.ai-insight-body .ai-li::before{content:'▪';color:#6d28d9;flex-shrink:0}
+.ai-cursor{display:inline-block;width:2px;height:.9em;background:#a78bfa;animation:aiCursorBlink .75s infinite;vertical-align:text-bottom;margin-left:1px}
+@keyframes aiCursorBlink{0%,100%{opacity:1}50%{opacity:0}}
+.ai-status-bar{font-size:.75rem;color:#818cf8;min-height:1.1em;margin-bottom:.4rem}
+.ai-tags{display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.6rem}
+.ai-tag{padding:.18rem .6rem;border-radius:20px;font-size:.72rem;font-weight:600}
+.ai-tag-warn{background:#431407;color:#fed7aa;border:1px solid #7c2d12}
+.ai-tag-ok{background:#052e16;color:#86efac;border:1px solid #14532d}
+.ai-tag-info{background:#1e1b4b;color:#a5b4fc;border:1px solid #312e81}
+.ai-footer-bar{display:flex;justify-content:space-between;align-items:center;margin-top:.6rem;padding-top:.45rem;border-top:1px solid #2d2b4e;font-size:.71rem;color:#4f46e5}
 .ai-spinner{display:inline-block;width:18px;height:18px;border:2px solid #c4b5fd;border-top-color:#7c3aed;border-radius:50%;animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-
-/* AI Shift Suggestion Panel */
 .ai-suggest-box{background:#f0fdf4;border:1px solid #86efac;border-radius:12px;padding:1rem 1.25rem;margin-bottom:1rem;display:none}
 .ai-suggest-box.open{display:block}
 .ai-suggest-actions{display:flex;gap:.5rem;margin-top:.75rem;flex-wrap:wrap}
-
-/* AI KPI Forecast */
-.ai-forecast-box{background:linear-gradient(135deg,#fff7ed,#fef9c3);border:1px solid #fed7aa;border-radius:12px;padding:1.1rem 1.25rem;margin-top:1rem;display:none}
+.ai-forecast-box{background:#fffbeb;border:1px solid #fed7aa;border-radius:12px;padding:1.1rem 1.25rem;margin-top:1rem;display:none}
 .ai-forecast-box.open{display:block}
-.ai-forecast-body{font-size:.86rem;line-height:1.75;white-space:pre-wrap;color:#1e293b}
+.ai-forecast-body{font-size:.86rem;line-height:1.75;white-space:pre-wrap;color:var(--text)}
 
 /* ── LOGIN OVERLAY ── */
 #login-overlay{position:fixed;inset:0;background:linear-gradient(135deg,#1e293b,#0f172a);z-index:9999;display:flex;align-items:center;justify-content:center}
 #login-overlay.hidden{display:none}
-.login-card{background:#fff;border-radius:20px;padding:2.5rem 2rem;width:100%;max-width:380px;box-shadow:0 24px 80px #0008}
+.login-card{background:#fff;border-radius:20px;padding:2.5rem 2rem;width:100%;max-width:380px;box-shadow:0 24px 80px #0005}
 .login-logo{font-size:1.3rem;font-weight:800;color:#1e293b;margin-bottom:.3rem}
 .login-subtitle{font-size:.83rem;color:var(--muted);margin-bottom:1.75rem}
 .login-error{background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;border-radius:8px;padding:.6rem .9rem;font-size:.84rem;margin-bottom:1rem;display:none}
 .login-error.show{display:block}
 
-/* ── NAV USER ── */
-.nav-user{display:flex;align-items:center;gap:.6rem;margin-left:auto;flex-shrink:0}
-.nav-user-name{color:#e2e8f0;font-size:.82rem;font-weight:600;white-space:nowrap}
-.nav-user-role{color:#94a3b8;font-size:.72rem}
-.nav-logout{background:#334155;border:none;color:#94a3b8;cursor:pointer;padding:.35rem .75rem;border-radius:6px;font-size:.78rem;transition:.2s}
-.nav-logout:hover{background:#ef4444;color:#fff}
-
 /* ── LEADERBOARD ── */
-.lb-item{display:flex;align-items:center;gap:.75rem;padding:.55rem 0;border-bottom:1px solid var(--border)}
+.lb-item{display:flex;align-items:center;gap:.75rem;padding:.52rem 0;border-bottom:1px solid var(--border)}
 .lb-item:last-child{border-bottom:none}
-.lb-rank{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:800;flex-shrink:0}
+.lb-rank{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:800;flex-shrink:0}
 .lb-rank-1{background:#fef9c3;color:#854d0e}
 .lb-rank-2{background:#f1f5f9;color:#475569}
 .lb-rank-3{background:#fff7ed;color:#9a3412}
 .lb-rank-n{background:#f1f5f9;color:#64748b}
 .lb-info{flex:1;min-width:0}
-.lb-name{font-weight:600;font-size:.87rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.lb-bar-wrap{height:5px;background:#e2e8f0;border-radius:99px;overflow:hidden;margin-top:3px}
+.lb-name{font-weight:600;font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
+.lb-bar-wrap{height:4px;background:var(--border);border-radius:99px;overflow:hidden;margin-top:3px}
 .lb-bar{height:100%;border-radius:99px;background:linear-gradient(90deg,#2563eb,#7c3aed);transition:width .6s}
 .lb-count{font-size:.82rem;font-weight:700;color:var(--hd);white-space:nowrap}
 
 /* ── DASH GRID OVERRIDE ── */
-.dash-main{display:grid;grid-template-columns:2fr 1fr;gap:1rem}
+.dash-main{display:grid;grid-template-columns:2fr 1fr;gap:.75rem}
 @media(max-width:900px){.dash-main{grid-template-columns:1fr}}
 
 /* ── TICKET EXPAND ── */
-.tk-row-main td { cursor:default; }
-.tk-row-main .tk-toggle { cursor:pointer; user-select:none; color:var(--muted); font-size:.9rem; transition:.2s; }
-.tk-row-main:hover td { background:#f8fafc; }
-.tk-row-detail td { background:#f8fafc; border-bottom:2px solid var(--border); }
-.tk-detail-box { padding:.75rem 1rem; border-radius:8px; background:#fff; border:1px solid var(--border); }
-.tk-detail-label { font-size:.75rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; margin-bottom:.25rem; }
-.tk-detail-text { font-size:.85rem; line-height:1.7; color:var(--text); white-space:pre-wrap; }
-.tk-solution-box { background:#f0fdf4; border:1px solid #86efac; }
-.tk-solution-box .tk-detail-label { color:#15803d; }
+.tk-row-main td{cursor:default}
+.tk-row-main .tk-toggle{cursor:pointer;user-select:none;color:var(--muted);font-size:.9rem;transition:.2s}
+.tk-row-main:hover td{background:#f8fafc}
+.tk-row-detail td{background:#f8fafc;border-bottom:2px solid var(--border)}
+.tk-detail-box{padding:.75rem 1rem;border-radius:8px;background:#fff;border:1px solid var(--border)}
+.tk-detail-label{font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:.25rem}
+.tk-detail-text{font-size:.84rem;line-height:1.7;color:var(--text);white-space:pre-wrap}
+.tk-solution-box{background:#f0fdf4;border:1px solid #86efac}
+.tk-solution-box .tk-detail-label{color:#15803d}
+/* ── TICKET REVIEW (stars + comment) ── */
+.tk-review-box{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:.75rem 1rem;margin-top:.75rem}
+.tk-review-box .tk-detail-label{color:#92400e}
+.star-picker{display:flex;gap:.15rem;margin:.25rem 0}
+.star-picker span{font-size:1.4rem;cursor:pointer;color:#d1d5db;transition:color .1s;user-select:none;line-height:1}
+.star-picker span.on{color:#f59e0b}
+.star-picker span:hover,.star-picker:hover span.hover-on{color:#f59e0b}
+.tk-star-display{color:#f59e0b;font-size:.9rem;letter-spacing:.05em}
+.tk-star-display.empty{color:#d1d5db}
+/* ── KPI AGENT DRILL-DOWN ── */
+.kpi-row-main{cursor:pointer}
+.kpi-row-main:hover td{background:#f8fafc}
+.kpi-drill{background:#f8fafc}
+.kpi-drill td{padding:.85rem 1.25rem 1rem;border-bottom:2px solid var(--border)}
+.kpi-cat-bar{display:flex;align-items:center;gap:.5rem;margin:.22rem 0;font-size:.8rem}
+.kpi-cat-bar-track{flex:1;background:#e2e8f0;border-radius:4px;height:8px;overflow:hidden}
+.kpi-cat-bar-fill{height:100%;border-radius:4px;background:#38bdf8;transition:width .3s}
+.kpi-stat-mini{display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:.75rem}
+.kpi-stat-mini-item{background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .75rem;font-size:.8rem;white-space:nowrap}
+.kpi-stat-mini-item b{display:block;font-size:1.05rem;color:var(--accent)}
 
 /* ── USER TABLE ── */
-.role-badge{display:inline-block;padding:.15rem .55rem;border-radius:20px;font-size:.72rem;font-weight:700}
+.role-badge{display:inline-block;padding:.15rem .5rem;border-radius:20px;font-size:.72rem;font-weight:700}
 .role-manager{background:#ede9fe;color:#5b21b6}
 .role-team_lead{background:#dbeafe;color:#1e3a8a}
 .role-staff{background:#f1f5f9;color:#475569}
 .role-admin{background:#fef2f2;color:#b91c1c}
+
+/* ── OVERVIEW 6-COL STAT ROW ── */
+.stat-row-6{display:grid;grid-template-columns:repeat(6,1fr);gap:.65rem;margin-bottom:.75rem}
+@media(max-width:1200px){.stat-row-6{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:700px){.stat-row-6{grid-template-columns:repeat(2,1fr)}}
+/* agent chips */
+.agent-chips{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.6rem}
+.agent-chip{display:inline-flex;align-items:center;gap:.35rem;background:#f1f5f9;border:1px solid var(--border);border-radius:20px;padding:.2rem .65rem;font-size:.75rem;cursor:default}
+.agent-chip b{color:var(--text)}
+/* peak/trend section */
+.section-divider{font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin:1.25rem 0 .6rem;display:flex;align-items:center;gap:.5rem}
+.section-divider::after{content:'';flex:1;height:1px;background:var(--border)}
+/* target tracker */
+.target-tracker-bar{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:.6rem 1rem;margin-bottom:.75rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
+.tt-track{flex:1;min-width:200px}
+.tt-labels{display:flex;justify-content:space-between;font-size:.78rem;margin-bottom:.3rem}
+.tt-rail{background:var(--border);border-radius:20px;height:8px;overflow:hidden}
+.tt-fill{height:8px;border-radius:20px;transition:width .5s,background .5s;width:0%}
+.target-input{width:64px;text-align:center;border:1px solid var(--border);border-radius:6px;padding:.2rem .35rem;font-size:.85rem;background:var(--card2);color:var(--text)}
+.target-input:focus{outline:2px solid var(--accent);border-color:var(--accent)}
 </style>
 </head>
 <body>
@@ -295,94 +381,201 @@ textarea{resize:vertical;min-height:80px}
   </div>
 </div>
 
-<!-- NAV -->
-<nav class="nav">
-  <div class="nav-logo">🎧 CS Team Manager <span>ระบบบริหารทีม Customer Service</span></div>
-  <button class="nav-btn active" id="nav-btn-dashboard" onclick="showPage('dashboard',this)">📊 Dashboard</button>
-  <button class="nav-btn" id="nav-btn-schedule"  onclick="showPage('schedule',this)">📅 ตารางกะ & วันหยุด</button>
-  <button class="nav-btn" id="nav-btn-tickets"   onclick="showPage('tickets',this)">🎫 ติดตามเคส</button>
-  <button class="nav-btn" id="nav-btn-kpi"       onclick="showPage('kpi',this)">📈 ประเมินผลทีม</button>
-  <button class="nav-btn" id="nav-btn-users"     onclick="showPage('users',this)" style="display:none">👥 จัดการ User</button>
-  <div class="nav-user" id="nav-user-info" style="display:none">
-    <div>
-      <div class="nav-user-name" id="nav-display-name">—</div>
-      <div class="nav-user-role" id="nav-display-role">—</div>
-    </div>
-    <button class="nav-logout" onclick="doLogout()">ออกจากระบบ</button>
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div class="sidebar-logo-icon">🎧</div>
+    <div class="sidebar-name">CS Team Manager</div>
+    <div class="sidebar-sub">ระบบบริหารทีม CS</div>
   </div>
-</nav>
+  <nav class="sidebar-nav">
+    <button class="s-tab active" id="nav-btn-dashboard" onclick="showPage('dashboard',this)">
+      <span class="s-tab-icon">📊</span> Dashboard
+    </button>
+    <button class="s-tab" id="nav-btn-schedule" onclick="showPage('schedule',this)">
+      <span class="s-tab-icon">📅</span> ตารางกะ &amp; วันหยุด
+    </button>
+    <button class="s-tab" id="nav-btn-tickets" onclick="showPage('tickets',this)">
+      <span class="s-tab-icon">🎫</span> ติดตามเคส
+    </button>
+    <button class="s-tab" id="nav-btn-kpi" onclick="showPage('kpi',this)">
+      <span class="s-tab-icon">📈</span> ประเมินผลทีม
+    </button>
+    <button class="s-tab" id="nav-btn-users" onclick="showPage('users',this)" style="display:none">
+      <span class="s-tab-icon">👥</span> จัดการ User
+    </button>
+  </nav>
+  <div class="sidebar-footer" id="nav-user-info" style="display:none">
+    <div class="sidebar-user-name" id="nav-display-name">—</div>
+    <div class="sidebar-user-role" id="nav-display-role">—</div>
+    <button class="sidebar-logout" onclick="doLogout()">ออกจากระบบ</button>
+  </div>
+</aside>
 
-<!-- ═══════════════════ PAGE: DASHBOARD ═══════════════════ -->
+<main class="main-wrap">
+
+<!-- ═══════════════════ PAGE: DASHBOARD / OVERVIEW ═══════════════════ -->
 <div id="page-dashboard" class="page active">
-  <div class="section-header" style="margin-bottom:1rem">
-    <div class="section-title">📊 Dashboard ภาพรวมผู้จัดการ</div>
-    <div style="font-size:.82rem;color:var(--muted)" id="dash-time"></div>
+
+  <div class="section-header" style="margin-bottom:.65rem">
+    <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+      <div class="section-title">📊 Overview — ภาพรวมทีม CS</div>
+      <span id="dash-scope-badge" style="display:none;font-size:.72rem;font-weight:700;padding:.15rem .6rem;border-radius:20px;background:#dbeafe;color:#1e40af"></span>
+    </div>
+    <div style="font-size:.75rem;color:var(--muted)" id="dash-time"></div>
   </div>
 
-  <!-- Stat Cards Row -->
-  <div class="grid-4" id="dash-stats"></div>
-
-  <!-- Chart Section -->
-  <div class="grid-2" id="dash-charts-row1" style="margin-top:1rem">
-    <div class="card">
-      <div class="card-title">📈 แนวโน้ม Calllog 60 วันล่าสุด</div>
-      <canvas id="chart-daily-trend" height="180"></canvas>
+  <!-- Date Picker Bar -->
+  <div class="page-datebar" id="dash-datebar" style="flex-direction:column;align-items:flex-start;gap:.45rem">
+    <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;width:100%">
+      <div class="drb" id="dash-drb">
+        <button class="drb-btn active" onclick="dashRange('today',this)">วันนี้</button>
+        <button class="drb-btn" onclick="dashRange('yesterday',this)">เมื่อวานนี้</button>
+        <button class="drb-btn" onclick="dashRange('thisweek',this)">สัปดาห์นี้</button>
+        <button class="drb-btn" onclick="dashRange('thismonth',this)">เดือนนี้</button>
+        <button class="drb-btn" onclick="dashRange('lastmonth',this)">เดือนที่แล้ว</button>
+        <button class="drb-btn" onclick="dashRange('7d',this)">7 วันที่แล้ว</button>
+        <button class="drb-btn" onclick="dashRange('30d',this)">30 วันที่ผ่านมา</button>
+        <button class="drb-btn" onclick="dashRange('custom',this)">กำหนดเอง</button>
+      </div>
+      <span style="color:var(--border)">|</span>
+      <label style="font-size:.78rem;color:var(--muted);white-space:nowrap">ทีม:</label>
+      <select id="dash-filter-team" onchange="loadDashboard();loadDashboardCharts()" style="max-width:130px">
+        <option value="">ทุกทีม</option>
+      </select>
+      <span style="color:var(--border)">|</span>
+      <label style="font-size:.8rem;color:var(--muted);white-space:nowrap">🎯 Target:</label>
+      <input type="number" id="dash-target" class="target-input" min="1" max="9999" value="10"
+        title="จำนวน tickets เป้าหมายต่อคนต่อวัน"
+        onchange="saveTarget();recalcTarget()" oninput="recalcTarget()"/>
+      <label style="font-size:.78rem;color:var(--muted);white-space:nowrap">tickets/คน/วัน</label>
     </div>
-    <div class="card">
-      <div class="card-title">🗂️ เคสแยกตามหมวดหมู่ (เดือนนี้)</div>
-      <canvas id="chart-categories" height="180"></canvas>
-    </div>
-  </div>
-  <div class="grid-2" id="dash-charts-row2" style="margin-top:0">
-    <div class="card">
-      <div class="card-title">👤 Workload ของแต่ละคน (เดือนนี้ vs เดือนก่อน)</div>
-      <canvas id="chart-agent-workload" height="220"></canvas>
-    </div>
-    <div class="card">
-      <div class="card-title">🧩 ประเภทงานของแต่ละคน (เดือนนี้)</div>
-      <canvas id="chart-agent-cat" height="220"></canvas>
-    </div>
-  </div>
-
-  <!-- Main Content: Leaderboard + On Shift -->
-  <div class="dash-main" style="margin-top:1rem">
-    <div class="card">
-      <div class="card-title">🏆 Leaderboard — Calllog เดือนนี้</div>
-      <div id="dash-leaderboard"><div class="empty"><div class="icon">📊</div>กำลังโหลด...</div></div>
-    </div>
-    <div class="card">
-      <div class="card-title">🟢 พนักงานกะปัจจุบัน</div>
-      <div id="dash-onshift"></div>
-    </div>
-  </div>
-
-  <!-- Overdue Cases Table -->
-  <div class="card" style="margin-top:1rem">
-    <div class="card-title" style="color:#dc2626">⚠️ เคสค้างเกิน 24 ชม. — ต้องเร่งแก้ไข <span id="dash-overdue-badge" style="background:#fecaca;color:#991b1b;padding:.1rem .5rem;border-radius:20px;font-size:.75rem;font-weight:700;margin-left:.5rem"></span></div>
-    <div id="dash-overdue">
-      <div class="empty"><div class="icon">⏳</div>กำลังโหลด...</div>
+    <div class="drb-custom" id="dash-custom-range">
+      <input type="date" id="dash-date-from" style="max-width:130px"/>
+      <span style="color:var(--muted);font-size:.8rem">ถึง</span>
+      <input type="date" id="dash-date-to" style="max-width:130px"/>
+      <button class="btn btn-sm btn-primary" onclick="loadDashboard();loadDashboardCharts()">ค้นหา</button>
     </div>
   </div>
 
-  <!-- Pending Leaves + Today Status -->
-  <div class="grid-2" style="margin-top:1rem">
+  <!-- ── 6 Stat Cards ── -->
+  <div class="stat-row-6" id="dash-stats-row">
+    <div class="stat-flat"><div class="label">📋 Total Tickets</div>
+      <div class="value blue" id="ov-total">—</div><div class="sub">เดือนนี้รวม</div></div>
+    <div class="stat-flat"><div class="label">✅ Closed</div>
+      <div class="value green" id="ov-closed">—</div><div class="sub" id="ov-close-pct">อัตราปิด</div></div>
+    <div class="stat-flat"><div class="label">👥 Active Agents</div>
+      <div class="value purple" id="ov-agents">—</div><div class="sub">คนที่มีงานเดือนนี้</div></div>
+    <div class="stat-flat"><div class="label">⚡ Avg / Agent</div>
+      <div class="value white" id="ov-avg">—</div><div class="sub">tickets ต่อคน</div></div>
+    <div class="stat-flat"><div class="label">📞 วันนี้</div>
+      <div class="value blue" id="ov-today">—</div><div class="sub" id="ov-week-sub">เคสที่รับวันนี้</div></div>
+    <div class="stat-flat"><div class="label">⚠️ ค้างเกิน 24 ชม.</div>
+      <div class="value red" id="ov-overdue">—</div><div class="sub">tickets รวมทุก agent</div></div>
+  </div>
+
+  <!-- ── Target Tracker ── -->
+  <div class="target-tracker-bar" id="target-tracker" style="display:none">
+    <div style="font-size:.8rem;font-weight:700;color:var(--muted);white-space:nowrap">🎯 Target Tracker</div>
+    <div class="tt-track">
+      <div class="tt-labels">
+        <span id="tt-label" style="color:var(--text)">—</span>
+        <span id="tt-pct" style="font-weight:700">—%</span>
+      </div>
+      <div class="tt-rail"><div class="tt-fill" id="tt-fill"></div></div>
+    </div>
+    <div id="tt-details" style="font-size:.75rem;color:var(--muted);white-space:nowrap"></div>
+  </div>
+
+  <!-- ── Charts Row 1: Donut + Agent Compare Bar ── -->
+  <div class="grid-2">
     <div class="card">
-      <div class="card-title">📩 คำขอวันหยุดที่รออนุมัติ</div>
-      <div id="dash-leaves"></div>
+      <div class="card-title">🥧 ประเภทปัญหา Top 5 (เดือนนี้)</div>
+      <canvas id="chart-cat-donut" height="210"></canvas>
     </div>
     <div class="card">
-      <div class="card-title">📋 สถานะเคสวันนี้</div>
-      <div id="dash-today-tickets"></div>
+      <div class="card-title">📅 Workload Agent — เดือนนี้ vs เดือนก่อน</div>
+      <canvas id="chart-agent-compare" height="210"></canvas>
     </div>
   </div>
 
-  <!-- AI Insight Card -->
+  <!-- ── Scatter Chart ── -->
+  <div class="card">
+    <div class="card-title">⚡ Workload Scatter — เดือนนี้ vs เดือนก่อน (per Agent)
+      <span style="font-size:.72rem;color:var(--muted);font-weight:400;margin-left:.5rem">🟢 เพิ่มขึ้น · 🔴 ลดลง · 🔵 ใกล้เคียง</span>
+    </div>
+    <canvas id="chart-scatter-wl" height="130"></canvas>
+    <div class="agent-chips" id="dash-agent-chips"></div>
+  </div>
+
+  <!-- ── Trends & Peak Analysis ── -->
+  <div class="section-divider">📈 Trends &amp; Peak Analysis</div>
+
+  <!-- Row: Daily Trend (wide) + Day-of-Week (narrow) -->
+  <div class="grid-2" style="grid-template-columns:2fr 1fr">
+    <div class="card">
+      <div class="card-title">📅 แนวโน้มรายวัน
+        <span id="trend-summary" style="font-size:.72rem;font-weight:400;color:var(--muted);margin-left:.5rem"></span>
+      </div>
+      <canvas id="chart-daily-trend" height="160"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-title">📆 วันที่ยุ่งที่สุด</div>
+      <canvas id="chart-dow" height="160"></canvas>
+    </div>
+  </div>
+
+  <!-- Row: Peak Hour (wide) + Category Trend (wide) -->
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">⏰ Peak Hour — ชั่วโมงที่ Ticket เยอะที่สุด
+        <span id="peak-hour-badge" style="font-size:.75rem;font-weight:700;padding:.1rem .55rem;border-radius:20px;background:#fef3c7;color:#92400e;margin-left:.4rem"></span>
+      </div>
+      <canvas id="chart-peak-hour" height="160"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-title">📊 Category Trend — แนวโน้มประเภทปัญหา Top 5</div>
+      <canvas id="chart-cat-trend" height="160"></canvas>
+    </div>
+  </div>
+
+  <!-- ── Bottom: Overdue + OnShift/Leaves ── -->
+  <div class="dash-main" style="margin-top:0">
+    <div class="card">
+      <div class="card-title" style="color:#ef4444">⚠️ เคสค้างเกิน 24 ชม.
+        <span id="dash-overdue-badge" style="background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;padding:.1rem .5rem;border-radius:20px;font-size:.72rem;font-weight:700;margin-left:.4rem"></span>
+      </div>
+      <div id="dash-overdue"><div class="empty"><div class="icon">⏳</div>กำลังโหลด...</div></div>
+    </div>
+    <div>
+      <div class="card" style="margin-bottom:.75rem">
+        <div class="card-title">🟢 พนักงานกะปัจจุบัน</div>
+        <div id="dash-onshift"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">📩 คำขอวันหยุดรออนุมัติ</div>
+        <div id="dash-leaves"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── AI Insight Card (SSE streaming) ── -->
   <div class="ai-insight-box" style="margin-top:1rem">
     <div class="ai-label">
-      🤖 AI วิเคราะห์สถานการณ์
-      <button class="btn btn-sm" style="background:#7c3aed;color:#fff;margin-left:auto" onclick="loadAiInsight()">🔄 วิเคราะห์ใหม่</button>
+      🤖 AI Situation Analysis
+      <span style="font-size:.68rem;opacity:.55;font-weight:400">powered by Claude</span>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:.5rem">
+        <span id="ai-last-run" style="font-size:.7rem;color:#4f46e5"></span>
+        <button class="btn btn-sm" id="ai-run-btn" onclick="loadAiInsight()">✨ วิเคราะห์สถานการณ์</button>
+      </div>
     </div>
-    <div id="ai-insight-body" class="ai-insight-body" style="color:#64748b">กด "วิเคราะห์ใหม่" เพื่อให้ AI สรุปสถานการณ์ปัจจุบัน</div>
+    <div id="ai-status-bar" class="ai-status-bar">กด "วิเคราะห์สถานการณ์" เพื่อให้ AI ประเมินภาพรวมทีมและตรวจจับความผิดปกติประจำวัน</div>
+    <div id="ai-insight-body" class="ai-insight-body" style="color:#4c4982;font-style:italic;font-size:.83rem">ยังไม่มีผลการวิเคราะห์</div>
+    <div id="ai-tags" class="ai-tags"></div>
+    <div id="ai-footer-bar" class="ai-footer-bar" style="display:none">
+      <span id="ai-token-info"></span>
+      <span>ข้อมูล ณ เวลาที่กดวิเคราะห์</span>
+    </div>
   </div>
 </div>
 
@@ -391,9 +584,9 @@ textarea{resize:vertical;min-height:80px}
   <div class="section-header">
     <div class="section-title">📅 ตารางกะ & วันหยุด</div>
     <div class="btn-group">
-      <button class="btn btn-primary btn-sm" onclick="openModal('modal-add-shift')">+ กำหนดกะ</button>
+      <button id="btn-add-shift" class="btn btn-primary btn-sm" onclick="openModal('modal-add-shift')">+ กำหนดกะ</button>
       <button class="btn btn-warn btn-sm" onclick="openModal('modal-leave-req')">📩 ขอวันหยุด</button>
-      <button class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="aiSuggestShifts()">✨ AI แนะนำกะ</button>
+      <button id="btn-ai-shifts" class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="aiSuggestShifts()">✨ AI แนะนำกะ</button>
     </div>
   </div>
 
@@ -449,21 +642,66 @@ textarea{resize:vertical;min-height:80px}
 
 <!-- ═══════════════════ PAGE: TICKETS ═══════════════════ -->
 <div id="page-tickets" class="page">
-  <div class="section-header">
+  <div class="section-header" style="margin-bottom:.75rem">
     <div class="section-title">🎫 ติดตามเคส — Calllog</div>
-    <div style="font-size:.82rem;color:var(--muted)" id="tk-count-label"></div>
+    <div style="font-size:.78rem;color:var(--muted)" id="tk-count-label"></div>
   </div>
 
-  <div class="filter-bar" style="flex-wrap:wrap;gap:.5rem">
-    <select id="tk-filter-status" onchange="loadTickets()">
-      <option value="">ทุกสถานะ</option>
-    </select>
-    <select id="tk-filter-agent" onchange="loadTickets()">
-      <option value="">ทุก Agent</option>
-    </select>
-    <input id="tk-date-from" type="date" value="2026-01-01" onchange="loadTickets()" style="max-width:140px" title="วันที่เริ่มต้น"/>
-    <input id="tk-date-to"   type="date" onchange="loadTickets()" style="max-width:140px" title="วันที่สิ้นสุด"/>
-    <input id="tk-search" placeholder="🔍 ค้นหา..." oninput="renderTickets()" style="min-width:160px;flex:1"/>
+  <!-- Stat Cards -->
+  <div class="stat-row" id="tk-stats">
+    <div class="stat-flat">
+      <div class="label">📋 ทั้งหมด</div>
+      <div class="value blue" id="tk-stat-total">—</div>
+      <div class="sub">เคสในช่วงเวลา</div>
+    </div>
+    <div class="stat-flat">
+      <div class="label">🔴 เปิดอยู่</div>
+      <div class="value red" id="tk-stat-open">—</div>
+      <div class="sub">รอดำเนินการ</div>
+    </div>
+    <div class="stat-flat">
+      <div class="label">⚠️ เกิน 24 ชม.</div>
+      <div class="value yellow" id="tk-stat-overdue">—</div>
+      <div class="sub">ต้องเร่งแก้ไข</div>
+    </div>
+    <div class="stat-flat">
+      <div class="label">✅ ปิดแล้ว</div>
+      <div class="value green" id="tk-stat-closed">—</div>
+      <div class="sub">เสร็จสิ้น</div>
+    </div>
+  </div>
+
+  <!-- Date & Filter Bar -->
+  <div class="page-datebar" style="flex-direction:column;align-items:flex-start;gap:.45rem">
+    <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;width:100%">
+      <div class="drb" id="tk-drb">
+        <button class="drb-btn active" onclick="tkRange('today',this)">วันนี้</button>
+        <button class="drb-btn" onclick="tkRange('yesterday',this)">เมื่อวานนี้</button>
+        <button class="drb-btn" onclick="tkRange('thisweek',this)">สัปดาห์นี้</button>
+        <button class="drb-btn" onclick="tkRange('thismonth',this)">เดือนนี้</button>
+        <button class="drb-btn" onclick="tkRange('lastmonth',this)">เดือนที่แล้ว</button>
+        <button class="drb-btn" onclick="tkRange('7d',this)">7 วันที่แล้ว</button>
+        <button class="drb-btn" onclick="tkRange('30d',this)">30 วันที่ผ่านมา</button>
+        <button class="drb-btn" onclick="tkRange('custom',this)">กำหนดเอง</button>
+      </div>
+      <span style="color:var(--border)">|</span>
+      <select id="tk-filter-team" onchange="loadTickets()">
+        <option value="">ทุกทีม</option>
+      </select>
+      <select id="tk-filter-status" onchange="loadTickets()">
+        <option value="">ทุกสถานะ</option>
+      </select>
+      <select id="tk-filter-agent" onchange="loadTickets()">
+        <option value="">ทุก Agent</option>
+      </select>
+      <input id="tk-search" type="text" placeholder="🔍 ค้นหา..." oninput="tkSearchDebounce()" style="min-width:150px;flex:1"/>
+    </div>
+    <div class="drb-custom" id="tk-custom-range">
+      <input id="tk-date-from" type="date" style="max-width:135px" title="วันที่เริ่มต้น"/>
+      <span style="color:var(--muted);font-size:.8rem">ถึง</span>
+      <input id="tk-date-to" type="date" style="max-width:135px" title="วันที่สิ้นสุด"/>
+      <button class="btn btn-sm btn-primary" onclick="loadTickets()">ค้นหา</button>
+    </div>
   </div>
 
   <div class="card" style="padding:.5rem 0">
@@ -471,13 +709,18 @@ textarea{resize:vertical;min-height:80px}
       <table id="ticket-table">
         <thead>
           <tr>
-            <th style="width:32px"></th>
+            <th style="width:28px"></th>
             <th>#</th>
-            <th>บริษัท / หัวข้อ</th>
-            <th>หมวดหมู่</th>
+            <th>วันที่รับ</th>
+            <th>หัวข้อ</th>
+            <th>รายละเอียดปัญหา</th>
+            <th>วิธีแก้ไข</th>
             <th>Agent</th>
             <th>สถานะ</th>
-            <th>วันที่รับ</th>
+            <th>วันที่ปิด</th>
+            <th>ใช้เวลา</th>
+            <th>⭐</th>
+            <th>Comment</th>
           </tr>
         </thead>
         <tbody id="ticket-tbody"></tbody>
@@ -488,24 +731,51 @@ textarea{resize:vertical;min-height:80px}
 
 <!-- ═══════════════════ PAGE: KPI ═══════════════════ -->
 <div id="page-kpi" class="page">
-  <div class="section-header">
+  <div class="section-header" style="margin-bottom:.75rem">
     <div class="section-title">📈 ประเมินผลทีม (KPI)</div>
     <div class="btn-group">
-      <button class="btn btn-primary" onclick="openModal('modal-add-kpi')">+ บันทึก KPI</button>
-      <button class="btn" style="background:#7c3aed;color:#fff" onclick="loadAiForecast()">🔮 AI พยากรณ์</button>
+      <button class="btn btn-primary btn-sm" onclick="openModal('modal-add-kpi')">+ บันทึก KPI</button>
+      <button class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="loadAiForecast()">🔮 AI พยากรณ์</button>
     </div>
   </div>
 
   <!-- AI Forecast Box -->
   <div class="ai-forecast-box" id="ai-forecast-box">
-    <div style="font-weight:700;color:#9a3412;margin-bottom:.6rem;font-size:.95rem">🔮 AI วิเคราะห์ KPI และพยากรณ์แนวโน้ม</div>
+    <div style="font-weight:700;color:#fcd34d;margin-bottom:.6rem;font-size:.9rem">🔮 AI วิเคราะห์ KPI และพยากรณ์แนวโน้ม</div>
     <div id="ai-forecast-body" class="ai-forecast-body"></div>
   </div>
 
-  <div class="filter-bar">
+  <!-- Stat Cards -->
+  <div class="stat-row" id="kpi-stats">
+    <div class="stat-flat">
+      <div class="label">📊 เคสเฉลี่ย/คน</div>
+      <div class="value blue" id="kpi-stat-avg">—</div>
+      <div class="sub">เดือนที่เลือก</div>
+    </div>
+    <div class="stat-flat">
+      <div class="label">⭐ คะแนนเฉลี่ย</div>
+      <div class="value yellow" id="kpi-stat-score">—</div>
+      <div class="sub">ความพึงพอใจ</div>
+    </div>
+    <div class="stat-flat">
+      <div class="label">🏆 Top Agent</div>
+      <div class="value" id="kpi-stat-top" style="font-size:1rem;color:var(--accent);padding-top:.3rem">—</div>
+      <div class="sub">เคสมากสุด</div>
+    </div>
+    <div class="stat-flat">
+      <div class="label">👥 จำนวนพนักงาน</div>
+      <div class="value green" id="kpi-stat-count">—</div>
+      <div class="sub">ในช่วงเวลา</div>
+    </div>
+  </div>
+
+  <!-- Date & Filter Bar -->
+  <div class="page-datebar">
+    <label>📅 เดือน:</label>
     <select id="kpi-filter-month" onchange="loadKpi()">
       <!-- filled by JS -->
     </select>
+    <label style="margin-left:.25rem">ทีม:</label>
     <select id="kpi-filter-team" onchange="loadKpi()">
       <option value="">ทุกทีม</option>
       <option value="call_center">Call Center</option>
@@ -531,8 +801,9 @@ textarea{resize:vertical;min-height:80px}
       <table>
         <thead>
           <tr>
-            <th>พนักงาน</th><th>ทีม</th><th>เดือน</th><th>จำนวนเคส</th>
-            <th>เวลาแก้ไขเฉลี่ย</th><th>ความพึงพอใจ</th><th>ความคิดเห็นหัวหน้า</th><th>จัดการ</th>
+            <th>พนักงาน</th><th>ทีม</th><th>เดือน</th>
+            <th>จำนวนเคส</th><th>เริ่มแรก</th><th>ล่าสุด</th>
+            <th>ความคิดเห็นหัวหน้า</th><th>จัดการ</th>
           </tr>
         </thead>
         <tbody id="kpi-tbody"></tbody>
@@ -587,7 +858,7 @@ textarea{resize:vertical;min-height:80px}
       <div class="tbl-wrap">
         <table>
           <thead>
-            <tr><th>#</th><th>ชื่อ (key)</th><th>ชื่อแสดงผล</th><th>สี</th><th>ลำดับ</th><th>จัดการ</th></tr>
+            <tr><th>#</th><th>ชื่อ (key)</th><th>ชื่อแสดงผล</th><th>สี</th><th>ลำดับ</th><th>สถานะ</th><th>จัดการ</th></tr>
           </thead>
           <tbody id="teams-tbody"></tbody>
         </table>
@@ -595,6 +866,8 @@ textarea{resize:vertical;min-height:80px}
     </div>
   </div>
 </div>
+
+</main>
 
 <!-- ══════════ MODALS ══════════ -->
 
@@ -610,8 +883,8 @@ textarea{resize:vertical;min-height:80px}
       <label>กะ</label>
       <select id="s-type">
         <option value="morning">🌅 เช้า (08:30–16:30)</option>
-        <option value="afternoon">🌤 บ่าย (15:30–23:30)</option>
-        <option value="night">🌙 ดึก (16:00–24:00)</option>
+        <option value="afternoon">🌤 บ่าย (15:30–23:59)</option>
+        <option value="night">🌙 ดึก (16:00–23:59)</option>
       </select>
     </div>
     <div class="form-group">
@@ -1000,6 +1273,42 @@ async function refreshNameMap() {
     if (m && typeof m === 'object') Object.assign(nameMap, m);
   } catch {}
 }
+
+// ── Date Range Bar (shared) ──
+function _applyRange(preset, btn, fromId, toId, drbId, customId, loadFn) {
+  // Mark active pill
+  document.querySelectorAll(`#${drbId} .drb-btn`).forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  // Show/hide custom input row
+  const customEl = document.getElementById(customId);
+  if (preset === 'custom') { customEl.style.display = 'flex'; return; }
+  customEl.style.display = 'none';
+  // Compute dates
+  const today = new Date();
+  let from = new Date(today), to = new Date(today);
+  switch (preset) {
+    case 'yesterday': from.setDate(today.getDate()-1); to.setDate(today.getDate()-1); break;
+    case 'thisweek':  from.setDate(today.getDate() - ((today.getDay()+6)%7)); break;
+    case 'thismonth': from = new Date(today.getFullYear(), today.getMonth(), 1); break;
+    case 'lastmonth':
+      from = new Date(today.getFullYear(), today.getMonth()-1, 1);
+      to   = new Date(today.getFullYear(), today.getMonth(), 0); break;
+    case '7d':  from.setDate(today.getDate()-6); break;
+    case '30d': from.setDate(today.getDate()-29); break;
+    // 'today' — already from=to=today
+  }
+  document.getElementById(fromId).value = fmtDateISO(from);
+  document.getElementById(toId).value   = fmtDateISO(to);
+  loadFn();
+}
+function dashRange(preset, btn) {
+  _applyRange(preset, btn, 'dash-date-from', 'dash-date-to', 'dash-drb', 'dash-custom-range',
+    () => { loadDashboard(); loadDashboardCharts(); });
+}
+function tkRange(preset, btn) {
+  _applyRange(preset, btn, 'tk-date-from', 'tk-date-to', 'tk-drb', 'tk-custom-range', loadTickets);
+}
+
 let currentUser   = null;
 let authToken     = localStorage.getItem('cs_token') || null;
 let currentWeekStart = getMondayOfDate(new Date());
@@ -1057,8 +1366,11 @@ function teamBadgeHtml(t) {
   const style = teamBadgeStyle(t);
   return `<span class="badge ${cls}" ${style}>${teamLabel(t)}</span>`;
 }
-function shiftLabel(s) {
-  return {morning:'🌅 เช้า', afternoon:'🌤 บ่าย', night:'🌙 ดึก'}[s] || s;
+function shiftLabel(s, withTime) {
+  const base = {morning:'🌅 เช้า', afternoon:'🌤 บ่าย', night:'🌙 ดึก'}[s] || s;
+  if (!withTime) return base;
+  const time = {morning:'08:30–16:30', afternoon:'15:30–23:59', night:'16:00–23:59'}[s] || '';
+  return time ? `${base} (${time})` : base;
 }
 function shiftBg(s) {
   return {morning:'#dbeafe', afternoon:'#fef3c7', night:'#ede9fe'}[s] || '#f1f5f9';
@@ -1111,7 +1423,7 @@ document.querySelectorAll('.overlay').forEach(el => {
 // ══════════════════════════════════════════════════════════
 function showPage(name, btn) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.s-tab').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
   if (btn) btn.classList.add('active');
   if (name === 'dashboard') { loadDashboard(); loadDashboardCharts(); }
@@ -1154,67 +1466,85 @@ function filterAssigneeByTeam() {
 // ══════════════════════════════════════════════════════════
 //  DASHBOARD (Manager View)
 // ══════════════════════════════════════════════════════════
+// ── Target Tracker state ──────────────────────────────────
+let _dashLastTotal  = 0;
+let _dashLastAgents = 0;
+
+function saveTarget() {
+  const v = document.getElementById('dash-target')?.value;
+  if (v) localStorage.setItem('cs_daily_target', v);
+}
+function loadTarget() {
+  const saved = localStorage.getItem('cs_daily_target');
+  const el    = document.getElementById('dash-target');
+  if (saved && el) el.value = saved;
+}
+function recalcTarget() {
+  const target = parseInt(document.getElementById('dash-target')?.value) || 0;
+  const tracker = document.getElementById('target-tracker');
+  if (!target || !_dashLastAgents) { if (tracker) tracker.style.display = 'none'; return; }
+
+  // Count total days in selected range
+  const frVal = document.getElementById('dash-date-from')?.value;
+  const toVal = document.getElementById('dash-date-to')?.value;
+  let days = 1;
+  if (frVal && toVal) {
+    const d1 = new Date(frVal), d2 = new Date(toVal);
+    days = Math.max(1, Math.round((d2 - d1) / 86400000) + 1);
+  }
+
+  const expected = target * _dashLastAgents * days;
+  const actual   = _dashLastTotal;
+  const pct      = expected > 0 ? Math.round(actual / expected * 100) : 0;
+  const color    = pct >= 100 ? '#22c55e' : pct >= 70 ? '#f59e0b' : '#ef4444';
+
+  if (tracker) tracker.style.display = '';
+  const labelEl = document.getElementById('tt-label');
+  const pctEl   = document.getElementById('tt-pct');
+  const fillEl  = document.getElementById('tt-fill');
+  const detEl   = document.getElementById('tt-details');
+  if (labelEl) labelEl.textContent = `ทำได้ ${actual.toLocaleString()} / ${expected.toLocaleString()} tickets`;
+  if (pctEl)   { pctEl.textContent = `${pct}%`; pctEl.style.color = color; }
+  if (fillEl)  { fillEl.style.width = Math.min(pct, 100) + '%'; fillEl.style.background = color; }
+  if (detEl)   detEl.textContent = `${_dashLastAgents} คน × ${days} วัน × ${target} tickets/คน/วัน`;
+}
+
 async function loadDashboard() {
   const d = await api('/api/dashboard');
   if (!d || !d.serverTime) return;
-
-  // Update nameMap
   if (d.nameMap) Object.assign(nameMap, d.nameMap);
 
-  // server time
+  // Server time
   document.getElementById('dash-time').textContent =
     'อัปเดต: ' + new Date(d.serverTime).toLocaleTimeString('th-TH');
 
-  // ── Stat Cards ───────────────────────────────────────────
-  const overdueCnt  = (d.overdueTickets || []).length;
-  const pendingCnt  = (d.pendingLeaves || []).length;
-  const todayCnt    = d.todayTotal || 0;
-  const weekCnt     = d.weekTotal  || 0;
+  // Partial stat cards (today + overdue) — charts API will fill month total
+  const overdueCnt = (d.overdueTickets || []).length;
+  const todayCnt   = d.todayTotal || 0;
+  const _s = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  _s('ov-today',   todayCnt);
+  _s('ov-overdue', overdueCnt);
 
-  document.getElementById('dash-stats').innerHTML = `
-    <div class="stat stat-hd">
-      <div class="label">📞 Calllog วันนี้</div>
-      <div class="value">${todayCnt}</div>
-      <div class="sub">เคสที่รับวันนี้</div>
-    </div>
-    <div class="stat stat-cc">
-      <div class="label">📅 Calllog สัปดาห์นี้</div>
-      <div class="value">${weekCnt}</div>
-      <div class="sub">จันทร์ – วันนี้</div>
-    </div>
-    <div class="stat" style="background:linear-gradient(135deg,${overdueCnt>0?'#dc2626,#b91c1c':'#475569,#334155'})">
-      <div class="label">⚠️ เคสค้างเกิน 24 ชม.</div>
-      <div class="value">${overdueCnt}</div>
-      <div class="sub">${overdueCnt > 0 ? 'ต้องเร่งแก้ไข!' : 'ดีมาก ไม่มีค้าง'}</div>
-    </div>
-    <div class="stat stat-rp">
-      <div class="label">📩 รออนุมัติวันหยุด</div>
-      <div class="value">${pendingCnt}</div>
-      <div class="sub">คำขอที่รอตรวจสอบ</div>
-    </div>
-  `;
-
-  // ── Leaderboard ──────────────────────────────────────────
-  const lb = d.kpiSummary || [];
-  const lbEl = document.getElementById('dash-leaderboard');
-  if (lb.length === 0) {
-    lbEl.innerHTML = '<div class="empty"><div class="icon">🏆</div>ยังไม่มีข้อมูลเดือนนี้</div>';
+  // ── Overdue Table ─────────────────────────────────────────
+  const od = d.overdueTickets || [];
+  document.getElementById('dash-overdue-badge').textContent = od.length > 0 ? `${od.length} เคส` : '';
+  const odEl = document.getElementById('dash-overdue');
+  if (od.length === 0) {
+    odEl.innerHTML = '<div class="empty" style="padding:1.25rem"><div class="icon">✅</div>ไม่มีเคสค้างนาน — ดีมาก!</div>';
   } else {
-    const maxCases = Math.max(...lb.map(r => r.total_cases), 1);
-    lbEl.innerHTML = lb.map((r, i) => {
-      const rank = i + 1;
-      const rankClass = rank === 1 ? 'lb-rank-1' : rank === 2 ? 'lb-rank-2' : rank === 3 ? 'lb-rank-3' : 'lb-rank-n';
-      const rankIcon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
-      const pct = Math.round(r.total_cases / maxCases * 100);
-      return `<div class="lb-item">
-        <div class="lb-rank ${rankClass}">${rankIcon}</div>
-        <div class="lb-info">
-          <div class="lb-name">${dn(r.UserName)}</div>
-          <div class="lb-bar-wrap"><div class="lb-bar" style="width:${pct}%"></div></div>
-        </div>
-        <div class="lb-count">${r.total_cases} เคส</div>
-      </div>`;
-    }).join('');
+    odEl.innerHTML = `<div class="tbl-wrap"><table>
+      <thead><tr><th>#</th><th>ประเภท</th><th>Subject</th><th>Agent</th><th>สถานะ</th><th>เปิดมา</th><th>บริษัท</th></tr></thead>
+      <tbody>${od.map(t => `
+        <tr class="overdue-row">
+          <td style="white-space:nowrap"><b>#${t.id}</b></td>
+          <td style="font-size:.75rem;color:#fcd34d;white-space:nowrap">${t.IssueCategoryDesc||'—'}</td>
+          <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${t.title||''}">${t.title||'—'}</td>
+          <td style="white-space:nowrap">${dn(t.assigned_name)||'—'}</td>
+          <td><span class="badge badge-open">${t.status}</span></td>
+          <td style="white-space:nowrap;font-size:.75rem;color:#fca5a5"><b>${timeAgo(t.opened_at)}</b></td>
+          <td style="font-size:.75rem;color:var(--muted)">${t.CompanyName||'—'}</td>
+        </tr>`).join('')}
+      </tbody></table></div>`;
   }
 
   // ── On Shift ─────────────────────────────────────────────
@@ -1224,260 +1554,436 @@ async function loadDashboard() {
     if (!onShiftByTeam[e.team]) onShiftByTeam[e.team] = [];
     onShiftByTeam[e.team].push(e);
   });
-  const shiftColors = {call_center:['#dcfce7','#166534'],helpdesk:['#dbeafe','#1e3a8a'],repair:['#fef9c3','#713f12']};
+  const shiftBorder = {call_center:'#16a34a',helpdesk:'#2563eb',repair:'#ca8a04'};
   document.getElementById('dash-onshift').innerHTML = teamOrder.map(tm => {
     const emps = onShiftByTeam[tm] || [];
-    const [bg, col] = shiftColors[tm] || ['#f1f5f9','#334155'];
-    return `<div style="margin-bottom:.75rem">
-      <div style="font-size:.78rem;font-weight:700;color:var(--muted);margin-bottom:.35rem">${teamLabel(tm)}</div>
+    const col  = shiftBorder[tm] || '#334155';
+    return `<div style="margin-bottom:.6rem">
+      <div style="font-size:.72rem;font-weight:700;color:var(--muted);margin-bottom:.3rem;text-transform:uppercase;letter-spacing:.05em">${teamLabel(tm)}</div>
       ${emps.length === 0
-        ? `<div style="font-size:.8rem;color:#b45309;background:#fef9c3;padding:.3rem .6rem;border-radius:6px">⚠️ ไม่มีพนักงาน</div>`
-        : emps.map(e=>`
-          <div class="onshift-card" style="background:${bg};border-color:${col};color:${col};margin-bottom:4px">
-            <div class="emp-name">${e.name}</div>
-            <div class="emp-shift">${shiftLabel(e.shift_type)}</div>
-          </div>`).join('')}
+        ? `<div style="font-size:.78rem;color:#fcd34d;background:#1c1400;padding:.25rem .55rem;border-radius:6px;border:1px solid #7c5101">⚠️ ไม่มีพนักงานออนกะ</div>`
+        : `<div style="display:flex;flex-wrap:wrap;gap:.3rem">${emps.map(e =>
+            `<div style="background:#fff;border:1px solid ${col};border-radius:8px;padding:.25rem .6rem;font-size:.78rem">
+               <b style="color:#fff">${e.name}</b>
+               <span style="color:var(--muted);font-size:.68rem;margin-left:.3rem">${shiftLabel(e.shift_type)}</span>
+             </div>`).join('')}</div>`}
     </div>`;
   }).join('');
-
-  // ── Overdue Table ─────────────────────────────────────────
-  const od = d.overdueTickets || [];
-  document.getElementById('dash-overdue-badge').textContent = od.length > 0 ? `${od.length} เคส` : '';
-  const odEl = document.getElementById('dash-overdue');
-  if (od.length === 0) {
-    odEl.innerHTML = '<div class="empty" style="padding:1.5rem"><div class="icon">✅</div>ไม่มีเคสค้างนาน — ดีมาก!</div>';
-  } else {
-    odEl.innerHTML = `<div class="tbl-wrap"><table>
-      <thead><tr><th>#</th><th>หัวข้อ</th><th>บริษัท</th><th>ผู้รับผิดชอบ</th><th>สถานะ</th><th>เปิดมา</th></tr></thead>
-      <tbody>${od.map(t=>`
-        <tr class="overdue-row">
-          <td><b>#${t.id}</b></td>
-          <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${t.title||''}">${t.title||'—'}</td>
-          <td style="font-size:.8rem">${t.CompanyName||'—'}</td>
-          <td>${dn(t.assigned_name)||'—'}</td>
-          <td><span class="badge" style="background:#fef2f2;color:#b91c1c;font-size:.72rem">${t.status}</span></td>
-          <td style="white-space:nowrap;font-size:.78rem;color:#b91c1c"><b>${timeAgo(t.opened_at)}</b></td>
-        </tr>`).join('')}
-      </tbody></table></div>`;
-  }
 
   // ── Pending Leaves ────────────────────────────────────────
   const lvEl = document.getElementById('dash-leaves');
   if ((d.pendingLeaves || []).length === 0) {
-    lvEl.innerHTML = '<div class="empty"><div class="icon">✅</div>ไม่มีคำขอค้างอยู่</div>';
+    lvEl.innerHTML = '<div class="empty" style="padding:.75rem"><div class="icon">✅</div><div>ไม่มีคำขอค้างอยู่</div></div>';
   } else {
     lvEl.innerHTML = d.pendingLeaves.map(lr => `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:.5rem 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:.45rem 0;border-bottom:1px solid var(--border)">
         <div>
-          <b>${lr.emp_name}</b>
-          <span class="badge ${teamBadgeClass(lr.team)}" style="margin-left:.4rem">${teamLabel(lr.team)}</span>
-          <div style="font-size:.78rem;color:var(--muted)">${fmtDate(lr.leave_date)} — ${lr.reason||'—'}</div>
+          <b style="color:#fff">${lr.emp_name}</b>
+          <span class="badge ${teamBadgeClass(lr.team)}" style="margin-left:.35rem">${teamLabel(lr.team)}</span>
+          <div style="font-size:.75rem;color:var(--muted)">${fmtDate(lr.leave_date)} — ${lr.reason||'—'}</div>
         </div>
-        <div class="btn-group">
+        ${isLeadRole() ? `<div class="btn-group">
           <button class="btn btn-success btn-sm" onclick="approveLeaveDash(${lr.id})">✓</button>
-          <button class="btn btn-danger btn-sm" onclick="rejectLeaveDash(${lr.id})">✗</button>
-        </div>
+          <button class="btn btn-danger btn-sm"  onclick="rejectLeaveDash(${lr.id})">✗</button>
+        </div>` : ''}
       </div>`).join('');
   }
-
-  // ── Today Tickets by Status ────────────────────────────────
-  const today = d.ticketsToday || [];
-  const byStatus = {};
-  today.forEach(r => { byStatus[r.status] = (byStatus[r.status] || 0) + r.cnt; });
-  const tkEl = document.getElementById('dash-today-tickets');
-  if (today.length === 0) {
-    tkEl.innerHTML = `<div class="empty"><div class="icon">📋</div>${d.extConnected ? 'ยังไม่มีเคสวันนี้' : 'ไม่ได้เชื่อมต่อ LicenseDB'}</div>`;
-  } else {
-    tkEl.innerHTML = Object.entries(byStatus).map(([status, cnt]) =>
-      `<div style="display:flex;justify-content:space-between;align-items:center;padding:.45rem 0;border-bottom:1px solid var(--border)">
-        <span class="badge" style="background:#f1f5f9;color:#334155;font-size:.8rem">${status}</span>
-        <b style="font-size:1.1rem;color:var(--hd)">${cnt}</b>
-      </div>`
-    ).join('') +
-    `<div style="margin-top:.5rem;font-size:.8rem;color:var(--muted);text-align:right">รวม ${todayCnt} เคส</div>`;
-  }
 }
 
-async function approveLeaveDash(id) {
-  const lead = allEmployees.find(e=>e.role==='team_lead'||e.role==='department_head');
-  await api(`/api/leave-requests/${id}/approve`, { method:'PUT', body:{ approved_by: lead?.id || 1 } });
-  loadDashboard();
-}
-async function rejectLeaveDash(id) {
-  await api(`/api/leave-requests/${id}/reject`, { method:'PUT', body:{ approved_by: 1 } });
-  loadDashboard();
-}
 
-// ══════════════════════════════════════════════════════════
-//  DASHBOARD CHARTS
-// ══════════════════════════════════════════════════════════
-let chartDailyTrend = null, chartCategories = null, chartAgentWorkload = null, chartAgentCat = null;
+const dashCharts = { donut: null, bar: null, scatter: null, trend: null, dow: null, peak: null, catTrend: null };
 
 async function loadDashboardCharts() {
   let data;
-  try { data = await api('/api/dashboard/charts'); } catch { return; }
-  if (!data || !data.dailyTrend) return;
-
+  const _from = document.getElementById('dash-date-from')?.value || '';
+  const _to   = document.getElementById('dash-date-to')?.value   || '';
+  const _team = document.getElementById('dash-filter-team')?.value || '';
+  let _qs = '/api/dashboard/charts?';
+  if (_from) _qs += `dateFrom=${_from}&`;
+  if (_to)   _qs += `dateTo=${_to}&`;
+  if (_team) _qs += `team=${encodeURIComponent(_team)}&`;
+  try { data = await api(_qs); } catch { return; }
+  if (!data) return;
   if (data.nameMap) Object.assign(nameMap, data.nameMap);
-  const { dailyTrend, catStats, agentThis, agentLast, agentCat } = data;
 
-  // ── 1. Daily Trend (Line) ──────────────────────────────
-  const trendLabels = dailyTrend.map(r => {
-    const d = new Date(r.day);
-    return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
-  });
-  const trendData   = dailyTrend.map(r => r.cnt);
+  const { catStats = [], agentThis = [], agentLast = [], agentCat = [],
+          dailyTrend = [], hourlyStats = [], dowStats = [], catDailyTrend = [],
+          daysThis = 30, daysPrev = 30,
+          thisFrom = '', thisTo = '', prevFrom = '', prevTo = '' } = data;
 
-  // Simple 7-day moving average
-  const ma7 = trendData.map((_, i, arr) => {
-    const slice = arr.slice(Math.max(0,i-6), i+1);
-    return Math.round(slice.reduce((s,v)=>s+v,0)/slice.length * 10)/10;
-  });
+  // ── Compute & fill stat cards ───────────────────────────
+  const totalMonth  = agentThis.reduce((s, r) => s + (r.cnt || 0), 0);
+  const agentCount  = agentThis.length;
+  const avgPerAgent = agentCount ? Math.round(totalMonth / agentCount) : 0;
+  const _s = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  _s('ov-total',  totalMonth.toLocaleString());
+  _s('ov-closed', totalMonth.toLocaleString());
+  document.getElementById('ov-close-pct') && (document.getElementById('ov-close-pct').textContent = 'tickets เดือนนี้');
+  _s('ov-agents', agentCount);
+  _s('ov-avg',    avgPerAgent);
 
-  if (chartDailyTrend) { chartDailyTrend.destroy(); chartDailyTrend = null; }
-  const ctxTrend = document.getElementById('chart-daily-trend');
-  if (ctxTrend && trendLabels.length) {
-    chartDailyTrend = new Chart(ctxTrend, {
-      type: 'line',
-      data: {
-        labels: trendLabels,
-        datasets: [
-          {
-            label: 'จำนวนเคส',
-            data: trendData,
-            borderColor: '#2563eb', backgroundColor: '#2563eb22',
-            fill: true, tension: 0.35, pointRadius: 1, pointHoverRadius: 5,
-            borderWidth: 2
-          },
-          {
-            label: 'MA 7 วัน',
-            data: ma7,
-            borderColor: '#f59e0b', backgroundColor: 'transparent',
-            borderWidth: 2, borderDash: [5,3], pointRadius: 0, tension: 0.4
-          }
-        ]
-      },
-      options: {
-        responsive: true, interaction: { mode:'index', intersect:false },
-        plugins: { legend: { position:'bottom', labels:{ font:{ size:11 } } } },
-        scales: {
-          x: { ticks: { maxTicksLimit:10, font:{ size:10 } } },
-          y: { beginAtZero: true, ticks: { stepSize:1, font:{ size:10 } } }
-        }
-      }
-    });
-  }
+  // ── Target Tracker ───────────────────────────────────────
+  _dashLastTotal  = totalMonth;
+  _dashLastAgents = agentCount;
+  recalcTarget();
 
-  // ── 2. Category Doughnut ───────────────────────────────
-  if (chartCategories) { chartCategories.destroy(); chartCategories = null; }
-  const ctxCat = document.getElementById('chart-categories');
-  if (ctxCat && catStats.length) {
-    const catColors = ['#2563eb','#16a34a','#ca8a04','#dc2626','#7c3aed','#0891b2','#db2777','#059669','#d97706','#6366f1'];
-    chartCategories = new Chart(ctxCat, {
+  // Build name map for display
+  const lastMap = Object.fromEntries(agentLast.map(r => [r.UserName, r.cnt || 0]));
+  const thisMap = Object.fromEntries(agentThis.map(r => [r.UserName, r.cnt || 0]));
+  const agentNames = agentThis.map(r => r.UserName);
+
+  // ── 1. Category Donut ────────────────────────────────────
+  if (dashCharts.donut) { dashCharts.donut.destroy(); dashCharts.donut = null; }
+  const ctxDonut = document.getElementById('chart-cat-donut');
+  if (ctxDonut && catStats.length) {
+    const top5 = catStats.slice(0, 5);
+    const donutColors = ['#38bdf8','#818cf8','#34d399','#fb923c','#f472b6'];
+    dashCharts.donut = new Chart(ctxDonut, {
       type: 'doughnut',
       data: {
-        labels: catStats.map(r => r.category),
-        datasets: [{ data: catStats.map(r => r.cnt), backgroundColor: catColors, borderWidth: 2 }]
+        labels: top5.map(r => r.category || 'อื่นๆ'),
+        datasets: [{
+          data: top5.map(r => r.cnt),
+          backgroundColor: donutColors,
+          borderWidth: 2,
+          borderColor: '#fff'
+        }]
       },
       options: {
-        responsive: true, cutout: '55%',
+        responsive: true,
+        cutout: '55%',
         plugins: {
-          legend: { position:'right', labels:{ font:{ size:10 }, boxWidth:12 } },
-          tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed} เคส` } }
+          legend: {
+            position: 'right',
+            labels: { color: '#e2e8f0', font: { size: 11 }, boxWidth: 12 }
+          },
+          tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed.toLocaleString()} เคส` } }
         }
       }
     });
   }
 
-  // ── 3. Agent Workload (Horizontal Bar — this month vs last) ──
-  if (chartAgentWorkload) { chartAgentWorkload.destroy(); chartAgentWorkload = null; }
-  const ctxWL = document.getElementById('chart-agent-workload');
-  if (ctxWL && agentThis.length) {
-    // Build unified agent list
-    const agentSet = new Set([...agentThis.map(r=>r.UserName), ...agentLast.map(r=>r.UserName)]);
-    const agents   = [...agentSet];
-    const lastMap  = Object.fromEntries(agentLast.map(r=>[r.UserName, r.cnt]));
-    const thisMap  = Object.fromEntries(agentThis.map(r=>[r.UserName, r.cnt]));
-    // Sort by this month desc
-    agents.sort((a,b) => (thisMap[b]||0) - (thisMap[a]||0));
-    const maxAgents = Math.min(agents.length, 15);
-    const shownAgents = agents.slice(0, maxAgents);
+  // ── 2. Agent Grouped Bar (this month vs last month) ──────
+  if (dashCharts.bar) { dashCharts.bar.destroy(); dashCharts.bar = null; }
+  const ctxBar = document.getElementById('chart-agent-compare');
+  if (ctxBar && agentThis.length) {
+    const topN   = agentThis.slice(0, 12);
+    const _tgt   = parseInt(document.getElementById('dash-target')?.value) || 0;
 
-    chartAgentWorkload = new Chart(ctxWL, {
+    // Format short date label e.g. "1 เม.ย." using th-TH locale
+    const _fmtShort = s => s ? new Date(s).toLocaleDateString('th-TH',{day:'numeric',month:'short'}) : '';
+    const labelThis = (thisFrom && thisTo) ? `${_fmtShort(thisFrom)}–${_fmtShort(thisTo)} (${daysThis}วัน)` : 'ช่วงนี้';
+    const labelPrev = (prevFrom && prevTo) ? `${_fmtShort(prevFrom)}–${_fmtShort(prevTo)} (${daysPrev}วัน)` : 'ช่วงก่อน';
+
+    // Use per-day average so both periods are always comparable
+    const avgThis = r => +((r.cnt || 0) / daysThis).toFixed(2);
+    const avgPrev = r => +((lastMap[r.UserName] || 0) / daysPrev).toFixed(2);
+
+    // Update chart card title dynamically
+    const barTitle = document.querySelector('#chart-agent-compare')?.closest('.card')?.querySelector('.card-title');
+    if (barTitle) barTitle.textContent = `📅 Workload Agent — เฉลี่ย tickets/วัน`;
+
+    const barDatasets = [
+      {
+        type: 'bar',
+        label: labelThis,
+        data: topN.map(avgThis),
+        backgroundColor: '#38bdf8',
+        borderRadius: 4,
+        order: 2
+      },
+      {
+        type: 'bar',
+        label: labelPrev,
+        data: topN.map(avgPrev),
+        backgroundColor: '#cbd5e1',
+        borderRadius: 4,
+        order: 3
+      }
+    ];
+    if (_tgt) {
+      barDatasets.push({
+        type: 'line',
+        label: `Target (${_tgt}/วัน)`,
+        data: topN.map(() => _tgt),
+        borderColor: '#f59e0b',
+        borderWidth: 2,
+        borderDash: [6, 4],
+        pointRadius: 0,
+        fill: false,
+        order: 1
+      });
+    }
+    dashCharts.bar = new Chart(ctxBar, {
       type: 'bar',
+      data: { labels: topN.map(r => dn(r.UserName)), datasets: barDatasets },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 10 } },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                const raw = ctx.raw;
+                if (ctx.dataset.type === 'line') return ` Target: ${raw} tickets/วัน`;
+                const agent = topN[ctx.dataIndex];
+                const total = ctx.datasetIndex === 0
+                  ? (agent?.cnt || 0)
+                  : (lastMap[agent?.UserName] || 0);
+                return ` ${ctx.dataset.label}: ${raw} tickets/วัน (รวม ${total})`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#e2e8f0' } },
+          y: {
+            beginAtZero: true,
+            ticks: { color: '#64748b', font: { size: 10 }, callback: v => v + '/วัน' },
+            grid: { color: '#e2e8f0' }
+          }
+        }
+      }
+    });
+  }
+
+  // ── 3. Scatter (this month vs last month per agent) ──────
+  if (dashCharts.scatter) { dashCharts.scatter.destroy(); dashCharts.scatter = null; }
+  const ctxScatter = document.getElementById('chart-scatter-wl');
+  if (ctxScatter && agentThis.length) {
+    // Use avg/day so both axes are comparable regardless of period length
+    const scatterData = agentThis.map(r => ({
+      x: +((lastMap[r.UserName] || 0) / daysPrev).toFixed(2),
+      y: +((r.cnt || 0) / daysThis).toFixed(2),
+      name: dn(r.UserName),
+      totalThis: r.cnt || 0,
+      totalPrev: lastMap[r.UserName] || 0
+    }));
+    const colors = scatterData.map(p =>
+      p.y > p.x ? '#22c55e' : p.y < p.x ? '#ef4444' : '#38bdf8'
+    );
+    dashCharts.scatter = new Chart(ctxScatter, {
+      type: 'scatter',
       data: {
-        labels: shownAgents.map(a => dn(a)),
+        datasets: [{
+          label: 'Agents',
+          data: scatterData,
+          backgroundColor: colors,
+          pointRadius: 7,
+          pointHoverRadius: 11
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                const p = ctx.raw;
+                const diff = +(p.y - p.x).toFixed(2);
+                const sign = diff >= 0 ? '+' : '';
+                return `${p.name}: ก่อน ${p.x}/วัน · นี้ ${p.y}/วัน (${sign}${diff}) [รวม: ${p.totalPrev}→${p.totalThis}]`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            title: { display: true, text: `ช่วงก่อน (tickets/วัน)`, color: '#64748b' },
+            ticks: { color: '#64748b', font: { size: 10 } },
+            grid: { color: '#e2e8f0' }
+          },
+          y: {
+            title: { display: true, text: `ช่วงนี้ (tickets/วัน)`, color: '#64748b' },
+            ticks: { color: '#64748b', font: { size: 10 } },
+            grid: { color: '#e2e8f0' }
+          }
+        }
+      }
+    });
+
+    // Agent chips
+    const chips = document.getElementById('dash-agent-chips');
+    if (chips) {
+      chips.innerHTML = agentThis.slice(0, 15).map(r => {
+        const avgT = +((r.cnt || 0) / daysThis).toFixed(1);
+        const avgP = +((lastMap[r.UserName] || 0) / daysPrev).toFixed(1);
+        const diff  = +(avgT - avgP).toFixed(1);
+        const col   = diff > 0 ? '#22c55e' : diff < 0 ? '#ef4444' : '#94a3b8';
+        const sign  = diff >= 0 ? '+' : '';
+        return `<span class="agent-chip" title="รวม ${r.cnt || 0} tickets ใน ${daysThis} วัน">
+          <b>${dn(r.UserName)}</b>
+          <span style="color:var(--accent)">${avgT}/วัน</span>
+          <span style="color:${col};font-size:.68rem">${sign}${diff}</span>
+        </span>`;
+      }).join('');
+    }
+  }
+
+  // ── 4. Daily Trend Line ──────────────────────────────────
+  if (dashCharts.trend) { dashCharts.trend.destroy(); dashCharts.trend = null; }
+  const ctxTrend = document.getElementById('chart-daily-trend');
+  if (ctxTrend && dailyTrend.length) {
+    // 7-day moving average
+    const trendCnts  = dailyTrend.map(r => r.cnt);
+    const maWindow   = Math.min(7, Math.ceil(dailyTrend.length / 3));
+    const movingAvg  = trendCnts.map((_, i) => {
+      const slice = trendCnts.slice(Math.max(0, i - maWindow + 1), i + 1);
+      return +(slice.reduce((a, b) => a + b, 0) / slice.length).toFixed(1);
+    });
+    // Trend direction label
+    const first3 = trendCnts.slice(0, Math.min(3, trendCnts.length)).reduce((a,b)=>a+b,0)/Math.min(3,trendCnts.length);
+    const last3  = trendCnts.slice(-Math.min(3, trendCnts.length)).reduce((a,b)=>a+b,0)/Math.min(3,trendCnts.length);
+    const trendDir = last3 > first3 * 1.1 ? '📈 เพิ่มขึ้น' : last3 < first3 * 0.9 ? '📉 ลดลง' : '➡️ ทรงตัว';
+    const trendEl  = document.getElementById('trend-summary');
+    if (trendEl) trendEl.textContent = trendDir;
+
+    dashCharts.trend = new Chart(ctxTrend, {
+      type: 'line',
+      data: {
+        labels: dailyTrend.map(r => r.day),
         datasets: [
           {
-            label: 'เดือนนี้',
-            data: shownAgents.map(a => thisMap[a]||0),
-            backgroundColor: '#2563eb', borderRadius: 4
+            label: 'Tickets/วัน',
+            data: trendCnts,
+            borderColor: '#38bdf8',
+            backgroundColor: 'rgba(56,189,248,0.12)',
+            borderWidth: 2,
+            pointRadius: dailyTrend.length > 30 ? 0 : 3,
+            tension: 0.3,
+            fill: true
           },
           {
-            label: 'เดือนก่อน',
-            data: shownAgents.map(a => lastMap[a]||0),
-            backgroundColor: '#93c5fd', borderRadius: 4
+            label: `${maWindow}-day MA`,
+            data: movingAvg,
+            borderColor: '#f59e0b',
+            borderWidth: 2,
+            borderDash: [5, 3],
+            pointRadius: 0,
+            tension: 0.3,
+            fill: false
           }
         ]
       },
       options: {
-        indexAxis: 'y', responsive: true,
-        plugins: { legend: { position:'bottom', labels:{ font:{size:11} } } },
+        responsive: true,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 10 } }
+        },
         scales: {
-          x: { beginAtZero:true, ticks:{ font:{size:10} } },
-          y: { ticks:{ font:{size:10} } }
+          x: { ticks: { color: '#64748b', font: { size: 9 }, maxTicksLimit: 10 }, grid: { color: '#e2e8f0' } },
+          y: { beginAtZero: true, ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#e2e8f0' } }
         }
       }
     });
   }
 
-  // ── 4. Agent × Category Stacked Bar ──────────────────────
-  if (chartAgentCat) { chartAgentCat.destroy(); chartAgentCat = null; }
-  const ctxAC = document.getElementById('chart-agent-cat');
-  if (ctxAC && agentCat.length) {
-    // Get unique categories (top 8)
-    const catMap = {};
-    agentCat.forEach(r => { catMap[r.category] = (catMap[r.category]||0) + r.cnt; });
-    const topCats = Object.entries(catMap).sort((a,b)=>b[1]-a[1]).slice(0,8).map(e=>e[0]);
-
-    // Get agent list sorted by total this month
-    const agentTotals = {};
-    agentCat.forEach(r => { agentTotals[r.UserName] = (agentTotals[r.UserName]||0) + r.cnt; });
-    const agentKeys = Object.entries(agentTotals).sort((a,b)=>b[1]-a[1]).slice(0,12).map(e=>e[0]);
-    const agentList = agentKeys; // keep original keys for lookup
-
-    // Build matrix
-    const acLookup = {};
-    agentCat.forEach(r => {
-      if (!acLookup[r.UserName]) acLookup[r.UserName] = {};
-      acLookup[r.UserName][r.category] = r.cnt;
-    });
-
-    const acColors = ['#2563eb','#16a34a','#ca8a04','#dc2626','#7c3aed','#0891b2','#db2777','#059669'];
-    const datasets = topCats.map((cat, i) => ({
-      label: cat,
-      data: agentList.map(a => acLookup[a]?.[cat] || 0),
-      backgroundColor: acColors[i % acColors.length],
-      borderRadius: 2
-    }));
-
-    chartAgentCat = new Chart(ctxAC, {
+  // ── 5. Day-of-Week Bar ───────────────────────────────────
+  if (dashCharts.dow) { dashCharts.dow.destroy(); dashCharts.dow = null; }
+  const ctxDow = document.getElementById('chart-dow');
+  if (ctxDow) {
+    const dowLabels = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];  // Sun=1..Sat=7
+    const dowData   = Array(7).fill(0);
+    dowStats.forEach(r => { dowData[(r.dow - 1) % 7] = r.cnt; });
+    const maxDow    = Math.max(...dowData);
+    const dowColors = dowData.map(v => v === maxDow ? '#f59e0b' : '#38bdf8');
+    dashCharts.dow = new Chart(ctxDow, {
       type: 'bar',
-      data: { labels: agentList.map(a => dn(a)), datasets },
+      data: {
+        labels: dowLabels,
+        datasets: [{ label: 'Tickets', data: dowData, backgroundColor: dowColors, borderRadius: 5 }]
+      },
       options: {
-        indexAxis: 'y', responsive: true,
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#64748b', font: { size: 11 } }, grid: { display: false } },
+          y: { beginAtZero: true, ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#e2e8f0' } }
+        }
+      }
+    });
+  }
+
+  // ── 6. Peak Hour Bar ─────────────────────────────────────
+  if (dashCharts.peak) { dashCharts.peak.destroy(); dashCharts.peak = null; }
+  const ctxPeak = document.getElementById('chart-peak-hour');
+  if (ctxPeak) {
+    const hrData   = Array(24).fill(0);
+    hourlyStats.forEach(r => { hrData[r.hr] = r.cnt; });
+    const maxHr    = hrData.indexOf(Math.max(...hrData));
+    const peakBadge = document.getElementById('peak-hour-badge');
+    if (peakBadge && hrData[maxHr] > 0) peakBadge.textContent = `⏰ ${maxHr}:00–${maxHr}:59 น. (${hrData[maxHr]} tickets)`;
+    const hrColors = hrData.map((v, i) => {
+      if (i === maxHr) return '#ef4444';
+      if (v >= hrData[maxHr] * 0.7) return '#f97316';
+      if (v >= hrData[maxHr] * 0.4) return '#38bdf8';
+      return '#cbd5e1';
+    });
+    dashCharts.peak = new Chart(ctxPeak, {
+      type: 'bar',
+      data: {
+        labels: Array.from({ length: 24 }, (_, i) => i + ':00'),
+        datasets: [{ label: 'Tickets', data: hrData, backgroundColor: hrColors, borderRadius: 3 }]
+      },
+      options: {
+        responsive: true,
         plugins: {
-          legend: { position:'bottom', labels:{ font:{size:10}, boxWidth:10 } },
-          tooltip: { mode:'index' }
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => `${ctx.parsed.y} tickets` } }
         },
         scales: {
-          x: { stacked:true, beginAtZero:true, ticks:{ font:{size:10} } },
-          y: { stacked:true, ticks:{ font:{size:10} } }
+          x: { ticks: { color: '#64748b', font: { size: 9 } }, grid: { display: false } },
+          y: { beginAtZero: true, ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#e2e8f0' } }
+        }
+      }
+    });
+  }
+
+  // ── 7. Category Trend Multi-Line ─────────────────────────
+  if (dashCharts.catTrend) { dashCharts.catTrend.destroy(); dashCharts.catTrend = null; }
+  const ctxCatTrend = document.getElementById('chart-cat-trend');
+  if (ctxCatTrend && catDailyTrend.length) {
+    // Top 5 categories from catStats
+    const top5cats = catStats.slice(0, 5).map(r => r.category);
+    // All unique days
+    const allDays  = [...new Set(catDailyTrend.map(r => r.day))].sort();
+    // Build lookup: cat → day → cnt
+    const lookup   = {};
+    catDailyTrend.forEach(r => {
+      if (!lookup[r.category]) lookup[r.category] = {};
+      lookup[r.category][r.day] = r.cnt;
+    });
+    const catColors = ['#38bdf8','#818cf8','#34d399','#fb923c','#f472b6'];
+    const catDatasets = top5cats.map((cat, i) => ({
+      label: cat || 'อื่นๆ',
+      data: allDays.map(d => lookup[cat]?.[d] || 0),
+      borderColor: catColors[i],
+      backgroundColor: catColors[i] + '22',
+      borderWidth: 2,
+      pointRadius: allDays.length > 30 ? 0 : 2,
+      tension: 0.3,
+      fill: false
+    }));
+    dashCharts.catTrend = new Chart(ctxCatTrend, {
+      type: 'line',
+      data: { labels: allDays, datasets: catDatasets },
+      options: {
+        responsive: true,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 10 } }
+        },
+        scales: {
+          x: { ticks: { color: '#64748b', font: { size: 9 }, maxTicksLimit: 10 }, grid: { color: '#e2e8f0' } },
+          y: { beginAtZero: true, ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#e2e8f0' } }
         }
       }
     });
   }
 }
+
 
 // ══════════════════════════════════════════════════════════
 //  SCHEDULE
@@ -1485,10 +1991,26 @@ async function loadDashboardCharts() {
 function renderShiftTabs() {
   const tabs = document.getElementById('schedule-tabs');
   if (!tabs) return;
-  tabs.innerHTML = `<button class="tab ${shiftTeamFilter==='all'?'active':''}" onclick="setShiftTeam('all',this)">ทุกทีม</button>` +
-    allTeams.map(t =>
-      `<button class="tab ${shiftTeamFilter===t.name?'active':''}" onclick="setShiftTeam('${t.name}',this)" style="${shiftTeamFilter===t.name?`border-bottom-color:${t.color};color:${t.color}`:''}">${t.display_name}</button>`
-    ).join('');
+  const role = currentUser?.role;
+
+  if (role === 'staff') {
+    // staff: no team tabs — they only see themselves
+    tabs.innerHTML = `<span style="font-size:.8rem;color:var(--muted);padding:.25rem .5rem">📋 ตารางกะของฉัน</span>`;
+    return;
+  }
+
+  // team_lead: only their team + remove "ทุกทีม" (no cross-team view)
+  const visibleTeams = role === 'team_lead'
+    ? allTeams.filter(t => t.name === currentUser.team)
+    : allTeams;
+
+  const allBtn = role === 'team_lead' ? '' :
+    `<button class="tab ${shiftTeamFilter==='all'?'active':''}" onclick="setShiftTeam('all',this)">ทุกทีม</button>`;
+
+  tabs.innerHTML = allBtn + visibleTeams.map(t =>
+    `<button class="tab ${shiftTeamFilter===t.name?'active':''}" onclick="setShiftTeam('${t.name}',this)"
+       style="${shiftTeamFilter===t.name?`border-bottom-color:${t.color};color:${t.color}`:''}">${t.display_name}</button>`
+  ).join('');
 }
 
 function changeWeek(dir) {
@@ -1505,6 +2027,13 @@ function setShiftTeam(t, btn) {
 }
 
 async function loadSchedule() {
+  // Auto-lock filter to own team for team_lead, ignore filter for staff (server scopes anyway)
+  const role = currentUser?.role;
+  if (role === 'team_lead' && shiftTeamFilter === 'all') {
+    shiftTeamFilter = currentUser.team || 'all';
+  }
+  if (role === 'staff') shiftTeamFilter = 'all'; // server handles scope
+
   const ws = fmtDateISO(currentWeekStart);
   const endD = new Date(currentWeekStart);
   endD.setDate(endD.getDate() + 6);
@@ -1518,7 +2047,7 @@ async function loadSchedule() {
   ]);
 
   renderShiftTable(shifts, ws);
-  renderCoverageWarn(coverage);
+  renderCoverageWarn(coverage, ws);
   loadLeaveRequests();
 }
 
@@ -1572,36 +2101,62 @@ function renderShiftTable(shifts, ws) {
     return;
   }
 
+  // ── Count working days per employee this week ─────────────
+  const workCount = {};
+  empsToShow.forEach(emp => {
+    let wc = 0;
+    days.forEach(d => {
+      const s = shiftMap[emp.id]?.[fmtDateISO(d)];
+      if (s && s.status !== 'leave' && s.status !== 'approved_leave') wc++;
+    });
+    workCount[emp.id] = wc;
+  });
+
   // ── Rows ─────────────────────────────────────────────────
+  const canEdit = isLeadRole(); // only lead/manager/admin can edit shifts
   let rows = '';
   let prevTeam = '';
   empsToShow.forEach(emp => {
-    if (emp.team !== prevTeam) {
+    // Team separator header — skip for staff (only 1 person, no header needed)
+    if (currentUser?.role !== 'staff' && emp.team !== prevTeam) {
       const color = teamColor(emp.team);
       rows += `<tr><td colspan="${colCount}" style="background:${color}18;color:${color};font-weight:700;font-size:.79rem;padding:.35rem .8rem">${teamLabel(emp.team)}</td></tr>`;
       prevTeam = emp.team;
     }
-    const isLead = !['staff'].includes(emp.role);
-    rows += `<tr><td style="white-space:nowrap;font-size:.84rem">${emp.name}${isLead?` <span style="font-size:.68rem;color:var(--muted)">(หน.)</span>`:''}</td>`;
+    const isLead  = !['staff'].includes(emp.role);
+    const wc      = workCount[emp.id];
+    const wcColor = wc > 5 ? '#ef4444' : wc === 5 ? '#16a34a' : '#64748b';
+    const wcTitle = wc > 5 ? `⚠️ เกิน! ${wc} วัน (สูงสุด 5)` : `ทำงาน ${wc}/5 วันสัปดาห์นี้`;
+    rows += `<tr><td style="white-space:nowrap;font-size:.84rem">
+      ${emp.name}${isLead?` <span style="font-size:.68rem;color:var(--muted)">(หน.)</span>`:''}
+      <span title="${wcTitle}" style="font-size:.68rem;font-weight:700;color:${wcColor};margin-left:.3rem;cursor:default">${wc}/5</span>
+    </td>`;
     days.forEach(d => {
       const iso = fmtDateISO(d);
       const s   = shiftMap[emp.id]?.[iso];
       if (s) {
         const isLeave = s.status === 'leave' || s.status === 'approved_leave';
+        // Lead+ can click to edit; staff sees read-only badge
+        const clickAttr = canEdit
+          ? `onclick="editShiftModal(${s.id},'${s.shift_type}','${s.status}')" style="cursor:pointer"`
+          : `style="cursor:default"`;
         rows += `<td style="padding:.3rem .25rem">
           <div style="background:${isLeave?'#fef2f2':shiftBg(s.shift_type)};color:${isLeave?'#b91c1c':shiftColor(s.shift_type)};
-               border-radius:6px;padding:.18rem .4rem;font-size:.72rem;font-weight:600;cursor:pointer;text-align:center"
-               onclick="editShiftModal(${s.id},'${s.shift_type}','${s.status}')">
+               border-radius:6px;padding:.18rem .4rem;font-size:.72rem;font-weight:600;text-align:center"
+               title="${isLeave?'วันหยุด':shiftLabel(s.shift_type,true)}" ${clickAttr}>
             ${isLeave?'🏖 หยุด':shiftLabel(s.shift_type)}
           </div></td>`;
       } else {
-        // Clickable empty cell → quick add shift
-        rows += `<td style="padding:.3rem .25rem">
-          <div style="color:#cbd5e1;font-size:.78rem;text-align:center;cursor:pointer;border-radius:6px;padding:.18rem .4rem;transition:.15s"
-               onmouseover="this.style.background='#f1f5f9';this.style.color='#2563eb'"
-               onmouseout="this.style.background='';this.style.color='#cbd5e1'"
-               onclick="quickAddShift(${emp.id},'${iso}')" title="เพิ่มกะ">+</div>
-        </td>`;
+        if (canEdit) {
+          rows += `<td style="padding:.3rem .25rem">
+            <div style="color:#cbd5e1;font-size:.78rem;text-align:center;cursor:pointer;border-radius:6px;padding:.18rem .4rem;transition:.15s"
+                 onmouseover="this.style.background='#f1f5f9';this.style.color='#2563eb'"
+                 onmouseout="this.style.background='';this.style.color='#cbd5e1'"
+                 onclick="quickAddShift(${emp.id},'${iso}')" title="เพิ่มกะ">+</div>
+          </td>`;
+        } else {
+          rows += `<td style="padding:.3rem .25rem"></td>`; // staff: empty, no "+"
+        }
       }
     });
     rows += '</tr>';
@@ -1610,14 +2165,84 @@ function renderShiftTable(shifts, ws) {
   document.getElementById('shift-tbody').innerHTML = rows;
 }
 
-function renderCoverageWarn(coverage) {
-  const issues = [];
+function renderCoverageWarn(coverage, ws) {
+  // Build lookup: date → team → shift_type → cnt
+  const covMap = {};
   coverage.forEach(r => {
-    if (r.cnt === 0) issues.push(`${teamLabel(r.team)} วัน ${r.shift_date} กะ${shiftLabel(r.shift_type)} — ไม่มีพนักงาน!`);
+    const dk = (r.shift_date || '').toString().split('T')[0];
+    if (!covMap[dk]) covMap[dk] = {};
+    if (!covMap[dk][r.team]) covMap[dk][r.team] = {};
+    covMap[dk][r.team][r.shift_type] = r.cnt;
   });
-  document.getElementById('coverage-warn').innerHTML = issues.length > 0
-    ? `<div class="alert alert-warn">⚠️ กะที่ไม่มีคนครอบคลุม: ${issues.join(' | ')}</div>`
-    : '';
+
+  const role = currentUser?.role;
+
+  // staff: no coverage warning (single person, not meaningful)
+  const warnEl = document.getElementById('coverage-warn');
+  if (role === 'staff') { if (warnEl) warnEl.innerHTML = ''; return; }
+
+  // Minimum staffing rules — scoped to what this role can see
+  const allRules = [
+    { team:'call_center', shifts:['morning','afternoon','night'], min:2, days:'all' },
+    { team:'helpdesk',    shifts:['morning','afternoon'],         min:1, days:'weekday' },
+    { team:'repair',      shifts:['morning'],                     min:1, days:'weekday' }
+  ];
+  const minRules = role === 'team_lead'
+    ? allRules.filter(r => r.team === currentUser?.team)
+    : allRules;
+
+  const issues = [];
+
+  // Generate 7 days of this week
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(ws); d.setDate(d.getDate() + i); days.push(d);
+  }
+
+  days.forEach(d => {
+    const iso     = fmtDateISO(d);
+    const dow     = d.getDay(); // 0=Sun, 6=Sat
+    const isWkday = dow >= 1 && dow <= 5;
+
+    minRules.forEach(rule => {
+      if (rule.days === 'weekday' && !isWkday) return;
+      rule.shifts.forEach(st => {
+        const cnt = covMap[iso]?.[rule.team]?.[st] || 0;
+        if (cnt < rule.min) {
+          const dayLabel = ['อา','จ','อ','พ','พฤ','ศ','ส'][dow];
+          issues.push({ day: dayLabel, date: iso, team: rule.team, shift: st, cnt, min: rule.min });
+        }
+      });
+    });
+  });
+
+  if (!warnEl) return;
+
+  if (issues.length === 0) {
+    warnEl.innerHTML = `<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:.5rem .9rem;font-size:.8rem;color:#166534">
+      ✅ ครอบคลุมทุกกะตามเกณฑ์ขั้นต่ำ (call_center ≥2/กะ · helpdesk ≥1/กะวันธรรมดา · repair เช้าวันธรรมดา)
+    </div>`;
+    return;
+  }
+
+  // Group issues by team for cleaner display
+  const byTeam = {};
+  issues.forEach(i => {
+    if (!byTeam[i.team]) byTeam[i.team] = [];
+    byTeam[i.team].push(i);
+  });
+
+  const lines = Object.entries(byTeam).map(([team, rows]) => {
+    const detail = rows.map(r =>
+      `<span style="background:#fef2f2;border:1px solid #fecaca;border-radius:4px;padding:.05rem .35rem;font-size:.72rem;margin:.1rem">${r.day} ${r.date.slice(5)} ${shiftLabel(r.shift)} ${r.cnt}/${r.min}</span>`
+    ).join(' ');
+    return `<div style="margin:.2rem 0"><b style="color:#b91c1c">${teamLabel(team)}</b> ${detail}</div>`;
+  }).join('');
+
+  warnEl.innerHTML = `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.6rem .9rem;font-size:.8rem">
+    <div style="font-weight:700;color:#b91c1c;margin-bottom:.35rem">⚠️ กะที่ยังขาดคน (${issues.length} รายการ)</div>
+    ${lines}
+  </div>`;
 }
 
 function quickAddShift(empId, dateStr) {
@@ -1657,8 +2282,8 @@ async function loadLeaveRequests() {
       <td>${lr.approver_name||'—'}</td>
       <td>${lr.status==='pending'?`
         <div class="btn-group">
-          <button class="btn btn-success btn-sm" onclick="approveLeave(${lr.id})">✓ อนุมัติ</button>
-          <button class="btn btn-danger btn-sm" onclick="rejectLeave(${lr.id})">✗ ปฏิเสธ</button>
+          ${isLeadRole() ? `<button class="btn btn-success btn-sm" onclick="approveLeave(${lr.id})">✓ อนุมัติ</button>
+          <button class="btn btn-danger btn-sm" onclick="rejectLeave(${lr.id})">✗ ปฏิเสธ</button>` : ''}
         </div>`:''}</td>
     </tr>`).join('') || '<tr><td colspan="7" class="empty">ไม่มีคำขอ</td></tr>';
 }
@@ -1703,14 +2328,21 @@ async function initTicketFilters() {
   } catch {}
 }
 
+let _tkSearchTimer = null;
+function tkSearchDebounce() {
+  clearTimeout(_tkSearchTimer);
+  _tkSearchTimer = setTimeout(() => renderTickets(), 280);
+}
 async function loadTickets() {
   await initTicketFilters();
   const status   = document.getElementById('tk-filter-status').value;
   const agent    = document.getElementById('tk-filter-agent').value;
+  const team     = document.getElementById('tk-filter-team')?.value || '';
   const dateFrom = document.getElementById('tk-date-from').value;
   const dateTo   = document.getElementById('tk-date-to').value;
   let url = '/api/tickets?';
   if (status)   url += `status=${encodeURIComponent(status)}&`;
+  if (team)     url += `team=${encodeURIComponent(team)}&`;
   if (dateFrom) url += `dateFrom=${dateFrom}&`;
   if (dateTo)   url += `dateTo=${dateTo}&`;
   allTickets = await api(url);
@@ -1740,12 +2372,26 @@ function renderTickets() {
       || (t.category||'').toLowerCase().includes(q);
   });
 
+  // Update ticket stat cards
+  // status from LicenseDB is StatusName e.g. "Close Job", "Open Job" — match case-insensitively
+  const isClosed  = t => (t.status || '').toLowerCase().includes('close');
+  const tkTotal   = filtered.length;
+  const tkClosed  = filtered.filter(isClosed).length;
+  const tkOpen    = filtered.filter(t => !isClosed(t)).length;
+  const now24h    = Date.now() - 24 * 3600 * 1000;
+  const tkOverdue = filtered.filter(t => !isClosed(t) && new Date(t.opened_at).getTime() < now24h).length;
+  const _setEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  _setEl('tk-stat-total',   tkTotal);
+  _setEl('tk-stat-open',    tkOpen);
+  _setEl('tk-stat-overdue', tkOverdue);
+  _setEl('tk-stat-closed',  tkClosed);
+
   const lbl = document.getElementById('tk-count-label');
   if (lbl) lbl.textContent = `แสดง ${filtered.length} จาก ${allTickets.length} เคส`;
 
   const tbody = document.getElementById('ticket-tbody');
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty"><div class="icon">🎫</div>ไม่พบเคส</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" class="empty"><div class="icon">🎫</div>ไม่พบเคส</td></tr>';
     return;
   }
 
@@ -1757,48 +2403,97 @@ function renderTickets() {
     const expanded = tkExpandedRows.has(t.id);
     const hasDetail = (t.description && t.description.trim()) || (t.Solution && t.Solution.trim());
 
-    const dateStr = opened.toLocaleDateString('th-TH', {day:'2-digit',month:'short',year:'2-digit'});
-    const timeStr = opened.toLocaleTimeString('th-TH', {hour:'2-digit',minute:'2-digit'});
+    const dateStr  = opened.toLocaleDateString('th-TH', {day:'2-digit',month:'short',year:'2-digit'});
+    const timeStr  = opened.toLocaleTimeString('th-TH', {hour:'2-digit',minute:'2-digit'});
+    const closeD   = t.CloseDate ? new Date(t.CloseDate) : null;
+    const closeDateStr = closeD ? closeD.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}) : '—';
+    const closeTimeStr = closeD ? closeD.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}) : '';
+
+    // Resolution time — show hr:min if >= 60 min
+    let diffDisp = '—';
+    if (t.TimeDiff_Minutes != null) {
+      const m = t.TimeDiff_Minutes;
+      diffDisp = m >= 60 ? `${Math.floor(m/60)}ชม. ${m%60}น.` : `${m} น.`;
+    }
+
+    const descShort    = (t.description||'').trim().slice(0,70) + ((t.description||'').length>70?'…':'');
+    const solShort     = (t.Solution||'').trim().slice(0,70) + ((t.Solution||'').length>70?'…':'');
+    const commentShort = (t.ticket_comment||'').trim().slice(0,40) + ((t.ticket_comment||'').length>40?'…':'');
 
     // Main row
-    rows.push(`<tr class="tk-row-main" style="${isOverdue?'background:#fff7f7':''}" >
+    rows.push(`<tr class="tk-row-main${isOverdue?' overdue-row':''}">
       <td style="text-align:center;padding:.4rem .25rem">
         ${hasDetail ? `<span class="tk-toggle" onclick="toggleTicketDetail(${t.id})">${expanded?'▼':'▶'}</span>` : ''}
       </td>
-      <td style="font-size:.82rem;white-space:nowrap"><b>#${t.id}</b></td>
-      <td style="max-width:300px">
-        <div style="font-weight:600;font-size:.87rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
-             title="${(t.title||'').replace(/"/g,'&quot;')}">${t.title || '—'}</div>
-        <div style="font-size:.77rem;color:var(--muted)">${t.CompanyName||''}</div>
+      <td style="font-size:.8rem;white-space:nowrap"><b>#${t.id}</b></td>
+      <td style="font-size:.78rem;white-space:nowrap">
+        <div>${dateStr}</div><div style="color:var(--muted);font-size:.72rem">${timeStr}</div>
       </td>
-      <td><span class="badge" style="background:#ede9fe;color:#5b21b6;font-size:.72rem">${t.category||'—'}</span></td>
-      <td style="font-size:.84rem;white-space:nowrap">${dn(t.assigned_name)||'—'}</td>
-      <td>
-        <span class="badge" style="background:#f1f5f9;color:#334155;font-size:.72rem;max-width:120px;overflow:hidden;text-overflow:ellipsis;display:inline-block"
-              title="${t.status||''}">${t.status||'—'}</span>
-        ${isOverdue ? `<div style="font-size:.7rem;color:#b91c1c;font-weight:700">⚠️ ค้างนาน</div>` : ''}
+      <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.84rem"
+          title="${(t.title||'').replace(/"/g,'&quot;')}">${t.title||'—'}</td>
+      <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.77rem;color:var(--muted)"
+          title="${(t.description||'').replace(/"/g,'&quot;')}">${descShort||'—'}</td>
+      <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.77rem;color:#4ade80"
+          title="${(t.Solution||'').replace(/"/g,'&quot;')}">${solShort||'—'}</td>
+      <td style="font-size:.82rem;white-space:nowrap">${dn(t.assigned_name)||'—'}</td>
+      <td>${tkStatusBadge(t.status)}${isOverdue ? `<div style="font-size:.68rem;color:#fca5a5;font-weight:700">⚠️ ค้างนาน</div>` : ''}</td>
+      <td style="font-size:.78rem;white-space:nowrap">
+        ${closeD ? `<div>${closeDateStr}</div><div style="color:var(--muted);font-size:.72rem">${closeTimeStr}</div>` : '—'}
       </td>
-      <td style="font-size:.79rem;white-space:nowrap;color:var(--muted)">${dateStr}<br/>${timeStr}</td>
+      <td style="font-size:.8rem;white-space:nowrap;text-align:right;color:${t.TimeDiff_Minutes!=null&&t.TimeDiff_Minutes<0?'#fca5a5':'var(--text)'}">${diffDisp}</td>
+      <td style="white-space:nowrap;text-align:center">
+        ${t.Stars ? `<span class="tk-star-display" title="${t.Stars} ดาว">${'★'.repeat(t.Stars)}${'☆'.repeat(5-t.Stars)}</span>`
+                  : `<span class="tk-star-display empty">☆☆☆☆☆</span>`}
+      </td>
+      <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.77rem;color:var(--muted)"
+          title="${(t.ticket_comment||'').replace(/"/g,'&quot;')}">${commentShort||'—'}</td>
     </tr>`);
 
     // Detail expand row
-    if (expanded && hasDetail) {
+    if (expanded) {
       const desc = (t.description||'').trim();
       const sol  = (t.Solution||'').trim();
-      const url  = t.IssueURL ? `<a href="${t.IssueURL}" target="_blank" style="font-size:.78rem;color:var(--hd)">🔗 ดูใน LicenseDB</a>` : '';
+      const canReview = isLeadRole();
+      const curStars   = t.Stars || 0;
+      const curComment = escHtml(t.ticket_comment || '');
+
+      // Star picker HTML
+      const starPickerHtml = canReview
+        ? `<div class="star-picker" id="sp-${t.id}" onmouseleave="spHover(${t.id},0)">
+            ${[1,2,3,4,5].map(n =>
+              `<span data-v="${n}" class="${n<=curStars?'on':''}"
+                onclick="spClick(${t.id},${n})"
+                onmouseenter="spHover(${t.id},${n})">★</span>`
+            ).join('')}
+           </div>`
+        : `<div class="tk-star-display">${curStars ? '★'.repeat(curStars)+'☆'.repeat(5-curStars) : '☆☆☆☆☆'}</div>`;
+
       rows.push(`<tr class="tk-row-detail">
-        <td colspan="7" style="padding:.75rem 1rem 1rem">
-          <div style="display:grid;grid-template-columns:${sol?'1fr 1fr':'1fr'};gap:1rem">
+        <td colspan="12" style="padding:.75rem 1rem 1rem">
+          ${(desc||sol) ? `<div style="display:grid;grid-template-columns:${sol?'1fr 1fr':'1fr'};gap:1rem;margin-bottom:.75rem">
             ${desc ? `<div class="tk-detail-box">
-              <div class="tk-detail-label">📋 รายละเอียดปัญหา (CalllogDesc)</div>
+              <div class="tk-detail-label">📋 รายละเอียดปัญหา</div>
               <div class="tk-detail-text">${escHtml(desc)}</div>
             </div>` : ''}
             ${sol ? `<div class="tk-detail-box tk-solution-box">
-              <div class="tk-detail-label">✅ วิธีแก้ไข (Solution)</div>
+              <div class="tk-detail-label">✅ วิธีแก้ไข</div>
               <div class="tk-detail-text">${escHtml(sol)}</div>
             </div>` : ''}
+          </div>` : ''}
+          <!-- Review section -->
+          <div class="tk-review-box">
+            <div class="tk-detail-label">⭐ ประเมินเคส</div>
+            ${starPickerHtml}
+            ${canReview
+              ? `<textarea id="tc-${t.id}" rows="2" placeholder="หมายเหตุ / ความคิดเห็น..."
+                   style="width:100%;margin-top:.4rem;padding:.4rem .6rem;border:1px solid var(--border);border-radius:6px;font-size:.82rem;resize:vertical;background:var(--card);color:var(--text)">${curComment}</textarea>
+                 <button class="btn btn-sm btn-primary" style="margin-top:.4rem"
+                   onclick="saveTicketReview(${t.id})">💾 บันทึก</button>`
+              : curComment
+                ? `<div style="margin-top:.35rem;font-size:.82rem;color:var(--muted)">${curComment}</div>`
+                : ''
+            }
           </div>
-          ${url ? `<div style="margin-top:.5rem">${url}</div>` : ''}
         </td>
       </tr>`);
     }
@@ -1807,14 +2502,74 @@ function renderTickets() {
   tbody.innerHTML = rows.join('');
 }
 
+function tkStatusBadge(status) {
+  const s = (status || '').toLowerCase();
+  let bg, color;
+  if (s.includes('close') || s.includes('complete') || s.includes('done')) {
+    bg = '#dcfce7'; color = '#15803d';
+  } else if (s.includes('progress') || s.includes('working') || s.includes('กำลัง')) {
+    bg = '#fef3c7'; color = '#92400e';
+  } else if (s.includes('wait') || s.includes('pending') || s.includes('รอ') || s.includes('hold')) {
+    bg = '#f3e8ff'; color = '#7e22ce';
+  } else if (s.includes('open') || s.includes('new') || s.includes('ใหม่')) {
+    bg = '#dbeafe'; color = '#1d4ed8';
+  } else {
+    bg = '#f1f5f9'; color = '#475569';
+  }
+  return `<span style="background:${bg};color:${color};padding:.18rem .55rem;border-radius:20px;font-size:.72rem;font-weight:700;white-space:nowrap">${escHtml(status||'—')}</span>`;
+}
+
 function escHtml(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function toggleTicketDetail(id) {
-  if (tkExpandedRows.has(id)) tkExpandedRows.delete(id);
-  else tkExpandedRows.add(id);
+  if (tkExpandedRows.has(id)) {
+    tkExpandedRows.delete(id);
+  } else {
+    tkExpandedRows.add(id);
+    // seed star picker with existing value
+    const t = allTickets.find(x => x.id === id);
+    if (t && t.Stars) _spValues[id] = t.Stars;
+  }
   renderTickets();
+}
+
+// ── Star picker helpers ──
+const _spValues = {};  // ticketId → selected stars (in-memory before save)
+
+function spHover(id, n) {
+  const picker = document.getElementById('sp-' + id);
+  if (!picker) return;
+  picker.querySelectorAll('span').forEach(s => {
+    const v = parseInt(s.dataset.v);
+    s.classList.toggle('on', n > 0 ? v <= n : v <= (_spValues[id] ?? 0));
+  });
+}
+
+function spClick(id, n) {
+  _spValues[id] = n;
+  spHover(id, n);
+}
+
+async function saveTicketReview(id) {
+  const stars   = _spValues[id] ?? null;
+  const comment = document.getElementById('tc-' + id)?.value ?? '';
+  try {
+    await api('/api/tickets/' + id + '/review', {
+      method: 'PATCH',
+      body: { stars, comment }
+    });
+    // update local cache so re-render shows new stars immediately
+    const t = allTickets.find(x => x.id === id);
+    if (t) { t.Stars = stars; t.ticket_comment = comment; }
+    renderTickets();
+    // briefly show success flash
+    const btn = document.querySelector(`[onclick="saveTicketReview(${id})"]`);
+    if (btn) { const orig = btn.textContent; btn.textContent = '✅ บันทึกแล้ว'; setTimeout(() => { btn.textContent = orig; }, 1500); }
+  } catch (e) {
+    alert('เกิดข้อผิดพลาด: ' + (e.message || e));
+  }
 }
 
 async function saveTicket() {
@@ -1892,57 +2647,166 @@ async function loadKpi() {
 }
 
 function renderKpiTable() {
+  // Update KPI stat cards
+  const _sk = (id, v) => { const el = document.getElementById(id); if(el) el.textContent = v; };
+  if (allKpi.length > 0) {
+    const totalCases = allKpi.reduce((s,k) => s + (k.total_cases||0), 0);
+    const avgCases   = (totalCases / allKpi.length).toFixed(1);
+    const top        = allKpi.reduce((a,b) => (b.total_cases||0) > (a.total_cases||0) ? b : a);
+    _sk('kpi-stat-avg',   avgCases);
+    _sk('kpi-stat-score', '—');      // satisfaction_score not in LicenseDB
+    _sk('kpi-stat-top',   top.name || dn(top.UserName) || '—');
+    _sk('kpi-stat-count', allKpi.length);
+  } else {
+    ['kpi-stat-avg','kpi-stat-score','kpi-stat-top','kpi-stat-count'].forEach(id => _sk(id, '—'));
+  }
+
   const tbody = document.getElementById('kpi-tbody');
   if (allKpi.length === 0) {
     tbody.innerHTML = '<tr><td colspan="8" class="empty"><div class="icon">📊</div>ไม่พบข้อมูล KPI</td></tr>';
     return;
   }
+  const kpiMonth = document.getElementById('kpi-filter-month')?.value || '';
   tbody.innerHTML = allKpi.map(k => `
-    <tr>
-      <td><b>${k.name}</b></td>
-      <td><span class="badge ${teamBadgeClass(k.team)}">${teamLabel(k.team)}</span></td>
-      <td>${new Date(k.month).toLocaleDateString('th-TH',{month:'long',year:'numeric'})}</td>
-      <td><b>${k.total_cases}</b> เคส</td>
-      <td>${k.avg_resolve_minutes} นาที</td>
-      <td>${stars(k.satisfaction_score)}</td>
+    <tr class="kpi-row-main" onclick="toggleKpiDrill('${k.UserName}','${kpiMonth}',this)">
+      <td style="padding-left:.5rem"><span id="kpi-tog-${k.UserName}" style="font-size:.7rem;color:var(--muted);margin-right:.35rem">▶</span><b>${k.name || dn(k.UserName)}</b></td>
+      <td>${teamBadgeHtml(k.team||'')}</td>
+      <td style="white-space:nowrap">${new Date(k.month).toLocaleDateString('th-TH',{month:'long',year:'numeric'})}</td>
+      <td><b style="color:var(--accent)">${k.total_cases}</b> เคส</td>
+      <td style="font-size:.78rem;white-space:nowrap">${k.first_case ? new Date(k.first_case).toLocaleDateString('th-TH',{day:'numeric',month:'short'}) : '—'}</td>
+      <td style="font-size:.78rem;white-space:nowrap">${k.last_case  ? new Date(k.last_case).toLocaleDateString('th-TH',{day:'numeric',month:'short'}) : '—'}</td>
       <td style="max-width:200px;font-size:.8rem">${k.comment||'<span style="color:var(--muted)">—</span>'}</td>
-      <td><button class="btn btn-ghost btn-sm" onclick="openEditKpi(${JSON.stringify(k).replace(/"/g,'&quot;')})">✏️</button></td>
+      <td onclick="event.stopPropagation()"><button class="btn btn-ghost btn-sm" onclick="openEditKpi(${JSON.stringify(k).replace(/"/g,'&quot;')})">✏️</button></td>
+    </tr>
+    <tr class="kpi-drill" id="kpi-drill-${k.UserName}" style="display:none">
+      <td colspan="8"><div id="kpi-drill-content-${k.UserName}"><div style="color:var(--muted);font-size:.82rem;padding:.25rem">กำลังโหลด...</div></div></td>
     </tr>`).join('');
 }
 
+// ── KPI Agent Drill-down ─────────────────────────────────
+const _kpiDrillOpen = new Set();
+
+async function toggleKpiDrill(username, month, rowEl) {
+  const drillRow    = document.getElementById('kpi-drill-' + username);
+  const togEl       = document.getElementById('kpi-tog-' + username);
+  if (!drillRow) return;
+  if (_kpiDrillOpen.has(username)) {
+    _kpiDrillOpen.delete(username);
+    drillRow.style.display = 'none';
+    if (togEl) togEl.textContent = '▶';
+    return;
+  }
+  _kpiDrillOpen.add(username);
+  drillRow.style.display = '';
+  if (togEl) togEl.textContent = '▼';
+
+  const content = document.getElementById('kpi-drill-content-' + username);
+  try {
+    let url = `/api/kpi/agent-detail?username=${encodeURIComponent(username)}`;
+    if (month) url += `&month=${month}`;
+    const d = await api(url);
+    const { categories = [], summary = {} } = d;
+    const maxCnt = categories[0]?.cnt || 1;
+
+    // Mini stat cards
+    const avgMin  = summary.avg_minutes != null ? Math.round(summary.avg_minutes) : null;
+    const avgHr   = avgMin != null ? (avgMin >= 60 ? `${Math.floor(avgMin/60)}ชม. ${avgMin%60}น.` : `${avgMin} น.`) : '—';
+    const avgStar = summary.avg_stars != null ? (+summary.avg_stars).toFixed(1) : '—';
+    const ratedOf = summary.rated_count ? `${summary.rated_count}/${summary.total} เคส` : '—';
+    const starStr = avgStar !== '—' ? '★'.repeat(Math.round(+avgStar)) + '☆'.repeat(5-Math.round(+avgStar)) : '';
+
+    // Category bars
+    const catBars = categories.slice(0, 8).map(c => {
+      const pct = Math.round((c.cnt / maxCnt) * 100);
+      const catStarStr = c.avg_stars ? ` <span style="color:#f59e0b;font-size:.72rem">${(+c.avg_stars).toFixed(1)}★</span>` : '';
+      return `<div class="kpi-cat-bar">
+        <span style="min-width:140px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+              title="${escHtml(c.category||'')}">${escHtml(c.category||'—')}</span>
+        <div class="kpi-cat-bar-track"><div class="kpi-cat-bar-fill" style="width:${pct}%"></div></div>
+        <span style="min-width:32px;text-align:right;font-weight:600;color:var(--accent)">${c.cnt}</span>${catStarStr}
+      </div>`;
+    }).join('');
+
+    content.innerHTML = `
+      <div class="kpi-stat-mini">
+        <div class="kpi-stat-mini-item"><b>${summary.total||0}</b>เคสทั้งหมด</div>
+        <div class="kpi-stat-mini-item"><b>${avgHr}</b>เฉลี่ยเวลาปิด/เคส</div>
+        <div class="kpi-stat-mini-item"><b><span style="color:#f59e0b">${starStr}</span> ${avgStar}</b>คะแนนเฉลี่ย (${ratedOf})</div>
+        <div class="kpi-stat-mini-item"><b>${categories.length}</b>หมวดที่รับงาน</div>
+      </div>
+      <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.35rem">ประเภทงานที่รับ (Top ${Math.min(8,categories.length)})</div>
+      ${catBars || '<span style="color:var(--muted);font-size:.82rem">ไม่มีข้อมูล</span>'}`;
+  } catch(e) {
+    if (content) content.innerHTML = `<span style="color:#ef4444;font-size:.82rem">โหลดไม่สำเร็จ: ${e.message}</span>`;
+  }
+}
+
 function renderKpiCharts() {
-  // group by month
-  const months = [...new Set(allKpi.map(k => k.month.substring(0,7)))].sort();
-  const teams  = ['call_center','helpdesk','repair'];
-  const colors = { call_center:'#16a34a', helpdesk:'#2563eb', repair:'#ca8a04' };
-
-  const avgByTeamMonth = (field) => teams.map(tm => ({
-    label: teamLabel(tm),
-    data: months.map(m => {
-      const rows = allKpi.filter(k => k.team===tm && k.month.startsWith(m));
-      if (!rows.length) return null;
-      return +(rows.reduce((a,r)=>a+r[field],0)/rows.length).toFixed(1);
-    }),
-    borderColor: colors[tm],
-    backgroundColor: colors[tm] + '33',
-    tension: .3,
-    fill: true
-  }));
-
-  const monthLabels = months.map(m => new Date(m+'-01').toLocaleDateString('th-TH',{month:'short',year:'numeric'}));
-
   if (chartCases) chartCases.destroy();
   if (chartScore) chartScore.destroy();
 
+  if (!allKpi.length) return;
+
+  // ── Chart 1: จำนวนเคสเฉลี่ยต่อคน — bar per agent
+  const sorted = [...allKpi].sort((a,b) => (b.total_cases||0) - (a.total_cases||0)).slice(0, 15);
+  const barColors = ['#38bdf8','#818cf8','#34d399','#fb923c','#f472b6','#a78bfa','#fbbf24',
+                     '#6ee7b7','#f87171','#94a3b8','#4ade80','#c084fc','#60a5fa','#fcd34d','#86efac'];
+  const teamColorMap = { call_center:'#38bdf8', helpdesk:'#818cf8', repair:'#fb923c' };
+
   chartCases = new Chart(document.getElementById('chart-cases'), {
-    type:'line',
-    data:{ labels:monthLabels, datasets:avgByTeamMonth('total_cases') },
-    options:{ responsive:true, plugins:{ legend:{ position:'bottom' } }, scales:{ y:{ beginAtZero:true } } }
+    type: 'bar',
+    data: {
+      labels: sorted.map(k => k.name || dn(k.UserName)),
+      datasets: [{
+        label: 'จำนวนเคส',
+        data: sorted.map(k => k.total_cases || 0),
+        backgroundColor: sorted.map(k => teamColorMap[k.team] || '#38bdf8'),
+        borderRadius: 5,
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed.y} เคส` } }
+      },
+      scales: {
+        x: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#e2e8f0' } },
+        y: { beginAtZero: true, ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#e2e8f0' } }
+      }
+    }
   });
+
+  // ── Chart 2: เคสรวมต่อทีม — doughnut
+  const teamTotals = {};
+  allKpi.forEach(k => {
+    const tm = k.team || 'unknown';
+    teamTotals[tm] = (teamTotals[tm] || 0) + (k.total_cases || 0);
+  });
+  const tmLabels = Object.keys(teamTotals);
+  const tmData   = tmLabels.map(t => teamTotals[t]);
+  const tmColors = tmLabels.map(t => teamColorMap[t] || '#94a3b8');
+
   chartScore = new Chart(document.getElementById('chart-score'), {
-    type:'line',
-    data:{ labels:monthLabels, datasets:avgByTeamMonth('satisfaction_score') },
-    options:{ responsive:true, plugins:{ legend:{ position:'bottom' } }, scales:{ y:{ min:0, max:5 } } }
+    type: 'doughnut',
+    data: {
+      labels: tmLabels.map(teamLabel),
+      datasets: [{
+        data: tmData,
+        backgroundColor: tmColors,
+        borderWidth: 2,
+        borderColor: '#fff'
+      }]
+    },
+    options: {
+      responsive: true,
+      cutout: '55%',
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#64748b', font: { size: 11 } } },
+        tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed} เคส` } }
+      }
+    }
   });
 }
 
@@ -2016,6 +2880,15 @@ function initDateDefaults() {
   document.getElementById('s-date').value  = today;
   document.getElementById('lr-date').value = today;
   const now = new Date();
+  // Default to today for Dashboard and Tickets
+  const dashFrom = document.getElementById('dash-date-from');
+  const dashTo   = document.getElementById('dash-date-to');
+  if (dashFrom && !dashFrom.value) dashFrom.value = today;
+  if (dashTo   && !dashTo.value)   dashTo.value   = today;
+  const tkFrom = document.getElementById('tk-date-from');
+  const tkTo   = document.getElementById('tk-date-to');
+  if (tkFrom && !tkFrom.value) tkFrom.value = today;
+  if (tkTo   && !tkTo.value)   tkTo.value   = today;
   document.getElementById('kpi-month').value =
     `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
 }
@@ -2057,15 +2930,48 @@ function hideLoginOverlay() {
   document.getElementById('nav-user-info').style.display = 'flex';
 }
 
+function isLeadRole() {
+  return currentUser && ['team_lead','manager','admin'].includes(currentUser.role);
+}
 function applyUserContext() {
   if (!currentUser) return;
-  const roleLabel = {staff:'Staff',team_lead:'Team Lead',manager:'Manager',admin:'Admin'};
+  const role = currentUser.role;
+  const roleLabel = { staff:'Staff', team_lead:'Team Lead', manager:'Manager', admin:'Admin' };
   document.getElementById('nav-display-name').textContent = currentUser.name || currentUser.username;
-  document.getElementById('nav-display-role').textContent = roleLabel[currentUser.role] || currentUser.role;
+  document.getElementById('nav-display-role').textContent = roleLabel[role] || role;
 
-  // Show Users tab only for managers/admins
-  const isManager = ['manager','admin','team_lead'].includes(currentUser.role);
+  const isAdmin   = role === 'admin';
+  const isManager = ['manager','admin'].includes(role);
+  const isLead    = ['team_lead','manager','admin'].includes(role);
+
+  // Nav: Users tab — manager/admin only
   document.getElementById('nav-btn-users').style.display = isManager ? '' : 'none';
+
+  // Schedule: hide "+ กำหนดกะ" and "AI แนะนำกะ" for staff
+  const addShiftBtn  = document.getElementById('btn-add-shift');
+  const aiShiftsBtn  = document.getElementById('btn-ai-shifts');
+  if (addShiftBtn)  addShiftBtn.style.display  = isLead ? '' : 'none';
+  if (aiShiftsBtn)  aiShiftsBtn.style.display  = isLead ? '' : 'none';
+
+  // Dashboard scope badge
+  const badge = document.getElementById('dash-scope-badge');
+  if (badge) {
+    if (role === 'staff') {
+      badge.textContent = `👤 งานของฉัน`;
+      badge.style.display = '';
+      badge.style.background = '#f0fdf4'; badge.style.color = '#15803d';
+    } else if (role === 'team_lead') {
+      badge.textContent = `👥 ทีม: ${currentUser.team || '—'}`;
+      badge.style.display = '';
+      badge.style.background = '#dbeafe'; badge.style.color = '#1e40af';
+    } else if (isAdmin) {
+      badge.textContent = '🔑 Admin';
+      badge.style.display = '';
+      badge.style.background = '#fef2f2'; badge.style.color = '#b91c1c';
+    } else {
+      badge.style.display = 'none';
+    }
+  }
 }
 
 async function tryAutoLogin() {
@@ -2081,6 +2987,7 @@ async function tryAutoLogin() {
     await Promise.all([loadEmployees(), loadTeams(), refreshNameMap()]);
     initKpiMonthFilter();
     initDateDefaults();
+    loadTarget();
     loadDashboard();
     loadDashboardCharts();
     setInterval(updateClock, 1000);
@@ -2117,6 +3024,7 @@ async function doLogin() {
     await Promise.all([loadEmployees(), loadTeams(), refreshNameMap()]);
     initKpiMonthFilter();
     initDateDefaults();
+    loadTarget();
     loadDashboard();
     loadDashboardCharts();
   } catch (e) {
@@ -2148,6 +3056,9 @@ function refreshTeamDropdowns() {
   // Ticket team filter
   const tkTeam = document.getElementById('tk-filter-team');
   if (tkTeam) { const v=tkTeam.value; tkTeam.innerHTML = optsAll; tkTeam.value = v; }
+  // Dashboard team filter
+  const dashTeam = document.getElementById('dash-filter-team');
+  if (dashTeam) { const v=dashTeam.value; dashTeam.innerHTML = optsAll; dashTeam.value = v; }
   // KPI team filter
   const kpiTeam = document.getElementById('kpi-filter-team');
   if (kpiTeam) { const v=kpiTeam.value; kpiTeam.innerHTML = optsAll; kpiTeam.value = v; }
@@ -2168,12 +3079,11 @@ async function loadTeamsTab() {
       <td><b>${t.display_name}</b></td>
       <td><span style="display:inline-block;width:18px;height:18px;border-radius:4px;background:${t.color};vertical-align:middle;margin-right:.4rem"></span>${t.color}</td>
       <td>${t.sort_order}</td>
+      <td><span class="badge" style="background:${t.active?'#dcfce7':'#f1f5f9'};color:${t.active?'#15803d':'#64748b'}">${t.active?'ใช้งาน':'ปิดใช้'}</span></td>
       <td>
-        <div class="btn-group">
-          <button class="btn btn-ghost btn-sm" onclick="openEditTeam(${JSON.stringify(t).replace(/"/g,'&quot;')})">✏️ แก้ไข</button>
-        </div>
+        <button class="btn btn-ghost btn-sm" onclick="openEditTeam(${JSON.stringify(t).replace(/"/g,'&quot;')})">✏️ แก้ไข</button>
       </td>
-    </tr>`).join('') || '<tr><td colspan="6" class="empty">ยังไม่มีทีม</td></tr>';
+    </tr>`).join('') || '<tr><td colspan="7" class="empty">ยังไม่มีทีม</td></tr>';
 }
 
 function openAddTeam() {
@@ -2567,16 +3477,108 @@ async function sendAiMessage() {
 }
 
 // ── Dashboard AI Insight ───────────────────────────────────
+// ── AI Analysis — SSE streaming ───────────────────────────
+let _aiAbortCtrl = null;
+
 async function loadAiInsight() {
-  const body = document.getElementById('ai-insight-body');
-  body.innerHTML = '<div style="display:flex;align-items:center;gap:.5rem"><div class="ai-spinner"></div> กำลังวิเคราะห์...</div>';
+  const btn      = document.getElementById('ai-run-btn');
+  const statusEl = document.getElementById('ai-status-bar');
+  const bodyEl   = document.getElementById('ai-insight-body');
+  const tagsEl   = document.getElementById('ai-tags');
+  const footerEl = document.getElementById('ai-footer-bar');
+  const tokenEl  = document.getElementById('ai-token-info');
+  const lastEl   = document.getElementById('ai-last-run');
+
+  // Cancel if running
+  if (_aiAbortCtrl) { _aiAbortCtrl.abort(); return; }
+
+  btn.disabled    = true;
+  btn.textContent = '⏳ กำลังวิเคราะห์...';
+  statusEl.textContent  = '🔄 กำลังรวบรวมข้อมูลจากระบบ...';
+  bodyEl.innerHTML      = '';
+  tagsEl.innerHTML      = '';
+  footerEl.style.display = 'none';
+
+  _aiAbortCtrl = new AbortController();
+
   try {
-    const res = await fetch('/api/ai/dashboard-summary');
-    const data = await res.json();
-    body.textContent = data.summary || 'ไม่สามารถวิเคราะห์ได้';
-  } catch {
-    body.textContent = '❌ เกิดข้อผิดพลาด กรุณาลองใหม่';
+    const resp = await fetch('/api/ai-analysis', { signal: _aiAbortCtrl.signal });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: resp.statusText }));
+      bodyEl.innerHTML = `<span style="color:#f87171">❌ ${err.error || 'เกิดข้อผิดพลาด'}</span>`;
+      statusEl.textContent = '';
+      return;
+    }
+
+    const reader  = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '', fullText = '';
+
+    statusEl.textContent = '✍️ AI กำลังวิเคราะห์...';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n');
+      buffer = parts.pop();
+
+      for (const line of parts) {
+        if (!line.startsWith('data: ')) continue;
+        let msg;
+        try { msg = JSON.parse(line.slice(6)); } catch { continue; }
+
+        if (msg.type === 'start') {
+          statusEl.textContent = '✍️ ' + msg.message;
+        } else if (msg.type === 'delta') {
+          fullText += msg.text;
+          bodyEl.innerHTML = _aiFormatText(fullText) + '<span class="ai-cursor"></span>';
+        } else if (msg.type === 'done') {
+          bodyEl.innerHTML    = _aiFormatText(fullText);
+          statusEl.textContent = '✅ วิเคราะห์เสร็จสิ้น';
+          tokenEl.textContent  = `🔢 ${msg.inputTokens} in / ${msg.outputTokens} out tokens`;
+          footerEl.style.display = '';
+          lastEl.textContent     = 'อัปเดต ' + new Date().toLocaleTimeString('th-TH');
+          _aiRenderTags(fullText, tagsEl);
+        } else if (msg.type === 'error') {
+          bodyEl.innerHTML += `<br/><span style="color:#f87171">❌ ${msg.message}</span>`;
+          statusEl.textContent = '⚠️ เกิดข้อผิดพลาดระหว่างการวิเคราะห์';
+        }
+      }
+    }
+  } catch (e) {
+    statusEl.textContent = e.name === 'AbortError' ? '🛑 ยกเลิกการวิเคราะห์' : '❌ ' + e.message;
+  } finally {
+    _aiAbortCtrl    = null;
+    btn.disabled    = false;
+    btn.textContent = '✨ วิเคราะห์อีกครั้ง';
   }
+}
+
+function _aiFormatText(raw) {
+  return raw
+    .replace(/^## (.+)$/gm, '<span class="ai-h">$1</span>')
+    .replace(/^\d+\.\s+(.+)$/gm, '<div class="ai-li">$1</div>')
+    .replace(/^[-*]\s+(.+)$/gm, '<div class="ai-li">$1</div>')
+    .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+    .replace(/\n\n/g, '<div style="height:.35rem"></div>')
+    .replace(/\n/g, '<br/>');
+}
+
+function _aiRenderTags(text, el) {
+  const rules = [
+    { test:/เคสค้าง|overdue|ค้างนาน/i,             cls:'ai-tag-warn', label:'⚠️ มีเคสค้าง' },
+    { test:/เพิ่มขึ้น|สูงขึ้น|มากกว่าเดือนก่อน/i,  cls:'ai-tag-warn', label:'📈 ปริมาณเพิ่ม' },
+    { test:/ลดลง|น้อยกว่าเดือนก่อน/i,               cls:'ai-tag-info', label:'📉 ปริมาณลด' },
+    { test:/ปกติ|เรียบร้อย|ไม่มีปัญหา/i,             cls:'ai-tag-ok',   label:'✅ ภาพรวมปกติ' },
+    { test:/เร่งด่วน|ต้องดำเนินการ|ควรดำเนินการ/i,  cls:'ai-tag-warn', label:'🚨 ต้องเร่งดำเนินการ' },
+    { test:/ขาดแคลน|ไม่เพียงพอ/i,                   cls:'ai-tag-warn', label:'👥 ขาดกำลังคน' },
+    { test:/ผิดปกติ|anomaly|spike/i,                cls:'ai-tag-warn', label:'🔍 พบความผิดปกติ' },
+  ];
+  el.innerHTML = rules.filter(r => r.test.test(text))
+    .map(t => `<span class="ai-tag ${t.cls}">${t.label}</span>`).join('');
 }
 
 // ── AI Shift Suggestion ────────────────────────────────────

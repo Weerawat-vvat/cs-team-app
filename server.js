@@ -38,12 +38,56 @@ function managerRequired(request, res, next) {
   next();
 }
 
+function leadRequired(request, res, next) {
+  if (!['team_lead', 'manager', 'admin'].includes(request.user?.role)) {
+    return res.status(403).json({ error: 'Team lead or above required' });
+  }
+  next();
+}
+
+async function getScopedUsernames(user) {
+  if (!user) return null;
+  if (['manager', 'admin'].includes(user.role)) return undefined; // no restriction
+  if (user.role === 'staff') {
+    return user.ext_username ? [user.ext_username] : null;
+  }
+  if (user.role === 'team_lead') {
+    const rows = (await req()
+      .input('tm', sql.NVarChar, user.team)
+      .query(`SELECT DISTINCT au.ext_username FROM app_users au
+              JOIN employees e ON e.id = au.employee_id
+              WHERE e.team = @tm AND au.active = 1 AND e.active = 1
+                AND au.ext_username IS NOT NULL`)).recordset;
+    return rows.map(r => r.ext_username);
+  }
+  return undefined;
+}
+
+function appendScopeClause(r, scopeUsernames) {
+  if (scopeUsernames === undefined) return '';
+  if (!scopeUsernames || scopeUsernames.length === 0) return ' AND 1=0';
+  if (scopeUsernames.length === 1) {
+    r.input('_su0', sql.NVarChar, scopeUsernames[0]);
+    return ' AND u.UserName = @_su0';
+  }
+  scopeUsernames.forEach((u, i) => r.input(`_su${i}`, sql.NVarChar, u));
+  return ` AND u.UserName IN (${scopeUsernames.map((_, i) => `@_su${i}`).join(',')})`;
+}
+
 // ── Calllog base query (LicenseDB) ───────────────────────
 const CALLLOG_SELECT = `
   SELECT
     cl.CalllogId        AS id,
     cr.CompanyName,
     cl.ReceiveDate      AS opened_at,
+    cl.CloseDate        AS CloseDate,
+    CASE
+      WHEN cl.CloseDate IS NOT NULL AND cl.ReceiveDate IS NOT NULL
+      THEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate)
+      ELSE NULL
+    END                 AS TimeDiff_Minutes,
+    cl.Stars,
+    cl.Comment          AS ticket_comment,
     cl.CalllogDesc      AS description,
     cl.Solution,
     cs.StatusName       AS status,
@@ -272,6 +316,22 @@ app.get('/api/tickets/:id', async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Ticket review: save stars + comment back to LicenseDB ─
+app.patch('/api/tickets/:id/review', authRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
+    const { stars, comment } = request.body;
+    await extReq()
+      .input('id',      sql.Int,      parseInt(request.params.id))
+      .input('stars',   sql.TinyInt,  (stars != null && stars !== '') ? parseInt(stars) : null)
+      .input('comment', sql.NVarChar, comment ?? null)
+      .query(`UPDATE Calllog
+              SET Stars=@stars, Comment=@comment, UpdateDate=GETDATE()
+              WHERE CalllogId=@id`);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/tickets/meta/statuses', async (_, res) => {
   try {
     if (!getExtPool()) return res.json([]);
@@ -305,17 +365,29 @@ app.get('/api/name-map', authRequired, async (_, res) => {
 // ══════════════════════════════════════════════════════════
 //  KPI — คำนวณจาก LicenseDB + comment จาก cs_team
 // ══════════════════════════════════════════════════════════
-app.get('/api/kpi', async (request, res) => {
+app.get('/api/kpi', authRequired, async (request, res) => {
   try {
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
-    const { month } = request.query;
+    const { month, team } = request.query;
     const ym = (month || new Date().toISOString().substring(0, 7));
     const monthStart = ym + '-01';
     const monthEnd   = new Date(new Date(monthStart).setMonth(new Date(monthStart).getMonth() + 1));
-    const kpiRows = await extReq()
-      .input('s', sql.DateTime, new Date(monthStart))
-      .input('e', sql.DateTime, monthEnd)
-      .query(`
+
+    // Resolve RBAC scope + optional team filter
+    let scope = await getScopedUsernames(request.user);
+    if (scope === null) return res.json([]);
+    if (team) {
+      const teamRows = (await req().input('tm', sql.NVarChar, team).query(
+        `SELECT DISTINCT au.ext_username FROM app_users au JOIN employees e ON e.id=au.employee_id
+         WHERE e.team=@tm AND au.active=1 AND e.active=1 AND au.ext_username IS NOT NULL`
+      )).recordset;
+      const teamScope = teamRows.map(r => r.ext_username);
+      scope = scope === undefined ? teamScope : scope.filter(u => teamScope.includes(u));
+    }
+
+    const r = extReq().input('s', sql.DateTime, new Date(monthStart)).input('e', sql.DateTime, monthEnd);
+    const sc = appendScopeClause(r, scope);
+    const kpiRows = await r.query(`
         SELECT
           u.UserName,
           COUNT(cl.CalllogId) AS total_cases,
@@ -323,7 +395,7 @@ app.get('/api/kpi', async (request, res) => {
           MAX(cl.ReceiveDate) AS last_case
         FROM Calllog cl
         INNER JOIN Users u ON u.UserId = cl.SupportId
-        WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e
+        WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e${sc}
         GROUP BY u.UserName, u.UserId
         ORDER BY total_cases DESC
       `);
@@ -344,6 +416,60 @@ app.get('/api/kpi', async (request, res) => {
       recorder_name: commentMap[r.UserName]?.recorder_name || null,
     }));
     res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── KPI Agent Detail drill-down ──────────────────────────
+app.get('/api/kpi/agent-detail', authRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
+    const { username, month } = request.query;
+    if (!username) return res.status(400).json({ error: 'username required' });
+    const ym = month || new Date().toISOString().substring(0, 7);
+    const monthStart = ym + '-01';
+    const monthEnd   = new Date(new Date(monthStart).setMonth(new Date(monthStart).getMonth() + 1));
+
+    const r = extReq()
+      .input('s',  sql.DateTime, new Date(monthStart))
+      .input('e',  sql.DateTime, monthEnd)
+      .input('un', sql.NVarChar, username);
+
+    const [cats, daily, timing] = await Promise.all([
+      // Top categories
+      r.query(`SELECT cl.Subject AS category,
+                      COUNT(*) AS cnt,
+                      AVG(CAST(cl.Stars AS FLOAT)) AS avg_stars
+               FROM Calllog cl
+               INNER JOIN Users u ON u.UserId = cl.SupportId
+               WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e
+                 AND u.UserName = @un
+               GROUP BY cl.Subject
+               ORDER BY cnt DESC`),
+      // Daily trend
+      extReq().input('s', sql.DateTime, new Date(monthStart)).input('e', sql.DateTime, monthEnd)
+        .input('un', sql.NVarChar, username)
+        .query(`SELECT CAST(cl.ReceiveDate AS DATE) AS day, COUNT(*) AS cnt
+                FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
+                WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e AND u.UserName = @un
+                GROUP BY CAST(cl.ReceiveDate AS DATE) ORDER BY day`),
+      // Avg resolution time + stars
+      extReq().input('s', sql.DateTime, new Date(monthStart)).input('e', sql.DateTime, monthEnd)
+        .input('un', sql.NVarChar, username)
+        .query(`SELECT
+                  COUNT(*) AS total,
+                  AVG(CASE WHEN cl.CloseDate IS NOT NULL
+                       THEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate) END) AS avg_minutes,
+                  AVG(CAST(cl.Stars AS FLOAT)) AS avg_stars,
+                  COUNT(CASE WHEN cl.Stars IS NOT NULL THEN 1 END) AS rated_count
+                FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
+                WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e AND u.UserName = @un`)
+    ]);
+
+    res.json({
+      categories:  cats.recordset,
+      dailyTrend:  daily.recordset,
+      summary:     timing.recordset[0] || {}
+    });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -907,53 +1033,96 @@ app.delete('/api/users/:id', authRequired, async (request, res) => {
 // ══════════════════════════════════════════════════════════
 //  DASHBOARD CHARTS — trend + category + agent workload
 // ══════════════════════════════════════════════════════════
-app.get('/api/dashboard/charts', async (_, res) => {
+app.get('/api/dashboard/charts', authRequired, async (request, res) => {
   try {
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
 
+    const { dateFrom, dateTo, team } = request.query;
     const today = new Date().toISOString().split('T')[0];
-    const ms    = today.substring(0, 7) + '-01';
-    const me    = new Date(new Date(ms).setMonth(new Date(ms).getMonth() + 1));
-    const lms   = new Date(new Date(ms).setMonth(new Date(ms).getMonth() - 1));
+    const msStr = dateFrom || (today.substring(0, 7) + '-01');
+    const msDate = new Date(msStr);
+    const meDate = dateTo ? new Date(dateTo + 'T23:59:59') : new Date(new Date(msStr).setMonth(msDate.getMonth() + 1));
 
-    const [dailyTrend, catStats, agentThis, agentLast, agentCat] = await Promise.all([
-      // Daily count — last 60 days
-      extReq().query(`
-        SELECT CAST(cl.ReceiveDate AS DATE) AS day, COUNT(*) AS cnt
-        FROM Calllog cl
-        WHERE cl.ReceiveDate >= DATEADD(day,-60,GETDATE())
-        GROUP BY CAST(cl.ReceiveDate AS DATE) ORDER BY day
-      `),
-      // Cases by category — this month
-      extReq().input('ms', sql.DateTime, new Date(ms)).input('me', sql.DateTime, me).query(`
-        SELECT cl.Subject AS category, COUNT(*) AS cnt
-        FROM Calllog cl
-        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me
-        GROUP BY cl.Subject ORDER BY cnt DESC
-      `),
-      // Agent cases — this month
-      extReq().input('ms', sql.DateTime, new Date(ms)).input('me', sql.DateTime, me).query(`
-        SELECT u.UserName, COUNT(*) AS cnt
+    // Previous period = same duration shifted back (fair comparison)
+    const durationMs  = meDate - msDate;
+    const daysThis    = Math.max(1, Math.ceil(durationMs / 86400000));
+    const prevToDate  = new Date(msDate);                          // exclusive = start of current period
+    const prevFromDate = new Date(msDate.getTime() - durationMs); // shift back by same duration
+
+    // Resolve RBAC scope; apply optional team override
+    let scope = await getScopedUsernames(request.user);
+    if (scope === null) {
+      return res.json({ catStats:[], agentThis:[], agentLast:[], agentCat:[],
+                        dailyTrend:[], hourlyStats:[], dowStats:[], catDailyTrend:[], nameMap:{} });
+    }
+    if (team) {
+      const teamRows = (await req().input('tm', sql.NVarChar, team).query(
+        `SELECT DISTINCT au.ext_username FROM app_users au JOIN employees e ON e.id=au.employee_id
+         WHERE e.team=@tm AND au.active=1 AND e.active=1 AND au.ext_username IS NOT NULL`
+      )).recordset;
+      const teamScope = teamRows.map(r => r.ext_username);
+      // Intersect: if user already has a restricted scope, keep intersection
+      scope = scope === undefined ? teamScope
+            : scope.filter(u => teamScope.includes(u));
+    }
+
+    // Build each request separately so appendScopeClause can bind params independently
+    const mkR = (from, to) => extReq()
+      .input('ms', sql.DateTime, from)
+      .input('me', sql.DateTime, to);
+
+    const r1 = mkR(msDate, meDate);   const sc1 = appendScopeClause(r1, scope);
+    const r2 = mkR(msDate, meDate);   const sc2 = appendScopeClause(r2, scope);
+    const r3 = mkR(msDate, meDate);   const sc3 = appendScopeClause(r3, scope);
+    const r4 = extReq()
+      .input('ms', sql.DateTime, prevFromDate)
+      .input('me', sql.DateTime, prevToDate); const sc4 = appendScopeClause(r4, scope);
+    const r5 = mkR(msDate, meDate);   const sc5 = appendScopeClause(r5, scope);
+    const r6 = mkR(msDate, meDate);   const sc6 = appendScopeClause(r6, scope);
+    const r7 = mkR(msDate, meDate);   const sc7 = appendScopeClause(r7, scope);
+    const r8 = mkR(msDate, meDate);   const sc8 = appendScopeClause(r8, scope);
+
+    const [d1, d2, d3, d4, d5, d6, d7, d8] = await Promise.all([
+      // Daily trend
+      r1.query(`SELECT CAST(cl.ReceiveDate AS DATE) AS day, COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
-        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me
-        GROUP BY u.UserName ORDER BY cnt DESC
-      `),
-      // Agent cases — last month
-      extReq().input('lms', sql.DateTime, lms).input('lme', sql.DateTime, new Date(ms)).query(`
-        SELECT u.UserName, COUNT(*) AS cnt
+        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc1}
+        GROUP BY CAST(cl.ReceiveDate AS DATE) ORDER BY day`),
+      // Category stats
+      r2.query(`SELECT cl.Subject AS category, COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
-        WHERE cl.ReceiveDate >= @lms AND cl.ReceiveDate < @lme
-        GROUP BY u.UserName
-      `),
-      // Agent × category — this month (for difficulty breakdown)
-      extReq().input('ms', sql.DateTime, new Date(ms)).input('me', sql.DateTime, me).query(`
-        SELECT TOP 300
-          u.UserName, cl.Subject AS category, COUNT(*) AS cnt
-        FROM Calllog cl
-        INNER JOIN Users u ON u.UserId = cl.SupportId
-        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me
-        GROUP BY u.UserName, cl.Subject ORDER BY u.UserName, cnt DESC
-      `)
+        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc2}
+        GROUP BY cl.Subject ORDER BY cnt DESC`),
+      // Agent cases — this period
+      r3.query(`SELECT u.UserName, COUNT(*) AS cnt
+        FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
+        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc3}
+        GROUP BY u.UserName ORDER BY cnt DESC`),
+      // Agent cases — previous period
+      r4.query(`SELECT u.UserName, COUNT(*) AS cnt
+        FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
+        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc4}
+        GROUP BY u.UserName`),
+      // Agent × category
+      r5.query(`SELECT TOP 300 u.UserName, cl.Subject AS category, COUNT(*) AS cnt
+        FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
+        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc5}
+        GROUP BY u.UserName, cl.Subject ORDER BY u.UserName, cnt DESC`),
+      // Hourly distribution
+      r6.query(`SELECT DATEPART(hour, cl.ReceiveDate) AS hr, COUNT(*) AS cnt
+        FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
+        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc6}
+        GROUP BY DATEPART(hour, cl.ReceiveDate) ORDER BY hr`),
+      // Day-of-week distribution
+      r7.query(`SELECT DATEPART(weekday, cl.ReceiveDate) AS dow, COUNT(*) AS cnt
+        FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
+        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc7}
+        GROUP BY DATEPART(weekday, cl.ReceiveDate) ORDER BY dow`),
+      // Category daily trend (top cats over time)
+      r8.query(`SELECT TOP 500 CAST(cl.ReceiveDate AS DATE) AS day, cl.Subject AS cat, COUNT(*) AS cnt
+        FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
+        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc8}
+        GROUP BY CAST(cl.ReceiveDate AS DATE), cl.Subject ORDER BY day, cnt DESC`),
     ]);
 
     // Build ext_username → employee name map
@@ -965,15 +1134,185 @@ app.get('/api/dashboard/charts', async (_, res) => {
     const nameMap = {};
     nameMapRows.forEach(r => { nameMap[r.ext_username] = r.name; });
 
+    const fmt = d => d.toISOString().split('T')[0];
     res.json({
-      dailyTrend:  dailyTrend.recordset,
-      catStats:    catStats.recordset,
-      agentThis:   agentThis.recordset,
-      agentLast:   agentLast.recordset,
-      agentCat:    agentCat.recordset,
-      nameMap
+      dailyTrend:    d1.recordset,
+      catStats:      d2.recordset,
+      agentThis:     d3.recordset,
+      agentLast:     d4.recordset,
+      agentCat:      d5.recordset,
+      hourlyStats:   d6.recordset,
+      dowStats:      d7.recordset,
+      catDailyTrend: d8.recordset,
+      nameMap,
+      daysThis,
+      daysPrev:  daysThis,             // same duration
+      thisFrom:  msStr,
+      thisTo:    fmt(new Date(meDate.getTime() - 1)),
+      prevFrom:  fmt(prevFromDate),
+      prevTo:    fmt(new Date(prevToDate.getTime() - 1)),
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════
+//  AI ANALYSIS — SSE streaming (real-time situation analysis)
+// ══════════════════════════════════════════════════════════
+app.get('/api/ai-analysis', async (_, res) => {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.status(503).json({ error: 'ANTHROPIC_API_KEY ยังไม่ได้ตั้งค่าใน .env' });
+  }
+
+  // ── SSE headers
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const send = (type, payload = {}) =>
+    res.write(`data: ${JSON.stringify({ type, ...payload })}\n\n`);
+
+  try {
+    const now   = new Date();
+    const today = now.toISOString().split('T')[0];
+    const ext   = getExtPool();
+
+    let snap = {
+      date: today,
+      time: now.toLocaleTimeString('th-TH'),
+      extConnected: !!ext,
+    };
+
+    if (ext) {
+      // Today's tickets by status
+      const todayRows = (await extReq()
+        .input('today', sql.Date, today)
+        .query(`SELECT cs.StatusName AS status, COUNT(*) AS cnt
+                FROM Calllog cl INNER JOIN CallStatus cs ON cs.StatusId=cl.StatusId
+                WHERE CAST(cl.ReceiveDate AS DATE)=@today
+                GROUP BY cs.StatusName`)).recordset;
+
+      // Overdue count (open > 24h)
+      const overdueCount = (await extReq()
+        .query(`SELECT COUNT(*) AS cnt FROM Calllog cl
+                INNER JOIN CallStatus cs ON cs.StatusId=cl.StatusId
+                WHERE cl.ReceiveDate >= '2026-01-01'
+                  AND cl.ReceiveDate <= DATEADD(hour,-24,GETDATE())
+                  AND cs.StatusName NOT LIKE '%close%'
+                  AND cs.StatusName NOT LIKE '%ปิด%'
+                  AND cs.StatusName NOT LIKE '%complete%'`)).recordset[0]?.cnt || 0;
+
+      // Month totals (this month vs last month)
+      const ms  = today.substring(0,7) + '-01';
+      const me  = new Date(new Date(ms).setMonth(new Date(ms).getMonth()+1));
+      const lms = (() => { const d=new Date(ms); d.setMonth(d.getMonth()-1); return d.toISOString().split('T')[0].substring(0,7)+'-01'; })();
+      const lme = new Date(ms);
+
+      const monthTotal = (await extReq()
+        .input('ms', sql.DateTime, new Date(ms)).input('me', sql.DateTime, me)
+        .query(`SELECT COUNT(*) AS cnt FROM Calllog cl
+                WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me`)).recordset[0]?.cnt || 0;
+
+      const lastMonthTotal = (await extReq()
+        .input('lms', sql.DateTime, new Date(lms)).input('lme', sql.DateTime, lme)
+        .query(`SELECT COUNT(*) AS cnt FROM Calllog cl
+                WHERE cl.ReceiveDate >= @lms AND cl.ReceiveDate < @lme`)).recordset[0]?.cnt || 0;
+
+      // Top 5 agents this month
+      const topAgents = (await extReq()
+        .input('s', sql.DateTime, new Date(ms)).input('e', sql.DateTime, me)
+        .query(`SELECT TOP 5 u.UserName, COUNT(cl.CalllogId) AS total_cases
+                FROM Calllog cl INNER JOIN Users u ON u.UserId=cl.SupportId
+                WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e
+                GROUP BY u.UserName ORDER BY total_cases DESC`)).recordset;
+
+      snap = {
+        ...snap,
+        todayTotal: todayRows.reduce((a,r)=>a+r.cnt, 0),
+        todayByStatus: todayRows,
+        overdueCount,
+        monthTotal,
+        lastMonthTotal,
+        monthChangePercent: lastMonthTotal > 0 ? Math.round(((monthTotal-lastMonthTotal)/lastMonthTotal)*100) : null,
+        topAgentsThisMonth: topAgents,
+      };
+    }
+
+    // On-shift employees
+    const hour    = now.getHours(), minute = now.getMinutes();
+    const timeVal = hour * 60 + minute;
+    const curShifts = [];
+    if (timeVal >= 8*60+30  && timeVal <= 16*60+30) curShifts.push('morning');
+    if (timeVal >= 15*60+30 && timeVal <= 23*60+30) curShifts.push('afternoon');
+    if (timeVal >= 16*60   || timeVal <= 0)          curShifts.push('night');
+    if (!curShifts.length) curShifts.push('morning');
+
+    const shiftIn  = curShifts.map((_,i) => `@st${i}`).join(',');
+    const shiftReq = req().input('today', sql.Date, today);
+    curShifts.forEach((s,i) => shiftReq.input(`st${i}`, sql.NVarChar, s));
+    const onShift = (await shiftReq.query(`
+      SELECT s.shift_type, e.name, e.team
+      FROM shifts s JOIN employees e ON e.id=s.employee_id
+      WHERE s.shift_date=@today AND s.shift_type IN (${shiftIn})
+        AND s.status='scheduled' AND e.active=1`)).recordset;
+
+    const pendingLeaves = (await req()
+      .query(`SELECT COUNT(*) AS cnt FROM leave_requests WHERE status='pending'`))
+      .recordset[0]?.cnt || 0;
+
+    snap = {
+      ...snap,
+      onShiftCount: onShift.length,
+      onShiftByTeam: onShift.reduce((a,e)=>{ a[e.team]=(a[e.team]||0)+1; return a; }, {}),
+      pendingLeaveRequests: pendingLeaves,
+    };
+
+    // ── Build prompt & stream ─────────────────────────────
+    const prompt = `คุณคือ "CS Assistant" ผู้ช่วย AI ของผู้จัดการทีม Customer Service
+วันที่: ${snap.date}  เวลา: ${snap.time}
+
+สถานะปัจจุบัน:
+${JSON.stringify(snap, null, 2)}
+
+กรุณาวิเคราะห์และรายงานเป็นภาษาไทย ในรูปแบบต่อไปนี้ (ห้ามออกนอกหัวข้อที่กำหนด):
+
+## 🌅 สรุปสถานการณ์วันนี้
+[2-3 ประโยค ภาพรวมสิ่งที่เกิดขึ้น]
+
+## ⚠️ จุดที่ต้องระวัง
+[สิ่งที่น่ากังวล เช่น เคสค้างนาน, ปริมาณงานสูง, ขาดแคลนพนักงาน]
+
+## 🔍 ความผิดปกติที่ตรวจพบ
+[ความผิดปกติในข้อมูล เช่น การกระจายเคสไม่สม่ำเสมอ, หมวดหมู่พุ่งขึ้นผิดปกติ]
+
+## 💡 คำแนะนำสำหรับผู้จัดการ
+[การกระทำที่แนะนำ 2-3 ข้อ ระบุเป็นข้อๆ]`;
+
+    send('start', { message: 'กำลังส่งข้อมูลให้ AI วิเคราะห์...' });
+
+    const stream = claude.messages.stream({
+      model:      AI_MODEL,
+      max_tokens: 1024,
+      messages:   [{ role: 'user', content: prompt }],
+    });
+
+    for await (const chunk of stream) {
+      if (chunk.type === 'content_block_delta' && chunk.delta?.type === 'text_delta') {
+        send('delta', { text: chunk.delta.text });
+      }
+    }
+
+    const final = await stream.finalMessage();
+    send('done', {
+      inputTokens:  final.usage.input_tokens,
+      outputTokens: final.usage.output_tokens,
+    });
+
+  } catch (err) {
+    send('error', { message: err.message });
+  } finally {
+    res.end();
+  }
 });
 
 // ── Start ─────────────────────────────────────────────────
