@@ -107,22 +107,33 @@ const CALLLOG_SELECT = `
 // ══════════════════════════════════════════════════════════
 //  EMPLOYEES (cs_team)
 // ══════════════════════════════════════════════════════════
-app.get('/api/employees', async (request, res) => {
+app.get('/api/employees', authRequired, async (request, res) => {
   try {
     const { team, include_inactive } = request.query;
+    const role = request.user?.role;
     const r = req();
     let q = `SELECT id, name, nickname, team, role, phone, start_date, active, created_at
              FROM employees`;
     const conds = [];
     if (!include_inactive) conds.push('active=1');
-    if (team) { conds.push('team=@team'); r.input('team', sql.NVarChar, team); }
+    // staff: only see themselves
+    if (role === 'staff') {
+      conds.push('id=@myEmpId');
+      r.input('myEmpId', sql.Int, request.user.employee_id || 0);
+    } else if (role === 'team_lead') {
+      // team_lead: only their team
+      conds.push('team=@myTeam');
+      r.input('myTeam', sql.NVarChar, request.user.team || '');
+    } else if (team) {
+      conds.push('team=@team'); r.input('team', sql.NVarChar, team);
+    }
     if (conds.length) q += ' WHERE ' + conds.join(' AND ');
     q += ' ORDER BY team, role DESC, id';
     res.json((await r.query(q)).recordset);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/employees', async (request, res) => {
+app.post('/api/employees', authRequired, managerRequired, async (request, res) => {
   try {
     const { name, nickname, team, role, phone, start_date } = request.body;
     const result = await req()
@@ -138,7 +149,7 @@ app.post('/api/employees', async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.put('/api/employees/:id', async (request, res) => {
+app.put('/api/employees/:id', authRequired, managerRequired, async (request, res) => {
   try {
     const { name, nickname, team, role, phone, start_date, active } = request.body;
     await req()
@@ -158,7 +169,7 @@ app.put('/api/employees/:id', async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.delete('/api/employees/:id', async (request, res) => {
+app.delete('/api/employees/:id', authRequired, managerRequired, async (request, res) => {
   try {
     await req()
       .input('id', sql.Int, request.params.id)
@@ -177,9 +188,10 @@ function getMonday(dateStr) {
   return d.toISOString().split('T')[0];
 }
 
-app.get('/api/shifts', async (request, res) => {
+app.get('/api/shifts', authRequired, async (request, res) => {
   try {
     const { week_start, team } = request.query;
+    const role = request.user?.role;
     const startDate = getMonday(week_start);
     const endD = new Date(startDate); endD.setDate(endD.getDate() + 6);
     const endDate = endD.toISOString().split('T')[0];
@@ -187,7 +199,15 @@ app.get('/api/shifts', async (request, res) => {
     let q = `SELECT s.*, e.name, e.team, e.role
              FROM shifts s JOIN employees e ON e.id=s.employee_id
              WHERE e.active=1 AND s.shift_date BETWEEN @s AND @e`;
-    if (team) { q += ' AND e.team=@team'; r.input('team', sql.NVarChar, team); }
+    if (role === 'staff') {
+      q += ' AND e.id=@myEmpId';
+      r.input('myEmpId', sql.Int, request.user.employee_id || 0);
+    } else if (role === 'team_lead') {
+      q += ' AND e.team=@myTeam';
+      r.input('myTeam', sql.NVarChar, request.user.team || '');
+    } else if (team) {
+      q += ' AND e.team=@team'; r.input('team', sql.NVarChar, team);
+    }
     q += ' ORDER BY s.shift_date, e.team, s.shift_type, e.id';
     res.json((await r.query(q)).recordset);
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -272,7 +292,7 @@ app.delete('/api/shifts', authRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.get('/api/shifts/coverage', async (request, res) => {
+app.get('/api/shifts/coverage', authRequired, async (request, res) => {
   try {
     const startDate = getMonday(request.query.week_start);
     const endD = new Date(startDate); endD.setDate(endD.getDate() + 6);
@@ -290,19 +310,30 @@ app.get('/api/shifts/coverage', async (request, res) => {
 // ══════════════════════════════════════════════════════════
 //  LEAVE REQUESTS (cs_team)
 // ══════════════════════════════════════════════════════════
-app.get('/api/leave-requests', async (_, res) => {
+app.get('/api/leave-requests', authRequired, async (request, res) => {
   try {
-    const result = await req().query(`
+    const role = request.user?.role;
+    const r = req();
+    let where = '';
+    if (role === 'staff') {
+      where = ' WHERE lr.employee_id=@myEmpId';
+      r.input('myEmpId', sql.Int, request.user.employee_id || 0);
+    } else if (role === 'team_lead') {
+      where = ' WHERE e.team=@myTeam';
+      r.input('myTeam', sql.NVarChar, request.user.team || '');
+    }
+    const result = await r.query(`
       SELECT lr.*, e.name AS emp_name, e.team, a.name AS approver_name
       FROM leave_requests lr
       JOIN employees e ON e.id=lr.employee_id
       LEFT JOIN employees a ON a.id=lr.approved_by
+      ${where}
       ORDER BY lr.created_at DESC`);
     res.json(result.recordset);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/leave-requests', async (request, res) => {
+app.post('/api/leave-requests', authRequired, async (request, res) => {
   try {
     const { employee_id, leave_date, reason } = request.body;
     const result = await req()
@@ -313,7 +344,7 @@ app.post('/api/leave-requests', async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.put('/api/leave-requests/:id/approve', async (request, res) => {
+app.put('/api/leave-requests/:id/approve', authRequired, async (request, res) => {
   try {
     const { approved_by } = request.body;
     const lr = (await req().input('id', sql.Int, request.params.id)
@@ -327,7 +358,7 @@ app.put('/api/leave-requests/:id/approve', async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.put('/api/leave-requests/:id/reject', async (request, res) => {
+app.put('/api/leave-requests/:id/reject', authRequired, async (request, res) => {
   try {
     await req().input('by', sql.Int, request.body.approved_by).input('id', sql.Int, request.params.id)
       .query("UPDATE leave_requests SET status='rejected',approved_by=@by WHERE id=@id");
@@ -536,7 +567,7 @@ app.get('/api/kpi/agent-detail', authRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/kpi/comment', async (request, res) => {
+app.post('/api/kpi/comment', authRequired, async (request, res) => {
   try {
     const { ext_username, month, comment, recorded_by } = request.body;
     const monthDate = month + '-01';
@@ -563,23 +594,38 @@ app.post('/api/kpi/comment', async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.get('/api/kpi/history', async (request, res) => {
+app.get('/api/kpi/history', authRequired, async (request, res) => {
   try {
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
     const { months = 6 } = request.query;
-    const result = await extReq()
-      .input('months', sql.Int, parseInt(months))
-      .query(`
-        SELECT
-          FORMAT(cl.ReceiveDate,'yyyy-MM') AS month,
-          u.UserName,
-          COUNT(cl.CalllogId) AS total_cases
-        FROM Calllog cl
-        INNER JOIN Users u ON u.UserId = cl.SupportId
-        WHERE cl.ReceiveDate >= '2026-01-01'
-        GROUP BY FORMAT(cl.ReceiveDate,'yyyy-MM'), u.UserName
-        ORDER BY month, total_cases DESC
-      `);
+    const role = request.user?.role;
+    let scopeClause = '';
+    const r = extReq().input('months', sql.Int, parseInt(months));
+    if (role === 'staff') {
+      if (!request.user.ext_username) return res.json([]);
+      r.input('_ku0', sql.NVarChar, request.user.ext_username);
+      scopeClause = ' AND u.UserName = @_ku0';
+    } else if (role === 'team_lead') {
+      const rows = (await req().input('tm', sql.NVarChar, request.user.team || '')
+        .query(`SELECT DISTINCT au.ext_username FROM app_users au
+                JOIN employees e ON e.id=au.employee_id
+                WHERE e.team=@tm AND au.active=1 AND e.active=1 AND au.ext_username IS NOT NULL`)).recordset;
+      const names = rows.map(r => r.ext_username);
+      if (names.length === 0) return res.json([]);
+      names.forEach((u, i) => r.input(`_ku${i}`, sql.NVarChar, u));
+      scopeClause = ` AND u.UserName IN (${names.map((_, i) => `@_ku${i}`).join(',')})`;
+    }
+    const result = await r.query(`
+      SELECT
+        FORMAT(cl.ReceiveDate,'yyyy-MM') AS month,
+        u.UserName,
+        COUNT(cl.CalllogId) AS total_cases
+      FROM Calllog cl
+      INNER JOIN Users u ON u.UserId = cl.SupportId
+      WHERE cl.ReceiveDate >= '2026-01-01'${scopeClause}
+      GROUP BY FORMAT(cl.ReceiveDate,'yyyy-MM'), u.UserName
+      ORDER BY month, total_cases DESC
+    `);
     res.json(result.recordset);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -587,7 +633,7 @@ app.get('/api/kpi/history', async (request, res) => {
 // ══════════════════════════════════════════════════════════
 //  DASHBOARD — Calllog (LicenseDB) + shifts/leaves (cs_team)
 // ══════════════════════════════════════════════════════════
-app.get('/api/dashboard', async (_, res) => {
+app.get('/api/dashboard', authRequired, async (_, res) => {
   try {
     const now     = new Date();
     const today   = now.toISOString().split('T')[0];
@@ -793,7 +839,7 @@ async function getDashboardContext() {
 // ══════════════════════════════════════════════════════════
 
 // ── 1. AI Chat ─────────────────────────────────────────────
-app.post('/api/ai/chat', async (request, res) => {
+app.post('/api/ai/chat', authRequired, async (request, res) => {
   const { message, history = [] } = request.body;
   if (!message) return res.status(400).json({ error: 'message required' });
   try {
@@ -819,7 +865,7 @@ app.post('/api/ai/chat', async (request, res) => {
 });
 
 // ── 2. Dashboard AI Summary ────────────────────────────────
-app.get('/api/ai/dashboard-summary', async (_, res) => {
+app.get('/api/ai/dashboard-summary', authRequired, async (_, res) => {
   try {
     const context = await getDashboardContext();
     const prompt = `วิเคราะห์สถานการณ์ปัจจุบันของทีม Customer Service จากข้อมูลนี้:
@@ -845,7 +891,7 @@ ${context}
 });
 
 // ── 3. AI Suggest Shifts ───────────────────────────────────
-app.post('/api/ai/suggest-shifts', async (request, res) => {
+app.post('/api/ai/suggest-shifts', authRequired, async (request, res) => {
   const { week_start, team } = request.body;
   try {
     const startDate = getMonday(week_start);
@@ -896,7 +942,7 @@ ${JSON.stringify(approvedLeaves, null, 2)}
 });
 
 // ── 4. AI KPI Forecast ─────────────────────────────────────
-app.get('/api/ai/forecast-kpi', async (request, res) => {
+app.get('/api/ai/forecast-kpi', authRequired, async (request, res) => {
   try {
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
     const { months = 3 } = request.query;
@@ -935,7 +981,7 @@ ${JSON.stringify(history, null, 2)}
 // ══════════════════════════════════════════════════════════
 //  TEAMS (cs_team)
 // ══════════════════════════════════════════════════════════
-app.get('/api/teams', async (request, res) => {
+app.get('/api/teams', authRequired, async (request, res) => {
   try {
     const result = await req().query(
       'SELECT * FROM teams WHERE active=1 ORDER BY sort_order, display_name'
@@ -944,7 +990,7 @@ app.get('/api/teams', async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/teams', async (request, res) => {
+app.post('/api/teams', authRequired, managerRequired, async (request, res) => {
   const { name, display_name, color, sort_order } = request.body;
   if (!name || !display_name) return res.status(400).json({ error: 'name and display_name required' });
   try {
@@ -959,7 +1005,7 @@ app.post('/api/teams', async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.put('/api/teams/:id', async (request, res) => {
+app.put('/api/teams/:id', authRequired, managerRequired, async (request, res) => {
   const { name, display_name, color, sort_order, active } = request.body;
   try {
     await req()
@@ -975,7 +1021,7 @@ app.put('/api/teams/:id', async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.delete('/api/teams/:id', async (request, res) => {
+app.delete('/api/teams/:id', authRequired, managerRequired, async (request, res) => {
   try {
     await req().input('id', sql.Int, request.params.id)
       .query('UPDATE teams SET active=0 WHERE id=@id');
@@ -1229,7 +1275,7 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
 // ══════════════════════════════════════════════════════════
 //  AI ANALYSIS — SSE streaming (real-time situation analysis)
 // ══════════════════════════════════════════════════════════
-app.get('/api/ai-analysis', async (_, res) => {
+app.get('/api/ai-analysis', authRequired, async (_, res) => {
   if (!process.env.ANTHROPIC_API_KEY) {
     return res.status(503).json({ error: 'ANTHROPIC_API_KEY ยังไม่ได้ตั้งค่าใน .env' });
   }

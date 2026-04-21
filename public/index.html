@@ -3013,11 +3013,23 @@ function applyUserContext() {
   // Nav: Users tab — manager/admin only
   document.getElementById('nav-btn-users').style.display = isManager ? '' : 'none';
 
-  // Schedule: hide "+ กำหนดกะ" and "AI แนะนำกะ" for staff
-  const addShiftBtn  = document.getElementById('btn-add-shift');
-  const aiShiftsBtn  = document.getElementById('btn-ai-shifts');
-  if (addShiftBtn)  addShiftBtn.style.display  = isLead ? '' : 'none';
-  if (aiShiftsBtn)  aiShiftsBtn.style.display  = isLead ? '' : 'none';
+  // Schedule: hide edit buttons for staff
+  const addShiftBtn   = document.getElementById('btn-add-shift');
+  const aiShiftsBtn   = document.getElementById('btn-ai-shifts');
+  const clearShiftBtn = document.querySelector('button[onclick="clearWeekShifts()"]');
+  if (addShiftBtn)   addShiftBtn.style.display   = isLead ? '' : 'none';
+  if (aiShiftsBtn)   aiShiftsBtn.style.display   = isLead ? '' : 'none';
+  if (clearShiftBtn) clearShiftBtn.style.display  = isLead ? '' : 'none';
+
+  // Staff: hide team filter dropdowns across all pages
+  if (role === 'staff') {
+    ['dash-filter-team','tk-filter-team','kpi-filter-team'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.closest('label,span,div.page-datebar > label')?.parentElement
+               ? (el.style.display = 'none', el.previousElementSibling?.style && (el.previousElementSibling.style.display = 'none'))
+               : (el.style.display = 'none');
+    });
+  }
 
   // Dashboard scope badge
   const badge = document.getElementById('dash-scope-badge');
