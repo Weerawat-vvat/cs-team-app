@@ -1417,6 +1417,7 @@ async function api(path, opts = {}) {
   const data = await res.json();
   if (!res.ok) {
     const msg = data?.error || `Error ${res.status}`;
+    if (opts.silent) return { error: msg }; // let caller handle
     alert('❌ ' + msg);
     throw new Error(msg);
   }
@@ -2319,14 +2320,18 @@ function editShiftModal(id, type, status) {
 }
 
 async function saveShift() {
-  await api('/api/shifts', {
-    method:'POST',
+  const res = await api('/api/shifts', {
+    method:'POST', silent: true,
     body: {
       employee_id: document.getElementById('s-emp').value,
       shift_type:  document.getElementById('s-type').value,
       shift_date:  document.getElementById('s-date').value
     }
   });
+  if (res && res.error) {
+    showToast('❌ ' + res.error, 'error');
+    return;
+  }
   closeModal('modal-add-shift');
   loadSchedule();
 }

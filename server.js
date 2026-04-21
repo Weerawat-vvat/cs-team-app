@@ -196,6 +196,33 @@ app.get('/api/shifts', async (request, res) => {
 app.post('/api/shifts', async (request, res) => {
   try {
     const { employee_id, shift_type, shift_date } = request.body;
+
+    // Check if this date already has a shift (upsert: delete first, then insert = no extra day)
+    const existing = await req().input('eid', sql.Int, employee_id).input('date', sql.Date, shift_date)
+      .query('SELECT id FROM shifts WHERE employee_id=@eid AND shift_date=@date AND status NOT IN (\'leave\',\'approved_leave\')');
+    const isReplace = existing.recordset.length > 0;
+
+    if (!isReplace) {
+      // Count non-leave shifts this week (Mon–Sun of shift_date)
+      const d = new Date(shift_date);
+      const day = d.getDay(); // 0=Sun
+      const diffToMon = (day === 0 ? -6 : 1 - day);
+      const weekStart = new Date(d); weekStart.setDate(d.getDate() + diffToMon);
+      const weekEnd   = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
+      const countRes = await req()
+        .input('eid2', sql.Int, employee_id)
+        .input('ws',   sql.Date, weekStart.toISOString().split('T')[0])
+        .input('we',   sql.Date, weekEnd.toISOString().split('T')[0])
+        .query(`SELECT COUNT(*) AS cnt FROM shifts
+                WHERE employee_id=@eid2
+                  AND shift_date >= @ws AND shift_date <= @we
+                  AND status NOT IN ('leave','approved_leave')`);
+      const weekShifts = countRes.recordset[0].cnt;
+      if (weekShifts >= 5) {
+        return res.status(400).json({ error: `พนักงานมีกะครบ 5 วันแล้วในสัปดาห์นี้` });
+      }
+    }
+
     await req().input('eid', sql.Int, employee_id).input('date', sql.Date, shift_date)
       .query('DELETE FROM shifts WHERE employee_id=@eid AND shift_date=@date');
     const result = await req()
