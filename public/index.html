@@ -2455,6 +2455,9 @@ function renderTickets() {
   const lbl = document.getElementById('tk-count-label');
   if (lbl) lbl.textContent = `แสดง ${filtered.length} จาก ${allTickets.length} เคส`;
 
+  // Sort newest → oldest
+  filtered.sort((a, b) => new Date(b.opened_at) - new Date(a.opened_at));
+
   const tbody = document.getElementById('ticket-tbody');
   if (filtered.length === 0) {
     tbody.innerHTML = '<tr><td colspan="10" class="empty"><div class="icon">🎫</div>ไม่พบเคส</td></tr>';
