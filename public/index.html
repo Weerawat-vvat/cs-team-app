@@ -1971,35 +1971,42 @@ async function loadDashboardCharts() {
     const top5cats = catStats.slice(0, 5).map(r => r.category);
     // All unique days
     const allDays  = [...new Set(catDailyTrend.map(r => r.day))].sort();
-    // Build lookup: cat → day → cnt
+    // Build lookup: cat → day → cnt  (SQL returns field 'cat' not 'category')
     const lookup   = {};
     catDailyTrend.forEach(r => {
-      if (!lookup[r.category]) lookup[r.category] = {};
-      lookup[r.category][r.day] = r.cnt;
+      const key = r.cat || r.category || '';
+      if (!lookup[key]) lookup[key] = {};
+      // Normalize day to YYYY-MM-DD string for consistent lookup
+      const dayKey = typeof r.day === 'string' ? r.day.substring(0, 10) : new Date(r.day).toISOString().substring(0, 10);
+      lookup[key][dayKey] = r.cnt;
     });
+    // Format day keys consistently
+    const dayKeys   = allDays.map(d => typeof d === 'string' ? d.substring(0, 10) : new Date(d).toISOString().substring(0, 10));
+    const dayLabels = dayKeys.map(d => new Date(d + 'T12:00:00').toLocaleDateString('th-TH', {day:'numeric', month:'short'}));
     const catColors = ['#38bdf8','#818cf8','#34d399','#fb923c','#f472b6'];
     const catDatasets = top5cats.map((cat, i) => ({
       label: cat || 'อื่นๆ',
-      data: allDays.map(d => lookup[cat]?.[d] || 0),
+      data: dayKeys.map(d => lookup[cat]?.[d] || 0),
       borderColor: catColors[i],
       backgroundColor: catColors[i] + '22',
       borderWidth: 2,
-      pointRadius: allDays.length > 30 ? 0 : 2,
+      pointRadius: allDays.length > 30 ? 0 : 3,
       tension: 0.3,
       fill: false
     }));
     dashCharts.catTrend = new Chart(ctxCatTrend, {
       type: 'line',
-      data: { labels: allDays, datasets: catDatasets },
+      data: { labels: dayLabels, datasets: catDatasets },
       options: {
         responsive: true,
         interaction: { mode: 'index', intersect: false },
         plugins: {
-          legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 10 } }
+          legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 10 } },
+          tooltip: { callbacks: { title: ctx => dayLabels[ctx[0].dataIndex] } }
         },
         scales: {
-          x: { ticks: { color: '#64748b', font: { size: 9 }, maxTicksLimit: 10 }, grid: { color: '#e2e8f0' } },
-          y: { beginAtZero: true, ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#e2e8f0' } }
+          x: { ticks: { color: '#64748b', font: { size: 9 }, maxTicksLimit: 14 }, grid: { color: '#e2e8f0' } },
+          y: { beginAtZero: true, ticks: { color: '#64748b', font: { size: 10 }, precision: 0 }, grid: { color: '#e2e8f0' } }
         }
       }
     });
