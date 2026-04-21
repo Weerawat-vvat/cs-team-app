@@ -1343,8 +1343,14 @@ function getMondayOfDate(date) {
   d.setDate(d.getDate() + diff);
   return d;
 }
+// Parse datetime from DB — strip trailing Z so browser treats as local time (not UTC)
+// mssql adds 'Z' but values are stored as Bangkok local time
+function parseDbDate(str) {
+  if (!str) return null;
+  return new Date(String(str).replace('Z', ''));
+}
 function fmtDate(d) {
-  return new Date(d).toLocaleDateString('th-TH', { day:'numeric', month:'short', year:'numeric' });
+  return parseDbDate(d).toLocaleDateString('th-TH', { day:'numeric', month:'short', year:'numeric' });
 }
 function showToast(msg, type='success') {
   let t = document.getElementById('_toast');
@@ -1368,7 +1374,7 @@ function fmtDateISO(d) {
   return d.toISOString().split('T')[0];
 }
 function timeAgo(dtStr) {
-  const diff = Date.now() - new Date(dtStr).getTime();
+  const diff = Date.now() - (parseDbDate(dtStr)?.getTime() || 0);
   const h = Math.floor(diff/3600000);
   if (h < 1) return `${Math.floor(diff/60000)} นาทีที่แล้ว`;
   if (h < 24) return `${h} ชั่วโมงที่แล้ว`;
@@ -2463,7 +2469,7 @@ function renderTickets() {
   const tkClosed  = filtered.filter(isClosed).length;
   const tkOpen    = filtered.filter(t => !isClosed(t)).length;
   const now24h    = Date.now() - 24 * 3600 * 1000;
-  const tkOverdue = filtered.filter(t => !isClosed(t) && new Date(t.opened_at).getTime() < now24h).length;
+  const tkOverdue = filtered.filter(t => !isClosed(t) && parseDbDate(t.opened_at)?.getTime() < now24h).length;
   const _setEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   _setEl('tk-stat-total',   tkTotal);
   _setEl('tk-stat-open',    tkOpen);
@@ -2471,7 +2477,7 @@ function renderTickets() {
   _setEl('tk-stat-closed',  tkClosed);
 
   // Sort newest → oldest
-  filtered.sort((a, b) => new Date(b.opened_at) - new Date(a.opened_at));
+  filtered.sort((a, b) => parseDbDate(b.opened_at) - parseDbDate(a.opened_at));
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(filtered.length / _tkPerPage));
@@ -2493,7 +2499,7 @@ function renderTickets() {
 
   const rows = [];
   paginated.forEach(t => {
-    const opened = new Date(t.opened_at);
+    const opened = parseDbDate(t.opened_at);
     const isOverdue = t.status && !t.status.match(/close|ปิด|complete/i)
       && (Date.now() - opened.getTime()) > 86400000;
     const expanded = tkExpandedRows.has(t.id);
@@ -2501,7 +2507,7 @@ function renderTickets() {
 
     const dateStr  = opened.toLocaleDateString('th-TH', {day:'2-digit',month:'short',year:'2-digit'});
     const timeStr  = opened.toLocaleTimeString('th-TH', {hour:'2-digit',minute:'2-digit'});
-    const closeD   = t.CloseDate ? new Date(t.CloseDate) : null;
+    const closeD   = t.CloseDate ? parseDbDate(t.CloseDate) : null;
     const closeDateStr = closeD ? closeD.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}) : '—';
     const closeTimeStr = closeD ? closeD.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}) : '';
 
