@@ -223,6 +223,28 @@ app.delete('/api/shifts/:id', async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Bulk clear shifts for a week (optionally filtered by team)
+app.delete('/api/shifts', authRequired, async (request, res) => {
+  try {
+    const { week_start, team } = request.query;
+    if (!week_start) return res.status(400).json({ error: 'week_start required' });
+    const startDate = getMonday(week_start);
+    const endD = new Date(startDate); endD.setDate(endD.getDate() + 6);
+    let q = req()
+      .input('s', sql.Date, startDate)
+      .input('e', sql.Date, endD.toISOString().split('T')[0]);
+    let where = 'WHERE s.shift_date >= @s AND s.shift_date <= @e';
+    if (team) {
+      q = q.input('team', sql.NVarChar, team);
+      where += ' AND e.team = @team';
+    }
+    const result = await q.query(
+      `DELETE s FROM shifts s JOIN employees e ON e.id = s.employee_id ${where}`
+    );
+    res.json({ ok: true, deleted: result.rowsAffected[0] });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/shifts/coverage', async (request, res) => {
   try {
     const startDate = getMonday(request.query.week_start);

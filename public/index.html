@@ -587,6 +587,7 @@ textarea{resize:vertical;min-height:80px}
       <button id="btn-add-shift" class="btn btn-primary btn-sm" onclick="openModal('modal-add-shift')">+ กำหนดกะ</button>
       <button class="btn btn-warn btn-sm" onclick="openModal('modal-leave-req')">📩 ขอวันหยุด</button>
       <button id="btn-ai-shifts" class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="aiSuggestShifts()">✨ AI แนะนำกะ</button>
+      <button class="btn btn-sm" style="background:#ef4444;color:#fff" onclick="clearWeekShifts()">🗑️ เครียตาราง</button>
     </div>
   </div>
 
@@ -1328,6 +1329,21 @@ function getMondayOfDate(date) {
 function fmtDate(d) {
   return new Date(d).toLocaleDateString('th-TH', { day:'numeric', month:'short', year:'numeric' });
 }
+function showToast(msg, type='success') {
+  let t = document.getElementById('_toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = '_toast';
+    t.style.cssText = 'position:fixed;bottom:1.5rem;right:1.5rem;z-index:9999;padding:.6rem 1.1rem;border-radius:8px;font-size:.85rem;font-weight:600;box-shadow:0 4px 16px #0002;transition:opacity .3s';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.background = type === 'error' ? '#ef4444' : '#16a34a';
+  t.style.color = '#fff';
+  t.style.opacity = '1';
+  clearTimeout(t._to);
+  t._to = setTimeout(() => { t.style.opacity = '0'; }, 2800);
+}
 function fmtDateShort(d) {
   return new Date(d).toLocaleDateString('th-TH', { day:'numeric', month:'short' });
 }
@@ -2046,6 +2062,23 @@ function changeWeek(dir) {
   loadSchedule();
 }
 function resetWeek() { currentWeekStart = getMondayOfDate(new Date()); loadSchedule(); }
+
+async function clearWeekShifts() {
+  const ws = fmtDateISO(currentWeekStart);
+  const endD = new Date(currentWeekStart); endD.setDate(endD.getDate() + 6);
+  const teamLabel2 = shiftTeamFilter !== 'all'
+    ? (allTeams.find(t => t.name === shiftTeamFilter)?.display_name || shiftTeamFilter)
+    : 'ทุกทีม';
+  const weekStr = fmtDateShort(currentWeekStart) + ' – ' + fmtDate(endD);
+  if (!confirm(`ลบกะทั้งหมดของ ${teamLabel2} สัปดาห์ ${weekStr} ?\n\n(จะลบเฉพาะกะปกติ ไม่ลบวันหยุด)`)) return;
+  const qs = shiftTeamFilter !== 'all' ? `&team=${shiftTeamFilter}` : '';
+  const r = await api(`/api/shifts?week_start=${ws}${qs}`, { method: 'DELETE' });
+  if (r.ok) {
+    showToast(`ลบ ${r.deleted} กะเรียบร้อย`);
+    loadSchedule();
+  }
+}
+
 function setShiftTeam(t, btn) {
   shiftTeamFilter = t;
   document.querySelectorAll('#schedule-tabs .tab').forEach(b => b.classList.remove('active'));
@@ -2208,12 +2241,13 @@ function renderCoverageWarn(coverage, ws) {
   const warnEl = document.getElementById('coverage-warn');
   if (role === 'staff') { if (warnEl) warnEl.innerHTML = ''; return; }
 
-  // Minimum staffing rules — scoped to what this role can see
-  const allRules = [
-    { team:'call_center', shifts:['morning','afternoon','night'], min:2, days:'all' },
-    { team:'helpdesk',    shifts:['morning','afternoon'],         min:1, days:'weekday' },
-    { team:'repair',      shifts:['morning'],                     min:1, days:'weekday' }
-  ];
+  // Minimum staffing rules — built dynamically from allTeams (1 person/shift/day minimum)
+  const allRules = allTeams.map(t => ({
+    team: t.name,
+    shifts: ['morning', 'afternoon', 'night'],
+    min: 1,
+    days: 'all'
+  }));
   const minRules = role === 'team_lead'
     ? allRules.filter(r => r.team === currentUser?.team)
     : allRules;
@@ -2247,7 +2281,7 @@ function renderCoverageWarn(coverage, ws) {
 
   if (issues.length === 0) {
     warnEl.innerHTML = `<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:.5rem .9rem;font-size:.8rem;color:#166534">
-      ✅ ครอบคลุมทุกกะตามเกณฑ์ขั้นต่ำ (call_center ≥2/กะ · helpdesk ≥1/กะวันธรรมดา · repair เช้าวันธรรมดา)
+      ✅ ครอบคลุมทุกกะตามเกณฑ์ขั้นต่ำ (ทุกทีม ≥1 คน/กะ)
     </div>`;
     return;
   }
