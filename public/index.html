@@ -705,6 +705,18 @@ textarea{resize:vertical;min-height:80px}
     </div>
   </div>
 
+  <!-- Per-page selector -->
+  <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
+    <span style="font-size:.78rem;color:var(--muted)">แสดง</span>
+    <select id="tk-per-page" onchange="tkPerPageChange()" style="padding:.25rem .5rem;border:1px solid var(--border);border-radius:6px;font-size:.78rem;background:#fff;color:var(--text)">
+      <option value="20">20</option>
+      <option value="50" selected>50</option>
+      <option value="100">100</option>
+      <option value="200">200</option>
+    </select>
+    <span style="font-size:.78rem;color:var(--muted)">รายการต่อหน้า</span>
+  </div>
+
   <div class="card" style="padding:.5rem 0">
     <div class="tbl-wrap">
       <table id="ticket-table">
@@ -728,6 +740,9 @@ textarea{resize:vertical;min-height:80px}
       </table>
     </div>
   </div>
+
+  <!-- Pagination -->
+  <div id="tk-pagination" style="display:flex;align-items:center;justify-content:center;gap:.35rem;margin-top:.75rem;flex-wrap:wrap"></div>
 </div>
 
 <!-- ═══════════════════ PAGE: KPI ═══════════════════ -->
@@ -1254,6 +1269,8 @@ textarea{resize:vertical;min-height:80px}
 const API = '';
 let allEmployees  = [];
 let allTickets    = [];
+let _tkPage       = 1;   // current page (1-based)
+let _tkPerPage    = 50;  // rows per page
 let allKpi        = [];
 let allUsers      = [];
 let allTeams      = [];
@@ -2397,7 +2414,7 @@ async function initTicketFilters() {
 let _tkSearchTimer = null;
 function tkSearchDebounce() {
   clearTimeout(_tkSearchTimer);
-  _tkSearchTimer = setTimeout(() => renderTickets(), 280);
+  _tkSearchTimer = setTimeout(() => { _tkPage = 1; renderTickets(); }, 280);
 }
 async function loadTickets() {
   await initTicketFilters();
@@ -2421,6 +2438,7 @@ async function loadTickets() {
     agents.map(a => `<option value="${a}" ${a===curAgent?'selected':''}>${dn(a)}</option>`).join('');
 
   tkExpandedRows.clear();
+  _tkPage = 1; // reset to page 1 on new data load
   renderTickets();
 }
 
@@ -2452,20 +2470,29 @@ function renderTickets() {
   _setEl('tk-stat-overdue', tkOverdue);
   _setEl('tk-stat-closed',  tkClosed);
 
-  const lbl = document.getElementById('tk-count-label');
-  if (lbl) lbl.textContent = `แสดง ${filtered.length} จาก ${allTickets.length} เคส`;
-
   // Sort newest → oldest
   filtered.sort((a, b) => new Date(b.opened_at) - new Date(a.opened_at));
 
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(filtered.length / _tkPerPage));
+  if (_tkPage > totalPages) _tkPage = totalPages;
+  const pageStart  = (_tkPage - 1) * _tkPerPage;
+  const pageEnd    = pageStart + _tkPerPage;
+  const paginated  = filtered.slice(pageStart, pageEnd);
+
+  const lbl = document.getElementById('tk-count-label');
+  if (lbl) lbl.textContent = `แสดง ${pageStart+1}–${Math.min(pageEnd, filtered.length)} จาก ${filtered.length} เคส (ทั้งหมด ${allTickets.length})`;
+
+  renderTkPagination(totalPages, filtered.length);
+
   const tbody = document.getElementById('ticket-tbody');
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="10" class="empty"><div class="icon">🎫</div>ไม่พบเคส</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="12" class="empty"><div class="icon">🎫</div>ไม่พบเคส</td></tr>';
     return;
   }
 
   const rows = [];
-  filtered.forEach(t => {
+  paginated.forEach(t => {
     const opened = new Date(t.opened_at);
     const isOverdue = t.status && !t.status.match(/close|ปิด|complete/i)
       && (Date.now() - opened.getTime()) > 86400000;
@@ -2569,6 +2596,61 @@ function renderTickets() {
   });
 
   tbody.innerHTML = rows.join('');
+}
+
+function renderTkPagination(totalPages, total) {
+  const el = document.getElementById('tk-pagination');
+  if (!el) return;
+  if (totalPages <= 1) { el.innerHTML = ''; return; }
+
+  const btnStyle = (active) =>
+    `style="min-width:32px;height:32px;padding:0 .5rem;border-radius:6px;border:1px solid ${active ? 'var(--hd)' : 'var(--border)'};background:${active ? 'var(--hd)' : '#fff'};color:${active ? '#fff' : 'var(--text)'};font-size:.8rem;font-weight:${active ? '700' : '400'};cursor:pointer"`;
+
+  let html = '';
+
+  // Prev
+  html += `<button ${btnStyle(false)} ${_tkPage===1?'disabled':''} onclick="tkGoPage(${_tkPage-1})">‹</button>`;
+
+  // Page numbers — show max 7 around current
+  const pages = [];
+  if (totalPages <= 9) {
+    for (let i = 1; i <= totalPages; i++) pages.push(i);
+  } else {
+    pages.push(1);
+    if (_tkPage > 4) pages.push('…');
+    for (let i = Math.max(2, _tkPage-2); i <= Math.min(totalPages-1, _tkPage+2); i++) pages.push(i);
+    if (_tkPage < totalPages - 3) pages.push('…');
+    pages.push(totalPages);
+  }
+
+  pages.forEach(p => {
+    if (p === '…') {
+      html += `<span style="padding:0 .25rem;color:var(--muted);font-size:.8rem">…</span>`;
+    } else {
+      html += `<button ${btnStyle(p === _tkPage)} onclick="tkGoPage(${p})">${p}</button>`;
+    }
+  });
+
+  // Next
+  html += `<button ${btnStyle(false)} ${_tkPage===totalPages?'disabled':''} onclick="tkGoPage(${_tkPage+1})">›</button>`;
+
+  // Page info
+  html += `<span style="font-size:.78rem;color:var(--muted);margin-left:.35rem">หน้า ${_tkPage} / ${totalPages}</span>`;
+
+  el.innerHTML = html;
+}
+
+function tkGoPage(p) {
+  _tkPage = p;
+  renderTickets();
+  // Scroll to top of table
+  document.getElementById('ticket-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function tkPerPageChange() {
+  _tkPerPage = parseInt(document.getElementById('tk-per-page').value) || 50;
+  _tkPage = 1;
+  renderTickets();
 }
 
 function tkStatusBadge(status) {
