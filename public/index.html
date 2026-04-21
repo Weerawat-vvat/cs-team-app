@@ -461,15 +461,15 @@ textarea{resize:vertical;min-height:80px}
   <!-- ── 6 Stat Cards ── -->
   <div class="stat-row-6" id="dash-stats-row">
     <div class="stat-flat"><div class="label">📋 Total Tickets</div>
-      <div class="value blue" id="ov-total">—</div><div class="sub">เดือนนี้รวม</div></div>
+      <div class="value blue" id="ov-total">—</div><div class="sub" id="ov-total-sub">รวม</div></div>
     <div class="stat-flat"><div class="label">✅ Closed</div>
-      <div class="value green" id="ov-closed">—</div><div class="sub" id="ov-close-pct">อัตราปิด</div></div>
+      <div class="value green" id="ov-closed">—</div><div class="sub" id="ov-close-pct">ปิดแล้ว</div></div>
     <div class="stat-flat"><div class="label">👥 Active Agents</div>
-      <div class="value purple" id="ov-agents">—</div><div class="sub">คนที่มีงานเดือนนี้</div></div>
+      <div class="value purple" id="ov-agents">—</div><div class="sub" id="ov-agents-sub">agent ที่มีงาน</div></div>
     <div class="stat-flat"><div class="label">⚡ Avg / Agent</div>
-      <div class="value white" id="ov-avg">—</div><div class="sub">tickets ต่อคน</div></div>
-    <div class="stat-flat"><div class="label">📞 วันนี้</div>
-      <div class="value blue" id="ov-today">—</div><div class="sub" id="ov-week-sub">เคสที่รับวันนี้</div></div>
+      <div class="value white" id="ov-avg">—</div><div class="sub" id="ov-avg-sub">tickets ต่อคน</div></div>
+    <div class="stat-flat"><div class="label" id="ov-today-label">📞 เคสที่รับ</div>
+      <div class="value blue" id="ov-today">—</div><div class="sub" id="ov-week-sub">ช่วงที่เลือก</div></div>
     <div class="stat-flat"><div class="label">⚠️ ค้างเกิน 24 ชม.</div>
       <div class="value red" id="ov-overdue">—</div><div class="sub">tickets รวมทุก agent</div></div>
   </div>
@@ -1302,6 +1302,7 @@ function _applyRange(preset, btn, fromId, toId, drbId, customId, loadFn) {
   loadFn();
 }
 function dashRange(preset, btn) {
+  _dashPreset = preset;
   _applyRange(preset, btn, 'dash-date-from', 'dash-date-to', 'dash-drb', 'dash-custom-range',
     () => { loadDashboard(); loadDashboardCharts(); });
 }
@@ -1469,6 +1470,18 @@ function filterAssigneeByTeam() {
 // ── Target Tracker state ──────────────────────────────────
 let _dashLastTotal  = 0;
 let _dashLastAgents = 0;
+let _dashPreset     = 'today';
+
+const _presetLabel = {
+  today:     'วันนี้',
+  yesterday: 'เมื่อวาน',
+  thisweek:  'สัปดาห์นี้',
+  thismonth: 'เดือนนี้',
+  lastmonth: 'เดือนที่แล้ว',
+  '7d':      '7 วันที่ผ่านมา',
+  '30d':     '30 วันที่ผ่านมา',
+  custom:    'ช่วงที่เลือก',
+};
 
 function saveTarget() {
   const v = document.getElementById('dash-target')?.value;
@@ -1522,7 +1535,6 @@ async function loadDashboard() {
   const overdueCnt = (d.overdueTickets || []).length;
   const todayCnt   = d.todayTotal || 0;
   const _s = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-  _s('ov-today',   todayCnt);
   _s('ov-overdue', overdueCnt);
 
   // ── Overdue Table ─────────────────────────────────────────
@@ -1608,19 +1620,29 @@ async function loadDashboardCharts() {
 
   const { catStats = [], agentThis = [], agentLast = [], agentCat = [],
           dailyTrend = [], hourlyStats = [], dowStats = [], catDailyTrend = [],
+          closedThis = 0,
           daysThis = 30, daysPrev = 30,
           thisFrom = '', thisTo = '', prevFrom = '', prevTo = '' } = data;
 
   // ── Compute & fill stat cards ───────────────────────────
-  const totalMonth  = agentThis.reduce((s, r) => s + (r.cnt || 0), 0);
-  const agentCount  = agentThis.length;
-  const avgPerAgent = agentCount ? Math.round(totalMonth / agentCount) : 0;
+  const totalPeriod  = agentThis.reduce((s, r) => s + (r.cnt || 0), 0);
+  const agentCount   = agentThis.length;
+  const avgPerAgent  = agentCount ? Math.round(totalPeriod / agentCount) : 0;
+  const lbl          = _presetLabel[_dashPreset] || 'ช่วงที่เลือก';
+  const closePct     = totalPeriod ? Math.round(closedThis / totalPeriod * 100) : 0;
+
   const _s = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-  _s('ov-total',  totalMonth.toLocaleString());
-  _s('ov-closed', totalMonth.toLocaleString());
-  document.getElementById('ov-close-pct') && (document.getElementById('ov-close-pct').textContent = 'tickets เดือนนี้');
-  _s('ov-agents', agentCount);
-  _s('ov-avg',    avgPerAgent);
+  _s('ov-total',      totalPeriod.toLocaleString());
+  _s('ov-total-sub',  `รวม${lbl}`);
+  _s('ov-closed',     closedThis.toLocaleString());
+  _s('ov-close-pct',  `ปิดแล้ว${lbl} (${closePct}%)`);
+  _s('ov-agents',     agentCount);
+  _s('ov-agents-sub', `agent ที่มีงาน${lbl}`);
+  _s('ov-avg',        avgPerAgent);
+  _s('ov-avg-sub',    `tickets/คน${lbl === 'วันนี้' ? '/วัน' : ''}`);
+  _s('ov-today',      totalPeriod.toLocaleString());
+  _s('ov-today-label',`📞 เคสที่รับ`);
+  _s('ov-week-sub',   lbl);
 
   // ── Target Tracker ───────────────────────────────────────
   _dashLastTotal  = totalMonth;

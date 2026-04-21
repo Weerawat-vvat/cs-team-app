@@ -289,18 +289,32 @@ app.put('/api/leave-requests/:id/reject', async (request, res) => {
 // ══════════════════════════════════════════════════════════
 //  TICKETS — ดึงจาก LicenseDB (read-only)
 // ══════════════════════════════════════════════════════════
-app.get('/api/tickets', async (request, res) => {
+app.get('/api/tickets', authRequired, async (request, res) => {
   try {
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
-    const { status, search, dateFrom, dateTo } = request.query;
-    const defaultFrom = dateFrom || '2026-01-01';
+    const { status, search, dateFrom, dateTo, team } = request.query;
+    const defaultFrom = dateFrom || new Date().toISOString().split('T')[0];
+
+    // RBAC scope
+    let scope = await getScopedUsernames(request.user);
+    if (scope === null) return res.json([]);
+    if (team) {
+      const teamRows = (await req().input('tm', sql.NVarChar, team).query(
+        `SELECT DISTINCT au.ext_username FROM app_users au JOIN employees e ON e.id=au.employee_id
+         WHERE e.team=@tm AND au.active=1 AND e.active=1 AND au.ext_username IS NOT NULL`
+      )).recordset;
+      const teamScope = teamRows.map(r => r.ext_username);
+      scope = scope === undefined ? teamScope : scope.filter(u => teamScope.includes(u));
+    }
+
     const r = extReq();
     let q = CALLLOG_SELECT + ' WHERE cl.ReceiveDate >= @df';
     r.input('df', sql.DateTime, new Date(defaultFrom));
-    if (status)   { q += ' AND cs.StatusName=@status';                    r.input('status',   sql.NVarChar, status); }
-    if (search)   { q += ' AND (cl.Subject LIKE @s OR cr.CompanyName LIKE @s OR u.UserName LIKE @s)';
-                                                                           r.input('s',        sql.NVarChar, `%${search}%`); }
-    if (dateTo)   { q += ' AND cl.ReceiveDate <= @dt';                    r.input('dt',       sql.DateTime, new Date(dateTo + 'T23:59:59')); }
+    if (status) { q += ' AND cs.StatusName=@status';  r.input('status', sql.NVarChar, status); }
+    if (search) { q += ' AND (cl.Subject LIKE @s OR cr.CompanyName LIKE @s OR u.UserName LIKE @s)';
+                                                       r.input('s',      sql.NVarChar, `%${search}%`); }
+    if (dateTo) { q += ' AND cl.ReceiveDate <= @dt';  r.input('dt',     sql.DateTime, new Date(dateTo + 'T23:59:59')); }
+    q += appendScopeClause(r, scope);
     q += ' ORDER BY cl.ReceiveDate DESC';
     res.json((await r.query(q)).recordset);
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -1081,8 +1095,9 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
     const r6 = mkR(msDate, meDate);   const sc6 = appendScopeClause(r6, scope);
     const r7 = mkR(msDate, meDate);   const sc7 = appendScopeClause(r7, scope);
     const r8 = mkR(msDate, meDate);   const sc8 = appendScopeClause(r8, scope);
+    const r9 = mkR(msDate, meDate);   const sc9 = appendScopeClause(r9, scope);
 
-    const [d1, d2, d3, d4, d5, d6, d7, d8] = await Promise.all([
+    const [d1, d2, d3, d4, d5, d6, d7, d8, d9] = await Promise.all([
       // Daily trend
       r1.query(`SELECT CAST(cl.ReceiveDate AS DATE) AS day, COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
@@ -1123,6 +1138,12 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
         WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc8}
         GROUP BY CAST(cl.ReceiveDate AS DATE), cl.Subject ORDER BY day, cnt DESC`),
+      // Closed count this period
+      r9.query(`SELECT COUNT(*) AS cnt
+        FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
+        INNER JOIN CallStatus cs ON cs.StatusId = cl.StatusId
+        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me
+          AND (cs.StatusName LIKE '%close%' OR cs.StatusName LIKE '%ปิด%' OR cs.StatusName LIKE '%complete%')${sc9}`),
     ]);
 
     // Build ext_username → employee name map
@@ -1144,9 +1165,10 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
       hourlyStats:   d6.recordset,
       dowStats:      d7.recordset,
       catDailyTrend: d8.recordset,
+      closedThis:    d9.recordset[0]?.cnt || 0,
       nameMap,
       daysThis,
-      daysPrev:  daysThis,             // same duration
+      daysPrev:  daysThis,
       thisFrom:  msStr,
       thisTo:    fmt(new Date(meDate.getTime() - 1)),
       prevFrom:  fmt(prevFromDate),
