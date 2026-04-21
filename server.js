@@ -419,6 +419,60 @@ app.get('/api/kpi', authRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── KPI Agent Detail drill-down ──────────────────────────
+app.get('/api/kpi/agent-detail', authRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
+    const { username, month } = request.query;
+    if (!username) return res.status(400).json({ error: 'username required' });
+    const ym = month || new Date().toISOString().substring(0, 7);
+    const monthStart = ym + '-01';
+    const monthEnd   = new Date(new Date(monthStart).setMonth(new Date(monthStart).getMonth() + 1));
+
+    const r = extReq()
+      .input('s',  sql.DateTime, new Date(monthStart))
+      .input('e',  sql.DateTime, monthEnd)
+      .input('un', sql.NVarChar, username);
+
+    const [cats, daily, timing] = await Promise.all([
+      // Top categories
+      r.query(`SELECT cl.Subject AS category,
+                      COUNT(*) AS cnt,
+                      AVG(CAST(cl.Stars AS FLOAT)) AS avg_stars
+               FROM Calllog cl
+               INNER JOIN Users u ON u.UserId = cl.SupportId
+               WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e
+                 AND u.UserName = @un
+               GROUP BY cl.Subject
+               ORDER BY cnt DESC`),
+      // Daily trend
+      extReq().input('s', sql.DateTime, new Date(monthStart)).input('e', sql.DateTime, monthEnd)
+        .input('un', sql.NVarChar, username)
+        .query(`SELECT CAST(cl.ReceiveDate AS DATE) AS day, COUNT(*) AS cnt
+                FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
+                WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e AND u.UserName = @un
+                GROUP BY CAST(cl.ReceiveDate AS DATE) ORDER BY day`),
+      // Avg resolution time + stars
+      extReq().input('s', sql.DateTime, new Date(monthStart)).input('e', sql.DateTime, monthEnd)
+        .input('un', sql.NVarChar, username)
+        .query(`SELECT
+                  COUNT(*) AS total,
+                  AVG(CASE WHEN cl.CloseDate IS NOT NULL
+                       THEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate) END) AS avg_minutes,
+                  AVG(CAST(cl.Stars AS FLOAT)) AS avg_stars,
+                  COUNT(CASE WHEN cl.Stars IS NOT NULL THEN 1 END) AS rated_count
+                FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
+                WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e AND u.UserName = @un`)
+    ]);
+
+    res.json({
+      categories:  cats.recordset,
+      dailyTrend:  daily.recordset,
+      summary:     timing.recordset[0] || {}
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/kpi/comment', async (request, res) => {
   try {
     const { ext_username, month, comment, recorded_by } = request.body;

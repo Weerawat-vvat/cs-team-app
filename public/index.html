@@ -321,6 +321,17 @@ textarea{resize:vertical;min-height:80px}
 .star-picker span:hover,.star-picker:hover span.hover-on{color:#f59e0b}
 .tk-star-display{color:#f59e0b;font-size:.9rem;letter-spacing:.05em}
 .tk-star-display.empty{color:#d1d5db}
+/* ── KPI AGENT DRILL-DOWN ── */
+.kpi-row-main{cursor:pointer}
+.kpi-row-main:hover td{background:#f8fafc}
+.kpi-drill{background:#f8fafc}
+.kpi-drill td{padding:.85rem 1.25rem 1rem;border-bottom:2px solid var(--border)}
+.kpi-cat-bar{display:flex;align-items:center;gap:.5rem;margin:.22rem 0;font-size:.8rem}
+.kpi-cat-bar-track{flex:1;background:#e2e8f0;border-radius:4px;height:8px;overflow:hidden}
+.kpi-cat-bar-fill{height:100%;border-radius:4px;background:#38bdf8;transition:width .3s}
+.kpi-stat-mini{display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:.75rem}
+.kpi-stat-mini-item{background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .75rem;font-size:.8rem;white-space:nowrap}
+.kpi-stat-mini-item b{display:block;font-size:1.05rem;color:var(--accent)}
 
 /* ── USER TABLE ── */
 .role-badge{display:inline-block;padding:.15rem .5rem;border-radius:20px;font-size:.72rem;font-weight:700}
@@ -418,10 +429,10 @@ textarea{resize:vertical;min-height:80px}
   <div class="page-datebar" id="dash-datebar" style="flex-direction:column;align-items:flex-start;gap:.45rem">
     <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;width:100%">
       <div class="drb" id="dash-drb">
-        <button class="drb-btn" onclick="dashRange('today',this)">วันนี้</button>
+        <button class="drb-btn active" onclick="dashRange('today',this)">วันนี้</button>
         <button class="drb-btn" onclick="dashRange('yesterday',this)">เมื่อวานนี้</button>
         <button class="drb-btn" onclick="dashRange('thisweek',this)">สัปดาห์นี้</button>
-        <button class="drb-btn active" onclick="dashRange('thismonth',this)">เดือนนี้</button>
+        <button class="drb-btn" onclick="dashRange('thismonth',this)">เดือนนี้</button>
         <button class="drb-btn" onclick="dashRange('lastmonth',this)">เดือนที่แล้ว</button>
         <button class="drb-btn" onclick="dashRange('7d',this)">7 วันที่แล้ว</button>
         <button class="drb-btn" onclick="dashRange('30d',this)">30 วันที่ผ่านมา</button>
@@ -664,10 +675,10 @@ textarea{resize:vertical;min-height:80px}
   <div class="page-datebar" style="flex-direction:column;align-items:flex-start;gap:.45rem">
     <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;width:100%">
       <div class="drb" id="tk-drb">
-        <button class="drb-btn" onclick="tkRange('today',this)">วันนี้</button>
+        <button class="drb-btn active" onclick="tkRange('today',this)">วันนี้</button>
         <button class="drb-btn" onclick="tkRange('yesterday',this)">เมื่อวานนี้</button>
         <button class="drb-btn" onclick="tkRange('thisweek',this)">สัปดาห์นี้</button>
-        <button class="drb-btn active" onclick="tkRange('thismonth',this)">เดือนนี้</button>
+        <button class="drb-btn" onclick="tkRange('thismonth',this)">เดือนนี้</button>
         <button class="drb-btn" onclick="tkRange('lastmonth',this)">เดือนที่แล้ว</button>
         <button class="drb-btn" onclick="tkRange('7d',this)">7 วันที่แล้ว</button>
         <button class="drb-btn" onclick="tkRange('30d',this)">30 วันที่ผ่านมา</button>
@@ -707,8 +718,9 @@ textarea{resize:vertical;min-height:80px}
             <th>Agent</th>
             <th>สถานะ</th>
             <th>วันที่ปิด</th>
-            <th>ใช้เวลา (นาที)</th>
+            <th>ใช้เวลา</th>
             <th>⭐</th>
+            <th>Comment</th>
           </tr>
         </thead>
         <tbody id="ticket-tbody"></tbody>
@@ -2391,15 +2403,22 @@ function renderTickets() {
     const expanded = tkExpandedRows.has(t.id);
     const hasDetail = (t.description && t.description.trim()) || (t.Solution && t.Solution.trim());
 
-    const dateStr = opened.toLocaleDateString('th-TH', {day:'2-digit',month:'short',year:'2-digit'});
-    const timeStr = opened.toLocaleTimeString('th-TH', {hour:'2-digit',minute:'2-digit'});
+    const dateStr  = opened.toLocaleDateString('th-TH', {day:'2-digit',month:'short',year:'2-digit'});
+    const timeStr  = opened.toLocaleTimeString('th-TH', {hour:'2-digit',minute:'2-digit'});
+    const closeD   = t.CloseDate ? new Date(t.CloseDate) : null;
+    const closeDateStr = closeD ? closeD.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}) : '—';
+    const closeTimeStr = closeD ? closeD.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}) : '';
 
-    const closeDateStr = t.CloseDate
-      ? new Date(t.CloseDate).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'})
-      : '—';
-    const diffMin = (t.TimeDiff_Minutes != null) ? t.TimeDiff_Minutes.toLocaleString() : '—';
-    const descShort = (t.description||'').trim().slice(0,80) + ((t.description||'').length>80?'…':'');
-    const solShort  = (t.Solution||'').trim().slice(0,80) + ((t.Solution||'').length>80?'…':'');
+    // Resolution time — show hr:min if >= 60 min
+    let diffDisp = '—';
+    if (t.TimeDiff_Minutes != null) {
+      const m = t.TimeDiff_Minutes;
+      diffDisp = m >= 60 ? `${Math.floor(m/60)}ชม. ${m%60}น.` : `${m} น.`;
+    }
+
+    const descShort    = (t.description||'').trim().slice(0,70) + ((t.description||'').length>70?'…':'');
+    const solShort     = (t.Solution||'').trim().slice(0,70) + ((t.Solution||'').length>70?'…':'');
+    const commentShort = (t.ticket_comment||'').trim().slice(0,40) + ((t.ticket_comment||'').length>40?'…':'');
 
     // Main row
     rows.push(`<tr class="tk-row-main${isOverdue?' overdue-row':''}">
@@ -2407,30 +2426,33 @@ function renderTickets() {
         ${hasDetail ? `<span class="tk-toggle" onclick="toggleTicketDetail(${t.id})">${expanded?'▼':'▶'}</span>` : ''}
       </td>
       <td style="font-size:.8rem;white-space:nowrap"><b>#${t.id}</b></td>
-      <td style="font-size:.78rem;white-space:nowrap;color:var(--muted)">${dateStr}</td>
+      <td style="font-size:.78rem;white-space:nowrap">
+        <div>${dateStr}</div><div style="color:var(--muted);font-size:.72rem">${timeStr}</div>
+      </td>
       <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.84rem"
           title="${(t.title||'').replace(/"/g,'&quot;')}">${t.title||'—'}</td>
-      <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.77rem;color:var(--muted)"
+      <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.77rem;color:var(--muted)"
           title="${(t.description||'').replace(/"/g,'&quot;')}">${descShort||'—'}</td>
-      <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.77rem;color:#4ade80"
+      <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.77rem;color:#4ade80"
           title="${(t.Solution||'').replace(/"/g,'&quot;')}">${solShort||'—'}</td>
       <td style="font-size:.82rem;white-space:nowrap">${dn(t.assigned_name)||'—'}</td>
-      <td><span class="badge" style="background:#1e293b;color:#94a3b8;font-size:.72rem;border:1px solid #334155"
-               title="${t.status||''}">${t.status||'—'}</span>
-          ${isOverdue ? `<div style="font-size:.68rem;color:#fca5a5;font-weight:700">⚠️ ค้างนาน</div>` : ''}</td>
-      <td style="font-size:.78rem;white-space:nowrap;color:var(--muted)">${closeDateStr}</td>
-      <td style="font-size:.8rem;white-space:nowrap;text-align:right;color:${t.TimeDiff_Minutes!=null&&t.TimeDiff_Minutes<0?'#fca5a5':'var(--text)'}">${diffMin}</td>
+      <td>${tkStatusBadge(t.status)}${isOverdue ? `<div style="font-size:.68rem;color:#fca5a5;font-weight:700">⚠️ ค้างนาน</div>` : ''}</td>
+      <td style="font-size:.78rem;white-space:nowrap">
+        ${closeD ? `<div>${closeDateStr}</div><div style="color:var(--muted);font-size:.72rem">${closeTimeStr}</div>` : '—'}
+      </td>
+      <td style="font-size:.8rem;white-space:nowrap;text-align:right;color:${t.TimeDiff_Minutes!=null&&t.TimeDiff_Minutes<0?'#fca5a5':'var(--text)'}">${diffDisp}</td>
       <td style="white-space:nowrap;text-align:center">
         ${t.Stars ? `<span class="tk-star-display" title="${t.Stars} ดาว">${'★'.repeat(t.Stars)}${'☆'.repeat(5-t.Stars)}</span>`
-                  : `<span class="tk-star-display empty" title="ยังไม่ได้ให้ดาว">☆☆☆☆☆</span>`}
+                  : `<span class="tk-star-display empty">☆☆☆☆☆</span>`}
       </td>
+      <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.77rem;color:var(--muted)"
+          title="${(t.ticket_comment||'').replace(/"/g,'&quot;')}">${commentShort||'—'}</td>
     </tr>`);
 
     // Detail expand row
     if (expanded) {
       const desc = (t.description||'').trim();
       const sol  = (t.Solution||'').trim();
-      const url  = t.IssueURL ? `<a href="${t.IssueURL}" target="_blank" style="font-size:.78rem;color:var(--accent)">🔗 ดูใน LicenseDB</a>` : '';
       const canReview = isLeadRole();
       const curStars   = t.Stars || 0;
       const curComment = escHtml(t.ticket_comment || '');
@@ -2447,7 +2469,7 @@ function renderTickets() {
         : `<div class="tk-star-display">${curStars ? '★'.repeat(curStars)+'☆'.repeat(5-curStars) : '☆☆☆☆☆'}</div>`;
 
       rows.push(`<tr class="tk-row-detail">
-        <td colspan="11" style="padding:.75rem 1rem 1rem">
+        <td colspan="12" style="padding:.75rem 1rem 1rem">
           ${(desc||sol) ? `<div style="display:grid;grid-template-columns:${sol?'1fr 1fr':'1fr'};gap:1rem;margin-bottom:.75rem">
             ${desc ? `<div class="tk-detail-box">
               <div class="tk-detail-label">📋 รายละเอียดปัญหา</div>
@@ -2458,8 +2480,6 @@ function renderTickets() {
               <div class="tk-detail-text">${escHtml(sol)}</div>
             </div>` : ''}
           </div>` : ''}
-          ${url ? `<div style="margin-bottom:.5rem">${url}</div>` : ''}
-
           <!-- Review section -->
           <div class="tk-review-box">
             <div class="tk-detail-label">⭐ ประเมินเคส</div>
@@ -2480,6 +2500,23 @@ function renderTickets() {
   });
 
   tbody.innerHTML = rows.join('');
+}
+
+function tkStatusBadge(status) {
+  const s = (status || '').toLowerCase();
+  let bg, color;
+  if (s.includes('close') || s.includes('complete') || s.includes('done')) {
+    bg = '#dcfce7'; color = '#15803d';
+  } else if (s.includes('progress') || s.includes('working') || s.includes('กำลัง')) {
+    bg = '#fef3c7'; color = '#92400e';
+  } else if (s.includes('wait') || s.includes('pending') || s.includes('รอ') || s.includes('hold')) {
+    bg = '#f3e8ff'; color = '#7e22ce';
+  } else if (s.includes('open') || s.includes('new') || s.includes('ใหม่')) {
+    bg = '#dbeafe'; color = '#1d4ed8';
+  } else {
+    bg = '#f1f5f9'; color = '#475569';
+  }
+  return `<span style="background:${bg};color:${color};padding:.18rem .55rem;border-radius:20px;font-size:.72rem;font-weight:700;white-space:nowrap">${escHtml(status||'—')}</span>`;
 }
 
 function escHtml(str) {
@@ -2629,17 +2666,79 @@ function renderKpiTable() {
     tbody.innerHTML = '<tr><td colspan="8" class="empty"><div class="icon">📊</div>ไม่พบข้อมูล KPI</td></tr>';
     return;
   }
+  const kpiMonth = document.getElementById('kpi-filter-month')?.value || '';
   tbody.innerHTML = allKpi.map(k => `
-    <tr>
-      <td><b>${k.name || dn(k.UserName)}</b></td>
+    <tr class="kpi-row-main" onclick="toggleKpiDrill('${k.UserName}','${kpiMonth}',this)">
+      <td style="padding-left:.5rem"><span id="kpi-tog-${k.UserName}" style="font-size:.7rem;color:var(--muted);margin-right:.35rem">▶</span><b>${k.name || dn(k.UserName)}</b></td>
       <td>${teamBadgeHtml(k.team||'')}</td>
       <td style="white-space:nowrap">${new Date(k.month).toLocaleDateString('th-TH',{month:'long',year:'numeric'})}</td>
       <td><b style="color:var(--accent)">${k.total_cases}</b> เคส</td>
       <td style="font-size:.78rem;white-space:nowrap">${k.first_case ? new Date(k.first_case).toLocaleDateString('th-TH',{day:'numeric',month:'short'}) : '—'}</td>
       <td style="font-size:.78rem;white-space:nowrap">${k.last_case  ? new Date(k.last_case).toLocaleDateString('th-TH',{day:'numeric',month:'short'}) : '—'}</td>
       <td style="max-width:200px;font-size:.8rem">${k.comment||'<span style="color:var(--muted)">—</span>'}</td>
-      <td><button class="btn btn-ghost btn-sm" onclick="openEditKpi(${JSON.stringify(k).replace(/"/g,'&quot;')})">✏️</button></td>
+      <td onclick="event.stopPropagation()"><button class="btn btn-ghost btn-sm" onclick="openEditKpi(${JSON.stringify(k).replace(/"/g,'&quot;')})">✏️</button></td>
+    </tr>
+    <tr class="kpi-drill" id="kpi-drill-${k.UserName}" style="display:none">
+      <td colspan="8"><div id="kpi-drill-content-${k.UserName}"><div style="color:var(--muted);font-size:.82rem;padding:.25rem">กำลังโหลด...</div></div></td>
     </tr>`).join('');
+}
+
+// ── KPI Agent Drill-down ─────────────────────────────────
+const _kpiDrillOpen = new Set();
+
+async function toggleKpiDrill(username, month, rowEl) {
+  const drillRow    = document.getElementById('kpi-drill-' + username);
+  const togEl       = document.getElementById('kpi-tog-' + username);
+  if (!drillRow) return;
+  if (_kpiDrillOpen.has(username)) {
+    _kpiDrillOpen.delete(username);
+    drillRow.style.display = 'none';
+    if (togEl) togEl.textContent = '▶';
+    return;
+  }
+  _kpiDrillOpen.add(username);
+  drillRow.style.display = '';
+  if (togEl) togEl.textContent = '▼';
+
+  const content = document.getElementById('kpi-drill-content-' + username);
+  try {
+    let url = `/api/kpi/agent-detail?username=${encodeURIComponent(username)}`;
+    if (month) url += `&month=${month}`;
+    const d = await api(url);
+    const { categories = [], summary = {} } = d;
+    const maxCnt = categories[0]?.cnt || 1;
+
+    // Mini stat cards
+    const avgMin  = summary.avg_minutes != null ? Math.round(summary.avg_minutes) : null;
+    const avgHr   = avgMin != null ? (avgMin >= 60 ? `${Math.floor(avgMin/60)}ชม. ${avgMin%60}น.` : `${avgMin} น.`) : '—';
+    const avgStar = summary.avg_stars != null ? (+summary.avg_stars).toFixed(1) : '—';
+    const ratedOf = summary.rated_count ? `${summary.rated_count}/${summary.total} เคส` : '—';
+    const starStr = avgStar !== '—' ? '★'.repeat(Math.round(+avgStar)) + '☆'.repeat(5-Math.round(+avgStar)) : '';
+
+    // Category bars
+    const catBars = categories.slice(0, 8).map(c => {
+      const pct = Math.round((c.cnt / maxCnt) * 100);
+      const catStarStr = c.avg_stars ? ` <span style="color:#f59e0b;font-size:.72rem">${(+c.avg_stars).toFixed(1)}★</span>` : '';
+      return `<div class="kpi-cat-bar">
+        <span style="min-width:140px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+              title="${escHtml(c.category||'')}">${escHtml(c.category||'—')}</span>
+        <div class="kpi-cat-bar-track"><div class="kpi-cat-bar-fill" style="width:${pct}%"></div></div>
+        <span style="min-width:32px;text-align:right;font-weight:600;color:var(--accent)">${c.cnt}</span>${catStarStr}
+      </div>`;
+    }).join('');
+
+    content.innerHTML = `
+      <div class="kpi-stat-mini">
+        <div class="kpi-stat-mini-item"><b>${summary.total||0}</b>เคสทั้งหมด</div>
+        <div class="kpi-stat-mini-item"><b>${avgHr}</b>เฉลี่ยเวลาปิด/เคส</div>
+        <div class="kpi-stat-mini-item"><b><span style="color:#f59e0b">${starStr}</span> ${avgStar}</b>คะแนนเฉลี่ย (${ratedOf})</div>
+        <div class="kpi-stat-mini-item"><b>${categories.length}</b>หมวดที่รับงาน</div>
+      </div>
+      <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.35rem">ประเภทงานที่รับ (Top ${Math.min(8,categories.length)})</div>
+      ${catBars || '<span style="color:var(--muted);font-size:.82rem">ไม่มีข้อมูล</span>'}`;
+  } catch(e) {
+    if (content) content.innerHTML = `<span style="color:#ef4444;font-size:.82rem">โหลดไม่สำเร็จ: ${e.message}</span>`;
+  }
 }
 
 function renderKpiCharts() {
@@ -2781,16 +2880,14 @@ function initDateDefaults() {
   document.getElementById('s-date').value  = today;
   document.getElementById('lr-date').value = today;
   const now = new Date();
-  const monthStart = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
-  // Pre-fill date inputs (inside custom-range divs) with current month
-  // so load functions can read a valid date even before user touches them
+  // Default to today for Dashboard and Tickets
   const dashFrom = document.getElementById('dash-date-from');
   const dashTo   = document.getElementById('dash-date-to');
-  if (dashFrom && !dashFrom.value) dashFrom.value = monthStart;
+  if (dashFrom && !dashFrom.value) dashFrom.value = today;
   if (dashTo   && !dashTo.value)   dashTo.value   = today;
   const tkFrom = document.getElementById('tk-date-from');
   const tkTo   = document.getElementById('tk-date-to');
-  if (tkFrom && !tkFrom.value) tkFrom.value = monthStart;
+  if (tkFrom && !tkFrom.value) tkFrom.value = today;
   if (tkTo   && !tkTo.value)   tkTo.value   = today;
   document.getElementById('kpi-month').value =
     `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
