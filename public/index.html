@@ -2063,7 +2063,7 @@ async function loadSchedule() {
 
   const ws = fmtDateISO(currentWeekStart);
   const endD = new Date(currentWeekStart);
-  endD.setDate(endD.getDate() + 4); // 5 working days Mon–Fri
+  endD.setDate(endD.getDate() + 6); // company open 7 days
 
   document.getElementById('week-label').textContent =
     fmtDateShort(currentWeekStart) + ' – ' + fmtDate(endD);
@@ -2080,10 +2080,10 @@ async function loadSchedule() {
 
 function renderShiftTable(shifts, ws) {
   const days = [];
-  for (let i = 0; i < 5; i++) { // Mon–Fri only
+  for (let i = 0; i < 7; i++) { // company open 7 days
     const d = new Date(ws); d.setDate(d.getDate() + i); days.push(d);
   }
-  const dayNames = ['จ','อ','พ','พฤ','ศ'];
+  const dayNames = ['จ','อ','พ','พฤ','ศ','ส','อา'];
   const todayISO = fmtDateISO(new Date());
   const colCount = 1 + days.length;
 
@@ -2220,9 +2220,9 @@ function renderCoverageWarn(coverage, ws) {
 
   const issues = [];
 
-  // Generate 5 working days (Mon–Fri)
+  // Generate 7 days (company open every day)
   const days = [];
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 7; i++) {
     const d = new Date(ws); d.setDate(d.getDate() + i); days.push(d);
   }
 
