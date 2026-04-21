@@ -100,8 +100,8 @@ const CALLLOG_SELECT = `
   INNER JOIN CustomerRegistration cr ON cr.RegistrationId  = cl.RegistrationId
   INNER JOIN CallStatus           cs ON cs.StatusId        = cl.StatusId
   INNER JOIN Users                u  ON u.UserId           = cl.SupportId
-  INNER JOIN Project              p  ON p.ProjectId        = cl.ProjectId
-  INNER JOIN ProblemType          pt ON pt.ProblemTypeId   = cl.ProblemTypeId
+  LEFT  JOIN Project              p  ON p.ProjectId        = cl.ProjectId
+  LEFT  JOIN ProblemType          pt ON pt.ProblemTypeId   = cl.ProblemTypeId
 `;
 
 // ══════════════════════════════════════════════════════════
@@ -1305,42 +1305,4 @@ ${JSON.stringify(snap, null, 2)}
 [สิ่งที่น่ากังวล เช่น เคสค้างนาน, ปริมาณงานสูง, ขาดแคลนพนักงาน]
 
 ## 🔍 ความผิดปกติที่ตรวจพบ
-[ความผิดปกติในข้อมูล เช่น การกระจายเคสไม่สม่ำเสมอ, หมวดหมู่พุ่งขึ้นผิดปกติ]
-
-## 💡 คำแนะนำสำหรับผู้จัดการ
-[การกระทำที่แนะนำ 2-3 ข้อ ระบุเป็นข้อๆ]`;
-
-    send('start', { message: 'กำลังส่งข้อมูลให้ AI วิเคราะห์...' });
-
-    const stream = claude.messages.stream({
-      model:      AI_MODEL,
-      max_tokens: 1024,
-      messages:   [{ role: 'user', content: prompt }],
-    });
-
-    for await (const chunk of stream) {
-      if (chunk.type === 'content_block_delta' && chunk.delta?.type === 'text_delta') {
-        send('delta', { text: chunk.delta.text });
-      }
-    }
-
-    const final = await stream.finalMessage();
-    send('done', {
-      inputTokens:  final.usage.input_tokens,
-      outputTokens: final.usage.output_tokens,
-    });
-
-  } catch (err) {
-    send('error', { message: err.message });
-  } finally {
-    res.end();
-  }
-});
-
-// ── Start ─────────────────────────────────────────────────
-init().then(() => {
-  app.listen(PORT, () => console.log(`🚀 CS Team App running at http://localhost:${PORT}`));
-}).catch(err => {
-  console.error('❌ Startup failed:', err.message);
-  process.exit(1);
-});
+[ความผิดปกติในข้อมูล เช่น การกระจายเคสไม่สม่ำเสมอ, หมวดหมู่พุ่งขึ้นผิดปก
