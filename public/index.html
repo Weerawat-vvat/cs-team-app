@@ -3611,4 +3611,92 @@ async function aiSuggestShifts() {
   const actions = document.getElementById('ai-suggest-actions');
 
   box.classList.add('open');
-  status.innerHTML = '<div style="display:flex;align-items:center;gap:.5rem"><div class="ai-spinner"></div
+  status.innerHTML = '<div style="display:flex;align-items:center;gap:.5rem"><div class="ai-spinner"></div> AI กำลังวางแผนตารางกะ...</div>';
+  preview.innerHTML = '';
+  actions.style.display = 'none';
+
+  const ws = fmtDateISO(currentWeekStart);
+  const team = shiftTeamFilter !== 'all' ? shiftTeamFilter : undefined;
+
+  try {
+    const res = await fetch('/api/ai/suggest-shifts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ week_start: ws, team })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    aiSuggestedShifts = data.suggestions;
+
+    // preview table
+    const byEmp = {};
+    data.suggestions.forEach(s => {
+      if (!byEmp[s.employee_id]) byEmp[s.employee_id] = [];
+      byEmp[s.employee_id].push(s);
+    });
+
+    let html = `<div style="margin-top:.6rem;font-size:.82rem;color:#166534">AI แนะนำ <b>${data.suggestions.length}</b> กะสำหรับสัปดาห์ ${ws}</div>`;
+    html += '<div style="display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.5rem">';
+    Object.entries(byEmp).forEach(([eid, shifts]) => {
+      const emp = allEmployees.find(e => e.id == eid);
+      if (!emp) return;
+      html += `<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:.35rem .65rem;font-size:.78rem">
+        <b>${emp.name}</b>: ${shifts.map(s => `${s.shift_date.slice(5)} ${shiftLabel(s.shift_type)}`).join(', ')}
+      </div>`;
+    });
+    html += '</div>';
+    preview.innerHTML = html;
+    status.innerHTML = '✅ วางแผนกะเรียบร้อย ตรวจสอบด้านล่างแล้วกด "นำไปใช้"';
+    actions.style.display = 'flex';
+  } catch (err) {
+    status.innerHTML = '❌ ' + err.message;
+  }
+}
+
+async function applyAiShifts() {
+  if (!aiSuggestedShifts.length) return;
+  const status = document.getElementById('ai-suggest-status');
+  status.innerHTML = '<div style="display:flex;align-items:center;gap:.5rem"><div class="ai-spinner"></div> กำลังบันทึกกะ...</div>';
+  document.getElementById('ai-suggest-actions').style.display = 'none';
+
+  let ok = 0;
+  for (const s of aiSuggestedShifts) {
+    try {
+      await api('/api/shifts', { method:'POST', body: s });
+      ok++;
+    } catch { /* skip */ }
+  }
+  status.innerHTML = `✅ บันทึกแล้ว ${ok}/${aiSuggestedShifts.length} กะ`;
+  aiSuggestedShifts = [];
+  setTimeout(() => { closeAiSuggest(); loadSchedule(); }, 1500);
+}
+
+function closeAiSuggest() {
+  document.getElementById('ai-suggest-box').classList.remove('open');
+  aiSuggestedShifts = [];
+}
+
+// ── KPI AI Forecast ────────────────────────────────────────
+async function loadAiForecast() {
+  const box = document.getElementById('ai-forecast-box');
+  const body = document.getElementById('ai-forecast-body');
+  box.classList.add('open');
+  body.innerHTML = '<div style="display:flex;align-items:center;gap:.5rem"><div class="ai-spinner"></div> AI กำลังวิเคราะห์ข้อมูล KPI...</div>';
+
+  const team = document.getElementById('kpi-filter-team').value;
+  let url = '/api/ai/forecast-kpi';
+  if (team) url += `?team=${team}`;
+
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    body.textContent = data.analysis || 'ไม่สามารถวิเคราะห์ได้';
+  } catch {
+    body.textContent = '❌ เกิดข้อผิดพลาด กรุณาลองใหม่';
+  }
+}
+
+</script>
+</body>
+</html>
