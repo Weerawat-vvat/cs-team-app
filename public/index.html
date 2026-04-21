@@ -778,9 +778,7 @@ textarea{resize:vertical;min-height:80px}
     <label style="margin-left:.25rem">ทีม:</label>
     <select id="kpi-filter-team" onchange="loadKpi()">
       <option value="">ทุกทีม</option>
-      <option value="call_center">Call Center</option>
-      <option value="helpdesk">Helpdesk</option>
-      <option value="repair">Repair</option>
+      <!-- populated by JS from allTeams -->
     </select>
   </div>
 
@@ -937,9 +935,7 @@ textarea{resize:vertical;min-height:80px}
       <div class="form-group">
         <label>ทีม</label>
         <select id="nt-team" onchange="filterAssigneeByTeam()">
-          <option value="call_center">Call Center</option>
-          <option value="helpdesk">Helpdesk</option>
-          <option value="repair">Repair</option>
+          <!-- populated by JS from allTeams -->
         </select>
       </div>
       <div class="form-group">
@@ -2065,7 +2061,7 @@ async function loadSchedule() {
 
   const ws = fmtDateISO(currentWeekStart);
   const endD = new Date(currentWeekStart);
-  endD.setDate(endD.getDate() + 6);
+  endD.setDate(endD.getDate() + 4); // 5 working days Mon–Fri
 
   document.getElementById('week-label').textContent =
     fmtDateShort(currentWeekStart) + ' – ' + fmtDate(endD);
@@ -2082,10 +2078,10 @@ async function loadSchedule() {
 
 function renderShiftTable(shifts, ws) {
   const days = [];
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < 5; i++) { // Mon–Fri only
     const d = new Date(ws); d.setDate(d.getDate() + i); days.push(d);
   }
-  const dayNames = ['จ','อ','พ','พฤ','ศ','ส','อา'];
+  const dayNames = ['จ','อ','พ','พฤ','ศ'];
   const todayISO = fmtDateISO(new Date());
   const colCount = 1 + days.length;
 
@@ -2222,9 +2218,9 @@ function renderCoverageWarn(coverage, ws) {
 
   const issues = [];
 
-  // Generate 7 days of this week
+  // Generate 5 working days (Mon–Fri)
   const days = [];
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < 5; i++) {
     const d = new Date(ws); d.setDate(d.getDate() + i); days.push(d);
   }
 
