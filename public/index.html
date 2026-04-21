@@ -488,14 +488,14 @@ textarea{resize:vertical;min-height:80px}
   </div>
 
   <!-- ── Charts Row 1: Donut + Agent Compare Bar ── -->
-  <div class="grid-2">
+  <div class="grid-2" style="grid-template-columns:1fr 2fr">
     <div class="card">
       <div class="card-title">🥧 ประเภทปัญหา Top 5 (เดือนนี้)</div>
-      <canvas id="chart-cat-donut" height="210"></canvas>
+      <div style="position:relative;height:210px"><canvas id="chart-cat-donut"></canvas></div>
     </div>
     <div class="card">
       <div class="card-title">📅 Workload Agent — เดือนนี้ vs เดือนก่อน</div>
-      <canvas id="chart-agent-compare" height="210"></canvas>
+      <div style="position:relative;height:180px"><canvas id="chart-agent-compare"></canvas></div>
     </div>
   </div>
 
@@ -1672,12 +1672,12 @@ async function loadDashboardCharts() {
         }]
       },
       options: {
-        responsive: true,
+        responsive: true, maintainAspectRatio: false,
         cutout: '55%',
         plugins: {
           legend: {
-            position: 'right',
-            labels: { color: '#e2e8f0', font: { size: 11 }, boxWidth: 12 }
+            position: 'bottom',
+            labels: { color: '#64748b', font: { size: 10 }, boxWidth: 10, padding: 8 }
           },
           tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed.toLocaleString()} เคส` } }
         }
@@ -1740,7 +1740,7 @@ async function loadDashboardCharts() {
       type: 'bar',
       data: { labels: topN.map(r => dn(r.UserName)), datasets: barDatasets },
       options: {
-        responsive: true,
+        responsive: true, maintainAspectRatio: false,
         plugins: {
           legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 10 } },
           tooltip: {
