@@ -86,6 +86,8 @@ const CALLLOG_SELECT = `
       THEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate)
       ELSE NULL
     END                 AS TimeDiff_Minutes,
+    cl.Stars,
+    cl.Comment          AS ticket_comment,
     cl.CalllogDesc      AS description,
     cl.Solution,
     cs.StatusName       AS status,
@@ -311,6 +313,22 @@ app.get('/api/tickets/:id', async (request, res) => {
       .query(CALLLOG_SELECT + ' WHERE cl.CalllogId=@id');
     if (!result.recordset[0]) return res.status(404).json({ error: 'not found' });
     res.json(result.recordset[0]);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Ticket review: save stars + comment back to LicenseDB ─
+app.patch('/api/tickets/:id/review', authRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
+    const { stars, comment } = request.body;
+    await extReq()
+      .input('id',      sql.Int,      parseInt(request.params.id))
+      .input('stars',   sql.TinyInt,  (stars != null && stars !== '') ? parseInt(stars) : null)
+      .input('comment', sql.NVarChar, comment ?? null)
+      .query(`UPDATE Calllog
+              SET Stars=@stars, Comment=@comment, UpdateDate=GETDATE()
+              WHERE CalllogId=@id`);
+    res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

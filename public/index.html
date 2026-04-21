@@ -312,6 +312,15 @@ textarea{resize:vertical;min-height:80px}
 .tk-detail-text{font-size:.84rem;line-height:1.7;color:var(--text);white-space:pre-wrap}
 .tk-solution-box{background:#f0fdf4;border:1px solid #86efac}
 .tk-solution-box .tk-detail-label{color:#15803d}
+/* ── TICKET REVIEW (stars + comment) ── */
+.tk-review-box{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:.75rem 1rem;margin-top:.75rem}
+.tk-review-box .tk-detail-label{color:#92400e}
+.star-picker{display:flex;gap:.15rem;margin:.25rem 0}
+.star-picker span{font-size:1.4rem;cursor:pointer;color:#d1d5db;transition:color .1s;user-select:none;line-height:1}
+.star-picker span.on{color:#f59e0b}
+.star-picker span:hover,.star-picker:hover span.hover-on{color:#f59e0b}
+.tk-star-display{color:#f59e0b;font-size:.9rem;letter-spacing:.05em}
+.tk-star-display.empty{color:#d1d5db}
 
 /* ── USER TABLE ── */
 .role-badge{display:inline-block;padding:.15rem .5rem;border-radius:20px;font-size:.72rem;font-weight:700}
@@ -699,6 +708,7 @@ textarea{resize:vertical;min-height:80px}
             <th>สถานะ</th>
             <th>วันที่ปิด</th>
             <th>ใช้เวลา (นาที)</th>
+            <th>⭐</th>
           </tr>
         </thead>
         <tbody id="ticket-tbody"></tbody>
@@ -2410,26 +2420,60 @@ function renderTickets() {
           ${isOverdue ? `<div style="font-size:.68rem;color:#fca5a5;font-weight:700">⚠️ ค้างนาน</div>` : ''}</td>
       <td style="font-size:.78rem;white-space:nowrap;color:var(--muted)">${closeDateStr}</td>
       <td style="font-size:.8rem;white-space:nowrap;text-align:right;color:${t.TimeDiff_Minutes!=null&&t.TimeDiff_Minutes<0?'#fca5a5':'var(--text)'}">${diffMin}</td>
+      <td style="white-space:nowrap;text-align:center">
+        ${t.Stars ? `<span class="tk-star-display" title="${t.Stars} ดาว">${'★'.repeat(t.Stars)}${'☆'.repeat(5-t.Stars)}</span>`
+                  : `<span class="tk-star-display empty" title="ยังไม่ได้ให้ดาว">☆☆☆☆☆</span>`}
+      </td>
     </tr>`);
 
     // Detail expand row
-    if (expanded && hasDetail) {
+    if (expanded) {
       const desc = (t.description||'').trim();
       const sol  = (t.Solution||'').trim();
       const url  = t.IssueURL ? `<a href="${t.IssueURL}" target="_blank" style="font-size:.78rem;color:var(--accent)">🔗 ดูใน LicenseDB</a>` : '';
+      const canReview = isLeadRole();
+      const curStars   = t.Stars || 0;
+      const curComment = escHtml(t.ticket_comment || '');
+
+      // Star picker HTML
+      const starPickerHtml = canReview
+        ? `<div class="star-picker" id="sp-${t.id}" onmouseleave="spHover(${t.id},0)">
+            ${[1,2,3,4,5].map(n =>
+              `<span data-v="${n}" class="${n<=curStars?'on':''}"
+                onclick="spClick(${t.id},${n})"
+                onmouseenter="spHover(${t.id},${n})">★</span>`
+            ).join('')}
+           </div>`
+        : `<div class="tk-star-display">${curStars ? '★'.repeat(curStars)+'☆'.repeat(5-curStars) : '☆☆☆☆☆'}</div>`;
+
       rows.push(`<tr class="tk-row-detail">
-        <td colspan="10" style="padding:.75rem 1rem 1rem">
-          <div style="display:grid;grid-template-columns:${sol?'1fr 1fr':'1fr'};gap:1rem">
+        <td colspan="11" style="padding:.75rem 1rem 1rem">
+          ${(desc||sol) ? `<div style="display:grid;grid-template-columns:${sol?'1fr 1fr':'1fr'};gap:1rem;margin-bottom:.75rem">
             ${desc ? `<div class="tk-detail-box">
-              <div class="tk-detail-label">📋 รายละเอียดปัญหา (CalllogDesc)</div>
+              <div class="tk-detail-label">📋 รายละเอียดปัญหา</div>
               <div class="tk-detail-text">${escHtml(desc)}</div>
             </div>` : ''}
             ${sol ? `<div class="tk-detail-box tk-solution-box">
-              <div class="tk-detail-label">✅ วิธีแก้ไข (Solution)</div>
+              <div class="tk-detail-label">✅ วิธีแก้ไข</div>
               <div class="tk-detail-text">${escHtml(sol)}</div>
             </div>` : ''}
+          </div>` : ''}
+          ${url ? `<div style="margin-bottom:.5rem">${url}</div>` : ''}
+
+          <!-- Review section -->
+          <div class="tk-review-box">
+            <div class="tk-detail-label">⭐ ประเมินเคส</div>
+            ${starPickerHtml}
+            ${canReview
+              ? `<textarea id="tc-${t.id}" rows="2" placeholder="หมายเหตุ / ความคิดเห็น..."
+                   style="width:100%;margin-top:.4rem;padding:.4rem .6rem;border:1px solid var(--border);border-radius:6px;font-size:.82rem;resize:vertical;background:var(--card);color:var(--text)">${curComment}</textarea>
+                 <button class="btn btn-sm btn-primary" style="margin-top:.4rem"
+                   onclick="saveTicketReview(${t.id})">💾 บันทึก</button>`
+              : curComment
+                ? `<div style="margin-top:.35rem;font-size:.82rem;color:var(--muted)">${curComment}</div>`
+                : ''
+            }
           </div>
-          ${url ? `<div style="margin-top:.5rem">${url}</div>` : ''}
         </td>
       </tr>`);
     }
@@ -2443,9 +2487,53 @@ function escHtml(str) {
 }
 
 function toggleTicketDetail(id) {
-  if (tkExpandedRows.has(id)) tkExpandedRows.delete(id);
-  else tkExpandedRows.add(id);
+  if (tkExpandedRows.has(id)) {
+    tkExpandedRows.delete(id);
+  } else {
+    tkExpandedRows.add(id);
+    // seed star picker with existing value
+    const t = allTickets.find(x => x.id === id);
+    if (t && t.Stars) _spValues[id] = t.Stars;
+  }
   renderTickets();
+}
+
+// ── Star picker helpers ──
+const _spValues = {};  // ticketId → selected stars (in-memory before save)
+
+function spHover(id, n) {
+  const picker = document.getElementById('sp-' + id);
+  if (!picker) return;
+  picker.querySelectorAll('span').forEach(s => {
+    const v = parseInt(s.dataset.v);
+    s.classList.toggle('on', n > 0 ? v <= n : v <= (_spValues[id] ?? 0));
+  });
+}
+
+function spClick(id, n) {
+  _spValues[id] = n;
+  spHover(id, n);
+}
+
+async function saveTicketReview(id) {
+  const stars   = _spValues[id] ?? null;
+  const comment = document.getElementById('tc-' + id)?.value ?? '';
+  try {
+    await api('/api/tickets/' + id + '/review', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stars, comment })
+    });
+    // update local cache so re-render shows new stars immediately
+    const t = allTickets.find(x => x.id === id);
+    if (t) { t.Stars = stars; t.ticket_comment = comment; }
+    renderTickets();
+    // briefly show success flash
+    const btn = document.querySelector(`[onclick="saveTicketReview(${id})"]`);
+    if (btn) { const orig = btn.textContent; btn.textContent = '✅ บันทึกแล้ว'; setTimeout(() => { btn.textContent = orig; }, 1500); }
+  } catch (e) {
+    alert('เกิดข้อผิดพลาด: ' + (e.message || e));
+  }
 }
 
 async function saveTicket() {
