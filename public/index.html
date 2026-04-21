@@ -2521,8 +2521,7 @@ async function saveTicketReview(id) {
   try {
     await api('/api/tickets/' + id + '/review', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stars, comment })
+      body: { stars, comment }
     });
     // update local cache so re-render shows new stars immediately
     const t = allTickets.find(x => x.id === id);
