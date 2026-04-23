@@ -890,9 +890,8 @@ textarea{resize:vertical;min-height:80px}
             <tr>
               <th>ชื่อ-นามสกุล</th>
               <th>ทีม</th>
-              <th>ตำแหน่ง</th>
               <th>Username Login</th>
-              <th>บทบาทระบบ</th>
+              <th>บทบาท</th>
               <th>Username LicenseDB</th>
               <th>สถานะ</th>
               <th>จัดการ</th>
@@ -1193,20 +1192,9 @@ textarea{resize:vertical;min-height:80px}
         <input id="p-nickname" placeholder="เช่น ชาย"/>
       </div>
     </div>
-    <div class="grid-2">
-      <div class="form-group">
-        <label>ทีม *</label>
-        <select id="p-team"></select>
-      </div>
-      <div class="form-group">
-        <label>ตำแหน่ง</label>
-        <select id="p-emp-role">
-          <option value="staff">Staff</option>
-          <option value="team_lead">Team Lead</option>
-          <option value="department_head">Department Head</option>
-          <option value="manager">Manager</option>
-        </select>
-      </div>
+    <div class="form-group">
+      <label>ทีม *</label>
+      <select id="p-team"></select>
     </div>
     <div class="grid-2">
       <div class="form-group">
@@ -3720,7 +3708,7 @@ async function loadPeople() {
   const roleLbl = { staff:'Staff', team_lead:'Team Lead', department_head:'Dept. Head', manager:'Manager', admin:'Admin' };
   const tbody = document.getElementById('people-tbody');
   if (!emps.length) {
-    tbody.innerHTML = '<tr><td colspan="8" class="empty">ยังไม่มีพนักงาน</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">ยังไม่มีพนักงาน</td></tr>';
     return;
   }
   tbody.innerHTML = emps.map(e => {
@@ -3731,7 +3719,6 @@ async function loadPeople() {
         <div style="font-size:.76rem;color:var(--muted)">${e.nickname ? `ชื่อเล่น: ${e.nickname}` : ''}</div>
       </td>
       <td>${teamBadgeHtml(e.team)}</td>
-      <td style="font-size:.82rem">${roleLbl[e.role]||e.role}</td>
       <td style="font-size:.85rem">
         ${u ? `<b>${u.username}</b>` : `<span style="color:#94a3b8;font-size:.78rem">ยังไม่มีบัญชี</span>`}
       </td>
@@ -3774,7 +3761,6 @@ function openAddPerson() {
   document.getElementById('p-nickname').value  = '';
   document.getElementById('p-phone').value     = '';
   document.getElementById('p-start').value     = '';
-  document.getElementById('p-emp-role').value  = 'staff';
   document.getElementById('p-username').value  = '';
   document.getElementById('p-password').value  = '';
   document.getElementById('p-sys-role').value  = 'staff';
@@ -3796,7 +3782,6 @@ function openEditPerson(e, u) {
   document.getElementById('p-nickname').value  = e.nickname || '';
   document.getElementById('p-phone').value     = e.phone || '';
   document.getElementById('p-start').value     = e.start_date ? e.start_date.toString().split('T')[0] : '';
-  document.getElementById('p-emp-role').value  = e.role || 'staff';
   document.getElementById('p-emp-status-wrap').style.display = '';
   document.getElementById('p-emp-status').value = e.active ? '1' : '0';
   document.getElementById('p-username').value  = u ? u.username : '';
@@ -3812,18 +3797,19 @@ function openEditPerson(e, u) {
 async function savePerson() {
   const name = document.getElementById('p-name').value.trim();
   if (!name) { alert('กรุณากรอกชื่อพนักงาน'); return; }
+  const sysRoleEarly = document.getElementById('p-sys-role').value;
   const empBody = {
     name,
     nickname:   document.getElementById('p-nickname').value.trim()  || null,
     team:       document.getElementById('p-team').value,
-    role:       document.getElementById('p-emp-role').value,
+    role:       sysRoleEarly,   // sync employees.role = app_users.role (single source)
     phone:      document.getElementById('p-phone').value.trim()      || null,
     start_date: document.getElementById('p-start').value             || null,
     active:     parseInt(document.getElementById('p-emp-status').value || '1')
   };
   const uname   = document.getElementById('p-username').value.trim();
   const pwd     = document.getElementById('p-password').value;
-  const sysRole = document.getElementById('p-sys-role').value;
+  const sysRole = sysRoleEarly;
   const extUser = document.getElementById('p-ext-username').value.trim() || null;
 
   try {
