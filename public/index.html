@@ -2976,12 +2976,13 @@ async function genCustomerLink(e, companyName, btn) {
       return;
     }
     const link = `${location.origin}/track.html?t=${data.token}`;
+    const isGroup = data.link_type === 'group';
+    const label   = isGroup ? `กลุ่ม: ${data.group_name || companyName}` : companyName;
     try {
       await navigator.clipboard.writeText(link);
-      showToast(`🔗 Copy link แล้ว! — ${companyName}`);
+      showToast(`🔗 Copy link แล้ว! — ${label}${isGroup ? ' (ทุก branch)' : ''}`);
     } catch {
-      // clipboard blocked — show modal with link instead
-      prompt('Copy link นี้ส่งให้ลูกค้า:', link);
+      prompt(`Copy link ${isGroup ? 'กลุ่มลูกค้า' : ''} ส่งให้ลูกค้า:`, link);
     }
     btn.textContent = '✅';
     setTimeout(() => { btn.textContent = '🔗'; }, 2500);

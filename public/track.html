@@ -313,6 +313,8 @@ async function load(){
     _company    = data.company;
     _tickets    = data.tickets || [];
     _complaints = data.complaints || [];
+    const _isGroup  = data.isGroup || false;
+    const _branches = data.branches || [];
     document.title = `ติดตามเคส — ${_company}`;
 
     const total  = _tickets.length;
@@ -324,9 +326,16 @@ async function load(){
 
     root.innerHTML = `
       <div class="company-card">
-        <div>
-          <div class="company-name">🏢 ${esc(_company)}</div>
+        <div style="flex:1">
+          <div class="company-name">
+            ${_isGroup ? '🏬' : '🏢'} ${esc(_company)}
+            ${_isGroup ? `<span style="display:inline-block;background:#dbeafe;color:#1d4ed8;border-radius:4px;font-size:.7rem;padding:.1rem .45rem;margin-left:.4rem;font-weight:600">กลุ่มลูกค้า</span>` : ''}
+          </div>
           <div class="company-sub">ข้อมูลอัปเดต: ${new Date().toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
+          ${_isGroup && _branches.length ? `
+          <div style="margin-top:.45rem;display:flex;flex-wrap:wrap;gap:.3rem">
+            ${_branches.map(b=>`<span style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;font-size:.7rem;padding:.05rem .4rem;color:#475569">${esc(b)}</span>`).join('')}
+          </div>` : ''}
         </div>
       </div>
 

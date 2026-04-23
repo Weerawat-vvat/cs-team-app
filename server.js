@@ -1171,8 +1171,15 @@ async function ensureCustomerLinksTable() {
         company_name NVARCHAR(255) NOT NULL,
         token        NVARCHAR(64)  NOT NULL UNIQUE,
         created_at   DATETIME      DEFAULT GETDATE(),
-        created_by   INT
+        created_by   INT,
+        group_id     INT NULL,
+        group_name   NVARCHAR(255) NULL,
+        link_type    NVARCHAR(10)  DEFAULT 'company'  -- 'company' or 'group'
       )`);
+    // Add columns if table already exists but missing new columns
+    await req().query(`
+      IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('customer_links') AND name='group_id')
+        ALTER TABLE customer_links ADD group_id INT NULL, group_name NVARCHAR(255) NULL, link_type NVARCHAR(10) DEFAULT 'company'`);
     await req().query(`
       IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ticket_complaints' AND xtype='U')
       CREATE TABLE ticket_complaints (
@@ -1198,27 +1205,62 @@ async function ensureCustomerLinksTable() {
   } catch(e) { console.error('customer tables error:', e.message); }
 }
 
-// Get or create public link for a company
+// Get or create public link for a company (auto-detect group)
 app.post('/api/customer-links', authRequired, async (request, res) => {
   try {
     const { company_name } = request.body;
     if (!company_name) return res.status(400).json({ error: 'company_name required' });
 
-    // Check existing
-    const existing = await req().input('cn', sql.NVarChar, company_name)
-      .query('SELECT * FROM customer_links WHERE company_name=@cn');
-    if (existing.recordset.length) return res.json(existing.recordset[0]);
+    // Auto-detect: does this company have a real GroupId (not 1)?
+    let groupId = null, groupName = null, linkType = 'company';
+    if (getExtPool()) {
+      const grp = await extReq().input('cn', sql.NVarChar, company_name)
+        .query(`SELECT TOP 1 cr.GroupId, cg.GroupName
+                FROM CustomerRegistration cr
+                JOIN CustomerGroup cg ON cg.GroupId = cr.GroupId
+                WHERE cr.CompanyName = @cn
+                  AND cr.GroupId IS NOT NULL
+                  AND cr.GroupId <> 1`);
+      if (grp.recordset.length) {
+        groupId   = grp.recordset[0].GroupId;
+        groupName = grp.recordset[0].GroupName;
+        linkType  = 'group';
+      }
+    }
 
-    // Create new token
+    if (linkType === 'group') {
+      // Check existing group link
+      const existing = await req().input('gid', sql.Int, groupId)
+        .query('SELECT * FROM customer_links WHERE group_id=@gid');
+      if (existing.recordset.length) return res.json({ ...existing.recordset[0], link_type: 'group' });
+
+      const token = crypto.randomBytes(24).toString('hex');
+      const result = await req()
+        .input('cn',  sql.NVarChar, groupName)
+        .input('tok', sql.NVarChar, token)
+        .input('by',  sql.Int,      request.user.id || null)
+        .input('gid', sql.Int,      groupId)
+        .input('gn',  sql.NVarChar, groupName)
+        .query(`INSERT INTO customer_links (company_name, token, created_by, group_id, group_name, link_type)
+                OUTPUT INSERTED.*
+                VALUES (@cn, @tok, @by, @gid, @gn, 'group')`);
+      return res.json({ ...result.recordset[0], link_type: 'group' });
+    }
+
+    // Company-level link
+    const existing = await req().input('cn', sql.NVarChar, company_name)
+      .query("SELECT * FROM customer_links WHERE company_name=@cn AND (link_type='company' OR link_type IS NULL)");
+    if (existing.recordset.length) return res.json({ ...existing.recordset[0], link_type: 'company' });
+
     const token = crypto.randomBytes(24).toString('hex');
     const result = await req()
       .input('cn',  sql.NVarChar, company_name)
       .input('tok', sql.NVarChar, token)
       .input('by',  sql.Int,      request.user.id || null)
-      .query(`INSERT INTO customer_links (company_name, token, created_by)
+      .query(`INSERT INTO customer_links (company_name, token, created_by, link_type)
               OUTPUT INSERTED.*
-              VALUES (@cn, @tok, @by)`);
-    res.json(result.recordset[0]);
+              VALUES (@cn, @tok, @by, 'company')`);
+    res.json({ ...result.recordset[0], link_type: 'company' });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -1252,18 +1294,19 @@ app.get('/api/public/track/:token', async (request, res) => {
       .query('SELECT * FROM customer_links WHERE token=@tok');
     if (!link.recordset.length) return res.status(404).json({ error: 'Link ไม่พบหรือถูกลบแล้ว' });
 
-    const company = link.recordset[0].company_name;
+    const linkRow   = link.recordset[0];
+    const isGroup   = linkRow.link_type === 'group' && linkRow.group_id;
+    const displayName = isGroup ? linkRow.group_name : linkRow.company_name;
 
-    // Fetch all tickets for this company (no date limit)
-    const result = await extReq().input('cn', sql.NVarChar, `%${company}%`)
-      .query(`SELECT
+    const ticketQuery = `
+      SELECT
         cl.CalllogId        AS id,
         cr.CompanyName,
         cl.ReceiveDate      AS opened_at,
         cl.CloseDate,
         cs.StatusName       AS status,
         cl.Subject          AS title,
-        pt.Note             AS problem_type,
+        pt.ProblemTypeDetail AS problem_type,
         cl.CalllogDesc      AS description,
         cl.Solution,
         u.UserName          AS agent,
@@ -1274,16 +1317,52 @@ app.get('/api/public/track/:token', async (request, res) => {
       INNER JOIN CustomerRegistration cr ON cr.RegistrationId = cl.RegistrationId
       INNER JOIN CallStatus           cs ON cs.StatusId       = cl.StatusId
       INNER JOIN Users                u  ON u.UserId          = cl.SupportId
-      LEFT  JOIN ProblemType          pt ON pt.ProblemTypeId  = cl.ProblemTypeId
-      WHERE cr.CompanyName LIKE @cn
-      ORDER BY cl.ReceiveDate DESC`);
+      LEFT  JOIN ProblemType          pt ON pt.ProblemTypeId  = cl.ProblemTypeId`;
 
-    // Also fetch complaints for this company (so customer sees their own complaints)
-    const complaints = await req().input('cn2', sql.NVarChar, company)
-      .query(`SELECT id, ticket_id, message, status, created_at
-              FROM ticket_complaints WHERE company_name=@cn2 ORDER BY created_at DESC`);
+    let result;
+    if (isGroup) {
+      // Group link: fetch all branches in the group (GroupId != 1 guaranteed by creation)
+      result = await extReq().input('gid', sql.Int, linkRow.group_id)
+        .query(ticketQuery + `
+          WHERE cr.GroupId = @gid
+          ORDER BY cl.ReceiveDate DESC`);
+    } else {
+      result = await extReq().input('cn', sql.NVarChar, `%${linkRow.company_name}%`)
+        .query(ticketQuery + `
+          WHERE cr.CompanyName LIKE @cn
+          ORDER BY cl.ReceiveDate DESC`);
+    }
 
-    res.json({ company, tickets: result.recordset, complaints: complaints.recordset });
+    // Branches list (for group link — show customer which branches are included)
+    let branches = [];
+    if (isGroup) {
+      const br = await extReq().input('gid2', sql.Int, linkRow.group_id)
+        .query(`SELECT DISTINCT cr.CompanyName
+                FROM CustomerRegistration cr WHERE cr.GroupId=@gid2 ORDER BY cr.CompanyName`);
+      branches = br.recordset.map(r => r.CompanyName);
+    }
+
+    // Complaints
+    const complaints = isGroup
+      ? await req().input('gid3', sql.Int, linkRow.group_id)
+          .query(`SELECT id, ticket_id, message, status, created_at
+                  FROM ticket_complaints tc
+                  WHERE EXISTS (
+                    SELECT 1 FROM CustomerRegistration cr
+                    WHERE cr.CompanyName = tc.company_name AND cr.GroupId = @gid3
+                  ) ORDER BY created_at DESC`)
+      : await req().input('cn2', sql.NVarChar, linkRow.company_name)
+          .query(`SELECT id, ticket_id, message, status, created_at
+                  FROM ticket_complaints WHERE company_name=@cn2 ORDER BY created_at DESC`);
+
+    res.json({
+      company:    displayName,
+      isGroup,
+      groupId:    linkRow.group_id || null,
+      branches,
+      tickets:    result.recordset,
+      complaints: complaints.recordset
+    });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
