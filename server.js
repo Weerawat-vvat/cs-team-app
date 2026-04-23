@@ -4,6 +4,7 @@ const cors                       = require('cors');
 const path                       = require('path');
 const bcrypt                     = require('bcryptjs');
 const jwt                        = require('jsonwebtoken');
+const crypto                     = require('crypto');
 const { init, getPool, getExtPool, sql } = require('./database');
 const Anthropic                  = require('@anthropic-ai/sdk');
 
@@ -979,6 +980,109 @@ ${JSON.stringify(history, null, 2)}
 });
 
 // ══════════════════════════════════════════════════════════
+//  CUSTOMER PUBLIC LINKS
+// ══════════════════════════════════════════════════════════
+
+// Create table if not exists (run once on startup)
+async function ensureCustomerLinksTable() {
+  try {
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='customer_links' AND xtype='U')
+      CREATE TABLE customer_links (
+        id           INT PRIMARY KEY IDENTITY,
+        company_name NVARCHAR(255) NOT NULL,
+        token        NVARCHAR(64)  NOT NULL UNIQUE,
+        created_at   DATETIME      DEFAULT GETDATE(),
+        created_by   INT
+      )`);
+  } catch(e) { console.error('customer_links table error:', e.message); }
+}
+
+// Get or create public link for a company
+app.post('/api/customer-links', authRequired, async (request, res) => {
+  try {
+    const { company_name } = request.body;
+    if (!company_name) return res.status(400).json({ error: 'company_name required' });
+
+    // Check existing
+    const existing = await req().input('cn', sql.NVarChar, company_name)
+      .query('SELECT * FROM customer_links WHERE company_name=@cn');
+    if (existing.recordset.length) return res.json(existing.recordset[0]);
+
+    // Create new token
+    const token = crypto.randomBytes(24).toString('hex');
+    const result = await req()
+      .input('cn',  sql.NVarChar, company_name)
+      .input('tok', sql.NVarChar, token)
+      .input('by',  sql.Int,      request.user.id || null)
+      .query(`INSERT INTO customer_links (company_name, token, created_by)
+              OUTPUT INSERTED.*
+              VALUES (@cn, @tok, @by)`);
+    res.json(result.recordset[0]);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// List all customer links (for management)
+app.get('/api/customer-links', authRequired, async (request, res) => {
+  try {
+    const result = await req().query(
+      'SELECT * FROM customer_links ORDER BY created_at DESC'
+    );
+    res.json(result.recordset);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Delete a link
+app.delete('/api/customer-links/:id', authRequired, async (request, res) => {
+  try {
+    await req().input('id', sql.Int, request.params.id)
+      .query('DELETE FROM customer_links WHERE id=@id');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUBLIC — get tickets by token (no auth)
+app.get('/api/public/track/:token', async (request, res) => {
+  try {
+    if (!getExtPool()) return res.status(503).json({ error: 'DB not available' });
+    const { token } = request.params;
+
+    // Validate token
+    const link = await req().input('tok', sql.NVarChar, token)
+      .query('SELECT * FROM customer_links WHERE token=@tok');
+    if (!link.recordset.length) return res.status(404).json({ error: 'Link ไม่พบหรือถูกลบแล้ว' });
+
+    const company = link.recordset[0].company_name;
+
+    // Fetch all tickets for this company (no date limit)
+    const result = await extReq().input('cn', sql.NVarChar, `%${company}%`)
+      .query(`SELECT
+        cl.CalllogId        AS id,
+        cr.CompanyName,
+        cl.ReceiveDate      AS opened_at,
+        cl.CloseDate,
+        cs.StatusName       AS status,
+        cl.Subject          AS title,
+        pt.Note             AS problem_type,
+        cl.CalllogDesc      AS description,
+        cl.Solution,
+        u.UserName          AS agent,
+        cl.Stars,
+        CASE WHEN cl.CloseDate IS NOT NULL AND cl.ReceiveDate IS NOT NULL
+             THEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate) END AS resolve_minutes
+      FROM Calllog cl
+      INNER JOIN CustomerRegistration cr ON cr.RegistrationId = cl.RegistrationId
+      INNER JOIN CallStatus           cs ON cs.StatusId       = cl.StatusId
+      INNER JOIN Users                u  ON u.UserId          = cl.SupportId
+      LEFT  JOIN ProblemType          pt ON pt.ProblemTypeId  = cl.ProblemTypeId
+      WHERE cr.CompanyName LIKE @cn
+      ORDER BY cl.ReceiveDate DESC`);
+
+    res.json({ company, tickets: result.recordset });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════
 //  TEAMS (cs_team)
 // ══════════════════════════════════════════════════════════
 app.get('/api/teams', authRequired, async (request, res) => {
@@ -1452,7 +1556,8 @@ ${JSON.stringify(snap, null, 2)}
 });
 
 // ── Start ─────────────────────────────────────────────────
-init().then(() => {
+init().then(async () => {
+  await ensureCustomerLinksTable();
   app.listen(PORT, () => console.log(`🚀 CS Team App running at http://localhost:${PORT}`));
 }).catch(err => {
   console.error('❌ Startup failed:', err.message);

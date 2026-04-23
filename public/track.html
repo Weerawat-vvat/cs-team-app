@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>ติดตามเคส — CS Team</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Tahoma,sans-serif;background:#f1f5f9;color:#1e293b;min-height:100vh}
+.top-bar{background:#1e293b;color:#fff;padding:1rem 1.5rem;display:flex;align-items:center;gap:.75rem}
+.top-bar .logo{font-size:1.1rem;font-weight:800}
+.top-bar .sub{font-size:.8rem;color:#94a3b8}
+.container{max-width:960px;margin:0 auto;padding:1.5rem 1rem}
+.company-card{background:#fff;border-radius:12px;padding:1.1rem 1.4rem;border:1px solid #e2e8f0;margin-bottom:1.25rem;box-shadow:0 1px 4px #0001;display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
+.company-name{font-size:1.15rem;font-weight:800;color:#1e293b}
+.stat-row{display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:1.25rem}
+.stat-pill{background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:.35rem .8rem;font-size:.8rem;display:flex;align-items:center;gap:.4rem;box-shadow:0 1px 3px #0001}
+.stat-pill b{font-size:1rem;font-weight:800}
+.ticket-card{background:#fff;border-radius:10px;padding:1rem 1.2rem;border:1px solid #e2e8f0;margin-bottom:.75rem;box-shadow:0 1px 3px #0001}
+.tk-header{display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem}
+.tk-id{font-size:.78rem;color:#64748b;font-weight:600}
+.tk-title{font-size:.95rem;font-weight:700;color:#1e293b}
+.tk-status{display:inline-block;padding:.15rem .55rem;border-radius:20px;font-size:.72rem;font-weight:700;white-space:nowrap}
+.tk-meta{display:flex;gap:1rem;flex-wrap:wrap;font-size:.76rem;color:#64748b;margin-bottom:.6rem}
+.section-label{font-size:.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.2rem}
+.section-box{background:#f8fafc;border-radius:6px;padding:.5rem .75rem;font-size:.83rem;line-height:1.6;color:#334155;white-space:pre-wrap;word-break:break-word}
+.solution-box{background:#f0fdf4;border:1px solid #bbf7d0}
+.stars{color:#f59e0b;font-size:.9rem;letter-spacing:1px}
+.divider{height:1px;background:#e2e8f0;margin:.6rem 0}
+.empty{text-align:center;padding:3rem;color:#94a3b8;font-size:.9rem}
+.badge-closed{background:#dcfce7;color:#15803d}
+.badge-open{background:#fee2e2;color:#b91c1c}
+.badge-progress{background:#fef3c7;color:#92400e}
+.badge-wait{background:#f3e8ff;color:#7e22ce}
+.badge-other{background:#f1f5f9;color:#475569}
+.loading{text-align:center;padding:4rem;color:#64748b}
+.error-box{background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:1.5rem;text-align:center;color:#b91c1c}
+@media(max-width:600px){.tk-header{flex-direction:column}.tk-meta{flex-direction:column;gap:.3rem}}
+</style>
+</head>
+<body>
+<div class="top-bar">
+  <div>
+    <div class="logo">📋 CS Team — ติดตามเคส</div>
+    <div class="sub">Customer Ticket Tracking</div>
+  </div>
+</div>
+
+<div class="container">
+  <div id="root"><div class="loading">⏳ กำลังโหลด...</div></div>
+</div>
+
+<script>
+function statusClass(s) {
+  const l = (s||'').toLowerCase();
+  if (l.includes('close')||l.includes('complete')) return 'badge-closed';
+  if (l.includes('progress')||l.includes('working')) return 'badge-progress';
+  if (l.includes('wait')||l.includes('pending')||l.includes('รอ')) return 'badge-wait';
+  if (l.includes('open')||l.includes('new')) return 'badge-open';
+  return 'badge-other';
+}
+
+function parseDbDate(s) { return s ? new Date(String(s).replace('Z','')) : null; }
+
+function fmtDate(s) {
+  const d = parseDbDate(s);
+  if (!d) return '—';
+  return d.toLocaleDateString('th-TH', {day:'numeric',month:'short',year:'numeric'}) +
+         ' ' + d.toLocaleTimeString('th-TH', {hour:'2-digit',minute:'2-digit'});
+}
+
+function fmtDuration(m) {
+  if (m == null || m < 0) return '—';
+  if (m >= 60) return `${Math.floor(m/60)} ชม. ${m%60} น.`;
+  return `${m} น.`;
+}
+
+function stars(n) {
+  if (!n) return '<span style="color:#cbd5e1">ยังไม่ได้ให้คะแนน</span>';
+  return '★'.repeat(n) + '☆'.repeat(5-n);
+}
+
+function esc(s) {
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function load() {
+  const token = new URLSearchParams(location.search).get('t');
+  const root  = document.getElementById('root');
+  if (!token) {
+    root.innerHTML = '<div class="error-box">❌ ไม่พบ link ที่ถูกต้อง</div>';
+    return;
+  }
+  try {
+    const res  = await fetch(`/api/public/track/${token}`);
+    const data = await res.json();
+    if (!res.ok) {
+      root.innerHTML = `<div class="error-box">❌ ${esc(data.error || 'ไม่พบข้อมูล')}</div>`;
+      return;
+    }
+    const { company, tickets } = data;
+    document.title = `ติดตามเคส — ${company}`;
+
+    const total   = tickets.length;
+    const closed  = tickets.filter(t => (t.status||'').toLowerCase().includes('close')).length;
+    const open    = total - closed;
+    const withTime = tickets.filter(t => t.resolve_minutes != null && t.resolve_minutes >= 0);
+    const avgMin  = withTime.length ? Math.round(withTime.reduce((s,t)=>s+t.resolve_minutes,0)/withTime.length) : null;
+
+    let html = `
+      <div class="company-card">
+        <div>
+          <div class="company-name">🏢 ${esc(company)}</div>
+          <div style="font-size:.78rem;color:#64748b;margin-top:.2rem">ข้อมูลอัปเดต: ${new Date().toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
+        </div>
+      </div>
+      <div class="stat-row">
+        <div class="stat-pill">📋 ทั้งหมด <b>${total}</b> เคส</div>
+        <div class="stat-pill">✅ ปิดแล้ว <b style="color:#16a34a">${closed}</b></div>
+        <div class="stat-pill">🔴 เปิดอยู่ <b style="color:#dc2626">${open}</b></div>
+        ${avgMin != null ? `<div class="stat-pill">⏱️ เฉลี่ยแก้ไข <b style="color:#7c3aed">${fmtDuration(avgMin)}</b></div>` : ''}
+      </div>`;
+
+    if (!tickets.length) {
+      html += '<div class="empty">ไม่พบเคส</div>';
+    } else {
+      tickets.forEach(t => {
+        const isClosed = (t.status||'').toLowerCase().includes('close');
+        html += `
+        <div class="ticket-card">
+          <div class="tk-header">
+            <div>
+              <div class="tk-id">#${t.id} · ${esc(t.problem_type || t.title || '—')}</div>
+              <div class="tk-title">${esc(t.title || '—')}</div>
+            </div>
+            <span class="tk-status ${statusClass(t.status)}">${esc(t.status||'—')}</span>
+          </div>
+          <div class="tk-meta">
+            <span>📅 รับเคส: ${fmtDate(t.opened_at)}</span>
+            ${t.CloseDate ? `<span>✅ ปิด: ${fmtDate(t.CloseDate)}</span>` : ''}
+            ${t.resolve_minutes != null && t.resolve_minutes >= 0 ? `<span>⏱️ ใช้เวลา: ${fmtDuration(t.resolve_minutes)}</span>` : ''}
+            <span>👤 Agent: ${esc(t.agent||'—')}</span>
+          </div>
+          ${t.description ? `
+          <div class="section-label">📋 รายละเอียดปัญหา</div>
+          <div class="section-box">${esc(t.description)}</div>` : ''}
+          ${t.Solution ? `
+          <div class="divider"></div>
+          <div class="section-label" style="color:#16a34a">✅ วิธีแก้ไข</div>
+          <div class="section-box solution-box">${esc(t.Solution)}</div>` : ''}
+          ${t.Stars ? `
+          <div class="divider"></div>
+          <div style="font-size:.78rem;color:#64748b">⭐ คะแนน: <span class="stars">${stars(t.Stars)}</span></div>` : ''}
+        </div>`;
+      });
+    }
+
+    root.innerHTML = html;
+  } catch(e) {
+    document.getElementById('root').innerHTML = `<div class="error-box">❌ เกิดข้อผิดพลาด: ${esc(e.message)}</div>`;
+  }
+}
+
+load();
+</script>
+</body>
+</html>
