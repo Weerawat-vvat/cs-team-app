@@ -1396,11 +1396,11 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
         WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc1}
         GROUP BY CAST(cl.ReceiveDate AS DATE) ORDER BY day`),
       // Category stats
-      r2.query(`SELECT ISNULL(pt.Note, 'อื่นๆ') AS category, COUNT(*) AS cnt
+      r2.query(`SELECT ISNULL(pt.ProblemTypeDetail, 'อื่นๆ') AS category, COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
         LEFT JOIN ProblemType pt ON pt.ProblemTypeId = cl.ProblemTypeId
         WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc2}
-        GROUP BY pt.Note ORDER BY cnt DESC`),
+        GROUP BY pt.ProblemTypeDetail ORDER BY cnt DESC`),
       // Agent cases — this period
       r3.query(`SELECT u.UserName, COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
