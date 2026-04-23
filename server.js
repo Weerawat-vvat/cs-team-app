@@ -995,7 +995,29 @@ async function ensureCustomerLinksTable() {
         created_at   DATETIME      DEFAULT GETDATE(),
         created_by   INT
       )`);
-  } catch(e) { console.error('customer_links table error:', e.message); }
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ticket_complaints' AND xtype='U')
+      CREATE TABLE ticket_complaints (
+        id           INT PRIMARY KEY IDENTITY,
+        ticket_id    INT NOT NULL,
+        company_name NVARCHAR(255),
+        email        NVARCHAR(255),
+        message      NVARCHAR(MAX) NOT NULL,
+        status       NVARCHAR(20) DEFAULT 'pending',
+        created_at   DATETIME DEFAULT GETDATE(),
+        resolved_at  DATETIME,
+        resolved_by  INT
+      )`);
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ticket_watchers' AND xtype='U')
+      CREATE TABLE ticket_watchers (
+        id           INT PRIMARY KEY IDENTITY,
+        company_name NVARCHAR(255) NOT NULL,
+        email        NVARCHAR(255) NOT NULL,
+        created_at   DATETIME DEFAULT GETDATE(),
+        CONSTRAINT UQ_watcher UNIQUE (company_name, email)
+      )`);
+  } catch(e) { console.error('customer tables error:', e.message); }
 }
 
 // Get or create public link for a company
@@ -1078,7 +1100,74 @@ app.get('/api/public/track/:token', async (request, res) => {
       WHERE cr.CompanyName LIKE @cn
       ORDER BY cl.ReceiveDate DESC`);
 
-    res.json({ company, tickets: result.recordset });
+    // Also fetch complaints for this company (so customer sees their own complaints)
+    const complaints = await req().input('cn2', sql.NVarChar, company)
+      .query(`SELECT id, ticket_id, message, status, created_at
+              FROM ticket_complaints WHERE company_name=@cn2 ORDER BY created_at DESC`);
+
+    res.json({ company, tickets: result.recordset, complaints: complaints.recordset });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUBLIC — submit complaint (no auth)
+app.post('/api/public/complaint', async (request, res) => {
+  try {
+    const { token, ticket_id, email, message } = request.body;
+    if (!token || !message) return res.status(400).json({ error: 'token และ message จำเป็น' });
+    const link = await req().input('tok', sql.NVarChar, token)
+      .query('SELECT company_name FROM customer_links WHERE token=@tok');
+    if (!link.recordset.length) return res.status(404).json({ error: 'link ไม่พบ' });
+    const company_name = link.recordset[0].company_name;
+    await req()
+      .input('tid', sql.Int,      ticket_id || null)
+      .input('cn',  sql.NVarChar, company_name)
+      .input('em',  sql.NVarChar, email || null)
+      .input('msg', sql.NVarChar, message)
+      .query(`INSERT INTO ticket_complaints (ticket_id, company_name, email, message)
+              VALUES (@tid, @cn, @em, @msg)`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUBLIC — subscribe watcher (no auth)
+app.post('/api/public/watch', async (request, res) => {
+  try {
+    const { token, email } = request.body;
+    if (!token || !email) return res.status(400).json({ error: 'token และ email จำเป็น' });
+    const link = await req().input('tok', sql.NVarChar, token)
+      .query('SELECT company_name FROM customer_links WHERE token=@tok');
+    if (!link.recordset.length) return res.status(404).json({ error: 'link ไม่พบ' });
+    const company_name = link.recordset[0].company_name;
+    // Upsert
+    await req().input('cn', sql.NVarChar, company_name).input('em', sql.NVarChar, email)
+      .query(`IF NOT EXISTS (SELECT 1 FROM ticket_watchers WHERE company_name=@cn AND email=@em)
+              INSERT INTO ticket_watchers (company_name, email) VALUES (@cn, @em)`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// INTERNAL — get complaints for CS team
+app.get('/api/complaints', authRequired, async (request, res) => {
+  try {
+    const result = await req().query(`
+      SELECT tc.*, au.name AS resolved_by_name
+      FROM ticket_complaints tc
+      LEFT JOIN employees au ON au.id = tc.resolved_by
+      ORDER BY tc.created_at DESC`);
+    res.json(result.recordset);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// INTERNAL — resolve complaint
+app.put('/api/complaints/:id/resolve', authRequired, async (request, res) => {
+  try {
+    await req()
+      .input('id', sql.Int, request.params.id)
+      .input('by', sql.Int, request.user.employee_id || null)
+      .query(`UPDATE ticket_complaints
+              SET status='resolved', resolved_at=GETDATE(), resolved_by=@by
+              WHERE id=@id`);
+    res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

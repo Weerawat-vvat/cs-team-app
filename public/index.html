@@ -404,6 +404,9 @@ textarea{resize:vertical;min-height:80px}
     <button class="s-tab" id="nav-btn-users" onclick="showPage('users',this)" style="display:none">
       <span class="s-tab-icon">👤</span> จัดการ User
     </button>
+    <button class="s-tab" id="nav-btn-complaints" onclick="showPage('complaints',this)" style="display:none">
+      <span class="s-tab-icon">📣</span> ร้องเรียน <span id="complaint-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.65rem;padding:.05rem .4rem;margin-left:.2rem;font-weight:700"></span>
+    </button>
   </nav>
   <div class="sidebar-footer" id="nav-user-info" style="display:none">
     <div class="sidebar-user-name" id="nav-display-name">—</div>
@@ -913,6 +916,27 @@ textarea{resize:vertical;min-height:80px}
           <tbody id="teams-tbody"></tbody>
         </table>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ PAGE: COMPLAINTS ═══════════════════ -->
+<div id="page-complaints" class="page">
+  <div class="section-header" style="margin-bottom:.75rem">
+    <div class="section-title">📣 ร้องเรียนจากลูกค้า</div>
+    <button class="btn btn-sm btn-ghost" onclick="loadComplaints()">🔄 รีเฟรช</button>
+  </div>
+  <div class="card" style="padding:.5rem 0">
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>#</th><th>เคส</th><th>บริษัท</th><th>Email</th>
+          <th>ข้อความ</th><th>วันที่</th><th>สถานะ</th><th></th>
+        </tr></thead>
+        <tbody id="complaints-tbody">
+          <tr><td colspan="8" class="empty">กำลังโหลด...</td></tr>
+        </tbody>
+      </table>
     </div>
   </div>
 </div>
@@ -1503,7 +1527,8 @@ function showPage(name, btn) {
   if (name === 'schedule')  loadSchedule();
   if (name === 'tickets')   loadTickets();
   if (name === 'kpi')       loadKpi();
-  if (name === 'users')     loadUsers();
+  if (name === 'users')      loadUsers();
+  if (name === 'complaints') loadComplaints();
 }
 
 // ══════════════════════════════════════════════════════════
@@ -3361,6 +3386,8 @@ function applyUserContext() {
 
   // Nav: Users tab — manager/admin only
   document.getElementById('nav-btn-users').style.display = isManager ? '' : 'none';
+  document.getElementById('nav-btn-complaints').style.display = isLead ? '' : 'none';
+  if (isLead) loadComplaintsBadge();
 
   // Schedule: hide edit buttons for staff
   const addShiftBtn   = document.getElementById('btn-add-shift');
@@ -3615,6 +3642,53 @@ let editPersonUserId = null;
 
 // loadUsers() is called by showPage('users') — redirect to loadPeople()
 async function loadUsers() { await loadPeople(); }
+
+// ══════════════════════════════════════════════════════════
+//  COMPLAINTS
+// ══════════════════════════════════════════════════════════
+async function loadComplaintsBadge() {
+  try {
+    const data = await api('/api/complaints');
+    const pending = (data || []).filter(c => c.status === 'pending').length;
+    const badge = document.getElementById('complaint-badge');
+    if (badge) {
+      if (pending > 0) { badge.textContent = pending; badge.style.display = ''; }
+      else badge.style.display = 'none';
+    }
+  } catch(e) {}
+}
+
+async function loadComplaints() {
+  const tbody = document.getElementById('complaints-tbody');
+  if (!tbody) return;
+  try {
+    const data = await api('/api/complaints');
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty">ยังไม่มีร้องเรียน</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.map(c => `
+      <tr>
+        <td style="font-size:.8rem"><b>${c.id}</b></td>
+        <td style="font-size:.8rem">${c.ticket_id ? `<b>#${c.ticket_id}</b>` : '—'}</td>
+        <td style="font-size:.8rem;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(c.company_name||'—')}</td>
+        <td style="font-size:.78rem;color:var(--muted)">${escHtml(c.email||'—')}</td>
+        <td style="font-size:.8rem;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(c.message)}">${escHtml(c.message)}</td>
+        <td style="font-size:.75rem;white-space:nowrap">${fmtDate(c.created_at)}</td>
+        <td><span class="badge ${c.status==='resolved'?'badge-closed':'badge-open'}">${c.status==='resolved'?'✅ แก้ไขแล้ว':'⏳ รอดำเนินการ'}</span></td>
+        <td>${c.status==='pending'
+          ? `<button class="btn btn-sm btn-success" onclick="resolveComplaint(${c.id},this)">✓ แก้ไขแล้ว</button>`
+          : `<span style="font-size:.72rem;color:var(--muted)">${c.resolved_by_name||'—'}</span>`}</td>
+      </tr>`).join('');
+  } catch(e) {}
+}
+
+async function resolveComplaint(id, btn) {
+  btn.disabled = true; btn.textContent = '⏳';
+  const r = await api(`/api/complaints/${id}/resolve`, { method: 'PUT', silent: true });
+  loadComplaints();
+  loadComplaintsBadge();
+}
 
 async function loadPeople() {
   // Load employees (incl. inactive) and user accounts in parallel
