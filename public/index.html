@@ -3392,9 +3392,20 @@ async function updateKpi() {
 //  INIT
 // ══════════════════════════════════════════════════════════
 function initKpiMonthFilter() {
-  // Trigger default "เดือนนี้" preset
-  const thismonthBtn = document.querySelector('#kpi-drb .drb-btn');
-  kpiRange('thismonth', thismonthBtn);
+  // Set default date range (เดือนนี้) without triggering loadKpi yet
+  const today = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const iso  = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  const from = new Date(today.getFullYear(), today.getMonth(), 1);
+  _kpiDateFrom = iso(from);
+  _kpiDateTo   = iso(today);
+  _kpiPreset   = 'thismonth';
+  const el = document.getElementById('kpi-date-from');
+  if (el) el.value = _kpiDateFrom;
+  const el2 = document.getElementById('kpi-date-to');
+  if (el2) el2.value = _kpiDateTo;
+  const btn = document.querySelector('#kpi-drb .drb-btn');
+  if (btn) btn.classList.add('active');
 }
 
 // set today's date defaults

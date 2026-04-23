@@ -482,11 +482,17 @@ app.get('/api/kpi', authRequired, async (request, res) => {
 
     // Support both month-picker and date-range
     let startDate, endDate;
+    const isValidDate = d => d instanceof Date && !isNaN(d);
+
     if (dateFrom && dateTo) {
       startDate = new Date(dateFrom);
       endDate   = new Date(dateTo + 'T23:59:59');
-    } else {
-      const ym = (month || new Date().toISOString().substring(0, 7));
+    }
+    // Fallback to current month if dates are missing or invalid
+    if (!isValidDate(startDate) || !isValidDate(endDate)) {
+      const ym = (month && /^\d{4}-\d{2}$/.test(month))
+        ? month
+        : new Date().toISOString().substring(0, 7);
       startDate = new Date(ym + '-01');
       endDate   = new Date(new Date(ym + '-01').setMonth(startDate.getMonth() + 1));
     }
