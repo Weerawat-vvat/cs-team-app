@@ -792,74 +792,108 @@ textarea{resize:vertical;min-height:80px}
   <div class="section-header" style="margin-bottom:.75rem">
     <div class="section-title">📈 ประเมินผลทีม (KPI)</div>
     <div class="btn-group">
-      <button class="btn btn-primary btn-sm" onclick="openModal('modal-add-kpi')">+ บันทึก KPI</button>
       <button class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="loadAiForecast()">🔮 AI พยากรณ์</button>
     </div>
   </div>
 
-  <!-- AI Forecast Box -->
+  <!-- Date & Filter Bar (top — same as Dashboard/Tickets) -->
+  <div class="page-datebar" style="flex-direction:column;align-items:flex-start;gap:.45rem">
+    <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;width:100%">
+      <div class="drb" id="kpi-drb">
+        <button class="drb-btn" onclick="kpiRange('thismonth',this)">เดือนนี้</button>
+        <button class="drb-btn" onclick="kpiRange('lastmonth',this)">เดือนที่แล้ว</button>
+        <button class="drb-btn" onclick="kpiRange('7d',this)">7 วัน</button>
+        <button class="drb-btn" onclick="kpiRange('30d',this)">30 วัน</button>
+        <button class="drb-btn" onclick="kpiRange('thisweek',this)">สัปดาห์นี้</button>
+        <button class="drb-btn" onclick="kpiRange('custom',this)">กำหนดเอง</button>
+      </div>
+      <span style="color:var(--border)">|</span>
+      <select id="kpi-filter-team" onchange="loadKpi()">
+        <option value="">ทุกทีม</option>
+      </select>
+    </div>
+    <div class="drb-custom" id="kpi-custom-range" style="display:none">
+      <input id="kpi-date-from" type="date" style="max-width:135px"/>
+      <span style="color:var(--muted);font-size:.8rem">ถึง</span>
+      <input id="kpi-date-to" type="date" style="max-width:135px"/>
+      <button class="btn btn-sm btn-primary" onclick="loadKpi()">ค้นหา</button>
+    </div>
+  </div>
+
+  <!-- Stat Bar (compact) -->
+  <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.6rem;margin-bottom:.75rem" id="kpi-stats">
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">📊 เคสเฉลี่ย/คน</span>
+      <span style="font-size:1.1rem;font-weight:800;color:var(--hd)" id="kpi-stat-avg">—</span>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">✅ ปิดงานเฉลี่ย</span>
+      <span style="font-size:1.1rem;font-weight:800;color:#16a34a" id="kpi-stat-close-rate">—</span>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">⏱️ เฉลี่ยแก้ไข</span>
+      <span style="font-size:1.1rem;font-weight:800;color:#7c3aed" id="kpi-stat-resolve">—</span>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">⭐ คะแนนเฉลี่ย</span>
+      <span style="font-size:1.1rem;font-weight:800;color:#b45309" id="kpi-stat-stars">—</span>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">🔴 ค้าง &gt;24ชม.</span>
+      <span style="font-size:1.1rem;font-weight:800;color:var(--danger)" id="kpi-stat-overdue">—</span>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">📣 ร้องเรียน</span>
+      <span style="font-size:1.1rem;font-weight:800;color:#dc2626" id="kpi-stat-complaints">—</span>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">🏆 Top Agent</span>
+      <span style="font-size:.9rem;font-weight:800;color:var(--accent)" id="kpi-stat-top">—</span>
+    </div>
+  </div>
+
+  <!-- AI Forecast -->
   <div class="ai-forecast-box" id="ai-forecast-box">
     <div style="font-weight:700;color:#fcd34d;margin-bottom:.6rem;font-size:.9rem">🔮 AI วิเคราะห์ KPI และพยากรณ์แนวโน้ม</div>
     <div id="ai-forecast-body" class="ai-forecast-body"></div>
   </div>
 
-  <!-- Stat Cards -->
-  <div class="stat-row" id="kpi-stats">
-    <div class="stat-flat">
-      <div class="label">📊 เคสเฉลี่ย/คน</div>
-      <div class="value blue" id="kpi-stat-avg">—</div>
-      <div class="sub">เดือนที่เลือก</div>
-    </div>
-    <div class="stat-flat">
-      <div class="label">⭐ คะแนนเฉลี่ย</div>
-      <div class="value yellow" id="kpi-stat-score">—</div>
-      <div class="sub">ความพึงพอใจ</div>
-    </div>
-    <div class="stat-flat">
-      <div class="label">🏆 Top Agent</div>
-      <div class="value" id="kpi-stat-top" style="font-size:1rem;color:var(--accent);padding-top:.3rem">—</div>
-      <div class="sub">เคสมากสุด</div>
-    </div>
-    <div class="stat-flat">
-      <div class="label">👥 จำนวนพนักงาน</div>
-      <div class="value green" id="kpi-stat-count">—</div>
-      <div class="sub">ในช่วงเวลา</div>
-    </div>
-  </div>
-
-  <!-- Date & Filter Bar -->
-  <div class="page-datebar">
-    <label>📅 เดือน:</label>
-    <select id="kpi-filter-month" onchange="loadKpi()">
-      <!-- filled by JS -->
-    </select>
-    <label style="margin-left:.25rem">ทีม:</label>
-    <select id="kpi-filter-team" onchange="loadKpi()">
-      <option value="">ทุกทีม</option>
-      <!-- populated by JS from allTeams -->
-    </select>
-  </div>
-
-  <!-- Chart -->
-  <div class="grid-2" style="margin-bottom:1rem">
+  <!-- Charts (compact 3-col) -->
+  <div class="grid-3" style="margin-bottom:.75rem">
     <div class="card">
-      <div class="card-title">📊 จำนวนเคสเฉลี่ยต่อคน</div>
-      <canvas id="chart-cases" height="220"></canvas>
+      <div class="card-title" style="font-size:.82rem">📊 เคสต่อ Agent</div>
+      <div style="position:relative;height:140px"><canvas id="chart-cases"></canvas></div>
     </div>
     <div class="card">
-      <div class="card-title">⭐ คะแนนความพึงพอใจเฉลี่ย</div>
-      <canvas id="chart-score" height="220"></canvas>
+      <div class="card-title" style="font-size:.82rem">⭐ คะแนนความพึงพอใจ</div>
+      <div style="position:relative;height:140px"><canvas id="chart-score"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="font-size:.82rem">✅ อัตราปิดงาน (%)</div>
+      <div style="position:relative;height:140px"><canvas id="chart-close-rate"></canvas></div>
+    </div>
+  </div>
+  <div class="grid-2" style="margin-bottom:.75rem">
+    <div class="card">
+      <div class="card-title" style="font-size:.82rem">⏱️ เวลาแก้ไขเฉลี่ย (นาที)</div>
+      <div style="position:relative;height:130px"><canvas id="chart-resolve-time"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="font-size:.82rem">⭐ กระจาย Stars</div>
+      <div style="position:relative;height:130px"><canvas id="chart-stars-dist"></canvas></div>
     </div>
   </div>
 
+  <!-- Table -->
   <div class="card">
     <div class="tbl-wrap">
       <table>
         <thead>
           <tr>
-            <th>พนักงาน</th><th>ทีม</th><th>เดือน</th>
-            <th>จำนวนเคส</th><th>เริ่มแรก</th><th>ล่าสุด</th>
-            <th>ความคิดเห็นหัวหน้า</th><th>จัดการ</th>
+            <th>พนักงาน</th><th>ทีม</th>
+            <th>เคส</th><th>ปิดงาน%</th><th>เวลาเฉลี่ย</th>
+            <th>⭐ Stars</th><th>🔴 ค้าง</th><th>📣 ร้องเรียน</th>
+            <th>ปัญหาหลัก</th><th>ความคิดเห็น</th><th>จัดการ</th>
           </tr>
         </thead>
         <tbody id="kpi-tbody"></tbody>
@@ -3078,52 +3112,107 @@ async function escalateTicket() {
 // ══════════════════════════════════════════════════════════
 //  KPI
 // ══════════════════════════════════════════════════════════
+let _kpiDateFrom = '', _kpiDateTo = '', _kpiPreset = 'thismonth';
+
+function kpiRange(preset, btn) {
+  _kpiPreset = preset;
+  document.querySelectorAll('#kpi-drb .drb-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  const custom = document.getElementById('kpi-custom-range');
+  if (preset === 'custom') { custom.style.display = ''; return; }
+  custom.style.display = 'none';
+
+  const today = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const iso  = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  let from = new Date(today), to = new Date(today);
+
+  if (preset === 'thismonth') { from = new Date(today.getFullYear(), today.getMonth(), 1); }
+  else if (preset === 'lastmonth') { from = new Date(today.getFullYear(), today.getMonth()-1, 1); to = new Date(today.getFullYear(), today.getMonth(), 0); }
+  else if (preset === '7d')   { from.setDate(today.getDate()-6); }
+  else if (preset === '30d')  { from.setDate(today.getDate()-29); }
+  else if (preset === 'thisweek') { const diff=(today.getDay()+6)%7; from.setDate(today.getDate()-diff); }
+
+  _kpiDateFrom = iso(from); _kpiDateTo = iso(to);
+  document.getElementById('kpi-date-from').value = _kpiDateFrom;
+  document.getElementById('kpi-date-to').value   = _kpiDateTo;
+  loadKpi();
+}
+
 async function loadKpi() {
-  const month = document.getElementById('kpi-filter-month').value;
-  const team  = document.getElementById('kpi-filter-team').value;
+  const team    = document.getElementById('kpi-filter-team').value;
+  const dfrom   = document.getElementById('kpi-date-from')?.value || _kpiDateFrom;
+  const dto     = document.getElementById('kpi-date-to')?.value   || _kpiDateTo;
   let url = '/api/kpi?';
-  if (month) url += `month=${month}&`;
+  if (dfrom) url += `dateFrom=${dfrom}&`;
+  if (dto)   url += `dateTo=${dto}&`;
   if (team)  url += `team=${team}&`;
-  allKpi = await api(url);
+  const data = await api(url);
+  allKpi = data.agents || [];
+  _kpiStarsDist = data.starsDist || [];
   renderKpiTable();
   renderKpiCharts();
 }
 
+let _kpiStarsDist = [];
+
+function fmtMin(m) {
+  if (m == null || m < 0) return '—';
+  return m >= 60 ? `${Math.floor(m/60)}ชม.${Math.round(m%60)}น.` : `${Math.round(m)}น.`;
+}
+
 function renderKpiTable() {
-  // Update KPI stat cards
   const _sk = (id, v) => { const el = document.getElementById(id); if(el) el.textContent = v; };
   if (allKpi.length > 0) {
-    const totalCases = allKpi.reduce((s,k) => s + (k.total_cases||0), 0);
-    const avgCases   = (totalCases / allKpi.length).toFixed(1);
-    const top        = allKpi.reduce((a,b) => (b.total_cases||0) > (a.total_cases||0) ? b : a);
-    _sk('kpi-stat-avg',   avgCases);
-    _sk('kpi-stat-score', '—');      // satisfaction_score not in LicenseDB
-    _sk('kpi-stat-top',   top.name || dn(top.UserName) || '—');
-    _sk('kpi-stat-count', allKpi.length);
+    const totalCases  = allKpi.reduce((s,k) => s + (k.total_cases||0), 0);
+    const avgCases    = (totalCases / allKpi.length).toFixed(1);
+    const avgClose    = Math.round(allKpi.reduce((s,k) => s + (k.close_rate||0), 0) / allKpi.length) + '%';
+    const withMin     = allKpi.filter(k => k.avg_resolve_min != null);
+    const avgResolve  = withMin.length ? fmtMin(withMin.reduce((s,k) => s + k.avg_resolve_min, 0) / withMin.length) : '—';
+    const withStar    = allKpi.filter(k => k.avg_stars != null);
+    const avgStars    = withStar.length ? (+withStar.reduce((s,k) => s + (+k.avg_stars), 0) / withStar.length).toFixed(1) : '—';
+    const totalOverdue    = allKpi.reduce((s,k) => s + (k.overdue_cases||0), 0);
+    const totalComplaints = allKpi.reduce((s,k) => s + (k.complaints||0), 0);
+    const top = allKpi.reduce((a,b) => (b.total_cases||0) > (a.total_cases||0) ? b : a);
+    _sk('kpi-stat-avg',        avgCases);
+    _sk('kpi-stat-close-rate', avgClose);
+    _sk('kpi-stat-resolve',    avgResolve);
+    _sk('kpi-stat-stars',      avgStars !== '—' ? `${avgStars}★` : '—');
+    _sk('kpi-stat-overdue',    totalOverdue);
+    _sk('kpi-stat-complaints', totalComplaints);
+    _sk('kpi-stat-top',        top.name || dn(top.UserName) || '—');
   } else {
-    ['kpi-stat-avg','kpi-stat-score','kpi-stat-top','kpi-stat-count'].forEach(id => _sk(id, '—'));
+    ['kpi-stat-avg','kpi-stat-close-rate','kpi-stat-resolve','kpi-stat-stars','kpi-stat-overdue','kpi-stat-complaints','kpi-stat-top'].forEach(id => _sk(id,'—'));
   }
 
   const tbody = document.getElementById('kpi-tbody');
   if (allKpi.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" class="empty"><div class="icon">📊</div>ไม่พบข้อมูล KPI</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" class="empty"><div class="icon">📊</div>ไม่พบข้อมูล</td></tr>';
     return;
   }
-  const kpiMonth = document.getElementById('kpi-filter-month')?.value || '';
-  tbody.innerHTML = allKpi.map(k => `
-    <tr class="kpi-row-main" onclick="toggleKpiDrill('${k.UserName}','${kpiMonth}',this)">
+  const dfrom = document.getElementById('kpi-date-from')?.value || '';
+
+  tbody.innerHTML = allKpi.map(k => {
+    const closeColor = k.close_rate >= 80 ? '#16a34a' : k.close_rate >= 50 ? '#b45309' : '#dc2626';
+    const starDisp   = k.avg_stars != null ? `${(+k.avg_stars).toFixed(1)}★` : '—';
+    return `
+    <tr class="kpi-row-main" onclick="toggleKpiDrill('${k.UserName}','${dfrom}',this)">
       <td style="padding-left:.5rem"><span id="kpi-tog-${k.UserName}" style="font-size:.7rem;color:var(--muted);margin-right:.35rem">▶</span><b>${k.name || dn(k.UserName)}</b></td>
       <td>${teamBadgeHtml(k.team||'')}</td>
-      <td style="white-space:nowrap">${new Date(k.month).toLocaleDateString('th-TH',{month:'long',year:'numeric'})}</td>
-      <td><b style="color:var(--accent)">${k.total_cases}</b> เคส</td>
-      <td style="font-size:.78rem;white-space:nowrap">${k.first_case ? new Date(k.first_case).toLocaleDateString('th-TH',{day:'numeric',month:'short'}) : '—'}</td>
-      <td style="font-size:.78rem;white-space:nowrap">${k.last_case  ? new Date(k.last_case).toLocaleDateString('th-TH',{day:'numeric',month:'short'}) : '—'}</td>
-      <td style="max-width:200px;font-size:.8rem">${k.comment||'<span style="color:var(--muted)">—</span>'}</td>
+      <td><b style="color:var(--accent)">${k.total_cases}</b></td>
+      <td><b style="color:${closeColor}">${k.close_rate}%</b></td>
+      <td style="font-size:.8rem;white-space:nowrap">${fmtMin(k.avg_resolve_min)}</td>
+      <td style="color:#b45309;font-weight:700">${starDisp}</td>
+      <td><b style="color:${k.overdue_cases>0?'#dc2626':'#16a34a'}">${k.overdue_cases||0}</b></td>
+      <td><b style="color:${k.complaints>0?'#dc2626':'#16a34a'}">${k.complaints||0}</b></td>
+      <td style="font-size:.75rem;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(k.top_problem||'')}">${escHtml(k.top_problem||'—')}</td>
+      <td style="max-width:160px;font-size:.78rem">${k.comment||'<span style="color:var(--muted)">—</span>'}</td>
       <td onclick="event.stopPropagation()"><button class="btn btn-ghost btn-sm" onclick="openEditKpi(${JSON.stringify(k).replace(/"/g,'&quot;')})">✏️</button></td>
     </tr>
     <tr class="kpi-drill" id="kpi-drill-${k.UserName}" style="display:none">
-      <td colspan="8"><div id="kpi-drill-content-${k.UserName}"><div style="color:var(--muted);font-size:.82rem;padding:.25rem">กำลังโหลด...</div></div></td>
-    </tr>`).join('');
+      <td colspan="11"><div id="kpi-drill-content-${k.UserName}"><div style="color:var(--muted);font-size:.82rem;padding:.25rem">กำลังโหลด...</div></div></td>
+    </tr>`;
+  }).join('');
 }
 
 // ── KPI Agent Drill-down ─────────────────────────────────
@@ -3184,73 +3273,71 @@ async function toggleKpiDrill(username, month, rowEl) {
   }
 }
 
-function renderKpiCharts() {
-  if (chartCases) chartCases.destroy();
-  if (chartScore) chartScore.destroy();
+let chartCloseRate = null, chartResolveTime = null, chartStarsDist = null;
 
+function mkBarOpts(yLabel) {
+  return {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed.y}${yLabel}` } } },
+    scales: {
+      x: { ticks: { color: '#64748b', font: { size: 9 }, maxRotation: 35 }, grid: { display: false } },
+      y: { beginAtZero: true, ticks: { color: '#64748b', font: { size: 9 } }, grid: { color: '#f1f5f9' } }
+    }
+  };
+}
+
+function renderKpiCharts() {
+  [chartCases, chartScore, chartCloseRate, chartResolveTime, chartStarsDist].forEach(c => c?.destroy());
+  chartCases = chartScore = chartCloseRate = chartResolveTime = chartStarsDist = null;
   if (!allKpi.length) return;
 
-  // ── Chart 1: จำนวนเคสเฉลี่ยต่อคน — bar per agent
-  const sorted = [...allKpi].sort((a,b) => (b.total_cases||0) - (a.total_cases||0)).slice(0, 15);
-  const barColors = ['#38bdf8','#818cf8','#34d399','#fb923c','#f472b6','#a78bfa','#fbbf24',
-                     '#6ee7b7','#f87171','#94a3b8','#4ade80','#c084fc','#60a5fa','#fcd34d','#86efac'];
-  const teamColorMap = { call_center:'#38bdf8', helpdesk:'#818cf8', repair:'#fb923c' };
+  const sorted = [...allKpi].sort((a,b) => (b.total_cases||0) - (a.total_cases||0)).slice(0, 12);
+  const labels = sorted.map(k => k.name || dn(k.UserName));
+  const teamClr = k => teamColor(k.team) || '#38bdf8';
 
+  // Chart 1: เคสต่อ Agent
   chartCases = new Chart(document.getElementById('chart-cases'), {
     type: 'bar',
-    data: {
-      labels: sorted.map(k => k.name || dn(k.UserName)),
-      datasets: [{
-        label: 'จำนวนเคส',
-        data: sorted.map(k => k.total_cases || 0),
-        backgroundColor: sorted.map(k => teamColorMap[k.team] || '#38bdf8'),
-        borderRadius: 5,
-        borderWidth: 0
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed.y} เคส` } }
-      },
-      scales: {
-        x: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#e2e8f0' } },
-        y: { beginAtZero: true, ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#e2e8f0' } }
-      }
-    }
+    data: { labels, datasets: [{ data: sorted.map(k=>k.total_cases||0), backgroundColor: sorted.map(teamClr), borderRadius:4 }] },
+    options: mkBarOpts(' เคส')
   });
 
-  // ── Chart 2: เคสรวมต่อทีม — doughnut
-  const teamTotals = {};
-  allKpi.forEach(k => {
-    const tm = k.team || 'unknown';
-    teamTotals[tm] = (teamTotals[tm] || 0) + (k.total_cases || 0);
-  });
-  const tmLabels = Object.keys(teamTotals);
-  const tmData   = tmLabels.map(t => teamTotals[t]);
-  const tmColors = tmLabels.map(t => teamColorMap[t] || '#94a3b8');
-
+  // Chart 2: ⭐ Stars เฉลี่ย
   chartScore = new Chart(document.getElementById('chart-score'), {
-    type: 'doughnut',
-    data: {
-      labels: tmLabels.map(teamLabel),
-      datasets: [{
-        data: tmData,
-        backgroundColor: tmColors,
-        borderWidth: 2,
-        borderColor: '#fff'
-      }]
-    },
-    options: {
-      responsive: true,
-      cutout: '55%',
-      plugins: {
-        legend: { position: 'bottom', labels: { color: '#64748b', font: { size: 11 } } },
-        tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed} เคส` } }
-      }
-    }
+    type: 'bar',
+    data: { labels, datasets: [{ data: sorted.map(k=>k.avg_stars ? (+k.avg_stars).toFixed(1) : 0), backgroundColor:'#fbbf24', borderRadius:4 }] },
+    options: { ...mkBarOpts('★'), scales: { ...mkBarOpts('★').scales, y: { beginAtZero:true, max:5, ticks:{ color:'#64748b', font:{size:9} }, grid:{ color:'#f1f5f9' } } } }
   });
+
+  // Chart 3: ✅ Close rate %
+  chartCloseRate = new Chart(document.getElementById('chart-close-rate'), {
+    type: 'bar',
+    data: { labels, datasets: [{ data: sorted.map(k=>k.close_rate||0), backgroundColor: sorted.map(k=>k.close_rate>=80?'#4ade80':k.close_rate>=50?'#fbbf24':'#f87171'), borderRadius:4 }] },
+    options: { ...mkBarOpts('%'), scales: { ...mkBarOpts('%').scales, y: { beginAtZero:true, max:100, ticks:{ color:'#64748b', font:{size:9}, callback:v=>v+'%' }, grid:{ color:'#f1f5f9' } } } }
+  });
+
+  // Chart 4: ⏱️ Resolve time (minutes)
+  const sortedR = [...allKpi].filter(k=>k.avg_resolve_min!=null).sort((a,b)=>a.avg_resolve_min-b.avg_resolve_min).slice(0,12);
+  if (sortedR.length) {
+    chartResolveTime = new Chart(document.getElementById('chart-resolve-time'), {
+      type: 'bar',
+      data: { labels: sortedR.map(k=>k.name||dn(k.UserName)), datasets: [{ data: sortedR.map(k=>Math.round(k.avg_resolve_min)), backgroundColor:'#818cf8', borderRadius:4 }] },
+      options: mkBarOpts('น.')
+    });
+  }
+
+  // Chart 5: Stars distribution donut
+  if (_kpiStarsDist.length) {
+    chartStarsDist = new Chart(document.getElementById('chart-stars-dist'), {
+      type: 'doughnut',
+      data: {
+        labels: _kpiStarsDist.map(r=>`${r.Stars}★`),
+        datasets: [{ data: _kpiStarsDist.map(r=>r.cnt), backgroundColor:['#fecaca','#fed7aa','#fef08a','#bbf7d0','#34d399'], borderWidth:2, borderColor:'#fff' }]
+      },
+      options: { responsive:true, maintainAspectRatio:false, cutout:'55%',
+        plugins:{ legend:{ position:'bottom', labels:{ color:'#64748b', font:{size:9}, boxWidth:8, padding:6 } } } }
+    });
+  }
 }
 
 async function saveKpi() {
@@ -3305,16 +3392,9 @@ async function updateKpi() {
 //  INIT
 // ══════════════════════════════════════════════════════════
 function initKpiMonthFilter() {
-  const sel = document.getElementById('kpi-filter-month');
-  const now = new Date();
-  let opts = '<option value="">ทุกเดือน</option>';
-  for (let i = 0; i < 6; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const val = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-    const label = d.toLocaleDateString('th-TH',{month:'long',year:'numeric'});
-    opts += `<option value="${val}">${label}</option>`;
-  }
-  sel.innerHTML = opts;
+  // Trigger default "เดือนนี้" preset
+  const thismonthBtn = document.querySelector('#kpi-drb .drb-btn');
+  kpiRange('thismonth', thismonthBtn);
 }
 
 // set today's date defaults

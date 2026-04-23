@@ -478,12 +478,20 @@ app.get('/api/name-map', authRequired, async (_, res) => {
 app.get('/api/kpi', authRequired, async (request, res) => {
   try {
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
-    const { month, team } = request.query;
-    const ym = (month || new Date().toISOString().substring(0, 7));
-    const monthStart = ym + '-01';
-    const monthEnd   = new Date(new Date(monthStart).setMonth(new Date(monthStart).getMonth() + 1));
+    const { month, team, dateFrom, dateTo } = request.query;
 
-    // Resolve RBAC scope + optional team filter
+    // Support both month-picker and date-range
+    let startDate, endDate;
+    if (dateFrom && dateTo) {
+      startDate = new Date(dateFrom);
+      endDate   = new Date(dateTo + 'T23:59:59');
+    } else {
+      const ym = (month || new Date().toISOString().substring(0, 7));
+      startDate = new Date(ym + '-01');
+      endDate   = new Date(new Date(ym + '-01').setMonth(startDate.getMonth() + 1));
+    }
+    const monthStart = startDate.toISOString().split('T')[0];
+
     let scope = await getScopedUsernames(request.user);
     if (scope === null) return res.json([]);
     if (team) {
@@ -495,37 +503,82 @@ app.get('/api/kpi', authRequired, async (request, res) => {
       scope = scope === undefined ? teamScope : scope.filter(u => teamScope.includes(u));
     }
 
-    const r = extReq().input('s', sql.DateTime, new Date(monthStart)).input('e', sql.DateTime, monthEnd);
-    const sc = appendScopeClause(r, scope);
-    const kpiRows = await r.query(`
-        SELECT
-          u.UserName,
-          COUNT(cl.CalllogId) AS total_cases,
+    const mk = () => extReq().input('s', sql.DateTime, startDate).input('e', sql.DateTime, endDate);
+    const r1 = mk(); const sc1 = appendScopeClause(r1, scope);
+    const r2 = mk(); const sc2 = appendScopeClause(r2, scope);
+    const r3 = mk(); const sc3 = appendScopeClause(r3, scope);
+    const r4 = mk(); const sc4 = appendScopeClause(r4, scope);
+
+    const [d1, d2, d3, d4] = await Promise.all([
+      // Main KPI per agent
+      r1.query(`
+        SELECT u.UserName,
+          COUNT(cl.CalllogId)  AS total_cases,
+          SUM(CASE WHEN cs.StatusName LIKE '%close%' OR cs.StatusName LIKE '%complete%' THEN 1 ELSE 0 END) AS closed_cases,
+          AVG(CASE WHEN cl.CloseDate IS NOT NULL AND cl.ReceiveDate IS NOT NULL AND cl.CloseDate >= cl.ReceiveDate
+                   THEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate) END) AS avg_resolve_min,
+          AVG(CAST(cl.Stars AS FLOAT)) AS avg_stars,
+          SUM(CASE WHEN cs.StatusName NOT LIKE '%close%' AND cs.StatusName NOT LIKE '%complete%'
+                        AND DATEDIFF(hour, cl.ReceiveDate, GETDATE()) > 24 THEN 1 ELSE 0 END) AS overdue_cases,
           MIN(cl.ReceiveDate) AS first_case,
           MAX(cl.ReceiveDate) AS last_case
         FROM Calllog cl
+        INNER JOIN Users u  ON u.UserId  = cl.SupportId
+        INNER JOIN CallStatus cs ON cs.StatusId = cl.StatusId
+        WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e${sc1}
+        GROUP BY u.UserName ORDER BY total_cases DESC`),
+      // Top problem type per agent
+      r2.query(`
+        SELECT u.UserName, pt.ProblemTypeDetail, COUNT(*) AS cnt,
+          ROW_NUMBER() OVER (PARTITION BY u.UserName ORDER BY COUNT(*) DESC) AS rn
+        FROM Calllog cl
         INNER JOIN Users u ON u.UserId = cl.SupportId
-        WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e${sc}
-        GROUP BY u.UserName, u.UserId
-        ORDER BY total_cases DESC
-      `);
-    const comments = await req()
-      .input('month', sql.Date, monthStart)
-      .query(`SELECT ext_username, comment, recorded_by,
-                     e.name AS recorder_name
-              FROM kpi_comments kc
-              LEFT JOIN employees e ON e.id = kc.recorded_by
-              WHERE month = @month`);
+        LEFT  JOIN ProblemType pt ON pt.ProblemTypeId = cl.ProblemTypeId
+        WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e${sc2}
+        GROUP BY u.UserName, pt.ProblemTypeDetail`),
+      // Complaint count per company → map to agent (best effort by ticket)
+      r3.query(`
+        SELECT u.UserName, COUNT(DISTINCT tc.id) AS complaints
+        FROM Calllog cl
+        INNER JOIN Users u ON u.UserId = cl.SupportId
+        INNER JOIN CustomerRegistration cr ON cr.RegistrationId = cl.RegistrationId
+        INNER JOIN ticket_complaints tc ON tc.company_name = cr.CompanyName
+        WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e${sc3}
+        GROUP BY u.UserName`),
+      // Stars distribution (all agents combined, for chart)
+      r4.query(`
+        SELECT cl.Stars, COUNT(*) AS cnt
+        FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
+        WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e AND cl.Stars IS NOT NULL${sc4}
+        GROUP BY cl.Stars ORDER BY cl.Stars`),
+    ]);
+
+    // Build top problem type map
+    const topProblemMap = {};
+    d2.recordset.forEach(r => {
+      if (r.rn === 1) topProblemMap[r.UserName] = r.ProblemTypeDetail || 'อื่นๆ';
+    });
+    const complaintMap = {};
+    d3.recordset.forEach(r => { complaintMap[r.UserName] = r.complaints; });
+
+    const comments = await req().input('month', sql.Date, monthStart)
+      .query(`SELECT ext_username, comment, recorded_by, e.name AS recorder_name
+              FROM kpi_comments kc LEFT JOIN employees e ON e.id=kc.recorded_by
+              WHERE month=@month`);
     const commentMap = {};
     comments.recordset.forEach(c => { commentMap[c.ext_username] = c; });
-    const result = kpiRows.recordset.map(r => ({
+
+    const result = d1.recordset.map(r => ({
       ...r,
-      month: monthStart,
+      month:         monthStart,
+      top_problem:   topProblemMap[r.UserName] || '—',
+      complaints:    complaintMap[r.UserName] || 0,
+      close_rate:    r.total_cases ? Math.round((r.closed_cases / r.total_cases) * 100) : 0,
       comment:       commentMap[r.UserName]?.comment       || null,
       recorded_by:   commentMap[r.UserName]?.recorded_by   || null,
       recorder_name: commentMap[r.UserName]?.recorder_name || null,
     }));
-    res.json(result);
+    res.json({ agents: result, starsDist: d4.recordset });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
