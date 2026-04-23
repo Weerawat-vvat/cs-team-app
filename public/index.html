@@ -714,7 +714,7 @@ textarea{resize:vertical;min-height:80px}
       <span style="font-size:1.1rem;font-weight:800;color:var(--success)" id="tk-stat-closed">—</span>
     </div>
     <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">📊 เฉลี่ย/คน</span>
+      <span style="font-size:.72rem;color:var(--muted)">⏱️ เฉลี่ยแก้ไข</span>
       <span style="font-size:1.1rem;font-weight:800;color:#7c3aed" id="tk-stat-avg">—</span>
     </div>
   </div>
@@ -2601,8 +2601,12 @@ function renderTickets() {
   const tkOpen    = filtered.filter(t => !isClosed(t)).length;
   const now24h    = Date.now() - 24 * 3600 * 1000;
   const tkOverdue = filtered.filter(t => !isClosed(t) && parseDbDate(t.opened_at)?.getTime() < now24h).length;
-  const agents    = [...new Set(filtered.map(t => t.assigned_name).filter(Boolean))];
-  const tkAvg     = agents.length ? (tkTotal / agents.length).toFixed(1) : '—';
+  const closedWithTime = filtered.filter(t => isClosed(t) && t.TimeDiff_Minutes != null && t.TimeDiff_Minutes >= 0);
+  let tkAvg = '—';
+  if (closedWithTime.length) {
+    const avgMin = closedWithTime.reduce((s, t) => s + t.TimeDiff_Minutes, 0) / closedWithTime.length;
+    tkAvg = avgMin >= 60 ? `${Math.floor(avgMin/60)}ชม.${Math.round(avgMin%60)}น.` : `${Math.round(avgMin)}น.`;
+  }
   const _setEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   _setEl('tk-stat-total',   tkTotal);
   _setEl('tk-stat-open',    tkOpen);
