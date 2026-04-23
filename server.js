@@ -390,14 +390,25 @@ app.get('/api/tickets', authRequired, async (request, res) => {
     }
 
     const r = extReq();
-    let q = CALLLOG_SELECT + ' WHERE cl.ReceiveDate >= @df';
-    r.input('df', sql.DateTime, new Date(defaultFrom));
-    if (status)      { q += ' AND cs.StatusName=@status'; r.input('status', sql.NVarChar, status); }
-    if (search)      { q += ' AND (cl.Subject LIKE @s OR cr.CompanyName LIKE @s OR u.UserName LIKE @s)';
-                                                          r.input('s', sql.NVarChar, `%${search}%`); }
-    if (dateTo)      { q += ' AND cl.ReceiveDate <= @dt'; r.input('dt', sql.DateTime, new Date(dateTo + 'T23:59:59')); }
-    if (problemType) { q += ' AND pt.ProblemTypeDetail=@pt'; r.input('pt', sql.NVarChar, problemType); }
-    q += appendScopeClause(r, scope);
+    const isIdSearch = search && /^\s*#?(\d+)\s*$/.test(search);
+
+    let q;
+    if (isIdSearch) {
+      // ID search — no date filter, no other conditions, find across all history
+      const numId = parseInt(search.replace('#','').trim());
+      q = CALLLOG_SELECT + ' WHERE cl.CalllogId=@sid';
+      r.input('sid', sql.Int, numId);
+      q += appendScopeClause(r, scope);
+    } else {
+      q = CALLLOG_SELECT + ' WHERE cl.ReceiveDate >= @df';
+      r.input('df', sql.DateTime, new Date(defaultFrom));
+      if (status)      { q += ' AND cs.StatusName=@status'; r.input('status', sql.NVarChar, status); }
+      if (search)      { q += ' AND (cl.Subject LIKE @s OR cr.CompanyName LIKE @s OR u.UserName LIKE @s OR pt.ProblemTypeDetail LIKE @s)';
+                                                             r.input('s', sql.NVarChar, `%${search}%`); }
+      if (dateTo)      { q += ' AND cl.ReceiveDate <= @dt'; r.input('dt', sql.DateTime, new Date(dateTo + 'T23:59:59')); }
+      if (problemType) { q += ' AND pt.ProblemTypeDetail=@pt'; r.input('pt', sql.NVarChar, problemType); }
+      q += appendScopeClause(r, scope);
+    }
     q += ' ORDER BY cl.ReceiveDate DESC';
     res.json((await r.query(q)).recordset);
   } catch (e) { res.status(500).json({ error: e.message }); }

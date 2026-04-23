@@ -712,7 +712,7 @@ textarea{resize:vertical;min-height:80px}
       <select id="tk-filter-agent" onchange="loadTickets()">
         <option value="">ทุก Agent</option>
       </select>
-      <input id="tk-search" type="text" placeholder="🔍 ค้นหา..." oninput="tkSearchDebounce()" style="min-width:150px;flex:1"/>
+      <input id="tk-search" type="text" placeholder="🔍 ค้นหา หรือพิมพ์ #CallID ข้ามวันที่..." oninput="tkSearchDebounce()" style="min-width:200px;flex:1"/>
     </div>
     <div class="drb-custom" id="tk-custom-range">
       <input id="tk-date-from" type="date" style="max-width:135px" title="วันที่เริ่มต้น"/>
@@ -2679,7 +2679,10 @@ async function initTicketFilters() {
 let _tkSearchTimer = null;
 function tkSearchDebounce() {
   clearTimeout(_tkSearchTimer);
-  _tkSearchTimer = setTimeout(() => { _tkPage = 1; renderTickets(); }, 280);
+  const val = document.getElementById('tk-search')?.value || '';
+  const isId = /^\s*#?\d+\s*$/.test(val);
+  // ID search → fetch from server (bypasses date filter); text search → filter locally
+  _tkSearchTimer = setTimeout(() => { _tkPage = 1; isId ? loadTickets() : renderTickets(); }, 400);
 }
 async function loadTickets() {
   await initTicketFilters();
