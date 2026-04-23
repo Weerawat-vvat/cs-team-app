@@ -615,15 +615,16 @@ app.get('/api/kpi/agent-detail', authRequired, async (request, res) => {
       .input('un', sql.NVarChar, username);
 
     const [cats, daily, timing] = await Promise.all([
-      // Top categories
-      r.query(`SELECT cl.Subject AS category,
+      // Top categories by ProblemTypeDetail
+      r.query(`SELECT ISNULL(pt.ProblemTypeDetail, 'อื่นๆ') AS category,
                       COUNT(*) AS cnt,
                       AVG(CAST(cl.Stars AS FLOAT)) AS avg_stars
                FROM Calllog cl
                INNER JOIN Users u ON u.UserId = cl.SupportId
+               LEFT  JOIN ProblemType pt ON pt.ProblemTypeId = cl.ProblemTypeId
                WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e
                  AND u.UserName = @un
-               GROUP BY cl.Subject
+               GROUP BY pt.ProblemTypeDetail
                ORDER BY cnt DESC`),
       // Daily trend
       extReq().input('s', sql.DateTime, startDate).input('e', sql.DateTime, endDate)
