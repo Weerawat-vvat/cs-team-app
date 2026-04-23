@@ -893,8 +893,8 @@ textarea{resize:vertical;min-height:80px}
         <thead>
           <tr>
             <th>พนักงาน</th><th>ทีม</th>
-            <th>เคส</th><th>ปิดงาน%</th><th>เวลาเฉลี่ย</th>
-            <th>⭐ Stars</th><th>🔴 ค้าง</th><th>📣 ร้องเรียน</th>
+            <th>สถานะ</th><th>เคส</th><th>แนวโน้ม</th><th>ปิดงาน%</th><th>เวลาเฉลี่ย</th>
+            <th>⭐ Stars</th><th>🔴 ค้าง</th><th>📣 ร้องเรียน</th><th>สม่ำเสมอ</th>
           </tr>
         </thead>
         <tbody id="kpi-tbody"></tbody>
@@ -3190,7 +3190,7 @@ function renderKpiTable() {
 
   const tbody = document.getElementById('kpi-tbody');
   if (allKpi.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" class="empty"><div class="icon">📊</div>ไม่พบข้อมูล</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="empty"><div class="icon">📊</div>ไม่พบข้อมูล</td></tr>';
     return;
   }
   const dfrom = document.getElementById('kpi-date-from')?.value || '';
@@ -3198,19 +3198,79 @@ function renderKpiTable() {
   tbody.innerHTML = allKpi.map(k => {
     const closeColor = k.close_rate >= 80 ? '#16a34a' : k.close_rate >= 50 ? '#b45309' : '#dc2626';
     const starDisp   = k.avg_stars != null ? `${(+k.avg_stars).toFixed(1)}★` : '—';
+
+    // Performance band (comparing to prev period)
+    const caseDiff = k.prev_cases > 0 ? (k.total_cases - k.prev_cases) / k.prev_cases * 100 : 0;
+    let bandColor, bandIcon, bandLabel;
+    if (k.prev_cases === 0) { bandIcon='🆕'; bandColor='#64748b'; bandLabel='ใหม่'; }
+    else if (caseDiff > 10)  { bandIcon='🟢'; bandColor='#16a34a'; bandLabel='ดีขึ้น'; }
+    else if (caseDiff < -10) { bandIcon='🔴'; bandColor='#dc2626'; bandLabel='ลดลง'; }
+    else                     { bandIcon='🟡'; bandColor='#b45309'; bandLabel='คงที่'; }
+
+    // Trend arrow per metric
+    const trendArrow = (cur, prev, higherGood=true) => {
+      if (!prev) return '';
+      const d = cur - prev;
+      if (Math.abs(d/prev) < 0.05) return `<span style="color:#94a3b8;font-size:.7rem">→</span>`;
+      const up = d > 0;
+      const good = higherGood ? up : !up;
+      return `<span style="color:${good?'#16a34a':'#ef4444'};font-size:.75rem;font-weight:700">${up?'▲':'▼'}</span>`;
+    };
+
+    // Sparkline SVG
+    const sparkline = (counts) => {
+      if (!counts || counts.length < 2) return '<span style="color:var(--muted);font-size:.72rem">—</span>';
+      const max = Math.max(...counts, 1);
+      const w = 60, h = 20;
+      const pts = counts.map((v, i) => {
+        const x = (i / (counts.length - 1)) * w;
+        const y = h - (v / max) * h;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      }).join(' ');
+      return `<svg width="${w}" height="${h}" style="vertical-align:middle">
+        <polyline points="${pts}" fill="none" stroke="#2563eb" stroke-width="1.5" stroke-linejoin="round"/>
+        <circle cx="${((counts.length-1)/(counts.length-1))*w}" cy="${(h-(counts[counts.length-1]/max)*h).toFixed(1)}" r="2" fill="#2563eb"/>
+      </svg>`;
+    };
+
+    // Consistency badge
+    const cv = k.consistency_cv ?? 999;
+    const consColor = cv <= 40 ? '#16a34a' : cv <= 80 ? '#b45309' : '#dc2626';
+    const consLabel = cv <= 40 ? 'สม่ำเสมอ' : cv <= 80 ? 'ปานกลาง' : 'ไม่สม่ำเสมอ';
+
     return `
     <tr class="kpi-row-main" onclick="toggleKpiDrill('${k.UserName}','${dfrom}',this)">
-      <td style="padding-left:.5rem"><span id="kpi-tog-${k.UserName}" style="font-size:.7rem;color:var(--muted);margin-right:.35rem">▶</span><b>${k.name || dn(k.UserName)}</b></td>
-      <td>${teamBadgeHtml(k.team||'')}</td>
-      <td><b style="color:var(--accent)">${k.total_cases}</b></td>
-      <td><b style="color:${closeColor}">${k.close_rate}%</b></td>
-      <td style="font-size:.8rem;white-space:nowrap">${fmtMin(k.avg_resolve_min)}</td>
-      <td style="color:#b45309;font-weight:700">${starDisp}</td>
+      <td style="padding-left:.5rem">
+        <span id="kpi-tog-${k.UserName}" style="font-size:.7rem;color:var(--muted);margin-right:.3rem">▶</span>
+        <b>${k.name || dn(k.UserName)}</b>
+        <div>${teamBadgeHtml(k.team||'')}</div>
+      </td>
+      <td><span style="font-size:.72rem;font-weight:700;color:${bandColor}" title="${bandLabel} (${caseDiff>0?'+':''}${k.prev_cases?Math.round(caseDiff):0}%)">${bandIcon} ${bandLabel}</span></td>
+      <td>
+        <div style="display:flex;align-items:center;gap:.3rem">
+          <b style="color:var(--accent)">${k.total_cases}</b>
+          ${trendArrow(k.total_cases, k.prev_cases)}
+        </div>
+        ${sparkline(k.daily_counts)}
+      </td>
+      <td>
+        <b style="color:${closeColor}">${k.close_rate}%</b>
+        ${trendArrow(k.close_rate, k.prev_close)}
+      </td>
+      <td style="font-size:.8rem;white-space:nowrap">
+        ${fmtMin(k.avg_resolve_min)}
+        ${trendArrow(k.avg_resolve_min, k.prev_resolve, false)}
+      </td>
+      <td style="color:#b45309;font-weight:700">
+        ${starDisp}
+        ${k.avg_stars && k.prev_stars ? trendArrow(+k.avg_stars, +k.prev_stars) : ''}
+      </td>
       <td><b style="color:${k.overdue_cases>0?'#dc2626':'#16a34a'}">${k.overdue_cases||0}</b></td>
       <td><b style="color:${k.complaints>0?'#dc2626':'#16a34a'}">${k.complaints||0}</b></td>
+      <td><span style="font-size:.72rem;font-weight:700;color:${consColor}" title="CV=${cv}%">${consLabel}</span></td>
     </tr>
     <tr class="kpi-drill" id="kpi-drill-${k.UserName}" style="display:none">
-      <td colspan="8"><div id="kpi-drill-content-${k.UserName}"><div style="color:var(--muted);font-size:.82rem;padding:.25rem">กำลังโหลด...</div></div></td>
+      <td colspan="9"><div id="kpi-drill-content-${k.UserName}"><div style="color:var(--muted);font-size:.82rem;padding:.25rem">กำลังโหลด...</div></div></td>
     </tr>`;
   }).join('');
 }
@@ -3262,15 +3322,69 @@ async function toggleKpiDrill(username, month, rowEl) {
       </div>`;
     }).join('');
 
+    // Radar data: normalize 5 dimensions
+    const agentData = allKpi.find(k => k.UserName === username) || {};
+    const allCases  = allKpi.map(k => k.total_cases || 0);
+    const maxCases  = Math.max(...allCases, 1);
+    const radarId   = `radar-${username.replace(/[^a-z0-9]/gi,'_')}`;
+
+    const radarScore = {
+      เคส:       Math.round((agentData.total_cases || 0) / maxCases * 100),
+      ปิดงาน:    agentData.close_rate || 0,
+      ดาว:       agentData.avg_stars  ? Math.round(+agentData.avg_stars / 5 * 100) : 0,
+      ความเร็ว:  agentData.avg_resolve_min
+        ? Math.max(0, Math.round(100 - Math.min(agentData.avg_resolve_min / 120, 1) * 100)) : 0,
+      สม่ำเสมอ: agentData.consistency_cv != null
+        ? Math.max(0, Math.round(100 - Math.min(agentData.consistency_cv, 100))) : 0,
+    };
+
     content.innerHTML = `
-      <div class="kpi-stat-mini">
-        <div class="kpi-stat-mini-item"><b>${summary.total||0}</b>เคสทั้งหมด</div>
-        <div class="kpi-stat-mini-item"><b>${avgHr}</b>เฉลี่ยเวลาปิด/เคส</div>
-        <div class="kpi-stat-mini-item"><b><span style="color:#f59e0b">${starStr}</span> ${avgStar}</b>คะแนนเฉลี่ย (${ratedOf})</div>
-        <div class="kpi-stat-mini-item"><b>${categories.length}</b>หมวดที่รับงาน</div>
-      </div>
-      <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.35rem">ประเภทงานที่รับ (Top ${Math.min(8,categories.length)})</div>
-      ${catBars || '<span style="color:var(--muted);font-size:.82rem">ไม่มีข้อมูล</span>'}`;
+      <div style="display:grid;grid-template-columns:160px 1fr;gap:.75rem;align-items:start">
+        <div>
+          <canvas id="${radarId}" width="160" height="160"></canvas>
+        </div>
+        <div>
+          <div class="kpi-stat-mini" style="margin-bottom:.6rem">
+            <div class="kpi-stat-mini-item"><b>${summary.total||0}</b>เคสทั้งหมด</div>
+            <div class="kpi-stat-mini-item"><b>${avgHr}</b>เฉลี่ยเวลาปิด</div>
+            <div class="kpi-stat-mini-item"><b><span style="color:#f59e0b">${starStr}</span> ${avgStar}</b>คะแนน (${ratedOf})</div>
+            <div class="kpi-stat-mini-item"><b>${categories.length}</b>หมวด</div>
+          </div>
+          <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.35rem">ประเภทงานที่รับ (Top ${Math.min(8,categories.length)})</div>
+          ${catBars || '<span style="color:var(--muted);font-size:.82rem">ไม่มีข้อมูล</span>'}
+        </div>
+      </div>`;
+
+    // Draw radar chart
+    setTimeout(() => {
+      const radarEl = document.getElementById(radarId);
+      if (!radarEl) return;
+      new Chart(radarEl, {
+        type: 'radar',
+        data: {
+          labels: Object.keys(radarScore),
+          datasets: [{
+            data: Object.values(radarScore),
+            backgroundColor: 'rgba(37,99,235,.15)',
+            borderColor: '#2563eb',
+            borderWidth: 2,
+            pointBackgroundColor: '#2563eb',
+            pointRadius: 3
+          }]
+        },
+        options: {
+          responsive: false,
+          scales: { r: {
+            beginAtZero: true, max: 100,
+            ticks: { display: false, stepSize: 25 },
+            grid: { color: '#e2e8f0' },
+            pointLabels: { color: '#475569', font: { size: 10 } },
+            angleLines: { color: '#e2e8f0' }
+          }},
+          plugins: { legend: { display: false } }
+        }
+      });
+    }, 50);
   } catch(e) {
     if (content) content.innerHTML = `<span style="color:#ef4444;font-size:.82rem">โหลดไม่สำเร็จ: ${e.message}</span>`;
   }

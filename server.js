@@ -509,13 +509,21 @@ app.get('/api/kpi', authRequired, async (request, res) => {
       scope = scope === undefined ? teamScope : scope.filter(u => teamScope.includes(u));
     }
 
-    const mk = () => extReq().input('s', sql.DateTime, startDate).input('e', sql.DateTime, endDate);
-    const r1 = mk(); const sc1 = appendScopeClause(r1, scope);
-    const r2 = mk(); const sc2 = appendScopeClause(r2, scope);
-    const r3 = mk(); const sc3 = appendScopeClause(r3, scope);
-    const r4 = mk(); const sc4 = appendScopeClause(r4, scope);
+    // Previous period (same duration, shifted back)
+    const durationMs  = endDate - startDate;
+    const prevEnd     = new Date(startDate);
+    const prevStart   = new Date(startDate.getTime() - durationMs);
 
-    const [d1, d2, d3, d4] = await Promise.all([
+    const mk  = () => extReq().input('s', sql.DateTime, startDate).input('e', sql.DateTime, endDate);
+    const mkP = () => extReq().input('s', sql.DateTime, prevStart).input('e', sql.DateTime, prevEnd);
+    const r1 = mk();  const sc1 = appendScopeClause(r1, scope);
+    const r2 = mk();  const sc2 = appendScopeClause(r2, scope);
+    const r3 = mk();  const sc3 = appendScopeClause(r3, scope);
+    const r4 = mk();  const sc4 = appendScopeClause(r4, scope);
+    const r5 = mkP(); const sc5 = appendScopeClause(r5, scope);
+    const r6 = mk();  const sc6 = appendScopeClause(r6, scope);
+
+    const [d1, d2, d3, d4, d5, d6] = await Promise.all([
       // Main KPI per agent
       r1.query(`
         SELECT u.UserName,
@@ -551,12 +559,32 @@ app.get('/api/kpi', authRequired, async (request, res) => {
         INNER JOIN ticket_complaints tc ON tc.company_name = cr.CompanyName
         WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e${sc3}
         GROUP BY u.UserName`),
-      // Stars distribution (all agents combined, for chart)
+      // Stars distribution
       r4.query(`
         SELECT cl.Stars, COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
         WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e AND cl.Stars IS NOT NULL${sc4}
         GROUP BY cl.Stars ORDER BY cl.Stars`),
+      // Previous period per agent (for trend comparison)
+      r5.query(`
+        SELECT u.UserName,
+          COUNT(cl.CalllogId) AS total_cases,
+          SUM(CASE WHEN cs.StatusName LIKE '%close%' OR cs.StatusName LIKE '%complete%' THEN 1 ELSE 0 END) AS closed_cases,
+          AVG(CASE WHEN cl.CloseDate IS NOT NULL AND cl.ReceiveDate IS NOT NULL AND cl.CloseDate >= cl.ReceiveDate
+                   THEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate) END) AS avg_resolve_min,
+          AVG(CAST(cl.Stars AS FLOAT)) AS avg_stars
+        FROM Calllog cl
+        INNER JOIN Users u ON u.UserId = cl.SupportId
+        INNER JOIN CallStatus cs ON cs.StatusId = cl.StatusId
+        WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e${sc5}
+        GROUP BY u.UserName`),
+      // Daily cases per agent (for sparkline + consistency)
+      r6.query(`
+        SELECT u.UserName, CAST(cl.ReceiveDate AS DATE) AS day, COUNT(*) AS cnt
+        FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
+        WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e${sc6}
+        GROUP BY u.UserName, CAST(cl.ReceiveDate AS DATE)
+        ORDER BY u.UserName, day`),
     ]);
 
     // Build top problem type map
@@ -574,16 +602,46 @@ app.get('/api/kpi', authRequired, async (request, res) => {
     const commentMap = {};
     comments.recordset.forEach(c => { commentMap[c.ext_username] = c; });
 
-    const result = d1.recordset.map(r => ({
-      ...r,
-      month:         monthStart,
-      top_problem:   topProblemMap[r.UserName] || '—',
-      complaints:    complaintMap[r.UserName] || 0,
-      close_rate:    r.total_cases ? Math.round((r.closed_cases / r.total_cases) * 100) : 0,
-      comment:       commentMap[r.UserName]?.comment       || null,
-      recorded_by:   commentMap[r.UserName]?.recorded_by   || null,
-      recorder_name: commentMap[r.UserName]?.recorder_name || null,
-    }));
+    // Build prev period map
+    const prevMap = {};
+    d5.recordset.forEach(r => { prevMap[r.UserName] = r; });
+
+    // Build daily map per agent (for sparkline + consistency)
+    const dailyMap = {};
+    d6.recordset.forEach(r => {
+      if (!dailyMap[r.UserName]) dailyMap[r.UserName] = [];
+      dailyMap[r.UserName].push({ day: r.day, cnt: r.cnt });
+    });
+
+    const result = d1.recordset.map(r => {
+      const prev      = prevMap[r.UserName] || {};
+      const daily     = dailyMap[r.UserName] || [];
+      const close_rate = r.total_cases ? Math.round((r.closed_cases / r.total_cases) * 100) : 0;
+
+      // Consistency: coefficient of variation of daily counts
+      const cnts = daily.map(d => d.cnt);
+      const mean = cnts.length ? cnts.reduce((a,b) => a+b, 0) / cnts.length : 0;
+      const variance = cnts.length > 1
+        ? cnts.reduce((s,c) => s + Math.pow(c - mean, 2), 0) / cnts.length : 0;
+      const cv = mean > 0 ? Math.round(Math.sqrt(variance) / mean * 100) : 0;
+
+      return {
+        ...r,
+        month:        monthStart,
+        top_problem:  topProblemMap[r.UserName] || '—',
+        complaints:   complaintMap[r.UserName] || 0,
+        close_rate,
+        comment:      commentMap[r.UserName]?.comment || null,
+        // Trend vs previous period
+        prev_cases:   prev.total_cases || 0,
+        prev_close:   prev.total_cases ? Math.round((prev.closed_cases / prev.total_cases) * 100) : 0,
+        prev_stars:   prev.avg_stars || null,
+        prev_resolve: prev.avg_resolve_min || null,
+        // Daily sparkline data
+        daily_counts: cnts,
+        consistency_cv: cv,   // lower = more consistent
+      };
+    });
     res.json({ agents: result, starsDist: d4.recordset });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
