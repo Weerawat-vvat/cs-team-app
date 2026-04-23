@@ -2729,17 +2729,21 @@ async function loadTickets() {
 }
 
 function renderTickets() {
-  const q     = (document.getElementById('tk-search').value||'').toLowerCase();
+  const q     = (document.getElementById('tk-search').value||'').toLowerCase().trim();
   const agent = document.getElementById('tk-filter-agent').value;
+  const qNum  = q.replace(/^#/, ''); // strip leading # for ID match
   const filtered = allTickets.filter(t => {
     if (agent && t.assigned_name !== agent) return false;
     if (!q) return true;
+    // Match by CalllogId (#123 or 123)
+    if (qNum && String(t.id) === qNum) return true;
     return (t.title||'').toLowerCase().includes(q)
       || (t.CompanyName||'').toLowerCase().includes(q)
       || (t.description||'').toLowerCase().includes(q)
       || (t.assigned_name||'').toLowerCase().includes(q)
       || dn(t.assigned_name||'').toLowerCase().includes(q)
-      || (t.category||'').toLowerCase().includes(q);
+      || (t.category||'').toLowerCase().includes(q)
+      || (t.problem_type_detail||'').toLowerCase().includes(q);
   });
 
   // Update ticket stat cards
