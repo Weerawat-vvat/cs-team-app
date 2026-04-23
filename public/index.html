@@ -733,8 +733,8 @@ textarea{resize:vertical;min-height:80px}
       <span style="font-size:1.1rem;font-weight:800;color:var(--danger)" id="tk-stat-open">—</span>
     </div>
     <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">⚠️ เกิน 24 ชม.</span>
-      <span style="font-size:1.1rem;font-weight:800;color:#b45309" id="tk-stat-overdue">—</span>
+      <span style="font-size:.72rem;color:var(--muted)">⚠️ ค้าง &gt;24ชม. (ทั้งระบบ)</span>
+      <span style="font-size:1.1rem;font-weight:800;color:#dc2626" id="tk-stat-overdue">—</span>
     </div>
     <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
       <span style="font-size:.72rem;color:var(--muted)">✅ ปิดแล้ว</span>
@@ -2684,8 +2684,20 @@ function tkSearchDebounce() {
   // ID search → fetch from server (bypasses date filter); text search → filter locally
   _tkSearchTimer = setTimeout(() => { _tkPage = 1; isId ? loadTickets() : renderTickets(); }, 400);
 }
+async function loadTicketOverdue() {
+  try {
+    const data = await api('/api/tickets/overdue');
+    const el = document.getElementById('tk-stat-overdue');
+    if (el) {
+      el.textContent = data.count ?? '—';
+      el.title = `เคสค้างทั้งหมดในระบบ (ไม่จำกัดช่วงวันที่)`;
+    }
+  } catch {}
+}
+
 async function loadTickets() {
   await initTicketFilters();
+  loadTicketOverdue(); // fetch overdue independently — no date filter
   const status      = document.getElementById('tk-filter-status').value;
   const agent       = document.getElementById('tk-filter-agent').value;
   const team        = document.getElementById('tk-filter-team')?.value || '';
@@ -2732,7 +2744,7 @@ function renderTickets() {
   const tkClosed  = filtered.filter(isClosed).length;
   const tkOpen    = filtered.filter(t => !isClosed(t)).length;
   const now24h    = Date.now() - 24 * 3600 * 1000;
-  const tkOverdue = filtered.filter(t => !isClosed(t) && parseDbDate(t.opened_at)?.getTime() < now24h).length;
+  // overdue count is fetched separately (see loadTicketOverdue) — don't recalculate from filtered
   const closedWithTime = filtered.filter(t => isClosed(t) && t.TimeDiff_Minutes != null && t.TimeDiff_Minutes >= 0);
   let tkAvg = '—';
   if (closedWithTime.length) {
@@ -2740,11 +2752,11 @@ function renderTickets() {
     tkAvg = avgMin >= 60 ? `${Math.floor(avgMin/60)}ชม.${Math.round(avgMin%60)}น.` : `${Math.round(avgMin)}น.`;
   }
   const _setEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-  _setEl('tk-stat-total',   tkTotal);
-  _setEl('tk-stat-open',    tkOpen);
-  _setEl('tk-stat-overdue', tkOverdue);
-  _setEl('tk-stat-closed',  tkClosed);
-  _setEl('tk-stat-avg',     tkAvg);
+  _setEl('tk-stat-total',  tkTotal);
+  _setEl('tk-stat-open',   tkOpen);
+  _setEl('tk-stat-closed', tkClosed);
+  _setEl('tk-stat-avg',    tkAvg);
+  // tk-stat-overdue is updated by loadTicketOverdue() independently
 
   // Sort newest → oldest
   filtered.sort((a, b) => parseDbDate(b.opened_at) - parseDbDate(a.opened_at));
