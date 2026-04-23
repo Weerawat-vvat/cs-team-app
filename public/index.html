@@ -27,7 +27,7 @@ body{font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--t
 .s-tab{background:none;border:none;color:#94a3b8;cursor:pointer;padding:.52rem .75rem;border-radius:8px;font-size:.83rem;text-align:left;display:flex;align-items:center;gap:.55rem;transition:all .15s;width:100%;font-family:inherit}
 .s-tab:hover{background:#334155;color:#fff}
 .s-tab.active{background:#2563eb;color:#fff;font-weight:600}
-.s-tab-icon{font-size:1rem;flex-shrink:0;width:1.2rem;text-align:center}
+.s-tab-icon{font-size:1rem;flex-shrink:0;width:1.2rem;text-align:center;filter:grayscale(1) brightness(10)}
 .sidebar-footer{padding:.75rem .85rem;border-top:1px solid #334155;margin-top:auto}
 .sidebar-user-name{font-size:.82rem;font-weight:700;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sidebar-user-role{font-size:.7rem;color:#94a3b8;margin-top:.1rem}
@@ -390,19 +390,19 @@ textarea{resize:vertical;min-height:80px}
   </div>
   <nav class="sidebar-nav">
     <button class="s-tab active" id="nav-btn-dashboard" onclick="showPage('dashboard',this)">
-      <span class="s-tab-icon">📊</span> Dashboard
-    </button>
-    <button class="s-tab" id="nav-btn-schedule" onclick="showPage('schedule',this)">
-      <span class="s-tab-icon">📅</span> ตารางกะ &amp; วันหยุด
+      <span class="s-tab-icon">🏠</span> Dashboard
     </button>
     <button class="s-tab" id="nav-btn-tickets" onclick="showPage('tickets',this)">
       <span class="s-tab-icon">🎫</span> ติดตามเคส
     </button>
     <button class="s-tab" id="nav-btn-kpi" onclick="showPage('kpi',this)">
-      <span class="s-tab-icon">📈</span> ประเมินผลทีม
+      <span class="s-tab-icon">📊</span> ประเมินทีม
+    </button>
+    <button class="s-tab" id="nav-btn-schedule" onclick="showPage('schedule',this)">
+      <span class="s-tab-icon">📅</span> ตารางงาน
     </button>
     <button class="s-tab" id="nav-btn-users" onclick="showPage('users',this)" style="display:none">
-      <span class="s-tab-icon">👥</span> จัดการ User
+      <span class="s-tab-icon">👤</span> จัดการ User
     </button>
   </nav>
   <div class="sidebar-footer" id="nav-user-info" style="display:none">
@@ -662,31 +662,7 @@ textarea{resize:vertical;min-height:80px}
     <div style="font-size:.78rem;color:var(--muted)" id="tk-count-label"></div>
   </div>
 
-  <!-- Stat Cards -->
-  <div class="stat-row" id="tk-stats">
-    <div class="stat-flat">
-      <div class="label">📋 ทั้งหมด</div>
-      <div class="value blue" id="tk-stat-total">—</div>
-      <div class="sub">เคสในช่วงเวลา</div>
-    </div>
-    <div class="stat-flat">
-      <div class="label">🔴 เปิดอยู่</div>
-      <div class="value red" id="tk-stat-open">—</div>
-      <div class="sub">รอดำเนินการ</div>
-    </div>
-    <div class="stat-flat">
-      <div class="label">⚠️ เกิน 24 ชม.</div>
-      <div class="value yellow" id="tk-stat-overdue">—</div>
-      <div class="sub">ต้องเร่งแก้ไข</div>
-    </div>
-    <div class="stat-flat">
-      <div class="label">✅ ปิดแล้ว</div>
-      <div class="value green" id="tk-stat-closed">—</div>
-      <div class="sub">เสร็จสิ้น</div>
-    </div>
-  </div>
-
-  <!-- Date & Filter Bar -->
+  <!-- Date & Filter Bar (top) -->
   <div class="page-datebar" style="flex-direction:column;align-items:flex-start;gap:.45rem">
     <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;width:100%">
       <div class="drb" id="tk-drb">
@@ -719,6 +695,35 @@ textarea{resize:vertical;min-height:80px}
     </div>
   </div>
 
+  <!-- Stat Cards -->
+  <div class="stat-row" id="tk-stats" style="margin-top:.75rem">
+    <div class="stat-flat">
+      <div class="label">📋 ทั้งหมด</div>
+      <div class="value blue" id="tk-stat-total">—</div>
+      <div class="sub">เคสในช่วงเวลา</div>
+    </div>
+    <div class="stat-flat">
+      <div class="label">🔴 เปิดอยู่</div>
+      <div class="value red" id="tk-stat-open">—</div>
+      <div class="sub">รอดำเนินการ</div>
+    </div>
+    <div class="stat-flat">
+      <div class="label">⚠️ เกิน 24 ชม.</div>
+      <div class="value yellow" id="tk-stat-overdue">—</div>
+      <div class="sub">ต้องเร่งแก้ไข</div>
+    </div>
+    <div class="stat-flat">
+      <div class="label">✅ ปิดแล้ว</div>
+      <div class="value green" id="tk-stat-closed">—</div>
+      <div class="sub">เสร็จสิ้น</div>
+    </div>
+    <div class="stat-flat">
+      <div class="label">📊 เฉลี่ย/คน</div>
+      <div class="value purple" id="tk-stat-avg">—</div>
+      <div class="sub">เคสต่อ Agent</div>
+    </div>
+  </div>
+
   <!-- Per-page selector -->
   <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
     <span style="font-size:.78rem;color:var(--muted)">แสดง</span>
@@ -739,6 +744,7 @@ textarea{resize:vertical;min-height:80px}
             <th style="width:28px"></th>
             <th>#</th>
             <th>วันที่รับ</th>
+            <th>ลูกค้า</th>
             <th>หัวข้อ</th>
             <th>รายละเอียดปัญหา</th>
             <th>วิธีแก้ไข</th>
@@ -2594,18 +2600,20 @@ function renderTickets() {
   });
 
   // Update ticket stat cards
-  // status from LicenseDB is StatusName e.g. "Close Job", "Open Job" — match case-insensitively
   const isClosed  = t => (t.status || '').toLowerCase().includes('close');
   const tkTotal   = filtered.length;
   const tkClosed  = filtered.filter(isClosed).length;
   const tkOpen    = filtered.filter(t => !isClosed(t)).length;
   const now24h    = Date.now() - 24 * 3600 * 1000;
   const tkOverdue = filtered.filter(t => !isClosed(t) && parseDbDate(t.opened_at)?.getTime() < now24h).length;
+  const agents    = [...new Set(filtered.map(t => t.assigned_name).filter(Boolean))];
+  const tkAvg     = agents.length ? (tkTotal / agents.length).toFixed(1) : '—';
   const _setEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   _setEl('tk-stat-total',   tkTotal);
   _setEl('tk-stat-open',    tkOpen);
   _setEl('tk-stat-overdue', tkOverdue);
   _setEl('tk-stat-closed',  tkClosed);
+  _setEl('tk-stat-avg',     tkAvg);
 
   // Sort newest → oldest
   filtered.sort((a, b) => parseDbDate(b.opened_at) - parseDbDate(a.opened_at));
@@ -2624,7 +2632,7 @@ function renderTickets() {
 
   const tbody = document.getElementById('ticket-tbody');
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="12" class="empty"><div class="icon">🎫</div>ไม่พบเคส</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="13" class="empty"><div class="icon">🎫</div>ไม่พบเคส</td></tr>';
     return;
   }
 
@@ -2653,6 +2661,11 @@ function renderTickets() {
     const solShort     = (t.Solution||'').trim().slice(0,70) + ((t.Solution||'').length>70?'…':'');
     const commentShort = (t.ticket_comment||'').trim().slice(0,40) + ((t.ticket_comment||'').length>40?'…':'');
 
+    // Customer tag
+    const custTag = t.CompanyName
+      ? `<span style="display:inline-block;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:4px;font-size:.68rem;padding:.05rem .38rem;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis" title="${escHtml(t.CompanyName)}">${escHtml(t.CompanyName)}</span>`
+      : '—';
+
     // Main row
     rows.push(`<tr class="tk-row-main${isOverdue?' overdue-row':''}">
       <td style="text-align:center;padding:.4rem .25rem">
@@ -2662,6 +2675,7 @@ function renderTickets() {
       <td style="font-size:.78rem;white-space:nowrap">
         <div>${dateStr}</div><div style="color:var(--muted);font-size:.72rem">${timeStr}</div>
       </td>
+      <td style="white-space:nowrap">${custTag}</td>
       <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.84rem"
           title="${(t.title||'').replace(/"/g,'&quot;')}">${t.title||'—'}</td>
       <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.77rem;color:var(--muted)"
@@ -2702,7 +2716,7 @@ function renderTickets() {
         : `<div class="tk-star-display">${curStars ? '★'.repeat(curStars)+'☆'.repeat(5-curStars) : '☆☆☆☆☆'}</div>`;
 
       rows.push(`<tr class="tk-row-detail">
-        <td colspan="12" style="padding:.75rem 1rem 1rem">
+        <td colspan="13" style="padding:.75rem 1rem 1rem">
           ${(desc||sol) ? `<div style="display:grid;grid-template-columns:${sol?'1fr 1fr':'1fr'};gap:1rem;margin-bottom:.75rem">
             ${desc ? `<div class="tk-detail-box">
               <div class="tk-detail-label">📋 รายละเอียดปัญหา</div>
@@ -2719,9 +2733,9 @@ function renderTickets() {
             ${starPickerHtml}
             ${canReview
               ? `<textarea id="tc-${t.id}" rows="2" placeholder="หมายเหตุ / ความคิดเห็น..."
+                   oninput="tkAutoSave(${t.id})"
                    style="width:100%;margin-top:.4rem;padding:.4rem .6rem;border:1px solid var(--border);border-radius:6px;font-size:.82rem;resize:vertical;background:var(--card);color:var(--text)">${curComment}</textarea>
-                 <button class="btn btn-sm btn-primary" style="margin-top:.4rem"
-                   onclick="saveTicketReview(${t.id})">💾 บันทึก</button>`
+                 <span id="tc-saved-${t.id}" style="font-size:.72rem;color:#16a34a;margin-top:.25rem;display:none">✅ บันทึกแล้ว</span>`
               : curComment
                 ? `<div style="margin-top:.35rem;font-size:.82rem;color:var(--muted)">${curComment}</div>`
                 : ''
@@ -2838,6 +2852,13 @@ function spHover(id, n) {
 function spClick(id, n) {
   _spValues[id] = n;
   spHover(id, n);
+  tkAutoSave(id); // auto-save on star click
+}
+
+const _tkSaveTimers = {};
+function tkAutoSave(id) {
+  clearTimeout(_tkSaveTimers[id]);
+  _tkSaveTimers[id] = setTimeout(() => saveTicketReview(id), 800);
 }
 
 async function saveTicketReview(id) {
@@ -2848,11 +2869,16 @@ async function saveTicketReview(id) {
       method: 'PATCH',
       body: { stars, comment }
     });
-    // update local cache so re-render shows new stars immediately
+    // update local cache
     const t = allTickets.find(x => x.id === id);
     if (t) { t.Stars = stars; t.ticket_comment = comment; }
-    renderTickets();
-    // briefly show success flash
+    // show saved indicator
+    const savedEl = document.getElementById('tc-saved-' + id);
+    if (savedEl) {
+      savedEl.style.display = 'block';
+      clearTimeout(savedEl._to);
+      savedEl._to = setTimeout(() => { savedEl.style.display = 'none'; }, 2000);
+    }
     const btn = document.querySelector(`[onclick="saveTicketReview(${id})"]`);
     if (btn) { const orig = btn.textContent; btn.textContent = '✅ บันทึกแล้ว'; setTimeout(() => { btn.textContent = orig; }, 1500); }
   } catch (e) {
