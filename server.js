@@ -414,6 +414,29 @@ app.get('/api/tickets', authRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Overdue tickets — must be BEFORE /:id route
+app.get('/api/tickets/overdue', authRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
+    let scope = await getScopedUsernames(request.user);
+    if (scope === null) return res.json({ count: 0, tickets: [] });
+    const r = extReq();
+    const sc = appendScopeClause(r, scope);
+    const result = await r.query(`
+      SELECT cl.CalllogId AS id, cr.CompanyName, cl.ReceiveDate AS opened_at,
+             cs.StatusName AS status, cl.Subject AS title, u.UserName AS assigned_name
+      FROM Calllog cl
+      INNER JOIN CustomerRegistration cr ON cr.RegistrationId = cl.RegistrationId
+      INNER JOIN CallStatus cs ON cs.StatusId = cl.StatusId
+      INNER JOIN Users u ON u.UserId = cl.SupportId
+      WHERE cs.StatusName NOT LIKE '%close%'
+        AND cs.StatusName NOT LIKE '%complete%'
+        AND DATEDIFF(hour, cl.ReceiveDate, GETDATE()) > 24${sc}
+      ORDER BY cl.ReceiveDate ASC`);
+    res.json({ count: result.recordset.length, tickets: result.recordset });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/tickets/:id', async (request, res) => {
   try {
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
@@ -453,29 +476,6 @@ app.get('/api/tickets/meta/categories', async (_, res) => {
     if (!getExtPool()) return res.json([]);
     const result = await extReq().query('SELECT DISTINCT Subject AS category FROM Calllog WHERE Subject IS NOT NULL ORDER BY Subject');
     res.json(result.recordset.map(r => r.category));
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// Overdue tickets — all open tickets >24h regardless of date filter
-app.get('/api/tickets/overdue', authRequired, async (request, res) => {
-  try {
-    if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
-    let scope = await getScopedUsernames(request.user);
-    if (scope === null) return res.json({ count: 0, tickets: [] });
-    const r = extReq();
-    const sc = appendScopeClause(r, scope);
-    const result = await r.query(`
-      SELECT cl.CalllogId AS id, cr.CompanyName, cl.ReceiveDate AS opened_at,
-             cs.StatusName AS status, cl.Subject AS title, u.UserName AS assigned_name
-      FROM Calllog cl
-      INNER JOIN CustomerRegistration cr ON cr.RegistrationId = cl.RegistrationId
-      INNER JOIN CallStatus cs ON cs.StatusId = cl.StatusId
-      INNER JOIN Users u ON u.UserId = cl.SupportId
-      WHERE cs.StatusName NOT LIKE '%close%'
-        AND cs.StatusName NOT LIKE '%complete%'
-        AND DATEDIFF(hour, cl.ReceiveDate, GETDATE()) > 24${sc}
-      ORDER BY cl.ReceiveDate ASC`);
-    res.json({ count: result.recordset.length, tickets: result.recordset });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
