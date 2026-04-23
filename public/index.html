@@ -3234,8 +3234,11 @@ async function toggleKpiDrill(username, month, rowEl) {
 
   const content = document.getElementById('kpi-drill-content-' + username);
   try {
+    const dfrom = document.getElementById('kpi-date-from')?.value || _kpiDateFrom;
+    const dto   = document.getElementById('kpi-date-to')?.value   || _kpiDateTo;
     let url = `/api/kpi/agent-detail?username=${encodeURIComponent(username)}`;
-    if (month) url += `&month=${month}`;
+    if (dfrom) url += `&dateFrom=${dfrom}`;
+    if (dto)   url += `&dateTo=${dto}`;
     const d = await api(url);
     const { categories = [], summary = {} } = d;
     const maxCnt = categories[0]?.cnt || 1;

@@ -592,15 +592,26 @@ app.get('/api/kpi', authRequired, async (request, res) => {
 app.get('/api/kpi/agent-detail', authRequired, async (request, res) => {
   try {
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
-    const { username, month } = request.query;
+    const { username, month, dateFrom, dateTo } = request.query;
     if (!username) return res.status(400).json({ error: 'username required' });
-    const ym = month || new Date().toISOString().substring(0, 7);
-    const monthStart = ym + '-01';
-    const monthEnd   = new Date(new Date(monthStart).setMonth(new Date(monthStart).getMonth() + 1));
+
+    const isValid = d => d instanceof Date && !isNaN(d);
+    let startDate, endDate;
+
+    if (dateFrom && dateTo) {
+      startDate = new Date(dateFrom);
+      endDate   = new Date(dateTo + 'T23:59:59');
+    }
+    if (!isValid(startDate) || !isValid(endDate)) {
+      const ym = (month && /^\d{4}-\d{2}$/.test(month))
+        ? month : new Date().toISOString().substring(0, 7);
+      startDate = new Date(ym + '-01');
+      endDate   = new Date(new Date(ym + '-01').setMonth(startDate.getMonth() + 1));
+    }
 
     const r = extReq()
-      .input('s',  sql.DateTime, new Date(monthStart))
-      .input('e',  sql.DateTime, monthEnd)
+      .input('s',  sql.DateTime, startDate)
+      .input('e',  sql.DateTime, endDate)
       .input('un', sql.NVarChar, username);
 
     const [cats, daily, timing] = await Promise.all([
@@ -615,14 +626,14 @@ app.get('/api/kpi/agent-detail', authRequired, async (request, res) => {
                GROUP BY cl.Subject
                ORDER BY cnt DESC`),
       // Daily trend
-      extReq().input('s', sql.DateTime, new Date(monthStart)).input('e', sql.DateTime, monthEnd)
+      extReq().input('s', sql.DateTime, startDate).input('e', sql.DateTime, endDate)
         .input('un', sql.NVarChar, username)
         .query(`SELECT CAST(cl.ReceiveDate AS DATE) AS day, COUNT(*) AS cnt
                 FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
                 WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e AND u.UserName = @un
                 GROUP BY CAST(cl.ReceiveDate AS DATE) ORDER BY day`),
       // Avg resolution time + stars
-      extReq().input('s', sql.DateTime, new Date(monthStart)).input('e', sql.DateTime, monthEnd)
+      extReq().input('s', sql.DateTime, startDate).input('e', sql.DateTime, endDate)
         .input('un', sql.NVarChar, username)
         .query(`SELECT
                   COUNT(*) AS total,
