@@ -2881,17 +2881,27 @@ async function genCustomerLink(e, companyName, btn) {
   btn.textContent = '⏳';
   try {
     const data = await api('/api/customer-links', {
-      method: 'POST',
+      method: 'POST', silent: true,
       body: { company_name: companyName }
     });
+    if (data && data.error) {
+      btn.textContent = '🔗';
+      showToast('❌ ' + data.error, 'error');
+      return;
+    }
     const link = `${location.origin}/track.html?t=${data.token}`;
-    await navigator.clipboard.writeText(link);
+    try {
+      await navigator.clipboard.writeText(link);
+      showToast(`🔗 Copy link แล้ว! — ${companyName}`);
+    } catch {
+      // clipboard blocked — show modal with link instead
+      prompt('Copy link นี้ส่งให้ลูกค้า:', link);
+    }
     btn.textContent = '✅';
-    showToast(`✅ Copy link แล้ว! — ${companyName}`);
-    setTimeout(() => { btn.textContent = '🔗'; }, 2000);
+    setTimeout(() => { btn.textContent = '🔗'; }, 2500);
   } catch(err) {
     btn.textContent = '🔗';
-    showToast('❌ ไม่สามารถสร้าง link ได้', 'error');
+    showToast('❌ ' + (err.message || 'ไม่สามารถสร้าง link ได้'), 'error');
   }
 }
 
