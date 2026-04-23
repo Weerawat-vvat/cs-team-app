@@ -460,18 +460,39 @@ textarea{resize:vertical;min-height:80px}
 
   <!-- ── 6 Stat Cards ── -->
   <div class="stat-row-6" id="dash-stats-row">
-    <div class="stat-flat"><div class="label">📋 Total Tickets</div>
-      <div class="value blue" id="ov-total">—</div><div class="sub" id="ov-total-sub">รวม</div></div>
-    <div class="stat-flat"><div class="label">✅ Closed</div>
-      <div class="value green" id="ov-closed">—</div><div class="sub" id="ov-close-pct">ปิดแล้ว</div></div>
-    <div class="stat-flat"><div class="label">👥 Active Agents</div>
-      <div class="value purple" id="ov-agents">—</div><div class="sub" id="ov-agents-sub">agent ที่มีงาน</div></div>
-    <div class="stat-flat"><div class="label">⚡ Avg / Agent</div>
-      <div class="value white" id="ov-avg">—</div><div class="sub" id="ov-avg-sub">tickets ต่อคน</div></div>
-    <div class="stat-flat"><div class="label" id="ov-today-label">📞 เคสที่รับ</div>
-      <div class="value blue" id="ov-today">—</div><div class="sub" id="ov-week-sub">ช่วงที่เลือก</div></div>
+    <div class="stat-flat">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div class="label">📋 Total Tickets</div><span id="ov-total-trend"></span>
+      </div>
+      <div class="value blue" id="ov-total">—</div><div class="sub" id="ov-total-sub">รวม</div>
+    </div>
+    <div class="stat-flat">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div class="label">✅ Closed</div><span id="ov-closed-trend"></span>
+      </div>
+      <div class="value green" id="ov-closed">—</div><div class="sub" id="ov-close-pct">ปิดแล้ว</div>
+    </div>
+    <div class="stat-flat">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div class="label">👥 Active Agents</div><span id="ov-agents-trend"></span>
+      </div>
+      <div class="value purple" id="ov-agents">—</div><div class="sub" id="ov-agents-sub">agent ที่มีงาน</div>
+    </div>
+    <div class="stat-flat">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div class="label">⚡ Avg / Agent</div><span id="ov-avg-trend"></span>
+      </div>
+      <div class="value white" id="ov-avg">—</div><div class="sub" id="ov-avg-sub">tickets ต่อคน</div>
+    </div>
+    <div class="stat-flat">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div class="label" id="ov-today-label">📞 เคสที่รับ</div><span id="ov-today-trend"></span>
+      </div>
+      <div class="value blue" id="ov-today">—</div><div class="sub" id="ov-week-sub">ช่วงที่เลือก</div>
+    </div>
     <div class="stat-flat"><div class="label">⚠️ ค้างเกิน 24 ชม.</div>
-      <div class="value red" id="ov-overdue">—</div><div class="sub">tickets รวมทุก agent</div></div>
+      <div class="value red" id="ov-overdue">—</div><div class="sub">tickets รวมทุก agent</div>
+    </div>
   </div>
 
   <!-- ── Target Tracker ── -->
@@ -1673,7 +1694,7 @@ async function loadDashboardCharts() {
 
   const { catStats = [], agentThis = [], agentLast = [], agentCat = [],
           dailyTrend = [], hourlyStats = [], dowStats = [], catDailyTrend = [],
-          closedThis = 0, hourlyAgentGrid = [],
+          closedThis = 0, closedLast = 0, hourlyAgentGrid = [],
           daysThis = 30, daysPrev = 30,
           thisFrom = '', thisTo = '', prevFrom = '', prevTo = '' } = data;
 
@@ -1688,6 +1709,36 @@ async function loadDashboardCharts() {
   const closePct     = totalPeriod ? Math.round(closedThis / totalPeriod * 100) : 0;
 
   const _s = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+
+  // Prev period totals
+  const totalPrev    = agentLast.reduce((s, r) => s + (r.cnt || 0), 0);
+  const agentCountPrev = agentLast.length;
+  const avgPrev      = agentCountPrev ? Math.round(totalPrev / agentCountPrev) : 0;
+
+  // Trend badge helper
+  function trendBadge(cur, prev) {
+    const el_id = arguments[2]; // optional id passed via caller
+    if (!prev) return '';
+    const diff = cur - prev;
+    const pct  = Math.abs(Math.round(diff / prev * 100));
+    const up   = diff > 0;
+    const same = diff === 0;
+    if (same) return `<span style="font-size:.68rem;color:var(--muted)">→ เท่าเดิม</span>`;
+    const color = up ? '#16a34a' : '#ef4444';
+    const arrow = up ? '▲' : '▼';
+    return `<span style="font-size:.68rem;font-weight:700;color:${color};white-space:nowrap">${arrow} ${pct}%</span>`;
+  }
+  function setTrend(id, cur, prev) {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = trendBadge(cur, prev);
+  }
+
+  setTrend('ov-total-trend',  totalPeriod, totalPrev);
+  setTrend('ov-closed-trend', closedThis,  closedLast);
+  setTrend('ov-agents-trend', agentCount,  agentCountPrev);
+  setTrend('ov-avg-trend',    avgPerAgent, avgPrev);
+  setTrend('ov-today-trend',  totalPeriod, totalPrev);
+
   _s('ov-total',      totalPeriod.toLocaleString());
   _s('ov-total-sub',  `รวม${lbl}`);
   _s('ov-closed',     closedThis.toLocaleString());

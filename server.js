@@ -1192,8 +1192,11 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
     const r8 = mkR(msDate, meDate);   const sc8 = appendScopeClause(r8, scope);
     const r9 = mkR(msDate, meDate);   const sc9 = appendScopeClause(r9, scope);
     const r10 = mkR(msDate, meDate);  const sc10 = appendScopeClause(r10, scope);
+    const r11 = extReq()
+      .input('ms', sql.DateTime, prevFromDate)
+      .input('me', sql.DateTime, prevToDate); const sc11 = appendScopeClause(r11, scope);
 
-    const [d1, d2, d3, d4, d5, d6, d7, d8, d9, d10] = await Promise.all([
+    const [d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11] = await Promise.all([
       // Daily trend
       r1.query(`SELECT CAST(cl.ReceiveDate AS DATE) AS day, COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
@@ -1247,6 +1250,12 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
         WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc10}
         GROUP BY DATEPART(hour, cl.ReceiveDate), u.UserName
         ORDER BY hr, u.UserName`),
+      // Closed count previous period
+      r11.query(`SELECT COUNT(*) AS cnt
+        FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
+        INNER JOIN CallStatus cs ON cs.StatusId = cl.StatusId
+        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me
+          AND (cs.StatusName LIKE '%close%' OR cs.StatusName LIKE '%ปิด%' OR cs.StatusName LIKE '%complete%')${sc11}`),
     ]);
 
     // Build ext_username → employee name map
@@ -1268,8 +1277,9 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
       hourlyStats:   d6.recordset,
       dowStats:      d7.recordset,
       catDailyTrend: d8.recordset,
-      closedThis:     d9.recordset[0]?.cnt || 0,
+      closedThis:      d9.recordset[0]?.cnt || 0,
       hourlyAgentGrid: d10.recordset,
+      closedLast:      d11.recordset[0]?.cnt || 0,
       nameMap,
       daysThis,
       daysPrev:  daysThis,
