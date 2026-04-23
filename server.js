@@ -92,11 +92,12 @@ const CALLLOG_SELECT = `
     cl.CalllogDesc      AS description,
     cl.Solution,
     cs.StatusName       AS status,
-    cl.Subject          AS category,
-    u.UserName          AS assigned_name,
+    cl.Subject                  AS category,
+    u.UserName                  AS assigned_name,
     cl.IssueURL,
-    cl.Subject          AS title,
-    pt.Note             AS problem_type
+    cl.Subject                  AS title,
+    pt.Note                     AS problem_type,
+    pt.ProblemTypeDetail        AS problem_type_detail
   FROM Calllog cl
   INNER JOIN CustomerRegistration cr ON cr.RegistrationId  = cl.RegistrationId
   INNER JOIN CallStatus           cs ON cs.StatusId        = cl.StatusId
@@ -373,7 +374,7 @@ app.put('/api/leave-requests/:id/reject', authRequired, async (request, res) => 
 app.get('/api/tickets', authRequired, async (request, res) => {
   try {
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
-    const { status, search, dateFrom, dateTo, team } = request.query;
+    const { status, search, dateFrom, dateTo, team, problemType } = request.query;
     const defaultFrom = dateFrom || new Date().toISOString().split('T')[0];
 
     // RBAC scope
@@ -391,10 +392,11 @@ app.get('/api/tickets', authRequired, async (request, res) => {
     const r = extReq();
     let q = CALLLOG_SELECT + ' WHERE cl.ReceiveDate >= @df';
     r.input('df', sql.DateTime, new Date(defaultFrom));
-    if (status) { q += ' AND cs.StatusName=@status';  r.input('status', sql.NVarChar, status); }
-    if (search) { q += ' AND (cl.Subject LIKE @s OR cr.CompanyName LIKE @s OR u.UserName LIKE @s)';
-                                                       r.input('s',      sql.NVarChar, `%${search}%`); }
-    if (dateTo) { q += ' AND cl.ReceiveDate <= @dt';  r.input('dt',     sql.DateTime, new Date(dateTo + 'T23:59:59')); }
+    if (status)      { q += ' AND cs.StatusName=@status'; r.input('status', sql.NVarChar, status); }
+    if (search)      { q += ' AND (cl.Subject LIKE @s OR cr.CompanyName LIKE @s OR u.UserName LIKE @s)';
+                                                          r.input('s', sql.NVarChar, `%${search}%`); }
+    if (dateTo)      { q += ' AND cl.ReceiveDate <= @dt'; r.input('dt', sql.DateTime, new Date(dateTo + 'T23:59:59')); }
+    if (problemType) { q += ' AND pt.ProblemTypeDetail=@pt'; r.input('pt', sql.NVarChar, problemType); }
     q += appendScopeClause(r, scope);
     q += ' ORDER BY cl.ReceiveDate DESC';
     res.json((await r.query(q)).recordset);
@@ -440,6 +442,19 @@ app.get('/api/tickets/meta/categories', async (_, res) => {
     if (!getExtPool()) return res.json([]);
     const result = await extReq().query('SELECT DISTINCT Subject AS category FROM Calllog WHERE Subject IS NOT NULL ORDER BY Subject');
     res.json(result.recordset.map(r => r.category));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/tickets/meta/problem-types', async (_, res) => {
+  try {
+    if (!getExtPool()) return res.json([]);
+    const result = await extReq().query(
+      `SELECT DISTINCT pt.ProblemTypeDetail
+       FROM ProblemType pt
+       WHERE pt.ProblemTypeDetail IS NOT NULL
+       ORDER BY pt.ProblemTypeDetail`
+    );
+    res.json(result.recordset.map(r => r.ProblemTypeDetail));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

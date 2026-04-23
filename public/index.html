@@ -703,6 +703,9 @@ textarea{resize:vertical;min-height:80px}
       <select id="tk-filter-team" onchange="loadTickets()">
         <option value="">ทุกทีม</option>
       </select>
+      <select id="tk-filter-problem-type" onchange="loadTickets()">
+        <option value="">ทุกประเภทปัญหา</option>
+      </select>
       <select id="tk-filter-status" onchange="loadTickets()">
         <option value="">ทุกสถานะ</option>
       </select>
@@ -764,6 +767,7 @@ textarea{resize:vertical;min-height:80px}
             <th>#</th>
             <th>วันที่รับ</th>
             <th>ลูกค้า</th>
+            <th>ประเภท</th>
             <th>หัวข้อ</th>
             <th>รายละเอียดปัญหา</th>
             <th>วิธีแก้ไข</th>
@@ -2637,10 +2641,16 @@ async function initTicketFilters() {
   if (tkStatusesLoaded) return;
   tkStatusesLoaded = true;
   try {
-    const statuses = await api('/api/tickets/meta/statuses');
-    const sel = document.getElementById('tk-filter-status');
-    sel.innerHTML = '<option value="">ทุกสถานะ</option>' +
-      statuses.map(s => `<option value="${s}">${s}</option>`).join('');
+    const [statuses, problemTypes] = await Promise.all([
+      api('/api/tickets/meta/statuses'),
+      api('/api/tickets/meta/problem-types')
+    ]);
+    document.getElementById('tk-filter-status').innerHTML =
+      '<option value="">ทุกสถานะ</option>' +
+      statuses.map(s => `<option value="${escHtml(s)}">${escHtml(s)}</option>`).join('');
+    document.getElementById('tk-filter-problem-type').innerHTML =
+      '<option value="">ทุกประเภทปัญหา</option>' +
+      problemTypes.map(p => `<option value="${escHtml(p)}">${escHtml(p)}</option>`).join('');
   } catch {}
 }
 
@@ -2651,13 +2661,15 @@ function tkSearchDebounce() {
 }
 async function loadTickets() {
   await initTicketFilters();
-  const status   = document.getElementById('tk-filter-status').value;
-  const agent    = document.getElementById('tk-filter-agent').value;
-  const team     = document.getElementById('tk-filter-team')?.value || '';
-  const dateFrom = document.getElementById('tk-date-from').value;
-  const dateTo   = document.getElementById('tk-date-to').value;
+  const status      = document.getElementById('tk-filter-status').value;
+  const agent       = document.getElementById('tk-filter-agent').value;
+  const team        = document.getElementById('tk-filter-team')?.value || '';
+  const problemType = document.getElementById('tk-filter-problem-type')?.value || '';
+  const dateFrom    = document.getElementById('tk-date-from').value;
+  const dateTo      = document.getElementById('tk-date-to').value;
   let url = '/api/tickets?';
-  if (status)   url += `status=${encodeURIComponent(status)}&`;
+  if (status)      url += `status=${encodeURIComponent(status)}&`;
+  if (problemType) url += `problemType=${encodeURIComponent(problemType)}&`;
   if (team)     url += `team=${encodeURIComponent(team)}&`;
   if (dateFrom) url += `dateFrom=${dateFrom}&`;
   if (dateTo)   url += `dateTo=${dateTo}&`;
@@ -2726,7 +2738,7 @@ function renderTickets() {
 
   const tbody = document.getElementById('ticket-tbody');
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="13" class="empty"><div class="icon">🎫</div>ไม่พบเคส</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="14" class="empty"><div class="icon">🎫</div>ไม่พบเคส</td></tr>';
     return;
   }
 
@@ -2773,6 +2785,11 @@ function renderTickets() {
         <div>${dateStr}</div><div style="color:var(--muted);font-size:.72rem">${timeStr}</div>
       </td>
       <td style="white-space:nowrap">${custTag}</td>
+      <td style="white-space:nowrap">
+        ${t.problem_type_detail
+          ? `<span style="display:inline-block;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;font-size:.68rem;padding:.05rem .38rem;white-space:nowrap;max-width:110px;overflow:hidden;text-overflow:ellipsis" title="${escHtml(t.problem_type_detail)}">${escHtml(t.problem_type_detail)}</span>`
+          : '<span style="color:var(--muted);font-size:.72rem">—</span>'}
+      </td>
       <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.84rem"
           title="${(t.title||'').replace(/"/g,'&quot;')}">${t.title||'—'}</td>
       <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.77rem;color:var(--muted)"
@@ -2813,7 +2830,7 @@ function renderTickets() {
         : `<div class="tk-star-display">${curStars ? '★'.repeat(curStars)+'☆'.repeat(5-curStars) : '☆☆☆☆☆'}</div>`;
 
       rows.push(`<tr class="tk-row-detail">
-        <td colspan="13" style="padding:.75rem 1rem 1rem">
+        <td colspan="14" style="padding:.75rem 1rem 1rem">
           ${(desc||sol) ? `<div style="display:grid;grid-template-columns:${sol?'1fr 1fr':'1fr'};gap:1rem;margin-bottom:.75rem">
             ${desc ? `<div class="tk-detail-box">
               <div class="tk-detail-label">📋 รายละเอียดปัญหา</div>
