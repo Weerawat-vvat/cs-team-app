@@ -1715,6 +1715,7 @@ async function loadDashboardCharts() {
   const ctxDonut = document.getElementById('chart-cat-donut');
   if (ctxDonut && catStats.length) {
     const top5 = catStats.slice(0, 5);
+    const donutTotal = top5.reduce((s, r) => s + r.cnt, 0);
     const donutColors = ['#38bdf8','#818cf8','#34d399','#fb923c','#f472b6'];
     dashCharts.donut = new Chart(ctxDonut, {
       type: 'doughnut',
@@ -1733,9 +1734,27 @@ async function loadDashboardCharts() {
         plugins: {
           legend: {
             position: 'bottom',
-            labels: { color: '#64748b', font: { size: 10 }, boxWidth: 10, padding: 8 }
+            labels: {
+              color: '#64748b', font: { size: 10 }, boxWidth: 10, padding: 8,
+              generateLabels: chart => chart.data.labels.map((label, i) => {
+                const cnt = chart.data.datasets[0].data[i];
+                const pct = donutTotal ? Math.round(cnt / donutTotal * 100) : 0;
+                return {
+                  text: `${label} (${pct}%)`,
+                  fillStyle: donutColors[i],
+                  strokeStyle: '#fff',
+                  lineWidth: 2,
+                  index: i
+                };
+              })
+            }
           },
-          tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed.toLocaleString()} เคส` } }
+          tooltip: { callbacks: {
+            label: ctx => {
+              const pct = donutTotal ? (ctx.parsed / donutTotal * 100).toFixed(1) : 0;
+              return ` ${ctx.label}: ${ctx.parsed.toLocaleString()} เคส (${pct}%)`;
+            }
+          }}
         }
       }
     });
