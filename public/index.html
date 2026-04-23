@@ -2679,10 +2679,8 @@ async function initTicketFilters() {
 let _tkSearchTimer = null;
 function tkSearchDebounce() {
   clearTimeout(_tkSearchTimer);
-  const val = document.getElementById('tk-search')?.value || '';
-  const isId = /^\s*#?\d+\s*$/.test(val);
-  // ID search → fetch from server (bypasses date filter); text search → filter locally
-  _tkSearchTimer = setTimeout(() => { _tkPage = 1; isId ? loadTickets() : renderTickets(); }, 400);
+  // Always fetch from server so search parameter is sent properly
+  _tkSearchTimer = setTimeout(() => { _tkPage = 1; loadTickets(); }, 400);
 }
 async function loadTicketOverdue() {
   try {
@@ -2704,12 +2702,18 @@ async function loadTickets() {
   const problemType = document.getElementById('tk-filter-problem-type')?.value || '';
   const dateFrom    = document.getElementById('tk-date-from').value;
   const dateTo      = document.getElementById('tk-date-to').value;
+  const searchVal   = document.getElementById('tk-search')?.value?.trim() || '';
+  const isIdSearch  = /^\s*#?\d+\s*$/.test(searchVal);
   let url = '/api/tickets?';
-  if (status)      url += `status=${encodeURIComponent(status)}&`;
-  if (problemType) url += `problemType=${encodeURIComponent(problemType)}&`;
-  if (team)     url += `team=${encodeURIComponent(team)}&`;
-  if (dateFrom) url += `dateFrom=${dateFrom}&`;
-  if (dateTo)   url += `dateTo=${dateTo}&`;
+  if (searchVal)    url += `search=${encodeURIComponent(searchVal)}&`;
+  if (!isIdSearch) {
+    // date/filter params only apply for text/normal search
+    if (status)      url += `status=${encodeURIComponent(status)}&`;
+    if (problemType) url += `problemType=${encodeURIComponent(problemType)}&`;
+    if (team)        url += `team=${encodeURIComponent(team)}&`;
+    if (dateFrom)    url += `dateFrom=${dateFrom}&`;
+    if (dateTo)      url += `dateTo=${dateTo}&`;
+  }
   allTickets = await api(url);
 
   // Populate agent filter — value=LicenseDB username, label=real name
