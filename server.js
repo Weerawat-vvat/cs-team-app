@@ -405,7 +405,7 @@ app.get('/api/tickets', authRequired, async (request, res) => {
       if (status)      { q += ' AND cs.StatusName=@status'; r.input('status', sql.NVarChar, status); }
       if (search)      { q += ' AND (cl.Subject LIKE @s OR cr.CompanyName LIKE @s OR u.UserName LIKE @s OR pt.ProblemTypeDetail LIKE @s)';
                                                              r.input('s', sql.NVarChar, `%${search}%`); }
-      if (dateTo)      { q += ' AND cl.ReceiveDate <= @dt'; r.input('dt', sql.DateTime, new Date(dateTo + 'T23:59:59')); }
+      if (dateTo)      { q += ' AND cl.ReceiveDate < @dt'; r.input('dt', sql.DateTime, new Date(new Date(dateTo).getTime() + 86400000)); }
       if (problemType) { q += ' AND pt.ProblemTypeDetail=@pt'; r.input('pt', sql.NVarChar, problemType); }
       q += appendScopeClause(r, scope);
     }
@@ -520,7 +520,7 @@ app.get('/api/kpi', authRequired, async (request, res) => {
 
     if (dateFrom && dateTo) {
       startDate = new Date(dateFrom);
-      endDate   = new Date(dateTo + 'T23:59:59');
+      endDate   = new Date(new Date(dateTo).getTime() + 86400000);
     }
     // Fallback to current month if dates are missing or invalid
     if (!isValidDate(startDate) || !isValidDate(endDate)) {
@@ -692,7 +692,7 @@ app.get('/api/kpi/agent-detail', authRequired, async (request, res) => {
 
     if (dateFrom && dateTo) {
       startDate = new Date(dateFrom);
-      endDate   = new Date(dateTo + 'T23:59:59');
+      endDate   = new Date(new Date(dateTo).getTime() + 86400000);
     }
     if (!isValid(startDate) || !isValid(endDate)) {
       const ym = (month && /^\d{4}-\d{2}$/.test(month))
@@ -1600,7 +1600,7 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
     const today = new Date().toISOString().split('T')[0];
     const msStr = dateFrom || (today.substring(0, 7) + '-01');
     const msDate = new Date(msStr);
-    const meDate = dateTo ? new Date(dateTo + 'T23:59:59') : new Date(new Date(msStr).setMonth(msDate.getMonth() + 1));
+    const meDate = dateTo ? new Date(new Date(dateTo).getTime() + 86400000) : new Date(new Date(msStr).setMonth(msDate.getMonth() + 1));
 
     // Previous period = same duration shifted back (fair comparison)
     const durationMs  = meDate - msDate;
