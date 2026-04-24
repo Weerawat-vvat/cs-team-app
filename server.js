@@ -1518,6 +1518,21 @@ async function genJobNo() {
   return `RJ-${ym}-${seq}`;
 }
 
+// Search shop from LicenseDB — must be BEFORE /api/repair/:id
+app.get('/api/repair/search-shop', authRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.json([]);
+    const { q } = request.query;
+    if (!q || q.length < 2) return res.json([]);
+    const result = await extReq().input('q', sql.NVarChar, `%${q}%`)
+      .query(`SELECT TOP 15 RegistrationId, CompanyName, Phone, Email, ContactName
+              FROM CustomerRegistration
+              WHERE CompanyName LIKE @q AND Hide=0
+              ORDER BY CompanyName`);
+    res.json(result.recordset);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // List repair jobs
 app.get('/api/repair', authRequired, async (request, res) => {
   try {
@@ -1702,19 +1717,6 @@ app.delete('/api/repair/attachments/:id', authRequired, async (request, res) => 
 });
 
 // Search shop from LicenseDB
-app.get('/api/repair/search-shop', authRequired, async (request, res) => {
-  try {
-    if (!getExtPool()) return res.json([]);
-    const { q } = request.query;
-    if (!q || q.length < 2) return res.json([]);
-    const result = await extReq().input('q', sql.NVarChar, `%${q}%`)
-      .query(`SELECT TOP 15 RegistrationId, CompanyName, Phone, Email, ContactName
-              FROM CustomerRegistration
-              WHERE CompanyName LIKE @q AND Hide=0
-              ORDER BY CompanyName`);
-    res.json(result.recordset);
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
 
 // ══════════════════════════════════════════════════════════
 //  TEAMS (cs_team)
