@@ -100,7 +100,7 @@ const CALLLOG_SELECT = `
     pt.ProblemTypeDetail        AS problem_type_detail
   FROM Calllog cl
   INNER JOIN CustomerRegistration cr ON cr.RegistrationId  = cl.RegistrationId
-  INNER JOIN CallStatus           cs ON cs.StatusId        = cl.StatusId
+  LEFT  JOIN CallStatus           cs ON cs.StatusId        = cl.StatusId
   INNER JOIN Users                u  ON u.UserId           = cl.SupportId
   LEFT  JOIN Project              p  ON p.ProjectId        = cl.ProjectId
   LEFT  JOIN ProblemType          pt ON pt.ProblemTypeId   = cl.ProblemTypeId
@@ -396,11 +396,11 @@ app.get('/api/tickets', authRequired, async (request, res) => {
     if (isIdSearch) {
       // ID search — no date filter, no other conditions, find across all history
       const numId = parseInt(search.replace('#','').trim());
-      q = CALLLOG_SELECT + ' WHERE cl.CalllogId=@sid';
+      q = CALLLOG_SELECT + ' WHERE cl.Active=1 AND cl.CalllogId=@sid';
       r.input('sid', sql.Int, numId);
       q += appendScopeClause(r, scope);
     } else {
-      q = CALLLOG_SELECT + ' WHERE cl.ReceiveDate >= @df';
+      q = CALLLOG_SELECT + ' WHERE cl.Active=1 AND cl.ReceiveDate >= @df';
       r.input('df', sql.DateTime, new Date(defaultFrom));
       if (status)      { q += ' AND cs.StatusName=@status'; r.input('status', sql.NVarChar, status); }
       if (search)      { q += ' AND (cl.Subject LIKE @s OR cr.CompanyName LIKE @s OR u.UserName LIKE @s OR pt.ProblemTypeDetail LIKE @s)';
@@ -441,7 +441,7 @@ app.get('/api/tickets/:id', async (request, res) => {
   try {
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
     const result = await extReq().input('id', sql.Int, request.params.id)
-      .query(CALLLOG_SELECT + ' WHERE cl.CalllogId=@id');
+      .query(CALLLOG_SELECT + ' WHERE cl.Active=1 AND cl.CalllogId=@id');
     if (!result.recordset[0]) return res.status(404).json({ error: 'not found' });
     res.json(result.recordset[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -573,7 +573,7 @@ app.get('/api/kpi', authRequired, async (request, res) => {
         FROM Calllog cl
         INNER JOIN Users u  ON u.UserId  = cl.SupportId
         INNER JOIN CallStatus cs ON cs.StatusId = cl.StatusId
-        WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e${sc1}
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @s AND cl.ReceiveDate < @e${sc1}
         GROUP BY u.UserName ORDER BY total_cases DESC`),
       // Top problem type per agent
       r2.query(`
@@ -582,7 +582,7 @@ app.get('/api/kpi', authRequired, async (request, res) => {
         FROM Calllog cl
         INNER JOIN Users u ON u.UserId = cl.SupportId
         LEFT  JOIN ProblemType pt ON pt.ProblemTypeId = cl.ProblemTypeId
-        WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e${sc2}
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @s AND cl.ReceiveDate < @e${sc2}
         GROUP BY u.UserName, pt.ProblemTypeDetail`),
       // Complaint count per company → map to agent (best effort by ticket)
       r3.query(`
@@ -591,13 +591,13 @@ app.get('/api/kpi', authRequired, async (request, res) => {
         INNER JOIN Users u ON u.UserId = cl.SupportId
         INNER JOIN CustomerRegistration cr ON cr.RegistrationId = cl.RegistrationId
         INNER JOIN ticket_complaints tc ON tc.company_name = cr.CompanyName
-        WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e${sc3}
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @s AND cl.ReceiveDate < @e${sc3}
         GROUP BY u.UserName`),
       // Stars distribution
       r4.query(`
         SELECT cl.Stars, COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
-        WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e AND cl.Stars IS NOT NULL${sc4}
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @s AND cl.ReceiveDate < @e AND cl.Stars IS NOT NULL${sc4}
         GROUP BY cl.Stars ORDER BY cl.Stars`),
       // Previous period per agent (for trend comparison)
       r5.query(`
@@ -610,13 +610,13 @@ app.get('/api/kpi', authRequired, async (request, res) => {
         FROM Calllog cl
         INNER JOIN Users u ON u.UserId = cl.SupportId
         INNER JOIN CallStatus cs ON cs.StatusId = cl.StatusId
-        WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e${sc5}
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @s AND cl.ReceiveDate < @e${sc5}
         GROUP BY u.UserName`),
       // Daily cases per agent (for sparkline + consistency)
       r6.query(`
         SELECT u.UserName, CAST(cl.ReceiveDate AS DATE) AS day, COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
-        WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e${sc6}
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @s AND cl.ReceiveDate < @e${sc6}
         GROUP BY u.UserName, CAST(cl.ReceiveDate AS DATE)
         ORDER BY u.UserName, day`),
     ]);
@@ -723,7 +723,7 @@ app.get('/api/kpi/agent-detail', authRequired, async (request, res) => {
         .input('un', sql.NVarChar, username)
         .query(`SELECT CAST(cl.ReceiveDate AS DATE) AS day, COUNT(*) AS cnt
                 FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
-                WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e AND u.UserName = @un
+                WHERE cl.Active=1 AND cl.ReceiveDate >= @s AND cl.ReceiveDate < @e AND u.UserName = @un
                 GROUP BY CAST(cl.ReceiveDate AS DATE) ORDER BY day`),
       // Avg resolution time + stars
       extReq().input('s', sql.DateTime, startDate).input('e', sql.DateTime, endDate)
@@ -735,7 +735,7 @@ app.get('/api/kpi/agent-detail', authRequired, async (request, res) => {
                   AVG(CAST(cl.Stars AS FLOAT)) AS avg_stars,
                   COUNT(CASE WHEN cl.Stars IS NOT NULL THEN 1 END) AS rated_count
                 FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
-                WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e AND u.UserName = @un`)
+                WHERE cl.Active=1 AND cl.ReceiveDate >= @s AND cl.ReceiveDate < @e AND u.UserName = @un`)
     ]);
 
     res.json({
@@ -1324,12 +1324,12 @@ app.get('/api/public/track/:token', async (request, res) => {
       // Group link: fetch all branches in the group (GroupId != 1 guaranteed by creation)
       result = await extReq().input('gid', sql.Int, linkRow.group_id)
         .query(ticketQuery + `
-          WHERE cr.GroupId = @gid
+          WHERE cl.Active=1 AND cr.GroupId = @gid
           ORDER BY cl.ReceiveDate DESC`);
     } else {
       result = await extReq().input('cn', sql.NVarChar, `%${linkRow.company_name}%`)
         .query(ticketQuery + `
-          WHERE cr.CompanyName LIKE @cn
+          WHERE cl.Active=1 AND cr.CompanyName LIKE @cn
           ORDER BY cl.ReceiveDate DESC`);
     }
 
@@ -1650,43 +1650,43 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
       // Daily trend
       r1.query(`SELECT CAST(cl.ReceiveDate AS DATE) AS day, COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
-        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc1}
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc1}
         GROUP BY CAST(cl.ReceiveDate AS DATE) ORDER BY day`),
       // Category stats
       r2.query(`SELECT ISNULL(pt.ProblemTypeDetail, 'อื่นๆ') AS category, COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
         LEFT JOIN ProblemType pt ON pt.ProblemTypeId = cl.ProblemTypeId
-        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc2}
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc2}
         GROUP BY pt.ProblemTypeDetail ORDER BY cnt DESC`),
       // Agent cases — this period
       r3.query(`SELECT u.UserName, COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
-        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc3}
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc3}
         GROUP BY u.UserName ORDER BY cnt DESC`),
       // Agent cases — previous period
       r4.query(`SELECT u.UserName, COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
-        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc4}
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc4}
         GROUP BY u.UserName`),
       // Agent × category
       r5.query(`SELECT TOP 300 u.UserName, cl.Subject AS category, COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
-        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc5}
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc5}
         GROUP BY u.UserName, cl.Subject ORDER BY u.UserName, cnt DESC`),
       // Hourly distribution
       r6.query(`SELECT DATEPART(hour, cl.ReceiveDate) AS hr, COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
-        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc6}
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc6}
         GROUP BY DATEPART(hour, cl.ReceiveDate) ORDER BY hr`),
       // Day-of-week distribution
       r7.query(`SELECT DATEPART(weekday, cl.ReceiveDate) AS dow, COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
-        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc7}
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc7}
         GROUP BY DATEPART(weekday, cl.ReceiveDate) ORDER BY dow`),
       // Category daily trend (top cats over time)
       r8.query(`SELECT TOP 500 CAST(cl.ReceiveDate AS DATE) AS day, cl.Subject AS cat, COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
-        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc8}
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc8}
         GROUP BY CAST(cl.ReceiveDate AS DATE), cl.Subject ORDER BY day, cnt DESC`),
       // Closed count this period
       r9.query(`SELECT COUNT(*) AS cnt
