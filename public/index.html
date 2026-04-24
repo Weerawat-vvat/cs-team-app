@@ -4332,7 +4332,12 @@ async function openRepairDetail(id) {
   openModal('modal-repair-detail');
   try {
     const j = await api(`/api/repair/${id}`);
-    document.getElementById('rd-title').innerHTML = `🔧 ${j.job_no} <button class="modal-close" onclick="closeModal('modal-repair-detail')">×</button>`;
+    const trackLink = j.public_token ? `${location.origin}/repair-track.html?t=${j.public_token}` : null;
+    document.getElementById('rd-title').innerHTML = `
+      🔧 ${j.job_no}
+      ${trackLink ? `<button onclick="copyRepairLink('${trackLink}')" title="Copy link ส่งให้ลูกค้า"
+        style="background:#2563eb;color:#fff;border:none;border-radius:6px;padding:.2rem .6rem;font-size:.72rem;font-weight:600;cursor:pointer;margin-left:.5rem">🔗 Copy Link</button>` : ''}
+      <button class="modal-close" onclick="closeModal('modal-repair-detail')">×</button>`;
     renderRepairDetail(j);
   } catch(e) {
     document.getElementById('rd-body').innerHTML = `<div style="color:#ef4444;padding:1rem">โหลดไม่สำเร็จ: ${e.message}</div>`;
@@ -4454,6 +4459,15 @@ function renderRepairDetail(j) {
       <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.4rem">ประวัติการดำเนินการ</div>
       <div id="rd-timeline">${timelineHtml}</div>
     </div>`;
+}
+
+async function copyRepairLink(link) {
+  try {
+    await navigator.clipboard.writeText(link);
+    showToast('🔗 Copy link แล้ว — ส่งให้ลูกค้าได้เลย');
+  } catch {
+    prompt('Copy link นี้ส่งให้ลูกค้า:', link);
+  }
 }
 
 async function quickUpdateRepair(id, field, value) {

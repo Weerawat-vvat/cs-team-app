@@ -1518,6 +1518,45 @@ async function genJobNo() {
   return `RJ-${ym}-${seq}`;
 }
 
+// PUBLIC repair tracking — no auth required
+app.get('/api/public/repair/:token', async (request, res) => {
+  try {
+    const { token } = request.params;
+    const job = (await req().input('tok', sql.NVarChar, token)
+      .query(`SELECT rj.*, e.name AS reporter_name
+              FROM repair_jobs rj
+              LEFT JOIN app_users au ON au.id = rj.reported_by
+              LEFT JOIN employees e  ON e.id  = au.employee_id
+              WHERE rj.public_token = @tok`)).recordset[0];
+    if (!job) return res.status(404).json({ error: 'ไม่พบงานซ่อม หรือ link ไม่ถูกต้อง' });
+
+    const timeline = (await req().input('id', sql.Int, job.id)
+      .query(`SELECT rt.field_changed, rt.new_value, rt.changed_at, e.name AS changed_by_name
+              FROM repair_timeline rt
+              LEFT JOIN app_users au ON au.id = rt.changed_by
+              LEFT JOIN employees e  ON e.id  = au.employee_id
+              WHERE rt.repair_id = @id AND rt.field_changed = 'status'
+              ORDER BY rt.changed_at ASC`)).recordset;
+
+    // Only expose non-sensitive fields to public
+    res.json({
+      job_no:        job.job_no,
+      company_name:  job.company_name,
+      device_type:   job.device_type,
+      device_model:  job.device_model,
+      serial_no:     job.serial_no,
+      status:        job.status,
+      reported_at:   job.reported_at,
+      received_date: job.received_date,
+      sent_supplier_date:          job.sent_supplier_date,
+      returned_from_supplier_date: job.returned_from_supplier_date,
+      returned_to_customer_date:   job.returned_to_customer_date,
+      updated_at:    job.updated_at,
+      timeline
+    });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // Search S/N from INFO_BKK — must be BEFORE /api/repair/:id
 app.get('/api/repair/search-sn', authRequired, async (request, res) => {
   try {
@@ -1648,14 +1687,16 @@ app.post('/api/repair', authRequired, async (request, res) => {
       .input('we',  sql.Date,     b.warranty_expire|| null)
       .input('dl',  sql.NVarChar, b.device_location|| null)
       .input('by',  sql.Int,      request.user.id  || null)
+      .input('pt',  sql.NVarChar, crypto.randomBytes(18).toString('hex'))
       .query(`INSERT INTO repair_jobs
         (job_no,device_type,device_model,vendor,registration_id,company_name,
          serial_no,symptom,initial_fix,contact_name,contact_phone,line_id,
-         warranty,warranty_expire,device_location,reported_by)
-        OUTPUT INSERTED.id, INSERTED.job_no
-        VALUES (@jn,@dt,@dm,@vn,@rid,@cn,@sn,@sy,@if,@ct,@cp,@li,@wa,@we,@dl,@by)`);
-    const newId  = result.recordset[0].id;
-    const newJob = result.recordset[0].job_no;
+         warranty,warranty_expire,device_location,reported_by,public_token)
+        OUTPUT INSERTED.id, INSERTED.job_no, INSERTED.public_token
+        VALUES (@jn,@dt,@dm,@vn,@rid,@cn,@sn,@sy,@if,@ct,@cp,@li,@wa,@we,@dl,@by,@pt)`);
+    const newId    = result.recordset[0].id;
+    const newJob   = result.recordset[0].job_no;
+    const newToken = result.recordset[0].public_token;
     // Timeline
     await req().input('rid', sql.Int, newId).input('by', sql.Int, request.user.id||null)
       .input('nv', sql.NVarChar, 'received')
@@ -1664,7 +1705,7 @@ app.post('/api/repair', authRequired, async (request, res) => {
     // Line notify
     const uname = request.user.name || request.user.username;
     await notifyRepairStatus(newId, newJob, b.company_name||'—', 'received', uname);
-    res.json({ id: newId, job_no: newJob });
+    res.json({ id: newId, job_no: newJob, public_token: newToken });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -2256,8 +2297,13 @@ async function ensureRepairTables() {
         received_date DATE, sent_supplier_date DATE,
         returned_from_supplier_date DATE, returned_to_customer_date DATE,
         spare_serial_no NVARCHAR(100), taken_back_items NVARCHAR(MAX), remark NVARCHAR(MAX),
-        created_at DATETIME DEFAULT GETDATE(), updated_at DATETIME DEFAULT GETDATE(), updated_by INT
+        created_at DATETIME DEFAULT GETDATE(), updated_at DATETIME DEFAULT GETDATE(), updated_by INT,
+        public_token NVARCHAR(48) NULL UNIQUE
       )`);
+    // Add public_token column if table exists but column missing
+    await req().query(`
+      IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('repair_jobs') AND name='public_token')
+        ALTER TABLE repair_jobs ADD public_token NVARCHAR(48) NULL`);
     await req().query(`
       IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='repair_attachments' AND xtype='U')
       CREATE TABLE repair_attachments (
