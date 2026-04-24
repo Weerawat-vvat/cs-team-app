@@ -4361,6 +4361,7 @@ function renderRepairDetail(j) {
       <span><b>${escHtml(t.changed_by_name||'—')}</b>
         ${t.field_changed==='status'?`เปลี่ยนสถานะ: ${rpStatusBadge(t.old_value)} → ${rpStatusBadge(t.new_value)}`
         :t.field_changed==='finance_status'?`เปลี่ยนการเงิน: ${rpFinanceBadge(t.old_value)} → ${rpFinanceBadge(t.new_value)}`
+        :t.field_changed==='customer_message'?`<span style="color:#2563eb">💬 ข้อความจาก ${escHtml(t.note||'ลูกค้า')}:</span> ${escHtml(t.new_value)}`
         :`อัพเดท ${t.field_changed}`}
         ${t.note?`<span style="color:var(--muted)"> (${escHtml(t.note)})</span>`:''}
       </span>

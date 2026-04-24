@@ -45,6 +45,20 @@ body{font-family:'Segoe UI',Tahoma,sans-serif;background:#f1f5f9;color:#1e293b;m
 .updated{font-size:.73rem;color:#94a3b8;text-align:center;margin-top:1rem}
 .loading{text-align:center;padding:4rem;color:#64748b}
 .error-box{background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:1.5rem;text-align:center;color:#b91c1c;margin-top:1rem}
+
+/* Message */
+.msg-card{background:#fff;border-radius:12px;padding:1.1rem 1.3rem;border:1px solid #e2e8f0;margin-top:1rem;box-shadow:0 1px 4px #0001}
+.msg-card h3{font-size:.8rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.75rem}
+.msg-bubble{background:#f1f5f9;border-radius:8px;padding:.55rem .8rem;margin-bottom:.5rem;font-size:.83rem;line-height:1.55}
+.msg-bubble .from{font-size:.7rem;font-weight:700;color:#2563eb;margin-bottom:.15rem}
+.msg-bubble .time{font-size:.68rem;color:#94a3b8;margin-top:.2rem}
+.msg-input{width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:.45rem .7rem;font-size:.83rem;font-family:inherit;outline:none;resize:vertical;min-height:72px;margin-bottom:.5rem}
+.msg-input:focus{border-color:#2563eb}
+.msg-name{width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:.38rem .7rem;font-size:.82rem;font-family:inherit;outline:none;margin-bottom:.4rem}
+.msg-name:focus{border-color:#2563eb}
+.btn-send{background:#2563eb;color:#fff;border:none;border-radius:8px;padding:.45rem 1.1rem;font-size:.83rem;font-weight:600;cursor:pointer;width:100%}
+.btn-send:hover{background:#1d4ed8}
+.btn-send:disabled{background:#94a3b8;cursor:not-allowed}
 </style>
 </head>
 <body>
@@ -109,6 +123,7 @@ async function load(){
     const res = await fetch(`/api/public/repair/${token}`);
     const d   = await res.json();
     if (!res.ok){ root.innerHTML=`<div class="error-box">❌ ${esc(d.error||'ไม่พบข้อมูล')}</div>`; return; }
+    const msgs = (d.timeline||[]).filter(t => t.field_changed === 'customer_message');
 
     document.title = `ติดตามงานซ่อม — ${d.job_no}`;
 
@@ -182,11 +197,57 @@ async function load(){
         ${stepsHtml}
       </div>
 
-      <div class="updated">อัพเดทล่าสุด: ${fmtDT(d.updated_at)||'—'}</div>`;
+      <div class="updated">อัพเดทล่าสุด: ${fmtDT(d.updated_at)||'—'}</div>
+
+      <!-- Message history -->
+      ${msgs.length ? `
+      <div class="msg-card">
+        <h3>💬 ข้อความ</h3>
+        ${msgs.map(m=>`
+          <div class="msg-bubble">
+            <div class="from">👤 ${esc(m.note||'ลูกค้า')}</div>
+            <div>${esc(m.new_value)}</div>
+            <div class="time">${fmtDT(m.changed_at)}</div>
+          </div>`).join('')}
+      </div>` : ''}
+
+      <!-- Reply form -->
+      <div class="msg-card">
+        <h3>📩 ส่งข้อความถึงทีม CS</h3>
+        <input class="msg-name" id="msg-name" placeholder="ชื่อของคุณ (ไม่บังคับ)"/>
+        <textarea class="msg-input" id="msg-text" placeholder="พิมพ์ข้อความ เช่น สอบถามความคืบหน้า หรือแจ้งข้อมูลเพิ่มเติม..."></textarea>
+        <button class="btn-send" id="msg-btn" onclick="sendMsg()">📤 ส่งข้อความ</button>
+      </div>`;
   } catch(e){
     document.getElementById('root').innerHTML = `<div class="error-box">❌ ${esc(e.message)}</div>`;
   }
 }
+async function sendMsg() {
+  const token = new URLSearchParams(location.search).get('t');
+  const name  = document.getElementById('msg-name')?.value.trim() || '';
+  const msg   = document.getElementById('msg-text')?.value.trim() || '';
+  if (!msg) { alert('กรุณาพิมพ์ข้อความก่อนส่ง'); return; }
+  const btn = document.getElementById('msg-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ กำลังส่ง...'; }
+  try {
+    const r = await fetch(`/api/public/repair/${token}/message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, message: msg })
+    });
+    const d = await r.json();
+    if (!r.ok) { alert('❌ ' + (d.error||'ส่งไม่สำเร็จ')); }
+    else {
+      document.getElementById('msg-text').value = '';
+      document.getElementById('msg-name').value = '';
+      // Reload to show new message
+      await load();
+    }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📤 ส่งข้อความ'; }
+  }
+}
+
 load();
 </script>
 </body>

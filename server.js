@@ -1548,11 +1548,10 @@ app.get('/api/public/repair/:token', async (request, res) => {
     if (!job) return res.status(404).json({ error: 'ไม่พบงานซ่อม หรือ link ไม่ถูกต้อง' });
 
     const timeline = (await req().input('id', sql.Int, job.id)
-      .query(`SELECT rt.field_changed, rt.new_value, rt.changed_at, e.name AS changed_by_name
+      .query(`SELECT rt.field_changed, rt.new_value, rt.note, rt.changed_at
               FROM repair_timeline rt
-              LEFT JOIN app_users au ON au.id = rt.changed_by
-              LEFT JOIN employees e  ON e.id  = au.employee_id
-              WHERE rt.repair_id = @id AND rt.field_changed = 'status'
+              WHERE rt.repair_id = @id
+                AND rt.field_changed IN ('status','customer_message')
               ORDER BY rt.changed_at ASC`)).recordset;
 
     // Only expose non-sensitive fields to public
@@ -1571,6 +1570,29 @@ app.get('/api/public/repair/:token', async (request, res) => {
       updated_at:    job.updated_at,
       timeline
     });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Customer message from tracking page (no auth)
+app.post('/api/public/repair/:token/message', async (request, res) => {
+  try {
+    const { token } = request.params;
+    const { name, message } = request.body;
+    if (!message?.trim()) return res.status(400).json({ error: 'กรุณาระบุข้อความ' });
+    const job = (await req().input('tok', sql.NVarChar, token)
+      .query('SELECT id, job_no, company_name FROM repair_jobs WHERE public_token=@tok')).recordset[0];
+    if (!job) return res.status(404).json({ error: 'ไม่พบงานซ่อม' });
+    await req()
+      .input('rid', sql.Int,      job.id)
+      .input('fc',  sql.NVarChar, 'customer_message')
+      .input('nv',  sql.NVarChar, message.trim())
+      .input('nt',  sql.NVarChar, name?.trim() || 'ลูกค้า')
+      .query(`INSERT INTO repair_timeline (repair_id, field_changed, new_value, note)
+              VALUES (@rid, @fc, @nv, @nt)`);
+    // Notify Line
+    const displayName = name?.trim() || 'ลูกค้า';
+    await sendLineNotify(`\n💬 [${job.job_no}] ${job.company_name}\nข้อความจาก: ${displayName}\n"${message.trim()}"`);
+    res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
