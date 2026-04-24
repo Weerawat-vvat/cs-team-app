@@ -2,9 +2,13 @@ require('dotenv').config();
 const express                    = require('express');
 const cors                       = require('cors');
 const path                       = require('path');
+const fs                         = require('fs');
 const bcrypt                     = require('bcryptjs');
 const jwt                        = require('jsonwebtoken');
 const crypto                     = require('crypto');
+const multer                     = require('multer');
+const nodemailer                 = require('nodemailer');
+const axios                      = require('axios');
 const { init, getPool, getExtPool, sql } = require('./database');
 const Anthropic                  = require('@anthropic-ai/sdk');
 
@@ -14,9 +18,81 @@ const AI_MODEL   = process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001';
 const JWT_SECRET = process.env.JWT_SECRET || 'cs-team-jwt-secret-change-in-prod';
 const claude     = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// ── File upload config ────────────────────────────────────
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
+if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(UPLOAD_DIR, String(req.params.repairId || 'tmp'));
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const ext  = path.extname(file.originalname);
+    const base = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9ก-๙_-]/g, '_');
+    cb(null, `${Date.now()}_${base}${ext}`);
+  }
+});
+const upload = multer({
+  storage,
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB
+  fileFilter: (req, file, cb) => {
+    const allowed = /jpeg|jpg|png|gif|pdf|doc|docx|xls|xlsx/;
+    cb(null, allowed.test(path.extname(file.originalname).toLowerCase()));
+  }
+});
+
+// ── Notification helpers ──────────────────────────────────
+async function sendLineNotify(message) {
+  const token = process.env.LINE_NOTIFY_TOKEN;
+  if (!token) return;
+  try {
+    await axios.post('https://notify-api.line.me/api/notify',
+      new URLSearchParams({ message }),
+      { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/x-www-form-urlencoded' } }
+    );
+  } catch(e) { console.error('Line Notify error:', e.message); }
+}
+
+async function sendEmail(to, subject, html) {
+  const user = process.env.GMAIL_USER;
+  const pass = process.env.GMAIL_APP_PASSWORD;
+  if (!user || !pass || !to) return;
+  try {
+    const transporter = nodemailer.createTransport({
+      service: 'gmail', auth: { user, pass }
+    });
+    await transporter.sendMail({ from: `CS Team <${user}>`, to, subject, html });
+  } catch(e) { console.error('Email error:', e.message); }
+}
+
+async function notifyRepairStatus(repairId, jobNo, companyName, newStatus, changedByName) {
+  const statusLabel = {
+    received: 'รับเรื่องแล้ว', assessing: 'กำลังประเมิน',
+    quoted: 'เสนอราคาแล้ว', waiting_approval: 'รอลูกค้าอนุมัติ',
+    device_received: 'รับเครื่องแล้ว', sent_supplier: 'ส่ง Supplier แล้ว',
+    returned_from_supplier: 'ได้เครื่องคืนจาก Supplier',
+    returned_to_customer: 'ส่งคืนลูกค้าแล้ว',
+    closed: 'ปิดงาน', cancelled: 'ยกเลิก'
+  };
+  const label = statusLabel[newStatus] || newStatus;
+  const msg   = `\n🔧 [${jobNo}] ${companyName}\nสถานะ: ${label}\nอัพเดทโดย: ${changedByName}\n${new Date().toLocaleString('th-TH')}`;
+  await sendLineNotify(msg);
+  // log to DB
+  try {
+    await req().input('rid', sql.Int, repairId).input('ch', sql.NVarChar, 'line')
+      .input('msg', sql.NVarChar, msg).input('st', sql.NVarChar, 'sent')
+      .query(`INSERT INTO repair_notification_log (repair_id,channel,message,status)
+              VALUES (@rid,'line',@msg,@st)`);
+  } catch {}
+}
+
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+// Serve uploaded files
+app.use('/uploads', express.static(UPLOAD_DIR));
 
 const req    = () => getPool().request();
 const extReq = () => getExtPool().request();
@@ -1425,6 +1501,218 @@ app.put('/api/complaints/:id/resolve', authRequired, async (request, res) => {
               SET status='resolved', resolved_at=GETDATE(), resolved_by=@by
               WHERE id=@id`);
     res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════
+//  REPAIR JOBS
+// ══════════════════════════════════════════════════════════
+
+// Generate job number RJ-YYYYMM-XXXX
+async function genJobNo() {
+  const ym = new Date().toISOString().substring(0,7).replace('-','');
+  const row = await req()
+    .query(`SELECT COUNT(*)+1 AS n FROM repair_jobs
+            WHERE job_no LIKE 'RJ-${ym}-%'`);
+  const seq = String(row.recordset[0].n).padStart(4,'0');
+  return `RJ-${ym}-${seq}`;
+}
+
+// List repair jobs
+app.get('/api/repair', authRequired, async (request, res) => {
+  try {
+    const { status, dateFrom, dateTo, search } = request.query;
+    let q = `SELECT rj.*, e.name AS reporter_name, e2.name AS updater_name
+             FROM repair_jobs rj
+             LEFT JOIN app_users au  ON au.id = rj.reported_by
+             LEFT JOIN employees e   ON e.id  = au.employee_id
+             LEFT JOIN app_users au2 ON au2.id = rj.updated_by
+             LEFT JOIN employees e2  ON e2.id  = au2.employee_id
+             WHERE 1=1`;
+    const r = req();
+    if (status)   { q += ' AND rj.status=@st';          r.input('st', sql.NVarChar, status); }
+    if (dateFrom) { q += ' AND rj.reported_at>=@df';    r.input('df', sql.DateTime, new Date(dateFrom)); }
+    if (dateTo)   { q += ' AND rj.reported_at<@dt';     r.input('dt', sql.DateTime, new Date(new Date(dateTo).getTime()+86400000)); }
+    if (search)   { q += ' AND (rj.job_no LIKE @s OR rj.company_name LIKE @s OR rj.serial_no LIKE @s OR rj.contact_name LIKE @s)';
+                                                         r.input('s', sql.NVarChar, `%${search}%`); }
+    q += ' ORDER BY rj.reported_at DESC';
+    res.json((await r.query(q)).recordset);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Get single repair job + attachments + timeline
+app.get('/api/repair/:id', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const [job, attachments, timeline] = await Promise.all([
+      req().input('id', sql.Int, id)
+        .query(`SELECT rj.*, e.name AS reporter_name, e2.name AS updater_name
+                FROM repair_jobs rj
+                LEFT JOIN app_users au  ON au.id = rj.reported_by
+                LEFT JOIN employees e   ON e.id  = au.employee_id
+                LEFT JOIN app_users au2 ON au2.id = rj.updated_by
+                LEFT JOIN employees e2  ON e2.id  = au2.employee_id
+                WHERE rj.id=@id`),
+      req().input('id', sql.Int, id)
+        .query('SELECT * FROM repair_attachments WHERE repair_id=@id ORDER BY uploaded_at'),
+      req().input('id', sql.Int, id)
+        .query(`SELECT rt.*, e.name AS changed_by_name
+                FROM repair_timeline rt
+                LEFT JOIN app_users au ON au.id = rt.changed_by
+                LEFT JOIN employees e  ON e.id  = au.employee_id
+                WHERE rt.repair_id=@id ORDER BY rt.changed_at DESC`)
+    ]);
+    if (!job.recordset[0]) return res.status(404).json({ error: 'not found' });
+    res.json({ ...job.recordset[0], attachments: attachments.recordset, timeline: timeline.recordset });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Create repair job
+app.post('/api/repair', authRequired, async (request, res) => {
+  try {
+    const b = request.body;
+    const jobNo = await genJobNo();
+    const result = await req()
+      .input('jn',  sql.NVarChar, jobNo)
+      .input('dt',  sql.NVarChar, b.device_type    || null)
+      .input('dm',  sql.NVarChar, b.device_model   || null)
+      .input('vn',  sql.NVarChar, b.vendor         || null)
+      .input('rid', sql.Int,      b.registration_id|| null)
+      .input('cn',  sql.NVarChar, b.company_name   || null)
+      .input('sn',  sql.NVarChar, b.serial_no      || null)
+      .input('sy',  sql.NVarChar, b.symptom        || null)
+      .input('if',  sql.NVarChar, b.initial_fix    || null)
+      .input('ct',  sql.NVarChar, b.contact_name   || null)
+      .input('cp',  sql.NVarChar, b.contact_phone  || null)
+      .input('li',  sql.NVarChar, b.line_id        || null)
+      .input('wa',  sql.Bit,      b.warranty ? 1 : 0)
+      .input('we',  sql.Date,     b.warranty_expire|| null)
+      .input('dl',  sql.NVarChar, b.device_location|| null)
+      .input('by',  sql.Int,      request.user.id  || null)
+      .query(`INSERT INTO repair_jobs
+        (job_no,device_type,device_model,vendor,registration_id,company_name,
+         serial_no,symptom,initial_fix,contact_name,contact_phone,line_id,
+         warranty,warranty_expire,device_location,reported_by)
+        OUTPUT INSERTED.id, INSERTED.job_no
+        VALUES (@jn,@dt,@dm,@vn,@rid,@cn,@sn,@sy,@if,@ct,@cp,@li,@wa,@we,@dl,@by)`);
+    const newId  = result.recordset[0].id;
+    const newJob = result.recordset[0].job_no;
+    // Timeline
+    await req().input('rid', sql.Int, newId).input('by', sql.Int, request.user.id||null)
+      .input('nv', sql.NVarChar, 'received')
+      .query(`INSERT INTO repair_timeline (repair_id,field_changed,new_value,changed_by,note)
+              VALUES (@rid,'status',@nv,@by,'สร้างงานใหม่')`);
+    // Line notify
+    const uname = request.user.name || request.user.username;
+    await notifyRepairStatus(newId, newJob, b.company_name||'—', 'received', uname);
+    res.json({ id: newId, job_no: newJob });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Update repair job (admin)
+app.put('/api/repair/:id', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const b  = request.body;
+    // Get current for timeline diff
+    const cur = (await req().input('id', sql.Int, id)
+      .query('SELECT * FROM repair_jobs WHERE id=@id')).recordset[0];
+    if (!cur) return res.status(404).json({ error: 'not found' });
+
+    await req()
+      .input('id',  sql.Int,      id)
+      .input('st',  sql.NVarChar, b.status                       ?? cur.status)
+      .input('fs',  sql.NVarChar, b.finance_status               ?? cur.finance_status)
+      .input('qd',  sql.Date,     b.quote_date                   ?? cur.quote_date)
+      .input('qn',  sql.NVarChar, b.quote_no                     ?? cur.quote_no)
+      .input('rd',  sql.Date,     b.received_date                ?? cur.received_date)
+      .input('sd',  sql.Date,     b.sent_supplier_date           ?? cur.sent_supplier_date)
+      .input('rfd', sql.Date,     b.returned_from_supplier_date  ?? cur.returned_from_supplier_date)
+      .input('rtd', sql.Date,     b.returned_to_customer_date    ?? cur.returned_to_customer_date)
+      .input('ss',  sql.NVarChar, b.spare_serial_no              ?? cur.spare_serial_no)
+      .input('tb',  sql.NVarChar, b.taken_back_items             ?? cur.taken_back_items)
+      .input('rm',  sql.NVarChar, b.remark                       ?? cur.remark)
+      .input('ub',  sql.Int,      request.user.id                || null)
+      .query(`UPDATE repair_jobs SET
+        status=@st, finance_status=@fs, quote_date=@qd, quote_no=@qn,
+        received_date=@rd, sent_supplier_date=@sd,
+        returned_from_supplier_date=@rfd, returned_to_customer_date=@rtd,
+        spare_serial_no=@ss, taken_back_items=@tb, remark=@rm,
+        updated_at=GETDATE(), updated_by=@ub WHERE id=@id`);
+
+    // Log timeline for status/finance changes
+    const changerName = request.user.name || request.user.username;
+    for (const [field, oldVal, newVal] of [
+      ['status',         cur.status,         b.status],
+      ['finance_status', cur.finance_status, b.finance_status]
+    ]) {
+      if (newVal && newVal !== oldVal) {
+        await req()
+          .input('rid', sql.Int,      id)
+          .input('fc',  sql.NVarChar, field)
+          .input('ov',  sql.NVarChar, oldVal || '')
+          .input('nv',  sql.NVarChar, newVal)
+          .input('by',  sql.Int,      request.user.id || null)
+          .input('nt',  sql.NVarChar, b.remark || null)
+          .query(`INSERT INTO repair_timeline (repair_id,field_changed,old_value,new_value,changed_by,note)
+                  VALUES (@rid,@fc,@ov,@nv,@by,@nt)`);
+        if (field === 'status') {
+          await notifyRepairStatus(id, cur.job_no, cur.company_name, newVal, changerName);
+        }
+      }
+    }
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Upload attachment
+app.post('/api/repair/:repairId/attachments', authRequired,
+  upload.single('file'), async (request, res) => {
+  try {
+    const repairId = parseInt(request.params.repairId);
+    const { file_type } = request.body;
+    if (!request.file) return res.status(400).json({ error: 'No file uploaded' });
+    const relPath = `/uploads/${repairId}/${request.file.filename}`;
+    const result = await req()
+      .input('rid',  sql.Int,      repairId)
+      .input('ft',   sql.NVarChar, file_type || 'other')
+      .input('fn',   sql.NVarChar, request.file.originalname)
+      .input('fp',   sql.NVarChar, relPath)
+      .input('fs',   sql.Int,      request.file.size)
+      .input('by',   sql.Int,      request.user.id || null)
+      .query(`INSERT INTO repair_attachments (repair_id,file_type,file_name,file_path,file_size,uploaded_by)
+              OUTPUT INSERTED.* VALUES (@rid,@ft,@fn,@fp,@fs,@by)`);
+    res.json(result.recordset[0]);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Delete attachment
+app.delete('/api/repair/attachments/:id', authRequired, async (request, res) => {
+  try {
+    const row = (await req().input('id', sql.Int, request.params.id)
+      .query('SELECT * FROM repair_attachments WHERE id=@id')).recordset[0];
+    if (!row) return res.status(404).json({ error: 'not found' });
+    // Delete file from disk
+    const fullPath = path.join(UPLOAD_DIR, row.file_path.replace('/uploads/',''));
+    if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
+    await req().input('id', sql.Int, request.params.id)
+      .query('DELETE FROM repair_attachments WHERE id=@id');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Search shop from LicenseDB
+app.get('/api/repair/search-shop', authRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.json([]);
+    const { q } = request.query;
+    if (!q || q.length < 2) return res.json([]);
+    const result = await extReq().input('q', sql.NVarChar, `%${q}%`)
+      .query(`SELECT TOP 15 RegistrationId, CompanyName, Phone, Email, ContactName
+              FROM CustomerRegistration
+              WHERE CompanyName LIKE @q AND Hide=0
+              ORDER BY CompanyName`);
+    res.json(result.recordset);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
