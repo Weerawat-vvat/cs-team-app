@@ -1902,8 +1902,61 @@ ${JSON.stringify(snap, null, 2)}
 });
 
 // ── Start ─────────────────────────────────────────────────
+async function ensureRepairTables() {
+  try {
+    const r = req();
+    await r.query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='repair_jobs' AND xtype='U')
+      CREATE TABLE repair_jobs (
+        id INT PRIMARY KEY IDENTITY, job_no NVARCHAR(20) NOT NULL UNIQUE,
+        reported_at DATETIME DEFAULT GETDATE(),
+        device_type NVARCHAR(100), device_model NVARCHAR(100), vendor NVARCHAR(100),
+        registration_id INT, company_name NVARCHAR(255),
+        serial_no NVARCHAR(100), symptom NVARCHAR(MAX), initial_fix NVARCHAR(MAX),
+        contact_name NVARCHAR(100), contact_phone NVARCHAR(50), line_id NVARCHAR(100),
+        warranty BIT DEFAULT 0, warranty_expire DATE, device_location NVARCHAR(255),
+        reported_by INT,
+        status NVARCHAR(30) DEFAULT 'received',
+        finance_status NVARCHAR(30) DEFAULT 'pending',
+        quote_date DATE, quote_no NVARCHAR(50),
+        received_date DATE, sent_supplier_date DATE,
+        returned_from_supplier_date DATE, returned_to_customer_date DATE,
+        spare_serial_no NVARCHAR(100), taken_back_items NVARCHAR(MAX), remark NVARCHAR(MAX),
+        created_at DATETIME DEFAULT GETDATE(), updated_at DATETIME DEFAULT GETDATE(), updated_by INT
+      )`);
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='repair_attachments' AND xtype='U')
+      CREATE TABLE repair_attachments (
+        id INT PRIMARY KEY IDENTITY, repair_id INT NOT NULL,
+        file_type NVARCHAR(30) NOT NULL, file_name NVARCHAR(255) NOT NULL,
+        file_path NVARCHAR(500) NOT NULL, file_size INT,
+        uploaded_by INT, uploaded_at DATETIME DEFAULT GETDATE(),
+        CONSTRAINT FK_attach_job FOREIGN KEY (repair_id) REFERENCES repair_jobs(id) ON DELETE CASCADE
+      )`);
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='repair_timeline' AND xtype='U')
+      CREATE TABLE repair_timeline (
+        id INT PRIMARY KEY IDENTITY, repair_id INT NOT NULL,
+        field_changed NVARCHAR(50), old_value NVARCHAR(255), new_value NVARCHAR(255),
+        changed_by INT, changed_at DATETIME DEFAULT GETDATE(), note NVARCHAR(500),
+        CONSTRAINT FK_timeline_job FOREIGN KEY (repair_id) REFERENCES repair_jobs(id) ON DELETE CASCADE
+      )`);
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='repair_notification_log' AND xtype='U')
+      CREATE TABLE repair_notification_log (
+        id INT PRIMARY KEY IDENTITY, repair_id INT NOT NULL,
+        channel NVARCHAR(10) NOT NULL, recipient NVARCHAR(255),
+        message NVARCHAR(MAX), status NVARCHAR(10) DEFAULT 'sent',
+        error_msg NVARCHAR(500), sent_at DATETIME DEFAULT GETDATE(),
+        CONSTRAINT FK_notif_job FOREIGN KEY (repair_id) REFERENCES repair_jobs(id) ON DELETE CASCADE
+      )`);
+    console.log('✅ Repair tables ready');
+  } catch(e) { console.error('❌ Repair table error:', e.message); }
+}
+
 init().then(async () => {
   await ensureCustomerLinksTable();
+  await ensureRepairTables();
   app.listen(PORT, () => console.log(`🚀 CS Team App running at http://localhost:${PORT}`));
 }).catch(err => {
   console.error('❌ Startup failed:', err.message);
