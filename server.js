@@ -2460,6 +2460,19 @@ async function ensureRepairTables() {
         error_msg NVARCHAR(500), sent_at DATETIME DEFAULT GETDATE(),
         CONSTRAINT FK_notif_job FOREIGN KEY (repair_id) REFERENCES repair_jobs(id) ON DELETE CASCADE
       )`);
+    // Add columns that may be missing from existing tables
+    for (const [tbl, col, def] of [
+      ['repair_jobs',     'public_token', 'NVARCHAR(48) NULL'],
+      ['repair_timeline', 'read_at',      'DATETIME NULL'],
+      ['repair_timeline', 'replied_at',   'DATETIME NULL'],
+    ]) {
+      try {
+        await req().query(`
+          IF NOT EXISTS (SELECT 1 FROM sys.columns
+                         WHERE object_id=OBJECT_ID('${tbl}') AND name='${col}')
+            ALTER TABLE ${tbl} ADD ${col} ${def}`);
+      } catch(e2) { console.warn(`⚠️  Could not add ${tbl}.${col}:`, e2.message); }
+    }
     console.log('✅ Repair tables ready');
   } catch(e) { console.error('❌ Repair table error:', e.message); }
 }
