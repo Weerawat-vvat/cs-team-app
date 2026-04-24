@@ -413,8 +413,13 @@ textarea{resize:vertical;min-height:80px}
     </button>
   </nav>
   <div class="sidebar-footer" id="nav-user-info" style="display:none">
-    <div class="sidebar-user-name" id="nav-display-name">—</div>
-    <div class="sidebar-user-role" id="nav-display-role">—</div>
+    <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem">
+      <div style="width:28px;height:28px;border-radius:50%;background:#334155;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;color:#e2e8f0;flex-shrink:0" id="nav-avatar">—</div>
+      <div style="min-width:0">
+        <div class="sidebar-user-name" id="nav-display-name" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.8rem">—</div>
+        <div class="sidebar-user-role" id="nav-display-role">—</div>
+      </div>
+    </div>
     <button class="sidebar-logout" onclick="doLogout()">ออกจากระบบ</button>
   </div>
 </aside>
@@ -3796,8 +3801,12 @@ function applyUserContext() {
   if (!currentUser) return;
   const role = currentUser.role;
   const roleLabel = { staff:'Staff', team_lead:'Team Lead', manager:'Manager', admin:'Admin' };
-  document.getElementById('nav-display-name').textContent = currentUser.name || currentUser.username;
+  const displayName = currentUser.name || currentUser.username || '?';
+  document.getElementById('nav-display-name').textContent = displayName;
+  document.getElementById('nav-display-name').title = displayName;
   document.getElementById('nav-display-role').textContent = roleLabel[role] || role;
+  const av = document.getElementById('nav-avatar');
+  if (av) av.textContent = displayName.charAt(0).toUpperCase();
 
   const isAdmin   = role === 'admin';
   const isManager = ['manager','admin'].includes(role);
