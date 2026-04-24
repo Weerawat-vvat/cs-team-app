@@ -1059,6 +1059,18 @@ textarea{resize:vertical;min-height:80px}
       <div id="rf-shop-selected" style="font-size:.75rem;color:#16a34a;margin-top:.15rem"></div>
     </div>
 
+    <!-- S/N Search -->
+    <div style="position:relative;margin-bottom:.5rem">
+      <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">🔍 ค้นหา S/N (จากระบบ INFO_BKK)</label>
+      <div style="display:flex;gap:.4rem">
+        <input id="rf-sn-search" type="text" placeholder="พิมพ์ S/N เพื่อค้นหาข้อมูลอุปกรณ์..."
+               oninput="rpSnSearch()"
+               style="flex:1;border:1px solid var(--border);border-radius:7px;padding:.32rem .6rem;font-size:.8rem;font-family:monospace;outline:none"/>
+        <span style="font-size:.72rem;color:var(--muted);align-self:center;white-space:nowrap">กรอก S/N โดยตรงด้านล่างก็ได้</span>
+      </div>
+      <div id="rf-sn-results" style="position:absolute;z-index:201;background:#fff;border:1px solid var(--border);border-radius:8px;max-height:160px;overflow-y:auto;width:100%;display:none;box-shadow:0 4px 12px #0002"></div>
+    </div>
+
     <!-- Row 1: ประเภท รุ่น S/N -->
     <div style="display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:.5rem;margin-bottom:.5rem">
       <div>
@@ -4147,7 +4159,7 @@ let _rfShopTimer = null;
 
 function openRepairForm() {
   // Reset form
-  ['rf-shop-search','rf-device-type','rf-device-model','rf-vendor','rf-serial-no',
+  ['rf-sn-search','rf-shop-search','rf-device-type','rf-device-model','rf-vendor','rf-serial-no',
    'rf-symptom','rf-initial-fix','rf-contact-name','rf-contact-phone',
    'rf-line-id','rf-device-location','rf-warranty-expire'].forEach(id => {
     const el = document.getElementById(id);
@@ -4157,6 +4169,64 @@ function openRepairForm() {
   document.getElementById('rf-shop-selected').textContent = '';
   document.getElementById('rf-warranty').value = '0';
   openModal('modal-repair-form');
+}
+
+// ── S/N Search (INFO_BKK) ──────────────────────────────────
+let _rfSnTimer = null;
+function rpSnSearch() {
+  clearTimeout(_rfSnTimer);
+  _rfSnTimer = setTimeout(async () => {
+    const q   = document.getElementById('rf-sn-search')?.value?.trim() || '';
+    const res = document.getElementById('rf-sn-results');
+    if (!res) return;
+    if (q.length < 2) { res.style.display = 'none'; return; }
+    const data = await api(`/api/repair/search-sn?q=${encodeURIComponent(q)}`);
+    if (!Array.isArray(data) || !data.length) { res.style.display = 'none'; return; }
+    res.style.display = '';
+    res.innerHTML = data.map(d => {
+      const expDate = d.warranty_expire ? new Date(String(d.warranty_expire).replace('Z','')).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'}) : '—';
+      return `<div class="rp-sn-item"
+        data-sn="${escHtml(d.serial_no)}"
+        data-type="${escHtml(d.CategoryName||'')}"
+        data-model="${escHtml(d.device_model||'')}"
+        data-vendor="${escHtml(d.SupplierName||'')}"
+        data-warranty="${d.under_warranty?'1':'0'}"
+        data-warranty-expire="${d.warranty_expire ? String(d.warranty_expire).split('T')[0] : ''}"
+        style="padding:.4rem .75rem;cursor:pointer;font-size:.82rem;border-bottom:1px solid #f1f5f9"
+        onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+        <div style="font-weight:600;font-family:monospace">${escHtml(d.serial_no)}</div>
+        <div style="font-size:.72rem;color:var(--muted);display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.1rem">
+          <span>📦 ${escHtml(d.CategoryName||'—')}</span>
+          <span>🖥 ${escHtml(d.device_model||'—')}</span>
+          ${d.SupplierName?`<span>🏭 ${escHtml(d.SupplierName)}</span>`:''}
+          <span style="color:${d.under_warranty?'#16a34a':'#dc2626'};font-weight:600">
+            ${d.under_warranty?'✅ ในประกัน':'❌ หมดประกัน'} (${expDate})
+          </span>
+        </div>
+      </div>`;
+    }).join('');
+    res.querySelectorAll('.rp-sn-item').forEach(el => {
+      el.addEventListener('click', () => {
+        // Auto-fill form fields
+        const set = (id, val) => { const e=document.getElementById(id); if(e) e.value=val; };
+        set('rf-serial-no',       el.dataset.sn);
+        set('rf-device-model',    el.dataset.model);
+        set('rf-vendor',          el.dataset.vendor);
+        set('rf-warranty',        el.dataset.warranty);
+        set('rf-warranty-expire', el.dataset.warrantyExpire);
+        // device-type: try to match select option
+        const sel = document.getElementById('rf-device-type');
+        if (sel && el.dataset.type) {
+          const opt = [...sel.options].find(o => o.text.toLowerCase().includes(el.dataset.type.toLowerCase()));
+          if (opt) sel.value = opt.value; else sel.value = '';
+        }
+        // Update S/N search box to show selected
+        set('rf-sn-search', el.dataset.sn);
+        res.style.display = 'none';
+        showToast(`✅ เลือก S/N: ${el.dataset.sn}`);
+      });
+    });
+  }, 300);
 }
 
 function rpShopSearch() {

@@ -9,7 +9,7 @@ const crypto                     = require('crypto');
 const multer                     = require('multer');
 const nodemailer                 = require('nodemailer');
 const axios                      = require('axios');
-const { init, getPool, getExtPool, sql } = require('./database');
+const { init, getPool, getExtPool, getInfoPool, sql } = require('./database');
 const Anthropic                  = require('@anthropic-ai/sdk');
 
 const app        = express();
@@ -1517,6 +1517,41 @@ async function genJobNo() {
   const seq = String(row.recordset[0].n).padStart(4,'0');
   return `RJ-${ym}-${seq}`;
 }
+
+// Search S/N from INFO_BKK — must be BEFORE /api/repair/:id
+app.get('/api/repair/search-sn', authRequired, async (request, res) => {
+  try {
+    if (!getInfoPool()) return res.status(503).json({ error: 'INFO_BKK DB ไม่ได้เชื่อมต่อ' });
+    const { q } = request.query;
+    if (!q || q.length < 2) return res.json([]);
+    const today = new Date();
+    const result = await getInfoPool().request()
+      .input('q', sql.NVarChar, `%${q}%`)
+      .query(`
+        SELECT TOP 10
+          ic.CategoryName,
+          i.ItemDesc         AS device_model,
+          si.ItemDesc        AS serial_no,
+          si.InsertDate,
+          si.ItemId,
+          s.SupplierName,
+          DATEADD(year, 1, si.InsertDate) AS warranty_expire
+        FROM SaleItem si
+        INNER JOIN Items        i  ON i.ItemId      = si.ItemId
+        LEFT  JOIN SupplierXRef sx ON sx.ItemId     = si.ItemId AND sx.IsDefault = 1
+        LEFT  JOIN Supplier     s  ON s.SupplierId  = sx.SupplierId
+        INNER JOIN ItemCategory ic ON ic.CategoryId = i.CategoryId
+        WHERE si.ItemDesc LIKE @q
+        ORDER BY si.InsertDate DESC`);
+
+    // Calculate warranty status
+    const rows = result.recordset.map(r => ({
+      ...r,
+      under_warranty: r.warranty_expire && new Date(r.warranty_expire) > today
+    }));
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
 
 // Search shop from LicenseDB — must be BEFORE /api/repair/:id
 app.get('/api/repair/search-shop', authRequired, async (request, res) => {

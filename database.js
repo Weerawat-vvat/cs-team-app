@@ -5,8 +5,9 @@
 require('dotenv').config();
 const mssql = require('mssql');
 
-let pool    = null; // cs_team DB
-let extPool = null; // LicenseDB (external)
+let pool     = null; // cs_team DB
+let extPool  = null; // LicenseDB (external)
+let infoPool = null; // INFO_BKK (inventory/serial)
 
 const sql = mssql;
 
@@ -149,10 +150,27 @@ async function init() {
       console.warn('⚠️  External DB not available:', err.message);
       extPool = null;
     }
+
+    // เชื่อมต่อ INFO_BKK (same server as LicenseDB, different database)
+    if (process.env.INFO_DB_NAME) {
+      try {
+        const infoConfig = {
+          ...extConfig,
+          database: process.env.INFO_DB_NAME,
+        };
+        infoPool = new mssql.ConnectionPool(infoConfig);
+        await infoPool.connect();
+        console.log(`✅ Connected to INFO DB — ${infoConfig.server}/${infoConfig.database}`);
+      } catch (err) {
+        console.warn('⚠️  INFO DB not available:', err.message);
+        infoPool = null;
+      }
+    }
   }
 }
 
-function getPool()    { return pool; }
-function getExtPool() { return extPool; }
+function getPool()     { return pool; }
+function getExtPool()  { return extPool; }
+function getInfoPool() { return infoPool; }
 
-module.exports = { init, getPool, getExtPool, sql };
+module.exports = { init, getPool, getExtPool, getInfoPool, sql };
