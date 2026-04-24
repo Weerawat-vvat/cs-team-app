@@ -1518,6 +1518,23 @@ async function genJobNo() {
   return `RJ-${ym}-${seq}`;
 }
 
+// Generate / get public token for a repair job
+app.post('/api/repair/:id/token', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    // Get existing token first
+    const existing = (await req().input('id', sql.Int, id)
+      .query('SELECT public_token FROM repair_jobs WHERE id=@id')).recordset[0];
+    if (!existing) return res.status(404).json({ error: 'not found' });
+    if (existing.public_token) return res.json({ token: existing.public_token });
+    // Generate new
+    const tok = crypto.randomBytes(18).toString('hex');
+    await req().input('id', sql.Int, id).input('tok', sql.NVarChar, tok)
+      .query('UPDATE repair_jobs SET public_token=@tok WHERE id=@id');
+    res.json({ token: tok });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // PUBLIC repair tracking — no auth required
 app.get('/api/public/repair/:token', async (request, res) => {
   try {
@@ -2304,6 +2321,15 @@ async function ensureRepairTables() {
     await req().query(`
       IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('repair_jobs') AND name='public_token')
         ALTER TABLE repair_jobs ADD public_token NVARCHAR(48) NULL`);
+    // Generate tokens for existing jobs that don't have one
+    const noToken = (await req().query(
+      `SELECT id FROM repair_jobs WHERE public_token IS NULL`)).recordset;
+    for (const row of noToken) {
+      const tok = crypto.randomBytes(18).toString('hex');
+      await req().input('id', sql.Int, row.id).input('tok', sql.NVarChar, tok)
+        .query(`UPDATE repair_jobs SET public_token=@tok WHERE id=@id AND public_token IS NULL`);
+    }
+    if (noToken.length) console.log(`✅ Generated tokens for ${noToken.length} existing repair jobs`);
     await req().query(`
       IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='repair_attachments' AND xtype='U')
       CREATE TABLE repair_attachments (
