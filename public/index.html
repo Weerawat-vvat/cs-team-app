@@ -406,6 +406,7 @@ textarea{resize:vertical;min-height:80px}
     </button>
     <button class="s-tab" id="nav-btn-repair" onclick="showPage('repair',this)">
       <span class="s-tab-icon">🔧</span> งานซ่อม
+      <span id="repair-msg-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.65rem;padding:.05rem .4rem;margin-left:.2rem;font-weight:700"></span>
     </button>
     <button class="s-tab" id="nav-btn-complaints" onclick="showPage('complaints',this)" style="display:none">
       <span class="s-tab-icon">📣</span> ร้องเรียน <span id="complaint-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.65rem;padding:.05rem .4rem;margin-left:.2rem;font-weight:700"></span>
@@ -1737,7 +1738,7 @@ function showPage(name, btn) {
   if (name === 'kpi')       loadKpi();
   if (name === 'users')      loadUsers();
   if (name === 'complaints') loadComplaints();
-  if (name === 'repair')     loadRepair();
+  if (name === 'repair')     { loadRepair(); pollRepairMessages(); }
 }
 
 // ══════════════════════════════════════════════════════════
@@ -3805,7 +3806,13 @@ function applyUserContext() {
   // Nav: Users tab — manager/admin only
   document.getElementById('nav-btn-users').style.display = isManager ? '' : 'none';
   document.getElementById('nav-btn-complaints').style.display = isLead ? '' : 'none';
-  if (isLead) loadComplaintsBadge();
+  if (isLead) {
+    loadComplaintsBadge();
+    pollRepairMessages();
+    // Poll every 60s for new customer messages
+    clearInterval(_repairPollTimer);
+    _repairPollTimer = setInterval(pollRepairMessages, 60000);
+  }
 
   // Schedule: hide edit buttons for staff
   const addShiftBtn   = document.getElementById('btn-add-shift');
@@ -4137,6 +4144,7 @@ function renderRepairTable() {
     return;
   }
 
+  setTimeout(renderRepairUnreadHighlight, 50);
   tbody.innerHTML = allRepairJobs.map(j => `
     <tr style="cursor:pointer" onclick="openRepairDetail(${j.id})">
       <td><b style="color:var(--hd)">${j.job_no}</b></td>
@@ -4330,6 +4338,9 @@ async function openRepairDetail(id) {
   _currentRepairId = id;
   document.getElementById('rd-body').innerHTML = '<div style="padding:1rem;color:var(--muted)">⏳ กำลังโหลด...</div>';
   openModal('modal-repair-detail');
+  // Mark customer messages as read
+  api(`/api/repair/${id}/read-messages`, { method:'POST', silent:true })
+    .then(() => pollRepairMessages());
   try {
     const j = await api(`/api/repair/${id}`);
     document.getElementById('rd-title').innerHTML = `
@@ -4459,6 +4470,42 @@ function renderRepairDetail(j) {
       <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.4rem">ประวัติการดำเนินการ</div>
       <div id="rd-timeline">${timelineHtml}</div>
     </div>`;
+}
+
+// ── Repair unread badge ───────────────────────────────────
+let _repairUnread = [];
+let _repairPollTimer = null;
+
+async function pollRepairMessages() {
+  try {
+    _repairUnread = await api('/api/repair/unread-messages') || [];
+    const total = _repairUnread.reduce((s,r) => s + r.msg_count, 0);
+    const badge = document.getElementById('repair-msg-badge');
+    if (badge) {
+      if (total > 0) { badge.textContent = total; badge.style.display = ''; }
+      else badge.style.display = 'none';
+    }
+    // Highlight rows in repair table
+    renderRepairUnreadHighlight();
+  } catch {}
+}
+
+function renderRepairUnreadHighlight() {
+  if (!_repairUnread.length) return;
+  const unreadIds = new Set(_repairUnread.map(r => r.repair_id));
+  document.querySelectorAll('#repair-tbody tr').forEach(tr => {
+    const onclick = tr.getAttribute('onclick') || '';
+    const match = onclick.match(/openRepairDetail\((\d+)\)/);
+    if (match && unreadIds.has(parseInt(match[1]))) {
+      tr.style.background = '#eff6ff';
+      // Add 💬 badge if not already there
+      const firstTd = tr.querySelector('td:first-child');
+      if (firstTd && !firstTd.querySelector('.msg-dot')) {
+        firstTd.insertAdjacentHTML('beforeend',
+          '<span class="msg-dot" style="display:inline-block;width:8px;height:8px;background:#2563eb;border-radius:50%;margin-left:.4rem;vertical-align:middle" title="มีข้อความจากลูกค้า"></span>');
+      }
+    }
+  });
 }
 
 async function genRepairLink(id, existingToken) {
