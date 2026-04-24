@@ -3802,7 +3802,9 @@ function applyUserContext() {
   const role = currentUser.role;
   const roleLabel = { staff:'Staff', team_lead:'Team Lead', manager:'Manager', admin:'Admin' };
   const displayName = currentUser.name || currentUser.username || '?';
-  document.getElementById('nav-display-name').textContent = displayName;
+  // Show first word only in sidebar (full name in tooltip)
+  const shortName = displayName.split(' ')[0];
+  document.getElementById('nav-display-name').textContent = shortName;
   document.getElementById('nav-display-name').title = displayName;
   document.getElementById('nav-display-role').textContent = roleLabel[role] || role;
   const av = document.getElementById('nav-avatar');
