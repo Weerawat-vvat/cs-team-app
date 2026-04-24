@@ -1720,8 +1720,14 @@ function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
 // click outside to close
+// Modals ที่ห้ามปิดเมื่อกด outside (ข้อมูลอาจหาย)
+const NO_BACKDROP_CLOSE = new Set(['modal-repair-form','modal-repair-detail','modal-person']);
+
 document.querySelectorAll('.overlay').forEach(el => {
-  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
+  el.addEventListener('click', e => {
+    if (e.target === el && !NO_BACKDROP_CLOSE.has(el.id))
+      el.classList.remove('open');
+  });
 });
 
 // ══════════════════════════════════════════════════════════
