@@ -4170,7 +4170,9 @@ function rpShopSearch() {
     if (!data.length) { res.style.display = 'none'; return; }
     res.style.display = '';
     res.innerHTML = data.map(s => `
-      <div onclick="selectRepairShop(${s.RegistrationId},'${escHtml(s.CompanyName).replace(/'/g,"&#39;")}')"
+      <div class="rp-shop-item"
+           data-id="${s.RegistrationId}"
+           data-name="${escHtml(s.CompanyName)}"
            style="padding:.45rem .75rem;cursor:pointer;font-size:.82rem;border-bottom:1px solid #f1f5f9"
            onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
         <div style="font-weight:600">${escHtml(s.CompanyName)}</div>
@@ -4182,6 +4184,12 @@ function rpShopSearch() {
           ${s.Phone||s.MobilePhone ? `<span>📞 ${escHtml(s.Phone||s.MobilePhone)}</span>` : ''}
         </div>
       </div>`).join('');
+    // Attach click via event delegation (safe for any special chars in name)
+    res.querySelectorAll('.rp-shop-item').forEach(el => {
+      el.addEventListener('click', () => {
+        selectRepairShop(parseInt(el.dataset.id), el.dataset.name);
+      });
+    });
   }, 300);
 }
 
