@@ -4169,10 +4169,16 @@ function rpShopSearch() {
     res.style.display = '';
     res.innerHTML = data.map(s => `
       <div onclick="selectRepairShop(${s.RegistrationId},'${escHtml(s.CompanyName).replace(/'/g,"&#39;")}')"
-           style="padding:.4rem .75rem;cursor:pointer;font-size:.82rem;border-bottom:1px solid #f1f5f9"
+           style="padding:.45rem .75rem;cursor:pointer;font-size:.82rem;border-bottom:1px solid #f1f5f9"
            onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
-        <b>${escHtml(s.CompanyName)}</b>
-        ${s.ContactName?`<span style="color:var(--muted);font-size:.72rem;margin-left:.4rem">${escHtml(s.ContactName)}</span>`:''}
+        <div style="font-weight:600">${escHtml(s.CompanyName)}</div>
+        <div style="font-size:.72rem;color:var(--muted);display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.1rem">
+          ${s.ProductName    ? `<span>📦 ${escHtml(s.ProductName)}</span>` : ''}
+          ${s.LicenseTypeName? `<span>🔑 ${escHtml(s.LicenseTypeName)}</span>` : ''}
+          ${s.GroupName && s.GroupId!=1 ? `<span>🏬 ${escHtml(s.GroupName)}</span>` : ''}
+          ${s.ContactName    ? `<span>👤 ${escHtml(s.ContactName)}</span>` : ''}
+          ${s.Phone||s.MobilePhone ? `<span>📞 ${escHtml(s.Phone||s.MobilePhone)}</span>` : ''}
+        </div>
       </div>`).join('');
   }, 300);
 }

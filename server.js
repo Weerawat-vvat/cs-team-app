@@ -1525,10 +1525,19 @@ app.get('/api/repair/search-shop', authRequired, async (request, res) => {
     const { q } = request.query;
     if (!q || q.length < 2) return res.json([]);
     const result = await extReq().input('q', sql.NVarChar, `%${q}%`)
-      .query(`SELECT TOP 15 RegistrationId, CompanyName, Phone, Email, ContactName
-              FROM CustomerRegistration
-              WHERE CompanyName LIKE @q AND Hide=0
-              ORDER BY CompanyName`);
+      .query(`SELECT TOP 20
+                r.RegistrationId, r.CompanyName, r.Phone, r.MobilePhone,
+                r.Email, r.ContactName, r.GroupId,
+                p.ProductName,
+                lt.LicenseTypeName,
+                cg.GroupName
+              FROM CustomerRegistration r
+              LEFT JOIN Product       p  ON p.ProductId      = r.ProductId
+              LEFT JOIN LicenseType   lt ON lt.LicenseTypeId = r.LicenseTypeId
+              LEFT JOIN CustomerGroup cg ON cg.GroupId       = r.GroupId
+              WHERE (r.Hide=0 OR r.Hide IS NULL)
+                AND r.CompanyName LIKE @q
+              ORDER BY r.CompanyName`);
     res.json(result.recordset);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
