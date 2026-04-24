@@ -215,13 +215,17 @@ async function load(){
         }).join('')}
       </div>` : ''}
 
-      <!-- Reply form -->
+      <!-- Reply form: hide when job is done -->
+      ${['returned_to_customer','closed','cancelled'].includes(d.status) ? `
+      <div class="msg-card" style="text-align:center;color:#16a34a;font-size:.88rem;font-weight:600;background:#f0fdf4;border-color:#bbf7d0">
+        ✅ งานนี้เสร็จสิ้นแล้ว — ขอบคุณที่ใช้บริการครับ
+      </div>` : `
       <div class="msg-card">
         <h3>📩 ส่งข้อความถึงทีม CS</h3>
         <input class="msg-name" id="msg-name" placeholder="ชื่อของคุณ (ไม่บังคับ)"/>
         <textarea class="msg-input" id="msg-text" placeholder="พิมพ์ข้อความ เช่น สอบถามความคืบหน้า หรือแจ้งข้อมูลเพิ่มเติม..."></textarea>
         <button class="btn-send" id="msg-btn" onclick="sendMsg()">📤 ส่งข้อความ</button>
-      </div>`;
+      </div>`}`;
   } catch(e){
     document.getElementById('root').innerHTML = `<div class="error-box">❌ ${esc(e.message)}</div>`;
   }
