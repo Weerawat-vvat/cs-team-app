@@ -123,7 +123,7 @@ async function load(){
     const res = await fetch(`/api/public/repair/${token}`);
     const d   = await res.json();
     if (!res.ok){ root.innerHTML=`<div class="error-box">❌ ${esc(d.error||'ไม่พบข้อมูล')}</div>`; return; }
-    const msgs = (d.timeline||[]).filter(t => t.field_changed === 'customer_message');
+    const msgs = (d.timeline||[]).filter(t => t.field_changed === 'customer_message' || t.field_changed === 'admin_reply');
 
     document.title = `ติดตามงานซ่อม — ${d.job_no}`;
 
@@ -199,16 +199,20 @@ async function load(){
 
       <div class="updated">อัพเดทล่าสุด: ${fmtDT(d.updated_at)||'—'}</div>
 
-      <!-- Message history -->
+      <!-- Message history (chat style) -->
       ${msgs.length ? `
       <div class="msg-card">
         <h3>💬 ข้อความ</h3>
-        ${msgs.map(m=>`
-          <div class="msg-bubble">
-            <div class="from">👤 ${esc(m.note||'ลูกค้า')}</div>
-            <div>${esc(m.new_value)}</div>
-            <div class="time">${fmtDT(m.changed_at)}</div>
-          </div>`).join('')}
+        ${msgs.map(m => {
+          const isAdmin = m.field_changed === 'admin_reply';
+          return `<div style="display:flex;flex-direction:column;align-items:${isAdmin?'flex-end':'flex-start'};margin-bottom:.5rem">
+            <div class="msg-bubble" style="max-width:85%;background:${isAdmin?'#dbeafe':'#f1f5f9'};border-radius:${isAdmin?'12px 12px 4px 12px':'12px 12px 12px 4px'};border:1px solid ${isAdmin?'#bfdbfe':'#e2e8f0'}">
+              <div class="from" style="color:${isAdmin?'#1d4ed8':'#475569'}">${isAdmin?'↩️ CS Team':'👤 '+esc(m.note||'คุณ')}</div>
+              <div>${esc(m.new_value)}</div>
+              <div class="time">${fmtDT(m.changed_at)}</div>
+            </div>
+          </div>`;
+        }).join('')}
       </div>` : ''}
 
       <!-- Reply form -->

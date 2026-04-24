@@ -1549,9 +1549,51 @@ app.get('/api/repair/unread-messages', authRequired, async (request, res) => {
 // Mark all messages for a repair job as read
 app.post('/api/repair/:id/read-messages', authRequired, async (request, res) => {
   try {
+    // Auto-add columns if missing
+    for (const col of ['read_at','replied_at']) {
+      try {
+        await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('repair_timeline') AND name='${col}')
+          ALTER TABLE repair_timeline ADD ${col} DATETIME NULL`);
+      } catch {}
+    }
     await req().input('id', sql.Int, request.params.id)
       .query(`UPDATE repair_timeline SET read_at=GETDATE()
               WHERE repair_id=@id AND field_changed='customer_message' AND read_at IS NULL`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Reply to a customer message (admin)
+app.post('/api/repair/:id/reply', authRequired, async (request, res) => {
+  try {
+    const repairId = parseInt(request.params.id);
+    const { message, timeline_id } = request.body;
+    if (!message?.trim()) return res.status(400).json({ error: 'กรุณาระบุข้อความ' });
+
+    const job = (await req().input('id', sql.Int, repairId)
+      .query('SELECT job_no, company_name FROM repair_jobs WHERE id=@id')).recordset[0];
+    if (!job) return res.status(404).json({ error: 'not found' });
+
+    const sender = request.user.name || request.user.username;
+
+    // Save reply as admin_reply in timeline
+    await req()
+      .input('rid', sql.Int,      repairId)
+      .input('msg', sql.NVarChar, message.trim())
+      .input('nt',  sql.NVarChar, sender)
+      .input('by',  sql.Int,      request.user.id || null)
+      .query(`INSERT INTO repair_timeline (repair_id, field_changed, new_value, note, changed_by)
+              VALUES (@rid, 'admin_reply', @msg, @nt, @by)`);
+
+    // Mark specific message as replied
+    if (timeline_id) {
+      await req().input('tid', sql.Int, timeline_id)
+        .query(`UPDATE repair_timeline SET replied_at=GETDATE() WHERE id=@tid`);
+    }
+
+    // Notify Line
+    await sendLineNotify(`\n↩️ [${job.job_no}] ${job.company_name}\nAdmin ตอบ: ${sender}\n"${message.trim()}"`);
+
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -1589,7 +1631,7 @@ app.get('/api/public/repair/:token', async (request, res) => {
       .query(`SELECT rt.field_changed, rt.new_value, rt.note, rt.changed_at
               FROM repair_timeline rt
               WHERE rt.repair_id = @id
-                AND rt.field_changed IN ('status','customer_message')
+                AND rt.field_changed IN ('status','customer_message','admin_reply')
               ORDER BY rt.changed_at ASC`)).recordset;
 
     // Only expose non-sensitive fields to public
@@ -1731,11 +1773,13 @@ app.get('/api/repair/:id', authRequired, async (request, res) => {
       req().input('id', sql.Int, id)
         .query('SELECT * FROM repair_attachments WHERE repair_id=@id ORDER BY uploaded_at'),
       req().input('id', sql.Int, id)
-        .query(`SELECT rt.*, e.name AS changed_by_name
+        .query(`SELECT rt.id, rt.field_changed, rt.old_value, rt.new_value,
+                       rt.note, rt.changed_at, rt.read_at, rt.replied_at,
+                       e.name AS changed_by_name
                 FROM repair_timeline rt
                 LEFT JOIN app_users au ON au.id = rt.changed_by
                 LEFT JOIN employees e  ON e.id  = au.employee_id
-                WHERE rt.repair_id=@id ORDER BY rt.changed_at DESC`)
+                WHERE rt.repair_id=@id ORDER BY rt.changed_at ASC`)
     ]);
     if (!job.recordset[0]) return res.status(404).json({ error: 'not found' });
     res.json({ ...job.recordset[0], attachments: attachments.recordset, timeline: timeline.recordset });

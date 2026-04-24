@@ -4465,6 +4465,46 @@ function renderRepairDetail(j) {
       <div id="rd-attachments">${attachHtml}</div>
     </div>
 
+    <!-- Customer Messages -->
+    ${(() => {
+      const msgs = (j.timeline||[]).filter(t => t.field_changed === 'customer_message' || t.field_changed === 'admin_reply');
+      if (!msgs.length && !isLead) return '';
+      const msgsHtml = msgs.map(m => {
+        const isAdmin = m.field_changed === 'admin_reply';
+        const unread  = !isAdmin && !m.read_at;
+        const replied = !isAdmin && m.replied_at;
+        return `<div style="display:flex;flex-direction:column;align-items:${isAdmin?'flex-end':'flex-start'};margin-bottom:.5rem">
+          <div style="max-width:85%;background:${isAdmin?'#dbeafe':'#f1f5f9'};border-radius:${isAdmin?'12px 12px 4px 12px':'12px 12px 12px 4px'};
+               padding:.45rem .75rem;font-size:.82rem;line-height:1.55;border:1px solid ${isAdmin?'#bfdbfe':'#e2e8f0'}">
+            <div style="font-size:.7rem;font-weight:700;color:${isAdmin?'#1d4ed8':'#475569'};margin-bottom:.15rem">
+              ${isAdmin?'↩️ '+escHtml(m.changed_by_name||'CS Team'):'💬 '+escHtml(m.note||'ลูกค้า')}
+              ${unread?'<span style="background:#ef4444;color:#fff;border-radius:10px;font-size:.62rem;padding:.02rem .3rem;margin-left:.25rem">ใหม่</span>':''}
+            </div>
+            ${escHtml(m.new_value)}
+            <div style="font-size:.68rem;color:#94a3b8;margin-top:.2rem;display:flex;align-items:center;gap:.4rem;justify-content:flex-end">
+              ${fmtDate(m.changed_at)}
+              ${replied?'<span style="color:#16a34a;font-size:.68rem">✓ ตอบแล้ว</span>':''}
+            </div>
+          </div>
+          ${!isAdmin && isLead && !replied ? `<button onclick="markReplied(${j.id},${m.id})" style="font-size:.68rem;color:#64748b;background:none;border:none;cursor:pointer;margin-top:.1rem;padding:.1rem .3rem">✓ ตอบแล้ว</button>` : ''}
+        </div>`;
+      }).join('');
+      return `<div style="margin-bottom:.75rem">
+        <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">
+          💬 ข้อความลูกค้า
+          ${msgs.filter(m=>m.field_changed==='customer_message'&&!m.read_at).length
+            ? `<span style="background:#ef4444;color:#fff;border-radius:10px;font-size:.65rem;padding:.05rem .4rem;margin-left:.35rem">ใหม่</span>` : ''}
+        </div>
+        <div id="rd-messages" style="max-height:250px;overflow-y:auto;padding:.1rem 0">${msgsHtml||'<span style="color:var(--muted);font-size:.8rem">ยังไม่มีข้อความ</span>'}</div>
+        ${isLead ? `
+        <div style="margin-top:.5rem;display:flex;gap:.4rem">
+          <textarea id="rd-reply-text" rows="2" placeholder="พิมพ์ตอบกลับลูกค้า..."
+            style="flex:1;border:1px solid var(--border);border-radius:8px;padding:.35rem .6rem;font-size:.82rem;resize:none;font-family:inherit"></textarea>
+          <button onclick="sendAdminReply(${j.id})" style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:.35rem .75rem;font-size:.8rem;font-weight:600;cursor:pointer;white-space:nowrap">↩️ ตอบ</button>
+        </div>` : ''}
+      </div>`;
+    })()}
+
     <!-- Timeline -->
     <div>
       <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.4rem">ประวัติการดำเนินการ</div>
@@ -4502,10 +4542,26 @@ function renderRepairUnreadHighlight() {
       const firstTd = tr.querySelector('td:first-child');
       if (firstTd && !firstTd.querySelector('.msg-dot')) {
         firstTd.insertAdjacentHTML('beforeend',
-          '<span class="msg-dot" style="display:inline-block;width:8px;height:8px;background:#2563eb;border-radius:50%;margin-left:.4rem;vertical-align:middle" title="มีข้อความจากลูกค้า"></span>');
+          '<span class="msg-dot" style="display:inline-block;width:8px;height:8px;background:#ef4444;border-radius:50%;margin-left:.4rem;vertical-align:middle" title="มีข้อความจากลูกค้า"></span>');
       }
     }
   });
+}
+
+async function sendAdminReply(repairId) {
+  const msg = document.getElementById('rd-reply-text')?.value?.trim();
+  if (!msg) { showToast('❌ กรุณาพิมพ์ข้อความ', 'error'); return; }
+  const r = await api(`/api/repair/${repairId}/reply`, { method:'POST', silent:true, body:{ message: msg } });
+  if (r?.error) { showToast('❌ ' + r.error, 'error'); return; }
+  showToast('↩️ ส่งข้อความแล้ว');
+  openRepairDetail(repairId);
+}
+
+async function markReplied(repairId, timelineId) {
+  await api(`/api/repair/${repairId}/reply`, { method:'POST', silent:true,
+    body:{ message:'(ตอบแล้วผ่านช่องทางอื่น)', timeline_id: timelineId } });
+  showToast('✓ บันทึกสถานะตอบแล้ว');
+  openRepairDetail(repairId);
 }
 
 async function genRepairLink(id, existingToken) {
