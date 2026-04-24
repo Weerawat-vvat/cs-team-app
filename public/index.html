@@ -1047,94 +1047,96 @@ textarea{resize:vertical;min-height:80px}
 
 <!-- Repair Form Modal -->
 <div class="overlay" id="modal-repair-form">
-  <div class="modal" style="max-width:620px;max-height:90vh;overflow-y:auto">
-    <div class="modal-title">🔧 แจ้งซ่อม <button class="modal-close" onclick="closeModal('modal-repair-form')">×</button></div>
+  <div class="modal" style="max-width:660px;max-height:88vh;overflow-y:auto;padding:1.1rem 1.25rem">
+    <div class="modal-title" style="margin-bottom:.75rem">🔧 แจ้งซ่อม <button class="modal-close" onclick="closeModal('modal-repair-form')">×</button></div>
 
     <!-- ค้นหาร้านค้า -->
-    <div class="form-group">
-      <label>ร้านค้า / License <span style="color:#ef4444">*</span></label>
-      <input id="rf-shop-search" type="text" placeholder="พิมพ์ชื่อร้านเพื่อค้นหา..." oninput="rpShopSearch()" autocomplete="off"/>
-      <div id="rf-shop-results" style="position:absolute;z-index:200;background:#fff;border:1px solid var(--border);border-radius:8px;max-height:160px;overflow-y:auto;width:100%;display:none"></div>
+    <div style="position:relative;margin-bottom:.6rem">
+      <label style="font-size:.75rem;font-weight:600;color:#475569;display:block;margin-bottom:.25rem">ร้านค้า / License <span style="color:#ef4444">*</span></label>
+      <input id="rf-shop-search" type="text" placeholder="พิมพ์ชื่อร้านเพื่อค้นหา..." oninput="rpShopSearch()" autocomplete="off" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.38rem .65rem;font-size:.83rem;outline:none"/>
+      <div id="rf-shop-results" style="position:absolute;z-index:200;background:#fff;border:1px solid var(--border);border-radius:8px;max-height:180px;overflow-y:auto;width:100%;display:none;box-shadow:0 4px 12px #0002"></div>
       <input type="hidden" id="rf-registration-id"/>
-      <div id="rf-shop-selected" style="font-size:.78rem;color:#16a34a;margin-top:.2rem"></div>
+      <div id="rf-shop-selected" style="font-size:.75rem;color:#16a34a;margin-top:.15rem"></div>
     </div>
 
-    <div class="grid-2">
-      <div class="form-group">
-        <label>ประเภทเครื่อง</label>
-        <select id="rf-device-type">
+    <!-- Row 1: ประเภท รุ่น S/N -->
+    <div style="display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:.5rem;margin-bottom:.5rem">
+      <div>
+        <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">ประเภทเครื่อง</label>
+        <select id="rf-device-type" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.8rem;background:#fff">
           <option value="">เลือกประเภท</option>
           <option>Printer</option><option>POS Terminal</option><option>iPad/Tablet</option>
           <option>Router/Switch</option><option>PC/Computer</option><option>อื่นๆ</option>
         </select>
       </div>
-      <div class="form-group">
-        <label>รุ่น</label>
-        <input id="rf-device-model" placeholder="เช่น TM-T82X"/>
+      <div>
+        <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">รุ่น</label>
+        <input id="rf-device-model" placeholder="TM-T82X" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.8rem"/>
       </div>
-    </div>
-    <div class="grid-2">
-      <div class="form-group">
-        <label>ผู้จัดจำหน่าย</label>
-        <input id="rf-vendor" placeholder="เช่น Epson Thailand"/>
-      </div>
-      <div class="form-group">
-        <label>Serial No.</label>
-        <input id="rf-serial-no" placeholder="S/N"/>
+      <div>
+        <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">Serial No.</label>
+        <input id="rf-serial-no" placeholder="S/N" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.8rem;font-family:monospace"/>
       </div>
     </div>
 
-    <div class="form-group">
-      <label>อาการเสีย <span style="color:#ef4444">*</span></label>
-      <textarea id="rf-symptom" rows="3" placeholder="อธิบายอาการ..."></textarea>
-    </div>
-    <div class="form-group">
-      <label>การแก้ไขเบื้องต้น</label>
-      <textarea id="rf-initial-fix" rows="2" placeholder="สิ่งที่ลองแก้ไขไปแล้ว..."></textarea>
-    </div>
-
-    <div class="grid-2">
-      <div class="form-group">
-        <label>ผู้ติดต่อ</label>
-        <input id="rf-contact-name" placeholder="ชื่อผู้ติดต่อ"/>
+    <!-- Row 2: Vendor + ประกัน + วันหมดประกัน -->
+    <div style="display:grid;grid-template-columns:1.5fr 1fr 1fr;gap:.5rem;margin-bottom:.5rem">
+      <div>
+        <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">ผู้จัดจำหน่าย</label>
+        <input id="rf-vendor" placeholder="Epson Thailand" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.8rem"/>
       </div>
-      <div class="form-group">
-        <label>เบอร์โทร</label>
-        <input id="rf-contact-phone" placeholder="08X-XXXXXXX"/>
-      </div>
-    </div>
-    <div class="grid-2">
-      <div class="form-group">
-        <label>Line ID / Line Group</label>
-        <input id="rf-line-id" placeholder="@line หรือชื่อกลุ่ม"/>
-      </div>
-      <div class="form-group">
-        <label>จุดวางเครื่อง</label>
-        <input id="rf-device-location" placeholder="เช่น เคาน์เตอร์หน้าร้าน"/>
-      </div>
-    </div>
-    <div class="grid-2">
-      <div class="form-group">
-        <label>การรับประกัน</label>
-        <select id="rf-warranty">
-          <option value="0">ไม่อยู่ในประกัน</option>
-          <option value="1">อยู่ในประกัน</option>
+      <div>
+        <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">ประกัน</label>
+        <select id="rf-warranty" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.8rem;background:#fff">
+          <option value="0">ไม่มีประกัน</option>
+          <option value="1">มีประกัน</option>
         </select>
       </div>
-      <div class="form-group" id="rf-warranty-expire-wrap">
-        <label>วันหมดประกัน</label>
-        <input type="date" id="rf-warranty-expire"/>
+      <div id="rf-warranty-expire-wrap">
+        <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">วันหมดประกัน</label>
+        <input type="date" id="rf-warranty-expire" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.8rem"/>
       </div>
     </div>
 
-    <!-- แนบรูปเครื่อง -->
-    <div class="form-group">
-      <label>แนบรูปเครื่อง</label>
-      <input type="file" id="rf-photo" accept="image/*" multiple style="font-size:.82rem"/>
-      <div style="font-size:.72rem;color:var(--muted);margin-top:.2rem">รองรับ JPG, PNG (สูงสุด 20MB/ไฟล์)</div>
+    <!-- อาการเสีย -->
+    <div style="margin-bottom:.5rem">
+      <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">อาการเสีย <span style="color:#ef4444">*</span></label>
+      <textarea id="rf-symptom" rows="2" placeholder="อธิบายอาการ..." style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.35rem .6rem;font-size:.82rem;resize:vertical;font-family:inherit"></textarea>
+    </div>
+    <div style="margin-bottom:.5rem">
+      <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">การแก้ไขเบื้องต้น</label>
+      <textarea id="rf-initial-fix" rows="2" placeholder="สิ่งที่ลองแก้ไขไปแล้ว..." style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.35rem .6rem;font-size:.82rem;resize:vertical;font-family:inherit"></textarea>
     </div>
 
-    <div class="btn-group" style="margin-top:.5rem">
+    <!-- Row 3: ติดต่อ -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem;margin-bottom:.5rem">
+      <div>
+        <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">ผู้ติดต่อ</label>
+        <input id="rf-contact-name" placeholder="ชื่อ" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.8rem"/>
+      </div>
+      <div>
+        <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">เบอร์โทร</label>
+        <input id="rf-contact-phone" placeholder="08X-XXXXXXX" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.8rem"/>
+      </div>
+      <div>
+        <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">Line ID / Group</label>
+        <input id="rf-line-id" placeholder="@line" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.8rem"/>
+      </div>
+    </div>
+
+    <!-- Row 4: จุดวางเครื่อง + แนบรูป -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.75rem">
+      <div>
+        <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">จุดวางเครื่อง</label>
+        <input id="rf-device-location" placeholder="เคาน์เตอร์หน้าร้าน" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.8rem"/>
+      </div>
+      <div>
+        <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">แนบรูปเครื่อง</label>
+        <input type="file" id="rf-photo" accept="image/*" multiple style="font-size:.76rem;width:100%"/>
+      </div>
+    </div>
+
+    <div class="btn-group">
       <button class="btn btn-primary" onclick="saveRepairForm()">📤 ส่งแจ้งซ่อม</button>
       <button class="btn btn-ghost" onclick="closeModal('modal-repair-form')">ยกเลิก</button>
     </div>
