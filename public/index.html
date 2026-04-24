@@ -404,6 +404,9 @@ textarea{resize:vertical;min-height:80px}
     <button class="s-tab" id="nav-btn-users" onclick="showPage('users',this)" style="display:none">
       <span class="s-tab-icon">👤</span> จัดการ User
     </button>
+    <button class="s-tab" id="nav-btn-repair" onclick="showPage('repair',this)">
+      <span class="s-tab-icon">🔧</span> งานซ่อม
+    </button>
     <button class="s-tab" id="nav-btn-complaints" onclick="showPage('complaints',this)" style="display:none">
       <span class="s-tab-icon">📣</span> ร้องเรียน <span id="complaint-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.65rem;padding:.05rem .4rem;margin-left:.2rem;font-weight:700"></span>
     </button>
@@ -957,6 +960,66 @@ textarea{resize:vertical;min-height:80px}
   </div>
 </div>
 
+<!-- ═══════════════════ PAGE: REPAIR ═══════════════════ -->
+<div id="page-repair" class="page">
+  <div class="section-header" style="margin-bottom:.75rem">
+    <div class="section-title">🔧 งานซ่อม</div>
+    <button class="btn btn-primary btn-sm" onclick="openRepairForm()">+ แจ้งซ่อมใหม่</button>
+  </div>
+
+  <!-- Stat Bar -->
+  <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem" id="repair-stats">
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">📋 ทั้งหมด</span>
+      <span style="font-size:1.1rem;font-weight:800;color:var(--hd)" id="rp-stat-total">—</span>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">🔄 กำลังดำเนินการ</span>
+      <span style="font-size:1.1rem;font-weight:800;color:#b45309" id="rp-stat-active">—</span>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">✅ ปิดงาน</span>
+      <span style="font-size:1.1rem;font-weight:800;color:#16a34a" id="rp-stat-closed">—</span>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">💰 รอชำระ</span>
+      <span style="font-size:1.1rem;font-weight:800;color:#dc2626" id="rp-stat-unpaid">—</span>
+    </div>
+  </div>
+
+  <!-- Filter -->
+  <div class="page-datebar" style="margin-bottom:.75rem;gap:.5rem;flex-wrap:wrap">
+    <select id="rp-filter-status" onchange="loadRepair()">
+      <option value="">ทุกสถานะ</option>
+      <option value="received">รับเรื่อง</option>
+      <option value="assessing">กำลังประเมิน</option>
+      <option value="quoted">เสนอราคาแล้ว</option>
+      <option value="waiting_approval">รอลูกค้าอนุมัติ</option>
+      <option value="device_received">รับเครื่องแล้ว</option>
+      <option value="sent_supplier">ส่ง Supplier</option>
+      <option value="returned_from_supplier">ได้เครื่องคืน</option>
+      <option value="returned_to_customer">ส่งคืนลูกค้า</option>
+      <option value="closed">ปิดงาน</option>
+      <option value="cancelled">ยกเลิก</option>
+    </select>
+    <input id="rp-search" type="text" placeholder="🔍 ค้นหา Job No / ร้าน / S/N..." oninput="rpSearchDebounce()" style="min-width:200px;flex:1"/>
+    <button class="btn btn-ghost btn-sm" onclick="loadRepair()">🔄</button>
+  </div>
+
+  <!-- Table -->
+  <div class="card" style="padding:.5rem 0">
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>Job No</th><th>ร้านค้า</th><th>อุปกรณ์</th><th>S/N</th>
+          <th>สถานะ</th><th>การเงิน</th><th>ผู้แจ้ง</th><th>วันที่แจ้ง</th><th></th>
+        </tr></thead>
+        <tbody id="repair-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════════ PAGE: COMPLAINTS ═══════════════════ -->
 <div id="page-complaints" class="page">
   <div class="section-header" style="margin-bottom:.75rem">
@@ -979,6 +1042,112 @@ textarea{resize:vertical;min-height:80px}
 </div>
 
 </main>
+
+<!-- ══════════ REPAIR MODALS ══════════ -->
+
+<!-- Repair Form Modal -->
+<div class="overlay" id="modal-repair-form">
+  <div class="modal" style="max-width:620px;max-height:90vh;overflow-y:auto">
+    <div class="modal-title">🔧 แจ้งซ่อม <button class="modal-close" onclick="closeModal('modal-repair-form')">×</button></div>
+
+    <!-- ค้นหาร้านค้า -->
+    <div class="form-group">
+      <label>ร้านค้า / License <span style="color:#ef4444">*</span></label>
+      <input id="rf-shop-search" type="text" placeholder="พิมพ์ชื่อร้านเพื่อค้นหา..." oninput="rpShopSearch()" autocomplete="off"/>
+      <div id="rf-shop-results" style="position:absolute;z-index:200;background:#fff;border:1px solid var(--border);border-radius:8px;max-height:160px;overflow-y:auto;width:100%;display:none"></div>
+      <input type="hidden" id="rf-registration-id"/>
+      <div id="rf-shop-selected" style="font-size:.78rem;color:#16a34a;margin-top:.2rem"></div>
+    </div>
+
+    <div class="grid-2">
+      <div class="form-group">
+        <label>ประเภทเครื่อง</label>
+        <select id="rf-device-type">
+          <option value="">เลือกประเภท</option>
+          <option>Printer</option><option>POS Terminal</option><option>iPad/Tablet</option>
+          <option>Router/Switch</option><option>PC/Computer</option><option>อื่นๆ</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>รุ่น</label>
+        <input id="rf-device-model" placeholder="เช่น TM-T82X"/>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="form-group">
+        <label>ผู้จัดจำหน่าย</label>
+        <input id="rf-vendor" placeholder="เช่น Epson Thailand"/>
+      </div>
+      <div class="form-group">
+        <label>Serial No.</label>
+        <input id="rf-serial-no" placeholder="S/N"/>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>อาการเสีย <span style="color:#ef4444">*</span></label>
+      <textarea id="rf-symptom" rows="3" placeholder="อธิบายอาการ..."></textarea>
+    </div>
+    <div class="form-group">
+      <label>การแก้ไขเบื้องต้น</label>
+      <textarea id="rf-initial-fix" rows="2" placeholder="สิ่งที่ลองแก้ไขไปแล้ว..."></textarea>
+    </div>
+
+    <div class="grid-2">
+      <div class="form-group">
+        <label>ผู้ติดต่อ</label>
+        <input id="rf-contact-name" placeholder="ชื่อผู้ติดต่อ"/>
+      </div>
+      <div class="form-group">
+        <label>เบอร์โทร</label>
+        <input id="rf-contact-phone" placeholder="08X-XXXXXXX"/>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="form-group">
+        <label>Line ID / Line Group</label>
+        <input id="rf-line-id" placeholder="@line หรือชื่อกลุ่ม"/>
+      </div>
+      <div class="form-group">
+        <label>จุดวางเครื่อง</label>
+        <input id="rf-device-location" placeholder="เช่น เคาน์เตอร์หน้าร้าน"/>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="form-group">
+        <label>การรับประกัน</label>
+        <select id="rf-warranty">
+          <option value="0">ไม่อยู่ในประกัน</option>
+          <option value="1">อยู่ในประกัน</option>
+        </select>
+      </div>
+      <div class="form-group" id="rf-warranty-expire-wrap">
+        <label>วันหมดประกัน</label>
+        <input type="date" id="rf-warranty-expire"/>
+      </div>
+    </div>
+
+    <!-- แนบรูปเครื่อง -->
+    <div class="form-group">
+      <label>แนบรูปเครื่อง</label>
+      <input type="file" id="rf-photo" accept="image/*" multiple style="font-size:.82rem"/>
+      <div style="font-size:.72rem;color:var(--muted);margin-top:.2rem">รองรับ JPG, PNG (สูงสุด 20MB/ไฟล์)</div>
+    </div>
+
+    <div class="btn-group" style="margin-top:.5rem">
+      <button class="btn btn-primary" onclick="saveRepairForm()">📤 ส่งแจ้งซ่อม</button>
+      <button class="btn btn-ghost" onclick="closeModal('modal-repair-form')">ยกเลิก</button>
+    </div>
+  </div>
+</div>
+
+<!-- Repair Detail Modal -->
+<div class="overlay" id="modal-repair-detail">
+  <div class="modal" style="max-width:700px;max-height:92vh;overflow-y:auto">
+    <div class="modal-title" id="rd-title">รายละเอียดงานซ่อม <button class="modal-close" onclick="closeModal('modal-repair-detail')">×</button></div>
+    <div id="rd-body">กำลังโหลด...</div>
+  </div>
+</div>
 
 <!-- ══════════ MODALS ══════════ -->
 
@@ -1555,6 +1724,7 @@ function showPage(name, btn) {
   if (name === 'kpi')       loadKpi();
   if (name === 'users')      loadUsers();
   if (name === 'complaints') loadComplaints();
+  if (name === 'repair')     loadRepair();
 }
 
 // ══════════════════════════════════════════════════════════
@@ -3877,6 +4047,352 @@ let editPersonUserId = null;
 
 // loadUsers() is called by showPage('users') — redirect to loadPeople()
 async function loadUsers() { await loadPeople(); }
+
+// ══════════════════════════════════════════════════════════
+//  REPAIR
+// ══════════════════════════════════════════════════════════
+let allRepairJobs = [];
+let _rpSearchTimer = null;
+
+const REPAIR_STATUS = {
+  received:'รับเรื่อง', assessing:'กำลังประเมิน', quoted:'เสนอราคาแล้ว',
+  waiting_approval:'รอลูกค้าอนุมัติ', device_received:'รับเครื่องแล้ว',
+  sent_supplier:'ส่ง Supplier', returned_from_supplier:'ได้เครื่องคืน',
+  returned_to_customer:'ส่งคืนลูกค้า', closed:'ปิดงาน', cancelled:'ยกเลิก'
+};
+const REPAIR_STATUS_COLOR = {
+  received:'#dbeafe', assessing:'#fef3c7', quoted:'#ede9fe',
+  waiting_approval:'#fef9c3', device_received:'#dcfce7',
+  sent_supplier:'#e0f2fe', returned_from_supplier:'#d1fae5',
+  returned_to_customer:'#bbf7d0', closed:'#f0fdf4', cancelled:'#fee2e2'
+};
+const REPAIR_STATUS_TEXT = {
+  received:'#1d4ed8', assessing:'#92400e', quoted:'#6d28d9',
+  waiting_approval:'#854d0e', device_received:'#166534',
+  sent_supplier:'#0369a1', returned_from_supplier:'#15803d',
+  returned_to_customer:'#15803d', closed:'#166534', cancelled:'#b91c1c'
+};
+const FINANCE_STATUS = {
+  pending:'รอเสนอราคา', quoted:'เสนอราคาแล้ว', approved:'อนุมัติแล้ว',
+  so_issued:'ออก SO แล้ว', paid:'ชำระแล้ว'
+};
+
+function rpStatusBadge(st) {
+  const bg  = REPAIR_STATUS_COLOR[st] || '#f1f5f9';
+  const col = REPAIR_STATUS_TEXT[st]  || '#475569';
+  return `<span style="background:${bg};color:${col};padding:.15rem .5rem;border-radius:20px;font-size:.72rem;font-weight:700;white-space:nowrap">${REPAIR_STATUS[st]||st}</span>`;
+}
+function rpFinanceBadge(fs) {
+  const colors = { pending:'#fef3c7|#92400e', quoted:'#ede9fe|#6d28d9',
+    approved:'#dcfce7|#166534', so_issued:'#dbeafe|#1d4ed8', paid:'#f0fdf4|#15803d' };
+  const [bg,col] = (colors[fs]||'#f1f5f9|#475569').split('|');
+  return `<span style="background:${bg};color:${col};padding:.12rem .45rem;border-radius:20px;font-size:.7rem;font-weight:600;white-space:nowrap">${FINANCE_STATUS[fs]||fs}</span>`;
+}
+
+function rpSearchDebounce() {
+  clearTimeout(_rpSearchTimer);
+  _rpSearchTimer = setTimeout(() => loadRepair(), 400);
+}
+
+async function loadRepair() {
+  const status = document.getElementById('rp-filter-status')?.value || '';
+  const search = document.getElementById('rp-search')?.value?.trim() || '';
+  let url = '/api/repair?';
+  if (status) url += `status=${status}&`;
+  if (search) url += `search=${encodeURIComponent(search)}&`;
+  allRepairJobs = await api(url);
+  renderRepairTable();
+}
+
+function renderRepairTable() {
+  const tbody = document.getElementById('repair-tbody');
+  if (!tbody) return;
+
+  // Stats
+  const total   = allRepairJobs.length;
+  const active  = allRepairJobs.filter(j => !['closed','cancelled'].includes(j.status)).length;
+  const closed  = allRepairJobs.filter(j => j.status === 'closed').length;
+  const unpaid  = allRepairJobs.filter(j => !['paid','cancelled'].includes(j.finance_status) && j.status !== 'cancelled').length;
+  const _s = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
+  _s('rp-stat-total',  total);
+  _s('rp-stat-active', active);
+  _s('rp-stat-closed', closed);
+  _s('rp-stat-unpaid', unpaid);
+
+  if (!allRepairJobs.length) {
+    tbody.innerHTML = '<tr><td colspan="9" class="empty"><div class="icon">🔧</div>ไม่พบงานซ่อม</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = allRepairJobs.map(j => `
+    <tr style="cursor:pointer" onclick="openRepairDetail(${j.id})">
+      <td><b style="color:var(--hd)">${j.job_no}</b></td>
+      <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.83rem">${escHtml(j.company_name||'—')}</td>
+      <td style="font-size:.8rem">${escHtml(j.device_type||'—')} ${j.device_model?`<span style="color:var(--muted)">${escHtml(j.device_model)}</span>`:''}</td>
+      <td style="font-size:.78rem;font-family:monospace">${escHtml(j.serial_no||'—')}</td>
+      <td>${rpStatusBadge(j.status)}</td>
+      <td>${rpFinanceBadge(j.finance_status)}</td>
+      <td style="font-size:.78rem">${escHtml(j.reporter_name||'—')}</td>
+      <td style="font-size:.75rem;white-space:nowrap">${fmtDate(j.reported_at)}</td>
+      <td onclick="event.stopPropagation()">
+        <button class="btn btn-ghost btn-sm" onclick="openRepairDetail(${j.id})">📋</button>
+      </td>
+    </tr>`).join('');
+}
+
+// ── Repair Form ────────────────────────────────────────────
+let _rfShopTimer = null;
+
+function openRepairForm() {
+  // Reset form
+  ['rf-shop-search','rf-device-type','rf-device-model','rf-vendor','rf-serial-no',
+   'rf-symptom','rf-initial-fix','rf-contact-name','rf-contact-phone',
+   'rf-line-id','rf-device-location','rf-warranty-expire'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('rf-registration-id').value = '';
+  document.getElementById('rf-shop-selected').textContent = '';
+  document.getElementById('rf-warranty').value = '0';
+  openModal('modal-repair-form');
+}
+
+function rpShopSearch() {
+  clearTimeout(_rfShopTimer);
+  _rfShopTimer = setTimeout(async () => {
+    const q = document.getElementById('rf-shop-search')?.value?.trim() || '';
+    const res = document.getElementById('rf-shop-results');
+    if (!res) return;
+    if (q.length < 2) { res.style.display = 'none'; return; }
+    const data = await api(`/api/repair/search-shop?q=${encodeURIComponent(q)}`);
+    if (!data.length) { res.style.display = 'none'; return; }
+    res.style.display = '';
+    res.innerHTML = data.map(s => `
+      <div onclick="selectRepairShop(${s.RegistrationId},'${escHtml(s.CompanyName).replace(/'/g,"&#39;")}')"
+           style="padding:.4rem .75rem;cursor:pointer;font-size:.82rem;border-bottom:1px solid #f1f5f9"
+           onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+        <b>${escHtml(s.CompanyName)}</b>
+        ${s.ContactName?`<span style="color:var(--muted);font-size:.72rem;margin-left:.4rem">${escHtml(s.ContactName)}</span>`:''}
+      </div>`).join('');
+  }, 300);
+}
+
+function selectRepairShop(regId, name) {
+  document.getElementById('rf-registration-id').value = regId;
+  document.getElementById('rf-shop-search').value = name;
+  document.getElementById('rf-shop-selected').textContent = `✅ เลือกแล้ว: ${name}`;
+  document.getElementById('rf-shop-results').style.display = 'none';
+}
+
+async function saveRepairForm() {
+  const company = document.getElementById('rf-shop-search').value.trim();
+  const symptom = document.getElementById('rf-symptom').value.trim();
+  if (!company) { showToast('❌ กรุณาระบุร้านค้า', 'error'); return; }
+  if (!symptom) { showToast('❌ กรุณาระบุอาการเสีย', 'error'); return; }
+
+  const body = {
+    registration_id: parseInt(document.getElementById('rf-registration-id').value) || null,
+    company_name:    company,
+    device_type:     document.getElementById('rf-device-type').value,
+    device_model:    document.getElementById('rf-device-model').value,
+    vendor:          document.getElementById('rf-vendor').value,
+    serial_no:       document.getElementById('rf-serial-no').value,
+    symptom,
+    initial_fix:     document.getElementById('rf-initial-fix').value,
+    contact_name:    document.getElementById('rf-contact-name').value,
+    contact_phone:   document.getElementById('rf-contact-phone').value,
+    line_id:         document.getElementById('rf-line-id').value,
+    device_location: document.getElementById('rf-device-location').value,
+    warranty:        document.getElementById('rf-warranty').value === '1',
+    warranty_expire: document.getElementById('rf-warranty-expire').value || null,
+  };
+
+  const result = await api('/api/repair', { method:'POST', body, silent:true });
+  if (result?.error) { showToast('❌ ' + result.error, 'error'); return; }
+
+  // Upload photos if any
+  const photoInput = document.getElementById('rf-photo');
+  if (photoInput?.files.length) {
+    for (const file of photoInput.files) {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('file_type', 'device_photo');
+      await fetch(`/api/repair/${result.id}/attachments`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + authToken },
+        body: fd
+      });
+    }
+  }
+
+  closeModal('modal-repair-form');
+  showToast(`✅ แจ้งซ่อมแล้ว — ${result.job_no}`);
+  loadRepair();
+}
+
+// ── Repair Detail ──────────────────────────────────────────
+let _currentRepairId = null;
+
+async function openRepairDetail(id) {
+  _currentRepairId = id;
+  document.getElementById('rd-body').innerHTML = '<div style="padding:1rem;color:var(--muted)">⏳ กำลังโหลด...</div>';
+  openModal('modal-repair-detail');
+  try {
+    const j = await api(`/api/repair/${id}`);
+    document.getElementById('rd-title').innerHTML = `🔧 ${j.job_no} <button class="modal-close" onclick="closeModal('modal-repair-detail')">×</button>`;
+    renderRepairDetail(j);
+  } catch(e) {
+    document.getElementById('rd-body').innerHTML = `<div style="color:#ef4444;padding:1rem">โหลดไม่สำเร็จ: ${e.message}</div>`;
+  }
+}
+
+function renderRepairDetail(j) {
+  const isLead = isLeadRole();
+  const fmtD = d => d ? new Date(String(d).replace('Z','')).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'}) : '—';
+  const attachHtml = (j.attachments||[]).map(a => `
+    <div style="display:flex;align-items:center;gap:.5rem;padding:.3rem 0;border-bottom:1px solid #f1f5f9">
+      <span style="font-size:.8rem;flex:1">
+        ${a.file_type==='device_photo'?'📷':a.file_type==='quotation'?'📄':a.file_type==='so'?'📋':a.file_type==='payment'?'💰':'📎'}
+        <a href="${a.file_path}" target="_blank" style="color:var(--hd)">${escHtml(a.file_name)}</a>
+      </span>
+      ${isLead ? `<button class="btn btn-sm" style="background:#fef2f2;color:#b91c1c;padding:.1rem .4rem" onclick="deleteRepairAttachment(${a.id})">🗑</button>` : ''}
+    </div>`).join('') || '<span style="color:var(--muted);font-size:.8rem">ยังไม่มีไฟล์</span>';
+
+  const timelineHtml = (j.timeline||[]).map(t => `
+    <div style="display:flex;gap:.5rem;padding:.3rem 0;border-bottom:1px solid #f1f5f9;font-size:.78rem">
+      <span style="color:var(--muted);white-space:nowrap">${fmtDate(t.changed_at)}</span>
+      <span><b>${escHtml(t.changed_by_name||'—')}</b>
+        ${t.field_changed==='status'?`เปลี่ยนสถานะ: ${rpStatusBadge(t.old_value)} → ${rpStatusBadge(t.new_value)}`
+        :t.field_changed==='finance_status'?`เปลี่ยนการเงิน: ${rpFinanceBadge(t.old_value)} → ${rpFinanceBadge(t.new_value)}`
+        :`อัพเดท ${t.field_changed}`}
+        ${t.note?`<span style="color:var(--muted)"> (${escHtml(t.note)})</span>`:''}
+      </span>
+    </div>`).join('') || '<span style="color:var(--muted);font-size:.8rem">ยังไม่มีประวัติ</span>';
+
+  document.getElementById('rd-body').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.75rem">
+      <div>
+        <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.4rem">ข้อมูลแจ้งซ่อม</div>
+        <table style="font-size:.8rem;width:100%;border-collapse:collapse">
+          ${[['ร้านค้า', j.company_name],['ประเภท', j.device_type],['รุ่น', j.device_model],
+             ['S/N', j.serial_no],['ผู้จัดจำหน่าย', j.vendor],['ผู้ติดต่อ', j.contact_name],
+             ['เบอร์โทร', j.contact_phone],['Line', j.line_id],['จุดวางเครื่อง', j.device_location],
+             ['ประกัน', j.warranty?`✅ ถึง ${fmtD(j.warranty_expire)}`:'❌ ไม่มีประกัน'],
+             ['ผู้แจ้ง', j.reporter_name]
+          ].map(([k,v])=>`<tr><td style="color:var(--muted);padding:.15rem .3rem .15rem 0;white-space:nowrap">${k}</td>
+            <td style="padding:.15rem 0;font-weight:500">${escHtml(v||'—')}</td></tr>`).join('')}
+        </table>
+        <div style="margin-top:.5rem">
+          <div style="font-size:.72rem;font-weight:700;color:var(--muted);margin-bottom:.2rem">อาการเสีย</div>
+          <div style="background:#f8fafc;border-radius:6px;padding:.4rem .6rem;font-size:.82rem;line-height:1.6">${escHtml(j.symptom||'—')}</div>
+        </div>
+        ${j.initial_fix?`<div style="margin-top:.4rem">
+          <div style="font-size:.72rem;font-weight:700;color:var(--muted);margin-bottom:.2rem">แก้ไขเบื้องต้น</div>
+          <div style="background:#f8fafc;border-radius:6px;padding:.4rem .6rem;font-size:.82rem;line-height:1.6">${escHtml(j.initial_fix)}</div>
+        </div>`:''}
+      </div>
+      <div>
+        <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.4rem">สถานะ & Admin</div>
+        ${isLead ? `
+        <div class="form-group">
+          <label style="font-size:.75rem">สถานะงาน</label>
+          <select id="rd-status" onchange="quickUpdateRepair(${j.id},'status',this.value)">
+            ${Object.entries(REPAIR_STATUS).map(([v,l])=>`<option value="${v}" ${j.status===v?'selected':''}>${l}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label style="font-size:.75rem">สถานะการเงิน</label>
+          <select id="rd-finance" onchange="quickUpdateRepair(${j.id},'finance_status',this.value)">
+            ${Object.entries(FINANCE_STATUS).map(([v,l])=>`<option value="${v}" ${j.finance_status===v?'selected':''}>${l}</option>`).join('')}
+          </select>
+        </div>
+        <div class="grid-2">
+          <div class="form-group"><label style="font-size:.72rem">วันที่เสนอราคา</label>
+            <input type="date" id="rd-quote-date" value="${j.quote_date||''}" onchange="quickUpdateRepair(${j.id},'quote_date',this.value)"/></div>
+          <div class="form-group"><label style="font-size:.72rem">เลขใบเสนอราคา</label>
+            <input id="rd-quote-no" value="${escHtml(j.quote_no||'')}" onblur="quickUpdateRepair(${j.id},'quote_no',this.value)"/></div>
+        </div>
+        <div class="grid-2">
+          <div class="form-group"><label style="font-size:.72rem">วันที่รับเครื่อง</label>
+            <input type="date" id="rd-recv-date" value="${j.received_date||''}" onchange="quickUpdateRepair(${j.id},'received_date',this.value)"/></div>
+          <div class="form-group"><label style="font-size:.72rem">วันที่ส่ง Supplier</label>
+            <input type="date" id="rd-sup-date" value="${j.sent_supplier_date||''}" onchange="quickUpdateRepair(${j.id},'sent_supplier_date',this.value)"/></div>
+        </div>
+        <div class="grid-2">
+          <div class="form-group"><label style="font-size:.72rem">ได้เครื่องคืน</label>
+            <input type="date" id="rd-rfs-date" value="${j.returned_from_supplier_date||''}" onchange="quickUpdateRepair(${j.id},'returned_from_supplier_date',this.value)"/></div>
+          <div class="form-group"><label style="font-size:.72rem">ส่งคืนลูกค้า</label>
+            <input type="date" id="rd-rtc-date" value="${j.returned_to_customer_date||''}" onchange="quickUpdateRepair(${j.id},'returned_to_customer_date',this.value)"/></div>
+        </div>
+        <div class="grid-2">
+          <div class="form-group"><label style="font-size:.72rem">S/N เครื่องสแปร์</label>
+            <input id="rd-spare-sn" value="${escHtml(j.spare_serial_no||'')}" onblur="quickUpdateRepair(${j.id},'spare_serial_no',this.value)"/></div>
+          <div class="form-group"><label style="font-size:.72rem">อุปกรณ์นำกลับ</label>
+            <input id="rd-taken" value="${escHtml(j.taken_back_items||'')}" onblur="quickUpdateRepair(${j.id},'taken_back_items',this.value)"/></div>
+        </div>
+        <div class="form-group"><label style="font-size:.72rem">หมายเหตุ</label>
+          <textarea id="rd-remark" rows="2" onblur="quickUpdateRepair(${j.id},'remark',this.value)">${escHtml(j.remark||'')}</textarea></div>
+        ` : `
+        <table style="font-size:.8rem;width:100%;border-collapse:collapse">
+          ${[['สถานะ', rpStatusBadge(j.status)],['การเงิน', rpFinanceBadge(j.finance_status)],
+             ['เสนอราคา', fmtD(j.quote_date)],['เลขใบเสนอ', j.quote_no||'—'],
+             ['รับเครื่อง', fmtD(j.received_date)],['ส่ง Supplier', fmtD(j.sent_supplier_date)],
+             ['ได้คืน', fmtD(j.returned_from_supplier_date)],['ส่งลูกค้า', fmtD(j.returned_to_customer_date)],
+             ['S/N สแปร์', j.spare_serial_no||'—'],['หมายเหตุ', j.remark||'—']
+          ].map(([k,v])=>`<tr><td style="color:var(--muted);padding:.15rem .3rem .15rem 0;white-space:nowrap">${k}</td>
+            <td style="padding:.15rem 0">${v}</td></tr>`).join('')}
+        </table>`}
+      </div>
+    </div>
+
+    <!-- Attachments -->
+    <div style="margin-bottom:.75rem">
+      <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.4rem">
+        ไฟล์แนบ
+        ${isLead ? `<label class="btn btn-ghost btn-sm" style="margin-left:.5rem;cursor:pointer;font-weight:600">
+          + แนบไฟล์ <input type="file" multiple style="display:none" onchange="uploadRepairFile(${j.id},this)"/>
+        </label>` : ''}
+      </div>
+      <div id="rd-attachments">${attachHtml}</div>
+    </div>
+
+    <!-- Timeline -->
+    <div>
+      <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.4rem">ประวัติการดำเนินการ</div>
+      <div id="rd-timeline">${timelineHtml}</div>
+    </div>`;
+}
+
+async function quickUpdateRepair(id, field, value) {
+  const body = { [field]: value || null };
+  const r = await api(`/api/repair/${id}`, { method:'PUT', body, silent:true });
+  if (r?.error) { showToast('❌ ' + r.error, 'error'); return; }
+  showToast('✅ บันทึกแล้ว');
+  loadRepair();
+}
+
+async function uploadRepairFile(repairId, input) {
+  const fileType = prompt('ประเภทไฟล์:\n1=รูปเครื่อง\n2=ใบเสนอราคา\n3=SO\n4=หลักฐานชำระ\n5=อื่นๆ\nกรอกตัวเลข:','2');
+  const typeMap = {'1':'device_photo','2':'quotation','3':'so','4':'payment','5':'other'};
+  const ft = typeMap[fileType] || 'other';
+  for (const file of input.files) {
+    const fd = new FormData();
+    fd.append('file', file); fd.append('file_type', ft);
+    const r = await fetch(`/api/repair/${repairId}/attachments`, {
+      method:'POST', headers:{Authorization:'Bearer '+authToken}, body:fd
+    });
+    if (!r.ok) { showToast('❌ อัพโหลดไม่สำเร็จ', 'error'); continue; }
+  }
+  showToast('✅ อัพโหลดแล้ว');
+  openRepairDetail(repairId);
+}
+
+async function deleteRepairAttachment(id) {
+  if (!confirm('ลบไฟล์นี้?')) return;
+  await api(`/api/repair/attachments/${id}`, { method:'DELETE' });
+  showToast('✅ ลบไฟล์แล้ว');
+  if (_currentRepairId) openRepairDetail(_currentRepairId);
+}
 
 // ══════════════════════════════════════════════════════════
 //  COMPLAINTS
