@@ -2606,6 +2606,14 @@ async function ensureRepairTables() {
 }
 
 init().then(async () => {
+  // Drop hardcoded team CHECK constraint so dynamic teams work
+  try {
+    await getPool().request().query(`
+      IF EXISTS (SELECT 1 FROM sys.check_constraints
+                 WHERE name='CK_emp_team' AND parent_object_id=OBJECT_ID('employees'))
+        ALTER TABLE employees DROP CONSTRAINT CK_emp_team`);
+  } catch(e) { console.warn('CK_emp_team drop skipped:', e.message); }
+
   await ensureCustomerLinksTable();
   await ensureRepairTables();
   app.listen(PORT, () => console.log(`🚀 CS Team App running at http://localhost:${PORT}`));
