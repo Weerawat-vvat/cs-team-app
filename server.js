@@ -1681,6 +1681,48 @@ app.get('/api/public/repair/:token', async (request, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// Get all repair jobs for a customer link token (no auth)
+app.get('/api/public/repairs-by-token/:token', async (request, res) => {
+  try {
+    const { token } = request.params;
+    const link = (await req().input('tok', sql.NVarChar, token)
+      .query('SELECT * FROM customer_links WHERE token=@tok')).recordset[0];
+    if (!link) return res.status(404).json({ error: 'Link ไม่พบ' });
+
+    const isGroup     = link.link_type === 'group' && link.group_id;
+    const companyName = link.company_name;
+
+    let jobs;
+    if (isGroup) {
+      // Get all company names in this group from LicenseDB
+      if (!getExtPool()) return res.json([]);
+      const brRes = await extReq().input('gid', sql.Int, link.group_id)
+        .query(`SELECT DISTINCT cr.CompanyName FROM CustomerRegistration cr WHERE cr.GroupId=@gid`);
+      const names = brRes.recordset.map(r => r.CompanyName);
+      if (!names.length) return res.json([]);
+      const r = req();
+      names.forEach((cn, i) => r.input(`cn${i}`, sql.NVarChar, cn));
+      const inClause = names.map((_, i) => `@cn${i}`).join(',');
+      jobs = await r.query(
+        `SELECT id, job_no, company_name, device_type, device_model, serial_no,
+                status, finance_status, reported_at, received_date,
+                sent_supplier_date, returned_from_supplier_date,
+                returned_to_customer_date, public_token, updated_at
+         FROM repair_jobs WHERE company_name IN (${inClause})
+         ORDER BY reported_at DESC`);
+    } else {
+      jobs = await req().input('cn', sql.NVarChar, companyName)
+        .query(`SELECT id, job_no, company_name, device_type, device_model, serial_no,
+                       status, finance_status, reported_at, received_date,
+                       sent_supplier_date, returned_from_supplier_date,
+                       returned_to_customer_date, public_token, updated_at
+                FROM repair_jobs WHERE company_name=@cn
+                ORDER BY reported_at DESC`);
+    }
+    res.json(jobs.recordset);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // Customer message from tracking page (no auth)
 app.post('/api/public/repair/:token/message', async (request, res) => {
   try {

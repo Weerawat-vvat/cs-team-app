@@ -244,6 +244,7 @@ async function init(){
       <div class="page-tabs">
         <button class="page-tab active" id="active-tab" data-tab="overview" onclick="switchTab('overview',this)">📊 Overview</button>
         <button class="page-tab" data-tab="list" onclick="switchTab('list',this)">📋 รายการ Case</button>
+        <button class="page-tab" data-tab="repair" onclick="switchTab('repair',this)">🔧 ติดตามงานซ่อม</button>
       </div>
     </div>
 
@@ -257,7 +258,8 @@ function switchTab(tab, btn){
   btn.classList.add('active');
   btn.id='active-tab'; btn.dataset.tab=tab;
   if(tab==='overview') renderOverview();
-  else renderList();
+  else if(tab==='list') renderList();
+  else if(tab==='repair') renderRepair();
 }
 
 function renderStats(){
@@ -538,6 +540,140 @@ async function submitComplain(){
   const d = await r.json();
   closeComplain();
   alert(r.ok?'📤 ส่งแล้ว! ทีม CS จะติดต่อกลับ':'❌ '+(d.error||'ส่งไม่สำเร็จ'));
+}
+
+// ── Repair Tab ────────────────────────────────────────────
+const REPAIR_STATUS = {
+  received:'รับเรื่อง', assessing:'กำลังประเมิน', quoted:'เสนอราคาแล้ว',
+  waiting_approval:'รอลูกค้าอนุมัติ', device_received:'รับเครื่องแล้ว',
+  sent_supplier:'ส่ง Supplier', returned_from_supplier:'ได้เครื่องคืน',
+  returned_to_customer:'ส่งคืนลูกค้าแล้ว', closed:'ปิดงาน', cancelled:'ยกเลิก'
+};
+const REPAIR_COLOR = {
+  received:'#dbeafe|#1d4ed8', assessing:'#fef3c7|#92400e', quoted:'#ede9fe|#6d28d9',
+  waiting_approval:'#fef9c3|#854d0e', device_received:'#dcfce7|#166534',
+  sent_supplier:'#e0f2fe|#0369a1', returned_from_supplier:'#d1fae5|#15803d',
+  returned_to_customer:'#bbf7d0|#15803d', closed:'#f0fdf4|#166534', cancelled:'#fee2e2|#b91c1c'
+};
+
+function repairBadge(st){
+  const [bg,col]=(REPAIR_COLOR[st]||'#f1f5f9|#475569').split('|');
+  return `<span style="background:${bg};color:${col};padding:.15rem .5rem;border-radius:20px;font-size:.7rem;font-weight:700;white-space:nowrap">${REPAIR_STATUS[st]||st}</span>`;
+}
+
+let _repairs = null;
+
+async function renderRepair(){
+  const wrap = document.getElementById('tab-content');
+  wrap.innerHTML = '<div class="loading">⏳ กำลังโหลด...</div>';
+  try {
+    if (!_repairs) {
+      const r = await fetch(`/api/public/repairs-by-token/${token}`);
+      _repairs = await r.json();
+      if (!r.ok) throw new Error(_repairs.error||'โหลดไม่สำเร็จ');
+    }
+    const jobs = _repairs;
+    const total    = jobs.length;
+    const active   = jobs.filter(j=>!['closed','cancelled','returned_to_customer'].includes(j.status)).length;
+    const done     = jobs.filter(j=>['closed','returned_to_customer'].includes(j.status)).length;
+
+    wrap.innerHTML = `
+      <!-- Repair stats -->
+      <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:.85rem">
+        <div class="stat-card" style="flex:1;min-width:120px;padding:.7rem .9rem">
+          <div class="label">🔧 ทั้งหมด</div>
+          <div class="value" style="color:#2563eb;font-size:1.5rem">${total}</div>
+        </div>
+        <div class="stat-card" style="flex:1;min-width:120px;padding:.7rem .9rem">
+          <div class="label">🔄 กำลังดำเนินการ</div>
+          <div class="value" style="color:#b45309;font-size:1.5rem">${active}</div>
+        </div>
+        <div class="stat-card" style="flex:1;min-width:120px;padding:.7rem .9rem">
+          <div class="label">✅ เสร็จแล้ว</div>
+          <div class="value" style="color:#16a34a;font-size:1.5rem">${done}</div>
+        </div>
+      </div>
+
+      <!-- Repair list -->
+      ${jobs.length===0 ? '<div class="empty">ยังไม่มีงานซ่อม</div>' :
+        jobs.map(j=>`
+        <div class="card" style="margin-bottom:.6rem;padding:.85rem 1rem;cursor:pointer"
+             onclick="toggleRepairDetail('rd-${j.id}')">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem;flex-wrap:wrap">
+            <div>
+              <div style="font-size:.88rem;font-weight:700;color:#2563eb">${esc(j.job_no)}</div>
+              <div style="font-size:.78rem;color:#475569;margin-top:.15rem">
+                ${j.device_type?`📦 ${esc(j.device_type)}`:''}
+                ${j.device_model?` · ${esc(j.device_model)}`:''}
+                ${j.serial_no?` · <span style="font-family:monospace">S/N: ${esc(j.serial_no)}</span>`:''}
+              </div>
+              ${_data?.isGroup?`<div style="font-size:.73rem;color:#64748b;margin-top:.1rem">🏢 ${esc(j.company_name||'')}</div>`:''}
+            </div>
+            <div style="text-align:right">
+              ${repairBadge(j.status)}
+              <div style="font-size:.7rem;color:#94a3b8;margin-top:.2rem">${fmtDate(j.reported_at)}</div>
+            </div>
+          </div>
+          <!-- Expandable detail -->
+          <div id="rd-${j.id}" style="display:none;margin-top:.75rem;border-top:1px solid #f1f5f9;padding-top:.65rem">
+            ${renderRepairTimeline(j)}
+            ${j.public_token && !['returned_to_customer','closed','cancelled'].includes(j.status) ? `
+            <div style="margin-top:.65rem;background:#f8fafc;border-radius:8px;padding:.65rem .8rem">
+              <div style="font-size:.75rem;font-weight:700;color:#64748b;margin-bottom:.4rem">📩 ส่งข้อความถึงทีม CS</div>
+              <input class="msg-name" id="rn-${j.id}" placeholder="ชื่อของคุณ (ไม่บังคับ)" style="margin-bottom:.3rem"/>
+              <textarea class="msg-input" id="rm-${j.id}" rows="2" placeholder="พิมพ์ข้อความ..." style="min-height:55px;margin-bottom:.35rem"></textarea>
+              <button class="send-btn" onclick="sendRepairMsg('${j.public_token}',${j.id})">📤 ส่ง</button>
+            </div>` : j.public_token && ['returned_to_customer','closed','cancelled'].includes(j.status) ? `
+            <div style="text-align:center;color:#16a34a;font-size:.82rem;font-weight:600;margin-top:.5rem;background:#f0fdf4;border-radius:8px;padding:.5rem">
+              ✅ งานนี้เสร็จสิ้นแล้ว — ขอบคุณที่ใช้บริการครับ
+            </div>` : ''}
+          </div>
+        </div>`).join('')}`;
+  } catch(e){
+    wrap.innerHTML=`<div class="error-box">❌ ${esc(e.message)}</div>`;
+  }
+}
+
+function renderRepairTimeline(j){
+  const steps=[
+    {key:'received',label:'รับเรื่อง',date:j.reported_at},
+    {key:'device_received',label:'รับเครื่อง',date:j.received_date},
+    {key:'sent_supplier',label:'ส่ง Supplier',date:j.sent_supplier_date},
+    {key:'returned_from_supplier',label:'ได้เครื่องคืน',date:j.returned_from_supplier_date},
+    {key:'returned_to_customer',label:'ส่งคืนลูกค้า',date:j.returned_to_customer_date},
+  ];
+  const ORDER=[...steps.map(s=>s.key),'closed','assessing','quoted','waiting_approval'];
+  const curIdx=ORDER.indexOf(j.status);
+  return `<div style="display:flex;gap:0;overflow-x:auto;padding:.25rem 0">${steps.map((s,i)=>{
+    const sIdx=ORDER.indexOf(s.key);
+    const done=sIdx>=0&&sIdx<=curIdx||s.date;
+    const active=s.key===j.status;
+    const col=done?'#16a34a':active?'#2563eb':'#e2e8f0';
+    return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:60px;position:relative">
+      ${i>0?`<div style="position:absolute;left:0;top:11px;width:50%;height:2px;background:${done||i===0?'#16a34a':'#e2e8f0'}"></div>`:''}
+      ${i<steps.length-1?`<div style="position:absolute;right:0;top:11px;width:50%;height:2px;background:${sIdx<curIdx?'#16a34a':'#e2e8f0'}"></div>`:''}
+      <div style="width:24px;height:24px;border-radius:50%;background:${col};color:#fff;display:flex;align-items:center;justify-content:center;font-size:.72rem;z-index:1;position:relative">${done?'✓':i+1}</div>
+      <div style="font-size:.65rem;text-align:center;margin-top:.2rem;color:${done?'#15803d':active?'#2563eb':'#94a3b8'};font-weight:${active?'700':'400'}">${s.label}</div>
+      ${s.date?`<div style="font-size:.6rem;color:#94a3b8">${fmtD(s.date)}</div>`:''}
+    </div>`}).join('')}</div>`;
+}
+
+function toggleRepairDetail(id){
+  const el=document.getElementById(id);
+  if(el) el.style.display=el.style.display==='none'?'':'none';
+}
+
+async function sendRepairMsg(repairToken, jobId){
+  const name=document.getElementById(`rn-${jobId}`)?.value.trim()||'';
+  const msg=document.getElementById(`rm-${jobId}`)?.value.trim()||'';
+  if(!msg){alert('กรุณาพิมพ์ข้อความก่อนส่ง');return;}
+  const r=await fetch(`/api/public/repair/${repairToken}/message`,{method:'POST',
+    headers:{'Content-Type':'application/json'},body:JSON.stringify({name,message:msg})});
+  const d=await r.json();
+  if(r.ok){
+    document.getElementById(`rm-${jobId}`).value='';
+    alert('📤 ส่งแล้ว! ทีม CS จะติดต่อกลับ');
+  } else alert('❌ '+(d.error||'ส่งไม่สำเร็จ'));
 }
 
 init();
