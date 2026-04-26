@@ -1409,13 +1409,23 @@ app.get('/api/public/track/:token', async (request, res) => {
           ORDER BY cl.ReceiveDate DESC`);
     }
 
-    // Branches list (for group link — show customer which branches are included)
+    // Branches list + per-branch stats (for group/chain link)
     let branches = [];
+    let branchStats = [];
     if (isGroup) {
-      const br = await extReq().input('gid2', sql.Int, linkRow.group_id)
-        .query(`SELECT DISTINCT cr.CompanyName
-                FROM CustomerRegistration cr WHERE cr.GroupId=@gid2 ORDER BY cr.CompanyName`);
-      branches = br.recordset.map(r => r.CompanyName);
+      const brRes = await extReq().input('gid2', sql.Int, linkRow.group_id)
+        .query(`SELECT cr.CompanyName,
+                  COUNT(cl.CalllogId) AS total,
+                  SUM(CASE WHEN cs.StatusName NOT LIKE '%close%' AND cs.StatusName NOT LIKE '%complete%'
+                           THEN 1 ELSE 0 END) AS open_count
+                FROM CustomerRegistration cr
+                LEFT JOIN Calllog cl    ON cl.RegistrationId = cr.RegistrationId AND cl.Active=1
+                LEFT JOIN CallStatus cs ON cs.StatusId = cl.StatusId
+                WHERE cr.GroupId = @gid2
+                GROUP BY cr.CompanyName
+                ORDER BY cr.CompanyName`);
+      branches    = brRes.recordset.map(r => r.CompanyName);
+      branchStats = brRes.recordset; // { CompanyName, total, open_count }
     }
 
     // Complaints
@@ -1432,12 +1442,13 @@ app.get('/api/public/track/:token', async (request, res) => {
                   FROM ticket_complaints WHERE company_name=@cn2 ORDER BY created_at DESC`);
 
     res.json({
-      company:    displayName,
+      company:     displayName,
       isGroup,
-      groupId:    linkRow.group_id || null,
+      groupId:     linkRow.group_id || null,
       branches,
-      tickets:    result.recordset,
-      complaints: complaints.recordset
+      branchStats,
+      tickets:     result.recordset,
+      complaints:  complaints.recordset
     });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
