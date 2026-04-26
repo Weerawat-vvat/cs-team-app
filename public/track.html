@@ -597,9 +597,8 @@ async function renderRepair(){
       <!-- Repair list -->
       ${jobs.length===0 ? '<div class="empty">ยังไม่มีงานซ่อม</div>' :
         jobs.map(j=>`
-        <div class="card" style="margin-bottom:.6rem;padding:.85rem 1rem;cursor:pointer"
-             onclick="toggleRepairDetail('rd-${j.id}')">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem;flex-wrap:wrap">
+        <div class="card" style="margin-bottom:.6rem;padding:0;overflow:hidden">
+          <div onclick="toggleRepairDetail('rd-${j.id}')" style="padding:.85rem 1rem;cursor:pointer;display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem;flex-wrap:wrap">
             <div>
               <div style="font-size:.88rem;font-weight:700;color:#2563eb">${esc(j.job_no)}</div>
               <div style="font-size:.78rem;color:#475569;margin-top:.15rem">
@@ -614,8 +613,9 @@ async function renderRepair(){
               <div style="font-size:.7rem;color:#94a3b8;margin-top:.2rem">${fmtDate(j.reported_at)}</div>
             </div>
           </div>
-          <!-- Expandable detail -->
-          <div id="rd-${j.id}" style="display:none;margin-top:.75rem;border-top:1px solid #f1f5f9;padding-top:.65rem">
+          </div><!-- end header -->
+          <!-- Expandable detail — stop propagation to prevent collapse when clicking inside -->
+          <div id="rd-${j.id}" onclick="event.stopPropagation()" style="display:none;border-top:1px solid #f1f5f9;padding:.75rem 1rem .9rem">
             ${renderRepairTimeline(j)}
             ${j.public_token && !['returned_to_customer','closed','cancelled'].includes(j.status) ? `
             <div style="margin-top:.65rem;background:#f8fafc;border-radius:8px;padding:.65rem .8rem">
@@ -636,26 +636,32 @@ async function renderRepair(){
 
 function renderRepairTimeline(j){
   const steps=[
-    {key:'received',label:'รับเรื่อง',date:j.reported_at},
-    {key:'device_received',label:'รับเครื่อง',date:j.received_date},
-    {key:'sent_supplier',label:'ส่ง Supplier',date:j.sent_supplier_date},
-    {key:'returned_from_supplier',label:'ได้เครื่องคืน',date:j.returned_from_supplier_date},
-    {key:'returned_to_customer',label:'ส่งคืนลูกค้า',date:j.returned_to_customer_date},
+    {key:'received',              label:'รับเรื่อง',        date:j.reported_at},
+    {key:'assessing',             label:'กำลังประเมิน',     date:null},
+    {key:'quoted',                label:'เสนอราคาแล้ว',    date:null},
+    {key:'waiting_approval',      label:'รอลูกค้าอนุมัติ', date:null},
+    {key:'device_received',       label:'รับเครื่องแล้ว',  date:j.received_date},
+    {key:'sent_supplier',         label:'ส่ง Supplier',    date:j.sent_supplier_date},
+    {key:'returned_from_supplier',label:'ได้เครื่องคืน',  date:j.returned_from_supplier_date},
+    {key:'returned_to_customer',  label:'ส่งคืนลูกค้า',   date:j.returned_to_customer_date},
   ];
-  const ORDER=[...steps.map(s=>s.key),'closed','assessing','quoted','waiting_approval'];
+  const ORDER=steps.map(s=>s.key);
   const curIdx=ORDER.indexOf(j.status);
-  return `<div style="display:flex;gap:0;overflow-x:auto;padding:.25rem 0">${steps.map((s,i)=>{
-    const sIdx=ORDER.indexOf(s.key);
-    const done=sIdx>=0&&sIdx<=curIdx||s.date;
+  return `<div style="display:flex;gap:0;overflow-x:auto;padding:.35rem 0 .1rem">${steps.map((s,i)=>{
+    const done=curIdx>=0&&i<=curIdx;
     const active=s.key===j.status;
     const col=done?'#16a34a':active?'#2563eb':'#e2e8f0';
-    return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:60px;position:relative">
-      ${i>0?`<div style="position:absolute;left:0;top:11px;width:50%;height:2px;background:${done||i===0?'#16a34a':'#e2e8f0'}"></div>`:''}
-      ${i<steps.length-1?`<div style="position:absolute;right:0;top:11px;width:50%;height:2px;background:${sIdx<curIdx?'#16a34a':'#e2e8f0'}"></div>`:''}
-      <div style="width:24px;height:24px;border-radius:50%;background:${col};color:#fff;display:flex;align-items:center;justify-content:center;font-size:.72rem;z-index:1;position:relative">${done?'✓':i+1}</div>
-      <div style="font-size:.65rem;text-align:center;margin-top:.2rem;color:${done?'#15803d':active?'#2563eb':'#94a3b8'};font-weight:${active?'700':'400'}">${s.label}</div>
-      ${s.date?`<div style="font-size:.6rem;color:#94a3b8">${fmtD(s.date)}</div>`:''}
-    </div>`}).join('')}</div>`;
+    const txtCol=done?'#15803d':active?'#2563eb':'#94a3b8';
+    const lineL=done&&i>0?'#16a34a':'#e2e8f0';
+    const lineR=curIdx>i?'#16a34a':'#e2e8f0';
+    return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:52px;position:relative">
+      ${i>0?`<div style="position:absolute;left:0;top:12px;width:50%;height:2px;background:${lineL}"></div>`:''}
+      ${i<steps.length-1?`<div style="position:absolute;right:0;top:12px;width:50%;height:2px;background:${lineR}"></div>`:''}
+      <div style="width:26px;height:26px;border-radius:50%;background:${col};color:${col==='#e2e8f0'?'#94a3b8':'#fff'};border:2px solid ${col==='#e2e8f0'?'#d1d5db':col};display:flex;align-items:center;justify-content:center;font-size:.7rem;z-index:1;position:relative;font-weight:700">${done?'✓':active?'●':'○'}</div>
+      <div style="font-size:.62rem;text-align:center;margin-top:.25rem;color:${txtCol};font-weight:${active?'700':'400'};line-height:1.3;padding:0 .1rem">${s.label}</div>
+      ${(s.date&&done)?`<div style="font-size:.58rem;color:#94a3b8;margin-top:.1rem">${fmtD(s.date)}</div>`:''}
+    </div>`;
+  }).join('')}</div>`;
 }
 
 function toggleRepairDetail(id){
