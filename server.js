@@ -1260,7 +1260,7 @@ async function ensureCustomerLinksTable() {
       IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ticket_complaints' AND xtype='U')
       CREATE TABLE ticket_complaints (
         id           INT PRIMARY KEY IDENTITY,
-        ticket_id    INT NOT NULL,
+        ticket_id    INT NULL,
         company_name NVARCHAR(255),
         email        NVARCHAR(255),
         message      NVARCHAR(MAX) NOT NULL,
@@ -1278,6 +1278,14 @@ async function ensureCustomerLinksTable() {
         created_at   DATETIME DEFAULT GETDATE(),
         CONSTRAINT UQ_watcher UNIQUE (company_name, email)
       )`);
+    // Fix ticket_id NOT NULL → NULL for global complaints
+    try {
+      await req().query(`
+        IF EXISTS (SELECT 1 FROM sys.columns
+                   WHERE object_id=OBJECT_ID('ticket_complaints') AND name='ticket_id'
+                     AND is_nullable=0)
+          ALTER TABLE ticket_complaints ALTER COLUMN ticket_id INT NULL`);
+    } catch {}
   } catch(e) { console.error('customer tables error:', e.message); }
 }
 
