@@ -1037,8 +1037,7 @@ textarea{resize:vertical;min-height:80px}
     <div class="tbl-wrap">
       <table>
         <thead><tr>
-          <th>#</th><th>เคส</th><th>บริษัท</th><th>Email</th>
-          <th>ข้อความ</th><th>วันที่</th><th>สถานะ</th><th></th>
+          <th>#</th><th>ร้านค้า</th><th>เคส</th><th>ข้อความ</th><th>วันที่</th><th>สถานะ</th><th>ดำเนินการ</th>
         </tr></thead>
         <tbody id="complaints-tbody">
           <tr><td colspan="8" class="empty">กำลังโหลด...</td></tr>
@@ -4661,26 +4660,69 @@ async function loadComplaints() {
       return;
     }
     tbody.innerHTML = data.map(c => `
-      <tr>
+      <tr style="${c.status==='pending'?'background:#fff5f5':''}">
         <td style="font-size:.8rem"><b>${c.id}</b></td>
-        <td style="font-size:.8rem">${c.ticket_id ? `<b>#${c.ticket_id}</b>` : '—'}</td>
-        <td style="font-size:.8rem;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(c.company_name||'—')}</td>
-        <td style="font-size:.78rem;color:var(--muted)">${escHtml(c.email||'—')}</td>
-        <td style="font-size:.8rem;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(c.message)}">${escHtml(c.message)}</td>
+        <td>
+          <div style="font-size:.83rem;font-weight:600;color:var(--text)">${escHtml(c.company_name||'—')}</div>
+          ${c.email?`<div style="font-size:.7rem;color:var(--muted)">${escHtml(c.email)}</div>`:''}
+          ${c.ticket_id?`<div style="font-size:.7rem;color:var(--hd)">เคส #${c.ticket_id}</div>`:''}
+        </td>
+        <td style="font-size:.8rem">${c.ticket_id ? `<b style="color:var(--hd)">#${c.ticket_id}</b>` : '<span style="color:var(--muted)">—</span>'}</td>
+        <td style="font-size:.8rem;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(c.message)}">${escHtml(c.message)}</td>
         <td style="font-size:.75rem;white-space:nowrap">${fmtDate(c.created_at)}</td>
         <td><span class="badge ${c.status==='resolved'?'badge-closed':'badge-open'}">${c.status==='resolved'?'✅ แก้ไขแล้ว':'⏳ รอดำเนินการ'}</span></td>
-        <td>${c.status==='pending'
-          ? `<button class="btn btn-sm btn-success" onclick="resolveComplaint(${c.id},this)">✓ แก้ไขแล้ว</button>`
-          : `<span style="font-size:.72rem;color:var(--muted)">${c.resolved_by_name||'—'}</span>`}</td>
+        <td>
+          <div class="btn-group" style="flex-wrap:wrap;gap:.25rem">
+            ${c.status==='pending' ? `
+              <button class="btn btn-sm btn-success" onclick="resolveComplaint(${c.id},this)" title="ปิดร้องเรียน">✓ แก้แล้ว</button>
+              <button class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="convertToRepair(${JSON.stringify(c).replace(/"/g,'&quot;')})" title="เปิดงานซ่อมจากร้องเรียนนี้">🔧 งานซ่อม</button>
+              <button class="btn btn-sm" style="background:#2563eb;color:#fff" onclick="viewComplaintTickets('${escHtml(c.company_name||'')}')" title="ดูเคสของร้านนี้">🎫 ดูเคส</button>
+            ` : `<span style="font-size:.72rem;color:var(--muted)">${c.resolved_by_name||'—'}</span>`}
+          </div>
+        </td>
       </tr>`).join('');
   } catch(e) {}
 }
 
 async function resolveComplaint(id, btn) {
   btn.disabled = true; btn.textContent = '⏳';
-  const r = await api(`/api/complaints/${id}/resolve`, { method: 'PUT', silent: true });
+  await api(`/api/complaints/${id}/resolve`, { method: 'PUT', silent: true });
   loadComplaints();
   loadComplaintsBadge();
+}
+
+function convertToRepair(c) {
+  // Open repair form pre-filled with complaint data
+  openRepairForm();
+  setTimeout(() => {
+    // Pre-fill company name search
+    const shopSearch = document.getElementById('rf-shop-search');
+    if (shopSearch) {
+      shopSearch.value = c.company_name || '';
+      document.getElementById('rf-shop-selected').textContent =
+        c.company_name ? `✅ จากร้องเรียน: ${c.company_name}` : '';
+    }
+    // Pre-fill symptom from complaint message
+    const symptom = document.getElementById('rf-symptom');
+    if (symptom) symptom.value = c.message || '';
+    // Pre-fill contact from email
+    const email = document.getElementById('rf-line-id');
+    if (email && c.email) email.value = c.email;
+    showToast(`🔧 เปิดฟอร์มงานซ่อม — ${c.company_name||''}`);
+  }, 300);
+}
+
+function viewComplaintTickets(companyName) {
+  if (!companyName) return;
+  // Switch to tickets page and search for this company
+  showPage('tickets', document.getElementById('nav-btn-tickets'));
+  setTimeout(() => {
+    const search = document.getElementById('tk-search');
+    if (search) {
+      search.value = companyName;
+      loadTickets();
+    }
+  }, 200);
 }
 
 async function loadPeople() {
