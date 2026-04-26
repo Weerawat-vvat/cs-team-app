@@ -3794,9 +3794,8 @@ function hideLoginOverlay() {
   document.getElementById('nav-user-info').style.display = 'flex';
 }
 
-function isLeadRole() {
-  return currentUser && ['team_lead','manager','admin'].includes(currentUser.role);
-}
+function isLeadRole()    { return currentUser && ['team_lead','manager','admin'].includes(currentUser.role); }
+function isManagerRole() { return currentUser && ['manager','admin'].includes(currentUser.role); }
 function applyUserContext() {
   if (!currentUser) return;
   const role = currentUser.role;
@@ -4357,10 +4356,15 @@ async function openRepairDetail(id) {
   // Note: badge only clears when admin actually replies (not just on open)
   try {
     const j = await api(`/api/repair/${id}`);
+    const _isLead = isLeadRole(), _isMgr = isManagerRole();
     document.getElementById('rd-title').innerHTML = `
       🔧 ${j.job_no}
-      <button onclick="genRepairLink(${j.id},'${j.public_token||''}')" title="Copy link ส่งให้ลูกค้า"
-        style="background:#2563eb;color:#fff;border:none;border-radius:6px;padding:.2rem .65rem;font-size:.72rem;font-weight:600;cursor:pointer;margin-left:.5rem">🔗 Link ลูกค้า</button>
+      <button onclick="genRepairLink(${j.id},'${j.public_token||''}')" title="Copy link ลูกค้า"
+        style="background:#2563eb;color:#fff;border:none;border-radius:6px;padding:.2rem .6rem;font-size:.72rem;font-weight:600;cursor:pointer;margin-left:.5rem">🔗 Link</button>
+      ${_isLead?`<button onclick="openEditRepairInfo(${j.id})" title="แก้ไขข้อมูลแจ้งซ่อม"
+        style="background:#f59e0b;color:#fff;border:none;border-radius:6px;padding:.2rem .6rem;font-size:.72rem;font-weight:600;cursor:pointer;margin-left:.25rem">✏️ แก้ไข</button>`:''}
+      ${_isMgr?`<button onclick="deleteRepairJob(${j.id},'${j.job_no}')" title="ลบงานซ่อม"
+        style="background:#ef4444;color:#fff;border:none;border-radius:6px;padding:.2rem .6rem;font-size:.72rem;font-weight:600;cursor:pointer;margin-left:.25rem">🗑 ลบ</button>`:''}
       <button class="modal-close" onclick="closeModal('modal-repair-detail')">×</button>`;
     renderRepairDetail(j);
   } catch(e) {
@@ -4586,6 +4590,79 @@ async function markReplied(repairId, timelineId) {
     body:{ message:'(ตอบแล้วผ่านช่องทางอื่น)', timeline_id: timelineId } });
   showToast('✓ บันทึกสถานะตอบแล้ว');
   openRepairDetail(repairId);
+}
+
+async function openEditRepairInfo(id) {
+  const j = await api(`/api/repair/${id}`);
+  closeModal('modal-repair-detail');
+  openRepairForm();
+  setTimeout(() => {
+    const set = (elId, val) => { const el=document.getElementById(elId); if(el) el.value=val||''; };
+    set('rf-shop-search',    j.company_name);
+    set('rf-device-type',   j.device_type);
+    set('rf-device-model',  j.device_model);
+    set('rf-vendor',        j.vendor);
+    set('rf-serial-no',     j.serial_no);
+    set('rf-symptom',       j.symptom);
+    set('rf-initial-fix',   j.initial_fix);
+    set('rf-contact-name',  j.contact_name);
+    set('rf-contact-phone', j.contact_phone);
+    set('rf-line-id',       j.line_id);
+    set('rf-device-location', j.device_location);
+    set('rf-warranty',      j.warranty ? '1' : '0');
+    set('rf-warranty-expire', j.warranty_expire ? String(j.warranty_expire).split('T')[0] : '');
+    document.getElementById('rf-registration-id').value = j.registration_id || '';
+    document.getElementById('rf-shop-selected').textContent = j.company_name ? `✅ ${j.company_name}` : '';
+    // Show warranty display
+    const wd = document.getElementById('rf-warranty-display');
+    if (wd && j.warranty_expire) {
+      const exp = new Date(String(j.warranty_expire).replace('Z',''));
+      const under = exp > new Date();
+      wd.innerHTML = under
+        ? `<span style="color:#16a34a;font-weight:700">✅ อยู่ในประกัน</span> <span style="color:var(--muted);font-size:.75rem">ถึง ${exp.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'})}</span>`
+        : `<span style="color:#dc2626;font-weight:700">❌ หมดประกัน</span>`;
+    }
+    // Change save button to update mode
+    const saveBtn = document.querySelector('#modal-repair-form .btn-primary');
+    if (saveBtn) {
+      saveBtn.textContent = '💾 บันทึกการแก้ไข';
+      saveBtn.onclick = () => saveEditRepairInfo(id);
+    }
+    document.querySelector('#modal-repair-form .modal-title').textContent = `✏️ แก้ไขงานซ่อม — ${j.job_no}`;
+  }, 200);
+}
+
+async function saveEditRepairInfo(id) {
+  const body = {
+    company_name:    document.getElementById('rf-shop-search').value.trim(),
+    device_type:     document.getElementById('rf-device-type').value,
+    device_model:    document.getElementById('rf-device-model').value,
+    vendor:          document.getElementById('rf-vendor').value,
+    serial_no:       document.getElementById('rf-serial-no').value,
+    symptom:         document.getElementById('rf-symptom').value,
+    initial_fix:     document.getElementById('rf-initial-fix').value,
+    contact_name:    document.getElementById('rf-contact-name').value,
+    contact_phone:   document.getElementById('rf-contact-phone').value,
+    line_id:         document.getElementById('rf-line-id').value,
+    device_location: document.getElementById('rf-device-location').value,
+    warranty:        document.getElementById('rf-warranty').value === '1',
+    warranty_expire: document.getElementById('rf-warranty-expire').value || null,
+  };
+  const r = await api(`/api/repair/${id}/info`, { method:'PUT', body, silent:true });
+  if (r?.error) { showToast('❌ ' + r.error, 'error'); return; }
+  closeModal('modal-repair-form');
+  showToast('✅ แก้ไขข้อมูลแล้ว');
+  openRepairDetail(id);
+  loadRepair();
+}
+
+async function deleteRepairJob(id, jobNo) {
+  if (!confirm(`ลบงานซ่อม ${jobNo} ?\n\nจะลบข้อมูลและไฟล์แนบทั้งหมด — ไม่สามารถกู้คืนได้`)) return;
+  const r = await api(`/api/repair/${id}`, { method:'DELETE', silent:true });
+  if (r?.error) { showToast('❌ ' + r.error, 'error'); return; }
+  closeModal('modal-repair-detail');
+  showToast(`🗑 ลบ ${jobNo} แล้ว`);
+  loadRepair();
 }
 
 async function genRepairLink(id, existingToken) {

@@ -1989,6 +1989,52 @@ app.post('/api/repair/:repairId/attachments', authRequired,
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// Edit base info (reported fields — device, contact, symptom etc.)
+app.put('/api/repair/:id/info', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const b  = request.body;
+    await req()
+      .input('id',  sql.Int,      id)
+      .input('dt',  sql.NVarChar, b.device_type     || null)
+      .input('dm',  sql.NVarChar, b.device_model    || null)
+      .input('vn',  sql.NVarChar, b.vendor          || null)
+      .input('cn',  sql.NVarChar, b.company_name    || null)
+      .input('sn',  sql.NVarChar, b.serial_no       || null)
+      .input('sy',  sql.NVarChar, b.symptom         || null)
+      .input('ifix',sql.NVarChar, b.initial_fix     || null)
+      .input('ct',  sql.NVarChar, b.contact_name    || null)
+      .input('cp',  sql.NVarChar, b.contact_phone   || null)
+      .input('li',  sql.NVarChar, b.line_id         || null)
+      .input('wa',  sql.Bit,      b.warranty ? 1 : 0)
+      .input('we',  sql.Date,     b.warranty_expire || null)
+      .input('dl',  sql.NVarChar, b.device_location || null)
+      .input('ub',  sql.Int,      request.user.id   || null)
+      .query(`UPDATE repair_jobs SET
+        device_type=@dt, device_model=@dm, vendor=@vn, company_name=@cn,
+        serial_no=@sn, symptom=@sy, initial_fix=@ifix,
+        contact_name=@ct, contact_phone=@cp, line_id=@li,
+        warranty=@wa, warranty_expire=@we, device_location=@dl,
+        updated_at=GETDATE(), updated_by=@ub WHERE id=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Delete repair job (manager only)
+app.delete('/api/repair/:id', authRequired, managerRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    // Delete files on disk first
+    const files = (await req().input('id', sql.Int, id)
+      .query('SELECT file_path FROM repair_attachments WHERE repair_id=@id')).recordset;
+    for (const f of files) {
+      try { const fp = path.join(UPLOAD_DIR, f.file_path.replace('/uploads/','')); if (fs.existsSync(fp)) fs.unlinkSync(fp); } catch {}
+    }
+    await req().input('id', sql.Int, id).query('DELETE FROM repair_jobs WHERE id=@id');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // Delete attachment
 app.delete('/api/repair/attachments/:id', authRequired, async (request, res) => {
   try {
