@@ -1428,18 +1428,20 @@ app.get('/api/public/track/:token', async (request, res) => {
       branchStats = brRes.recordset; // { CompanyName, total, open_count }
     }
 
-    // Complaints
-    const complaints = isGroup
-      ? await req().input('gid3', sql.Int, linkRow.group_id)
-          .query(`SELECT id, ticket_id, message, status, created_at
-                  FROM ticket_complaints tc
-                  WHERE EXISTS (
-                    SELECT 1 FROM CustomerRegistration cr
-                    WHERE cr.CompanyName = tc.company_name AND cr.GroupId = @gid3
-                  ) ORDER BY created_at DESC`)
-      : await req().input('cn2', sql.NVarChar, linkRow.company_name)
-          .query(`SELECT id, ticket_id, message, status, created_at
-                  FROM ticket_complaints WHERE company_name=@cn2 ORDER BY created_at DESC`);
+    // Complaints — use IN list (can't cross-DB JOIN cs_team ↔ LicenseDB)
+    let complaints = { recordset: [] };
+    if (isGroup && branches.length) {
+      const r = req();
+      branches.forEach((cn, i) => r.input(`cn${i}`, sql.NVarChar, cn));
+      const inClause = branches.map((_, i) => `@cn${i}`).join(',');
+      complaints = await r.query(
+        `SELECT id, ticket_id, message, status, created_at
+         FROM ticket_complaints WHERE company_name IN (${inClause}) ORDER BY created_at DESC`);
+    } else if (!isGroup) {
+      complaints = await req().input('cn2', sql.NVarChar, linkRow.company_name)
+        .query(`SELECT id, ticket_id, message, status, created_at
+                FROM ticket_complaints WHERE company_name=@cn2 ORDER BY created_at DESC`);
+    }
 
     res.json({
       company:     displayName,
