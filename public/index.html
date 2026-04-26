@@ -240,6 +240,7 @@ textarea{resize:vertical;min-height:80px}
 .ai-typing span:nth-child(2){animation-delay:.2s}
 .ai-typing span:nth-child(3){animation-delay:.4s}
 @keyframes blink{0%,80%,100%{opacity:.2}40%{opacity:1}}
+@keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.4);opacity:.7}}
 #ai-input-wrap{display:flex;gap:.5rem;padding:.75rem;border-top:1px solid var(--border);background:#fff}
 #ai-input{flex:1;padding:.52rem .75rem;border:1.5px solid var(--border);border-radius:10px;font-size:.84rem;font-family:inherit;outline:none;resize:none;line-height:1.4;max-height:80px;background:#fff;color:var(--text)}
 #ai-input:focus{border-color:#7c3aed;box-shadow:0 0 0 3px #7c3aed22}
@@ -4155,10 +4156,15 @@ function renderRepairTable() {
     return;
   }
 
+  // Build set of jobs needing action
+  const _needsAction = new Set((_repairUnread||[]).map(r=>r.repair_id));
   setTimeout(renderRepairUnreadHighlight, 50);
   tbody.innerHTML = allRepairJobs.map(j => `
-    <tr style="cursor:pointer" onclick="openRepairDetail(${j.id})">
-      <td><b style="color:var(--hd)">${j.job_no}</b></td>
+    <tr style="cursor:pointer;${_needsAction.has(j.id)?'background:#fff5f5;':''}\" onclick="openRepairDetail(${j.id})">
+      <td>
+        <b style="color:var(--hd)">${j.job_no}</b>
+        ${_needsAction.has(j.id)?'<span style="display:inline-block;width:9px;height:9px;background:#ef4444;border-radius:50%;margin-left:.35rem;vertical-align:middle;animation:pulse 1.5s infinite" title="รอตอบข้อความลูกค้า"></span>':''}
+      </td>
       <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.83rem">${escHtml(j.company_name||'—')}</td>
       <td style="font-size:.8rem">${escHtml(j.device_type||'—')} ${j.device_model?`<span style="color:var(--muted)">${escHtml(j.device_model)}</span>`:''}</td>
       <td style="font-size:.78rem;font-family:monospace">${escHtml(j.serial_no||'—')}</td>
@@ -4349,9 +4355,7 @@ async function openRepairDetail(id) {
   _currentRepairId = id;
   document.getElementById('rd-body').innerHTML = '<div style="padding:1rem;color:var(--muted)">⏳ กำลังโหลด...</div>';
   openModal('modal-repair-detail');
-  // Mark customer messages as read
-  api(`/api/repair/${id}/read-messages`, { method:'POST', silent:true })
-    .then(() => pollRepairMessages());
+  // Note: badge only clears when admin actually replies (not just on open)
   try {
     const j = await api(`/api/repair/${id}`);
     document.getElementById('rd-title').innerHTML = `
@@ -4529,14 +4533,24 @@ let _repairPollTimer = null;
 
 async function pollRepairMessages() {
   try {
-    _repairUnread = await api('/api/repair/unread-messages') || [];
-    const total = _repairUnread.reduce((s,r) => s + r.msg_count, 0);
+    const data = await api('/api/repair/unread-messages') || {};
+    _repairUnread = data.repairs || (Array.isArray(data) ? data : []);
+    const repairCount    = data.repairCount    ?? _repairUnread.reduce((s,r)=>s+r.msg_count,0);
+    const complaintCount = data.complaintCount ?? 0;
+
+    // Repair badge
     const badge = document.getElementById('repair-msg-badge');
     if (badge) {
-      if (total > 0) { badge.textContent = total; badge.style.display = ''; }
+      if (repairCount > 0) { badge.textContent = repairCount; badge.style.display = ''; }
       else badge.style.display = 'none';
     }
-    // Highlight rows in repair table
+    // Complaint badge — also update with pending count
+    const cbadge = document.getElementById('complaint-badge');
+    if (cbadge) {
+      const total = complaintCount + (parseInt(cbadge.dataset.extra||0)||0);
+      if (complaintCount > 0) { cbadge.textContent = complaintCount; cbadge.style.display = ''; }
+      else { /* keep existing from loadComplaintsBadge */ }
+    }
     renderRepairUnreadHighlight();
   } catch {}
 }

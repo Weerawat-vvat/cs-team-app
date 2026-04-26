@@ -1557,8 +1557,7 @@ async function genJobNo() {
 // Count unread customer messages (for badge)
 app.get('/api/repair/unread-messages', authRequired, async (request, res) => {
   try {
-    // Unread = customer_message entries where read_at IS NULL
-    // We track read by adding read_at column lazily
+    // "Needs action" = has customer_message with NO admin_reply after it
     const result = await req().query(`
       SELECT rt.repair_id, rj.job_no, rj.company_name,
              COUNT(*) AS msg_count,
@@ -1566,20 +1565,25 @@ app.get('/api/repair/unread-messages', authRequired, async (request, res) => {
       FROM repair_timeline rt
       JOIN repair_jobs rj ON rj.id = rt.repair_id
       WHERE rt.field_changed = 'customer_message'
-        AND rt.read_at IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM repair_timeline rt2
+          WHERE rt2.repair_id = rt.repair_id
+            AND rt2.field_changed = 'admin_reply'
+            AND rt2.changed_at > rt.changed_at
+        )
       GROUP BY rt.repair_id, rj.job_no, rj.company_name
       ORDER BY last_msg DESC`);
-    res.json(result.recordset);
-  } catch(e) {
-    // If read_at column doesn't exist yet, add it
-    if (e.message.includes('read_at')) {
-      try {
-        await req().query(`ALTER TABLE repair_timeline ADD read_at DATETIME NULL`);
-        return res.json([]);
-      } catch {}
-    }
-    res.json([]);
-  }
+
+    // Also include pending complaints count
+    const complaints = await req().query(
+      `SELECT COUNT(*) AS cnt FROM ticket_complaints WHERE status='pending'`);
+
+    res.json({
+      repairs:    result.recordset,
+      repairCount: result.recordset.reduce((s,r)=>s+r.msg_count,0),
+      complaintCount: complaints.recordset[0]?.cnt || 0
+    });
+  } catch(e) { res.json({ repairs:[], repairCount:0, complaintCount:0 }); }
 });
 
 // Mark all messages for a repair job as read
