@@ -1359,76 +1359,87 @@ app.delete('/api/customer-links/:id', authRequired, async (request, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// PUBLIC — get tickets by token (no auth)
+// PUBLIC — get tickets by token (no auth), supports dateFrom/dateTo
 app.get('/api/public/track/:token', async (request, res) => {
   try {
     if (!getExtPool()) return res.status(503).json({ error: 'DB not available' });
     const { token } = request.params;
+    const { dateFrom, dateTo } = request.query;
 
-    // Validate token
     const link = await req().input('tok', sql.NVarChar, token)
       .query('SELECT * FROM customer_links WHERE token=@tok');
     if (!link.recordset.length) return res.status(404).json({ error: 'Link ไม่พบหรือถูกลบแล้ว' });
 
-    const linkRow   = link.recordset[0];
-    const isGroup   = linkRow.link_type === 'group' && linkRow.group_id;
+    const linkRow     = link.recordset[0];
+    const isGroup     = linkRow.link_type === 'group' && linkRow.group_id;
     const displayName = isGroup ? linkRow.group_name : linkRow.company_name;
 
-    const ticketQuery = `
-      SELECT
-        cl.CalllogId        AS id,
-        cr.CompanyName,
-        cl.ReceiveDate      AS opened_at,
-        cl.CloseDate,
-        cs.StatusName       AS status,
-        cl.Subject          AS title,
+    // Date range (default: last 30 days)
+    const endDate   = dateTo   ? new Date(new Date(dateTo).getTime() + 86400000)
+                               : new Date(new Date().getTime() + 86400000);
+    const startDate = dateFrom ? new Date(dateFrom)
+                               : new Date(new Date().setDate(new Date().getDate() - 29));
+    const hasDates  = !!(dateFrom || dateTo);
+
+    // Scope condition
+    const scopeWhere = isGroup
+      ? `AND cr.GroupId = @gid`
+      : `AND cr.CompanyName LIKE @cn`;
+
+    const mkE = () => {
+      const r = extReq().input('sd', sql.DateTime, startDate).input('ed', sql.DateTime, endDate);
+      if (isGroup) r.input('gid', sql.Int, linkRow.group_id);
+      else         r.input('cn', sql.NVarChar, `%${linkRow.company_name}%`);
+      return r;
+    };
+
+    const ticketFields = `
+      SELECT cl.CalllogId AS id, cr.CompanyName,
+        cl.ReceiveDate AS opened_at, cl.CloseDate,
+        cs.StatusName AS status,
+        cl.Subject AS title,
         pt.ProblemTypeDetail AS problem_type,
-        cl.CalllogDesc      AS description,
-        cl.Solution,
-        u.UserName          AS agent,
-        cl.Stars,
+        cl.CalllogDesc AS description, cl.Solution,
+        u.UserName AS agent, cl.Stars,
         CASE WHEN cl.CloseDate IS NOT NULL AND cl.ReceiveDate IS NOT NULL
              THEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate) END AS resolve_minutes
       FROM Calllog cl
       INNER JOIN CustomerRegistration cr ON cr.RegistrationId = cl.RegistrationId
-      INNER JOIN CallStatus           cs ON cs.StatusId       = cl.StatusId
-      INNER JOIN Users                u  ON u.UserId          = cl.SupportId
-      LEFT  JOIN ProblemType          pt ON pt.ProblemTypeId  = cl.ProblemTypeId`;
+      INNER JOIN CallStatus cs ON cs.StatusId = cl.StatusId
+      INNER JOIN Users u ON u.UserId = cl.SupportId
+      LEFT  JOIN ProblemType pt ON pt.ProblemTypeId = cl.ProblemTypeId`;
 
-    let result;
-    if (isGroup) {
-      // Group link: fetch all branches in the group (GroupId != 1 guaranteed by creation)
-      result = await extReq().input('gid', sql.Int, linkRow.group_id)
-        .query(ticketQuery + `
-          WHERE cl.Active=1 AND cr.GroupId = @gid
-          ORDER BY cl.ReceiveDate DESC`);
-    } else {
-      result = await extReq().input('cn', sql.NVarChar, `%${linkRow.company_name}%`)
-        .query(ticketQuery + `
-          WHERE cl.Active=1 AND cr.CompanyName LIKE @cn
-          ORDER BY cl.ReceiveDate DESC`);
-    }
+    const dateWhere = `WHERE cl.Active=1 AND cl.ReceiveDate >= @sd AND cl.ReceiveDate < @ed ${scopeWhere}`;
 
-    // Branches list + per-branch stats (for group/chain link)
-    let branches = [];
-    let branchStats = [];
-    if (isGroup) {
-      const brRes = await extReq().input('gid2', sql.Int, linkRow.group_id)
-        .query(`SELECT cr.CompanyName,
-                  COUNT(cl.CalllogId) AS total,
-                  SUM(CASE WHEN cs.StatusName NOT LIKE '%close%' AND cs.StatusName NOT LIKE '%complete%'
-                           THEN 1 ELSE 0 END) AS open_count
-                FROM CustomerRegistration cr
-                LEFT JOIN Calllog cl    ON cl.RegistrationId = cr.RegistrationId AND cl.Active=1
-                LEFT JOIN CallStatus cs ON cs.StatusId = cl.StatusId
-                WHERE cr.GroupId = @gid2
-                GROUP BY cr.CompanyName
-                ORDER BY cr.CompanyName`);
-      branches    = brRes.recordset.map(r => r.CompanyName);
-      branchStats = brRes.recordset; // { CompanyName, total, open_count }
-    }
+    const [ticketRes, trendRes, ptRes, branchRes] = await Promise.all([
+      // Tickets in date range
+      mkE().query(`${ticketFields} ${dateWhere} ORDER BY cl.ReceiveDate DESC`),
+      // Daily trend
+      mkE().query(`SELECT CAST(cl.ReceiveDate AS DATE) AS day, COUNT(*) AS cnt
+                   FROM Calllog cl INNER JOIN CustomerRegistration cr ON cr.RegistrationId=cl.RegistrationId
+                   ${dateWhere} GROUP BY CAST(cl.ReceiveDate AS DATE) ORDER BY day`),
+      // Problem type breakdown
+      mkE().query(`SELECT ISNULL(pt.ProblemTypeDetail,'อื่นๆ') AS problem_type, COUNT(*) AS cnt
+                   FROM Calllog cl INNER JOIN CustomerRegistration cr ON cr.RegistrationId=cl.RegistrationId
+                   LEFT JOIN ProblemType pt ON pt.ProblemTypeId=cl.ProblemTypeId
+                   ${dateWhere} GROUP BY pt.ProblemTypeDetail ORDER BY cnt DESC`),
+      // Branch stats (all time for chain, filtered for date range)
+      isGroup ? mkE().query(
+        `SELECT cr.CompanyName,
+           COUNT(cl.CalllogId) AS total,
+           SUM(CASE WHEN cs.StatusName NOT LIKE '%close%' AND cs.StatusName NOT LIKE '%complete%' THEN 1 ELSE 0 END) AS open_count
+         FROM CustomerRegistration cr
+         LEFT JOIN Calllog cl    ON cl.RegistrationId=cr.RegistrationId AND cl.Active=1 AND cl.ReceiveDate>=@sd AND cl.ReceiveDate<@ed
+         LEFT JOIN CallStatus cs ON cs.StatusId=cl.StatusId
+         WHERE cr.GroupId=@gid
+         GROUP BY cr.CompanyName ORDER BY total DESC`)
+      : Promise.resolve({ recordset: [] })
+    ]);
 
-    // Complaints — use IN list (can't cross-DB JOIN cs_team ↔ LicenseDB)
+    const branches    = isGroup ? branchRes.recordset.map(r => r.CompanyName) : [];
+    const branchStats = isGroup ? branchRes.recordset : [];
+
+    // Complaints
     let complaints = { recordset: [] };
     if (isGroup && branches.length) {
       const r = req();
@@ -1449,8 +1460,12 @@ app.get('/api/public/track/:token', async (request, res) => {
       groupId:     linkRow.group_id || null,
       branches,
       branchStats,
-      tickets:     result.recordset,
-      complaints:  complaints.recordset
+      tickets:     ticketRes.recordset,
+      trendData:   trendRes.recordset,
+      problemTypes: ptRes.recordset,
+      complaints:  complaints.recordset,
+      dateFrom:    startDate.toISOString().split('T')[0],
+      dateTo:      new Date(endDate.getTime() - 86400000).toISOString().split('T')[0],
     });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
