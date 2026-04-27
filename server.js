@@ -2308,10 +2308,12 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
         WHERE cl.Active=1 AND cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc7}
         GROUP BY DATEPART(weekday, cl.ReceiveDate) ORDER BY dow`),
       // Category daily trend (top cats over time)
-      r8.query(`SELECT TOP 500 CAST(cl.ReceiveDate AS DATE) AS day, cl.Subject AS cat, COUNT(*) AS cnt
+      r8.query(`SELECT TOP 500 CAST(cl.ReceiveDate AS DATE) AS day,
+                       ISNULL(pt.ProblemTypeDetail,'อื่นๆ') AS cat, COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
+        LEFT  JOIN ProblemType pt ON pt.ProblemTypeId = cl.ProblemTypeId
         WHERE cl.Active=1 AND cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc8}
-        GROUP BY CAST(cl.ReceiveDate AS DATE), cl.Subject ORDER BY day, cnt DESC`),
+        GROUP BY CAST(cl.ReceiveDate AS DATE), pt.ProblemTypeDetail ORDER BY day, cnt DESC`),
       // Closed count this period
       r9.query(`SELECT COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId

@@ -547,15 +547,6 @@ textarea{resize:vertical;min-height:80px}
     </div>
   </div>
 
-  <!-- ── Scatter Chart ── -->
-  <div class="card">
-    <div class="card-title">⚡ Workload Scatter — เดือนนี้ vs เดือนก่อน (per Agent)
-      <span style="font-size:.72rem;color:var(--muted);font-weight:400;margin-left:.5rem">🟢 เพิ่มขึ้น · 🔴 ลดลง · 🔵 ใกล้เคียง</span>
-    </div>
-    <canvas id="chart-scatter-wl" height="130"></canvas>
-    <div class="agent-chips" id="dash-agent-chips"></div>
-  </div>
-
   <!-- ── Trends & Peak Analysis ── -->
   <div class="section-divider">📈 Trends &amp; Peak Analysis</div>
 
@@ -2340,10 +2331,9 @@ async function loadDashboardCharts() {
     // Build lookup: cat → day → cnt  (SQL returns field 'cat' not 'category')
     const lookup   = {};
     catDailyTrend.forEach(r => {
-      const key = r.cat || r.category || '';
+      const key = r.cat || r.category || 'อื่นๆ';
       if (!lookup[key]) lookup[key] = {};
-      // Normalize day to YYYY-MM-DD string for consistent lookup
-      const dayKey = typeof r.day === 'string' ? r.day.substring(0, 10) : new Date(r.day).toISOString().substring(0, 10);
+      const dayKey = typeof r.day === 'string' ? r.day.substring(0, 10) : new Date(String(r.day).replace('Z','')).toISOString().substring(0, 10);
       lookup[key][dayKey] = r.cnt;
     });
     // Format day keys consistently
