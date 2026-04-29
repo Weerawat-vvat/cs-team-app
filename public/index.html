@@ -28,6 +28,12 @@ body{font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--t
 .s-tab:hover{background:#334155;color:#fff}
 .s-tab.active{background:#2563eb;color:#fff;font-weight:600}
 .s-tab-icon{font-size:1rem;flex-shrink:0;width:1.2rem;text-align:center;filter:grayscale(1) brightness(10)}
+.s-sub-menu{display:none;flex-direction:column;gap:.1rem;padding:.1rem 0 .1rem .8rem;margin-top:.1rem}
+.s-sub-menu.open{display:flex}
+.s-sub{background:none;border:none;color:#64748b;cursor:pointer;padding:.35rem .65rem;border-radius:6px;font-size:.78rem;text-align:left;display:flex;align-items:center;gap:.45rem;transition:all .15s;width:100%;font-family:inherit;border-left:2px solid #334155}
+.s-sub:hover{background:#334155;color:#fff;border-left-color:#475569}
+.s-sub.active{background:#1e3a5f;color:#93c5fd;font-weight:600;border-left-color:#3b82f6}
+.s-arrow{margin-left:auto;font-size:.65rem;transition:transform .2s;opacity:.6}
 .sidebar-footer{padding:.75rem .85rem;border-top:1px solid #334155;margin-top:auto}
 .sidebar-user-name{font-size:.82rem;font-weight:700;color:#e2e8f0;white-space:normal;word-break:break-word;line-height:1.3}
 .sidebar-user-role{font-size:.7rem;color:#94a3b8;margin-top:.1rem}
@@ -403,12 +409,27 @@ textarea{resize:vertical;min-height:80px}
       <span class="s-tab-icon">🔧</span> งานซ่อม
       <span id="repair-msg-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.65rem;padding:.05rem .4rem;margin-left:.2rem;font-weight:700"></span>
     </button>
-    <button class="s-tab" id="nav-btn-settings" onclick="showPage('settings',this)">
-      <span class="s-tab-icon">⚙️</span> ตั้งค่า
-    </button>
-    <!-- hidden — accessed via settings tabs -->
-    <button class="s-tab" id="nav-btn-schedule" onclick="showPage('schedule',this)" style="display:none"></button>
-    <button class="s-tab" id="nav-btn-users"    onclick="showPage('users',this)"    style="display:none"></button>
+    <!-- Settings expandable -->
+    <div id="nav-settings-group">
+      <button class="s-tab" id="nav-btn-settings" onclick="toggleSettingsMenu(this)">
+        <span class="s-tab-icon">⚙️</span> ตั้งค่า
+        <span class="s-arrow" id="settings-arrow">▶</span>
+      </button>
+      <div class="s-sub-menu" id="settings-sub">
+        <button class="s-sub" id="nav-sub-schedule" onclick="navSettings('schedule',this)">
+          <span style="font-size:.8rem">📅</span> ตารางงาน
+        </button>
+        <button class="s-sub" id="nav-sub-subjects" onclick="navSettings('subjects',this)">
+          <span style="font-size:.8rem">📋</span> หัวข้อ / ประเภทปัญหา
+        </button>
+        <button class="s-sub" id="nav-sub-users" onclick="navSettings('users',this)">
+          <span style="font-size:.8rem">👤</span> จัดการ User
+        </button>
+      </div>
+    </div>
+    <!-- hidden buttons for backward compat -->
+    <button class="s-tab" id="nav-btn-schedule" style="display:none"></button>
+    <button class="s-tab" id="nav-btn-users"    style="display:none"></button>
     <button class="s-tab" id="nav-btn-complaints" onclick="showPage('complaints',this)" style="display:none">
       <span class="s-tab-icon">📣</span> ร้องเรียน <span id="complaint-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.65rem;padding:.05rem .4rem;margin-left:.2rem;font-weight:700"></span>
     </button>
@@ -3919,8 +3940,13 @@ function applyUserContext() {
 
   // Nav: Users tab — manager/admin only
   document.getElementById('nav-btn-users').style.display    = isManager ? '' : 'none';
-  // Settings visible to team_lead+ (schedule needs it); Users/Subject tabs inside are manager-gated
-  document.getElementById('nav-btn-settings').style.display = isLead ? '' : 'none';
+  // Settings group visible to team_lead+
+  document.getElementById('nav-settings-group').style.display = isLead ? '' : 'none';
+  // Hide users sub-item for non-managers
+  const usersSub = document.getElementById('nav-sub-users');
+  if (usersSub) usersSub.style.display = isManager ? '' : 'none';
+  const subjectsSub = document.getElementById('nav-sub-subjects');
+  if (subjectsSub) subjectsSub.style.display = isManager ? '' : 'none';
   document.getElementById('nav-btn-complaints').style.display = isLead ? '' : 'none';
   if (isLead) {
     loadComplaintsBadge();
@@ -4825,6 +4851,45 @@ async function deleteRepairAttachment(id) {
 //  SETTINGS
 // ══════════════════════════════════════════════════════════
 let _settingTab = 'subjects';
+
+function toggleSettingsMenu(btn) {
+  const sub   = document.getElementById('settings-sub');
+  const arrow = document.getElementById('settings-arrow');
+  const isOpen = sub.classList.contains('open');
+  sub.classList.toggle('open');
+  arrow.textContent = isOpen ? '▶' : '▼';
+  arrow.style.transform = isOpen ? '' : 'rotate(0deg)';
+  if (!isOpen) {
+    // Activate settings page with default sub
+    navSettings('schedule', document.getElementById('nav-sub-schedule'));
+  }
+}
+
+function navSettings(sub, btn) {
+  // Highlight parent
+  document.querySelectorAll('.s-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.s-sub').forEach(b => b.classList.remove('active'));
+  document.getElementById('nav-btn-settings').classList.add('active');
+  btn?.classList.add('active');
+  // Open submenu
+  document.getElementById('settings-sub').classList.add('open');
+  document.getElementById('settings-arrow').textContent = '▼';
+  // Navigate
+  if (sub === 'schedule') {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-schedule').classList.add('active');
+    loadSchedule();
+  } else if (sub === 'users') {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-users').classList.add('active');
+    loadUsers();
+  } else {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-settings').classList.add('active');
+    _settingTab = sub;
+    loadSettings();
+  }
+}
 
 function switchSettingTab(tab, btn) {
   _settingTab = tab;
