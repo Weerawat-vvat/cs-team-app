@@ -582,6 +582,7 @@ app.get('/api/settings/subjects', authRequired, async (_, res) => {
               pt.ProblemTypeDetail AS problem_type_name
        FROM Subject s
        LEFT JOIN ProblemType pt ON pt.ProblemTypeId = s.ProblemTypeId
+       WHERE s.Active = 1
        ORDER BY pt.ProblemTypeDetail, s.SubjectName`);
     res.json(r.recordset);
   } catch(e) { res.status(500).json({ error: e.message }); }
