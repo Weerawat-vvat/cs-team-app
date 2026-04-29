@@ -575,42 +575,48 @@ app.get('/api/settings/subjects', authRequired, async (_, res) => {
   try {
     if (!getExtPool()) return res.status(503).json({ error: 'LicenseDB not connected' });
     const r = await extReq().query(
-      `SELECT SubjectId AS id, SubjectName AS name, Grade AS grade,
-              WeightScore AS weight_score, Active AS active,
-              TimeToResolve AS time_to_resolve
-       FROM Subject ORDER BY SubjectName`);
+      `SELECT s.SubjectId AS id, s.SubjectName AS name, s.Grade AS grade,
+              s.WeightScore AS weight_score, s.Active AS active,
+              s.TimeToResolve AS time_to_resolve,
+              s.ProblemTypeId AS problem_type_id,
+              pt.ProblemTypeDetail AS problem_type_name
+       FROM Subject s
+       LEFT JOIN ProblemType pt ON pt.ProblemTypeId = s.ProblemTypeId
+       ORDER BY pt.ProblemTypeDetail, s.SubjectName`);
     res.json(r.recordset);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/settings/subjects', authRequired, managerRequired, async (request, res) => {
   try {
-    const { name, grade, weight_score, time_to_resolve } = request.body;
+    const { name, grade, weight_score, time_to_resolve, problem_type_id } = request.body;
     if (!name) return res.status(400).json({ error: 'SubjectName required' });
     const r = await extReq()
-      .input('n',  sql.NVarChar, name)
-      .input('g',  sql.NVarChar, grade          || null)
-      .input('ws', sql.Float,    weight_score != null ? parseFloat(weight_score) : null)
-      .input('t',  sql.Int,      time_to_resolve != null ? parseInt(time_to_resolve) : null)
-      .query(`INSERT INTO Subject (SubjectName, Grade, WeightScore, Active, TimeToResolve)
+      .input('n',   sql.NVarChar, name)
+      .input('g',   sql.NVarChar, grade || null)
+      .input('ws',  sql.Float,    weight_score != null ? parseFloat(weight_score) : null)
+      .input('t',   sql.Int,      time_to_resolve != null ? parseInt(time_to_resolve) : null)
+      .input('pid', sql.Int,      problem_type_id ? parseInt(problem_type_id) : null)
+      .query(`INSERT INTO Subject (SubjectName, Grade, WeightScore, Active, TimeToResolve, ProblemTypeId)
               OUTPUT INSERTED.SubjectId AS id, INSERTED.SubjectName AS name
-              VALUES (@n, @g, @ws, 1, @t)`);
+              VALUES (@n, @g, @ws, 1, @t, @pid)`);
     res.json(r.recordset[0]);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.put('/api/settings/subjects/:id', authRequired, managerRequired, async (request, res) => {
   try {
-    const { name, grade, weight_score, time_to_resolve, active } = request.body;
+    const { name, grade, weight_score, time_to_resolve, active, problem_type_id } = request.body;
     await extReq()
-      .input('id', sql.Int,      parseInt(request.params.id))
-      .input('n',  sql.NVarChar, name)
-      .input('g',  sql.NVarChar, grade          || null)
-      .input('ws', sql.Float,    weight_score != null ? parseFloat(weight_score) : null)
-      .input('t',  sql.Int,      time_to_resolve != null ? parseInt(time_to_resolve) : null)
-      .input('ac', sql.Bit,      active != null ? (active ? 1 : 0) : 1)
+      .input('id',  sql.Int,      parseInt(request.params.id))
+      .input('n',   sql.NVarChar, name)
+      .input('g',   sql.NVarChar, grade || null)
+      .input('ws',  sql.Float,    weight_score != null ? parseFloat(weight_score) : null)
+      .input('t',   sql.Int,      time_to_resolve != null ? parseInt(time_to_resolve) : null)
+      .input('ac',  sql.Bit,      active != null ? (active ? 1 : 0) : 1)
+      .input('pid', sql.Int,      problem_type_id ? parseInt(problem_type_id) : null)
       .query(`UPDATE Subject SET SubjectName=@n, Grade=@g, WeightScore=@ws,
-              Active=@ac, TimeToResolve=@t WHERE SubjectId=@id`);
+              Active=@ac, TimeToResolve=@t, ProblemTypeId=@pid WHERE SubjectId=@id`);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

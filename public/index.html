@@ -1042,7 +1042,7 @@ textarea{resize:vertical;min-height:80px}
       <div class="tbl-wrap">
         <table>
           <thead><tr>
-            <th>ID</th><th>ชื่อหัวข้อ</th><th>Grade</th>
+            <th>ID</th><th>ประเภทปัญหา</th><th>ชื่อหัวข้อ</th><th>Grade</th>
             <th>น้ำหนัก</th><th>เวลาแก้ไข (นาที)</th><th>สถานะ</th><th></th>
           </tr></thead>
           <tbody id="subjects-tbody"><tr><td colspan="7" class="empty">กำลังโหลด...</td></tr></tbody>
@@ -1075,6 +1075,12 @@ textarea{resize:vertical;min-height:80px}
   <div class="modal" style="max-width:480px">
     <div class="modal-title" id="subject-modal-title">เพิ่มหัวข้อ <button class="modal-close" onclick="closeModal('modal-subject')">×</button></div>
     <input type="hidden" id="subject-edit-id"/>
+    <div class="form-group">
+      <label>ประเภทปัญหา (ProblemType)</label>
+      <select id="subject-problem-type">
+        <option value="">— ไม่ระบุ —</option>
+      </select>
+    </div>
     <div class="form-group"><label>ชื่อหัวข้อ *</label><input id="subject-name" placeholder="เช่น Known Error - POS Print"/></div>
     <div class="grid-2">
       <div class="form-group"><label>Grade</label><input id="subject-grade" placeholder="เช่น A, B, C"/></div>
@@ -4822,10 +4828,15 @@ async function loadSubjects() {
   if (!tbody) return;
   tbody.innerHTML = '<tr><td colspan="7" class="empty">กำลังโหลด...</td></tr>';
   const data = await api('/api/settings/subjects');
-  if (!data.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">ยังไม่มีข้อมูล</td></tr>'; return; }
+  if (!data.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty">ยังไม่มีข้อมูล</td></tr>'; return; }
   tbody.innerHTML = data.map(s => `
     <tr>
       <td style="font-size:.78rem;color:var(--muted)">${s.id}</td>
+      <td>
+        ${s.problem_type_name
+          ? `<span style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;font-size:.72rem;padding:.1rem .45rem">${escHtml(s.problem_type_name)}</span>`
+          : '<span style="color:var(--muted);font-size:.75rem">—</span>'}
+      </td>
       <td><b>${escHtml(s.name)}</b></td>
       <td style="font-size:.8rem">${escHtml(s.grade||'—')}</td>
       <td style="font-size:.8rem">${s.weight_score != null ? s.weight_score : '—'}</td>
@@ -4840,14 +4851,21 @@ async function loadSubjects() {
     </tr>`).join('');
 }
 
-function openSubjectModal(s) {
+async function openSubjectModal(s) {
   document.getElementById('subject-modal-title').textContent = s ? `แก้ไข: ${s.name}` : 'เพิ่มหัวข้อ';
-  document.getElementById('subject-edit-id').value   = s?.id || '';
+  document.getElementById('subject-edit-id').value    = s?.id || '';
   document.getElementById('subject-name').value       = s?.name || '';
   document.getElementById('subject-grade').value      = s?.grade || '';
   document.getElementById('subject-weight').value     = s?.weight_score ?? '';
   document.getElementById('subject-time').value       = s?.time_to_resolve ?? '';
   document.getElementById('subject-active').value     = s != null ? (s.active ? '1' : '0') : '1';
+  // Load problem types into dropdown
+  const ptSel = document.getElementById('subject-problem-type');
+  try {
+    const pts = await api('/api/settings/problem-types');
+    ptSel.innerHTML = '<option value="">— ไม่ระบุ —</option>' +
+      pts.map(p => `<option value="${p.id}" ${s?.problem_type_id==p.id?'selected':''}>${escHtml(p.name)}</option>`).join('');
+  } catch { ptSel.innerHTML = '<option value="">— โหลดไม่สำเร็จ —</option>'; }
   openModal('modal-subject');
 }
 
@@ -4857,10 +4875,11 @@ async function saveSubject() {
   const id   = document.getElementById('subject-edit-id').value;
   const body = {
     name,
-    grade:          document.getElementById('subject-grade').value.trim() || null,
-    weight_score:   document.getElementById('subject-weight').value || null,
-    time_to_resolve:document.getElementById('subject-time').value || null,
-    active:         document.getElementById('subject-active').value === '1'
+    grade:           document.getElementById('subject-grade').value.trim() || null,
+    weight_score:    document.getElementById('subject-weight').value || null,
+    time_to_resolve: document.getElementById('subject-time').value || null,
+    active:          document.getElementById('subject-active').value === '1',
+    problem_type_id: document.getElementById('subject-problem-type').value || null,
   };
   const r = id
     ? await api(`/api/settings/subjects/${id}`, { method:'PUT', body, silent:true })
