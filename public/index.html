@@ -409,6 +409,9 @@ textarea{resize:vertical;min-height:80px}
       <span class="s-tab-icon">🔧</span> งานซ่อม
       <span id="repair-msg-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.65rem;padding:.05rem .4rem;margin-left:.2rem;font-weight:700"></span>
     </button>
+    <button class="s-tab" id="nav-btn-settings" onclick="showPage('settings',this)" style="display:none">
+      <span class="s-tab-icon">⚙️</span> ตั้งค่า
+    </button>
     <button class="s-tab" id="nav-btn-complaints" onclick="showPage('complaints',this)" style="display:none">
       <span class="s-tab-icon">📣</span> ร้องเรียน <span id="complaint-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.65rem;padding:.05rem .4rem;margin-left:.2rem;font-weight:700"></span>
     </button>
@@ -1014,6 +1017,92 @@ textarea{resize:vertical;min-height:80px}
         </tr></thead>
         <tbody id="repair-tbody"></tbody>
       </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ PAGE: SETTINGS ═══════════════════ -->
+<div id="page-settings" class="page">
+  <div class="section-header" style="margin-bottom:.75rem">
+    <div class="section-title">⚙️ ตั้งค่าระบบ</div>
+  </div>
+
+  <div class="tabs" style="margin-bottom:1rem">
+    <button class="tab active" id="stab-subjects" onclick="switchSettingTab('subjects',this)">📋 หัวข้อ (Subject)</button>
+    <button class="tab" id="stab-ptypes" onclick="switchSettingTab('ptypes',this)">🏷️ ประเภทปัญหา (ProblemType)</button>
+  </div>
+
+  <!-- Subject tab -->
+  <div id="stab-content-subjects">
+    <div class="section-header" style="margin-bottom:.6rem">
+      <div style="font-size:.88rem;font-weight:600">หัวข้อ</div>
+      <button class="btn btn-primary btn-sm" onclick="openSubjectModal()">+ เพิ่มหัวข้อ</button>
+    </div>
+    <div class="card" style="padding:.5rem 0">
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>ID</th><th>ชื่อหัวข้อ</th><th>Grade</th>
+            <th>น้ำหนัก</th><th>เวลาแก้ไข (นาที)</th><th>สถานะ</th><th></th>
+          </tr></thead>
+          <tbody id="subjects-tbody"><tr><td colspan="7" class="empty">กำลังโหลด...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ProblemType tab -->
+  <div id="stab-content-ptypes" style="display:none">
+    <div class="section-header" style="margin-bottom:.6rem">
+      <div style="font-size:.88rem;font-weight:600">ประเภทปัญหา</div>
+      <button class="btn btn-primary btn-sm" onclick="openPTypeModal()">+ เพิ่มประเภท</button>
+    </div>
+    <div class="card" style="padding:.5rem 0">
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>ID</th><th>ชื่อประเภท</th><th>Note</th><th></th>
+          </tr></thead>
+          <tbody id="ptypes-tbody"><tr><td colspan="4" class="empty">กำลังโหลด...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Subject Modal -->
+<div class="overlay" id="modal-subject">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-title" id="subject-modal-title">เพิ่มหัวข้อ <button class="modal-close" onclick="closeModal('modal-subject')">×</button></div>
+    <input type="hidden" id="subject-edit-id"/>
+    <div class="form-group"><label>ชื่อหัวข้อ *</label><input id="subject-name" placeholder="เช่น Known Error - POS Print"/></div>
+    <div class="grid-2">
+      <div class="form-group"><label>Grade</label><input id="subject-grade" placeholder="เช่น A, B, C"/></div>
+      <div class="form-group"><label>น้ำหนัก (WeightScore)</label><input type="number" step="0.1" id="subject-weight" placeholder="1.0"/></div>
+    </div>
+    <div class="grid-2">
+      <div class="form-group"><label>เวลาแก้ไข (นาที)</label><input type="number" id="subject-time" placeholder="60"/></div>
+      <div class="form-group"><label>สถานะ</label>
+        <select id="subject-active"><option value="1">✅ ใช้งาน</option><option value="0">❌ ปิดใช้</option></select>
+      </div>
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="saveSubject()">💾 บันทึก</button>
+      <button class="btn btn-ghost" onclick="closeModal('modal-subject')">ยกเลิก</button>
+    </div>
+  </div>
+</div>
+
+<!-- ProblemType Modal -->
+<div class="overlay" id="modal-ptype">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-title" id="ptype-modal-title">เพิ่มประเภทปัญหา <button class="modal-close" onclick="closeModal('modal-ptype')">×</button></div>
+    <input type="hidden" id="ptype-edit-id"/>
+    <div class="form-group"><label>ชื่อประเภท *</label><input id="ptype-name" placeholder="เช่น Software Bug"/></div>
+    <div class="form-group"><label>Note</label><input id="ptype-note" placeholder="รายละเอียดเพิ่มเติม"/></div>
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="savePType()">💾 บันทึก</button>
+      <button class="btn btn-ghost" onclick="closeModal('modal-ptype')">ยกเลิก</button>
     </div>
   </div>
 </div>
@@ -1734,6 +1823,7 @@ function showPage(name, btn) {
   if (name === 'kpi')       loadKpi();
   if (name === 'users')      loadUsers();
   if (name === 'complaints') loadComplaints();
+  if (name === 'settings')   loadSettings();
   if (name === 'repair')     { loadRepair(); pollRepairMessages(); }
 }
 
@@ -3805,6 +3895,7 @@ function applyUserContext() {
 
   // Nav: Users tab — manager/admin only
   document.getElementById('nav-btn-users').style.display = isManager ? '' : 'none';
+  document.getElementById('nav-btn-settings').style.display = isManager ? '' : 'none';
   document.getElementById('nav-btn-complaints').style.display = isLead ? '' : 'none';
   if (isLead) {
     loadComplaintsBadge();
@@ -4705,6 +4796,140 @@ async function deleteRepairAttachment(id) {
 // ══════════════════════════════════════════════════════════
 //  COMPLAINTS
 // ══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+//  SETTINGS
+// ══════════════════════════════════════════════════════════
+let _settingTab = 'subjects';
+
+function switchSettingTab(tab, btn) {
+  document.querySelectorAll('#page-settings .tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  _settingTab = tab;
+  document.getElementById('stab-content-subjects').style.display = tab==='subjects' ? '' : 'none';
+  document.getElementById('stab-content-ptypes').style.display   = tab==='ptypes'   ? '' : 'none';
+  if (tab === 'subjects') loadSubjects();
+  else loadPTypes();
+}
+
+function loadSettings() {
+  if (_settingTab === 'subjects') loadSubjects();
+  else loadPTypes();
+}
+
+// ── Subjects ──────────────────────────────────────────────
+async function loadSubjects() {
+  const tbody = document.getElementById('subjects-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="7" class="empty">กำลังโหลด...</td></tr>';
+  const data = await api('/api/settings/subjects');
+  if (!data.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">ยังไม่มีข้อมูล</td></tr>'; return; }
+  tbody.innerHTML = data.map(s => `
+    <tr>
+      <td style="font-size:.78rem;color:var(--muted)">${s.id}</td>
+      <td><b>${escHtml(s.name)}</b></td>
+      <td style="font-size:.8rem">${escHtml(s.grade||'—')}</td>
+      <td style="font-size:.8rem">${s.weight_score != null ? s.weight_score : '—'}</td>
+      <td style="font-size:.8rem">${s.time_to_resolve != null ? s.time_to_resolve + ' น.' : '—'}</td>
+      <td><span class="badge ${s.active?'badge-closed':'badge-open'}">${s.active?'ใช้งาน':'ปิดใช้'}</span></td>
+      <td>
+        <div class="btn-group">
+          <button class="btn btn-ghost btn-sm" onclick='openSubjectModal(${JSON.stringify(s).replace(/"/g,"&quot;")})'>✏️</button>
+          <button class="btn btn-sm" style="background:#fef2f2;color:#b91c1c" onclick="deleteSubject(${s.id},'${escHtml(s.name)}')">🗑</button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+function openSubjectModal(s) {
+  document.getElementById('subject-modal-title').textContent = s ? `แก้ไข: ${s.name}` : 'เพิ่มหัวข้อ';
+  document.getElementById('subject-edit-id').value   = s?.id || '';
+  document.getElementById('subject-name').value       = s?.name || '';
+  document.getElementById('subject-grade').value      = s?.grade || '';
+  document.getElementById('subject-weight').value     = s?.weight_score ?? '';
+  document.getElementById('subject-time').value       = s?.time_to_resolve ?? '';
+  document.getElementById('subject-active').value     = s != null ? (s.active ? '1' : '0') : '1';
+  openModal('modal-subject');
+}
+
+async function saveSubject() {
+  const name = document.getElementById('subject-name').value.trim();
+  if (!name) { showToast('❌ กรุณาระบุชื่อหัวข้อ', 'error'); return; }
+  const id   = document.getElementById('subject-edit-id').value;
+  const body = {
+    name,
+    grade:          document.getElementById('subject-grade').value.trim() || null,
+    weight_score:   document.getElementById('subject-weight').value || null,
+    time_to_resolve:document.getElementById('subject-time').value || null,
+    active:         document.getElementById('subject-active').value === '1'
+  };
+  const r = id
+    ? await api(`/api/settings/subjects/${id}`, { method:'PUT', body, silent:true })
+    : await api('/api/settings/subjects', { method:'POST', body, silent:true });
+  if (r?.error) { showToast('❌ ' + r.error, 'error'); return; }
+  closeModal('modal-subject');
+  showToast('✅ บันทึกแล้ว');
+  loadSubjects();
+}
+
+async function deleteSubject(id, name) {
+  if (!confirm(`ลบหัวข้อ "${name}" ?`)) return;
+  const r = await api(`/api/settings/subjects/${id}`, { method:'DELETE', silent:true });
+  if (r?.error) { showToast('❌ ' + r.error, 'error'); return; }
+  showToast('🗑 ลบแล้ว');
+  loadSubjects();
+}
+
+// ── ProblemTypes ──────────────────────────────────────────
+async function loadPTypes() {
+  const tbody = document.getElementById('ptypes-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="4" class="empty">กำลังโหลด...</td></tr>';
+  const data = await api('/api/settings/problem-types');
+  if (!data.length) { tbody.innerHTML = '<tr><td colspan="4" class="empty">ยังไม่มีข้อมูล</td></tr>'; return; }
+  tbody.innerHTML = data.map(p => `
+    <tr>
+      <td style="font-size:.78rem;color:var(--muted)">${p.id}</td>
+      <td><b>${escHtml(p.name)}</b></td>
+      <td style="font-size:.8rem;color:var(--muted)">${escHtml(p.note||'—')}</td>
+      <td>
+        <div class="btn-group">
+          <button class="btn btn-ghost btn-sm" onclick='openPTypeModal(${JSON.stringify(p).replace(/"/g,"&quot;")})'>✏️</button>
+          <button class="btn btn-sm" style="background:#fef2f2;color:#b91c1c" onclick="deletePType(${p.id},'${escHtml(p.name)}')">🗑</button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+function openPTypeModal(p) {
+  document.getElementById('ptype-modal-title').textContent = p ? `แก้ไข: ${p.name}` : 'เพิ่มประเภทปัญหา';
+  document.getElementById('ptype-edit-id').value = p?.id || '';
+  document.getElementById('ptype-name').value    = p?.name || '';
+  document.getElementById('ptype-note').value    = p?.note || '';
+  openModal('modal-ptype');
+}
+
+async function savePType() {
+  const name = document.getElementById('ptype-name').value.trim();
+  if (!name) { showToast('❌ กรุณาระบุชื่อประเภท', 'error'); return; }
+  const id   = document.getElementById('ptype-edit-id').value;
+  const body = { name, note: document.getElementById('ptype-note').value.trim() || null };
+  const r = id
+    ? await api(`/api/settings/problem-types/${id}`, { method:'PUT', body, silent:true })
+    : await api('/api/settings/problem-types', { method:'POST', body, silent:true });
+  if (r?.error) { showToast('❌ ' + r.error, 'error'); return; }
+  closeModal('modal-ptype');
+  showToast('✅ บันทึกแล้ว');
+  loadPTypes();
+}
+
+async function deletePType(id, name) {
+  if (!confirm(`ลบประเภท "${name}" ?`)) return;
+  const r = await api(`/api/settings/problem-types/${id}`, { method:'DELETE', silent:true });
+  if (r?.error) { showToast('❌ ' + r.error, 'error'); return; }
+  showToast('🗑 ลบแล้ว');
+  loadPTypes();
+}
+
 async function loadComplaintsBadge() {
   try {
     const data = await api('/api/complaints');

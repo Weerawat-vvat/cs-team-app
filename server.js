@@ -560,12 +560,112 @@ app.get('/api/tickets/meta/problem-types', async (_, res) => {
     if (!getExtPool()) return res.json([]);
     const result = await extReq().query(
       `SELECT DISTINCT pt.ProblemTypeDetail
-       FROM ProblemType pt
-       WHERE pt.ProblemTypeDetail IS NOT NULL
-       ORDER BY pt.ProblemTypeDetail`
-    );
+       FROM ProblemType pt WHERE pt.ProblemTypeDetail IS NOT NULL
+       ORDER BY pt.ProblemTypeDetail`);
     res.json(result.recordset.map(r => r.ProblemTypeDetail));
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════
+//  SETTINGS — Subject & ProblemType (LicenseDB)
+// ══════════════════════════════════════════════════════════
+
+// ── Subject ───────────────────────────────────────────────
+app.get('/api/settings/subjects', authRequired, async (_, res) => {
+  try {
+    if (!getExtPool()) return res.status(503).json({ error: 'LicenseDB not connected' });
+    const r = await extReq().query(
+      `SELECT SubjectId AS id, SubjectName AS name, Grade AS grade,
+              WeightScore AS weight_score, Active AS active,
+              TimeToResolve AS time_to_resolve
+       FROM Subject ORDER BY SubjectName`);
+    res.json(r.recordset);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/settings/subjects', authRequired, managerRequired, async (request, res) => {
+  try {
+    const { name, grade, weight_score, time_to_resolve } = request.body;
+    if (!name) return res.status(400).json({ error: 'SubjectName required' });
+    const r = await extReq()
+      .input('n',  sql.NVarChar, name)
+      .input('g',  sql.NVarChar, grade          || null)
+      .input('ws', sql.Float,    weight_score != null ? parseFloat(weight_score) : null)
+      .input('t',  sql.Int,      time_to_resolve != null ? parseInt(time_to_resolve) : null)
+      .query(`INSERT INTO Subject (SubjectName, Grade, WeightScore, Active, TimeToResolve)
+              OUTPUT INSERTED.SubjectId AS id, INSERTED.SubjectName AS name
+              VALUES (@n, @g, @ws, 1, @t)`);
+    res.json(r.recordset[0]);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/settings/subjects/:id', authRequired, managerRequired, async (request, res) => {
+  try {
+    const { name, grade, weight_score, time_to_resolve, active } = request.body;
+    await extReq()
+      .input('id', sql.Int,      parseInt(request.params.id))
+      .input('n',  sql.NVarChar, name)
+      .input('g',  sql.NVarChar, grade          || null)
+      .input('ws', sql.Float,    weight_score != null ? parseFloat(weight_score) : null)
+      .input('t',  sql.Int,      time_to_resolve != null ? parseInt(time_to_resolve) : null)
+      .input('ac', sql.Bit,      active != null ? (active ? 1 : 0) : 1)
+      .query(`UPDATE Subject SET SubjectName=@n, Grade=@g, WeightScore=@ws,
+              Active=@ac, TimeToResolve=@t WHERE SubjectId=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/settings/subjects/:id', authRequired, managerRequired, async (request, res) => {
+  try {
+    await extReq().input('id', sql.Int, parseInt(request.params.id))
+      .query('DELETE FROM Subject WHERE SubjectId=@id');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── ProblemType ────────────────────────────────────────────
+app.get('/api/settings/problem-types', authRequired, async (_, res) => {
+  try {
+    if (!getExtPool()) return res.status(503).json({ error: 'LicenseDB not connected' });
+    const r = await extReq().query(
+      `SELECT ProblemTypeId AS id, ProblemTypeDetail AS name, Note AS note
+       FROM ProblemType ORDER BY ProblemTypeDetail`);
+    res.json(r.recordset);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/settings/problem-types', authRequired, managerRequired, async (request, res) => {
+  try {
+    const { name, note } = request.body;
+    if (!name) return res.status(400).json({ error: 'ProblemTypeDetail required' });
+    const r = await extReq()
+      .input('n', sql.NVarChar, name)
+      .input('nt', sql.NVarChar, note || null)
+      .query(`INSERT INTO ProblemType (ProblemTypeDetail, Note)
+              OUTPUT INSERTED.ProblemTypeId AS id, INSERTED.ProblemTypeDetail AS name
+              VALUES (@n, @nt)`);
+    res.json(r.recordset[0]);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/settings/problem-types/:id', authRequired, managerRequired, async (request, res) => {
+  try {
+    const { name, note } = request.body;
+    await extReq()
+      .input('id', sql.Int,      parseInt(request.params.id))
+      .input('n',  sql.NVarChar, name)
+      .input('nt', sql.NVarChar, note || null)
+      .query('UPDATE ProblemType SET ProblemTypeDetail=@n, Note=@nt WHERE ProblemTypeId=@id');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/settings/problem-types/:id', authRequired, managerRequired, async (request, res) => {
+  try {
+    await extReq().input('id', sql.Int, parseInt(request.params.id))
+      .query('DELETE FROM ProblemType WHERE ProblemTypeId=@id');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── Name Map: ext_username → employee name ────────────────
