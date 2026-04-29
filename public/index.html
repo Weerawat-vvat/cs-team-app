@@ -399,19 +399,16 @@ textarea{resize:vertical;min-height:80px}
     <button class="s-tab" id="nav-btn-kpi" onclick="showPage('kpi',this)">
       <span class="s-tab-icon">📊</span> ประเมินทีม
     </button>
-    <button class="s-tab" id="nav-btn-schedule" onclick="showPage('schedule',this)">
-      <span class="s-tab-icon">📅</span> ตารางงาน
-    </button>
-    <button class="s-tab" id="nav-btn-users" onclick="showPage('users',this)" style="display:none">
-      <span class="s-tab-icon">👤</span> จัดการ User
-    </button>
     <button class="s-tab" id="nav-btn-repair" onclick="showPage('repair',this)">
       <span class="s-tab-icon">🔧</span> งานซ่อม
       <span id="repair-msg-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.65rem;padding:.05rem .4rem;margin-left:.2rem;font-weight:700"></span>
     </button>
-    <button class="s-tab" id="nav-btn-settings" onclick="showPage('settings',this)" style="display:none">
+    <button class="s-tab" id="nav-btn-settings" onclick="showPage('settings',this)">
       <span class="s-tab-icon">⚙️</span> ตั้งค่า
     </button>
+    <!-- hidden — accessed via settings tabs -->
+    <button class="s-tab" id="nav-btn-schedule" onclick="showPage('schedule',this)" style="display:none"></button>
+    <button class="s-tab" id="nav-btn-users"    onclick="showPage('users',this)"    style="display:none"></button>
     <button class="s-tab" id="nav-btn-complaints" onclick="showPage('complaints',this)" style="display:none">
       <span class="s-tab-icon">📣</span> ร้องเรียน <span id="complaint-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.65rem;padding:.05rem .4rem;margin-left:.2rem;font-weight:700"></span>
     </button>
@@ -1028,11 +1025,22 @@ textarea{resize:vertical;min-height:80px}
   </div>
 
   <div class="tabs" style="margin-bottom:1rem">
-    <button class="tab active" id="stab-subjects" onclick="switchSettingTab('subjects',this)">📋 หัวข้อ (Subject)</button>
-    <button class="tab" id="stab-ptypes" onclick="switchSettingTab('ptypes',this)">🏷️ ประเภทปัญหา (ProblemType)</button>
+    <button class="tab" id="stab-schedule" onclick="switchSettingTab('schedule',this)">📅 ตารางงาน</button>
+    <button class="tab active" id="stab-subjects" onclick="switchSettingTab('subjects',this)">📋 หัวข้อ / ประเภทปัญหา</button>
+    <button class="tab" id="stab-users" onclick="switchSettingTab('users',this)">👤 จัดการ User</button>
   </div>
 
-  <!-- Subject tab -->
+  <!-- Schedule tab (embed page-schedule content via iframe-like show/hide) -->
+  <div id="stab-content-schedule" style="display:none">
+    <div id="stab-schedule-inner"><!-- populated by switchSettingTab --></div>
+  </div>
+
+  <!-- Users tab -->
+  <div id="stab-content-users" style="display:none">
+    <div id="stab-users-inner"><!-- populated by switchSettingTab --></div>
+  </div>
+
+  <!-- Subject/ProblemType tab -->
   <div id="stab-content-subjects">
     <div class="section-header" style="margin-bottom:.6rem">
       <div style="font-size:.88rem;font-weight:600">หัวข้อ <span id="subject-count" style="font-size:.75rem;color:var(--muted);font-weight:400"></span></div>
@@ -3910,8 +3918,9 @@ function applyUserContext() {
   const isLead    = ['team_lead','manager','admin'].includes(role);
 
   // Nav: Users tab — manager/admin only
-  document.getElementById('nav-btn-users').style.display = isManager ? '' : 'none';
-  document.getElementById('nav-btn-settings').style.display = isManager ? '' : 'none';
+  document.getElementById('nav-btn-users').style.display    = isManager ? '' : 'none';
+  // Settings visible to team_lead+ (schedule needs it); Users/Subject tabs inside are manager-gated
+  document.getElementById('nav-btn-settings').style.display = isLead ? '' : 'none';
   document.getElementById('nav-btn-complaints').style.display = isLead ? '' : 'none';
   if (isLead) {
     loadComplaintsBadge();
@@ -4818,18 +4827,43 @@ async function deleteRepairAttachment(id) {
 let _settingTab = 'subjects';
 
 function switchSettingTab(tab, btn) {
-  document.querySelectorAll('#page-settings .tab').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
   _settingTab = tab;
-  document.getElementById('stab-content-subjects').style.display = tab==='subjects' ? '' : 'none';
-  document.getElementById('stab-content-ptypes').style.display   = tab==='ptypes'   ? '' : 'none';
+  if (tab === 'schedule') {
+    // Navigate to schedule page but keep settings tab active
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-schedule').classList.add('active');
+    document.querySelectorAll('.s-tab').forEach(b => b.classList.remove('active'));
+    document.getElementById('nav-btn-settings').classList.add('active');
+    loadSchedule();
+    return;
+  }
+  if (tab === 'users') {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-users').classList.add('active');
+    document.querySelectorAll('.s-tab').forEach(b => b.classList.remove('active'));
+    document.getElementById('nav-btn-settings').classList.add('active');
+    loadUsers();
+    return;
+  }
+  // subjects / ptypes — stay on settings page
+  document.querySelectorAll('#page-settings .tab').forEach(b => b.classList.remove('active'));
+  btn?.classList.add('active');
+  document.getElementById('stab-content-schedule').style.display = 'none';
+  document.getElementById('stab-content-subjects').style.display = '';
+  document.getElementById('stab-content-ptypes').style.display   = tab==='ptypes' ? '' : 'none';
+  document.getElementById('stab-content-users').style.display    = 'none';
   if (tab === 'subjects') loadSubjects();
   else loadPTypes();
 }
 
 function loadSettings() {
-  if (_settingTab === 'subjects') loadSubjects();
-  else loadPTypes();
+  _settingTab = 'subjects';
+  document.getElementById('stab-content-schedule').style.display = 'none';
+  document.getElementById('stab-content-subjects').style.display = '';
+  document.getElementById('stab-content-ptypes').style.display   = 'none';
+  document.getElementById('stab-content-users').style.display    = 'none';
+  document.getElementById('stab-subjects')?.classList.add('active');
+  loadSubjects();
 }
 
 // ── Subjects ──────────────────────────────────────────────
