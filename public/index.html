@@ -1035,8 +1035,18 @@ textarea{resize:vertical;min-height:80px}
   <!-- Subject tab -->
   <div id="stab-content-subjects">
     <div class="section-header" style="margin-bottom:.6rem">
-      <div style="font-size:.88rem;font-weight:600">หัวข้อ</div>
+      <div style="font-size:.88rem;font-weight:600">หัวข้อ <span id="subject-count" style="font-size:.75rem;color:var(--muted);font-weight:400"></span></div>
       <button class="btn btn-primary btn-sm" onclick="openSubjectModal()">+ เพิ่มหัวข้อ</button>
+    </div>
+    <!-- Filter bar -->
+    <div class="page-datebar" style="margin-bottom:.65rem;gap:.5rem;flex-wrap:wrap">
+      <select id="sf-ptype" onchange="filterSubjects()">
+        <option value="">ทุกประเภทปัญหา</option>
+      </select>
+      <select id="sf-grade" onchange="filterSubjects()">
+        <option value="">ทุก Grade</option>
+      </select>
+      <input id="sf-search" type="text" placeholder="🔍 ค้นหาชื่อหัวข้อ..." oninput="filterSubjects()" style="flex:1;min-width:160px"/>
     </div>
     <div class="card" style="padding:.5rem 0">
       <div class="tbl-wrap">
@@ -1045,7 +1055,7 @@ textarea{resize:vertical;min-height:80px}
             <th>ID</th><th>ประเภทปัญหา</th><th>ชื่อหัวข้อ</th><th>Grade</th>
             <th>น้ำหนัก</th><th>เวลาแก้ไข (นาที)</th><th>สถานะ</th><th></th>
           </tr></thead>
-          <tbody id="subjects-tbody"><tr><td colspan="7" class="empty">กำลังโหลด...</td></tr></tbody>
+          <tbody id="subjects-tbody"><tr><td colspan="8" class="empty">กำลังโหลด...</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -4823,12 +4833,52 @@ function loadSettings() {
 }
 
 // ── Subjects ──────────────────────────────────────────────
+let _allSubjects = [];
+
 async function loadSubjects() {
   const tbody = document.getElementById('subjects-tbody');
   if (!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="7" class="empty">กำลังโหลด...</td></tr>';
-  const data = await api('/api/settings/subjects');
-  if (!data.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty">ยังไม่มีข้อมูล</td></tr>'; return; }
+  tbody.innerHTML = '<tr><td colspan="8" class="empty">กำลังโหลด...</td></tr>';
+  _allSubjects = await api('/api/settings/subjects');
+
+  // Populate filter dropdowns
+  const ptypes = [...new Set(_allSubjects.map(s => s.problem_type_name).filter(Boolean))].sort();
+  const grades  = [...new Set(_allSubjects.map(s => s.grade).filter(Boolean))].sort();
+  const ptSel = document.getElementById('sf-ptype');
+  const grSel = document.getElementById('sf-grade');
+  if (ptSel) {
+    const cur = ptSel.value;
+    ptSel.innerHTML = '<option value="">ทุกประเภทปัญหา</option>' +
+      ptypes.map(p => `<option value="${escHtml(p)}" ${p===cur?'selected':''}>${escHtml(p)}</option>`).join('');
+  }
+  if (grSel) {
+    const cur = grSel.value;
+    grSel.innerHTML = '<option value="">ทุก Grade</option>' +
+      grades.map(g => `<option value="${escHtml(g)}" ${g===cur?'selected':''}>${escHtml(g)}</option>`).join('');
+  }
+
+  filterSubjects();
+}
+
+function filterSubjects() {
+  const tbody   = document.getElementById('subjects-tbody');
+  if (!tbody) return;
+  const ptype  = document.getElementById('sf-ptype')?.value  || '';
+  const grade  = document.getElementById('sf-grade')?.value  || '';
+  const search = (document.getElementById('sf-search')?.value || '').toLowerCase();
+
+  const data = _allSubjects.filter(s => {
+    if (ptype  && (s.problem_type_name||'') !== ptype) return false;
+    if (grade  && (s.grade||'') !== grade) return false;
+    if (search && !(s.name||'').toLowerCase().includes(search) &&
+                  !(s.problem_type_name||'').toLowerCase().includes(search)) return false;
+    return true;
+  });
+
+  const cnt = document.getElementById('subject-count');
+  if (cnt) cnt.textContent = `(${data.length} รายการ)`;
+
+  if (!data.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty">ไม่พบข้อมูล</td></tr>'; return; }
   tbody.innerHTML = data.map(s => `
     <tr>
       <td style="font-size:.78rem;color:var(--muted)">${s.id}</td>
