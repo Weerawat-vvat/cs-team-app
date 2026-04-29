@@ -417,13 +417,13 @@ textarea{resize:vertical;min-height:80px}
       </button>
       <div class="s-sub-menu" id="settings-sub">
         <button class="s-sub" id="nav-sub-schedule" onclick="navSettings('schedule',this)">
-          <span style="font-size:.8rem">📅</span> ตารางงาน
+          <span class="s-tab-icon" style="width:.9rem;font-size:.85rem">📅</span> ตารางงาน
         </button>
         <button class="s-sub" id="nav-sub-subjects" onclick="navSettings('subjects',this)">
-          <span style="font-size:.8rem">📋</span> หัวข้อ / ประเภทปัญหา
+          <span class="s-tab-icon" style="width:.9rem;font-size:.85rem">📋</span> หัวข้อ / ประเภทปัญหา
         </button>
         <button class="s-sub" id="nav-sub-users" onclick="navSettings('users',this)">
-          <span style="font-size:.8rem">👤</span> จัดการ User
+          <span class="s-tab-icon" style="width:.9rem;font-size:.85rem">👤</span> จัดการ User
         </button>
       </div>
     </div>
@@ -1042,13 +1042,7 @@ textarea{resize:vertical;min-height:80px}
 <!-- ═══════════════════ PAGE: SETTINGS ═══════════════════ -->
 <div id="page-settings" class="page">
   <div class="section-header" style="margin-bottom:.75rem">
-    <div class="section-title">⚙️ ตั้งค่าระบบ</div>
-  </div>
-
-  <div class="tabs" style="margin-bottom:1rem">
-    <button class="tab" id="stab-schedule" onclick="switchSettingTab('schedule',this)">📅 ตารางงาน</button>
-    <button class="tab active" id="stab-subjects" onclick="switchSettingTab('subjects',this)">📋 หัวข้อ / ประเภทปัญหา</button>
-    <button class="tab" id="stab-users" onclick="switchSettingTab('users',this)">👤 จัดการ User</button>
+    <div class="section-title" id="settings-page-title">⚙️ หัวข้อ / ประเภทปัญหา</div>
   </div>
 
   <!-- Schedule tab (embed page-schedule content via iframe-like show/hide) -->
@@ -4922,13 +4916,14 @@ function switchSettingTab(tab, btn) {
 }
 
 function loadSettings() {
-  _settingTab = 'subjects';
+  const tab = _settingTab || 'subjects';
   document.getElementById('stab-content-schedule').style.display = 'none';
-  document.getElementById('stab-content-subjects').style.display = '';
-  document.getElementById('stab-content-ptypes').style.display   = 'none';
   document.getElementById('stab-content-users').style.display    = 'none';
-  document.getElementById('stab-subjects')?.classList.add('active');
-  loadSubjects();
+  document.getElementById('stab-content-subjects').style.display = '';
+  document.getElementById('stab-content-ptypes').style.display   = tab==='ptypes' ? '' : 'none';
+  const title = document.getElementById('settings-page-title');
+  if (title) title.textContent = '⚙️ หัวข้อ / ประเภทปัญหา';
+  if (tab === 'ptypes') loadPTypes(); else loadSubjects();
 }
 
 // ── Subjects ──────────────────────────────────────────────
