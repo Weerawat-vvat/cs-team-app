@@ -2714,6 +2714,161 @@ async function ensureRepairTables() {
   } catch(e) { console.error('❌ Repair table error:', e.message); }
 }
 
+// ══════════════════════════════════════════════════════════
+//  SPECIALIST LOG
+// ══════════════════════════════════════════════════════════
+async function ensureSpecialistTable() {
+  try {
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='specialist_log' AND xtype='U')
+      CREATE TABLE specialist_log (
+        id               INT PRIMARY KEY IDENTITY,
+        calllog_id       INT,
+        company_name     NVARCHAR(255),
+        subject          NVARCHAR(500),
+        problem_type     NVARCHAR(200),
+        -- Contact info
+        contact_name     NVARCHAR(100),
+        contact_phone    NVARCHAR(50),
+        line_id          NVARCHAR(100),
+        line_group       NVARCHAR(200),
+        customer_location NVARCHAR(255),
+        -- Assignment
+        original_agent   INT,
+        assigned_to_team NVARCHAR(50),
+        assigned_to_user INT,
+        priority         NVARCHAR(20) DEFAULT 'normal',
+        note             NVARCHAR(MAX),
+        assigned_at      DATETIME DEFAULT GETDATE(),
+        -- Resolution
+        status           NVARCHAR(20) DEFAULT 'pending',
+        resolved_by      INT,
+        resolved_at      DATETIME,
+        resolution_note  NVARCHAR(MAX),
+        updated_at       DATETIME DEFAULT GETDATE()
+      )`);
+    console.log('✅ specialist_log table ready');
+  } catch(e) { console.error('❌ specialist_log error:', e.message); }
+}
+
+// Get all specialist logs
+app.get('/api/specialist', authRequired, async (request, res) => {
+  try {
+    const { status, team, my } = request.query;
+    const r = req();
+    let q = `SELECT sl.*,
+               e1.name AS agent_name, e1.team AS agent_team,
+               e2.name AS resolved_by_name,
+               e3.name AS assigned_user_name
+             FROM specialist_log sl
+             LEFT JOIN app_users au1 ON au1.id = sl.original_agent
+             LEFT JOIN employees  e1 ON e1.id  = au1.employee_id
+             LEFT JOIN app_users au2 ON au2.id = sl.resolved_by
+             LEFT JOIN employees  e2 ON e2.id  = au2.employee_id
+             LEFT JOIN app_users au3 ON au3.id = sl.assigned_to_user
+             LEFT JOIN employees  e3 ON e3.id  = au3.employee_id
+             WHERE 1=1`;
+    if (status)  { q += ' AND sl.status=@st';    r.input('st', sql.NVarChar, status); }
+    if (team)    { q += ' AND sl.assigned_to_team=@tm'; r.input('tm', sql.NVarChar, team); }
+    if (my==='1'){ q += ' AND sl.assigned_to_user=@me'; r.input('me', sql.Int, request.user.id||0); }
+    q += ' ORDER BY sl.assigned_at DESC';
+    res.json((await r.query(q)).recordset);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Create specialist log (assign to specialist)
+app.post('/api/specialist', authRequired, async (request, res) => {
+  try {
+    const b = request.body;
+    const result = await req()
+      .input('cid',  sql.Int,      b.calllog_id       || null)
+      .input('cn',   sql.NVarChar, b.company_name      || null)
+      .input('subj', sql.NVarChar, b.subject           || null)
+      .input('pt',   sql.NVarChar, b.problem_type      || null)
+      .input('ctn',  sql.NVarChar, b.contact_name      || null)
+      .input('ctp',  sql.NVarChar, b.contact_phone     || null)
+      .input('li',   sql.NVarChar, b.line_id           || null)
+      .input('lg',   sql.NVarChar, b.line_group        || null)
+      .input('loc',  sql.NVarChar, b.customer_location || null)
+      .input('oa',   sql.Int,      request.user.id     || null)
+      .input('att',  sql.NVarChar, b.assigned_to_team  || null)
+      .input('atu',  sql.Int,      b.assigned_to_user  || null)
+      .input('pr',   sql.NVarChar, b.priority          || 'normal')
+      .input('nt',   sql.NVarChar, b.note              || null)
+      .query(`INSERT INTO specialist_log
+        (calllog_id,company_name,subject,problem_type,
+         contact_name,contact_phone,line_id,line_group,customer_location,
+         original_agent,assigned_to_team,assigned_to_user,priority,note)
+        OUTPUT INSERTED.id VALUES
+        (@cid,@cn,@subj,@pt,@ctn,@ctp,@li,@lg,@loc,@oa,@att,@atu,@pr,@nt)`);
+    // Line notify
+    const uname = request.user.name || request.user.username;
+    await sendLineNotify(`\n🔧 [Specialist] ${b.company_name||'—'}\nมอบหมายโดย: ${uname}\nทีม: ${b.assigned_to_team||'—'} | ${b.priority||'normal'}\n${b.note||''}`);
+    res.json({ id: result.recordset[0].id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Update specialist log
+app.put('/api/specialist/:id', authRequired, async (request, res) => {
+  try {
+    const b  = request.body;
+    const id = parseInt(request.params.id);
+    const cur = (await req().input('id', sql.Int, id)
+      .query('SELECT * FROM specialist_log WHERE id=@id')).recordset[0];
+    if (!cur) return res.status(404).json({ error: 'not found' });
+    await req()
+      .input('id',  sql.Int,      id)
+      .input('st',  sql.NVarChar, b.status              ?? cur.status)
+      .input('att', sql.NVarChar, b.assigned_to_team    ?? cur.assigned_to_team)
+      .input('atu', sql.Int,      b.assigned_to_user    ?? cur.assigned_to_user)
+      .input('pr',  sql.NVarChar, b.priority            ?? cur.priority)
+      .input('nt',  sql.NVarChar, b.note                ?? cur.note)
+      .input('ctn', sql.NVarChar, b.contact_name        ?? cur.contact_name)
+      .input('ctp', sql.NVarChar, b.contact_phone       ?? cur.contact_phone)
+      .input('li',  sql.NVarChar, b.line_id             ?? cur.line_id)
+      .input('lg',  sql.NVarChar, b.line_group          ?? cur.line_group)
+      .input('loc', sql.NVarChar, b.customer_location   ?? cur.customer_location)
+      .input('rnt', sql.NVarChar, b.resolution_note     ?? cur.resolution_note)
+      .input('rb',  sql.Int,      b.status==='resolved' ? (request.user.id||null) : cur.resolved_by)
+      .query(`UPDATE specialist_log SET
+        status=@st, assigned_to_team=@att, assigned_to_user=@atu, priority=@pr, note=@nt,
+        contact_name=@ctn, contact_phone=@ctp, line_id=@li, line_group=@lg,
+        customer_location=@loc, resolution_note=@rnt, resolved_by=@rb,
+        resolved_at=CASE WHEN @st='resolved' AND resolved_at IS NULL THEN GETDATE() ELSE resolved_at END,
+        updated_at=GETDATE()
+        WHERE id=@id`);
+    // Notify on status change
+    if (b.status && b.status !== cur.status) {
+      const statusLabel = {pending:'รอดำเนินการ',in_progress:'กำลังดำเนินการ',resolved:'แก้ไขแล้ว',rejected:'ปฏิเสธ',cancelled:'ยกเลิก'};
+      const uname = request.user.name || request.user.username;
+      await sendLineNotify(`\n🔧 [Specialist] ${cur.company_name||'—'}\nสถานะ: ${statusLabel[b.status]||b.status}\nโดย: ${uname}${b.resolution_note?'\n'+b.resolution_note:''}`);
+    }
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Delete specialist log
+app.delete('/api/specialist/:id', authRequired, managerRequired, async (request, res) => {
+  try {
+    await req().input('id', sql.Int, parseInt(request.params.id))
+      .query('DELETE FROM specialist_log WHERE id=@id');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Get contact info from LicenseDB by company name
+app.get('/api/specialist/contact-info', authRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.json({});
+    const { company } = request.query;
+    if (!company) return res.json({});
+    const r = await extReq().input('cn', sql.NVarChar, `%${company}%`)
+      .query(`SELECT TOP 1 ContactName, Phone, MobilePhone, Email, Address, City
+              FROM CustomerRegistration WHERE CompanyName LIKE @cn AND (Hide=0 OR Hide IS NULL)`);
+    res.json(r.recordset[0] || {});
+  } catch(e) { res.json({}); }
+});
+
 init().then(async () => {
   // Drop hardcoded team CHECK constraint so dynamic teams work
   try {
@@ -2725,6 +2880,7 @@ init().then(async () => {
 
   await ensureCustomerLinksTable();
   await ensureRepairTables();
+  await ensureSpecialistTable();
   app.listen(PORT, () => console.log(`🚀 CS Team App running at http://localhost:${PORT}`));
 }).catch(err => {
   console.error('❌ Startup failed:', err.message);

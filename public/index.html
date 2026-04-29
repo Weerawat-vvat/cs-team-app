@@ -405,6 +405,10 @@ textarea{resize:vertical;min-height:80px}
     <button class="s-tab" id="nav-btn-kpi" onclick="showPage('kpi',this)">
       <span class="s-tab-icon">📊</span> ประเมินทีม
     </button>
+    <button class="s-tab" id="nav-btn-specialist" onclick="showPage('specialist',this)">
+      <span class="s-tab-icon">🎯</span> Specialist
+      <span id="specialist-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.65rem;padding:.05rem .4rem;margin-left:.2rem;font-weight:700"></span>
+    </button>
     <button class="s-tab" id="nav-btn-repair" onclick="showPage('repair',this)">
       <span class="s-tab-icon">🔧</span> งานซ่อม
       <span id="repair-msg-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.65rem;padding:.05rem .4rem;margin-left:.2rem;font-weight:700"></span>
@@ -976,6 +980,128 @@ textarea{resize:vertical;min-height:80px}
         </table>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ PAGE: SPECIALIST ═══════════════════ -->
+<div id="page-specialist" class="page">
+  <div class="section-header" style="margin-bottom:.75rem">
+    <div class="section-title">🎯 Specialist Queue</div>
+  </div>
+
+  <!-- Stat bar -->
+  <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem">
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">📋 ทั้งหมด</span><span style="font-size:1.1rem;font-weight:800;color:var(--hd)" id="sp-stat-total">—</span>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">⏳ รอดำเนินการ</span><span style="font-size:1.1rem;font-weight:800;color:#b45309" id="sp-stat-pending">—</span>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">🔄 กำลังดำเนินการ</span><span style="font-size:1.1rem;font-weight:800;color:#2563eb" id="sp-stat-inprog">—</span>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">✅ แก้ไขแล้ว</span><span style="font-size:1.1rem;font-weight:800;color:#16a34a" id="sp-stat-resolved">—</span>
+    </div>
+  </div>
+
+  <!-- Filter -->
+  <div class="page-datebar" style="margin-bottom:.75rem;gap:.5rem;flex-wrap:wrap">
+    <select id="sp-filter-status" onchange="loadSpecialist()">
+      <option value="">ทุกสถานะ</option>
+      <option value="pending">⏳ รอดำเนินการ</option>
+      <option value="in_progress">🔄 กำลังดำเนินการ</option>
+      <option value="resolved">✅ แก้ไขแล้ว</option>
+      <option value="rejected">❌ ปฏิเสธ</option>
+      <option value="cancelled">🚫 ยกเลิก</option>
+    </select>
+    <select id="sp-filter-team" onchange="loadSpecialist()">
+      <option value="">ทุกทีม</option>
+    </select>
+    <select id="sp-filter-priority" onchange="loadSpecialist()">
+      <option value="">ทุก Priority</option>
+      <option value="urgent">🔴 Urgent</option>
+      <option value="high">🟠 High</option>
+      <option value="normal">🟡 Normal</option>
+      <option value="low">🟢 Low</option>
+    </select>
+    <input id="sp-search" type="text" placeholder="🔍 ค้นหาร้าน / หัวข้อ..." oninput="spSearchDebounce()" style="flex:1;min-width:160px"/>
+  </div>
+
+  <div class="card" style="padding:.5rem 0">
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>#</th><th>ร้านค้า</th><th>หัวข้อ / ประเภท</th>
+          <th>ผู้ติดต่อ</th><th>ทีม</th><th>Priority</th>
+          <th>สถานะ</th><th>วันที่มอบหมาย</th><th></th>
+        </tr></thead>
+        <tbody id="specialist-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Assign to Specialist Modal -->
+<div class="overlay" id="modal-assign-specialist">
+  <div class="modal" style="max-width:600px;max-height:90vh;overflow-y:auto">
+    <div class="modal-title">🎯 มอบหมายงาน Specialist <button class="modal-close" onclick="closeModal('modal-assign-specialist')">×</button></div>
+    <input type="hidden" id="asp-calllog-id"/>
+
+    <!-- Ticket info (readonly) -->
+    <div style="background:#f8fafc;border-radius:8px;padding:.65rem .85rem;margin-bottom:.75rem;font-size:.82rem">
+      <div style="font-weight:700;color:var(--text)" id="asp-ticket-info">—</div>
+      <div style="color:var(--muted);font-size:.78rem;margin-top:.15rem" id="asp-ticket-sub">—</div>
+    </div>
+
+    <!-- Contact info -->
+    <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">📞 ข้อมูลติดต่อ</div>
+    <div class="grid-2">
+      <div class="form-group"><label>ผู้ติดต่อ</label><input id="asp-contact-name" placeholder="ชื่อผู้ติดต่อ"/></div>
+      <div class="form-group"><label>เบอร์โทร</label><input id="asp-contact-phone" placeholder="08X-XXXXXXX"/></div>
+    </div>
+    <div class="grid-2">
+      <div class="form-group"><label>Line ID</label><input id="asp-line-id" placeholder="@line หรือ ID"/></div>
+      <div class="form-group"><label>Line Group</label><input id="asp-line-group" placeholder="ชื่อกลุ่ม Line"/></div>
+    </div>
+    <div class="form-group"><label>จุดวางเครื่อง / ที่อยู่</label><input id="asp-location" placeholder="เช่น เคาน์เตอร์หน้าร้าน หรือที่อยู่"/></div>
+
+    <!-- Assignment -->
+    <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin:.75rem 0 .5rem">🎯 มอบหมาย</div>
+    <div class="grid-2">
+      <div class="form-group">
+        <label>ทีม Specialist *</label>
+        <select id="asp-team">
+          <option value="">เลือกทีม</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Priority</label>
+        <select id="asp-priority">
+          <option value="normal">🟡 Normal</option>
+          <option value="high">🟠 High</option>
+          <option value="urgent">🔴 Urgent</option>
+          <option value="low">🟢 Low</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>รายละเอียด / Note</label>
+      <textarea id="asp-note" rows="3" placeholder="รายละเอียดงานที่ส่งต่อ..."></textarea>
+    </div>
+
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="saveAssignSpecialist()">📤 มอบหมายงาน</button>
+      <button class="btn btn-ghost" onclick="closeModal('modal-assign-specialist')">ยกเลิก</button>
+    </div>
+  </div>
+</div>
+
+<!-- Specialist Detail Modal -->
+<div class="overlay" id="modal-specialist-detail">
+  <div class="modal" style="max-width:580px;max-height:90vh;overflow-y:auto">
+    <div class="modal-title" id="spd-title">รายละเอียดงาน <button class="modal-close" onclick="closeModal('modal-specialist-detail')">×</button></div>
+    <div id="spd-body">กำลังโหลด...</div>
   </div>
 </div>
 
@@ -1864,6 +1990,7 @@ function showPage(name, btn) {
   if (name === 'complaints') loadComplaints();
   if (name === 'settings')   loadSettings();
   if (name === 'repair')     { loadRepair(); pollRepairMessages(); }
+  if (name === 'specialist') { loadSpecialist(); }
 }
 
 // ══════════════════════════════════════════════════════════
@@ -3207,6 +3334,13 @@ function renderTickets() {
                 : ''
             }
           </div>
+          ${isLeadRole() ? `
+          <div style="margin-top:.55rem;padding-top:.5rem;border-top:1px solid #f1f5f9;display:flex;justify-content:flex-end">
+            <button class="btn btn-sm" style="background:#7c3aed;color:#fff"
+              onclick="openAssignSpecialist(${JSON.stringify({id:t.id,title:t.title,CompanyName:t.CompanyName,problem_type_detail:t.problem_type_detail,problem_type:t.category}).replace(/"/g,'&quot;')})">
+              🎯 Assign to Specialist
+            </button>
+          </div>` : ''}
         </td>
       </tr>`);
     }
@@ -3945,6 +4079,7 @@ function applyUserContext() {
   if (isLead) {
     loadComplaintsBadge();
     pollRepairMessages();
+    loadSpecialist(); // init badge
     // Poll every 60s for new customer messages
     clearInterval(_repairPollTimer);
     _repairPollTimer = setInterval(pollRepairMessages, 60000);
@@ -5091,6 +5226,224 @@ async function deletePType(id, name) {
   if (r?.error) { showToast('❌ ' + r.error, 'error'); return; }
   showToast('🗑 ลบแล้ว');
   loadPTypes();
+}
+
+// ══════════════════════════════════════════════════════════
+//  SPECIALIST
+// ══════════════════════════════════════════════════════════
+const SP_STATUS = { pending:'⏳ รอดำเนินการ', in_progress:'🔄 กำลังดำเนินการ', resolved:'✅ แก้ไขแล้ว', rejected:'❌ ปฏิเสธ', cancelled:'🚫 ยกเลิก' };
+const SP_STATUS_COLOR = { pending:'#fef3c7|#92400e', in_progress:'#dbeafe|#1d4ed8', resolved:'#dcfce7|#15803d', rejected:'#fee2e2|#b91c1c', cancelled:'#f1f5f9|#475569' };
+const SP_PRIORITY = { urgent:'🔴 Urgent', high:'🟠 High', normal:'🟡 Normal', low:'🟢 Low' };
+let _spSearchTimer = null;
+let _allSpecialist = [];
+
+function spStatusBadge(st) {
+  const [bg,col] = (SP_STATUS_COLOR[st]||'#f1f5f9|#475569').split('|');
+  return `<span style="background:${bg};color:${col};padding:.15rem .5rem;border-radius:20px;font-size:.72rem;font-weight:700;white-space:nowrap">${SP_STATUS[st]||st}</span>`;
+}
+
+function spSearchDebounce() {
+  clearTimeout(_spSearchTimer);
+  _spSearchTimer = setTimeout(() => loadSpecialist(), 400);
+}
+
+async function loadSpecialist() {
+  const status   = document.getElementById('sp-filter-status')?.value || '';
+  const team     = document.getElementById('sp-filter-team')?.value   || '';
+  const priority = document.getElementById('sp-filter-priority')?.value || '';
+  const search   = document.getElementById('sp-search')?.value?.trim() || '';
+  let url = '/api/specialist?';
+  if (status)   url += `status=${status}&`;
+  if (team)     url += `team=${encodeURIComponent(team)}&`;
+  _allSpecialist = await api(url);
+
+  // Populate team filter
+  const teams = [...new Set(_allSpecialist.map(s=>s.assigned_to_team).filter(Boolean))].sort();
+  const tSel  = document.getElementById('sp-filter-team');
+  if (tSel && teams.length) {
+    const cur = tSel.value;
+    tSel.innerHTML = '<option value="">ทุกทีม</option>' +
+      teams.map(t=>`<option value="${escHtml(t)}" ${t===cur?'selected':''}>${escHtml(t)}</option>`).join('');
+  }
+
+  // Also populate assign modal team dropdown from allTeams
+  const aspTeam = document.getElementById('asp-team');
+  if (aspTeam && !aspTeam.querySelector('option[value="repair"]')) {
+    aspTeam.innerHTML = '<option value="">เลือกทีม</option>' +
+      allTeams.map(t=>`<option value="${escHtml(t.name)}">${escHtml(t.display_name)}</option>`).join('');
+  }
+
+  // Filter locally for priority/search
+  let list = _allSpecialist;
+  if (priority) list = list.filter(s=>s.priority===priority);
+  if (search)   list = list.filter(s=>(s.company_name||'').toLowerCase().includes(search.toLowerCase())||(s.subject||'').toLowerCase().includes(search.toLowerCase()));
+
+  renderSpecialistTable(list);
+}
+
+function renderSpecialistTable(list) {
+  const total    = _allSpecialist.length;
+  const pending  = _allSpecialist.filter(s=>s.status==='pending').length;
+  const inprog   = _allSpecialist.filter(s=>s.status==='in_progress').length;
+  const resolved = _allSpecialist.filter(s=>s.status==='resolved').length;
+  const _s = (id,v)=>{ const el=document.getElementById(id); if(el) el.textContent=v; };
+  _s('sp-stat-total',   total);
+  _s('sp-stat-pending', pending);
+  _s('sp-stat-inprog',  inprog);
+  _s('sp-stat-resolved',resolved);
+
+  // Update badge
+  const badge = document.getElementById('specialist-badge');
+  if (badge) { if(pending>0){badge.textContent=pending;badge.style.display='';}else badge.style.display='none'; }
+
+  const tbody = document.getElementById('specialist-tbody');
+  if (!tbody) return;
+  if (!list.length) { tbody.innerHTML='<tr><td colspan="9" class="empty">ไม่พบข้อมูล</td></tr>'; return; }
+
+  tbody.innerHTML = list.map(s=>`
+    <tr style="cursor:pointer;${s.status==='pending'?'background:#fffbeb':''}" onclick="openSpecialistDetail(${s.id})">
+      <td style="font-size:.78rem;color:var(--muted)">${s.id}</td>
+      <td>
+        <div style="font-weight:600;font-size:.83rem">${escHtml(s.company_name||'—')}</div>
+        ${s.calllog_id?`<div style="font-size:.7rem;color:var(--hd)">#${s.calllog_id}</div>`:''}
+      </td>
+      <td style="max-width:180px">
+        ${s.problem_type?`<span style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;font-size:.68rem;padding:.02rem .35rem">${escHtml(s.problem_type)}</span><br>`:''}
+        <span style="font-size:.8rem">${escHtml(s.subject||'—')}</span>
+      </td>
+      <td style="font-size:.78rem">
+        <div>${escHtml(s.contact_name||'—')}</div>
+        ${s.contact_phone?`<div style="color:var(--muted);font-size:.72rem">📞 ${escHtml(s.contact_phone)}</div>`:''}
+        ${s.line_id?`<div style="color:var(--muted);font-size:.72rem">LINE: ${escHtml(s.line_id)}</div>`:''}
+      </td>
+      <td style="font-size:.8rem">${escHtml(s.assigned_to_team||'—')}</td>
+      <td><span style="font-size:.78rem;font-weight:600">${SP_PRIORITY[s.priority]||s.priority||'—'}</span></td>
+      <td>${spStatusBadge(s.status)}</td>
+      <td style="font-size:.75rem;white-space:nowrap">${fmtDate(s.assigned_at)}</td>
+      <td onclick="event.stopPropagation()">
+        <button class="btn btn-ghost btn-sm" onclick="openSpecialistDetail(${s.id})">📋</button>
+      </td>
+    </tr>`).join('');
+}
+
+// Open Assign to Specialist from ticket page
+async function openAssignSpecialist(ticket) {
+  document.getElementById('asp-calllog-id').value = ticket.id || '';
+  document.getElementById('asp-ticket-info').textContent = `#${ticket.id} — ${ticket.title||'—'}`;
+  document.getElementById('asp-ticket-sub').textContent  = `${ticket.problem_type_detail||ticket.problem_type||''} | ${ticket.CompanyName||'—'}`;
+  // Reset fields
+  ['asp-contact-name','asp-contact-phone','asp-line-id','asp-line-group','asp-location','asp-note'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  document.getElementById('asp-priority').value = 'normal';
+  // Pre-fill contact from LicenseDB
+  if (ticket.CompanyName) {
+    try {
+      const info = await api(`/api/specialist/contact-info?company=${encodeURIComponent(ticket.CompanyName)}`);
+      if (info.ContactName) document.getElementById('asp-contact-name').value  = info.ContactName;
+      if (info.Phone||info.MobilePhone) document.getElementById('asp-contact-phone').value = info.Phone||info.MobilePhone||'';
+    } catch {}
+  }
+  // Populate team dropdown
+  const aspTeam = document.getElementById('asp-team');
+  aspTeam.innerHTML = '<option value="">เลือกทีม</option>' +
+    allTeams.map(t=>`<option value="${escHtml(t.name)}">${escHtml(t.display_name)}</option>`).join('');
+  openModal('modal-assign-specialist');
+}
+
+async function saveAssignSpecialist() {
+  const team = document.getElementById('asp-team').value;
+  if (!team) { showToast('❌ กรุณาเลือกทีม', 'error'); return; }
+  const ticketInfo = document.getElementById('asp-ticket-info').textContent;
+  const sub        = document.getElementById('asp-ticket-sub').textContent;
+  const body = {
+    calllog_id:       parseInt(document.getElementById('asp-calllog-id').value) || null,
+    company_name:     ticketInfo.split('—')[1]?.trim() || '',
+    subject:          document.getElementById('asp-ticket-info').textContent,
+    problem_type:     sub.split('|')[0]?.trim() || '',
+    contact_name:     document.getElementById('asp-contact-name').value.trim(),
+    contact_phone:    document.getElementById('asp-contact-phone').value.trim(),
+    line_id:          document.getElementById('asp-line-id').value.trim(),
+    line_group:       document.getElementById('asp-line-group').value.trim(),
+    customer_location:document.getElementById('asp-location').value.trim(),
+    assigned_to_team: team,
+    priority:         document.getElementById('asp-priority').value,
+    note:             document.getElementById('asp-note').value.trim(),
+  };
+  const r = await api('/api/specialist', { method:'POST', body, silent:true });
+  if (r?.error) { showToast('❌ '+r.error,'error'); return; }
+  closeModal('modal-assign-specialist');
+  showToast('✅ มอบหมายงาน Specialist แล้ว');
+  loadSpecialist();
+}
+
+// Specialist detail
+async function openSpecialistDetail(id) {
+  document.getElementById('spd-body').innerHTML = '<div style="padding:1rem;color:var(--muted)">⏳ กำลังโหลด...</div>';
+  openModal('modal-specialist-detail');
+  const data = await api('/api/specialist?');
+  const s = _allSpecialist.find(x=>x.id===id) || (await api(`/api/specialist?`)).find(x=>x.id===id);
+  if (!s) { document.getElementById('spd-body').innerHTML='<div style="color:#ef4444;padding:1rem">ไม่พบข้อมูล</div>'; return; }
+  document.getElementById('spd-title').innerHTML = `🎯 งาน #${s.id} — ${escHtml(s.company_name||'—')} <button class="modal-close" onclick="closeModal('modal-specialist-detail')">×</button>`;
+
+  const isLead = isLeadRole();
+  document.getElementById('spd-body').innerHTML = `
+    <div class="grid-2" style="gap:.65rem;margin-bottom:.75rem">
+      <div>
+        <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.35rem">ข้อมูลงาน</div>
+        ${[['ร้านค้า',s.company_name],['หัวข้อ',s.subject],['ประเภท',s.problem_type],
+           ['ทีม',s.assigned_to_team],['Priority',SP_PRIORITY[s.priority]||s.priority],
+           ['มอบหมายโดย',s.agent_name],['วันที่',fmtDate(s.assigned_at)]
+          ].map(([k,v])=>`<div style="display:flex;gap:.5rem;padding:.2rem 0;font-size:.8rem;border-bottom:1px solid #f1f5f9">
+            <span style="color:var(--muted);min-width:85px">${k}</span>
+            <span style="font-weight:500">${escHtml(v||'—')}</span>
+          </div>`).join('')}
+      </div>
+      <div>
+        <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.35rem">ข้อมูลติดต่อ</div>
+        ${[['ผู้ติดต่อ',s.contact_name],['เบอร์โทร',s.contact_phone],
+           ['Line ID',s.line_id],['Line Group',s.line_group],['จุดวาง',s.customer_location]
+          ].map(([k,v])=>`<div style="display:flex;gap:.5rem;padding:.2rem 0;font-size:.8rem;border-bottom:1px solid #f1f5f9">
+            <span style="color:var(--muted);min-width:75px">${k}</span>
+            <span style="font-weight:500">${escHtml(v||'—')}</span>
+          </div>`).join('')}
+      </div>
+    </div>
+    ${s.note?`<div style="background:#f8fafc;border-radius:8px;padding:.55rem .8rem;font-size:.82rem;margin-bottom:.65rem"><b>Note:</b> ${escHtml(s.note)}</div>`:''}
+
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.4rem;margin-bottom:.5rem">
+      <div>${spStatusBadge(s.status)}</div>
+      ${isLead ? `<div class="btn-group">
+        ${s.status==='pending'?`<button class="btn btn-primary btn-sm" onclick="updateSpStatus(${s.id},'in_progress')">▶ รับงาน</button>`:''}
+        ${s.status==='in_progress'?`<button class="btn btn-success btn-sm" onclick="openSpResolve(${s.id})">✅ แก้ไขแล้ว</button>`:''}
+        ${['pending','in_progress'].includes(s.status)?`<button class="btn btn-sm" style="background:#fef2f2;color:#b91c1c" onclick="updateSpStatus(${s.id},'rejected')">❌ ปฏิเสธ</button>`:''}
+      </div>` : ''}
+    </div>
+    ${s.resolution_note?`<div style="background:#f0fdf4;border-radius:8px;padding:.55rem .8rem;font-size:.82rem"><b>Resolution:</b> ${escHtml(s.resolution_note)}</div>`:''}
+    <div id="sp-resolve-form" style="display:none;margin-top:.6rem">
+      <textarea id="sp-resolution-note" rows="2" placeholder="สรุปการแก้ไข..." style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.4rem .6rem;font-size:.82rem;font-family:inherit;resize:vertical"></textarea>
+      <button class="btn btn-success btn-sm" style="margin-top:.35rem;width:100%" onclick="saveSpResolve(${s.id})">✅ ยืนยันแก้ไขแล้ว</button>
+    </div>`;
+}
+
+async function updateSpStatus(id, status) {
+  await api(`/api/specialist/${id}`, { method:'PUT', body:{status}, silent:true });
+  showToast(`✅ อัพเดทสถานะแล้ว`);
+  closeModal('modal-specialist-detail');
+  loadSpecialist();
+}
+
+function openSpResolve(id) {
+  const form = document.getElementById('sp-resolve-form');
+  if (form) form.style.display = '';
+}
+
+async function saveSpResolve(id) {
+  const note = document.getElementById('sp-resolution-note')?.value.trim();
+  await api(`/api/specialist/${id}`, { method:'PUT', body:{status:'resolved', resolution_note:note||null}, silent:true });
+  showToast('✅ ปิดงาน Specialist แล้ว');
+  closeModal('modal-specialist-detail');
+  loadSpecialist();
 }
 
 async function loadComplaintsBadge() {
