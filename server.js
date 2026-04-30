@@ -179,13 +179,15 @@ const CALLLOG_SELECT = `
     cl.ProjectId                AS project_id,
     cl.ProblemTypeId            AS problem_type_id,
     cl.StatusId                 AS status_id,
-    cl.SupportId                AS support_id
+    cl.SupportId                AS support_id,
+    s.TimeToResolve             AS time_to_resolve
   FROM Calllog cl
   INNER JOIN CustomerRegistration cr ON cr.RegistrationId  = cl.RegistrationId
   LEFT  JOIN CallStatus           cs ON cs.StatusId        = cl.StatusId
   INNER JOIN Users                u  ON u.UserId           = cl.SupportId
   LEFT  JOIN Project              p  ON p.ProjectId        = cl.ProjectId
   LEFT  JOIN ProblemType          pt ON pt.ProblemTypeId   = cl.ProblemTypeId
+  LEFT  JOIN Subject              s  ON s.SubjectName      = cl.Subject AND s.Active = 1
 `;
 
 // ══════════════════════════════════════════════════════════
