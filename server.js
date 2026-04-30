@@ -538,8 +538,8 @@ app.put('/api/tickets/:id', authRequired, async (request, res) => {
     const id = parseInt(request.params.id);
     await extReq()
       .input('id',    sql.Int,      id)
-      .input('rd',    sql.DateTime, b.receive_date  ? new Date(b.receive_date)  : null)
-      .input('cd',    sql.DateTime, b.close_date    ? new Date(b.close_date)    : null)
+      .input('rd',    sql.NVarChar, thaiDateStr(b.receive_date))
+      .input('cd',    sql.NVarChar, thaiDateStr(b.close_date))
       .input('desc',  sql.NVarChar, b.description   ?? null)
       .input('sol',   sql.NVarChar, b.solution       ?? null)
       .input('subj',  sql.NVarChar, b.subject        ?? null)
@@ -552,8 +552,8 @@ app.put('/api/tickets/:id', authRequired, async (request, res) => {
       .input('itype', sql.NVarChar, b.inform_type     ?? null)
       .input('line',  sql.NVarChar, b.line_contact    ?? null)
       .query(`UPDATE Calllog SET
-        ReceiveDate=ISNULL(@rd,ReceiveDate),
-        CloseDate=@cd,
+        ReceiveDate=ISNULL(CASE WHEN @rd IS NOT NULL THEN CONVERT(datetime,@rd,120) END,ReceiveDate),
+        CloseDate=CASE WHEN @cd IS NOT NULL THEN CONVERT(datetime,@cd,120) ELSE NULL END,
         CalllogDesc=ISNULL(@desc,CalllogDesc),
         Solution=@sol,
         Subject=ISNULL(@subj,Subject),
@@ -629,8 +629,8 @@ app.post('/api/cases', authRequired, async (request, res) => {
 
     const result = await extReq()
       .input('rid',   sql.Int,      b.registration_id  || null)
-      .input('rd',    sql.DateTime, b.receive_date ? new Date(b.receive_date) : new Date())
-      .input('cd',    sql.DateTime, b.close_date   ? new Date(b.close_date)   : null)
+      .input('rd',    sql.NVarChar, thaiDateStr(b.receive_date) || thaiDateStr(new Date().toISOString()))
+      .input('cd',    sql.NVarChar, thaiDateStr(b.close_date))
       .input('desc',  sql.NVarChar, b.description       || null)
       .input('iname', sql.NVarChar, b.inform_name        || null)
       .input('itel',  sql.NVarChar, b.inform_tel         || null)
@@ -642,16 +642,18 @@ app.post('/api/cases', authRequired, async (request, res) => {
       .input('ptid',  sql.Int,      b.problem_type_id   || null)
       .input('subj',  sql.NVarChar, b.subject            || null)
       .input('sol',   sql.NVarChar, b.solution           || null)
-      .input('now',   sql.DateTime, new Date())
       .query(`INSERT INTO Calllog
         (RegistrationId, ReceiveDate, CloseDate, CalllogDesc, InformName, InformTel,
          InformType, OnsiteRemark, SupportId, StatusId, ProjectId, ProblemTypeId,
          Subject, Solution, Active, InsertDate, UpdateDate)
         OUTPUT INSERTED.CalllogId AS id
         VALUES
-        (@rid, @rd, @cd, @desc, @iname, @itel,
+        (@rid,
+         CASE WHEN @rd IS NOT NULL THEN CONVERT(datetime,@rd,120) ELSE GETDATE() END,
+         CASE WHEN @cd IS NOT NULL THEN CONVERT(datetime,@cd,120) ELSE NULL END,
+         @desc, @iname, @itel,
          @itype, @line, @sid, @stid, @pid, @ptid,
-         @subj, @sol, 1, @now, @now)`);
+         @subj, @sol, 1, GETDATE(), GETDATE())`);
 
     res.json({ id: result.recordset[0].id });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -2989,6 +2991,13 @@ app.get('/api/specialist/contact-info', authRequired, async (request, res) => {
     res.json(r.recordset[0] || {});
   } catch(e) { res.json({}); }
 });
+
+// Parse datetime from frontend (datetime-local = Thai time) → keep as-is for SQL
+function thaiDateStr(s) {
+  if (!s) return null;
+  // s = '2026-04-30T09:51' or '2026-04-30T09:51:00'
+  return s.replace('T',' ').substring(0, 19); // 'YYYY-MM-DD HH:MM:SS'
+}
 
 init().then(async () => {
   // Drop hardcoded team CHECK constraint so dynamic teams work
