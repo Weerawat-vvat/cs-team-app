@@ -1258,8 +1258,6 @@ textarea{resize:vertical;min-height:80px}
       <div class="form-group"><label>Line ID</label><input id="asp-line-id" placeholder="@line หรือ ID"/></div>
       <div class="form-group"><label>Line Group</label><input id="asp-line-group" placeholder="ชื่อกลุ่ม Line"/></div>
     </div>
-    <div class="form-group"><label>จุดวางเครื่อง / ที่อยู่</label><input id="asp-location" placeholder="เช่น เคาน์เตอร์หน้าร้าน หรือที่อยู่"/></div>
-
     <!-- Assignment -->
     <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin:.75rem 0 .5rem">🎯 มอบหมาย</div>
     <div class="grid-2">
@@ -5832,7 +5830,7 @@ async function openAssignSpecialist(ticket) {
   document.getElementById('asp-ticket-info').textContent = `#${ticket.id} — ${ticket.title||'—'}`;
   document.getElementById('asp-ticket-sub').textContent  = `${ticket.problem_type_detail||ticket.problem_type||''} | ${ticket.CompanyName||'—'}`;
   // Reset fields
-  ['asp-contact-name','asp-contact-phone','asp-line-id','asp-line-group','asp-location','asp-note'].forEach(id=>{
+  ['asp-contact-name','asp-contact-phone','asp-line-id','asp-line-group','asp-note'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value='';
   });
   document.getElementById('asp-priority').value = 'normal';
@@ -5844,10 +5842,12 @@ async function openAssignSpecialist(ticket) {
       if (info.Phone||info.MobilePhone) document.getElementById('asp-contact-phone').value = info.Phone||info.MobilePhone||'';
     } catch {}
   }
-  // Populate team dropdown
+  // Populate team dropdown — auto-select "specialist" team if exists
   const aspTeam = document.getElementById('asp-team');
   aspTeam.innerHTML = '<option value="">เลือกทีม</option>' +
     allTeams.map(t=>`<option value="${escHtml(t.name)}">${escHtml(t.display_name)}</option>`).join('');
+  const spTeam = allTeams.find(t => t.name.toLowerCase().includes('specialist') || t.display_name.toLowerCase().includes('specialist'));
+  if (spTeam) aspTeam.value = spTeam.name;
   openModal('modal-assign-specialist');
 }
 
@@ -5865,7 +5865,7 @@ async function saveAssignSpecialist() {
     contact_phone:    document.getElementById('asp-contact-phone').value.trim(),
     line_id:          document.getElementById('asp-line-id').value.trim(),
     line_group:       document.getElementById('asp-line-group').value.trim(),
-    customer_location:document.getElementById('asp-location').value.trim(),
+    customer_location: null,
     assigned_to_team: team,
     priority:         document.getElementById('asp-priority').value,
     note:             document.getElementById('asp-note').value.trim(),
