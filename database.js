@@ -13,10 +13,11 @@ const sql = mssql;
 
 // ── Main DB config (cs_team) ──────────────────────────────
 const mainConfig = {
-  server:   process.env.DB_SERVER   || 'localhost',
-  database: process.env.DB_NAME     || 'cs_team',
-  user:     process.env.DB_USER     || 'cs',
-  password: process.env.DB_PASSWORD || '',
+  server:         process.env.DB_SERVER   || 'localhost',
+  database:       process.env.DB_NAME     || 'cs_team',
+  user:           process.env.DB_USER     || 'cs',
+  password:       process.env.DB_PASSWORD || '',
+  requestTimeout: 60000,  // 60s (default 15s is too short)
   options: {
     encrypt:              process.env.DB_ENCRYPT     === 'true',
     trustServerCertificate: process.env.DB_TRUST_CERT !== 'false',
@@ -30,11 +31,12 @@ const mainConfig = {
 const extServerRaw = process.env.EXT_DB_SERVER || '';
 const [extHost, extPortStr] = extServerRaw.split(',');
 const extConfig = {
-  server:   extHost,
-  port:     extPortStr ? parseInt(extPortStr) : 1433,
-  database: process.env.EXT_DB_NAME     || 'LicenseDB',
-  user:     process.env.EXT_DB_USER     || 'cs',
-  password: process.env.EXT_DB_PASSWORD || '',
+  server:         extHost,
+  port:           extPortStr ? parseInt(extPortStr) : 1433,
+  database:       process.env.EXT_DB_NAME     || 'LicenseDB',
+  user:           process.env.EXT_DB_USER     || 'cs',
+  password:       process.env.EXT_DB_PASSWORD || '',
+  requestTimeout: 60000,  // 60s
   options: {
     encrypt:              process.env.EXT_DB_ENCRYPT     === 'true',
     trustServerCertificate: process.env.EXT_DB_TRUST_CERT !== 'false',
