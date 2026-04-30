@@ -17,23 +17,29 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex}
 
-/* ── SIDEBAR (keep slightly dark for contrast) ── */
-.sidebar{width:200px;min-width:200px;background:#1e293b;border-right:1px solid #334155;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;z-index:100;flex-shrink:0}
-.sidebar-brand{padding:1rem .85rem .75rem;border-bottom:1px solid #334155}
-.sidebar-logo-icon{font-size:1.4rem;line-height:1}
-.sidebar-name{font-size:.88rem;font-weight:800;color:#fff;margin-top:.3rem}
-.sidebar-sub{font-size:.68rem;color:#94a3b8;margin-top:.1rem}
-.sidebar-nav{display:flex;flex-direction:column;gap:.2rem;padding:.75rem .6rem;flex:1}
-.s-tab{background:none;border:none;color:#94a3b8;cursor:pointer;padding:.52rem .75rem;border-radius:8px;font-size:.83rem;text-align:left;display:flex;align-items:center;gap:.55rem;transition:all .15s;width:100%;font-family:inherit}
-.s-tab:hover{background:#334155;color:#fff}
-.s-tab.active{background:#2563eb;color:#fff;font-weight:600}
-.s-tab-icon{font-size:1rem;flex-shrink:0;width:1.2rem;text-align:center;filter:grayscale(1) brightness(10)}
-.s-sub-menu{display:none;flex-direction:column;gap:.1rem;padding:.1rem 0 .1rem .8rem;margin-top:.1rem}
+/* ── SIDEBAR ── */
+.sidebar{width:215px;min-width:215px;background:#161f2e;border-right:1px solid #1e2d40;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;z-index:100;flex-shrink:0}
+.sidebar-brand{padding:.9rem 1rem .75rem;border-bottom:1px solid #1e2d40}
+.sidebar-logo-icon{font-size:1.3rem;line-height:1}
+.sidebar-name{font-size:.87rem;font-weight:800;color:#fff;margin-top:.25rem}
+.sidebar-sub{font-size:.67rem;color:#64748b;margin-top:.1rem}
+.sidebar-nav{display:flex;flex-direction:column;gap:.05rem;padding:.6rem .55rem;flex:1;overflow-y:auto}
+/* Main tab */
+.s-tab{background:none;border:none;color:#94a3b8;cursor:pointer;padding:.48rem .8rem;border-radius:7px;font-size:.82rem;text-align:left;display:flex;align-items:center;gap:.6rem;transition:all .12s;width:100%;font-family:inherit}
+.s-tab:hover{background:#1e2d40;color:#cbd5e1}
+.s-tab.active{background:#1d4ed8;color:#fff;font-weight:600}
+.s-tab-icon{font-size:.95rem;flex-shrink:0;width:1.1rem;text-align:center;opacity:.75}
+.s-tab:hover .s-tab-icon,.s-tab.active .s-tab-icon{opacity:1}
+/* Sub-menu */
+.s-sub-menu{display:none;flex-direction:column;gap:0;margin:.1rem 0 .1rem .3rem;
+  border-left:1.5px solid #1e3a5f;padding-left:.5rem}
 .s-sub-menu.open{display:flex}
-.s-sub{background:none;border:none;color:#64748b;cursor:pointer;padding:.35rem .65rem;border-radius:6px;font-size:.78rem;text-align:left;display:flex;align-items:center;gap:.45rem;transition:all .15s;width:100%;font-family:inherit;border-left:2px solid #334155}
-.s-sub:hover{background:#334155;color:#fff;border-left-color:#475569}
-.s-sub.active{background:#1e3a5f;color:#93c5fd;font-weight:600;border-left-color:#3b82f6}
-.s-arrow{margin-left:auto;font-size:.65rem;transition:transform .2s;opacity:.6}
+.s-sub{background:none;border:none;color:#64748b;cursor:pointer;padding:.38rem .65rem;border-radius:6px;font-size:.79rem;text-align:left;display:flex;align-items:center;gap:.5rem;transition:all .12s;width:100%;font-family:inherit}
+.s-sub:hover{background:#1e2d40;color:#cbd5e1}
+.s-sub.active{background:#1d4ed8;color:#fff;font-weight:600}
+/* Arrow */
+.s-arrow{margin-left:auto;font-size:.68rem;opacity:.5;transition:transform .2s}
+.s-arrow.open{transform:rotate(90deg);opacity:.9}
 .sidebar-footer{padding:.75rem .85rem;border-top:1px solid #334155;margin-top:auto}
 .sidebar-user-name{font-size:.82rem;font-weight:700;color:#e2e8f0;white-space:normal;word-break:break-word;line-height:1.3}
 .sidebar-user-role{font-size:.7rem;color:#94a3b8;margin-top:.1rem}
@@ -398,38 +404,38 @@ textarea{resize:vertical;min-height:80px}
   </div>
   <nav class="sidebar-nav">
     <button class="s-tab active" id="nav-btn-dashboard" onclick="showPage('dashboard',this)">
-      <span class="s-tab-icon">🏠</span> Dashboard
+      <svg class="s-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Dashboard
     </button>
     <button class="s-tab" id="nav-btn-tickets" onclick="showPage('tickets',this)">
-      <span class="s-tab-icon">🎫</span> ติดตามเคส
+      <svg class="s-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      ติดตามเคส
     </button>
     <button class="s-tab" id="nav-btn-kpi" onclick="showPage('kpi',this)">
-      <span class="s-tab-icon">📊</span> ประเมินทีม
+      <svg class="s-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      ประเมินทีม
     </button>
     <button class="s-tab" id="nav-btn-specialist" onclick="showPage('specialist',this)">
-      <span class="s-tab-icon">🎯</span> Specialist
-      <span id="specialist-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.65rem;padding:.05rem .4rem;margin-left:.2rem;font-weight:700"></span>
+      <svg class="s-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+      Specialist
+      <span id="specialist-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.62rem;padding:.02rem .38rem;margin-left:auto;font-weight:700"></span>
     </button>
     <button class="s-tab" id="nav-btn-repair" onclick="showPage('repair',this)">
-      <span class="s-tab-icon">🔧</span> งานซ่อม
-      <span id="repair-msg-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.65rem;padding:.05rem .4rem;margin-left:.2rem;font-weight:700"></span>
+      <svg class="s-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+      งานซ่อม
+      <span id="repair-msg-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.62rem;padding:.02rem .38rem;margin-left:auto;font-weight:700"></span>
     </button>
     <!-- Settings expandable -->
     <div id="nav-settings-group">
       <button class="s-tab" id="nav-btn-settings" onclick="toggleSettingsMenu(this)">
-        <span class="s-tab-icon">⚙️</span> ตั้งค่า
-        <span class="s-arrow" id="settings-arrow">▶</span>
+        <svg class="s-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        ตั้งค่า
+        <span class="s-arrow" id="settings-arrow">›</span>
       </button>
       <div class="s-sub-menu" id="settings-sub">
-        <button class="s-sub" id="nav-sub-schedule" onclick="navSettings('schedule',this)">
-          <span class="s-tab-icon" style="width:.9rem;font-size:.85rem">📅</span> ตารางงาน
-        </button>
-        <button class="s-sub" id="nav-sub-subjects" onclick="navSettings('subjects',this)">
-          <span class="s-tab-icon" style="width:.9rem;font-size:.85rem">📋</span> หัวข้อ / ประเภทปัญหา
-        </button>
-        <button class="s-sub" id="nav-sub-users" onclick="navSettings('users',this)">
-          <span class="s-tab-icon" style="width:.9rem;font-size:.85rem">👤</span> จัดการ User
-        </button>
+        <button class="s-sub" id="nav-sub-schedule" onclick="navSettings('schedule',this)">ตารางงาน</button>
+        <button class="s-sub" id="nav-sub-subjects" onclick="navSettings('subjects',this)">หัวข้อ / ประเภทปัญหา</button>
+        <button class="s-sub" id="nav-sub-users" onclick="navSettings('users',this)">จัดการ User</button>
       </div>
     </div>
     <!-- hidden buttons for backward compat -->
@@ -438,18 +444,13 @@ textarea{resize:vertical;min-height:80px}
     <!-- Support Tools expandable -->
     <div>
       <button class="s-tab" onclick="toggleToolsMenu(this)">
-        <span class="s-tab-icon">🛠️</span> เครื่องมือ Support
-        <span class="s-arrow" id="tools-arrow">▶</span>
+        <svg class="s-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+        เครื่องมือ Support
+        <span class="s-arrow" id="tools-arrow">›</span>
       </button>
       <div class="s-sub-menu" id="tools-sub">
-        <a href="https://fbprokb-front.azurewebsites.net/" target="_blank" rel="noopener"
-           class="s-sub" style="text-decoration:none">
-          <span class="s-tab-icon" style="width:.9rem;font-size:.85rem">📚</span> Knowledge Base
-        </a>
-        <a href="https://online-tool.azurewebsites.net/dashboard" target="_blank" rel="noopener"
-           class="s-sub" style="text-decoration:none">
-          <span class="s-tab-icon" style="width:.9rem;font-size:.85rem">🔧</span> INFOGRAMMER Tools
-        </a>
+        <a href="https://fbprokb-front.azurewebsites.net/" target="_blank" rel="noopener" class="s-sub" style="text-decoration:none">Knowledge Base</a>
+        <a href="https://online-tool.azurewebsites.net/dashboard" target="_blank" rel="noopener" class="s-sub" style="text-decoration:none">INFOGRAMMER Tools</a>
       </div>
     </div>
     <button class="s-tab" id="nav-btn-complaints" onclick="showPage('complaints',this)" style="display:none">
@@ -5191,7 +5192,7 @@ function toggleToolsMenu(btn) {
   const arrow = document.getElementById('tools-arrow');
   const isOpen = sub.classList.contains('open');
   sub.classList.toggle('open');
-  arrow.textContent = isOpen ? '▶' : '▼';
+  arrow.textContent = isOpen ? '›' : '⌄';
 }
 
 function toggleSettingsMenu(btn) {
@@ -5199,7 +5200,7 @@ function toggleSettingsMenu(btn) {
   const arrow = document.getElementById('settings-arrow');
   const isOpen = sub.classList.contains('open');
   sub.classList.toggle('open');
-  arrow.textContent = isOpen ? '▶' : '▼';
+  arrow.textContent = isOpen ? '›' : '⌄';
   arrow.style.transform = isOpen ? '' : 'rotate(0deg)';
   if (!isOpen) {
     // Activate settings page with default sub
