@@ -435,10 +435,23 @@ textarea{resize:vertical;min-height:80px}
     <!-- hidden buttons for backward compat -->
     <button class="s-tab" id="nav-btn-schedule" style="display:none"></button>
     <button class="s-tab" id="nav-btn-users"    style="display:none"></button>
-    <a href="https://fbprokb-front.azurewebsites.net/" target="_blank" rel="noopener"
-       class="s-tab" style="text-decoration:none">
-      <span class="s-tab-icon">📚</span> Knowledge Base
-    </a>
+    <!-- Support Tools expandable -->
+    <div>
+      <button class="s-tab" onclick="toggleToolsMenu(this)">
+        <span class="s-tab-icon">🛠️</span> เครื่องมือ Support
+        <span class="s-arrow" id="tools-arrow">▶</span>
+      </button>
+      <div class="s-sub-menu" id="tools-sub">
+        <a href="https://fbprokb-front.azurewebsites.net/" target="_blank" rel="noopener"
+           class="s-sub" style="text-decoration:none">
+          <span class="s-tab-icon" style="width:.9rem;font-size:.85rem">📚</span> Knowledge Base
+        </a>
+        <a href="https://online-tool.azurewebsites.net/dashboard" target="_blank" rel="noopener"
+           class="s-sub" style="text-decoration:none">
+          <span class="s-tab-icon" style="width:.9rem;font-size:.85rem">🔧</span> INFOGRAMMER Tools
+        </a>
+      </div>
+    </div>
     <button class="s-tab" id="nav-btn-complaints" onclick="showPage('complaints',this)" style="display:none">
       <span class="s-tab-icon">📣</span> ร้องเรียน <span id="complaint-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.65rem;padding:.05rem .4rem;margin-left:.2rem;font-weight:700"></span>
     </button>
@@ -5172,6 +5185,14 @@ async function deleteRepairAttachment(id) {
 //  SETTINGS
 // ══════════════════════════════════════════════════════════
 let _settingTab = 'subjects';
+
+function toggleToolsMenu(btn) {
+  const sub   = document.getElementById('tools-sub');
+  const arrow = document.getElementById('tools-arrow');
+  const isOpen = sub.classList.contains('open');
+  sub.classList.toggle('open');
+  arrow.textContent = isOpen ? '▶' : '▼';
+}
 
 function toggleSettingsMenu(btn) {
   const sub   = document.getElementById('settings-sub');
