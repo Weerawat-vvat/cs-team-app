@@ -4280,7 +4280,11 @@ function applyUserContext() {
   if (isLead) {
     loadComplaintsBadge();
     pollRepairMessages();
-    loadSpecialist(); // init badge
+    // Init specialist badge (lightweight)
+    api('/api/specialist/badge', {silent:true}).then(d => {
+      const b = document.getElementById('specialist-badge');
+      if (b) { if(d?.pending>0){b.textContent=d.pending;b.style.display='';}else b.style.display='none'; }
+    });
     // Poll every 60s for new customer messages
     clearInterval(_repairPollTimer);
     _repairPollTimer = setInterval(pollRepairMessages, 60000);

@@ -2909,26 +2909,30 @@ async function ensureSpecialistTable() {
   } catch(e) { console.error('❌ specialist_log error:', e.message); }
 }
 
+// Lightweight badge count only
+app.get('/api/specialist/badge', authRequired, async (request, res) => {
+  try {
+    const r = await req().query(
+      `SELECT COUNT(*) AS cnt FROM specialist_log WHERE status='pending'`);
+    res.json({ pending: r.recordset[0]?.cnt || 0 });
+  } catch(e) { res.json({ pending: 0 }); }
+});
+
 // Get all specialist logs
 app.get('/api/specialist', authRequired, async (request, res) => {
   try {
     const { status, team, my } = request.query;
     const r = req();
-    let q = `SELECT sl.*,
+    // Simplified query — store names at create/accept time, minimal JOINs
+    let q = `SELECT TOP 200 sl.*,
                e1.name AS agent_name, e1.team AS agent_team,
-               e2.name AS resolved_by_name,
-               e3.name AS assigned_user_name,
                e4.name AS accepted_by_name
              FROM specialist_log sl
              LEFT JOIN app_users au1 ON au1.id = sl.original_agent
              LEFT JOIN employees  e1 ON e1.id  = au1.employee_id
-             LEFT JOIN app_users au2 ON au2.id = sl.resolved_by
-             LEFT JOIN employees  e2 ON e2.id  = au2.employee_id
-             LEFT JOIN app_users au3 ON au3.id = sl.assigned_to_user
-             LEFT JOIN employees  e3 ON e3.id  = au3.employee_id
              LEFT JOIN app_users au4 ON au4.id = sl.accepted_by
              LEFT JOIN employees  e4 ON e4.id  = au4.employee_id
-             WHERE 1=1`;
+             WHERE sl.assigned_at >= DATEADD(day,-90,GETDATE())`;
     if (status)  { q += ' AND sl.status=@st';    r.input('st', sql.NVarChar, status); }
     if (team)    { q += ' AND sl.assigned_to_team=@tm'; r.input('tm', sql.NVarChar, team); }
     if (my==='1'){ q += ' AND sl.assigned_to_user=@me'; r.input('me', sql.Int, request.user.id||0); }
