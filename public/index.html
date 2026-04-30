@@ -310,7 +310,8 @@ textarea{resize:vertical;min-height:80px}
 @media(max-width:900px){.dash-main{grid-template-columns:1fr}}
 
 /* ── TICKET EXPAND ── */
-.tk-row-main td{cursor:default}
+.tk-row-main td{cursor:pointer}
+.tk-row-main td:last-child{cursor:default}
 .tk-row-main .tk-toggle{cursor:pointer;user-select:none;color:var(--muted);font-size:.9rem;transition:.2s}
 .tk-row-main:hover td{background:#f8fafc}
 .tk-row-detail td{background:#f8fafc;border-bottom:2px solid var(--border)}
@@ -3453,9 +3454,10 @@ function renderTickets() {
       : '—';
 
     // Main row
-    rows.push(`<tr class="tk-row-main${isOverdue?' overdue-row':''}">
-      <td style="text-align:center;padding:.4rem .25rem">
-        ${hasDetail ? `<span class="tk-toggle" onclick="toggleTicketDetail(${t.id})">${expanded?'▼':'▶'}</span>` : ''}
+    rows.push(`<tr class="tk-row-main${isOverdue?' overdue-row':''}" style="cursor:${hasDetail?'pointer':'default'}"
+        onclick="${hasDetail?`toggleTicketDetail(${t.id})`:''}">
+      <td style="text-align:center;padding:.4rem .25rem;color:var(--muted);font-size:.72rem">
+        ${hasDetail ? (expanded?'▼':'▶') : ''}
       </td>
       <td style="font-size:.8rem;white-space:nowrap"><b>#${t.id}</b></td>
       <td style="font-size:.78rem;white-space:nowrap">
@@ -3514,7 +3516,7 @@ function renderTickets() {
            </div>`
         : `<div class="tk-star-display">${curStars ? '★'.repeat(curStars)+'☆'.repeat(5-curStars) : '☆☆☆☆☆'}</div>`;
 
-      rows.push(`<tr class="tk-row-detail">
+      rows.push(`<tr class="tk-row-detail" onclick="event.stopPropagation()">
         <td colspan="13" style="padding:.75rem 1rem 1rem">
           ${(desc||sol) ? `<div style="display:grid;grid-template-columns:${sol?'1fr 1fr':'1fr'};gap:1rem;margin-bottom:.75rem">
             ${desc ? `<div class="tk-detail-box">
@@ -3527,7 +3529,7 @@ function renderTickets() {
             </div>` : ''}
           </div>` : ''}
           <!-- Review section -->
-          <div class="tk-review-box">
+          <div class="tk-review-box" onclick="event.stopPropagation()">
             <div class="tk-detail-label" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.35rem">
               <span>⭐ ประเมินเคส</span>
               ${autoStarSuggestion && canReview ? `
@@ -3537,18 +3539,10 @@ function renderTickets() {
               </button>` : ''}
             </div>
             ${starPickerHtml}
-            ${canReview
-              ? `<textarea id="tc-${t.id}" rows="2" placeholder="หมายเหตุ / ความคิดเห็น..."
-                   oninput="tkAutoSave(${t.id})"
-                   style="width:100%;margin-top:.4rem;padding:.4rem .6rem;border:1px solid var(--border);border-radius:6px;font-size:.82rem;resize:vertical;background:var(--card);color:var(--text)">${curComment}</textarea>
-                 <span id="tc-saved-${t.id}" style="font-size:.72rem;color:#16a34a;margin-top:.25rem;display:none">✅ บันทึกแล้ว</span>`
-              : curComment
-                ? `<div style="margin-top:.35rem;font-size:.82rem;color:var(--muted)">${curComment}</div>`
-                : ''
-            }
+            <!-- Comment removed (ไม่แสดง textarea) -->
           </div>
           ${isLeadRole() ? `
-          <div style="margin-top:.55rem;padding-top:.5rem;border-top:1px solid #f1f5f9;display:flex;justify-content:flex-end;gap:.4rem">
+          <div style="margin-top:.55rem;padding-top:.5rem;border-top:1px solid #f1f5f9;display:flex;justify-content:flex-end;gap:.4rem" onclick="event.stopPropagation()">
             <button class="btn btn-sm" style="background:#f59e0b;color:#fff"
               onclick="openEditTicket(${t.id})">
               ✏️ แก้ไข
