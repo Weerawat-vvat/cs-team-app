@@ -1016,16 +1016,19 @@ textarea{resize:vertical;min-height:80px}
       <div class="card" style="padding:.85rem 1rem;margin-bottom:.65rem">
         <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">🏷️ ประเภท / หัวข้อ</div>
         <div class="form-group">
-          <label>ประเภทปัญหา</label>
+          <label>ประเภทปัญหา <span style="color:#ef4444">*</span></label>
           <select id="cc-problem-type" onchange="ccFilterSubjects()">
             <option value="">— เลือกประเภทปัญหา —</option>
           </select>
         </div>
         <div class="form-group">
-          <label>หัวข้อ</label>
-          <select id="cc-subject">
+          <label>หัวข้อ <span style="color:#ef4444">*</span></label>
+          <select id="cc-subject" onchange="ccOnSubjectChange()">
             <option value="">— เลือกหัวข้อ —</option>
           </select>
+          <div id="cc-time-hint" style="display:none;margin-top:.3rem;background:#fef3c7;border:1px solid #fde68a;border-radius:6px;padding:.3rem .65rem;font-size:.75rem;color:#92400e;font-weight:600">
+            ⏱️ ต้องดำเนินการภายใน <span id="cc-time-value"></span> นาที
+          </div>
         </div>
         <div class="form-group">
           <label>ประเภทโปรแกรม</label>
@@ -1039,11 +1042,11 @@ textarea{resize:vertical;min-height:80px}
       <div class="card" style="padding:.85rem 1rem;margin-bottom:.65rem">
         <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">📋 รายละเอียด</div>
         <div class="form-group">
-          <label>อาการ / รายละเอียดปัญหา</label>
+          <label>อาการ / รายละเอียดปัญหา <span style="color:#ef4444">*</span></label>
           <textarea id="cc-description" rows="3" placeholder="อธิบายปัญหา..."></textarea>
         </div>
         <div class="form-group">
-          <label>Solution ที่แก้ไข</label>
+          <label>Solution ที่แก้ไข <span style="color:#ef4444">*</span></label>
           <textarea id="cc-solution" rows="3" placeholder="วิธีแก้ไขที่ดำเนินการ..."></textarea>
         </div>
       </div>
@@ -5391,21 +5394,24 @@ async function initCreateCase() {
   }
   ccFilterSubjects();
 
-  // Projects
+  // Projects — default Easy Restaurant (Trunk)
   const pjSel = document.getElementById('cc-project');
-  if (pjSel && pjSel.options.length <= 1) {
+  if (pjSel) {
     pjSel.innerHTML = '<option value="">— เลือกโปรแกรม —</option>' +
       (d.projects||[]).map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('');
+    // Auto-select Easy Restaurant (Trunk)
+    const defaultProj = Array.from(pjSel.options).find(o => o.text.includes('Easy Restaurant') && o.text.includes('Trunk'));
+    if (defaultProj) pjSel.value = defaultProj.value;
   }
 
   // Statuses
   const stSel = document.getElementById('cc-status');
-  if (stSel && stSel.options.length <= 1) {
+  if (stSel) {
     stSel.innerHTML = '<option value="">— เลือกสถานะ —</option>' +
       (d.statuses||[]).map(s=>`<option value="${s.id}">${escHtml(s.name)}</option>`).join('');
   }
 
-  // Support users
+  // Support users — default = login user's ext_username
   const spSel = document.getElementById('cc-support');
   if (spSel) {
     const curUser = currentUser?.ext_username;
@@ -5416,12 +5422,28 @@ async function initCreateCase() {
 
 function ccFilterSubjects() {
   if (!_ccFormData) return;
-  const ptId = document.getElementById('cc-problem-type')?.value;
+  const ptId   = document.getElementById('cc-problem-type')?.value;
   const subSel = document.getElementById('cc-subject');
   if (!subSel) return;
   const filtered = (_ccFormData.subjects||[]).filter(s => !ptId || String(s.problem_type_id) === String(ptId));
   subSel.innerHTML = '<option value="">— เลือกหัวข้อ —</option>' +
-    filtered.map(s=>`<option value="${escHtml(s.name)}">${escHtml(s.name)}</option>`).join('');
+    filtered.map(s=>`<option value="${escHtml(s.name)}" data-time="${s.time_to_resolve||''}">${escHtml(s.name)}</option>`).join('');
+  ccOnSubjectChange(); // reset hint
+}
+
+function ccOnSubjectChange() {
+  const subSel = document.getElementById('cc-subject');
+  const hint   = document.getElementById('cc-time-hint');
+  const val    = document.getElementById('cc-time-value');
+  if (!subSel || !hint || !val) return;
+  const opt = subSel.options[subSel.selectedIndex];
+  const t   = opt?.dataset?.time;
+  if (t && parseInt(t) > 0) {
+    val.textContent  = t;
+    hint.style.display = '';
+  } else {
+    hint.style.display = 'none';
+  }
 }
 
 // Shop search
@@ -5465,8 +5487,16 @@ function ccShopSearch() {
 async function saveCreateCase() {
   const regId = document.getElementById('cc-registration-id').value;
   const rd    = document.getElementById('cc-receive-date').value;
-  if (!regId) { showToast('❌ กรุณาเลือกร้านค้า', 'error'); return; }
-  if (!rd)    { showToast('❌ กรุณาระบุเวลารับ Case', 'error'); return; }
+  const ptId    = document.getElementById('cc-problem-type').value;
+  const subj    = document.getElementById('cc-subject').value;
+  const desc    = document.getElementById('cc-description').value.trim();
+  const sol     = document.getElementById('cc-solution').value.trim();
+  if (!regId)  { showToast('❌ กรุณาเลือกร้านค้า', 'error'); return; }
+  if (!rd)     { showToast('❌ กรุณาระบุเวลารับ Case', 'error'); return; }
+  if (!ptId)   { showToast('❌ กรุณาเลือกประเภทปัญหา', 'error'); return; }
+  if (!subj)   { showToast('❌ กรุณาเลือกหัวข้อ', 'error'); return; }
+  if (!desc)   { showToast('❌ กรุณากรอกอาการ / รายละเอียดปัญหา', 'error'); return; }
+  if (!sol)    { showToast('❌ กรุณากรอก Solution ที่แก้ไข', 'error'); return; }
 
   const body = {
     registration_id:  parseInt(regId),
