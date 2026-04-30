@@ -538,8 +538,8 @@ app.put('/api/tickets/:id', authRequired, async (request, res) => {
     const id = parseInt(request.params.id);
     await extReq()
       .input('id',    sql.Int,      id)
-      .input('rd',    sql.NVarChar, thaiDateStr(b.receive_date))
-      .input('cd',    sql.NVarChar, thaiDateStr(b.close_date))
+      .input('rd',    sql.DateTime, thaiToUtc(b.receive_date) ? new Date(thaiToUtc(b.receive_date)+' UTC') : null)
+      .input('cd',    sql.DateTime, thaiToUtc(b.close_date)   ? new Date(thaiToUtc(b.close_date)+' UTC')   : null)
       .input('desc',  sql.NVarChar, b.description   ?? null)
       .input('sol',   sql.NVarChar, b.solution       ?? null)
       .input('subj',  sql.NVarChar, b.subject        ?? null)
@@ -547,13 +547,15 @@ app.put('/api/tickets/:id', authRequired, async (request, res) => {
       .input('pid',   sql.Int,      b.project_id      ? parseInt(b.project_id)      : null)
       .input('stid',  sql.Int,      b.status_id       ? parseInt(b.status_id)       : null)
       .input('sid',   sql.Int,      b.support_id      ? parseInt(b.support_id)       : null)
-      .input('iname', sql.NVarChar, b.inform_name     ?? null)
-      .input('itel',  sql.NVarChar, b.inform_tel      ?? null)
-      .input('itype', sql.NVarChar, b.inform_type     ?? null)
-      .input('line',  sql.NVarChar, b.line_contact    ?? null)
+      .input('iname',   sql.NVarChar, b.inform_name     ?? null)
+      .input('itel',    sql.NVarChar, b.inform_tel      ?? null)
+      .input('itype',   sql.NVarChar, b.inform_type     ?? null)
+      .input('line',    sql.NVarChar, b.line_contact    ?? null)
+      .input('solvety', sql.NVarChar, b.inform_type ? (['Walk-in','Onsite'].includes(b.inform_type) ? 'Walk-in' : 'Remote') : null)
+      .input('uid',     sql.Int,      request.user.calluserid || null)
       .query(`UPDATE Calllog SET
-        ReceiveDate=ISNULL(CASE WHEN @rd IS NOT NULL THEN CONVERT(datetime,@rd,120) END,ReceiveDate),
-        CloseDate=CASE WHEN @cd IS NOT NULL THEN CONVERT(datetime,@cd,120) ELSE NULL END,
+        ReceiveDate=ISNULL(@rd,ReceiveDate),
+        CloseDate=@cd,
         CalllogDesc=ISNULL(@desc,CalllogDesc),
         Solution=@sol,
         Subject=ISNULL(@subj,Subject),
@@ -561,6 +563,8 @@ app.put('/api/tickets/:id', authRequired, async (request, res) => {
         ProjectId=ISNULL(@pid,ProjectId),
         StatusId=ISNULL(@stid,StatusId),
         SupportId=ISNULL(@sid,SupportId),
+        UserId=ISNULL(@uid,UserId),
+        SolveType=ISNULL(@solvety,SolveType),
         InformName=@iname,
         InformTel=@itel,
         InformType=@itype,
@@ -629,8 +633,8 @@ app.post('/api/cases', authRequired, async (request, res) => {
 
     const result = await extReq()
       .input('rid',   sql.Int,      b.registration_id  || null)
-      .input('rd',    sql.NVarChar, thaiDateStr(b.receive_date) || thaiDateStr(new Date().toISOString()))
-      .input('cd',    sql.NVarChar, thaiDateStr(b.close_date))
+      .input('rd',    sql.DateTime, thaiToUtc(b.receive_date) ? new Date(thaiToUtc(b.receive_date)+' UTC') : null)
+      .input('cd',    sql.DateTime, thaiToUtc(b.close_date)   ? new Date(thaiToUtc(b.close_date)+' UTC')   : null)
       .input('desc',  sql.NVarChar, b.description       || null)
       .input('iname', sql.NVarChar, b.inform_name        || null)
       .input('itel',  sql.NVarChar, b.inform_tel         || null)
@@ -640,20 +644,23 @@ app.post('/api/cases', authRequired, async (request, res) => {
       .input('stid',  sql.Int,      b.status_id         || null)
       .input('pid',   sql.Int,      b.project_id        || null)
       .input('ptid',  sql.Int,      b.problem_type_id   || null)
-      .input('subj',  sql.NVarChar, b.subject            || null)
-      .input('sol',   sql.NVarChar, b.solution           || null)
+      .input('subj',    sql.NVarChar, b.subject            || null)
+      .input('sol',     sql.NVarChar, b.solution           || null)
+      .input('uid',     sql.Int,      request.user.calluserid || null)  // UserId
+      .input('cbid',    sql.Int,      b.close_date ? (request.user.calluserid || null) : null) // CloseById when closed
+      .input('solvety', sql.NVarChar, (['Walk-in','Onsite'].includes(b.inform_type) ? 'Walk-in' : 'Remote'))
       .query(`INSERT INTO Calllog
         (RegistrationId, ReceiveDate, CloseDate, CalllogDesc, InformName, InformTel,
          InformType, OnsiteRemark, SupportId, StatusId, ProjectId, ProblemTypeId,
-         Subject, Solution, Active, InsertDate, UpdateDate)
+         Subject, Solution, SolveType, UserId, CloseById, Active, InsertDate, UpdateDate)
         OUTPUT INSERTED.CalllogId AS id
         VALUES
         (@rid,
-         CASE WHEN @rd IS NOT NULL THEN CONVERT(datetime,@rd,120) ELSE GETDATE() END,
-         CASE WHEN @cd IS NOT NULL THEN CONVERT(datetime,@cd,120) ELSE NULL END,
+         ISNULL(@rd,GETDATE()),
+         @cd,
          @desc, @iname, @itel,
          @itype, @line, @sid, @stid, @pid, @ptid,
-         @subj, @sol, 1, GETDATE(), GETDATE())`);
+         @subj, @sol, @solvety, @uid, @cbid, 1, GETDATE(), GETDATE())`);
 
     res.json({ id: result.recordset[0].id });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -2992,11 +2999,13 @@ app.get('/api/specialist/contact-info', authRequired, async (request, res) => {
   } catch(e) { res.json({}); }
 });
 
-// Parse datetime from frontend (datetime-local = Thai time) → keep as-is for SQL
-function thaiDateStr(s) {
+// Convert Thai time input (UTC+7) → UTC datetime string for SQL Server (which stores UTC)
+function thaiToUtc(s) {
   if (!s) return null;
-  // s = '2026-04-30T09:51' or '2026-04-30T09:51:00'
-  return s.replace('T',' ').substring(0, 19); // 'YYYY-MM-DD HH:MM:SS'
+  // Append +07:00 so new Date() correctly interprets as UTC+7, then convert to UTC
+  const d = new Date(s + ':00+07:00');
+  if (isNaN(d)) return null;
+  return d.toISOString().replace('T',' ').substring(0, 19); // UTC 'YYYY-MM-DD HH:MM:SS'
 }
 
 init().then(async () => {
