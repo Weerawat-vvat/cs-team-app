@@ -5921,10 +5921,12 @@ async function openSpecialistDetail(id) {
 
     ${s.note?`<div style="background:#f8fafc;border-radius:8px;padding:.55rem .8rem;font-size:.82rem;margin-bottom:.6rem"><b>📝 Note จาก Helpdesk:</b> ${escHtml(s.note)}</div>`:''}
 
-    <!-- Previous Helpdesk solution — loaded async -->
-    ${s.calllog_id ? `<div id="sp-prev-solution" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:.65rem .85rem;margin-bottom:.65rem">
-      <div style="font-size:.72rem;font-weight:700;color:#1d4ed8;margin-bottom:.2rem">🔍 สิ่งที่ Helpdesk ดำเนินการแล้ว (Case #${s.calllog_id})</div>
-      <div style="font-size:.78rem;color:#94a3b8">⏳ กำลังโหลด...</div>
+    <!-- Ref CalllogId — click to view in tickets page -->
+    ${s.calllog_id ? `<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:.5rem .85rem;margin-bottom:.65rem;display:flex;align-items:center;gap:.6rem">
+      <span style="font-size:.78rem;color:#1d4ed8;font-weight:600">🔗 อ้างอิง Case:</span>
+      <button onclick="viewRefCase(${s.calllog_id})" style="background:#2563eb;color:#fff;border:none;border-radius:6px;padding:.22rem .65rem;font-size:.78rem;font-weight:600;cursor:pointer">
+        #${s.calllog_id} — ดูรายละเอียด
+      </button>
     </div>` : ''}
 
     <!-- Issue ID (bug tracking) -->
@@ -5951,24 +5953,17 @@ async function openSpecialistDetail(id) {
       <textarea id="sp-resolution-note" rows="2" placeholder="สรุปการแก้ไข..." style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.4rem .6rem;font-size:.82rem;font-family:inherit;resize:vertical"></textarea>
       <button class="btn btn-success btn-sm" style="margin-top:.35rem;width:100%" onclick="saveSpResolve(${s.id})">✅ ยืนยันแก้ไขแล้ว</button>
     </div>`;
-  // Load previous helpdesk solution async (non-blocking)
-  if (_calllogId) setTimeout(() => loadPrevSolution(_calllogId), 100);
+  // No Calllog fetch — user clicks ref link to view
 }
 
-async function loadPrevSolution(calllogId) {
-  const wrap = document.getElementById('sp-prev-solution');
-  if (!wrap || !calllogId) return;
-  try {
-    const tk = await api(`/api/tickets/quick/${calllogId}`, { silent: true });
-    if (!tk || tk.error) { wrap.style.display='none'; return; }
-    const prevDesc = tk.description || '';
-    const prevSol  = tk.Solution    || '';
-    wrap.innerHTML = `
-      <div style="font-size:.72rem;font-weight:700;color:#1d4ed8;text-transform:uppercase;margin-bottom:.4rem">🔍 สิ่งที่ Helpdesk ดำเนินการแล้ว (Case #${calllogId})</div>
-      ${prevDesc?`<div style="font-size:.8rem;margin-bottom:.3rem"><span style="color:#475569;font-weight:600">อาการ: </span>${escHtml(prevDesc)}</div>`:''}
-      ${prevSol?`<div style="font-size:.8rem"><span style="color:#475569;font-weight:600">Solution: </span><span style="color:#15803d">${escHtml(prevSol)}</span></div>`
-               :'<div style="font-size:.78rem;color:#94a3b8">ยังไม่มี solution จาก Helpdesk</div>'}`;
-  } catch { wrap.style.display='none'; }
+function viewRefCase(calllogId) {
+  closeModal('modal-specialist-detail');
+  // Go to tickets page and search by ID
+  showPage('tickets', document.getElementById('nav-btn-tickets'));
+  setTimeout(() => {
+    const s = document.getElementById('tk-search');
+    if (s) { s.value = String(calllogId); loadTickets(); }
+  }, 200);
 }
 
 async function saveIssueId(id, value) {
