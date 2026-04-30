@@ -2161,7 +2161,7 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 
 // click outside to close
 // Modals ที่ห้ามปิดเมื่อกด outside (ข้อมูลอาจหาย)
-const NO_BACKDROP_CLOSE = new Set(['modal-repair-form','modal-repair-detail','modal-person','modal-create-case','modal-edit-ticket-full']);
+const NO_BACKDROP_CLOSE = new Set(['modal-repair-form','modal-repair-detail','modal-person','modal-create-case','modal-edit-ticket-full','modal-specialist-detail','modal-assign-specialist']);
 
 document.querySelectorAll('.overlay').forEach(el => {
   el.addEventListener('click', e => {
@@ -5863,10 +5863,12 @@ async function saveAssignSpecialist() {
   if (!team) { showToast('❌ กรุณาเลือกทีม', 'error'); return; }
   const ticketInfo = document.getElementById('asp-ticket-info').textContent;
   const sub        = document.getElementById('asp-ticket-sub').textContent;
+  // asp-ticket-info = "#ID — Subject/หัวข้อ"
+  // asp-ticket-sub  = "ProblemType | CompanyName"
   const body = {
     calllog_id:       parseInt(document.getElementById('asp-calllog-id').value) || null,
-    company_name:     ticketInfo.split('—')[1]?.trim() || '',
-    subject:          document.getElementById('asp-ticket-info').textContent,
+    company_name:     sub.split('|')[1]?.trim() || '',        // ชื่อร้าน (หลัง |)
+    subject:          ticketInfo.split('—')[1]?.trim() || '', // หัวข้อ (หลัง —)
     problem_type:     sub.split('|')[0]?.trim() || '',
     contact_name:     document.getElementById('asp-contact-name').value.trim(),
     contact_phone:    document.getElementById('asp-contact-phone').value.trim(),
@@ -5929,24 +5931,28 @@ async function openSpecialistDetail(id) {
       </button>
     </div>` : ''}
 
-    <!-- Issue ID (bug tracking) -->
-    <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.65rem;background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px;padding:.55rem .85rem">
-      <span style="font-size:.78rem;font-weight:700;color:#7c3aed;white-space:nowrap">🐛 Issue ID</span>
+    <!-- Issue ID / URL (bug tracking) -->
+    <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.65rem;background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px;padding:.55rem .85rem;flex-wrap:wrap">
+      <span style="font-size:.78rem;font-weight:700;color:#7c3aed;white-space:nowrap">🐛 Issue URL</span>
       ${isLead ? `
-      <input id="sp-issue-id" value="${escHtml(s.issue_id||'')}" placeholder="เช่น ISS-123 / BUG-456 / #123"
-        style="flex:1;border:1px solid #e9d5ff;border-radius:6px;padding:.28rem .55rem;font-size:.82rem;font-family:monospace;outline:none;background:#fff"
+      <input id="sp-issue-id" value="${escHtml(s.issue_id||'')}" placeholder="วาง URL หรือ Issue ID เช่น https://... / ISS-123"
+        style="flex:1;min-width:200px;border:1px solid #e9d5ff;border-radius:6px;padding:.28rem .55rem;font-size:.82rem;outline:none;background:#fff"
         onblur="saveIssueId(${s.id},this.value)"/>
-      <span style="font-size:.7rem;color:#94a3b8">กด Tab/ออกจากช่องเพื่อบันทึก</span>` :
-      `<span style="font-family:monospace;font-size:.82rem;color:${s.issue_id?'#7c3aed':'#94a3b8'}">${escHtml(s.issue_id||'ยังไม่ระบุ')}</span>`}
+      ${s.issue_id && s.issue_id.startsWith('http') ? `<a href="${escHtml(s.issue_id)}" target="_blank" rel="noopener"
+        style="background:#7c3aed;color:#fff;border-radius:6px;padding:.25rem .6rem;font-size:.75rem;font-weight:600;text-decoration:none;white-space:nowrap">🔗 เปิด</a>` : ''}` :
+      s.issue_id ? (s.issue_id.startsWith('http') ?
+        `<a href="${escHtml(s.issue_id)}" target="_blank" rel="noopener"
+          style="color:#7c3aed;font-size:.82rem;font-weight:600;word-break:break-all">${escHtml(s.issue_id)}</a>` :
+        `<span style="font-family:monospace;font-size:.82rem;color:#7c3aed">${escHtml(s.issue_id)}</span>`)
+      : `<span style="font-size:.78rem;color:#94a3b8">ยังไม่ระบุ</span>`}
     </div>
 
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.4rem;margin-bottom:.5rem">
-      <div>${spStatusBadge(s.status)}</div>
-      ${isLead ? `<div class="btn-group">
-        ${s.status==='pending'?`<button class="btn btn-primary btn-sm" onclick="updateSpStatus(${s.id},'in_progress')">▶ รับงาน</button>`:''}
-        ${s.status==='in_progress'?`<button class="btn btn-success btn-sm" onclick="openSpResolve(${s.id})">✅ แก้ไขแล้ว</button>`:''}
-        ${['pending','in_progress'].includes(s.status)?`<button class="btn btn-sm" style="background:#fef2f2;color:#b91c1c" onclick="updateSpStatus(${s.id},'rejected')">❌ ปฏิเสธ</button>`:''}
-      </div>` : ''}
+    <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.5rem">
+      <span style="font-size:.75rem;color:var(--muted);font-weight:600">สถานะ:</span>
+      ${isLead ? `
+      <select onchange="updateSpStatus(${s.id},this.value)" style="border:1px solid var(--border);border-radius:8px;padding:.3rem .65rem;font-size:.82rem;background:#fff;color:var(--text);outline:none;font-family:inherit">
+        ${Object.entries(SP_STATUS).map(([v,l])=>`<option value="${v}" ${s.status===v?'selected':''}>${l}</option>`).join('')}
+      </select>` : spStatusBadge(s.status)}
     </div>
     ${s.resolution_note?`<div style="background:#f0fdf4;border-radius:8px;padding:.55rem .8rem;font-size:.82rem"><b>Resolution:</b> ${escHtml(s.resolution_note)}</div>`:''}
     <div id="sp-resolve-form" style="display:none;margin-top:.6rem">
@@ -5979,8 +5985,9 @@ async function saveIssueId(id, value) {
 async function updateSpStatus(id, status) {
   await api(`/api/specialist/${id}`, { method:'PUT', body:{status}, silent:true });
   showToast(`✅ อัพเดทสถานะแล้ว`);
-  closeModal('modal-specialist-detail');
   loadSpecialist();
+  // Re-open detail to refresh
+  openSpecialistDetail(id);
 }
 
 function openSpResolve(id) {
