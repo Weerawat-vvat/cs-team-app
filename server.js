@@ -497,6 +497,21 @@ app.get('/api/tickets', authRequired, async (request, res) => {
 });
 
 // Overdue tickets — must be BEFORE /:id route
+// Lightweight endpoint — just solution+description (for specialist detail)
+app.get('/api/tickets/quick/:id', authRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.json({});
+    const r = await extReq().input('id', sql.Int, parseInt(request.params.id))
+      .query(`SELECT cl.CalllogId AS id, cl.CalllogDesc AS description, cl.Solution,
+                     u.UserName AS agent, cs.StatusName AS status
+              FROM Calllog cl
+              LEFT JOIN Users u  ON u.UserId  = cl.SupportId
+              LEFT JOIN CallStatus cs ON cs.StatusId = cl.StatusId
+              WHERE cl.CalllogId = @id`);
+    res.json(r.recordset[0] || {});
+  } catch(e) { res.json({}); }
+});
+
 app.get('/api/tickets/overdue', authRequired, async (request, res) => {
   try {
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
