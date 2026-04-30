@@ -405,6 +405,9 @@ textarea{resize:vertical;min-height:80px}
     <button class="s-tab" id="nav-btn-kpi" onclick="showPage('kpi',this)">
       <span class="s-tab-icon">📊</span> ประเมินทีม
     </button>
+    <button class="s-tab" id="nav-btn-create-case" onclick="showPage('create-case',this)">
+      <span class="s-tab-icon">➕</span> เปิด Case
+    </button>
     <button class="s-tab" id="nav-btn-specialist" onclick="showPage('specialist',this)">
       <span class="s-tab-icon">🎯</span> Specialist
       <span id="specialist-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.65rem;padding:.05rem .4rem;margin-left:.2rem;font-weight:700"></span>
@@ -979,6 +982,128 @@ textarea{resize:vertical;min-height:80px}
           <tbody id="teams-tbody"></tbody>
         </table>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ PAGE: CREATE CASE ═══════════════════ -->
+<div id="page-create-case" class="page">
+  <div class="section-header" style="margin-bottom:.75rem">
+    <div class="section-title">➕ เปิด Case</div>
+    <div id="cc-saved-msg" style="font-size:.78rem;color:#16a34a;display:none">✅ บันทึกแล้ว — Case #<span id="cc-saved-id"></span></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:.85rem;max-width:960px">
+
+    <!-- Left column -->
+    <div>
+      <!-- ร้านค้า -->
+      <div class="card" style="padding:.85rem 1rem;margin-bottom:.65rem">
+        <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">🏢 ร้านค้า</div>
+        <div style="position:relative">
+          <input id="cc-shop-search" type="text" placeholder="พิมพ์ชื่อร้านเพื่อค้นหา..." oninput="ccShopSearch()" autocomplete="off"
+            style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.4rem .65rem;font-size:.83rem;outline:none"/>
+          <input type="hidden" id="cc-registration-id"/>
+          <div id="cc-shop-results" style="position:absolute;z-index:200;background:#fff;border:1px solid var(--border);border-radius:8px;max-height:180px;overflow-y:auto;width:100%;display:none;box-shadow:0 4px 12px #0002"></div>
+          <div id="cc-shop-selected" style="font-size:.75rem;color:#16a34a;margin-top:.2rem"></div>
+        </div>
+      </div>
+
+      <!-- ประเภทปัญหา + หัวข้อ -->
+      <div class="card" style="padding:.85rem 1rem;margin-bottom:.65rem">
+        <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">🏷️ ประเภท / หัวข้อ</div>
+        <div class="form-group">
+          <label>ประเภทปัญหา</label>
+          <select id="cc-problem-type" onchange="ccFilterSubjects()">
+            <option value="">— เลือกประเภทปัญหา —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>หัวข้อ</label>
+          <select id="cc-subject">
+            <option value="">— เลือกหัวข้อ —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>ประเภทโปรแกรม</label>
+          <select id="cc-project">
+            <option value="">— เลือกโปรแกรม —</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- อาการ + Solution -->
+      <div class="card" style="padding:.85rem 1rem;margin-bottom:.65rem">
+        <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">📋 รายละเอียด</div>
+        <div class="form-group">
+          <label>อาการ / รายละเอียดปัญหา</label>
+          <textarea id="cc-description" rows="3" placeholder="อธิบายปัญหา..."></textarea>
+        </div>
+        <div class="form-group">
+          <label>Solution ที่แก้ไข</label>
+          <textarea id="cc-solution" rows="3" placeholder="วิธีแก้ไขที่ดำเนินการ..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right column -->
+    <div>
+      <!-- เวลา -->
+      <div class="card" style="padding:.85rem 1rem;margin-bottom:.65rem">
+        <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">⏰ เวลา</div>
+        <div class="form-group">
+          <label>เวลารับ Case *</label>
+          <input type="datetime-local" id="cc-receive-date"/>
+        </div>
+        <div class="form-group">
+          <label>เวลาปิดเคส</label>
+          <input type="datetime-local" id="cc-close-date"/>
+        </div>
+      </div>
+
+      <!-- ผู้ติดต่อ -->
+      <div class="card" style="padding:.85rem 1rem;margin-bottom:.65rem">
+        <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">📞 ผู้ติดต่อ</div>
+        <div class="form-group">
+          <label>ชื่อผู้ติดต่อ</label>
+          <input id="cc-inform-name" placeholder="ชื่อผู้ติดต่อ"/>
+        </div>
+        <div class="grid-2">
+          <div class="form-group"><label>เบอร์โทร</label><input id="cc-inform-tel" placeholder="08X-XXXXXXX"/></div>
+          <div class="form-group"><label>Line ID / กลุ่ม</label><input id="cc-line" placeholder="@line หรือชื่อกลุ่ม"/></div>
+        </div>
+        <div class="form-group">
+          <label>ช่องทางที่รับ</label>
+          <select id="cc-inform-type">
+            <option value="Phone">📞 Phone</option>
+            <option value="Line">💬 Line</option>
+            <option value="Email">📧 Email</option>
+            <option value="Walk-in">🚶 Walk-in</option>
+            <option value="Remote">🖥️ Remote</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- สถานะ + ผู้รับเรื่อง -->
+      <div class="card" style="padding:.85rem 1rem;margin-bottom:.65rem">
+        <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">👤 ดำเนินการ</div>
+        <div class="form-group">
+          <label>สถานะงาน</label>
+          <select id="cc-status"></select>
+        </div>
+        <div class="form-group">
+          <label>ผู้รับเรื่อง</label>
+          <select id="cc-support"></select>
+        </div>
+      </div>
+
+      <!-- Submit -->
+      <button class="btn btn-primary" style="width:100%;padding:.65rem;font-size:.9rem" onclick="saveCreateCase()">
+        💾 บันทึก Case
+      </button>
+      <button class="btn btn-ghost" style="width:100%;margin-top:.4rem" onclick="resetCreateCase()">
+        🔄 ล้างฟอร์ม
+      </button>
     </div>
   </div>
 </div>
@@ -1989,7 +2114,8 @@ function showPage(name, btn) {
   if (name === 'users')      loadUsers();
   if (name === 'complaints') loadComplaints();
   if (name === 'settings')   loadSettings();
-  if (name === 'repair')     { loadRepair(); pollRepairMessages(); }
+  if (name === 'repair')       { loadRepair(); pollRepairMessages(); }
+  if (name === 'create-case')  { initCreateCase(); }
   if (name === 'specialist') { loadSpecialist(); }
 }
 
@@ -5226,6 +5352,154 @@ async function deletePType(id, name) {
   if (r?.error) { showToast('❌ ' + r.error, 'error'); return; }
   showToast('🗑 ลบแล้ว');
   loadPTypes();
+}
+
+// ══════════════════════════════════════════════════════════
+//  CREATE CASE
+// ══════════════════════════════════════════════════════════
+let _ccFormData = null;
+let _ccShopTimer = null;
+
+async function initCreateCase() {
+  // Set default receive date = now
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const localDT = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const rd = document.getElementById('cc-receive-date');
+  if (rd && !rd.value) rd.value = localDT;
+
+  // Load form data if not loaded
+  if (!_ccFormData) {
+    _ccFormData = await api('/api/cases/form-data');
+  }
+  const d = _ccFormData;
+
+  // Populate problem types
+  const ptSel = document.getElementById('cc-problem-type');
+  if (ptSel && ptSel.options.length <= 1) {
+    ptSel.innerHTML = '<option value="">— เลือกประเภทปัญหา —</option>' +
+      (d.problemTypes||[]).map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('');
+  }
+  ccFilterSubjects();
+
+  // Projects
+  const pjSel = document.getElementById('cc-project');
+  if (pjSel && pjSel.options.length <= 1) {
+    pjSel.innerHTML = '<option value="">— เลือกโปรแกรม —</option>' +
+      (d.projects||[]).map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('');
+  }
+
+  // Statuses
+  const stSel = document.getElementById('cc-status');
+  if (stSel && stSel.options.length <= 1) {
+    stSel.innerHTML = '<option value="">— เลือกสถานะ —</option>' +
+      (d.statuses||[]).map(s=>`<option value="${s.id}">${escHtml(s.name)}</option>`).join('');
+  }
+
+  // Support users
+  const spSel = document.getElementById('cc-support');
+  if (spSel) {
+    const curUser = currentUser?.ext_username;
+    spSel.innerHTML = '<option value="">— เลือกผู้รับเรื่อง —</option>' +
+      (d.users||[]).map(u=>`<option value="${u.id}" ${u.name===curUser?'selected':''}>${escHtml(u.name)}</option>`).join('');
+  }
+}
+
+function ccFilterSubjects() {
+  if (!_ccFormData) return;
+  const ptId = document.getElementById('cc-problem-type')?.value;
+  const subSel = document.getElementById('cc-subject');
+  if (!subSel) return;
+  const filtered = (_ccFormData.subjects||[]).filter(s => !ptId || String(s.problem_type_id) === String(ptId));
+  subSel.innerHTML = '<option value="">— เลือกหัวข้อ —</option>' +
+    filtered.map(s=>`<option value="${escHtml(s.name)}">${escHtml(s.name)}</option>`).join('');
+}
+
+// Shop search
+function ccShopSearch() {
+  clearTimeout(_ccShopTimer);
+  _ccShopTimer = setTimeout(async () => {
+    const q = document.getElementById('cc-shop-search')?.value?.trim() || '';
+    const res = document.getElementById('cc-shop-results');
+    if (!res) return;
+    if (q.length < 2) { res.style.display='none'; return; }
+    const data = await api(`/api/repair/search-shop?q=${encodeURIComponent(q)}`);
+    if (!data.length) { res.style.display='none'; return; }
+    res.style.display = '';
+    res.innerHTML = data.map(s=>`
+      <div class="rp-shop-item" data-id="${s.RegistrationId}" data-name="${escHtml(s.CompanyName)}"
+           data-phone="${escHtml(s.Phone||s.MobilePhone||'')}" data-contact="${escHtml(s.ContactName||'')}"
+           style="padding:.42rem .75rem;cursor:pointer;font-size:.82rem;border-bottom:1px solid #f1f5f9"
+           onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+        <div style="font-weight:600">${escHtml(s.CompanyName)}</div>
+        <div style="font-size:.72rem;color:var(--muted);display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.1rem">
+          ${s.ProductName?`<span>📦 ${escHtml(s.ProductName)}</span>`:''}
+          ${s.LicenseTypeName?`<span>🔑 ${escHtml(s.LicenseTypeName)}</span>`:''}
+          ${s.ContactName?`<span>👤 ${escHtml(s.ContactName)}</span>`:''}
+          ${s.Phone||s.MobilePhone?`<span>📞 ${escHtml(s.Phone||s.MobilePhone)}</span>`:''}
+        </div>
+      </div>`).join('');
+    res.querySelectorAll('.rp-shop-item').forEach(el => {
+      el.addEventListener('click', () => {
+        document.getElementById('cc-registration-id').value = el.dataset.id;
+        document.getElementById('cc-shop-search').value = el.dataset.name;
+        document.getElementById('cc-shop-selected').textContent = `✅ ${el.dataset.name}`;
+        // Auto-fill contact
+        if (el.dataset.contact) document.getElementById('cc-inform-name').value = el.dataset.contact;
+        if (el.dataset.phone)   document.getElementById('cc-inform-tel').value  = el.dataset.phone;
+        res.style.display = 'none';
+      });
+    });
+  }, 300);
+}
+
+async function saveCreateCase() {
+  const regId = document.getElementById('cc-registration-id').value;
+  const rd    = document.getElementById('cc-receive-date').value;
+  if (!regId) { showToast('❌ กรุณาเลือกร้านค้า', 'error'); return; }
+  if (!rd)    { showToast('❌ กรุณาระบุเวลารับ Case', 'error'); return; }
+
+  const body = {
+    registration_id:  parseInt(regId),
+    receive_date:     rd,
+    close_date:       document.getElementById('cc-close-date').value || null,
+    problem_type_id:  document.getElementById('cc-problem-type').value || null,
+    subject:          document.getElementById('cc-subject').value || null,
+    project_id:       document.getElementById('cc-project').value || null,
+    description:      document.getElementById('cc-description').value.trim() || null,
+    solution:         document.getElementById('cc-solution').value.trim() || null,
+    inform_name:      document.getElementById('cc-inform-name').value.trim() || null,
+    inform_tel:       document.getElementById('cc-inform-tel').value.trim() || null,
+    line_contact:     document.getElementById('cc-line').value.trim() || null,
+    inform_type:      document.getElementById('cc-inform-type').value || null,
+    status_id:        document.getElementById('cc-status').value || null,
+    support_id:       document.getElementById('cc-support').value || null,
+  };
+
+  const r = await api('/api/cases', { method:'POST', body, silent:true });
+  if (r?.error) { showToast('❌ ' + r.error, 'error'); return; }
+
+  document.getElementById('cc-saved-id').textContent = r.id;
+  document.getElementById('cc-saved-msg').style.display = '';
+  showToast(`✅ บันทึก Case #${r.id} แล้ว`);
+  setTimeout(() => { document.getElementById('cc-saved-msg').style.display='none'; }, 5000);
+}
+
+function resetCreateCase() {
+  ['cc-shop-search','cc-registration-id','cc-description','cc-solution',
+   'cc-inform-name','cc-inform-tel','cc-line','cc-close-date'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  document.getElementById('cc-shop-selected').textContent='';
+  document.getElementById('cc-problem-type').value='';
+  document.getElementById('cc-subject').innerHTML='<option value="">— เลือกหัวข้อ —</option>';
+  document.getElementById('cc-project').value='';
+  document.getElementById('cc-inform-type').value='Phone';
+  document.getElementById('cc-saved-msg').style.display='none';
+  // Reset receive date to now
+  const now=new Date(), pad=n=>String(n).padStart(2,'0');
+  const el=document.getElementById('cc-receive-date');
+  if(el) el.value=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
 }
 
 // ══════════════════════════════════════════════════════════

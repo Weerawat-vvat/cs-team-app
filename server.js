@@ -539,6 +539,77 @@ app.patch('/api/tickets/:id/review', authRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ══════════════════════════════════════════════════════════
+//  CREATE CASE (INSERT into LicenseDB Calllog)
+// ══════════════════════════════════════════════════════════
+
+// Form dropdown data
+app.get('/api/cases/form-data', authRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.status(503).json({ error: 'LicenseDB not connected' });
+    const [statuses, projects, users, subjects, ptypes] = await Promise.all([
+      extReq().query(`SELECT StatusId AS id, StatusName AS name FROM CallStatus ORDER BY StatusName`),
+      extReq().query(`SELECT ProjectId AS id, ProjectName AS name FROM Project WHERE Active=1 ORDER BY ProjectName`),
+      extReq().query(`SELECT UserId AS id, UserName AS name FROM Users WHERE Active=1 ORDER BY UserName`),
+      extReq().query(`SELECT s.SubjectId AS id, s.SubjectName AS name,
+                             s.ProblemTypeId AS problem_type_id, s.TimeToResolve AS time_to_resolve
+                      FROM Subject s WHERE s.Active=1 ORDER BY s.SubjectName`),
+      extReq().query(`SELECT ProblemTypeId AS id, ProblemTypeDetail AS name FROM ProblemType ORDER BY ProblemTypeDetail`),
+    ]);
+    res.json({
+      statuses:     statuses.recordset,
+      projects:     projects.recordset,
+      users:        users.recordset,
+      subjects:     subjects.recordset,
+      problemTypes: ptypes.recordset,
+    });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Create Case — INSERT into Calllog
+app.post('/api/cases', authRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.status(503).json({ error: 'LicenseDB not connected' });
+    const b = request.body;
+
+    // Resolve SupportId from ext_username if not provided
+    let supportId = b.support_id || null;
+    if (!supportId && request.user.ext_username) {
+      const uRow = await extReq().input('un', sql.NVarChar, request.user.ext_username)
+        .query('SELECT TOP 1 UserId FROM Users WHERE UserName=@un');
+      if (uRow.recordset.length) supportId = uRow.recordset[0].UserId;
+    }
+
+    const result = await extReq()
+      .input('rid',   sql.Int,      b.registration_id  || null)
+      .input('rd',    sql.DateTime, b.receive_date ? new Date(b.receive_date) : new Date())
+      .input('cd',    sql.DateTime, b.close_date   ? new Date(b.close_date)   : null)
+      .input('desc',  sql.NVarChar, b.description       || null)
+      .input('iname', sql.NVarChar, b.inform_name        || null)
+      .input('itel',  sql.NVarChar, b.inform_tel         || null)
+      .input('itype', sql.NVarChar, b.inform_type        || null)
+      .input('line',  sql.NVarChar, b.line_contact       || null) // stored in OnsiteRemark
+      .input('sid',   sql.Int,      supportId)
+      .input('stid',  sql.Int,      b.status_id         || null)
+      .input('pid',   sql.Int,      b.project_id        || null)
+      .input('ptid',  sql.Int,      b.problem_type_id   || null)
+      .input('subj',  sql.NVarChar, b.subject            || null)
+      .input('sol',   sql.NVarChar, b.solution           || null)
+      .input('now',   sql.DateTime, new Date())
+      .query(`INSERT INTO Calllog
+        (RegistrationId, ReceiveDate, CloseDate, CalllogDesc, InformName, InformTel,
+         InformType, OnsiteRemark, SupportId, StatusId, ProjectId, ProblemTypeId,
+         Subject, Solution, Active, InsertDate, UpdateDate)
+        OUTPUT INSERTED.CalllogId AS id
+        VALUES
+        (@rid, @rd, @cd, @desc, @iname, @itel,
+         @itype, @line, @sid, @stid, @pid, @ptid,
+         @subj, @sol, 1, @now, @now)`);
+
+    res.json({ id: result.recordset[0].id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/tickets/meta/statuses', async (_, res) => {
   try {
     if (!getExtPool()) return res.json([]);
