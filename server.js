@@ -2878,12 +2878,18 @@ async function ensureSpecialistTable() {
         resolution_note  NVARCHAR(MAX),
         updated_at       DATETIME DEFAULT GETDATE()
       )`);
-    // Add issue_id column for bug follow-up tracking
-    try {
-      await req().query(`
-        IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('specialist_log') AND name='issue_id')
-          ALTER TABLE specialist_log ADD issue_id NVARCHAR(100) NULL`);
-    } catch {}
+    // Add issue_id + accepted_by + accepted_at columns
+    for (const [col, def] of [
+      ['issue_id',    'NVARCHAR(100) NULL'],
+      ['accepted_by', 'INT NULL'],
+      ['accepted_at', 'DATETIME NULL'],
+    ]) {
+      try {
+        await req().query(`
+          IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('specialist_log') AND name='${col}')
+            ALTER TABLE specialist_log ADD ${col} ${def}`);
+      } catch {}
+    }
     console.log('✅ specialist_log table ready');
   } catch(e) { console.error('❌ specialist_log error:', e.message); }
 }
@@ -2896,7 +2902,8 @@ app.get('/api/specialist', authRequired, async (request, res) => {
     let q = `SELECT sl.*,
                e1.name AS agent_name, e1.team AS agent_team,
                e2.name AS resolved_by_name,
-               e3.name AS assigned_user_name
+               e3.name AS assigned_user_name,
+               e4.name AS accepted_by_name
              FROM specialist_log sl
              LEFT JOIN app_users au1 ON au1.id = sl.original_agent
              LEFT JOIN employees  e1 ON e1.id  = au1.employee_id
@@ -2904,6 +2911,8 @@ app.get('/api/specialist', authRequired, async (request, res) => {
              LEFT JOIN employees  e2 ON e2.id  = au2.employee_id
              LEFT JOIN app_users au3 ON au3.id = sl.assigned_to_user
              LEFT JOIN employees  e3 ON e3.id  = au3.employee_id
+             LEFT JOIN app_users au4 ON au4.id = sl.accepted_by
+             LEFT JOIN employees  e4 ON e4.id  = au4.employee_id
              WHERE 1=1`;
     if (status)  { q += ' AND sl.status=@st';    r.input('st', sql.NVarChar, status); }
     if (team)    { q += ' AND sl.assigned_to_team=@tm'; r.input('tm', sql.NVarChar, team); }
@@ -2968,10 +2977,13 @@ app.put('/api/specialist/:id', authRequired, async (request, res) => {
       .input('rnt', sql.NVarChar, b.resolution_note     ?? cur.resolution_note)
       .input('iid', sql.NVarChar, b.issue_id            ?? cur.issue_id)
       .input('rb',  sql.Int,      b.status==='resolved' ? (request.user.id||null) : cur.resolved_by)
+      .input('aby', sql.Int,      b.status==='in_progress' && !cur.accepted_by ? (request.user.id||null) : cur.accepted_by)
       .query(`UPDATE specialist_log SET
         status=@st, assigned_to_team=@att, assigned_to_user=@atu, priority=@pr, note=@nt,
         contact_name=@ctn, contact_phone=@ctp, line_id=@li, line_group=@lg,
         customer_location=@loc, resolution_note=@rnt, issue_id=@iid, resolved_by=@rb,
+        accepted_by=@aby,
+        accepted_at=CASE WHEN @st='in_progress' AND accepted_at IS NULL THEN GETDATE() ELSE accepted_at END,
         resolved_at=CASE WHEN @st='resolved' AND resolved_at IS NULL THEN GETDATE() ELSE resolved_at END,
         updated_at=GETDATE()
         WHERE id=@id`);

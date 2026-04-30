@@ -5698,7 +5698,10 @@ function renderSpecialistTable(list) {
         ${s.contact_phone?`<div style="color:var(--muted);font-size:.72rem">📞 ${escHtml(s.contact_phone)}</div>`:''}
         ${s.line_id?`<div style="color:var(--muted);font-size:.72rem">LINE: ${escHtml(s.line_id)}</div>`:''}
       </td>
-      <td style="font-size:.8rem">${escHtml(s.assigned_to_team||'—')}</td>
+      <td style="font-size:.8rem">
+        <div>${escHtml(s.assigned_to_team||'—')}</div>
+        ${s.accepted_by_name ? `<div style="font-size:.72rem;color:#2563eb;font-weight:600">👤 ${escHtml(s.accepted_by_name)}</div>` : ''}
+      </td>
       <td><span style="font-size:.78rem;font-weight:600">${SP_PRIORITY[s.priority]||s.priority||'—'}</span></td>
       <td>${spStatusBadge(s.status)}</td>
       <td style="font-size:.75rem;white-space:nowrap">${fmtDate(s.assigned_at)}</td>
@@ -5901,10 +5904,12 @@ async function openSpecialistDetail(id) {
         <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.35rem">ข้อมูลงาน</div>
         ${[['ร้านค้า',s.company_name],['หัวข้อ',s.subject],['ประเภท',s.problem_type],
            ['ทีม',s.assigned_to_team],['Priority',SP_PRIORITY[s.priority]||s.priority],
-           ['มอบหมายโดย',s.agent_name],['วันที่',fmtDate(s.assigned_at)]
+           ['มอบหมายโดย',s.agent_name],['วันที่มอบหมาย',fmtDate(s.assigned_at)],
+           ['👤 ผู้รับงาน', s.accepted_by_name ? `<b style="color:#2563eb">${escHtml(s.accepted_by_name)}</b>` : '<span style="color:#94a3b8">ยังไม่มีผู้รับ</span>'],
+           ['⏰ เวลารับงาน', s.accepted_at ? fmtDate(s.accepted_at) : '—'],
           ].map(([k,v])=>`<div style="display:flex;gap:.5rem;padding:.2rem 0;font-size:.8rem;border-bottom:1px solid #f1f5f9">
-            <span style="color:var(--muted);min-width:85px">${k}</span>
-            <span style="font-weight:500">${escHtml(v||'—')}</span>
+            <span style="color:var(--muted);min-width:95px">${k}</span>
+            <span style="font-weight:500">${typeof v === 'string' && v.startsWith('<') ? v : escHtml(v||'—')}</span>
           </div>`).join('')}
       </div>
       <div>
