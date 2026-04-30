@@ -5881,10 +5881,18 @@ async function saveAssignSpecialist() {
 async function openSpecialistDetail(id) {
   document.getElementById('spd-body').innerHTML = '<div style="padding:1rem;color:var(--muted)">⏳ กำลังโหลด...</div>';
   openModal('modal-specialist-detail');
-  const data = await api('/api/specialist?');
-  const s = _allSpecialist.find(x=>x.id===id) || (await api(`/api/specialist?`)).find(x=>x.id===id);
+  const s = _allSpecialist.find(x=>x.id===id);
   if (!s) { document.getElementById('spd-body').innerHTML='<div style="color:#ef4444;padding:1rem">ไม่พบข้อมูล</div>'; return; }
   document.getElementById('spd-title').innerHTML = `🎯 งาน #${s.id} — ${escHtml(s.company_name||'—')} <button class="modal-close" onclick="closeModal('modal-specialist-detail')">×</button>`;
+
+  // Fetch original ticket from Calllog if calllog_id exists
+  let prevSolution = '', prevDesc = '';
+  if (s.calllog_id) {
+    try {
+      const tk = await api(`/api/tickets/${s.calllog_id}`);
+      if (tk && !tk.error) { prevSolution = tk.Solution || ''; prevDesc = tk.description || ''; }
+    } catch {}
+  }
 
   const isLead = isLeadRole();
   document.getElementById('spd-body').innerHTML = `
@@ -5902,14 +5910,34 @@ async function openSpecialistDetail(id) {
       <div>
         <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.35rem">ข้อมูลติดต่อ</div>
         ${[['ผู้ติดต่อ',s.contact_name],['เบอร์โทร',s.contact_phone],
-           ['Line ID',s.line_id],['Line Group',s.line_group],['จุดวาง',s.customer_location]
+           ['Line ID',s.line_id],['Line Group',s.line_group]
           ].map(([k,v])=>`<div style="display:flex;gap:.5rem;padding:.2rem 0;font-size:.8rem;border-bottom:1px solid #f1f5f9">
             <span style="color:var(--muted);min-width:75px">${k}</span>
             <span style="font-weight:500">${escHtml(v||'—')}</span>
           </div>`).join('')}
       </div>
     </div>
-    ${s.note?`<div style="background:#f8fafc;border-radius:8px;padding:.55rem .8rem;font-size:.82rem;margin-bottom:.65rem"><b>Note:</b> ${escHtml(s.note)}</div>`:''}
+
+    ${s.note?`<div style="background:#f8fafc;border-radius:8px;padding:.55rem .8rem;font-size:.82rem;margin-bottom:.6rem"><b>📝 Note จาก Helpdesk:</b> ${escHtml(s.note)}</div>`:''}
+
+    <!-- Previous Helpdesk solution -->
+    ${(prevDesc||prevSolution) ? `
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:.65rem .85rem;margin-bottom:.65rem">
+      <div style="font-size:.72rem;font-weight:700;color:#1d4ed8;text-transform:uppercase;margin-bottom:.4rem">🔍 สิ่งที่ Helpdesk ดำเนินการแล้ว (Case #${s.calllog_id})</div>
+      ${prevDesc?`<div style="font-size:.8rem;margin-bottom:.35rem"><span style="color:#475569;font-weight:600">อาการ: </span>${escHtml(prevDesc)}</div>`:''}
+      ${prevSolution?`<div style="font-size:.8rem"><span style="color:#475569;font-weight:600">Solution: </span><span style="color:#15803d">${escHtml(prevSolution)}</span></div>`:'<div style="font-size:.78rem;color:#94a3b8">ยังไม่มี solution จาก Helpdesk</div>'}
+    </div>` : s.calllog_id ? `<div style="font-size:.78rem;color:#94a3b8;margin-bottom:.5rem">Case #${s.calllog_id} — ไม่พบข้อมูล</div>` : ''}
+
+    <!-- Issue ID (bug tracking) -->
+    <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.65rem;background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px;padding:.55rem .85rem">
+      <span style="font-size:.78rem;font-weight:700;color:#7c3aed;white-space:nowrap">🐛 Issue ID</span>
+      ${isLead ? `
+      <input id="sp-issue-id" value="${escHtml(s.issue_id||'')}" placeholder="เช่น ISS-123 / BUG-456 / #123"
+        style="flex:1;border:1px solid #e9d5ff;border-radius:6px;padding:.28rem .55rem;font-size:.82rem;font-family:monospace;outline:none;background:#fff"
+        onblur="saveIssueId(${s.id},this.value)"/>
+      <span style="font-size:.7rem;color:#94a3b8">กด Tab/ออกจากช่องเพื่อบันทึก</span>` :
+      `<span style="font-family:monospace;font-size:.82rem;color:${s.issue_id?'#7c3aed':'#94a3b8'}">${escHtml(s.issue_id||'ยังไม่ระบุ')}</span>`}
+    </div>
 
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.4rem;margin-bottom:.5rem">
       <div>${spStatusBadge(s.status)}</div>
@@ -5924,6 +5952,16 @@ async function openSpecialistDetail(id) {
       <textarea id="sp-resolution-note" rows="2" placeholder="สรุปการแก้ไข..." style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.4rem .6rem;font-size:.82rem;font-family:inherit;resize:vertical"></textarea>
       <button class="btn btn-success btn-sm" style="margin-top:.35rem;width:100%" onclick="saveSpResolve(${s.id})">✅ ยืนยันแก้ไขแล้ว</button>
     </div>`;
+}
+
+async function saveIssueId(id, value) {
+  const r = await api(`/api/specialist/${id}`, { method:'PUT', body:{ issue_id: value||null }, silent:true });
+  if (!r?.error) {
+    // Update local cache
+    const s = _allSpecialist.find(x=>x.id===id);
+    if (s) s.issue_id = value||null;
+    showToast(value ? `🐛 บันทึก Issue ID: ${value}` : '✅ ล้าง Issue ID แล้ว');
+  }
 }
 
 async function updateSpStatus(id, status) {

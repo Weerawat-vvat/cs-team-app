@@ -2878,6 +2878,12 @@ async function ensureSpecialistTable() {
         resolution_note  NVARCHAR(MAX),
         updated_at       DATETIME DEFAULT GETDATE()
       )`);
+    // Add issue_id column for bug follow-up tracking
+    try {
+      await req().query(`
+        IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('specialist_log') AND name='issue_id')
+          ALTER TABLE specialist_log ADD issue_id NVARCHAR(100) NULL`);
+    } catch {}
     console.log('✅ specialist_log table ready');
   } catch(e) { console.error('❌ specialist_log error:', e.message); }
 }
@@ -2960,11 +2966,12 @@ app.put('/api/specialist/:id', authRequired, async (request, res) => {
       .input('lg',  sql.NVarChar, b.line_group          ?? cur.line_group)
       .input('loc', sql.NVarChar, b.customer_location   ?? cur.customer_location)
       .input('rnt', sql.NVarChar, b.resolution_note     ?? cur.resolution_note)
+      .input('iid', sql.NVarChar, b.issue_id            ?? cur.issue_id)
       .input('rb',  sql.Int,      b.status==='resolved' ? (request.user.id||null) : cur.resolved_by)
       .query(`UPDATE specialist_log SET
         status=@st, assigned_to_team=@att, assigned_to_user=@atu, priority=@pr, note=@nt,
         contact_name=@ctn, contact_phone=@ctp, line_id=@li, line_group=@lg,
-        customer_location=@loc, resolution_note=@rnt, resolved_by=@rb,
+        customer_location=@loc, resolution_note=@rnt, issue_id=@iid, resolved_by=@rb,
         resolved_at=CASE WHEN @st='resolved' AND resolved_at IS NULL THEN GETDATE() ELSE resolved_at END,
         updated_at=GETDATE()
         WHERE id=@id`);
