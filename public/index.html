@@ -1836,6 +1836,10 @@ textarea{resize:vertical;min-height:80px}
         <input id="p-ext-username" placeholder="เช่น john"/>
       </div>
     </div>
+    <div class="form-group">
+      <label>Call User ID <span style="font-size:.72rem;color:var(--muted);font-weight:400">(Users.UserId จาก LicenseDB — ใช้สำหรับเปิด Case)</span></label>
+      <input type="number" id="p-calluserid" placeholder="เช่น 12"/>
+    </div>
 
     <div class="btn-group">
       <button class="btn btn-primary" onclick="savePerson()">💾 บันทึก</button>
@@ -5879,7 +5883,10 @@ async function loadPeople() {
       <td>
         ${u ? `<span class="role-badge role-${u.role}">${roleLbl[u.role]||u.role}</span>` : '—'}
       </td>
-      <td style="font-size:.8rem;color:var(--muted)">${u?.ext_username || '—'}</td>
+      <td style="font-size:.8rem;color:var(--muted)">
+        ${u?.ext_username || '—'}
+        ${u?.calluserid ? `<span style="font-size:.7rem;background:#f1f5f9;border-radius:4px;padding:.05rem .35rem;margin-left:.3rem;color:#475569">ID:${u.calluserid}</span>` : ''}
+      </td>
       <td>
         <span class="badge" style="${e.active ? 'background:#dcfce7;color:#166534' : 'background:#fef2f2;color:#b91c1c'}">
           ${e.active ? 'ทำงาน' : 'ออกแล้ว'}
@@ -5919,6 +5926,7 @@ function openAddPerson() {
   document.getElementById('p-password').value  = '';
   document.getElementById('p-sys-role').value  = 'staff';
   document.getElementById('p-ext-username').value = '';
+  document.getElementById('p-calluserid').value = '';
   document.getElementById('p-pwd-label').textContent = 'รหัสผ่าน';
   document.getElementById('p-password').placeholder = 'กรอกรหัสผ่าน (ถ้าต้องการสร้างบัญชี)';
   document.getElementById('p-emp-status-wrap').style.display = 'none';
@@ -5942,6 +5950,7 @@ function openEditPerson(e, u) {
   document.getElementById('p-password').value  = '';
   document.getElementById('p-sys-role').value  = u ? u.role : 'staff';
   document.getElementById('p-ext-username').value = u ? (u.ext_username || '') : '';
+  document.getElementById('p-calluserid').value = u ? (u.calluserid || '') : '';
   document.getElementById('p-pwd-label').textContent = 'รหัสผ่านใหม่';
   document.getElementById('p-password').placeholder = 'เว้นว่าง = ไม่เปลี่ยน';
   _fillPersonTeamSelect(e.team);
@@ -5964,7 +5973,8 @@ async function savePerson() {
   const uname   = document.getElementById('p-username').value.trim();
   const pwd     = document.getElementById('p-password').value;
   const sysRole = sysRoleEarly;
-  const extUser = document.getElementById('p-ext-username').value.trim() || null;
+  const extUser  = document.getElementById('p-ext-username').value.trim() || null;
+  const callUid  = document.getElementById('p-calluserid').value ? parseInt(document.getElementById('p-calluserid').value) : null;
 
   try {
     let empId = editPersonEmpId;
@@ -5981,7 +5991,7 @@ async function savePerson() {
     if (editPersonUserId) {
       // Update existing account
       const userBody = { username: uname || undefined, role: sysRole, ext_username: extUser,
-                         active: empBody.active };
+                         calluserid: callUid, active: empBody.active };
       if (pwd) userBody.password = pwd;
       if (uname) userBody.username = uname;
       await api(`/api/users/${editPersonUserId}`, { method:'PUT', body: userBody });
@@ -5989,7 +5999,7 @@ async function savePerson() {
       // Create new account only if both username + password are given
       await api('/api/users', { method:'POST', body: {
         employee_id: empId, username: uname, password: pwd,
-        role: sysRole, ext_username: extUser
+        role: sysRole, ext_username: extUser, calluserid: callUid
       }});
     }
 

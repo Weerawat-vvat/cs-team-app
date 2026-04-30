@@ -572,8 +572,8 @@ app.post('/api/cases', authRequired, async (request, res) => {
     if (!getExtPool()) return res.status(503).json({ error: 'LicenseDB not connected' });
     const b = request.body;
 
-    // Resolve SupportId from ext_username if not provided
-    let supportId = b.support_id || null;
+    // Resolve SupportId: use calluserid from JWT, fallback to ext_username lookup
+    let supportId = b.support_id || request.user.calluserid || null;
     if (!supportId && request.user.ext_username) {
       const uRow = await extReq().input('un', sql.NVarChar, request.user.ext_username)
         .query('SELECT TOP 1 UserId FROM Users WHERE UserName=@un');
@@ -2291,7 +2291,7 @@ app.post('/api/auth/login', async (request, res) => {
     const result = await req()
       .input('uname', sql.NVarChar, username)
       .query(`SELECT au.id, au.username, au.password_hash, au.role, au.ext_username,
-                     au.employee_id, e.name, e.team, e.nickname
+                     au.employee_id, au.calluserid, e.name, e.team, e.nickname
               FROM app_users au
               LEFT JOIN employees e ON e.id = au.employee_id
               WHERE au.username = @uname AND au.active = 1`);
@@ -2302,6 +2302,7 @@ app.post('/api/auth/login', async (request, res) => {
     const payload = {
       id: user.id, username: user.username, role: user.role,
       employee_id: user.employee_id, ext_username: user.ext_username,
+      calluserid: user.calluserid || null,
       name: user.name, team: user.team
     };
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '10h' });
@@ -2337,7 +2338,7 @@ app.post('/api/auth/change-password', authRequired, async (request, res) => {
 app.get('/api/users', authRequired, async (request, res) => {
   try {
     const result = await req().query(`
-      SELECT au.id, au.username, au.role, au.ext_username, au.active, au.created_at,
+      SELECT au.id, au.username, au.role, au.ext_username, au.calluserid, au.active, au.created_at,
              au.employee_id, e.name, e.team, e.nickname
       FROM app_users au
       LEFT JOIN employees e ON e.id = au.employee_id
@@ -2357,22 +2358,24 @@ app.post('/api/users', authRequired, async (request, res) => {
       .input('hash',     sql.NVarChar, hash)
       .input('role',     sql.NVarChar, role         || 'staff')
       .input('extuname', sql.NVarChar, ext_username || null)
-      .query(`INSERT INTO app_users (employee_id, username, password_hash, role, ext_username)
-              OUTPUT INSERTED.id VALUES (@eid,@uname,@hash,@role,@extuname)`);
+      .input('calluid',  sql.Int,      request.body.calluserid || null)
+      .query(`INSERT INTO app_users (employee_id, username, password_hash, role, ext_username, calluserid)
+              OUTPUT INSERTED.id VALUES (@eid,@uname,@hash,@role,@extuname,@calluid)`);
     res.json({ id: result.recordset[0].id });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.put('/api/users/:id', authRequired, async (request, res) => {
-  const { username, password, role, ext_username, active } = request.body;
+  const { username, password, role, ext_username, active, calluserid } = request.body;
   try {
     const r = req()
       .input('uname',    sql.NVarChar, username)
       .input('role',     sql.NVarChar, role)
       .input('extuname', sql.NVarChar, ext_username || null)
+      .input('calluid',  sql.Int,      calluserid   || null)
       .input('active',   sql.Bit,      active ?? 1)
       .input('id',       sql.Int,      request.params.id);
-    let q = 'UPDATE app_users SET username=@uname,role=@role,ext_username=@extuname,active=@active';
+    let q = 'UPDATE app_users SET username=@uname,role=@role,ext_username=@extuname,calluserid=@calluid,active=@active';
     if (password) {
       const hash = await bcrypt.hash(password, 10);
       r.input('hash', sql.NVarChar, hash);
@@ -2948,6 +2951,13 @@ init().then(async () => {
                  WHERE name='CK_emp_team' AND parent_object_id=OBJECT_ID('employees'))
         ALTER TABLE employees DROP CONSTRAINT CK_emp_team`);
   } catch(e) { console.warn('CK_emp_team drop skipped:', e.message); }
+
+  // Add calluserid column to app_users (LicenseDB Users.UserId)
+  try {
+    await getPool().request().query(`
+      IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('app_users') AND name='calluserid')
+        ALTER TABLE app_users ADD calluserid INT NULL`);
+  } catch(e) { console.warn('calluserid migration:', e.message); }
 
   await ensureCustomerLinksTable();
   await ensureRepairTables();
