@@ -541,6 +541,7 @@ app.put('/api/tickets/:id', authRequired, async (request, res) => {
       // Edit: values from DB already UTC — pass as-is, no conversion
       .input('rd',    sql.DateTime, b.receive_date ? new Date(b.receive_date) : null)
       .input('cd',    sql.DateTime, b.close_date   ? new Date(b.close_date)   : null)
+      .input('desc',  sql.NVarChar, b.description   ?? null)
       .input('sol',   sql.NVarChar, b.solution       ?? null)
       .input('subj',  sql.NVarChar, b.subject        ?? null)
       .input('ptid',  sql.Int,      b.problem_type_id ? parseInt(b.problem_type_id) : null)
