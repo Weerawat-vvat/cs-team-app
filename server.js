@@ -173,7 +173,13 @@ const CALLLOG_SELECT = `
     cl.IssueURL,
     cl.Subject                  AS title,
     pt.Note                     AS problem_type,
-    pt.ProblemTypeDetail        AS problem_type_detail
+    pt.ProblemTypeDetail        AS problem_type_detail,
+    cl.InformName, cl.InformTel, cl.InformType,
+    cl.OnsiteRemark             AS line_contact,
+    cl.ProjectId                AS project_id,
+    cl.ProblemTypeId            AS problem_type_id,
+    cl.StatusId                 AS status_id,
+    cl.SupportId                AS support_id
   FROM Calllog cl
   INNER JOIN CustomerRegistration cr ON cr.RegistrationId  = cl.RegistrationId
   LEFT  JOIN CallStatus           cs ON cs.StatusId        = cl.StatusId
@@ -524,6 +530,47 @@ app.get('/api/tickets/:id', async (request, res) => {
 });
 
 // ── Ticket review: save stars + comment back to LicenseDB ─
+// Full update of a Calllog ticket
+app.put('/api/tickets/:id', authRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
+    const b  = request.body;
+    const id = parseInt(request.params.id);
+    await extReq()
+      .input('id',    sql.Int,      id)
+      .input('rd',    sql.DateTime, b.receive_date  ? new Date(b.receive_date)  : null)
+      .input('cd',    sql.DateTime, b.close_date    ? new Date(b.close_date)    : null)
+      .input('desc',  sql.NVarChar, b.description   ?? null)
+      .input('sol',   sql.NVarChar, b.solution       ?? null)
+      .input('subj',  sql.NVarChar, b.subject        ?? null)
+      .input('ptid',  sql.Int,      b.problem_type_id ? parseInt(b.problem_type_id) : null)
+      .input('pid',   sql.Int,      b.project_id      ? parseInt(b.project_id)      : null)
+      .input('stid',  sql.Int,      b.status_id       ? parseInt(b.status_id)       : null)
+      .input('sid',   sql.Int,      b.support_id      ? parseInt(b.support_id)       : null)
+      .input('iname', sql.NVarChar, b.inform_name     ?? null)
+      .input('itel',  sql.NVarChar, b.inform_tel      ?? null)
+      .input('itype', sql.NVarChar, b.inform_type     ?? null)
+      .input('line',  sql.NVarChar, b.line_contact    ?? null)
+      .query(`UPDATE Calllog SET
+        ReceiveDate=ISNULL(@rd,ReceiveDate),
+        CloseDate=@cd,
+        CalllogDesc=ISNULL(@desc,CalllogDesc),
+        Solution=@sol,
+        Subject=ISNULL(@subj,Subject),
+        ProblemTypeId=ISNULL(@ptid,ProblemTypeId),
+        ProjectId=ISNULL(@pid,ProjectId),
+        StatusId=ISNULL(@stid,StatusId),
+        SupportId=ISNULL(@sid,SupportId),
+        InformName=@iname,
+        InformTel=@itel,
+        InformType=@itype,
+        OnsiteRemark=@line,
+        UpdateDate=GETDATE()
+        WHERE CalllogId=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.patch('/api/tickets/:id/review', authRequired, async (request, res) => {
   try {
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });

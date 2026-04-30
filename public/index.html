@@ -1174,6 +1174,68 @@ textarea{resize:vertical;min-height:80px}
   </div>
 </div>
 
+<!-- Edit Ticket Modal -->
+<div class="overlay" id="modal-edit-ticket-full">
+  <div class="modal" style="max-width:700px;max-height:92vh;overflow-y:auto;padding:1.2rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
+      <div style="font-size:1rem;font-weight:800">✏️ แก้ไข Case <span id="etf-id" style="color:var(--hd)"></span></div>
+      <button class="modal-close" onclick="closeModal('modal-edit-ticket-full')">×</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
+      <!-- Left -->
+      <div>
+        <div class="form-group"><label>ประเภทปัญหา</label>
+          <select id="etf-problem-type" onchange="etfFilterSubjects()">
+            <option value="">— เลือก —</option>
+          </select></div>
+        <div class="form-group"><label>หัวข้อ</label>
+          <select id="etf-subject"><option value="">— เลือก —</option></select>
+          <div id="etf-time-hint" style="display:none;margin-top:.25rem;background:#fef3c7;border:1px solid #fde68a;border-radius:6px;padding:.25rem .6rem;font-size:.73rem;color:#92400e;font-weight:600">
+            ⏱️ ต้องดำเนินการภายใน <span id="etf-time-val"></span> นาที
+          </div>
+        </div>
+        <div class="form-group"><label>ประเภทโปรแกรม</label>
+          <select id="etf-project"><option value="">— เลือก —</option></select></div>
+        <div class="form-group"><label>อาการ / รายละเอียด</label>
+          <textarea id="etf-description" rows="3"></textarea></div>
+        <div class="form-group"><label>Solution</label>
+          <textarea id="etf-solution" rows="3"></textarea></div>
+      </div>
+      <!-- Right -->
+      <div>
+        <div class="form-group"><label>เวลารับ Case</label>
+          <input type="datetime-local" id="etf-receive-date"/></div>
+        <div class="form-group"><label>เวลาปิดเคส</label>
+          <input type="datetime-local" id="etf-close-date"/></div>
+        <div class="form-group"><label>สถานะ</label>
+          <select id="etf-status"><option value="">— เลือก —</option></select></div>
+        <div class="form-group"><label>ผู้รับเรื่อง</label>
+          <select id="etf-support"><option value="">— เลือก —</option></select></div>
+        <div class="form-group"><label>ผู้ติดต่อ</label>
+          <input id="etf-inform-name" placeholder="ชื่อผู้ติดต่อ"/></div>
+        <div class="grid-2">
+          <div class="form-group"><label>เบอร์โทร</label>
+            <input id="etf-inform-tel" placeholder="08X-XXXXXXX"/></div>
+          <div class="form-group"><label>Line ID / กลุ่ม</label>
+            <input id="etf-line" placeholder="@line หรือชื่อกลุ่ม"/></div>
+        </div>
+        <div class="form-group"><label>ช่องทาง</label>
+          <select id="etf-inform-type">
+            <option value="Phone">📞 Phone</option>
+            <option value="Line">💬 Line</option>
+            <option value="Email">📧 Email</option>
+            <option value="Walk-in">🚶 Walk-in</option>
+            <option value="Remote">🖥️ Remote</option>
+          </select></div>
+      </div>
+    </div>
+    <div class="btn-group" style="margin-top:.75rem">
+      <button class="btn btn-primary" onclick="saveEditTicket()">💾 บันทึก</button>
+      <button class="btn btn-ghost" onclick="closeModal('modal-edit-ticket-full')">ยกเลิก</button>
+    </div>
+  </div>
+</div>
+
 <!-- Assign to Specialist Modal -->
 <div class="overlay" id="modal-assign-specialist">
   <div class="modal" style="max-width:600px;max-height:90vh;overflow-y:auto">
@@ -2101,7 +2163,7 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 
 // click outside to close
 // Modals ที่ห้ามปิดเมื่อกด outside (ข้อมูลอาจหาย)
-const NO_BACKDROP_CLOSE = new Set(['modal-repair-form','modal-repair-detail','modal-person','modal-create-case']);
+const NO_BACKDROP_CLOSE = new Set(['modal-repair-form','modal-repair-detail','modal-person','modal-create-case','modal-edit-ticket-full']);
 
 document.querySelectorAll('.overlay').forEach(el => {
   el.addEventListener('click', e => {
@@ -3472,10 +3534,14 @@ function renderTickets() {
             }
           </div>
           ${isLeadRole() ? `
-          <div style="margin-top:.55rem;padding-top:.5rem;border-top:1px solid #f1f5f9;display:flex;justify-content:flex-end">
+          <div style="margin-top:.55rem;padding-top:.5rem;border-top:1px solid #f1f5f9;display:flex;justify-content:flex-end;gap:.4rem">
+            <button class="btn btn-sm" style="background:#f59e0b;color:#fff"
+              onclick="openEditTicket(${t.id})">
+              ✏️ แก้ไข
+            </button>
             <button class="btn btn-sm" style="background:#7c3aed;color:#fff"
               onclick="openAssignSpecialist(${JSON.stringify({id:t.id,title:t.title,CompanyName:t.CompanyName,problem_type_detail:t.problem_type_detail,problem_type:t.category}).replace(/"/g,'&quot;')})">
-              🎯 Assign to Specialist
+              🎯 Specialist
             </button>
           </div>` : ''}
         </td>
@@ -5645,6 +5711,122 @@ function renderSpecialistTable(list) {
 }
 
 // Open Assign to Specialist from ticket page
+// ── Edit Ticket (full update) ─────────────────────────────
+let _editTicketId = null;
+
+async function openEditTicket(ticketId) {
+  _editTicketId = ticketId;
+  document.getElementById('etf-id').textContent = `#${ticketId}`;
+
+  // Load form data if needed
+  if (!_ccFormData) _ccFormData = await api('/api/cases/form-data');
+  const d = _ccFormData;
+
+  // Populate dropdowns
+  const fill = (id, opts, curVal) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = opts;
+    if (curVal) el.value = curVal;
+  };
+  fill('etf-problem-type',
+    '<option value="">— เลือก —</option>' + d.problemTypes.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join(''),
+    null);
+  fill('etf-project',
+    '<option value="">— เลือก —</option>' + d.projects.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join(''),
+    null);
+  fill('etf-status',
+    '<option value="">— เลือก —</option>' + d.statuses.map(s=>`<option value="${s.id}">${escHtml(s.name)}</option>`).join(''),
+    null);
+  fill('etf-support',
+    '<option value="">— เลือก —</option>' + d.users.map(u=>`<option value="${u.id}">${escHtml(u.name)}</option>`).join(''),
+    null);
+
+  // Fetch current ticket data
+  const t = allTickets.find(x => x.id === ticketId) || await api(`/api/tickets/${ticketId}`);
+
+  // Pre-fill fields
+  const toLocal = s => { if(!s) return ''; const d=parseDbDate(s); if(!d) return ''; const pad=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  document.getElementById('etf-receive-date').value = toLocal(t.opened_at);
+  document.getElementById('etf-close-date').value   = toLocal(t.CloseDate);
+  document.getElementById('etf-description').value  = t.description || '';
+  document.getElementById('etf-solution').value     = t.Solution    || '';
+  document.getElementById('etf-inform-name').value  = t.InformName  || '';
+  document.getElementById('etf-inform-tel').value   = t.InformTel   || '';
+  document.getElementById('etf-line').value         = t.OnsiteRemark|| '';
+  document.getElementById('etf-inform-type').value  = t.InformType  || 'Phone';
+
+  // Set problem type → filter subjects → set subject
+  const ptSel = document.getElementById('etf-problem-type');
+  // Try to find ProblemTypeId from current problem_type_detail
+  const matchedPt = d.problemTypes.find(p => p.name === (t.problem_type_detail||t.problem_type));
+  if (matchedPt) { ptSel.value = matchedPt.id; etfFilterSubjects(); }
+  else etfFilterSubjects();
+
+  // Set subject
+  setTimeout(() => {
+    const subSel = document.getElementById('etf-subject');
+    if (subSel) { subSel.value = t.title || ''; etfOnSubjectChange(); }
+    // Set status by StatusName
+    const stSel = document.getElementById('etf-status');
+    if (stSel) { const opt = Array.from(stSel.options).find(o=>o.text===t.status); if(opt) stSel.value=opt.value; }
+    // Set support by UserName
+    const spSel = document.getElementById('etf-support');
+    if (spSel && t.assigned_name) { const opt=Array.from(spSel.options).find(o=>o.text===t.assigned_name); if(opt) spSel.value=opt.value; }
+    // Default project to Easy Restaurant (Trunk)
+    const pjSel = document.getElementById('etf-project');
+    if (pjSel && !pjSel.value) { const opt=Array.from(pjSel.options).find(o=>o.text.includes('Easy Restaurant')&&o.text.includes('Trunk')); if(opt) pjSel.value=opt.value; }
+  }, 50);
+
+  openModal('modal-edit-ticket-full');
+}
+
+function etfFilterSubjects() {
+  if (!_ccFormData) return;
+  const ptId  = document.getElementById('etf-problem-type')?.value;
+  const subSel = document.getElementById('etf-subject');
+  if (!subSel) return;
+  const filtered = (_ccFormData.subjects||[]).filter(s => !ptId || String(s.problem_type_id) === String(ptId));
+  subSel.innerHTML = '<option value="">— เลือกหัวข้อ —</option>' +
+    filtered.map(s=>`<option value="${escHtml(s.name)}" data-time="${s.time_to_resolve||''}">${escHtml(s.name)}</option>`).join('');
+  etfOnSubjectChange();
+}
+
+function etfOnSubjectChange() {
+  const subSel = document.getElementById('etf-subject');
+  const hint   = document.getElementById('etf-time-hint');
+  const val    = document.getElementById('etf-time-val');
+  if (!subSel||!hint||!val) return;
+  const opt = subSel.options[subSel.selectedIndex];
+  const t   = opt?.dataset?.time;
+  if (t && parseInt(t) > 0) { val.textContent=t; hint.style.display=''; }
+  else hint.style.display='none';
+}
+
+async function saveEditTicket() {
+  if (!_editTicketId) return;
+  const body = {
+    receive_date:     document.getElementById('etf-receive-date').value || null,
+    close_date:       document.getElementById('etf-close-date').value   || null,
+    description:      document.getElementById('etf-description').value.trim()  || null,
+    solution:         document.getElementById('etf-solution').value.trim()     || null,
+    subject:          document.getElementById('etf-subject').value             || null,
+    problem_type_id:  document.getElementById('etf-problem-type').value        || null,
+    project_id:       document.getElementById('etf-project').value             || null,
+    status_id:        document.getElementById('etf-status').value              || null,
+    support_id:       document.getElementById('etf-support').value             || null,
+    inform_name:      document.getElementById('etf-inform-name').value.trim()  || null,
+    inform_tel:       document.getElementById('etf-inform-tel').value.trim()   || null,
+    inform_type:      document.getElementById('etf-inform-type').value         || null,
+    line_contact:     document.getElementById('etf-line').value.trim()         || null,
+  };
+  const r = await api(`/api/tickets/${_editTicketId}`, { method:'PUT', body, silent:true });
+  if (r?.error) { showToast('❌ ' + r.error, 'error'); return; }
+  closeModal('modal-edit-ticket-full');
+  showToast('✅ บันทึกแล้ว');
+  loadTickets();
+}
+
 async function openAssignSpecialist(ticket) {
   document.getElementById('asp-calllog-id').value = ticket.id || '';
   document.getElementById('asp-ticket-info').textContent = `#${ticket.id} — ${ticket.title||'—'}`;
