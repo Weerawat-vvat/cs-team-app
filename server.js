@@ -554,22 +554,22 @@ app.put('/api/tickets/:id', authRequired, async (request, res) => {
       .input('solvety', sql.NVarChar, b.inform_type ? (['Walk-in','Onsite'].includes(b.inform_type) ? 'Walk-in' : 'Remote') : null)
       .input('uid',     sql.Int,      request.user.calluserid || null)
       .query(`UPDATE Calllog SET
-        ReceiveDate=ISNULL(@rd,ReceiveDate),
-        CloseDate=@cd,
-        CalllogDesc=ISNULL(@desc,CalllogDesc),
-        Solution=@sol,
-        Subject=ISNULL(@subj,Subject),
-        ProblemTypeId=ISNULL(@ptid,ProblemTypeId),
-        ProjectId=ISNULL(@pid,ProjectId),
-        StatusId=ISNULL(@stid,StatusId),
-        SupportId=ISNULL(@sid,SupportId),
-        UserId=ISNULL(@uid,UserId),
-        SolveType=ISNULL(@solvety,SolveType),
-        InformName=@iname,
-        InformTel=@itel,
-        InformType=@itype,
-        OnsiteRemark=@line,
-        UpdateDate=GETDATE()
+        ReceiveDate  = ISNULL(@rd,       ReceiveDate),
+        CloseDate    = ISNULL(@cd,       CloseDate),
+        CalllogDesc  = ISNULL(@desc,     CalllogDesc),
+        Solution     = ISNULL(@sol,      Solution),
+        Subject      = ISNULL(@subj,     Subject),
+        ProblemTypeId= ISNULL(@ptid,     ProblemTypeId),
+        ProjectId    = ISNULL(@pid,      ProjectId),
+        StatusId     = ISNULL(@stid,     StatusId),
+        SupportId    = ISNULL(@sid,      SupportId),
+        UserId       = ISNULL(@uid,      UserId),
+        SolveType    = ISNULL(@solvety,  SolveType),
+        InformName   = ISNULL(@iname,    InformName),
+        InformTel    = ISNULL(@itel,     InformTel),
+        InformType   = ISNULL(@itype,    InformType),
+        OnsiteRemark = ISNULL(@line,     OnsiteRemark),
+        UpdateDate   = GETDATE()
         WHERE CalllogId=@id`);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
