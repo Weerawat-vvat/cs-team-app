@@ -538,9 +538,9 @@ app.put('/api/tickets/:id', authRequired, async (request, res) => {
     const id = parseInt(request.params.id);
     await extReq()
       .input('id',    sql.Int,      id)
-      .input('rd',    sql.DateTime, thaiToUtc(b.receive_date) ? new Date(thaiToUtc(b.receive_date)+' UTC') : null)
-      .input('cd',    sql.DateTime, thaiToUtc(b.close_date)   ? new Date(thaiToUtc(b.close_date)+' UTC')   : null)
-      .input('desc',  sql.NVarChar, b.description   ?? null)
+      // Edit: values from DB already UTC — pass as-is, no conversion
+      .input('rd',    sql.DateTime, b.receive_date ? new Date(b.receive_date) : null)
+      .input('cd',    sql.DateTime, b.close_date   ? new Date(b.close_date)   : null)
       .input('sol',   sql.NVarChar, b.solution       ?? null)
       .input('subj',  sql.NVarChar, b.subject        ?? null)
       .input('ptid',  sql.Int,      b.problem_type_id ? parseInt(b.problem_type_id) : null)
