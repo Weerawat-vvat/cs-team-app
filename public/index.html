@@ -435,6 +435,10 @@ textarea{resize:vertical;min-height:80px}
     <!-- hidden buttons for backward compat -->
     <button class="s-tab" id="nav-btn-schedule" style="display:none"></button>
     <button class="s-tab" id="nav-btn-users"    style="display:none"></button>
+    <a href="https://fbprokb-front.azurewebsites.net/" target="_blank" rel="noopener"
+       class="s-tab" style="text-decoration:none">
+      <span class="s-tab-icon">📚</span> Knowledge Base
+    </a>
     <button class="s-tab" id="nav-btn-complaints" onclick="showPage('complaints',this)" style="display:none">
       <span class="s-tab-icon">📣</span> ร้องเรียน <span id="complaint-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.65rem;padding:.05rem .4rem;margin-left:.2rem;font-weight:700"></span>
     </button>
@@ -1940,37 +1944,7 @@ textarea{resize:vertical;min-height:80px}
 </div>
 
 <!-- ══════════ AI CHATBOT ══════════ -->
-<button id="ai-fab" onclick="toggleAiPanel()" title="CS Assistant AI">
-  🤖
-  <div class="badge-unread" id="ai-unread">1</div>
-</button>
-
-<div id="ai-panel">
-  <div id="ai-panel-header">
-    <span>🤖</span>
-    <div>
-      <div style="font-size:.95rem;font-weight:700">CS Assistant</div>
-      <div style="font-size:.72rem;opacity:.8;font-weight:400">ถามเรื่อง Ticket, กะ, KPI ได้เลย</div>
-    </div>
-    <button class="close-btn" onclick="toggleAiPanel()">×</button>
-  </div>
-  <div id="ai-messages">
-    <div class="ai-msg bot">
-      <div class="avatar">🤖</div>
-      <div class="bubble">สวัสดีครับ! ผม CS Assistant ช่วยตอบคำถามเกี่ยวกับ Ticket, กะ, KPI และภาพรวมทีมได้เลยครับ 😊</div>
-    </div>
-  </div>
-  <div class="quick-chips" id="ai-quick-chips">
-    <button class="chip" onclick="sendQuick('วันนี้มี ticket ค้างกี่ใบ?')">📋 ticket ค้าง</button>
-    <button class="chip" onclick="sendQuick('ใครกำลังทำงานกะนี้?')">🟢 ออนกะ</button>
-    <button class="chip" onclick="sendQuick('ทีมไหน KPI ดีสุดเดือนนี้?')">📈 KPI ดีสุด</button>
-    <button class="chip" onclick="sendQuick('มีคำขอวันหยุดที่ยังค้างอยู่กี่คน?')">📩 รออนุมัติ</button>
-  </div>
-  <div id="ai-input-wrap">
-    <textarea id="ai-input" placeholder="พิมพ์ข้อความ..." rows="1" onkeydown="aiKeydown(event)"></textarea>
-    <button id="ai-send" onclick="sendAiMessage()">➤</button>
-  </div>
-</div>
+<!-- AI chatbot removed -->
 
 <script>
 // ══════════════════════════════════════════════════════════
