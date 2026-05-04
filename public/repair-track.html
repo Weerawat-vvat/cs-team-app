@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>ติดตามงานซ่อม — CS Team</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Tahoma,sans-serif;background:#f1f5f9;color:#1e293b;min-height:100vh}
+.top-bar{background:#1e293b;padding:.85rem 1.25rem;display:flex;align-items:center;gap:.75rem}
+.top-bar .logo{font-size:1rem;font-weight:800;color:#fff}
+.top-bar .sub{font-size:.75rem;color:#94a3b8;margin-top:.1rem}
+.container{max-width:620px;margin:0 auto;padding:1.5rem 1rem}
+
+/* Job Card */
+.job-card{background:#fff;border-radius:12px;padding:1.1rem 1.3rem;border:1px solid #e2e8f0;margin-bottom:1.25rem;box-shadow:0 1px 4px #0001}
+.job-no{font-size:1.3rem;font-weight:800;color:#1e293b;letter-spacing:.03em}
+.job-sub{font-size:.8rem;color:#64748b;margin-top:.2rem}
+.device-row{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.75rem}
+.device-pill{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:.25rem .65rem;font-size:.78rem;color:#475569}
+
+/* Status Badge */
+.status-badge{display:inline-block;padding:.3rem .9rem;border-radius:20px;font-size:.85rem;font-weight:700;margin-top:.75rem}
+
+/* Timeline */
+.timeline-card{background:#fff;border-radius:12px;padding:1.1rem 1.3rem;border:1px solid #e2e8f0;box-shadow:0 1px 4px #0001}
+.timeline-title{font-size:.8rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:1rem}
+
+.step{display:flex;gap:.75rem;margin-bottom:.15rem}
+.step-line{display:flex;flex-direction:column;align-items:center;width:28px;flex-shrink:0}
+.step-dot{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.8rem;flex-shrink:0;z-index:1}
+.step-dot.done{background:#16a34a;color:#fff}
+.step-dot.active{background:#2563eb;color:#fff;box-shadow:0 0 0 4px #dbeafe}
+.step-dot.pending{background:#e2e8f0;color:#94a3b8}
+.step-connector{width:2px;flex:1;min-height:20px;background:#e2e8f0;margin:2px 0}
+.step-connector.done{background:#16a34a}
+.step-body{padding:.1rem 0 1rem}
+.step-label{font-size:.88rem;font-weight:600;color:#1e293b}
+.step-label.done{color:#16a34a}
+.step-label.active{color:#2563eb}
+.step-label.pending{color:#94a3b8}
+.step-date{font-size:.75rem;color:#64748b;margin-top:.1rem}
+.step-date.active{color:#2563eb;font-weight:600}
+
+.updated{font-size:.73rem;color:#94a3b8;text-align:center;margin-top:1rem}
+.loading{text-align:center;padding:4rem;color:#64748b}
+.error-box{background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:1.5rem;text-align:center;color:#b91c1c;margin-top:1rem}
+
+/* Message */
+.msg-card{background:#fff;border-radius:12px;padding:1.1rem 1.3rem;border:1px solid #e2e8f0;margin-top:1rem;box-shadow:0 1px 4px #0001}
+.msg-card h3{font-size:.8rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.75rem}
+.msg-bubble{background:#f1f5f9;border-radius:8px;padding:.55rem .8rem;margin-bottom:.5rem;font-size:.83rem;line-height:1.55}
+.msg-bubble .from{font-size:.7rem;font-weight:700;color:#2563eb;margin-bottom:.15rem}
+.msg-bubble .time{font-size:.68rem;color:#94a3b8;margin-top:.2rem}
+.msg-input{width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:.45rem .7rem;font-size:.83rem;font-family:inherit;outline:none;resize:vertical;min-height:72px;margin-bottom:.5rem}
+.msg-input:focus{border-color:#2563eb}
+.msg-name{width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:.38rem .7rem;font-size:.82rem;font-family:inherit;outline:none;margin-bottom:.4rem}
+.msg-name:focus{border-color:#2563eb}
+.btn-send{background:#2563eb;color:#fff;border:none;border-radius:8px;padding:.45rem 1.1rem;font-size:.83rem;font-weight:600;cursor:pointer;width:100%}
+.btn-send:hover{background:#1d4ed8}
+.btn-send:disabled{background:#94a3b8;cursor:not-allowed}
+</style>
+</head>
+<body>
+<div class="top-bar">
+  <div>
+    <div class="logo">🔧 CS Team — ติดตามงานซ่อม</div>
+    <div class="sub">Repair Tracking</div>
+  </div>
+</div>
+
+<div class="container">
+  <div id="root"><div class="loading">⏳ กำลังโหลด...</div></div>
+</div>
+
+<script>
+function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function parseD(s){ return s ? new Date(String(s).replace('Z','')) : null; }
+function fmtD(s){
+  const d = parseD(s); if(!d) return null;
+  return d.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'});
+}
+function fmtDT(s){
+  const d = parseD(s); if(!d) return null;
+  return d.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'})
+    + ' ' + d.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+}
+
+const STATUS_STEPS = [
+  { key:'received',               label:'รับเรื่อง',               icon:'📋' },
+  { key:'assessing',              label:'กำลังประเมิน',             icon:'🔍' },
+  { key:'quoted',                 label:'เสนอราคาแล้ว',            icon:'📄' },
+  { key:'waiting_approval',       label:'รอลูกค้าอนุมัติ',         icon:'⏳' },
+  { key:'device_received',        label:'รับเครื่องแล้ว',          icon:'📦' },
+  { key:'sent_supplier',          label:'ส่ง Supplier ซ่อม',      icon:'🚚' },
+  { key:'returned_from_supplier', label:'ได้เครื่องคืน',           icon:'✅' },
+  { key:'returned_to_customer',   label:'ส่งคืนลูกค้าแล้ว',       icon:'🏁' },
+];
+
+const STATUS_COLOR = {
+  received:'#dbeafe|#1d4ed8', assessing:'#fef3c7|#92400e',
+  quoted:'#ede9fe|#6d28d9', waiting_approval:'#fef9c3|#854d0e',
+  device_received:'#dcfce7|#166534', sent_supplier:'#e0f2fe|#0369a1',
+  returned_from_supplier:'#d1fae5|#15803d', returned_to_customer:'#bbf7d0|#15803d',
+  closed:'#f0fdf4|#166534', cancelled:'#fee2e2|#b91c1c'
+};
+
+const STATUS_LABEL = {
+  received:'รับเรื่อง', assessing:'กำลังประเมิน', quoted:'เสนอราคาแล้ว',
+  waiting_approval:'รอลูกค้าอนุมัติ', device_received:'รับเครื่องแล้ว',
+  sent_supplier:'ส่ง Supplier ซ่อม', returned_from_supplier:'ได้เครื่องคืน',
+  returned_to_customer:'ส่งคืนลูกค้าแล้ว', closed:'ปิดงาน', cancelled:'ยกเลิก'
+};
+
+async function load(){
+  const token = new URLSearchParams(location.search).get('t');
+  const root  = document.getElementById('root');
+  if (!token){
+    root.innerHTML = '<div class="error-box">❌ ไม่พบ link ที่ถูกต้อง</div>';
+    return;
+  }
+  try {
+    const res = await fetch(`/api/public/repair/${token}`);
+    const d   = await res.json();
+    if (!res.ok){ root.innerHTML=`<div class="error-box">❌ ${esc(d.error||'ไม่พบข้อมูล')}</div>`; return; }
+    const msgs = (d.timeline||[]).filter(t => t.field_changed === 'customer_message' || t.field_changed === 'admin_reply');
+
+    document.title = `ติดตามงานซ่อม — ${d.job_no}`;
+
+    // Status badge
+    const [bg,col] = (STATUS_COLOR[d.status]||'#f1f5f9|#475569').split('|');
+    const badge = `<span class="status-badge" style="background:${bg};color:${col}">${STATUS_LABEL[d.status]||d.status}</span>`;
+
+    // Build timeline from steps + actual dates
+    const stepDates = {
+      received:               d.reported_at,
+      device_received:        d.received_date,
+      sent_supplier:          d.sent_supplier_date,
+      returned_from_supplier: d.returned_from_supplier_date,
+      returned_to_customer:   d.returned_to_customer_date,
+    };
+    // Also enrich from timeline log
+    (d.timeline||[]).forEach(t => {
+      if (!stepDates[t.new_value]) stepDates[t.new_value] = t.changed_at;
+    });
+
+    const currentIdx = STATUS_STEPS.findIndex(s => s.key === d.status);
+    const isCancelled = d.status === 'cancelled';
+    const isClosed    = d.status === 'closed' || d.status === 'returned_to_customer';
+
+    let stepsHtml = '';
+    const steps = isClosed
+      ? [...STATUS_STEPS, { key:'closed', label:'เสร็จสิ้น', icon:'🎉' }]
+      : STATUS_STEPS;
+
+    steps.forEach((step, i) => {
+      const stepIdx = STATUS_STEPS.findIndex(s => s.key === step.key);
+      const isDone   = isClosed ? true : (stepIdx !== -1 && stepIdx < currentIdx);
+      const isActive = step.key === d.status;
+      const isPend   = !isDone && !isActive;
+      const state    = isDone ? 'done' : isActive ? 'active' : 'pending';
+      const dotIcon  = isDone ? '✓' : isActive ? step.icon : '○';
+      const dateVal  = stepDates[step.key];
+      const isLast   = i === steps.length - 1;
+
+      stepsHtml += `
+        <div class="step">
+          <div class="step-line">
+            <div class="step-dot ${state}">${dotIcon}</div>
+            ${!isLast ? `<div class="step-connector ${isDone?'done':''}"></div>` : ''}
+          </div>
+          <div class="step-body">
+            <div class="step-label ${state}">${step.label}</div>
+            ${dateVal ? `<div class="step-date ${isActive?'active':''}">${fmtDT(dateVal)}</div>` : ''}
+          </div>
+        </div>`;
+    });
+
+    if (isCancelled) {
+      stepsHtml = `<div style="text-align:center;padding:1.5rem;color:#b91c1c;font-size:.9rem">❌ งานนี้ถูกยกเลิกแล้ว</div>`;
+    }
+
+    root.innerHTML = `
+      <div class="job-card">
+        <div class="job-no">${esc(d.job_no)}</div>
+        <div class="job-sub">🏢 ${esc(d.company_name||'—')}</div>
+        <div class="device-row">
+          ${d.device_type  ? `<span class="device-pill">📦 ${esc(d.device_type)}</span>` : ''}
+          ${d.device_model ? `<span class="device-pill">🖥 ${esc(d.device_model)}</span>` : ''}
+          ${d.serial_no    ? `<span class="device-pill" style="font-family:monospace">S/N: ${esc(d.serial_no)}</span>` : ''}
+        </div>
+        ${badge}
+      </div>
+
+      <div class="timeline-card">
+        <div class="timeline-title">⏱ ความคืบหน้า</div>
+        ${stepsHtml}
+      </div>
+
+      <div class="updated">อัพเดทล่าสุด: ${fmtDT(d.updated_at)||'—'}</div>
+
+      <!-- Message history (chat style) -->
+      ${msgs.length ? `
+      <div class="msg-card">
+        <h3>💬 ข้อความ</h3>
+        ${msgs.map(m => {
+          const isAdmin = m.field_changed === 'admin_reply';
+          return `<div style="display:flex;flex-direction:column;align-items:${isAdmin?'flex-end':'flex-start'};margin-bottom:.5rem">
+            <div class="msg-bubble" style="max-width:85%;background:${isAdmin?'#dbeafe':'#f1f5f9'};border-radius:${isAdmin?'12px 12px 4px 12px':'12px 12px 12px 4px'};border:1px solid ${isAdmin?'#bfdbfe':'#e2e8f0'}">
+              <div class="from" style="color:${isAdmin?'#1d4ed8':'#475569'}">${isAdmin?'↩️ CS Team':'👤 '+esc(m.note||'คุณ')}</div>
+              <div>${esc(m.new_value)}</div>
+              <div class="time">${fmtDT(m.changed_at)}</div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>` : ''}
+
+      <!-- Reply form: hide when job is done -->
+      ${['returned_to_customer','closed','cancelled'].includes(d.status) ? `
+      <div class="msg-card" style="text-align:center;color:#16a34a;font-size:.88rem;font-weight:600;background:#f0fdf4;border-color:#bbf7d0">
+        ✅ งานนี้เสร็จสิ้นแล้ว — ขอบคุณที่ใช้บริการครับ
+      </div>` : `
+      <div class="msg-card">
+        <h3>📩 ส่งข้อความถึงทีม CS</h3>
+        <input class="msg-name" id="msg-name" placeholder="ชื่อของคุณ (ไม่บังคับ)"/>
+        <textarea class="msg-input" id="msg-text" placeholder="พิมพ์ข้อความ เช่น สอบถามความคืบหน้า หรือแจ้งข้อมูลเพิ่มเติม..."></textarea>
+        <button class="btn-send" id="msg-btn" onclick="sendMsg()">📤 ส่งข้อความ</button>
+      </div>`}`;
+  } catch(e){
+    document.getElementById('root').innerHTML = `<div class="error-box">❌ ${esc(e.message)}</div>`;
+  }
+}
+async function sendMsg() {
+  const token = new URLSearchParams(location.search).get('t');
+  const name  = document.getElementById('msg-name')?.value.trim() || '';
+  const msg   = document.getElementById('msg-text')?.value.trim() || '';
+  if (!msg) { alert('กรุณาพิมพ์ข้อความก่อนส่ง'); return; }
+  const btn = document.getElementById('msg-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ กำลังส่ง...'; }
+  try {
+    const r = await fetch(`/api/public/repair/${token}/message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, message: msg })
+    });
+    const d = await r.json();
+    if (!r.ok) { alert('❌ ' + (d.error||'ส่งไม่สำเร็จ')); }
+    else {
+      document.getElementById('msg-text').value = '';
+      document.getElementById('msg-name').value = '';
+      // Reload to show new message
+      await load();
+    }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📤 ส่งข้อความ'; }
+  }
+}
+
+load();
+</script>
+</body>
+</html>

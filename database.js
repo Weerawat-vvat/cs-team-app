@@ -5,17 +5,19 @@
 require('dotenv').config();
 const mssql = require('mssql');
 
-let pool    = null; // cs_team DB
-let extPool = null; // LicenseDB (external)
+let pool     = null; // cs_team DB
+let extPool  = null; // LicenseDB (external)
+let infoPool = null; // INFO_BKK (inventory/serial)
 
 const sql = mssql;
 
 // ── Main DB config (cs_team) ──────────────────────────────
 const mainConfig = {
-  server:   process.env.DB_SERVER   || 'localhost',
-  database: process.env.DB_NAME     || 'cs_team',
-  user:     process.env.DB_USER     || 'cs',
-  password: process.env.DB_PASSWORD || '',
+  server:         process.env.DB_SERVER   || 'localhost',
+  database:       process.env.DB_NAME     || 'cs_team',
+  user:           process.env.DB_USER     || 'cs',
+  password:       process.env.DB_PASSWORD || '',
+  requestTimeout: 60000,  // 60s (default 15s is too short)
   options: {
     encrypt:              process.env.DB_ENCRYPT     === 'true',
     trustServerCertificate: process.env.DB_TRUST_CERT !== 'false',
@@ -29,11 +31,12 @@ const mainConfig = {
 const extServerRaw = process.env.EXT_DB_SERVER || '';
 const [extHost, extPortStr] = extServerRaw.split(',');
 const extConfig = {
-  server:   extHost,
-  port:     extPortStr ? parseInt(extPortStr) : 1433,
-  database: process.env.EXT_DB_NAME     || 'LicenseDB',
-  user:     process.env.EXT_DB_USER     || 'cs',
-  password: process.env.EXT_DB_PASSWORD || '',
+  server:         extHost,
+  port:           extPortStr ? parseInt(extPortStr) : 1433,
+  database:       process.env.EXT_DB_NAME     || 'LicenseDB',
+  user:           process.env.EXT_DB_USER     || 'cs',
+  password:       process.env.EXT_DB_PASSWORD || '',
+  requestTimeout: 60000,  // 60s
   options: {
     encrypt:              process.env.EXT_DB_ENCRYPT     === 'true',
     trustServerCertificate: process.env.EXT_DB_TRUST_CERT !== 'false',
@@ -149,10 +152,27 @@ async function init() {
       console.warn('⚠️  External DB not available:', err.message);
       extPool = null;
     }
+
+    // เชื่อมต่อ INFO_BKK (same server as LicenseDB, different database)
+    if (process.env.INFO_DB_NAME) {
+      try {
+        const infoConfig = {
+          ...extConfig,
+          database: process.env.INFO_DB_NAME,
+        };
+        infoPool = new mssql.ConnectionPool(infoConfig);
+        await infoPool.connect();
+        console.log(`✅ Connected to INFO DB — ${infoConfig.server}/${infoConfig.database}`);
+      } catch (err) {
+        console.warn('⚠️  INFO DB not available:', err.message);
+        infoPool = null;
+      }
+    }
   }
 }
 
-function getPool()    { return pool; }
-function getExtPool() { return extPool; }
+function getPool()     { return pool; }
+function getExtPool()  { return extPool; }
+function getInfoPool() { return infoPool; }
 
-module.exports = { init, getPool, getExtPool, sql };
+module.exports = { init, getPool, getExtPool, getInfoPool, sql };

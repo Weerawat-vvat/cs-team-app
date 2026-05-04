@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>ติดตามเคส — CS Team</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Tahoma,sans-serif;background:#f1f5f9;color:#1e293b;min-height:100vh}
+.top-bar{background:#1e293b;color:#fff;padding:.75rem 1.25rem;display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap}
+.logo{font-size:.95rem;font-weight:800;color:#fff}
+.sub{font-size:.72rem;color:#94a3b8;margin-top:.1rem}
+.container{max-width:1100px;margin:0 auto;padding:1.25rem 1rem}
+
+/* Date filter */
+.date-bar{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.55rem 1rem;display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-bottom:1rem;box-shadow:0 1px 3px #0001}
+.drb-btn{border:1px solid #e2e8f0;background:#fff;color:#475569;padding:.28rem .7rem;border-radius:20px;font-size:.77rem;cursor:pointer;font-family:inherit;transition:.12s}
+.drb-btn:hover,.drb-btn.active{background:#2563eb;color:#fff;border-color:#2563eb;font-weight:600}
+.date-input{border:1px solid #e2e8f0;border-radius:7px;padding:.28rem .55rem;font-size:.78rem;color:#1e293b;outline:none}
+.date-input:focus{border-color:#2563eb}
+.date-range-label{font-size:.75rem;color:#64748b;margin-left:auto;white-space:nowrap}
+
+/* Stat cards */
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem;margin-bottom:1rem}
+@media(max-width:700px){.stat-grid{grid-template-columns:repeat(2,1fr)}}
+.stat-card{background:#fff;border-radius:12px;padding:.9rem 1.1rem;border:1px solid #e2e8f0;box-shadow:0 1px 4px #0001}
+.stat-card .icon{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;margin-bottom:.5rem}
+.stat-card .label{font-size:.73rem;color:#64748b;font-weight:500}
+.stat-card .value{font-size:1.75rem;font-weight:800;line-height:1;margin:.15rem 0}
+.stat-card .sub{font-size:.7rem;color:#94a3b8}
+
+/* Page tabs */
+.page-tabs{display:flex;gap:.3rem;margin-bottom:1rem;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.35rem;box-shadow:0 1px 3px #0001;width:fit-content}
+.page-tab{border:none;background:none;padding:.4rem 1.1rem;border-radius:7px;font-size:.83rem;cursor:pointer;color:#64748b;font-weight:500;font-family:inherit;transition:.12s}
+.page-tab.active{background:#2563eb;color:#fff;font-weight:700}
+
+/* Charts */
+.chart-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:.75rem;margin-bottom:.75rem}
+.chart-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.75rem;margin-bottom:.75rem}
+@media(max-width:800px){.chart-grid,.chart-grid-3{grid-template-columns:1fr}}
+.card{background:#fff;border-radius:12px;padding:.9rem 1.1rem;border:1px solid #e2e8f0;box-shadow:0 1px 4px #0001}
+.card-title{font-size:.82rem;font-weight:700;color:#475569;margin-bottom:.65rem;display:flex;align-items:center;gap:.35rem}
+.chart-wrap{position:relative;height:200px}
+.chart-wrap-sm{position:relative;height:160px}
+
+/* TOP5 */
+.top5-item{display:flex;align-items:center;gap:.6rem;padding:.45rem 0;border-bottom:1px solid #f1f5f9}
+.top5-item:last-child{border:none}
+.top5-rank{width:22px;height:22px;border-radius:50%;background:#f1f5f9;color:#64748b;font-size:.72rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.top5-rank.r1{background:#fef3c7;color:#92400e}
+.top5-rank.r2{background:#f1f5f9;color:#475569}
+.top5-rank.r3{background:#fef2f2;color:#b91c1c}
+.top5-bar-wrap{flex:1;min-width:0}
+.top5-name{font-size:.8rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top5-sub{font-size:.7rem;color:#64748b}
+.top5-bar-track{height:5px;background:#f1f5f9;border-radius:3px;margin-top:.25rem}
+.top5-bar-fill{height:5px;border-radius:3px;background:#2563eb}
+.top5-cnt{font-size:.88rem;font-weight:800;color:#2563eb;flex-shrink:0}
+
+/* Filter bar (list tab) */
+.filter-bar{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem;align-items:center}
+.filter-select{border:1px solid #e2e8f0;border-radius:8px;padding:.32rem .7rem;font-size:.8rem;background:#fff;color:#1e293b;outline:none}
+.filter-input{border:1px solid #e2e8f0;border-radius:8px;padding:.32rem .7rem;font-size:.8rem;flex:1;min-width:150px;outline:none}
+.filter-input:focus,.filter-select:focus{border-color:#2563eb}
+
+/* Status tabs */
+.status-tabs{display:flex;gap:.2rem;margin-bottom:.75rem;flex-wrap:wrap}
+.s-tab{border:none;background:#f1f5f9;color:#475569;padding:.32rem .85rem;border-radius:20px;font-size:.78rem;cursor:pointer;font-weight:500;font-family:inherit;transition:.12s;display:flex;align-items:center;gap:.3rem}
+.s-tab.active{font-weight:700}
+.s-tab.t-open.active{background:#fee2e2;color:#b91c1c}
+.s-tab.t-close.active{background:#dcfce7;color:#15803d}
+.s-tab.t-all.active{background:#dbeafe;color:#1d4ed8}
+.s-tab-cnt{background:rgba(0,0,0,.08);border-radius:10px;padding:.05rem .35rem;font-size:.7rem;font-weight:700}
+
+/* Table */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.8rem}
+th{background:#f8fafc;padding:.45rem .65rem;text-align:left;font-size:.72rem;font-weight:700;color:#64748b;white-space:nowrap;border-bottom:2px solid #e2e8f0}
+td{padding:.42rem .65rem;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+tr:hover td{background:#f8fafc}
+.badge{display:inline-block;padding:.15rem .55rem;border-radius:20px;font-size:.7rem;font-weight:700;white-space:nowrap}
+.b-close{background:#dcfce7;color:#15803d}
+.b-open{background:#fee2e2;color:#b91c1c}
+.b-other{background:#f1f5f9;color:#475569}
+
+/* Pagination */
+.pagi{display:flex;align-items:center;justify-content:center;gap:.3rem;margin-top:.75rem;flex-wrap:wrap}
+.pagi button{min-width:30px;height:30px;border:1px solid #e2e8f0;background:#fff;border-radius:6px;font-size:.78rem;cursor:pointer;font-family:inherit}
+.pagi button.active{background:#2563eb;color:#fff;border-color:#2563eb;font-weight:700}
+.pagi button:disabled{opacity:.4;cursor:not-allowed}
+
+/* Misc */
+.empty{text-align:center;padding:2.5rem;color:#94a3b8;font-size:.85rem}
+.loading{text-align:center;padding:4rem;color:#64748b}
+.error-box{background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:1.5rem;text-align:center;color:#b91c1c;margin-top:1rem}
+.btn{border:none;border-radius:8px;padding:.42rem .95rem;font-size:.8rem;font-weight:600;cursor:pointer;font-family:inherit}
+.btn-red{background:#ef4444;color:#fff}
+.btn-red:hover{background:#dc2626}
+
+/* Message */
+.msg-card{background:#fff;border-radius:12px;padding:1rem 1.2rem;border:1px solid #e2e8f0;margin-top:.75rem;box-shadow:0 1px 4px #0001}
+.msg-input{width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:.4rem .65rem;font-size:.82rem;font-family:inherit;resize:vertical;min-height:70px;outline:none;margin:.35rem 0}
+.msg-input:focus{border-color:#2563eb}
+.msg-name{width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:.35rem .65rem;font-size:.8rem;font-family:inherit;outline:none;margin-bottom:.35rem}
+.send-btn{background:#2563eb;color:#fff;border:none;border-radius:8px;padding:.42rem 1rem;font-size:.8rem;font-weight:600;cursor:pointer;width:100%}
+.bubble-wrap{max-height:220px;overflow-y:auto;margin-bottom:.5rem}
+.bubble{border-radius:10px;padding:.4rem .7rem;margin-bottom:.4rem;font-size:.82rem;line-height:1.55;max-width:85%}
+.bubble.cust{background:#f1f5f9;margin-right:auto}
+.bubble.admin{background:#dbeafe;margin-left:auto;text-align:right}
+.bubble .bfrom{font-size:.68rem;font-weight:700;color:#64748b;margin-bottom:.1rem}
+.bubble.admin .bfrom{color:#1d4ed8}
+.bubble .btime{font-size:.65rem;color:#94a3b8;margin-top:.15rem}
+</style>
+</head>
+<body>
+<div class="top-bar">
+  <div>
+    <div class="logo" id="page-title">📋 CS Team — ติดตามเคส</div>
+    <div class="sub" id="page-sub">Customer Ticket Tracking</div>
+  </div>
+  <button class="btn btn-red" onclick="openComplain(null)" style="font-size:.78rem;padding:.32rem .8rem">📣 แจ้งปัญหา</button>
+</div>
+
+<div class="container" id="root">
+  <div class="loading">⏳ กำลังโหลด...</div>
+</div>
+
+<!-- Complain Modal -->
+<div id="modal-complain" style="display:none;position:fixed;inset:0;background:#0007;z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:1.4rem;width:min(440px,95vw)">
+    <div style="font-size:.95rem;font-weight:800;margin-bottom:.9rem">📣 แจ้งปัญหา / ร้องเรียน</div>
+    <input type="hidden" id="c-ticket-id"/>
+    <div style="margin-bottom:.5rem"><label style="font-size:.75rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">Email (ไม่บังคับ)</label>
+      <input type="email" id="c-email" placeholder="your@email.com" style="width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:.38rem .65rem;font-size:.82rem;outline:none"/></div>
+    <div style="margin-bottom:.75rem"><label style="font-size:.75rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">รายละเอียด *</label>
+      <textarea id="c-msg" rows="3" placeholder="อธิบายปัญหา..." style="width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:.38rem .65rem;font-size:.82rem;font-family:inherit;resize:vertical;outline:none"></textarea></div>
+    <div style="display:flex;gap:.5rem;justify-content:flex-end">
+      <button onclick="closeComplain()" style="border:1px solid #e2e8f0;background:#fff;border-radius:8px;padding:.38rem .85rem;font-size:.8rem;cursor:pointer">ยกเลิก</button>
+      <button class="btn btn-red" onclick="submitComplain()">📤 ส่ง</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const token = new URLSearchParams(location.search).get('t');
+let _data = null, _statusTab = 'open', _branchFilter = '', _page = 1, _perPage = 25, _search = '';
+let _charts = {};
+let _dateFrom = '', _dateTo = '';
+
+// ── Helpers ──────────────────────────────────────────────
+function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function parseD(s){ return s ? new Date(String(s).replace('Z','')) : null; }
+function fmtDate(s){
+  const d=parseD(s); if(!d) return '—';
+  return d.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'})
+    +' '+d.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+}
+function fmtD(s){
+  const d=parseD(s); if(!d) return '—';
+  return d.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'});
+}
+function fmtDur(m){ if(m==null||m<0) return '—'; return m>=60?`${Math.floor(m/60)}ชม.${m%60}น.`:`${m}น.`; }
+function isClosed(s){ return (s||'').toLowerCase().includes('close')||(s||'').toLowerCase().includes('complete'); }
+function badgeCls(s){ return isClosed(s)?'b-close':(s||'').toLowerCase().includes('open')?'b-open':'b-other'; }
+function today(){ return new Date().toISOString().split('T')[0]; }
+function daysAgo(n){ const d=new Date(); d.setDate(d.getDate()-n); return d.toISOString().split('T')[0]; }
+
+// ── Date filter ──────────────────────────────────────────
+function setRange(preset, btn){
+  document.querySelectorAll('.drb-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const t = today();
+  if(preset==='today')    { _dateFrom=t; _dateTo=t; }
+  else if(preset==='7d')  { _dateFrom=daysAgo(6); _dateTo=t; }
+  else if(preset==='30d') { _dateFrom=daysAgo(29); _dateTo=t; }
+  else if(preset==='month'){ const d=new Date(); _dateFrom=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`; _dateTo=t; }
+  if(preset!=='custom'){
+    document.getElementById('df').value=_dateFrom;
+    document.getElementById('dt').value=_dateTo;
+    loadData();
+  }
+}
+function applyCustom(){
+  _dateFrom=document.getElementById('df').value;
+  _dateTo=document.getElementById('dt').value;
+  if(_dateFrom&&_dateTo) loadData();
+}
+
+// ── Load ──────────────────────────────────────────────────
+async function loadData(){
+  const root = document.getElementById('root');
+  const qs = _dateFrom?`?dateFrom=${_dateFrom}&dateTo=${_dateTo||_dateFrom}`:'';
+  try {
+    const res = await fetch(`/api/public/track/${token}${qs}`);
+    _data = await res.json();
+    if(!res.ok){ root.innerHTML=`<div class="error-box">❌ ${esc(_data.error||'ไม่พบข้อมูล')}</div>`; return; }
+    document.title = `ติดตามเคส — ${_data.company}`;
+    document.getElementById('page-title').textContent = `📋 ${_data.company}`;
+    // Update date label
+    const lbl = document.getElementById('date-label');
+    if(lbl) lbl.textContent = `${fmtD(_data.dateFrom)} – ${fmtD(_data.dateTo)}`;
+    renderStats();
+    const tab = document.getElementById('active-tab')?.dataset?.tab || 'overview';
+    if(tab==='overview') renderOverview();
+    else renderList();
+  } catch(e){
+    root.innerHTML=`<div class="error-box">❌ ${esc(e.message)}</div>`;
+  }
+}
+
+// ── Initial render (build shell) ─────────────────────────
+async function init(){
+  const root = document.getElementById('root');
+  if(!token){ root.innerHTML='<div class="error-box">❌ ไม่พบ link ที่ถูกต้อง</div>'; return; }
+
+  // Set default 30 days
+  _dateFrom = daysAgo(29); _dateTo = today();
+
+  root.innerHTML = `
+    <!-- Date bar -->
+    <div class="date-bar">
+      <button class="drb-btn" onclick="setRange('today',this)">วันนี้</button>
+      <button class="drb-btn" onclick="setRange('7d',this)">7 วัน</button>
+      <button class="drb-btn active" onclick="setRange('30d',this)">30 วัน</button>
+      <button class="drb-btn" onclick="setRange('month',this)">เดือนนี้</button>
+      <input type="date" id="df" class="date-input" value="${_dateFrom}"/>
+      <span style="color:#94a3b8;font-size:.8rem">–</span>
+      <input type="date" id="dt" class="date-input" value="${_dateTo}" onchange="applyCustom()"/>
+      <button class="drb-btn" onclick="applyCustom()">ค้นหา</button>
+      <span class="date-range-label" id="date-label"></span>
+    </div>
+
+    <!-- Stat cards -->
+    <div class="stat-grid" id="stat-grid">
+      <div class="stat-card"><div class="icon" style="background:#eff6ff">📋</div><div class="label">Case ทั้งหมด</div><div class="value" id="s-total" style="color:#2563eb">—</div></div>
+      <div class="stat-card"><div class="icon" style="background:#fef2f2">⏳</div><div class="label">ค้างอยู่ (OPEN)</div><div class="value" id="s-open" style="color:#dc2626">—</div></div>
+      <div class="stat-card"><div class="icon" style="background:#f0fdf4">✅</div><div class="label">แก้ไขแล้ว (CLOSE)</div><div class="value" id="s-close" style="color:#16a34a">—</div></div>
+      <div class="stat-card"><div class="icon" style="background:#faf5ff">⏱️</div><div class="label">เวลาแก้ไขเฉลี่ย</div><div class="value" id="s-avg" style="color:#7c3aed;font-size:1.3rem">—</div></div>
+    </div>
+
+    <!-- Page tabs -->
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;margin-bottom:.75rem">
+      <div class="page-tabs">
+        <button class="page-tab active" id="active-tab" data-tab="overview" onclick="switchTab('overview',this)">📊 Overview</button>
+        <button class="page-tab" data-tab="list" onclick="switchTab('list',this)">📋 รายการ Case</button>
+        <button class="page-tab" data-tab="repair" onclick="switchTab('repair',this)">🔧 ติดตามงานซ่อม</button>
+      </div>
+    </div>
+
+    <div id="tab-content"></div>`;
+
+  await loadData();
+}
+
+function switchTab(tab, btn){
+  document.querySelectorAll('.page-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  btn.id='active-tab'; btn.dataset.tab=tab;
+  if(tab==='overview') renderOverview();
+  else if(tab==='list') renderList();
+  else if(tab==='repair') renderRepair();
+}
+
+function renderStats(){
+  if(!_data) return;
+  const t = _data.tickets||[];
+  const total = t.length;
+  const open  = t.filter(x=>!isClosed(x.status)).length;
+  const close = t.filter(x=>isClosed(x.status)).length;
+  const wt    = t.filter(x=>x.resolve_minutes!=null&&x.resolve_minutes>=0);
+  const avg   = wt.length ? Math.round(wt.reduce((s,x)=>s+x.resolve_minutes,0)/wt.length) : null;
+  document.getElementById('s-total').textContent = total.toLocaleString();
+  document.getElementById('s-open').textContent  = open.toLocaleString();
+  document.getElementById('s-close').textContent = close.toLocaleString();
+  document.getElementById('s-avg').textContent   = avg!=null ? fmtDur(avg) : '—';
+}
+
+// ── Overview Tab ─────────────────────────────────────────
+function renderOverview(){
+  const d = _data;
+  if(!d){ document.getElementById('tab-content').innerHTML=''; return; }
+
+  const tickets = d.tickets||[];
+  const isGrp   = d.isGroup;
+
+  // TOP 5 branches
+  const top5 = (isGrp ? d.branchStats||[] : []).slice(0,5);
+  const maxT  = top5[0]?.total || 1;
+  const top5Html = top5.map((b,i)=>`
+    <div class="top5-item">
+      <div class="top5-rank ${i===0?'r1':i===1?'r2':i===2?'r3':''}">${i+1}</div>
+      <div class="top5-bar-wrap">
+        <div class="top5-name" title="${esc(b.CompanyName)}">${esc(b.CompanyName)}</div>
+        <div class="top5-sub">${b.open_count>0?`<span style="color:#dc2626">${b.open_count} open</span> / `:''} ${b.total} close</div>
+        <div class="top5-bar-track"><div class="top5-bar-fill" style="width:${Math.round(b.total/maxT*100)}%"></div></div>
+      </div>
+      <div class="top5-cnt">${b.total}</div>
+    </div>`).join('') || '<div style="color:#94a3b8;font-size:.82rem;padding:.5rem 0">ไม่มีข้อมูล</div>';
+
+  document.getElementById('tab-content').innerHTML = `
+    ${isGrp ? `
+    <div class="chart-grid">
+      <div class="card">
+        <div class="card-title">📊 CASE แยกตามสาขา</div>
+        <div class="chart-wrap"><canvas id="c-branch"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">🏆 TOP 5 สาขาที่มีเคสมากสุด</div>
+        ${top5Html}
+      </div>
+    </div>` : ''}
+
+    <div class="${isGrp?'chart-grid':'chart-grid-3'}">
+      <div class="card">
+        <div class="card-title">📈 แนวโน้มรายวัน</div>
+        <div class="chart-wrap${isGrp?'-sm':''}"><canvas id="c-trend"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">🥧 ประเภทปัญหา</div>
+        <div class="chart-wrap${isGrp?'-sm':''}"><canvas id="c-pt"></canvas></div>
+      </div>
+      ${!isGrp?`<div class="card">
+        <div class="card-title">⏰ 5 เคสล่าสุด</div>
+        ${tickets.slice(0,5).map(t=>`
+          <div style="padding:.3rem 0;border-bottom:1px solid #f1f5f9;font-size:.78rem">
+            <div style="display:flex;justify-content:space-between">
+              <span style="font-weight:600">#${t.id}</span>
+              <span class="badge ${badgeCls(t.status)}">${esc(t.status||'—')}</span>
+            </div>
+            <div style="color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title||'—')}</div>
+            <div style="color:#94a3b8;font-size:.7rem">${fmtDate(t.opened_at)}</div>
+          </div>`).join('')||'<div class="empty">ไม่มีข้อมูล</div>'}
+      </div>`:''}
+    </div>`;
+
+  // Draw charts
+  Object.values(_charts).forEach(c=>c?.destroy());
+  _charts = {};
+
+  const chartOpts = (type='bar') => ({
+    responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{ display:type==='doughnut', position:'bottom', labels:{ font:{size:10}, boxWidth:10, padding:8 } } },
+    scales: type==='doughnut' ? undefined : {
+      x:{ ticks:{font:{size:9},color:'#64748b'}, grid:{display:false} },
+      y:{ beginAtZero:true, ticks:{font:{size:9},color:'#64748b'}, grid:{color:'#f1f5f9'} }
+    }
+  });
+
+  // Branch bar
+  if(isGrp && document.getElementById('c-branch')){
+    const bs = (d.branchStats||[]).slice(0,15);
+    _charts.branch = new Chart(document.getElementById('c-branch'), {
+      type:'bar',
+      data:{ labels:bs.map(b=>b.CompanyName.replace(/^(.*?)\s*\(.*\)$/,'$1').substring(0,20)),
+        datasets:[
+          { label:'CLOSE', data:bs.map(b=>b.total-b.open_count), backgroundColor:'#4ade80', borderRadius:3 },
+          { label:'OPEN',  data:bs.map(b=>b.open_count), backgroundColor:'#f87171', borderRadius:3 }
+        ]},
+      options:{ ...chartOpts(), plugins:{ legend:{ display:true,position:'top',labels:{font:{size:10},boxWidth:10} } },
+        scales:{ x:{ stacked:true, ticks:{font:{size:8},color:'#64748b',maxRotation:40}, grid:{display:false} },
+                 y:{ stacked:true, beginAtZero:true, ticks:{font:{size:9}}, grid:{color:'#f1f5f9'} } } }
+    });
+  }
+
+  // Trend line
+  if(document.getElementById('c-trend')){
+    const td = d.trendData||[];
+    _charts.trend = new Chart(document.getElementById('c-trend'), {
+      type:'line',
+      data:{ labels:td.map(r=>{ const d=parseD(r.day); return d?d.toLocaleDateString('th-TH',{day:'numeric',month:'short'}):r.day; }),
+        datasets:[{ label:'เคส', data:td.map(r=>r.cnt), borderColor:'#2563eb', backgroundColor:'rgba(37,99,235,.1)',
+          fill:true, tension:.4, pointRadius:3, pointBackgroundColor:'#2563eb' }]},
+      options: chartOpts('line')
+    });
+  }
+
+  // Problem type donut
+  if(document.getElementById('c-pt')){
+    const pt = (d.problemTypes||[]).slice(0,6);
+    const colors = ['#38bdf8','#818cf8','#34d399','#fb923c','#f472b6','#a78bfa'];
+    _charts.pt = new Chart(document.getElementById('c-pt'), {
+      type:'doughnut',
+      data:{ labels:pt.map(p=>p.problem_type||'อื่นๆ'),
+        datasets:[{ data:pt.map(p=>p.cnt), backgroundColor:colors, borderWidth:2, borderColor:'#fff' }]},
+      options:{ ...chartOpts('doughnut'), cutout:'55%',
+        plugins:{ legend:{ display:true, position:'bottom',
+          labels:{ font:{size:9}, boxWidth:9, padding:6,
+            generateLabels: chart => chart.data.labels.map((l,i)=>({
+              text:`${l} (${chart.data.datasets[0].data[i]})`,
+              fillStyle:colors[i], strokeStyle:'#fff', lineWidth:1, index:i })) } } } }
+    });
+  }
+}
+
+// ── List Tab ──────────────────────────────────────────────
+function renderList(){
+  const d = _data;
+  if(!d){ document.getElementById('tab-content').innerHTML=''; return; }
+  const isGrp = d.isGroup;
+  const branches = d.branches||[];
+  const statuses = [...new Set((d.tickets||[]).map(t=>t.status).filter(Boolean))].sort();
+
+  document.getElementById('tab-content').innerHTML = `
+    <!-- Filter bar -->
+    <div class="filter-bar">
+      ${isGrp ? `<select class="filter-select" id="l-branch" onchange="listFilter()">
+        <option value="">ทุกสาขา (${branches.length})</option>
+        ${branches.map(b=>`<option value="${esc(b)}">${esc(b)}</option>`).join('')}
+      </select>` : ''}
+      <select class="filter-select" id="l-status" onchange="listFilter()">
+        <option value="">สถานะ: ทั้งหมด</option>
+        ${statuses.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('')}
+      </select>
+      <input class="filter-input" id="l-search" placeholder="🔍 ค้นหาสาขา / ปัญหา..." oninput="listFilter()"/>
+      <select class="filter-select" id="l-perpage" onchange="listFilter()">
+        <option value="25">25/หน้า</option><option value="50">50/หน้า</option><option value="100">100/หน้า</option>
+      </select>
+    </div>
+
+    <!-- Status tabs -->
+    <div class="status-tabs" id="s-tabs">
+      <button class="s-tab t-open" onclick="setStatusTab('open',this)">⏳ OPEN <span class="s-tab-cnt" id="cnt-open">0</span></button>
+      <button class="s-tab t-close" onclick="setStatusTab('close',this)">✅ CLOSE <span class="s-tab-cnt" id="cnt-close">0</span></button>
+      <button class="s-tab t-all active" onclick="setStatusTab('all',this)">📋 ทั้งหมด <span class="s-tab-cnt" id="cnt-all">0</span></button>
+    </div>
+
+    <!-- Table -->
+    <div class="card" style="padding:.5rem 0">
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>#</th>
+            ${isGrp?'<th>สาขา</th>':''}
+            <th>ปัญหา / หัวข้อ</th>
+            <th>วันที่แจ้ง</th>
+            <th>ใช้เวลา</th>
+            <th>สถานะ</th>
+            <th>วันที่ปิด</th>
+          </tr></thead>
+          <tbody id="list-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="pagi" id="pagi"></div>`;
+
+  _statusTab='all'; _page=1;
+  renderListTable();
+}
+
+function setStatusTab(tab, btn){
+  document.querySelectorAll('#s-tabs .s-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  _statusTab=tab; _page=1;
+  renderListTable();
+}
+
+function listFilter(){ _page=1; renderListTable(); }
+
+function renderListTable(){
+  if(!_data) return;
+  const branch  = document.getElementById('l-branch')?.value || '';
+  const status  = document.getElementById('l-status')?.value || '';
+  const search  = (document.getElementById('l-search')?.value||'').toLowerCase();
+  const perPage = parseInt(document.getElementById('l-perpage')?.value||'25');
+  const isGrp   = _data.isGroup;
+
+  let list = _data.tickets||[];
+  if(branch)  list = list.filter(t=>t.CompanyName===branch);
+  if(status)  list = list.filter(t=>t.status===status);
+  if(_statusTab==='open')  list = list.filter(t=>!isClosed(t.status));
+  if(_statusTab==='close') list = list.filter(t=>isClosed(t.status));
+  if(search)  list = list.filter(t=>
+    (t.CompanyName||'').toLowerCase().includes(search)||
+    (t.title||'').toLowerCase().includes(search)||
+    (t.problem_type||'').toLowerCase().includes(search));
+
+  // Update tab counts
+  const all=_data.tickets||[];
+  const base = branch||status ? (branch?all.filter(t=>t.CompanyName===branch):all).filter(t=>!status||t.status===status) : all;
+  const setC=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+  setC('cnt-open',  base.filter(t=>!isClosed(t.status)).length);
+  setC('cnt-close', base.filter(t=>isClosed(t.status)).length);
+  setC('cnt-all',   base.length);
+
+  const total = list.length;
+  const totalPages = Math.max(1, Math.ceil(total/perPage));
+  if(_page>totalPages) _page=totalPages;
+  const start = (_page-1)*perPage;
+  const page  = list.slice(start, start+perPage);
+
+  const tbody = document.getElementById('list-tbody');
+  if(!tbody) return;
+  if(!page.length){ tbody.innerHTML=`<tr><td colspan="${isGrp?7:6}" class="empty">ไม่พบเคส</td></tr>`; }
+  else tbody.innerHTML = page.map((t,i)=>`
+    <tr>
+      <td style="color:#94a3b8">${start+i+1}</td>
+      ${isGrp?`<td style="max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.77rem" title="${esc(t.CompanyName)}">${esc(t.CompanyName||'—')}</td>`:''}
+      <td>
+        ${t.problem_type?`<span style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;font-size:.68rem;padding:.02rem .35rem;margin-right:.3rem">${esc(t.problem_type)}</span>`:''}
+        <span style="font-size:.8rem">${esc(t.title||'—')}</span>
+      </td>
+      <td style="white-space:nowrap;font-size:.77rem">${fmtDate(t.opened_at)}</td>
+      <td style="white-space:nowrap">${fmtDur(t.resolve_minutes)}</td>
+      <td><span class="badge ${badgeCls(t.status)}">${esc(t.status||'—')}</span></td>
+      <td style="white-space:nowrap;font-size:.77rem">${t.CloseDate?fmtDate(t.CloseDate):'—'}</td>
+    </tr>
+    ${t.description||t.Solution?`<tr style="background:#fafafa">
+      <td colspan="${isGrp?7:6}" style="padding:.35rem .65rem .55rem 1.5rem">
+        ${t.description?`<div style="font-size:.77rem;color:#475569;margin-bottom:.2rem"><b>ปัญหา:</b> ${esc(t.description)}</div>`:''}
+        ${t.Solution?`<div style="font-size:.77rem;color:#15803d"><b>แก้ไข:</b> ${esc(t.Solution)}</div>`:''}
+      </td>
+    </tr>`:''}
+  `).join('');
+
+  // Pagination
+  const pagi = document.getElementById('pagi');
+  if(!pagi) return;
+  if(totalPages<=1){ pagi.innerHTML=''; return; }
+  let html = `<button ${_page===1?'disabled':''} onclick="goPage(${_page-1})">‹</button>`;
+  const pages=[];
+  if(totalPages<=7){for(let i=1;i<=totalPages;i++)pages.push(i);}
+  else{pages.push(1);if(_page>4)pages.push('…');for(let i=Math.max(2,_page-2);i<=Math.min(totalPages-1,_page+2);i++)pages.push(i);if(_page<totalPages-3)pages.push('…');pages.push(totalPages);}
+  pages.forEach(p=>{ html+=p==='…'?`<span style="padding:0 .2rem;color:#94a3b8">…</span>`:
+    `<button class="${p===_page?'active':''}" onclick="goPage(${p})">${p}</button>`; });
+  html+=`<button ${_page===totalPages?'disabled':''} onclick="goPage(${_page+1})">›</button>`;
+  html+=`<span style="font-size:.75rem;color:#64748b;margin-left:.3rem">หน้า ${_page}/${totalPages} · ${total} รายการ</span>`;
+  pagi.innerHTML=html;
+}
+function goPage(p){ _page=p; renderListTable(); document.getElementById('tab-content').scrollIntoView({behavior:'smooth',block:'start'}); }
+
+// ── Complaint ─────────────────────────────────────────────
+function openComplain(tid){ document.getElementById('c-ticket-id').value=tid||''; document.getElementById('c-email').value=''; document.getElementById('c-msg').value=''; document.getElementById('modal-complain').style.display='flex'; }
+function closeComplain(){ document.getElementById('modal-complain').style.display='none'; }
+async function submitComplain(){
+  const msg = document.getElementById('c-msg').value.trim();
+  if(!msg){ alert('กรุณาระบุรายละเอียด'); return; }
+  const r = await fetch('/api/public/complaint',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({token,ticket_id:document.getElementById('c-ticket-id').value||null,email:document.getElementById('c-email').value||null,message:msg})});
+  const d = await r.json();
+  closeComplain();
+  alert(r.ok?'📤 ส่งแล้ว! ทีม CS จะติดต่อกลับ':'❌ '+(d.error||'ส่งไม่สำเร็จ'));
+}
+
+// ── Repair Tab ────────────────────────────────────────────
+const REPAIR_STATUS = {
+  received:'รับเรื่อง', assessing:'กำลังประเมิน', quoted:'เสนอราคาแล้ว',
+  waiting_approval:'รอลูกค้าอนุมัติ', device_received:'รับเครื่องแล้ว',
+  sent_supplier:'ส่ง Supplier', returned_from_supplier:'ได้เครื่องคืน',
+  returned_to_customer:'ส่งคืนลูกค้าแล้ว', closed:'ปิดงาน', cancelled:'ยกเลิก'
+};
+const REPAIR_COLOR = {
+  received:'#dbeafe|#1d4ed8', assessing:'#fef3c7|#92400e', quoted:'#ede9fe|#6d28d9',
+  waiting_approval:'#fef9c3|#854d0e', device_received:'#dcfce7|#166534',
+  sent_supplier:'#e0f2fe|#0369a1', returned_from_supplier:'#d1fae5|#15803d',
+  returned_to_customer:'#bbf7d0|#15803d', closed:'#f0fdf4|#166534', cancelled:'#fee2e2|#b91c1c'
+};
+
+function repairBadge(st){
+  const [bg,col]=(REPAIR_COLOR[st]||'#f1f5f9|#475569').split('|');
+  return `<span style="background:${bg};color:${col};padding:.15rem .5rem;border-radius:20px;font-size:.7rem;font-weight:700;white-space:nowrap">${REPAIR_STATUS[st]||st}</span>`;
+}
+
+let _repairs = null;
+
+async function renderRepair(){
+  const wrap = document.getElementById('tab-content');
+  wrap.innerHTML = '<div class="loading">⏳ กำลังโหลด...</div>';
+  try {
+    if (!_repairs) {
+      const r = await fetch(`/api/public/repairs-by-token/${token}`);
+      _repairs = await r.json();
+      if (!r.ok) throw new Error(_repairs.error||'โหลดไม่สำเร็จ');
+    }
+    const jobs = _repairs;
+    const total    = jobs.length;
+    const active   = jobs.filter(j=>!['closed','cancelled','returned_to_customer'].includes(j.status)).length;
+    const done     = jobs.filter(j=>['closed','returned_to_customer'].includes(j.status)).length;
+
+    wrap.innerHTML = `
+      <!-- Repair stats -->
+      <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:.85rem">
+        <div class="stat-card" style="flex:1;min-width:120px;padding:.7rem .9rem">
+          <div class="label">🔧 ทั้งหมด</div>
+          <div class="value" style="color:#2563eb;font-size:1.5rem">${total}</div>
+        </div>
+        <div class="stat-card" style="flex:1;min-width:120px;padding:.7rem .9rem">
+          <div class="label">🔄 กำลังดำเนินการ</div>
+          <div class="value" style="color:#b45309;font-size:1.5rem">${active}</div>
+        </div>
+        <div class="stat-card" style="flex:1;min-width:120px;padding:.7rem .9rem">
+          <div class="label">✅ เสร็จแล้ว</div>
+          <div class="value" style="color:#16a34a;font-size:1.5rem">${done}</div>
+        </div>
+      </div>
+
+      <!-- Repair list -->
+      ${jobs.length===0 ? '<div class="empty">ยังไม่มีงานซ่อม</div>' :
+        jobs.map(j=>`
+        <div class="card" style="margin-bottom:.6rem;padding:0;overflow:hidden">
+          <div onclick="toggleRepairDetail('rd-${j.id}')" style="padding:.85rem 1rem;cursor:pointer;display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem;flex-wrap:wrap">
+            <div>
+              <div style="font-size:.88rem;font-weight:700;color:#2563eb">${esc(j.job_no)}</div>
+              <div style="font-size:.78rem;color:#475569;margin-top:.15rem">
+                ${j.device_type?`📦 ${esc(j.device_type)}`:''}
+                ${j.device_model?` · ${esc(j.device_model)}`:''}
+                ${j.serial_no?` · <span style="font-family:monospace">S/N: ${esc(j.serial_no)}</span>`:''}
+              </div>
+              ${_data?.isGroup?`<div style="font-size:.73rem;color:#64748b;margin-top:.1rem">🏢 ${esc(j.company_name||'')}</div>`:''}
+            </div>
+            <div style="text-align:right">
+              ${repairBadge(j.status)}
+              <div style="font-size:.7rem;color:#94a3b8;margin-top:.2rem">${fmtDate(j.reported_at)}</div>
+            </div>
+          </div>
+          </div><!-- end header -->
+          <!-- Expandable detail — stop propagation to prevent collapse when clicking inside -->
+          <div id="rd-${j.id}" onclick="event.stopPropagation()" style="display:none;border-top:1px solid #f1f5f9;padding:.75rem 1rem .9rem">
+            ${renderRepairTimeline(j)}
+            ${j.public_token && !['returned_to_customer','closed','cancelled'].includes(j.status) ? `
+            <div style="margin-top:.65rem;background:#f8fafc;border-radius:8px;padding:.65rem .8rem">
+              <div style="font-size:.75rem;font-weight:700;color:#64748b;margin-bottom:.4rem">📩 ส่งข้อความถึงทีม CS</div>
+              <input class="msg-name" id="rn-${j.id}" placeholder="ชื่อของคุณ (ไม่บังคับ)" style="margin-bottom:.3rem"/>
+              <textarea class="msg-input" id="rm-${j.id}" rows="2" placeholder="พิมพ์ข้อความ..." style="min-height:55px;margin-bottom:.35rem"></textarea>
+              <button class="send-btn" onclick="sendRepairMsg('${j.public_token}',${j.id})">📤 ส่ง</button>
+            </div>` : j.public_token && ['returned_to_customer','closed','cancelled'].includes(j.status) ? `
+            <div style="text-align:center;color:#16a34a;font-size:.82rem;font-weight:600;margin-top:.5rem;background:#f0fdf4;border-radius:8px;padding:.5rem">
+              ✅ งานนี้เสร็จสิ้นแล้ว — ขอบคุณที่ใช้บริการครับ
+            </div>` : ''}
+          </div>
+        </div>`).join('')}`;
+  } catch(e){
+    wrap.innerHTML=`<div class="error-box">❌ ${esc(e.message)}</div>`;
+  }
+}
+
+function renderRepairTimeline(j){
+  const steps=[
+    {key:'received',              label:'รับเรื่อง',        date:j.reported_at},
+    {key:'assessing',             label:'กำลังประเมิน',     date:null},
+    {key:'quoted',                label:'เสนอราคาแล้ว',    date:null},
+    {key:'waiting_approval',      label:'รอลูกค้าอนุมัติ', date:null},
+    {key:'device_received',       label:'รับเครื่องแล้ว',  date:j.received_date},
+    {key:'sent_supplier',         label:'ส่ง Supplier',    date:j.sent_supplier_date},
+    {key:'returned_from_supplier',label:'ได้เครื่องคืน',  date:j.returned_from_supplier_date},
+    {key:'returned_to_customer',  label:'ส่งคืนลูกค้า',   date:j.returned_to_customer_date},
+  ];
+  const ORDER=steps.map(s=>s.key);
+  const curIdx=ORDER.indexOf(j.status);
+  return `<div style="display:flex;gap:0;overflow-x:auto;padding:.35rem 0 .1rem">${steps.map((s,i)=>{
+    const done=curIdx>=0&&i<=curIdx;
+    const active=s.key===j.status;
+    const col=done?'#16a34a':active?'#2563eb':'#e2e8f0';
+    const txtCol=done?'#15803d':active?'#2563eb':'#94a3b8';
+    const lineL=done&&i>0?'#16a34a':'#e2e8f0';
+    const lineR=curIdx>i?'#16a34a':'#e2e8f0';
+    return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:52px;position:relative">
+      ${i>0?`<div style="position:absolute;left:0;top:12px;width:50%;height:2px;background:${lineL}"></div>`:''}
+      ${i<steps.length-1?`<div style="position:absolute;right:0;top:12px;width:50%;height:2px;background:${lineR}"></div>`:''}
+      <div style="width:26px;height:26px;border-radius:50%;background:${col};color:${col==='#e2e8f0'?'#94a3b8':'#fff'};border:2px solid ${col==='#e2e8f0'?'#d1d5db':col};display:flex;align-items:center;justify-content:center;font-size:.7rem;z-index:1;position:relative;font-weight:700">${done?'✓':active?'●':'○'}</div>
+      <div style="font-size:.62rem;text-align:center;margin-top:.25rem;color:${txtCol};font-weight:${active?'700':'400'};line-height:1.3;padding:0 .1rem">${s.label}</div>
+      ${(s.date&&done)?`<div style="font-size:.58rem;color:#94a3b8;margin-top:.1rem">${fmtD(s.date)}</div>`:''}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function toggleRepairDetail(id){
+  const el=document.getElementById(id);
+  if(el) el.style.display=el.style.display==='none'?'':'none';
+}
+
+async function sendRepairMsg(repairToken, jobId){
+  const name=document.getElementById(`rn-${jobId}`)?.value.trim()||'';
+  const msg=document.getElementById(`rm-${jobId}`)?.value.trim()||'';
+  if(!msg){alert('กรุณาพิมพ์ข้อความก่อนส่ง');return;}
+  const r=await fetch(`/api/public/repair/${repairToken}/message`,{method:'POST',
+    headers:{'Content-Type':'application/json'},body:JSON.stringify({name,message:msg})});
+  const d=await r.json();
+  if(r.ok){
+    document.getElementById(`rm-${jobId}`).value='';
+    alert('📤 ส่งแล้ว! ทีม CS จะติดต่อกลับ');
+  } else alert('❌ '+(d.error||'ส่งไม่สำเร็จ'));
+}
+
+init();
+</script>
+</body>
+</html>
