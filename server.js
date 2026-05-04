@@ -656,6 +656,7 @@ app.put('/api/tickets/:id', authRequired, async (request, res) => {
       .query(`UPDATE Calllog SET
         ReceiveDate  = ISNULL(@rd,       ReceiveDate),
         CloseDate    = ISNULL(@cd,       CloseDate),
+        DueDate      = ISNULL(@cd,       DueDate),
         CalllogDesc  = ISNULL(@desc,     CalllogDesc),
         Solution     = ISNULL(@sol,      Solution),
         Subject      = ISNULL(@subj,     Subject),
@@ -761,13 +762,14 @@ app.post('/api/cases', authRequired, async (request, res) => {
       .input('cbid',    sql.Int,      b.close_date ? (request.user.calluserid || null) : null) // CloseById when closed
       .input('solvety', sql.NVarChar, (['Walk-in','Onsite'].includes(b.inform_type) ? 'Walk-in' : 'Remote'))
       .query(`INSERT INTO Calllog
-        (RegistrationId, ReceiveDate, CloseDate, CalllogDesc, InformName, InformTel,
+        (RegistrationId, ReceiveDate, CloseDate, DueDate, CalllogDesc, InformName, InformTel,
          InformType, OnsiteRemark, SupportId, StatusId, ProjectId, ProblemTypeId,
          Subject, Solution, SolveType, UserId, CloseById, Active, InsertDate, UpdateDate)
         OUTPUT INSERTED.CalllogId AS id
         VALUES
         (@rid,
          ISNULL(@rd,GETDATE()),
+         @cd,
          @cd,
          @desc, @iname, @itel,
          @itype, @line, @sid, @stid, @pid, @ptid,
