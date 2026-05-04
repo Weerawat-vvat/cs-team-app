@@ -2,9 +2,14 @@ require('dotenv').config();
 const express                    = require('express');
 const cors                       = require('cors');
 const path                       = require('path');
+const fs                         = require('fs');
 const bcrypt                     = require('bcryptjs');
 const jwt                        = require('jsonwebtoken');
-const { init, getPool, getExtPool, sql } = require('./database');
+const crypto                     = require('crypto');
+const multer                     = require('multer');
+const nodemailer                 = require('nodemailer');
+const axios                      = require('axios');
+const { init, getPool, getExtPool, getInfoPool, sql } = require('./database');
 const Anthropic                  = require('@anthropic-ai/sdk');
 
 const app        = express();
@@ -13,9 +18,81 @@ const AI_MODEL   = process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001';
 const JWT_SECRET = process.env.JWT_SECRET || 'cs-team-jwt-secret-change-in-prod';
 const claude     = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// ── File upload config ────────────────────────────────────
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
+if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(UPLOAD_DIR, String(req.params.repairId || 'tmp'));
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const ext  = path.extname(file.originalname);
+    const base = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9ก-๙_-]/g, '_');
+    cb(null, `${Date.now()}_${base}${ext}`);
+  }
+});
+const upload = multer({
+  storage,
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB
+  fileFilter: (req, file, cb) => {
+    const allowed = /jpeg|jpg|png|gif|pdf|doc|docx|xls|xlsx/;
+    cb(null, allowed.test(path.extname(file.originalname).toLowerCase()));
+  }
+});
+
+// ── Notification helpers ──────────────────────────────────
+async function sendLineNotify(message) {
+  const token = process.env.LINE_NOTIFY_TOKEN;
+  if (!token) return;
+  try {
+    await axios.post('https://notify-api.line.me/api/notify',
+      new URLSearchParams({ message }),
+      { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/x-www-form-urlencoded' } }
+    );
+  } catch(e) { console.error('Line Notify error:', e.message); }
+}
+
+async function sendEmail(to, subject, html) {
+  const user = process.env.GMAIL_USER;
+  const pass = process.env.GMAIL_APP_PASSWORD;
+  if (!user || !pass || !to) return;
+  try {
+    const transporter = nodemailer.createTransport({
+      service: 'gmail', auth: { user, pass }
+    });
+    await transporter.sendMail({ from: `CS Team <${user}>`, to, subject, html });
+  } catch(e) { console.error('Email error:', e.message); }
+}
+
+async function notifyRepairStatus(repairId, jobNo, companyName, newStatus, changedByName) {
+  const statusLabel = {
+    received: 'รับเรื่องแล้ว', assessing: 'กำลังประเมิน',
+    quoted: 'เสนอราคาแล้ว', waiting_approval: 'รอลูกค้าอนุมัติ',
+    device_received: 'รับเครื่องแล้ว', sent_supplier: 'ส่ง Supplier แล้ว',
+    returned_from_supplier: 'ได้เครื่องคืนจาก Supplier',
+    returned_to_customer: 'ส่งคืนลูกค้าแล้ว',
+    closed: 'ปิดงาน', cancelled: 'ยกเลิก'
+  };
+  const label = statusLabel[newStatus] || newStatus;
+  const msg   = `\n🔧 [${jobNo}] ${companyName}\nสถานะ: ${label}\nอัพเดทโดย: ${changedByName}\n${new Date().toLocaleString('th-TH')}`;
+  await sendLineNotify(msg);
+  // log to DB
+  try {
+    await req().input('rid', sql.Int, repairId).input('ch', sql.NVarChar, 'line')
+      .input('msg', sql.NVarChar, msg).input('st', sql.NVarChar, 'sent')
+      .query(`INSERT INTO repair_notification_log (repair_id,channel,message,status)
+              VALUES (@rid,'line',@msg,@st)`);
+  } catch {}
+}
+
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+// Serve uploaded files
+app.use('/uploads', express.static(UPLOAD_DIR));
 
 const req    = () => getPool().request();
 const extReq = () => getExtPool().request();
@@ -91,38 +168,58 @@ const CALLLOG_SELECT = `
     cl.CalllogDesc      AS description,
     cl.Solution,
     cs.StatusName       AS status,
-    cl.Subject          AS category,
-    u.UserName          AS assigned_name,
+    cl.Subject                  AS category,
+    u.UserName                  AS assigned_name,
     cl.IssueURL,
-    cl.Subject          AS title,
-    pt.Note             AS problem_type
+    cl.Subject                  AS title,
+    pt.Note                     AS problem_type,
+    pt.ProblemTypeDetail        AS problem_type_detail,
+    cl.InformName, cl.InformTel, cl.InformType,
+    cl.OnsiteRemark             AS line_contact,
+    cl.ProjectId                AS project_id,
+    cl.ProblemTypeId            AS problem_type_id,
+    cl.StatusId                 AS status_id,
+    cl.SupportId                AS support_id,
+    s.TimeToResolve             AS time_to_resolve
   FROM Calllog cl
   INNER JOIN CustomerRegistration cr ON cr.RegistrationId  = cl.RegistrationId
-  INNER JOIN CallStatus           cs ON cs.StatusId        = cl.StatusId
+  LEFT  JOIN CallStatus           cs ON cs.StatusId        = cl.StatusId
   INNER JOIN Users                u  ON u.UserId           = cl.SupportId
   LEFT  JOIN Project              p  ON p.ProjectId        = cl.ProjectId
   LEFT  JOIN ProblemType          pt ON pt.ProblemTypeId   = cl.ProblemTypeId
+  LEFT  JOIN Subject              s  ON s.SubjectName      = cl.Subject AND s.Active = 1
 `;
 
 // ══════════════════════════════════════════════════════════
 //  EMPLOYEES (cs_team)
 // ══════════════════════════════════════════════════════════
-app.get('/api/employees', async (request, res) => {
+app.get('/api/employees', authRequired, async (request, res) => {
   try {
     const { team, include_inactive } = request.query;
+    const role = request.user?.role;
     const r = req();
     let q = `SELECT id, name, nickname, team, role, phone, start_date, active, created_at
              FROM employees`;
     const conds = [];
     if (!include_inactive) conds.push('active=1');
-    if (team) { conds.push('team=@team'); r.input('team', sql.NVarChar, team); }
+    // staff: only see themselves
+    if (role === 'staff') {
+      conds.push('id=@myEmpId');
+      r.input('myEmpId', sql.Int, request.user.employee_id || 0);
+    } else if (role === 'team_lead') {
+      // team_lead: only their team
+      conds.push('team=@myTeam');
+      r.input('myTeam', sql.NVarChar, request.user.team || '');
+    } else if (team) {
+      conds.push('team=@team'); r.input('team', sql.NVarChar, team);
+    }
     if (conds.length) q += ' WHERE ' + conds.join(' AND ');
     q += ' ORDER BY team, role DESC, id';
     res.json((await r.query(q)).recordset);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/employees', async (request, res) => {
+app.post('/api/employees', authRequired, managerRequired, async (request, res) => {
   try {
     const { name, nickname, team, role, phone, start_date } = request.body;
     const result = await req()
@@ -138,7 +235,7 @@ app.post('/api/employees', async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.put('/api/employees/:id', async (request, res) => {
+app.put('/api/employees/:id', authRequired, managerRequired, async (request, res) => {
   try {
     const { name, nickname, team, role, phone, start_date, active } = request.body;
     await req()
@@ -158,7 +255,7 @@ app.put('/api/employees/:id', async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.delete('/api/employees/:id', async (request, res) => {
+app.delete('/api/employees/:id', authRequired, managerRequired, async (request, res) => {
   try {
     await req()
       .input('id', sql.Int, request.params.id)
@@ -177,9 +274,10 @@ function getMonday(dateStr) {
   return d.toISOString().split('T')[0];
 }
 
-app.get('/api/shifts', async (request, res) => {
+app.get('/api/shifts', authRequired, async (request, res) => {
   try {
     const { week_start, team } = request.query;
+    const role = request.user?.role;
     const startDate = getMonday(week_start);
     const endD = new Date(startDate); endD.setDate(endD.getDate() + 6);
     const endDate = endD.toISOString().split('T')[0];
@@ -187,8 +285,97 @@ app.get('/api/shifts', async (request, res) => {
     let q = `SELECT s.*, e.name, e.team, e.role
              FROM shifts s JOIN employees e ON e.id=s.employee_id
              WHERE e.active=1 AND s.shift_date BETWEEN @s AND @e`;
-    if (team) { q += ' AND e.team=@team'; r.input('team', sql.NVarChar, team); }
+    if (role === 'staff') {
+      q += ' AND e.id=@myEmpId';
+      r.input('myEmpId', sql.Int, request.user.employee_id || 0);
+    } else if (role === 'team_lead') {
+      q += ' AND e.team=@myTeam';
+      r.input('myTeam', sql.NVarChar, request.user.team || '');
+    } else if (team) {
+      q += ' AND e.team=@team'; r.input('team', sql.NVarChar, team);
+    }
     q += ' ORDER BY s.shift_date, e.team, s.shift_type, e.id';
+    res.json((await r.query(q)).recordset);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Shift Type Settings ────────────────────────────────────
+app.get('/api/shift-types', authRequired, async (_, res) => {
+  try {
+    await req().query(`
+      IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='shift_types')
+      CREATE TABLE shift_types (
+        id         INT PRIMARY KEY IDENTITY,
+        shift_key  NVARCHAR(20) NOT NULL UNIQUE,
+        name       NVARCHAR(50) NOT NULL,
+        start_time NVARCHAR(5)  NULL,
+        end_time   NVARCHAR(5)  NULL,
+        color_bg   NVARCHAR(10) DEFAULT '#f1f5f9',
+        color_text NVARCHAR(10) DEFAULT '#334155',
+        sort_order INT          DEFAULT 0
+      )`);
+    // Seed defaults if empty
+    await req().query(`
+      IF NOT EXISTS (SELECT 1 FROM shift_types)
+      BEGIN
+        INSERT INTO shift_types (shift_key,name,start_time,end_time,color_bg,color_text,sort_order) VALUES
+          ('morning',  N'เช้า',   '08:30','17:30','#dcfce7','#166534',1),
+          ('afternoon',N'บ่าย',   '12:00','21:00','#ffedd5','#c2410c',2),
+          ('night',    N'ดึก',    '15:00','00:00','#e2e8f0','#475569',3),
+          ('dayoff',   N'DayOFF', NULL,    NULL,  '#fef2f2','#b91c1c',4)
+      END`);
+    // Always sync canonical values (times + colors) for built-in shift types
+    await req().query(`
+      UPDATE shift_types SET start_time='08:30',end_time='17:30',color_bg='#dcfce7',color_text='#166534' WHERE shift_key='morning';
+      UPDATE shift_types SET start_time='12:00',end_time='21:00',color_bg='#ffedd5',color_text='#c2410c' WHERE shift_key='afternoon';
+      UPDATE shift_types SET start_time='15:00',end_time='00:00',color_bg='#e2e8f0',color_text='#475569' WHERE shift_key='night';
+      UPDATE shift_types SET color_bg='#fef2f2',color_text='#b91c1c' WHERE shift_key='dayoff';
+    `);
+    const rows = (await req().query('SELECT * FROM shift_types ORDER BY sort_order')).recordset;
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/shift-types/:id', authRequired, async (request, res) => {
+  try {
+    const { name, start_time, end_time, color_bg, color_text } = request.body;
+    await req()
+      .input('id',   sql.Int,      parseInt(request.params.id))
+      .input('name', sql.NVarChar, name)
+      .input('st',   sql.NVarChar, start_time || null)
+      .input('et',   sql.NVarChar, end_time   || null)
+      .input('cbg',  sql.NVarChar, color_bg   || null)
+      .input('ctxt', sql.NVarChar, color_text || null)
+      .query(`UPDATE shift_types SET name=@name,start_time=@st,end_time=@et,
+              color_bg=ISNULL(@cbg,color_bg),color_text=ISNULL(@ctxt,color_text)
+              WHERE id=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/shifts/month', authRequired, async (request, res) => {
+  try {
+    const { year, month, team } = request.query;
+    const role = request.user?.role;
+    const y = parseInt(year) || new Date().getFullYear();
+    const m = parseInt(month) || (new Date().getMonth() + 1);
+    const startDate = `${y}-${String(m).padStart(2,'0')}-01`;
+    const lastDay = new Date(y, m, 0).getDate();
+    const endDate = `${y}-${String(m).padStart(2,'0')}-${lastDay}`;
+    const r = req().input('s', sql.Date, startDate).input('e', sql.Date, endDate);
+    let q = `SELECT s.*, e.name, e.team, e.role
+             FROM shifts s JOIN employees e ON e.id=s.employee_id
+             WHERE e.active=1 AND s.shift_date BETWEEN @s AND @e`;
+    if (role === 'staff') {
+      q += ' AND e.id=@myEmpId';
+      r.input('myEmpId', sql.Int, request.user.employee_id || 0);
+    } else if (role === 'team_lead') {
+      q += ' AND e.team=@myTeam';
+      r.input('myTeam', sql.NVarChar, request.user.team || '');
+    } else if (team) {
+      q += ' AND e.team=@team'; r.input('team', sql.NVarChar, team);
+    }
+    q += ' ORDER BY s.shift_date, e.team, e.id';
     res.json((await r.query(q)).recordset);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -196,6 +383,34 @@ app.get('/api/shifts', async (request, res) => {
 app.post('/api/shifts', async (request, res) => {
   try {
     const { employee_id, shift_type, shift_date } = request.body;
+    const isDayOff = shift_type === 'dayoff';
+
+    const existing = await req().input('eid', sql.Int, employee_id).input('date', sql.Date, shift_date)
+      .query('SELECT id FROM shifts WHERE employee_id=@eid AND shift_date=@date AND status NOT IN (\'leave\',\'approved_leave\')');
+    const isReplace = existing.recordset.length > 0;
+
+    // 5-shift limit applies only to actual work shifts (not dayoff)
+    if (!isReplace && !isDayOff) {
+      const d = new Date(shift_date);
+      const day = d.getDay();
+      const diffToMon = (day === 0 ? -6 : 1 - day);
+      const weekStart = new Date(d); weekStart.setDate(d.getDate() + diffToMon);
+      const weekEnd   = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
+      const countRes = await req()
+        .input('eid2', sql.Int, employee_id)
+        .input('ws',   sql.Date, weekStart.toISOString().split('T')[0])
+        .input('we',   sql.Date, weekEnd.toISOString().split('T')[0])
+        .query(`SELECT COUNT(*) AS cnt FROM shifts
+                WHERE employee_id=@eid2
+                  AND shift_date >= @ws AND shift_date <= @we
+                  AND shift_type != 'dayoff'
+                  AND status NOT IN ('leave','approved_leave')`);
+      const weekShifts = countRes.recordset[0].cnt;
+      if (weekShifts >= 5) {
+        return res.status(400).json({ error: `พนักงานมีกะครบ 5 วันแล้วในสัปดาห์นี้` });
+      }
+    }
+
     await req().input('eid', sql.Int, employee_id).input('date', sql.Date, shift_date)
       .query('DELETE FROM shifts WHERE employee_id=@eid AND shift_date=@date');
     const result = await req()
@@ -223,7 +438,29 @@ app.delete('/api/shifts/:id', async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.get('/api/shifts/coverage', async (request, res) => {
+// Bulk clear shifts for a week (optionally filtered by team)
+app.delete('/api/shifts', authRequired, async (request, res) => {
+  try {
+    const { week_start, team } = request.query;
+    if (!week_start) return res.status(400).json({ error: 'week_start required' });
+    const startDate = getMonday(week_start);
+    const endD = new Date(startDate); endD.setDate(endD.getDate() + 6);
+    let q = req()
+      .input('s', sql.Date, startDate)
+      .input('e', sql.Date, endD.toISOString().split('T')[0]);
+    let where = 'WHERE s.shift_date >= @s AND s.shift_date <= @e';
+    if (team) {
+      q = q.input('team', sql.NVarChar, team);
+      where += ' AND e.team = @team';
+    }
+    const result = await q.query(
+      `DELETE s FROM shifts s JOIN employees e ON e.id = s.employee_id ${where}`
+    );
+    res.json({ ok: true, deleted: result.rowsAffected[0] });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/shifts/coverage', authRequired, async (request, res) => {
   try {
     const startDate = getMonday(request.query.week_start);
     const endD = new Date(startDate); endD.setDate(endD.getDate() + 6);
@@ -241,19 +478,30 @@ app.get('/api/shifts/coverage', async (request, res) => {
 // ══════════════════════════════════════════════════════════
 //  LEAVE REQUESTS (cs_team)
 // ══════════════════════════════════════════════════════════
-app.get('/api/leave-requests', async (_, res) => {
+app.get('/api/leave-requests', authRequired, async (request, res) => {
   try {
-    const result = await req().query(`
+    const role = request.user?.role;
+    const r = req();
+    let where = '';
+    if (role === 'staff') {
+      where = ' WHERE lr.employee_id=@myEmpId';
+      r.input('myEmpId', sql.Int, request.user.employee_id || 0);
+    } else if (role === 'team_lead') {
+      where = ' WHERE e.team=@myTeam';
+      r.input('myTeam', sql.NVarChar, request.user.team || '');
+    }
+    const result = await r.query(`
       SELECT lr.*, e.name AS emp_name, e.team, a.name AS approver_name
       FROM leave_requests lr
       JOIN employees e ON e.id=lr.employee_id
       LEFT JOIN employees a ON a.id=lr.approved_by
+      ${where}
       ORDER BY lr.created_at DESC`);
     res.json(result.recordset);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/leave-requests', async (request, res) => {
+app.post('/api/leave-requests', authRequired, async (request, res) => {
   try {
     const { employee_id, leave_date, reason } = request.body;
     const result = await req()
@@ -264,7 +512,7 @@ app.post('/api/leave-requests', async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.put('/api/leave-requests/:id/approve', async (request, res) => {
+app.put('/api/leave-requests/:id/approve', authRequired, async (request, res) => {
   try {
     const { approved_by } = request.body;
     const lr = (await req().input('id', sql.Int, request.params.id)
@@ -278,7 +526,7 @@ app.put('/api/leave-requests/:id/approve', async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.put('/api/leave-requests/:id/reject', async (request, res) => {
+app.put('/api/leave-requests/:id/reject', authRequired, async (request, res) => {
   try {
     await req().input('by', sql.Int, request.body.approved_by).input('id', sql.Int, request.params.id)
       .query("UPDATE leave_requests SET status='rejected',approved_by=@by WHERE id=@id");
@@ -292,7 +540,7 @@ app.put('/api/leave-requests/:id/reject', async (request, res) => {
 app.get('/api/tickets', authRequired, async (request, res) => {
   try {
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
-    const { status, search, dateFrom, dateTo, team } = request.query;
+    const { status, search, dateFrom, dateTo, team, problemType, subject } = request.query;
     const defaultFrom = dateFrom || new Date().toISOString().split('T')[0];
 
     // RBAC scope
@@ -308,15 +556,66 @@ app.get('/api/tickets', authRequired, async (request, res) => {
     }
 
     const r = extReq();
-    let q = CALLLOG_SELECT + ' WHERE cl.ReceiveDate >= @df';
-    r.input('df', sql.DateTime, new Date(defaultFrom));
-    if (status) { q += ' AND cs.StatusName=@status';  r.input('status', sql.NVarChar, status); }
-    if (search) { q += ' AND (cl.Subject LIKE @s OR cr.CompanyName LIKE @s OR u.UserName LIKE @s)';
-                                                       r.input('s',      sql.NVarChar, `%${search}%`); }
-    if (dateTo) { q += ' AND cl.ReceiveDate <= @dt';  r.input('dt',     sql.DateTime, new Date(dateTo + 'T23:59:59')); }
-    q += appendScopeClause(r, scope);
+    const isIdSearch = search && /^\s*#?(\d+)\s*$/.test(search);
+
+    let q;
+    if (isIdSearch) {
+      // ID search — no date filter, no other conditions, find across all history
+      const numId = parseInt(search.replace('#','').trim());
+      q = CALLLOG_SELECT + ' WHERE cl.Active=1 AND cl.CalllogId=@sid';
+      r.input('sid', sql.Int, numId);
+      q += appendScopeClause(r, scope);
+    } else {
+      q = CALLLOG_SELECT + ' WHERE cl.Active=1 AND cl.ReceiveDate >= @df';
+      r.input('df', sql.DateTime, new Date(defaultFrom));
+      if (status)      { q += ' AND cs.StatusName=@status'; r.input('status', sql.NVarChar, status); }
+      if (search)      { q += ' AND (cl.Subject LIKE @s OR cr.CompanyName LIKE @s OR u.UserName LIKE @s OR pt.ProblemTypeDetail LIKE @s)';
+                                                             r.input('s', sql.NVarChar, `%${search}%`); }
+      if (dateTo)      { q += ' AND cl.ReceiveDate < @dt'; r.input('dt', sql.DateTime, new Date(new Date(dateTo).getTime() + 86400000)); }
+      if (problemType) { q += ' AND pt.ProblemTypeDetail=@pt'; r.input('pt', sql.NVarChar, problemType); }
+      if (subject)     { q += ' AND cl.Subject=@subj';        r.input('subj', sql.NVarChar, subject); }
+      q += appendScopeClause(r, scope);
+    }
     q += ' ORDER BY cl.ReceiveDate DESC';
     res.json((await r.query(q)).recordset);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Overdue tickets — must be BEFORE /:id route
+// Lightweight endpoint — just solution+description (for specialist detail)
+app.get('/api/tickets/quick/:id', authRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.json({});
+    const r = await extReq().input('id', sql.Int, parseInt(request.params.id))
+      .query(`SELECT cl.CalllogId AS id, cl.CalllogDesc AS description, cl.Solution,
+                     u.UserName AS agent, cs.StatusName AS status
+              FROM Calllog cl
+              LEFT JOIN Users u  ON u.UserId  = cl.SupportId
+              LEFT JOIN CallStatus cs ON cs.StatusId = cl.StatusId
+              WHERE cl.CalllogId = @id`);
+    res.json(r.recordset[0] || {});
+  } catch(e) { res.json({}); }
+});
+
+app.get('/api/tickets/overdue', authRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
+    let scope = await getScopedUsernames(request.user);
+    if (scope === null) return res.json({ count: 0, tickets: [] });
+    const r = extReq();
+    const sc = appendScopeClause(r, scope);
+    const result = await r.query(`
+      SELECT cl.CalllogId AS id, cr.CompanyName, cl.ReceiveDate AS opened_at,
+             cs.StatusName AS status, cl.Subject AS title, u.UserName AS assigned_name
+      FROM Calllog cl
+      INNER JOIN CustomerRegistration cr ON cr.RegistrationId = cl.RegistrationId
+      INNER JOIN CallStatus cs ON cs.StatusId = cl.StatusId
+      INNER JOIN Users u ON u.UserId = cl.SupportId
+      WHERE cs.StatusName NOT LIKE '%close%'
+        AND cs.StatusName NOT LIKE '%complete%'
+        AND DATEDIFF(hour, cl.ReceiveDate, GETDATE()) > 24${sc}
+      ORDER BY cl.ReceiveDate ASC`);
+    res.json({ count: result.recordset.length, tickets: result.recordset });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -324,13 +623,58 @@ app.get('/api/tickets/:id', async (request, res) => {
   try {
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
     const result = await extReq().input('id', sql.Int, request.params.id)
-      .query(CALLLOG_SELECT + ' WHERE cl.CalllogId=@id');
+      .query(CALLLOG_SELECT + ' WHERE cl.Active=1 AND cl.CalllogId=@id');
     if (!result.recordset[0]) return res.status(404).json({ error: 'not found' });
     res.json(result.recordset[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── Ticket review: save stars + comment back to LicenseDB ─
+// Full update of a Calllog ticket
+app.put('/api/tickets/:id', authRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
+    const b  = request.body;
+    const id = parseInt(request.params.id);
+    await extReq()
+      .input('id',    sql.Int,      id)
+      .input('rd',    sql.DateTime, faceValueDate(b.receive_date))
+      .input('cd',    sql.DateTime, faceValueDate(b.close_date))
+      .input('desc',  sql.NVarChar, b.description   ?? null)
+      .input('sol',   sql.NVarChar, b.solution       ?? null)
+      .input('subj',  sql.NVarChar, b.subject        ?? null)
+      .input('ptid',  sql.Int,      b.problem_type_id ? parseInt(b.problem_type_id) : null)
+      .input('pid',   sql.Int,      b.project_id      ? parseInt(b.project_id)      : null)
+      .input('stid',  sql.Int,      b.status_id       ? parseInt(b.status_id)       : null)
+      .input('sid',   sql.Int,      b.support_id      ? parseInt(b.support_id)       : null)
+      .input('iname',   sql.NVarChar, b.inform_name     ?? null)
+      .input('itel',    sql.NVarChar, b.inform_tel      ?? null)
+      .input('itype',   sql.NVarChar, b.inform_type     ?? null)
+      .input('line',    sql.NVarChar, b.line_contact    ?? null)
+      .input('solvety', sql.NVarChar, b.inform_type ? (['Walk-in','Onsite'].includes(b.inform_type) ? 'Walk-in' : 'Remote') : null)
+      .input('uid',     sql.Int,      request.user.calluserid || null)
+      .query(`UPDATE Calllog SET
+        ReceiveDate  = ISNULL(@rd,       ReceiveDate),
+        CloseDate    = ISNULL(@cd,       CloseDate),
+        CalllogDesc  = ISNULL(@desc,     CalllogDesc),
+        Solution     = ISNULL(@sol,      Solution),
+        Subject      = ISNULL(@subj,     Subject),
+        ProblemTypeId= ISNULL(@ptid,     ProblemTypeId),
+        ProjectId    = ISNULL(@pid,      ProjectId),
+        StatusId     = ISNULL(@stid,     StatusId),
+        SupportId    = ISNULL(@sid,      SupportId),
+        UserId       = ISNULL(@uid,      UserId),
+        SolveType    = ISNULL(@solvety,  SolveType),
+        InformName   = ISNULL(@iname,    InformName),
+        InformTel    = ISNULL(@itel,     InformTel),
+        InformType   = ISNULL(@itype,    InformType),
+        OnsiteRemark = ISNULL(@line,     OnsiteRemark),
+        UpdateDate   = GETDATE()
+        WHERE CalllogId=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.patch('/api/tickets/:id/review', authRequired, async (request, res) => {
   try {
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
@@ -346,6 +690,93 @@ app.patch('/api/tickets/:id/review', authRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ══════════════════════════════════════════════════════════
+//  SERVER TIME (UTC+7 / ICT)
+// ══════════════════════════════════════════════════════════
+app.get('/api/server-time', authRequired, (_, res) => {
+  const ict = new Date(Date.now() + 7 * 60 * 60 * 1000); // shift to UTC+7
+  const pad = n => String(n).padStart(2, '0');
+  res.json({
+    datetime: `${ict.getUTCFullYear()}-${pad(ict.getUTCMonth()+1)}-${pad(ict.getUTCDate())}T${pad(ict.getUTCHours())}:${pad(ict.getUTCMinutes())}`,
+  });
+});
+
+// ══════════════════════════════════════════════════════════
+//  CREATE CASE (INSERT into LicenseDB Calllog)
+// ══════════════════════════════════════════════════════════
+
+// Form dropdown data
+app.get('/api/cases/form-data', authRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.status(503).json({ error: 'LicenseDB not connected' });
+    const [statuses, projects, users, subjects, ptypes] = await Promise.all([
+      extReq().query(`SELECT StatusId AS id, StatusName AS name FROM CallStatus ORDER BY StatusName`),
+      extReq().query(`SELECT ProjectId AS id, ProjectName AS name FROM Project WHERE Active=1 ORDER BY ProjectName`),
+      extReq().query(`SELECT UserId AS id, UserName AS name FROM Users WHERE Active=1 ORDER BY UserName`),
+      extReq().query(`SELECT s.SubjectId AS id, s.SubjectName AS name,
+                             s.ProblemTypeId AS problem_type_id, s.TimeToResolve AS time_to_resolve
+                      FROM Subject s WHERE s.Active=1 ORDER BY s.SubjectName`),
+      extReq().query(`SELECT ProblemTypeId AS id, ProblemTypeDetail AS name FROM ProblemType ORDER BY ProblemTypeDetail`),
+    ]);
+    res.json({
+      statuses:     statuses.recordset,
+      projects:     projects.recordset,
+      users:        users.recordset,
+      subjects:     subjects.recordset,
+      problemTypes: ptypes.recordset,
+    });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Create Case — INSERT into Calllog
+app.post('/api/cases', authRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.status(503).json({ error: 'LicenseDB not connected' });
+    const b = request.body;
+
+    // Resolve SupportId: use calluserid from JWT, fallback to ext_username lookup
+    let supportId = b.support_id || request.user.calluserid || null;
+    if (!supportId && request.user.ext_username) {
+      const uRow = await extReq().input('un', sql.NVarChar, request.user.ext_username)
+        .query('SELECT TOP 1 UserId FROM Users WHERE UserName=@un');
+      if (uRow.recordset.length) supportId = uRow.recordset[0].UserId;
+    }
+
+    const result = await extReq()
+      .input('rid',   sql.Int,      b.registration_id  || null)
+      .input('rd',    sql.DateTime, faceValueDate(b.receive_date))
+      .input('cd',    sql.DateTime, faceValueDate(b.close_date))
+      .input('desc',  sql.NVarChar, b.description       || null)
+      .input('iname', sql.NVarChar, b.inform_name        || null)
+      .input('itel',  sql.NVarChar, b.inform_tel         || null)
+      .input('itype', sql.NVarChar, b.inform_type        || null)
+      .input('line',  sql.NVarChar, b.line_contact       || null) // stored in OnsiteRemark
+      .input('sid',   sql.Int,      supportId)
+      .input('stid',  sql.Int,      b.status_id         || null)
+      .input('pid',   sql.Int,      b.project_id        || null)
+      .input('ptid',  sql.Int,      b.problem_type_id   || null)
+      .input('subj',    sql.NVarChar, b.subject            || null)
+      .input('sol',     sql.NVarChar, b.solution           || null)
+      .input('uid',     sql.Int,      request.user.calluserid || null)  // UserId
+      .input('cbid',    sql.Int,      b.close_date ? (request.user.calluserid || null) : null) // CloseById when closed
+      .input('solvety', sql.NVarChar, (['Walk-in','Onsite'].includes(b.inform_type) ? 'Walk-in' : 'Remote'))
+      .query(`INSERT INTO Calllog
+        (RegistrationId, ReceiveDate, CloseDate, CalllogDesc, InformName, InformTel,
+         InformType, OnsiteRemark, SupportId, StatusId, ProjectId, ProblemTypeId,
+         Subject, Solution, SolveType, UserId, CloseById, Active, InsertDate, UpdateDate)
+        OUTPUT INSERTED.CalllogId AS id
+        VALUES
+        (@rid,
+         ISNULL(@rd,GETDATE()),
+         @cd,
+         @desc, @iname, @itel,
+         @itype, @line, @sid, @stid, @pid, @ptid,
+         @subj, @sol, @solvety, @uid, @cbid, 1, GETDATE(), GETDATE())`);
+
+    res.json({ id: result.recordset[0].id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/tickets/meta/statuses', async (_, res) => {
   try {
     if (!getExtPool()) return res.json([]);
@@ -357,9 +788,134 @@ app.get('/api/tickets/meta/statuses', async (_, res) => {
 app.get('/api/tickets/meta/categories', async (_, res) => {
   try {
     if (!getExtPool()) return res.json([]);
-    const result = await extReq().query('SELECT DISTINCT Subject AS category FROM Calllog WHERE Subject IS NOT NULL ORDER BY Subject');
-    res.json(result.recordset.map(r => r.category));
+    const result = await extReq().query(
+      `SELECT s.SubjectName AS category, pt.ProblemTypeDetail AS problem_type
+       FROM Subject s
+       LEFT JOIN ProblemType pt ON pt.ProblemTypeId = s.ProblemTypeId
+       WHERE s.Active = 1
+       ORDER BY pt.ProblemTypeDetail, s.SubjectName`);
+    res.json(result.recordset);
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/tickets/meta/problem-types', async (_, res) => {
+  try {
+    if (!getExtPool()) return res.json([]);
+    const result = await extReq().query(
+      `SELECT DISTINCT pt.ProblemTypeDetail
+       FROM ProblemType pt WHERE pt.ProblemTypeDetail IS NOT NULL
+       ORDER BY pt.ProblemTypeDetail`);
+    res.json(result.recordset.map(r => r.ProblemTypeDetail));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════
+//  SETTINGS — Subject & ProblemType (LicenseDB)
+// ══════════════════════════════════════════════════════════
+
+// ── Subject ───────────────────────────────────────────────
+app.get('/api/settings/subjects', authRequired, async (_, res) => {
+  try {
+    if (!getExtPool()) return res.status(503).json({ error: 'LicenseDB not connected' });
+    const r = await extReq().query(
+      `SELECT s.SubjectId AS id, s.SubjectName AS name, s.Grade AS grade,
+              s.WeightScore AS weight_score, s.Active AS active,
+              s.TimeToResolve AS time_to_resolve,
+              s.ProblemTypeId AS problem_type_id,
+              pt.ProblemTypeDetail AS problem_type_name
+       FROM Subject s
+       LEFT JOIN ProblemType pt ON pt.ProblemTypeId = s.ProblemTypeId
+       WHERE s.Active = 1
+       ORDER BY pt.ProblemTypeDetail, s.SubjectName`);
+    res.json(r.recordset);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/settings/subjects', authRequired, managerRequired, async (request, res) => {
+  try {
+    const { name, grade, weight_score, time_to_resolve, problem_type_id } = request.body;
+    if (!name) return res.status(400).json({ error: 'SubjectName required' });
+    const r = await extReq()
+      .input('n',   sql.NVarChar, name)
+      .input('g',   sql.NVarChar, grade || null)
+      .input('ws',  sql.Float,    weight_score != null ? parseFloat(weight_score) : null)
+      .input('t',   sql.Int,      time_to_resolve != null ? parseInt(time_to_resolve) : null)
+      .input('pid', sql.Int,      problem_type_id ? parseInt(problem_type_id) : null)
+      .query(`INSERT INTO Subject (SubjectName, Grade, WeightScore, Active, TimeToResolve, ProblemTypeId)
+              OUTPUT INSERTED.SubjectId AS id, INSERTED.SubjectName AS name
+              VALUES (@n, @g, @ws, 1, @t, @pid)`);
+    res.json(r.recordset[0]);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/settings/subjects/:id', authRequired, managerRequired, async (request, res) => {
+  try {
+    const { name, grade, weight_score, time_to_resolve, active, problem_type_id } = request.body;
+    await extReq()
+      .input('id',  sql.Int,      parseInt(request.params.id))
+      .input('n',   sql.NVarChar, name)
+      .input('g',   sql.NVarChar, grade || null)
+      .input('ws',  sql.Float,    weight_score != null ? parseFloat(weight_score) : null)
+      .input('t',   sql.Int,      time_to_resolve != null ? parseInt(time_to_resolve) : null)
+      .input('ac',  sql.Bit,      active != null ? (active ? 1 : 0) : 1)
+      .input('pid', sql.Int,      problem_type_id ? parseInt(problem_type_id) : null)
+      .query(`UPDATE Subject SET SubjectName=@n, Grade=@g, WeightScore=@ws,
+              Active=@ac, TimeToResolve=@t, ProblemTypeId=@pid WHERE SubjectId=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/settings/subjects/:id', authRequired, managerRequired, async (request, res) => {
+  try {
+    await extReq().input('id', sql.Int, parseInt(request.params.id))
+      .query('DELETE FROM Subject WHERE SubjectId=@id');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── ProblemType ────────────────────────────────────────────
+app.get('/api/settings/problem-types', authRequired, async (_, res) => {
+  try {
+    if (!getExtPool()) return res.status(503).json({ error: 'LicenseDB not connected' });
+    const r = await extReq().query(
+      `SELECT ProblemTypeId AS id, ProblemTypeDetail AS name, Note AS note
+       FROM ProblemType ORDER BY ProblemTypeDetail`);
+    res.json(r.recordset);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/settings/problem-types', authRequired, managerRequired, async (request, res) => {
+  try {
+    const { name, note } = request.body;
+    if (!name) return res.status(400).json({ error: 'ProblemTypeDetail required' });
+    const r = await extReq()
+      .input('n', sql.NVarChar, name)
+      .input('nt', sql.NVarChar, note || null)
+      .query(`INSERT INTO ProblemType (ProblemTypeDetail, Note)
+              OUTPUT INSERTED.ProblemTypeId AS id, INSERTED.ProblemTypeDetail AS name
+              VALUES (@n, @nt)`);
+    res.json(r.recordset[0]);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/settings/problem-types/:id', authRequired, managerRequired, async (request, res) => {
+  try {
+    const { name, note } = request.body;
+    await extReq()
+      .input('id', sql.Int,      parseInt(request.params.id))
+      .input('n',  sql.NVarChar, name)
+      .input('nt', sql.NVarChar, note || null)
+      .query('UPDATE ProblemType SET ProblemTypeDetail=@n, Note=@nt WHERE ProblemTypeId=@id');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/settings/problem-types/:id', authRequired, managerRequired, async (request, res) => {
+  try {
+    await extReq().input('id', sql.Int, parseInt(request.params.id))
+      .query('DELETE FROM ProblemType WHERE ProblemTypeId=@id');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── Name Map: ext_username → employee name ────────────────
@@ -382,12 +938,26 @@ app.get('/api/name-map', authRequired, async (_, res) => {
 app.get('/api/kpi', authRequired, async (request, res) => {
   try {
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
-    const { month, team } = request.query;
-    const ym = (month || new Date().toISOString().substring(0, 7));
-    const monthStart = ym + '-01';
-    const monthEnd   = new Date(new Date(monthStart).setMonth(new Date(monthStart).getMonth() + 1));
+    const { month, team, dateFrom, dateTo } = request.query;
 
-    // Resolve RBAC scope + optional team filter
+    // Support both month-picker and date-range
+    let startDate, endDate;
+    const isValidDate = d => d instanceof Date && !isNaN(d);
+
+    if (dateFrom && dateTo) {
+      startDate = new Date(dateFrom);
+      endDate   = new Date(new Date(dateTo).getTime() + 86400000);
+    }
+    // Fallback to current month if dates are missing or invalid
+    if (!isValidDate(startDate) || !isValidDate(endDate)) {
+      const ym = (month && /^\d{4}-\d{2}$/.test(month))
+        ? month
+        : new Date().toISOString().substring(0, 7);
+      startDate = new Date(ym + '-01');
+      endDate   = new Date(new Date(ym + '-01').setMonth(startDate.getMonth() + 1));
+    }
+    const monthStart = startDate.toISOString().split('T')[0];
+
     let scope = await getScopedUsernames(request.user);
     if (scope === null) return res.json([]);
     if (team) {
@@ -399,37 +969,140 @@ app.get('/api/kpi', authRequired, async (request, res) => {
       scope = scope === undefined ? teamScope : scope.filter(u => teamScope.includes(u));
     }
 
-    const r = extReq().input('s', sql.DateTime, new Date(monthStart)).input('e', sql.DateTime, monthEnd);
-    const sc = appendScopeClause(r, scope);
-    const kpiRows = await r.query(`
-        SELECT
-          u.UserName,
-          COUNT(cl.CalllogId) AS total_cases,
+    // Previous period (same duration, shifted back)
+    const durationMs  = endDate - startDate;
+    const prevEnd     = new Date(startDate);
+    const prevStart   = new Date(startDate.getTime() - durationMs);
+
+    const mk  = () => extReq().input('s', sql.DateTime, startDate).input('e', sql.DateTime, endDate);
+    const mkP = () => extReq().input('s', sql.DateTime, prevStart).input('e', sql.DateTime, prevEnd);
+    const r1 = mk();  const sc1 = appendScopeClause(r1, scope);
+    const r2 = mk();  const sc2 = appendScopeClause(r2, scope);
+    const r3 = mk();  const sc3 = appendScopeClause(r3, scope);
+    const r4 = mk();  const sc4 = appendScopeClause(r4, scope);
+    const r5 = mkP(); const sc5 = appendScopeClause(r5, scope);
+    const r6 = mk();  const sc6 = appendScopeClause(r6, scope);
+
+    const [d1, d2, d3, d4, d5, d6] = await Promise.all([
+      // Main KPI per agent
+      r1.query(`
+        SELECT u.UserName,
+          COUNT(cl.CalllogId)  AS total_cases,
+          SUM(CASE WHEN cs.StatusName LIKE '%close%' OR cs.StatusName LIKE '%complete%' THEN 1 ELSE 0 END) AS closed_cases,
+          AVG(CASE WHEN cl.CloseDate IS NOT NULL AND cl.ReceiveDate IS NOT NULL AND cl.CloseDate >= cl.ReceiveDate
+                   THEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate) END) AS avg_resolve_min,
+          AVG(CAST(cl.Stars AS FLOAT)) AS avg_stars,
+          SUM(CASE WHEN cs.StatusName NOT LIKE '%close%' AND cs.StatusName NOT LIKE '%complete%'
+                        AND DATEDIFF(hour, cl.ReceiveDate, GETDATE()) > 24 THEN 1 ELSE 0 END) AS overdue_cases,
           MIN(cl.ReceiveDate) AS first_case,
           MAX(cl.ReceiveDate) AS last_case
         FROM Calllog cl
+        INNER JOIN Users u  ON u.UserId  = cl.SupportId
+        INNER JOIN CallStatus cs ON cs.StatusId = cl.StatusId
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @s AND cl.ReceiveDate < @e${sc1}
+        GROUP BY u.UserName ORDER BY total_cases DESC`),
+      // Top problem type per agent
+      r2.query(`
+        SELECT u.UserName, pt.ProblemTypeDetail, COUNT(*) AS cnt,
+          ROW_NUMBER() OVER (PARTITION BY u.UserName ORDER BY COUNT(*) DESC) AS rn
+        FROM Calllog cl
         INNER JOIN Users u ON u.UserId = cl.SupportId
-        WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e${sc}
-        GROUP BY u.UserName, u.UserId
-        ORDER BY total_cases DESC
-      `);
-    const comments = await req()
-      .input('month', sql.Date, monthStart)
-      .query(`SELECT ext_username, comment, recorded_by,
-                     e.name AS recorder_name
-              FROM kpi_comments kc
-              LEFT JOIN employees e ON e.id = kc.recorded_by
-              WHERE month = @month`);
+        LEFT  JOIN ProblemType pt ON pt.ProblemTypeId = cl.ProblemTypeId
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @s AND cl.ReceiveDate < @e${sc2}
+        GROUP BY u.UserName, pt.ProblemTypeDetail`),
+      // Complaint count per company → map to agent (best effort by ticket)
+      r3.query(`
+        SELECT u.UserName, COUNT(DISTINCT tc.id) AS complaints
+        FROM Calllog cl
+        INNER JOIN Users u ON u.UserId = cl.SupportId
+        INNER JOIN CustomerRegistration cr ON cr.RegistrationId = cl.RegistrationId
+        INNER JOIN ticket_complaints tc ON tc.company_name = cr.CompanyName
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @s AND cl.ReceiveDate < @e${sc3}
+        GROUP BY u.UserName`),
+      // Stars distribution
+      r4.query(`
+        SELECT cl.Stars, COUNT(*) AS cnt
+        FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @s AND cl.ReceiveDate < @e AND cl.Stars IS NOT NULL${sc4}
+        GROUP BY cl.Stars ORDER BY cl.Stars`),
+      // Previous period per agent (for trend comparison)
+      r5.query(`
+        SELECT u.UserName,
+          COUNT(cl.CalllogId) AS total_cases,
+          SUM(CASE WHEN cs.StatusName LIKE '%close%' OR cs.StatusName LIKE '%complete%' THEN 1 ELSE 0 END) AS closed_cases,
+          AVG(CASE WHEN cl.CloseDate IS NOT NULL AND cl.ReceiveDate IS NOT NULL AND cl.CloseDate >= cl.ReceiveDate
+                   THEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate) END) AS avg_resolve_min,
+          AVG(CAST(cl.Stars AS FLOAT)) AS avg_stars
+        FROM Calllog cl
+        INNER JOIN Users u ON u.UserId = cl.SupportId
+        INNER JOIN CallStatus cs ON cs.StatusId = cl.StatusId
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @s AND cl.ReceiveDate < @e${sc5}
+        GROUP BY u.UserName`),
+      // Daily cases per agent (for sparkline + consistency)
+      r6.query(`
+        SELECT u.UserName, CAST(cl.ReceiveDate AS DATE) AS day, COUNT(*) AS cnt
+        FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @s AND cl.ReceiveDate < @e${sc6}
+        GROUP BY u.UserName, CAST(cl.ReceiveDate AS DATE)
+        ORDER BY u.UserName, day`),
+    ]);
+
+    // Build top problem type map
+    const topProblemMap = {};
+    d2.recordset.forEach(r => {
+      if (r.rn === 1) topProblemMap[r.UserName] = r.ProblemTypeDetail || 'อื่นๆ';
+    });
+    const complaintMap = {};
+    d3.recordset.forEach(r => { complaintMap[r.UserName] = r.complaints; });
+
+    const comments = await req().input('month', sql.Date, monthStart)
+      .query(`SELECT ext_username, comment, recorded_by, e.name AS recorder_name
+              FROM kpi_comments kc LEFT JOIN employees e ON e.id=kc.recorded_by
+              WHERE month=@month`);
     const commentMap = {};
     comments.recordset.forEach(c => { commentMap[c.ext_username] = c; });
-    const result = kpiRows.recordset.map(r => ({
-      ...r,
-      month: monthStart,
-      comment:       commentMap[r.UserName]?.comment       || null,
-      recorded_by:   commentMap[r.UserName]?.recorded_by   || null,
-      recorder_name: commentMap[r.UserName]?.recorder_name || null,
-    }));
-    res.json(result);
+
+    // Build prev period map
+    const prevMap = {};
+    d5.recordset.forEach(r => { prevMap[r.UserName] = r; });
+
+    // Build daily map per agent (for sparkline + consistency)
+    const dailyMap = {};
+    d6.recordset.forEach(r => {
+      if (!dailyMap[r.UserName]) dailyMap[r.UserName] = [];
+      dailyMap[r.UserName].push({ day: r.day, cnt: r.cnt });
+    });
+
+    const result = d1.recordset.map(r => {
+      const prev      = prevMap[r.UserName] || {};
+      const daily     = dailyMap[r.UserName] || [];
+      const close_rate = r.total_cases ? Math.round((r.closed_cases / r.total_cases) * 100) : 0;
+
+      // Consistency: coefficient of variation of daily counts
+      const cnts = daily.map(d => d.cnt);
+      const mean = cnts.length ? cnts.reduce((a,b) => a+b, 0) / cnts.length : 0;
+      const variance = cnts.length > 1
+        ? cnts.reduce((s,c) => s + Math.pow(c - mean, 2), 0) / cnts.length : 0;
+      const cv = mean > 0 ? Math.round(Math.sqrt(variance) / mean * 100) : 0;
+
+      return {
+        ...r,
+        month:        monthStart,
+        top_problem:  topProblemMap[r.UserName] || '—',
+        complaints:   complaintMap[r.UserName] || 0,
+        close_rate,
+        comment:      commentMap[r.UserName]?.comment || null,
+        // Trend vs previous period
+        prev_cases:   prev.total_cases || 0,
+        prev_close:   prev.total_cases ? Math.round((prev.closed_cases / prev.total_cases) * 100) : 0,
+        prev_stars:   prev.avg_stars || null,
+        prev_resolve: prev.avg_resolve_min || null,
+        // Daily sparkline data
+        daily_counts: cnts,
+        consistency_cv: cv,   // lower = more consistent
+      };
+    });
+    res.json({ agents: result, starsDist: d4.recordset });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -437,37 +1110,49 @@ app.get('/api/kpi', authRequired, async (request, res) => {
 app.get('/api/kpi/agent-detail', authRequired, async (request, res) => {
   try {
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
-    const { username, month } = request.query;
+    const { username, month, dateFrom, dateTo } = request.query;
     if (!username) return res.status(400).json({ error: 'username required' });
-    const ym = month || new Date().toISOString().substring(0, 7);
-    const monthStart = ym + '-01';
-    const monthEnd   = new Date(new Date(monthStart).setMonth(new Date(monthStart).getMonth() + 1));
+
+    const isValid = d => d instanceof Date && !isNaN(d);
+    let startDate, endDate;
+
+    if (dateFrom && dateTo) {
+      startDate = new Date(dateFrom);
+      endDate   = new Date(new Date(dateTo).getTime() + 86400000);
+    }
+    if (!isValid(startDate) || !isValid(endDate)) {
+      const ym = (month && /^\d{4}-\d{2}$/.test(month))
+        ? month : new Date().toISOString().substring(0, 7);
+      startDate = new Date(ym + '-01');
+      endDate   = new Date(new Date(ym + '-01').setMonth(startDate.getMonth() + 1));
+    }
 
     const r = extReq()
-      .input('s',  sql.DateTime, new Date(monthStart))
-      .input('e',  sql.DateTime, monthEnd)
+      .input('s',  sql.DateTime, startDate)
+      .input('e',  sql.DateTime, endDate)
       .input('un', sql.NVarChar, username);
 
     const [cats, daily, timing] = await Promise.all([
-      // Top categories
-      r.query(`SELECT cl.Subject AS category,
+      // Top categories by ProblemTypeDetail
+      r.query(`SELECT ISNULL(pt.ProblemTypeDetail, 'อื่นๆ') AS category,
                       COUNT(*) AS cnt,
                       AVG(CAST(cl.Stars AS FLOAT)) AS avg_stars
                FROM Calllog cl
                INNER JOIN Users u ON u.UserId = cl.SupportId
+               LEFT  JOIN ProblemType pt ON pt.ProblemTypeId = cl.ProblemTypeId
                WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e
                  AND u.UserName = @un
-               GROUP BY cl.Subject
+               GROUP BY pt.ProblemTypeDetail
                ORDER BY cnt DESC`),
       // Daily trend
-      extReq().input('s', sql.DateTime, new Date(monthStart)).input('e', sql.DateTime, monthEnd)
+      extReq().input('s', sql.DateTime, startDate).input('e', sql.DateTime, endDate)
         .input('un', sql.NVarChar, username)
         .query(`SELECT CAST(cl.ReceiveDate AS DATE) AS day, COUNT(*) AS cnt
                 FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
-                WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e AND u.UserName = @un
+                WHERE cl.Active=1 AND cl.ReceiveDate >= @s AND cl.ReceiveDate < @e AND u.UserName = @un
                 GROUP BY CAST(cl.ReceiveDate AS DATE) ORDER BY day`),
       // Avg resolution time + stars
-      extReq().input('s', sql.DateTime, new Date(monthStart)).input('e', sql.DateTime, monthEnd)
+      extReq().input('s', sql.DateTime, startDate).input('e', sql.DateTime, endDate)
         .input('un', sql.NVarChar, username)
         .query(`SELECT
                   COUNT(*) AS total,
@@ -476,7 +1161,7 @@ app.get('/api/kpi/agent-detail', authRequired, async (request, res) => {
                   AVG(CAST(cl.Stars AS FLOAT)) AS avg_stars,
                   COUNT(CASE WHEN cl.Stars IS NOT NULL THEN 1 END) AS rated_count
                 FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
-                WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e AND u.UserName = @un`)
+                WHERE cl.Active=1 AND cl.ReceiveDate >= @s AND cl.ReceiveDate < @e AND u.UserName = @un`)
     ]);
 
     res.json({
@@ -487,7 +1172,7 @@ app.get('/api/kpi/agent-detail', authRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/kpi/comment', async (request, res) => {
+app.post('/api/kpi/comment', authRequired, async (request, res) => {
   try {
     const { ext_username, month, comment, recorded_by } = request.body;
     const monthDate = month + '-01';
@@ -514,23 +1199,38 @@ app.post('/api/kpi/comment', async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.get('/api/kpi/history', async (request, res) => {
+app.get('/api/kpi/history', authRequired, async (request, res) => {
   try {
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
     const { months = 6 } = request.query;
-    const result = await extReq()
-      .input('months', sql.Int, parseInt(months))
-      .query(`
-        SELECT
-          FORMAT(cl.ReceiveDate,'yyyy-MM') AS month,
-          u.UserName,
-          COUNT(cl.CalllogId) AS total_cases
-        FROM Calllog cl
-        INNER JOIN Users u ON u.UserId = cl.SupportId
-        WHERE cl.ReceiveDate >= '2026-01-01'
-        GROUP BY FORMAT(cl.ReceiveDate,'yyyy-MM'), u.UserName
-        ORDER BY month, total_cases DESC
-      `);
+    const role = request.user?.role;
+    let scopeClause = '';
+    const r = extReq().input('months', sql.Int, parseInt(months));
+    if (role === 'staff') {
+      if (!request.user.ext_username) return res.json([]);
+      r.input('_ku0', sql.NVarChar, request.user.ext_username);
+      scopeClause = ' AND u.UserName = @_ku0';
+    } else if (role === 'team_lead') {
+      const rows = (await req().input('tm', sql.NVarChar, request.user.team || '')
+        .query(`SELECT DISTINCT au.ext_username FROM app_users au
+                JOIN employees e ON e.id=au.employee_id
+                WHERE e.team=@tm AND au.active=1 AND e.active=1 AND au.ext_username IS NOT NULL`)).recordset;
+      const names = rows.map(r => r.ext_username);
+      if (names.length === 0) return res.json([]);
+      names.forEach((u, i) => r.input(`_ku${i}`, sql.NVarChar, u));
+      scopeClause = ` AND u.UserName IN (${names.map((_, i) => `@_ku${i}`).join(',')})`;
+    }
+    const result = await r.query(`
+      SELECT
+        FORMAT(cl.ReceiveDate,'yyyy-MM') AS month,
+        u.UserName,
+        COUNT(cl.CalllogId) AS total_cases
+      FROM Calllog cl
+      INNER JOIN Users u ON u.UserId = cl.SupportId
+      WHERE cl.ReceiveDate >= '2026-01-01'${scopeClause}
+      GROUP BY FORMAT(cl.ReceiveDate,'yyyy-MM'), u.UserName
+      ORDER BY month, total_cases DESC
+    `);
     res.json(result.recordset);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -538,7 +1238,7 @@ app.get('/api/kpi/history', async (request, res) => {
 // ══════════════════════════════════════════════════════════
 //  DASHBOARD — Calllog (LicenseDB) + shifts/leaves (cs_team)
 // ══════════════════════════════════════════════════════════
-app.get('/api/dashboard', async (_, res) => {
+app.get('/api/dashboard', authRequired, async (_, res) => {
   try {
     const now     = new Date();
     const today   = now.toISOString().split('T')[0];
@@ -744,7 +1444,7 @@ async function getDashboardContext() {
 // ══════════════════════════════════════════════════════════
 
 // ── 1. AI Chat ─────────────────────────────────────────────
-app.post('/api/ai/chat', async (request, res) => {
+app.post('/api/ai/chat', authRequired, async (request, res) => {
   const { message, history = [] } = request.body;
   if (!message) return res.status(400).json({ error: 'message required' });
   try {
@@ -770,7 +1470,7 @@ app.post('/api/ai/chat', async (request, res) => {
 });
 
 // ── 2. Dashboard AI Summary ────────────────────────────────
-app.get('/api/ai/dashboard-summary', async (_, res) => {
+app.get('/api/ai/dashboard-summary', authRequired, async (_, res) => {
   try {
     const context = await getDashboardContext();
     const prompt = `วิเคราะห์สถานการณ์ปัจจุบันของทีม Customer Service จากข้อมูลนี้:
@@ -796,7 +1496,7 @@ ${context}
 });
 
 // ── 3. AI Suggest Shifts ───────────────────────────────────
-app.post('/api/ai/suggest-shifts', async (request, res) => {
+app.post('/api/ai/suggest-shifts', authRequired, async (request, res) => {
   const { week_start, team } = request.body;
   try {
     const startDate = getMonday(week_start);
@@ -847,7 +1547,7 @@ ${JSON.stringify(approvedLeaves, null, 2)}
 });
 
 // ── 4. AI KPI Forecast ─────────────────────────────────────
-app.get('/api/ai/forecast-kpi', async (request, res) => {
+app.get('/api/ai/forecast-kpi', authRequired, async (request, res) => {
   try {
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
     const { months = 3 } = request.query;
@@ -884,9 +1584,828 @@ ${JSON.stringify(history, null, 2)}
 });
 
 // ══════════════════════════════════════════════════════════
+//  CUSTOMER PUBLIC LINKS
+// ══════════════════════════════════════════════════════════
+
+// Create table if not exists (run once on startup)
+async function ensureCustomerLinksTable() {
+  try {
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='customer_links' AND xtype='U')
+      CREATE TABLE customer_links (
+        id           INT PRIMARY KEY IDENTITY,
+        company_name NVARCHAR(255) NOT NULL,
+        token        NVARCHAR(64)  NOT NULL UNIQUE,
+        created_at   DATETIME      DEFAULT GETDATE(),
+        created_by   INT,
+        group_id     INT NULL,
+        group_name   NVARCHAR(255) NULL,
+        link_type    NVARCHAR(10)  DEFAULT 'company'  -- 'company' or 'group'
+      )`);
+    // Add columns if table already exists but missing new columns
+    await req().query(`
+      IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('customer_links') AND name='group_id')
+        ALTER TABLE customer_links ADD group_id INT NULL, group_name NVARCHAR(255) NULL, link_type NVARCHAR(10) DEFAULT 'company'`);
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ticket_complaints' AND xtype='U')
+      CREATE TABLE ticket_complaints (
+        id           INT PRIMARY KEY IDENTITY,
+        ticket_id    INT NULL,
+        company_name NVARCHAR(255),
+        email        NVARCHAR(255),
+        message      NVARCHAR(MAX) NOT NULL,
+        status       NVARCHAR(20) DEFAULT 'pending',
+        created_at   DATETIME DEFAULT GETDATE(),
+        resolved_at  DATETIME,
+        resolved_by  INT
+      )`);
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ticket_watchers' AND xtype='U')
+      CREATE TABLE ticket_watchers (
+        id           INT PRIMARY KEY IDENTITY,
+        company_name NVARCHAR(255) NOT NULL,
+        email        NVARCHAR(255) NOT NULL,
+        created_at   DATETIME DEFAULT GETDATE(),
+        CONSTRAINT UQ_watcher UNIQUE (company_name, email)
+      )`);
+    // Fix ticket_id NOT NULL → NULL for global complaints
+    try {
+      await req().query(`
+        IF EXISTS (SELECT 1 FROM sys.columns
+                   WHERE object_id=OBJECT_ID('ticket_complaints') AND name='ticket_id'
+                     AND is_nullable=0)
+          ALTER TABLE ticket_complaints ALTER COLUMN ticket_id INT NULL`);
+    } catch {}
+  } catch(e) { console.error('customer tables error:', e.message); }
+}
+
+// Get or create public link for a company (auto-detect group)
+app.post('/api/customer-links', authRequired, async (request, res) => {
+  try {
+    const { company_name } = request.body;
+    if (!company_name) return res.status(400).json({ error: 'company_name required' });
+
+    // Auto-detect: does this company have a real GroupId (not 1)?
+    let groupId = null, groupName = null, linkType = 'company';
+    if (getExtPool()) {
+      const grp = await extReq().input('cn', sql.NVarChar, company_name)
+        .query(`SELECT TOP 1 cr.GroupId, cg.GroupName
+                FROM CustomerRegistration cr
+                JOIN CustomerGroup cg ON cg.GroupId = cr.GroupId
+                WHERE cr.CompanyName = @cn
+                  AND cr.GroupId IS NOT NULL
+                  AND cr.GroupId <> 1`);
+      if (grp.recordset.length) {
+        groupId   = grp.recordset[0].GroupId;
+        groupName = grp.recordset[0].GroupName;
+        linkType  = 'group';
+      }
+    }
+
+    if (linkType === 'group') {
+      // Check existing group link
+      const existing = await req().input('gid', sql.Int, groupId)
+        .query('SELECT * FROM customer_links WHERE group_id=@gid');
+      if (existing.recordset.length) return res.json({ ...existing.recordset[0], link_type: 'group' });
+
+      const token = crypto.randomBytes(24).toString('hex');
+      const result = await req()
+        .input('cn',  sql.NVarChar, groupName)
+        .input('tok', sql.NVarChar, token)
+        .input('by',  sql.Int,      request.user.id || null)
+        .input('gid', sql.Int,      groupId)
+        .input('gn',  sql.NVarChar, groupName)
+        .query(`INSERT INTO customer_links (company_name, token, created_by, group_id, group_name, link_type)
+                OUTPUT INSERTED.*
+                VALUES (@cn, @tok, @by, @gid, @gn, 'group')`);
+      return res.json({ ...result.recordset[0], link_type: 'group' });
+    }
+
+    // Company-level link
+    const existing = await req().input('cn', sql.NVarChar, company_name)
+      .query("SELECT * FROM customer_links WHERE company_name=@cn AND (link_type='company' OR link_type IS NULL)");
+    if (existing.recordset.length) return res.json({ ...existing.recordset[0], link_type: 'company' });
+
+    const token = crypto.randomBytes(24).toString('hex');
+    const result = await req()
+      .input('cn',  sql.NVarChar, company_name)
+      .input('tok', sql.NVarChar, token)
+      .input('by',  sql.Int,      request.user.id || null)
+      .query(`INSERT INTO customer_links (company_name, token, created_by, link_type)
+              OUTPUT INSERTED.*
+              VALUES (@cn, @tok, @by, 'company')`);
+    res.json({ ...result.recordset[0], link_type: 'company' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// List all customer links (for management)
+app.get('/api/customer-links', authRequired, async (request, res) => {
+  try {
+    const result = await req().query(
+      'SELECT * FROM customer_links ORDER BY created_at DESC'
+    );
+    res.json(result.recordset);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Delete a link
+app.delete('/api/customer-links/:id', authRequired, async (request, res) => {
+  try {
+    await req().input('id', sql.Int, request.params.id)
+      .query('DELETE FROM customer_links WHERE id=@id');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUBLIC — get tickets by token (no auth), supports dateFrom/dateTo
+app.get('/api/public/track/:token', async (request, res) => {
+  try {
+    if (!getExtPool()) return res.status(503).json({ error: 'DB not available' });
+    const { token } = request.params;
+    const { dateFrom, dateTo } = request.query;
+
+    const link = await req().input('tok', sql.NVarChar, token)
+      .query('SELECT * FROM customer_links WHERE token=@tok');
+    if (!link.recordset.length) return res.status(404).json({ error: 'Link ไม่พบหรือถูกลบแล้ว' });
+
+    const linkRow     = link.recordset[0];
+    const isGroup     = linkRow.link_type === 'group' && linkRow.group_id;
+    const displayName = isGroup ? linkRow.group_name : linkRow.company_name;
+
+    // Date range (default: last 30 days)
+    const endDate   = dateTo   ? new Date(new Date(dateTo).getTime() + 86400000)
+                               : new Date(new Date().getTime() + 86400000);
+    const startDate = dateFrom ? new Date(dateFrom)
+                               : new Date(new Date().setDate(new Date().getDate() - 29));
+    const hasDates  = !!(dateFrom || dateTo);
+
+    // Scope condition
+    const scopeWhere = isGroup
+      ? `AND cr.GroupId = @gid`
+      : `AND cr.CompanyName LIKE @cn`;
+
+    const mkE = () => {
+      const r = extReq().input('sd', sql.DateTime, startDate).input('ed', sql.DateTime, endDate);
+      if (isGroup) r.input('gid', sql.Int, linkRow.group_id);
+      else         r.input('cn', sql.NVarChar, `%${linkRow.company_name}%`);
+      return r;
+    };
+
+    const ticketFields = `
+      SELECT cl.CalllogId AS id, cr.CompanyName,
+        cl.ReceiveDate AS opened_at, cl.CloseDate,
+        cs.StatusName AS status,
+        cl.Subject AS title,
+        pt.ProblemTypeDetail AS problem_type,
+        cl.CalllogDesc AS description, cl.Solution,
+        u.UserName AS agent, cl.Stars,
+        CASE WHEN cl.CloseDate IS NOT NULL AND cl.ReceiveDate IS NOT NULL
+             THEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate) END AS resolve_minutes
+      FROM Calllog cl
+      INNER JOIN CustomerRegistration cr ON cr.RegistrationId = cl.RegistrationId
+      INNER JOIN CallStatus cs ON cs.StatusId = cl.StatusId
+      INNER JOIN Users u ON u.UserId = cl.SupportId
+      LEFT  JOIN ProblemType pt ON pt.ProblemTypeId = cl.ProblemTypeId`;
+
+    const dateWhere = `WHERE cl.Active=1 AND cl.ReceiveDate >= @sd AND cl.ReceiveDate < @ed ${scopeWhere}`;
+
+    const [ticketRes, trendRes, ptRes, branchRes] = await Promise.all([
+      // Tickets in date range
+      mkE().query(`${ticketFields} ${dateWhere} ORDER BY cl.ReceiveDate DESC`),
+      // Daily trend
+      mkE().query(`SELECT CAST(cl.ReceiveDate AS DATE) AS day, COUNT(*) AS cnt
+                   FROM Calllog cl INNER JOIN CustomerRegistration cr ON cr.RegistrationId=cl.RegistrationId
+                   ${dateWhere} GROUP BY CAST(cl.ReceiveDate AS DATE) ORDER BY day`),
+      // Problem type breakdown
+      mkE().query(`SELECT ISNULL(pt.ProblemTypeDetail,'อื่นๆ') AS problem_type, COUNT(*) AS cnt
+                   FROM Calllog cl INNER JOIN CustomerRegistration cr ON cr.RegistrationId=cl.RegistrationId
+                   LEFT JOIN ProblemType pt ON pt.ProblemTypeId=cl.ProblemTypeId
+                   ${dateWhere} GROUP BY pt.ProblemTypeDetail ORDER BY cnt DESC`),
+      // Branch stats (all time for chain, filtered for date range)
+      isGroup ? mkE().query(
+        `SELECT cr.CompanyName,
+           COUNT(cl.CalllogId) AS total,
+           SUM(CASE WHEN cs.StatusName NOT LIKE '%close%' AND cs.StatusName NOT LIKE '%complete%' THEN 1 ELSE 0 END) AS open_count
+         FROM CustomerRegistration cr
+         LEFT JOIN Calllog cl    ON cl.RegistrationId=cr.RegistrationId AND cl.Active=1 AND cl.ReceiveDate>=@sd AND cl.ReceiveDate<@ed
+         LEFT JOIN CallStatus cs ON cs.StatusId=cl.StatusId
+         WHERE cr.GroupId=@gid
+         GROUP BY cr.CompanyName ORDER BY total DESC`)
+      : Promise.resolve({ recordset: [] })
+    ]);
+
+    const branches    = isGroup ? branchRes.recordset.map(r => r.CompanyName) : [];
+    const branchStats = isGroup ? branchRes.recordset : [];
+
+    // Complaints
+    let complaints = { recordset: [] };
+    if (isGroup && branches.length) {
+      const r = req();
+      branches.forEach((cn, i) => r.input(`cn${i}`, sql.NVarChar, cn));
+      const inClause = branches.map((_, i) => `@cn${i}`).join(',');
+      complaints = await r.query(
+        `SELECT id, ticket_id, message, status, created_at
+         FROM ticket_complaints WHERE company_name IN (${inClause}) ORDER BY created_at DESC`);
+    } else if (!isGroup) {
+      complaints = await req().input('cn2', sql.NVarChar, linkRow.company_name)
+        .query(`SELECT id, ticket_id, message, status, created_at
+                FROM ticket_complaints WHERE company_name=@cn2 ORDER BY created_at DESC`);
+    }
+
+    res.json({
+      company:     displayName,
+      isGroup,
+      groupId:     linkRow.group_id || null,
+      branches,
+      branchStats,
+      tickets:     ticketRes.recordset,
+      trendData:   trendRes.recordset,
+      problemTypes: ptRes.recordset,
+      complaints:  complaints.recordset,
+      dateFrom:    startDate.toISOString().split('T')[0],
+      dateTo:      new Date(endDate.getTime() - 86400000).toISOString().split('T')[0],
+    });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUBLIC — submit complaint (no auth)
+app.post('/api/public/complaint', async (request, res) => {
+  try {
+    const { token, ticket_id, email, message } = request.body;
+    if (!token || !message) return res.status(400).json({ error: 'token และ message จำเป็น' });
+    const link = await req().input('tok', sql.NVarChar, token)
+      .query('SELECT company_name FROM customer_links WHERE token=@tok');
+    if (!link.recordset.length) return res.status(404).json({ error: 'link ไม่พบ' });
+    const company_name = link.recordset[0].company_name;
+    await req()
+      .input('tid', sql.Int,      ticket_id || null)
+      .input('cn',  sql.NVarChar, company_name)
+      .input('em',  sql.NVarChar, email || null)
+      .input('msg', sql.NVarChar, message)
+      .query(`INSERT INTO ticket_complaints (ticket_id, company_name, email, message)
+              VALUES (@tid, @cn, @em, @msg)`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUBLIC — subscribe watcher (no auth)
+app.post('/api/public/watch', async (request, res) => {
+  try {
+    const { token, email } = request.body;
+    if (!token || !email) return res.status(400).json({ error: 'token และ email จำเป็น' });
+    const link = await req().input('tok', sql.NVarChar, token)
+      .query('SELECT company_name FROM customer_links WHERE token=@tok');
+    if (!link.recordset.length) return res.status(404).json({ error: 'link ไม่พบ' });
+    const company_name = link.recordset[0].company_name;
+    // Upsert
+    await req().input('cn', sql.NVarChar, company_name).input('em', sql.NVarChar, email)
+      .query(`IF NOT EXISTS (SELECT 1 FROM ticket_watchers WHERE company_name=@cn AND email=@em)
+              INSERT INTO ticket_watchers (company_name, email) VALUES (@cn, @em)`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// INTERNAL — get complaints for CS team
+app.get('/api/complaints', authRequired, async (request, res) => {
+  try {
+    const result = await req().query(`
+      SELECT tc.*, au.name AS resolved_by_name
+      FROM ticket_complaints tc
+      LEFT JOIN employees au ON au.id = tc.resolved_by
+      ORDER BY tc.created_at DESC`);
+    res.json(result.recordset);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// INTERNAL — resolve complaint
+app.put('/api/complaints/:id/resolve', authRequired, async (request, res) => {
+  try {
+    await req()
+      .input('id', sql.Int, request.params.id)
+      .input('by', sql.Int, request.user.employee_id || null)
+      .query(`UPDATE ticket_complaints
+              SET status='resolved', resolved_at=GETDATE(), resolved_by=@by
+              WHERE id=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════
+//  REPAIR JOBS
+// ══════════════════════════════════════════════════════════
+
+// Generate job number RJ-YYYYMM-XXXX
+async function genJobNo() {
+  const ym = new Date().toISOString().substring(0,7).replace('-','');
+  const row = await req()
+    .query(`SELECT COUNT(*)+1 AS n FROM repair_jobs
+            WHERE job_no LIKE 'RJ-${ym}-%'`);
+  const seq = String(row.recordset[0].n).padStart(4,'0');
+  return `RJ-${ym}-${seq}`;
+}
+
+// Count unread customer messages (for badge)
+app.get('/api/repair/unread-messages', authRequired, async (request, res) => {
+  try {
+    // "Needs action" = has customer_message with NO admin_reply after it
+    const result = await req().query(`
+      SELECT rt.repair_id, rj.job_no, rj.company_name,
+             COUNT(*) AS msg_count,
+             MAX(rt.changed_at) AS last_msg
+      FROM repair_timeline rt
+      JOIN repair_jobs rj ON rj.id = rt.repair_id
+      WHERE rt.field_changed = 'customer_message'
+        AND NOT EXISTS (
+          SELECT 1 FROM repair_timeline rt2
+          WHERE rt2.repair_id = rt.repair_id
+            AND rt2.field_changed = 'admin_reply'
+            AND rt2.changed_at > rt.changed_at
+        )
+      GROUP BY rt.repair_id, rj.job_no, rj.company_name
+      ORDER BY last_msg DESC`);
+
+    // Also include pending complaints count
+    const complaints = await req().query(
+      `SELECT COUNT(*) AS cnt FROM ticket_complaints WHERE status='pending'`);
+
+    res.json({
+      repairs:    result.recordset,
+      repairCount: result.recordset.reduce((s,r)=>s+r.msg_count,0),
+      complaintCount: complaints.recordset[0]?.cnt || 0
+    });
+  } catch(e) { res.json({ repairs:[], repairCount:0, complaintCount:0 }); }
+});
+
+// Mark all messages for a repair job as read
+app.post('/api/repair/:id/read-messages', authRequired, async (request, res) => {
+  try {
+    // Auto-add columns if missing
+    for (const col of ['read_at','replied_at']) {
+      try {
+        await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('repair_timeline') AND name='${col}')
+          ALTER TABLE repair_timeline ADD ${col} DATETIME NULL`);
+      } catch {}
+    }
+    await req().input('id', sql.Int, request.params.id)
+      .query(`UPDATE repair_timeline SET read_at=GETDATE()
+              WHERE repair_id=@id AND field_changed='customer_message' AND read_at IS NULL`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Reply to a customer message (admin)
+app.post('/api/repair/:id/reply', authRequired, async (request, res) => {
+  try {
+    const repairId = parseInt(request.params.id);
+    const { message, timeline_id } = request.body;
+    if (!message?.trim()) return res.status(400).json({ error: 'กรุณาระบุข้อความ' });
+
+    const job = (await req().input('id', sql.Int, repairId)
+      .query('SELECT job_no, company_name FROM repair_jobs WHERE id=@id')).recordset[0];
+    if (!job) return res.status(404).json({ error: 'not found' });
+
+    const sender = request.user.name || request.user.username;
+
+    // Save reply as admin_reply in timeline
+    await req()
+      .input('rid', sql.Int,      repairId)
+      .input('msg', sql.NVarChar, message.trim())
+      .input('nt',  sql.NVarChar, sender)
+      .input('by',  sql.Int,      request.user.id || null)
+      .query(`INSERT INTO repair_timeline (repair_id, field_changed, new_value, note, changed_by)
+              VALUES (@rid, 'admin_reply', @msg, @nt, @by)`);
+
+    // Mark specific message as replied
+    if (timeline_id) {
+      await req().input('tid', sql.Int, timeline_id)
+        .query(`UPDATE repair_timeline SET replied_at=GETDATE() WHERE id=@tid`);
+    }
+
+    // Notify Line
+    await sendLineNotify(`\n↩️ [${job.job_no}] ${job.company_name}\nAdmin ตอบ: ${sender}\n"${message.trim()}"`);
+
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Generate / get public token for a repair job
+app.post('/api/repair/:id/token', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    // Get existing token first
+    const existing = (await req().input('id', sql.Int, id)
+      .query('SELECT public_token FROM repair_jobs WHERE id=@id')).recordset[0];
+    if (!existing) return res.status(404).json({ error: 'not found' });
+    if (existing.public_token) return res.json({ token: existing.public_token });
+    // Generate new
+    const tok = crypto.randomBytes(18).toString('hex');
+    await req().input('id', sql.Int, id).input('tok', sql.NVarChar, tok)
+      .query('UPDATE repair_jobs SET public_token=@tok WHERE id=@id');
+    res.json({ token: tok });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUBLIC repair tracking — no auth required
+app.get('/api/public/repair/:token', async (request, res) => {
+  try {
+    const { token } = request.params;
+    const job = (await req().input('tok', sql.NVarChar, token)
+      .query(`SELECT rj.*, e.name AS reporter_name
+              FROM repair_jobs rj
+              LEFT JOIN app_users au ON au.id = rj.reported_by
+              LEFT JOIN employees e  ON e.id  = au.employee_id
+              WHERE rj.public_token = @tok`)).recordset[0];
+    if (!job) return res.status(404).json({ error: 'ไม่พบงานซ่อม หรือ link ไม่ถูกต้อง' });
+
+    const timeline = (await req().input('id', sql.Int, job.id)
+      .query(`SELECT rt.field_changed, rt.new_value, rt.note, rt.changed_at
+              FROM repair_timeline rt
+              WHERE rt.repair_id = @id
+                AND rt.field_changed IN ('status','customer_message','admin_reply')
+              ORDER BY rt.changed_at ASC`)).recordset;
+
+    // Only expose non-sensitive fields to public
+    res.json({
+      job_no:        job.job_no,
+      company_name:  job.company_name,
+      device_type:   job.device_type,
+      device_model:  job.device_model,
+      serial_no:     job.serial_no,
+      status:        job.status,
+      reported_at:   job.reported_at,
+      received_date: job.received_date,
+      sent_supplier_date:          job.sent_supplier_date,
+      returned_from_supplier_date: job.returned_from_supplier_date,
+      returned_to_customer_date:   job.returned_to_customer_date,
+      updated_at:    job.updated_at,
+      timeline
+    });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Get all repair jobs for a customer link token (no auth)
+app.get('/api/public/repairs-by-token/:token', async (request, res) => {
+  try {
+    const { token } = request.params;
+    const link = (await req().input('tok', sql.NVarChar, token)
+      .query('SELECT * FROM customer_links WHERE token=@tok')).recordset[0];
+    if (!link) return res.status(404).json({ error: 'Link ไม่พบ' });
+
+    const isGroup     = link.link_type === 'group' && link.group_id;
+    const companyName = link.company_name;
+
+    let jobs;
+    if (isGroup) {
+      // Get all company names in this group from LicenseDB
+      if (!getExtPool()) return res.json([]);
+      const brRes = await extReq().input('gid', sql.Int, link.group_id)
+        .query(`SELECT DISTINCT cr.CompanyName FROM CustomerRegistration cr WHERE cr.GroupId=@gid`);
+      const names = brRes.recordset.map(r => r.CompanyName);
+      if (!names.length) return res.json([]);
+      const r = req();
+      names.forEach((cn, i) => r.input(`cn${i}`, sql.NVarChar, cn));
+      const inClause = names.map((_, i) => `@cn${i}`).join(',');
+      jobs = await r.query(
+        `SELECT id, job_no, company_name, device_type, device_model, serial_no,
+                status, finance_status, reported_at, received_date,
+                sent_supplier_date, returned_from_supplier_date,
+                returned_to_customer_date, public_token, updated_at
+         FROM repair_jobs WHERE company_name IN (${inClause})
+         ORDER BY reported_at DESC`);
+    } else {
+      jobs = await req().input('cn', sql.NVarChar, companyName)
+        .query(`SELECT id, job_no, company_name, device_type, device_model, serial_no,
+                       status, finance_status, reported_at, received_date,
+                       sent_supplier_date, returned_from_supplier_date,
+                       returned_to_customer_date, public_token, updated_at
+                FROM repair_jobs WHERE company_name=@cn
+                ORDER BY reported_at DESC`);
+    }
+    res.json(jobs.recordset);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Customer message from tracking page (no auth)
+app.post('/api/public/repair/:token/message', async (request, res) => {
+  try {
+    const { token } = request.params;
+    const { name, message } = request.body;
+    if (!message?.trim()) return res.status(400).json({ error: 'กรุณาระบุข้อความ' });
+    const job = (await req().input('tok', sql.NVarChar, token)
+      .query('SELECT id, job_no, company_name FROM repair_jobs WHERE public_token=@tok')).recordset[0];
+    if (!job) return res.status(404).json({ error: 'ไม่พบงานซ่อม' });
+    await req()
+      .input('rid', sql.Int,      job.id)
+      .input('fc',  sql.NVarChar, 'customer_message')
+      .input('nv',  sql.NVarChar, message.trim())
+      .input('nt',  sql.NVarChar, name?.trim() || 'ลูกค้า')
+      .query(`INSERT INTO repair_timeline (repair_id, field_changed, new_value, note)
+              VALUES (@rid, @fc, @nv, @nt)`);
+    // Notify Line
+    const displayName = name?.trim() || 'ลูกค้า';
+    await sendLineNotify(`\n💬 [${job.job_no}] ${job.company_name}\nข้อความจาก: ${displayName}\n"${message.trim()}"`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Search S/N from INFO_BKK — must be BEFORE /api/repair/:id
+app.get('/api/repair/search-sn', authRequired, async (request, res) => {
+  try {
+    if (!getInfoPool()) return res.status(503).json({ error: 'INFO_BKK DB ไม่ได้เชื่อมต่อ' });
+    const { q } = request.query;
+    if (!q || q.length < 2) return res.json([]);
+    const today = new Date();
+    const result = await getInfoPool().request()
+      .input('q', sql.NVarChar, `%${q}%`)
+      .query(`
+        SELECT TOP 10
+          ic.CategoryName,
+          i.ItemDesc         AS device_model,
+          si.ItemDesc        AS serial_no,
+          si.InsertDate,
+          si.ItemId,
+          s.SupplierName,
+          DATEADD(year, 1, si.InsertDate) AS warranty_expire
+        FROM SaleItem si
+        INNER JOIN Items        i  ON i.ItemId      = si.ItemId
+        LEFT  JOIN SupplierXRef sx ON sx.ItemId     = si.ItemId AND sx.IsDefault = 1
+        LEFT  JOIN Supplier     s  ON s.SupplierId  = sx.SupplierId
+        INNER JOIN ItemCategory ic ON ic.CategoryId = i.CategoryId
+        WHERE si.ItemDesc LIKE @q
+        ORDER BY si.InsertDate DESC`);
+
+    // Calculate warranty status
+    const rows = result.recordset.map(r => ({
+      ...r,
+      under_warranty: r.warranty_expire && new Date(r.warranty_expire) > today
+    }));
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Search shop from LicenseDB — must be BEFORE /api/repair/:id
+app.get('/api/repair/search-shop', authRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.json([]);
+    const { q } = request.query;
+    if (!q || q.length < 2) return res.json([]);
+    const result = await extReq().input('q', sql.NVarChar, `%${q}%`)
+      .query(`SELECT TOP 20
+                r.RegistrationId, r.CompanyName, r.Phone, r.MobilePhone,
+                r.Email, r.ContactName, r.GroupId,
+                p.ProductName,
+                lt.LicenseTypeName,
+                cg.GroupName
+              FROM CustomerRegistration r
+              LEFT JOIN Product       p  ON p.ProductId      = r.ProductId
+              LEFT JOIN LicenseType   lt ON lt.LicenseTypeId = r.LicenseTypeId
+              LEFT JOIN CustomerGroup cg ON cg.GroupId       = r.GroupId
+              WHERE (r.Hide=0 OR r.Hide IS NULL)
+                AND r.CompanyName LIKE @q
+              ORDER BY r.CompanyName`);
+    res.json(result.recordset);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// List repair jobs
+app.get('/api/repair', authRequired, async (request, res) => {
+  try {
+    const { status, dateFrom, dateTo, search } = request.query;
+    let q = `SELECT rj.*, e.name AS reporter_name, e2.name AS updater_name
+             FROM repair_jobs rj
+             LEFT JOIN app_users au  ON au.id = rj.reported_by
+             LEFT JOIN employees e   ON e.id  = au.employee_id
+             LEFT JOIN app_users au2 ON au2.id = rj.updated_by
+             LEFT JOIN employees e2  ON e2.id  = au2.employee_id
+             WHERE 1=1`;
+    const r = req();
+    if (status)   { q += ' AND rj.status=@st';          r.input('st', sql.NVarChar, status); }
+    if (dateFrom) { q += ' AND rj.reported_at>=@df';    r.input('df', sql.DateTime, new Date(dateFrom)); }
+    if (dateTo)   { q += ' AND rj.reported_at<@dt';     r.input('dt', sql.DateTime, new Date(new Date(dateTo).getTime()+86400000)); }
+    if (search)   { q += ' AND (rj.job_no LIKE @s OR rj.company_name LIKE @s OR rj.serial_no LIKE @s OR rj.contact_name LIKE @s)';
+                                                         r.input('s', sql.NVarChar, `%${search}%`); }
+    q += ' ORDER BY rj.reported_at DESC';
+    res.json((await r.query(q)).recordset);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Get single repair job + attachments + timeline
+app.get('/api/repair/:id', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const [job, attachments, timeline] = await Promise.all([
+      req().input('id', sql.Int, id)
+        .query(`SELECT rj.*, e.name AS reporter_name, e2.name AS updater_name
+                FROM repair_jobs rj
+                LEFT JOIN app_users au  ON au.id = rj.reported_by
+                LEFT JOIN employees e   ON e.id  = au.employee_id
+                LEFT JOIN app_users au2 ON au2.id = rj.updated_by
+                LEFT JOIN employees e2  ON e2.id  = au2.employee_id
+                WHERE rj.id=@id`),
+      req().input('id', sql.Int, id)
+        .query('SELECT * FROM repair_attachments WHERE repair_id=@id ORDER BY uploaded_at'),
+      req().input('id', sql.Int, id)
+        .query(`SELECT rt.id, rt.field_changed, rt.old_value, rt.new_value,
+                       rt.note, rt.changed_at, rt.read_at, rt.replied_at,
+                       e.name AS changed_by_name
+                FROM repair_timeline rt
+                LEFT JOIN app_users au ON au.id = rt.changed_by
+                LEFT JOIN employees e  ON e.id  = au.employee_id
+                WHERE rt.repair_id=@id ORDER BY rt.changed_at ASC`)
+    ]);
+    if (!job.recordset[0]) return res.status(404).json({ error: 'not found' });
+    res.json({ ...job.recordset[0], attachments: attachments.recordset, timeline: timeline.recordset });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Create repair job
+app.post('/api/repair', authRequired, async (request, res) => {
+  try {
+    const b = request.body;
+    const jobNo = await genJobNo();
+    const result = await req()
+      .input('jn',  sql.NVarChar, jobNo)
+      .input('dt',  sql.NVarChar, b.device_type    || null)
+      .input('dm',  sql.NVarChar, b.device_model   || null)
+      .input('vn',  sql.NVarChar, b.vendor         || null)
+      .input('rid', sql.Int,      b.registration_id|| null)
+      .input('cn',  sql.NVarChar, b.company_name   || null)
+      .input('sn',  sql.NVarChar, b.serial_no      || null)
+      .input('sy',  sql.NVarChar, b.symptom        || null)
+      .input('if',  sql.NVarChar, b.initial_fix    || null)
+      .input('ct',  sql.NVarChar, b.contact_name   || null)
+      .input('cp',  sql.NVarChar, b.contact_phone  || null)
+      .input('li',  sql.NVarChar, b.line_id        || null)
+      .input('wa',  sql.Bit,      b.warranty ? 1 : 0)
+      .input('we',  sql.Date,     b.warranty_expire|| null)
+      .input('dl',  sql.NVarChar, b.device_location|| null)
+      .input('by',  sql.Int,      request.user.id  || null)
+      .input('pt',  sql.NVarChar, crypto.randomBytes(18).toString('hex'))
+      .query(`INSERT INTO repair_jobs
+        (job_no,device_type,device_model,vendor,registration_id,company_name,
+         serial_no,symptom,initial_fix,contact_name,contact_phone,line_id,
+         warranty,warranty_expire,device_location,reported_by,public_token)
+        OUTPUT INSERTED.id, INSERTED.job_no, INSERTED.public_token
+        VALUES (@jn,@dt,@dm,@vn,@rid,@cn,@sn,@sy,@if,@ct,@cp,@li,@wa,@we,@dl,@by,@pt)`);
+    const newId    = result.recordset[0].id;
+    const newJob   = result.recordset[0].job_no;
+    const newToken = result.recordset[0].public_token;
+    // Timeline
+    await req().input('rid', sql.Int, newId).input('by', sql.Int, request.user.id||null)
+      .input('nv', sql.NVarChar, 'received')
+      .query(`INSERT INTO repair_timeline (repair_id,field_changed,new_value,changed_by,note)
+              VALUES (@rid,'status',@nv,@by,'สร้างงานใหม่')`);
+    // Line notify
+    const uname = request.user.name || request.user.username;
+    await notifyRepairStatus(newId, newJob, b.company_name||'—', 'received', uname);
+    res.json({ id: newId, job_no: newJob, public_token: newToken });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Update repair job (admin)
+app.put('/api/repair/:id', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const b  = request.body;
+    // Get current for timeline diff
+    const cur = (await req().input('id', sql.Int, id)
+      .query('SELECT * FROM repair_jobs WHERE id=@id')).recordset[0];
+    if (!cur) return res.status(404).json({ error: 'not found' });
+
+    await req()
+      .input('id',  sql.Int,      id)
+      .input('st',  sql.NVarChar, b.status                       ?? cur.status)
+      .input('fs',  sql.NVarChar, b.finance_status               ?? cur.finance_status)
+      .input('qd',  sql.Date,     b.quote_date                   ?? cur.quote_date)
+      .input('qn',  sql.NVarChar, b.quote_no                     ?? cur.quote_no)
+      .input('rd',  sql.Date,     b.received_date                ?? cur.received_date)
+      .input('sd',  sql.Date,     b.sent_supplier_date           ?? cur.sent_supplier_date)
+      .input('rfd', sql.Date,     b.returned_from_supplier_date  ?? cur.returned_from_supplier_date)
+      .input('rtd', sql.Date,     b.returned_to_customer_date    ?? cur.returned_to_customer_date)
+      .input('ss',  sql.NVarChar, b.spare_serial_no              ?? cur.spare_serial_no)
+      .input('tb',  sql.NVarChar, b.taken_back_items             ?? cur.taken_back_items)
+      .input('rm',  sql.NVarChar, b.remark                       ?? cur.remark)
+      .input('ub',  sql.Int,      request.user.id                || null)
+      .query(`UPDATE repair_jobs SET
+        status=@st, finance_status=@fs, quote_date=@qd, quote_no=@qn,
+        received_date=@rd, sent_supplier_date=@sd,
+        returned_from_supplier_date=@rfd, returned_to_customer_date=@rtd,
+        spare_serial_no=@ss, taken_back_items=@tb, remark=@rm,
+        updated_at=GETDATE(), updated_by=@ub WHERE id=@id`);
+
+    // Log timeline for status/finance changes
+    const changerName = request.user.name || request.user.username;
+    for (const [field, oldVal, newVal] of [
+      ['status',         cur.status,         b.status],
+      ['finance_status', cur.finance_status, b.finance_status]
+    ]) {
+      if (newVal && newVal !== oldVal) {
+        await req()
+          .input('rid', sql.Int,      id)
+          .input('fc',  sql.NVarChar, field)
+          .input('ov',  sql.NVarChar, oldVal || '')
+          .input('nv',  sql.NVarChar, newVal)
+          .input('by',  sql.Int,      request.user.id || null)
+          .input('nt',  sql.NVarChar, b.remark || null)
+          .query(`INSERT INTO repair_timeline (repair_id,field_changed,old_value,new_value,changed_by,note)
+                  VALUES (@rid,@fc,@ov,@nv,@by,@nt)`);
+        if (field === 'status') {
+          await notifyRepairStatus(id, cur.job_no, cur.company_name, newVal, changerName);
+        }
+      }
+    }
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Upload attachment
+app.post('/api/repair/:repairId/attachments', authRequired,
+  upload.single('file'), async (request, res) => {
+  try {
+    const repairId = parseInt(request.params.repairId);
+    const { file_type } = request.body;
+    if (!request.file) return res.status(400).json({ error: 'No file uploaded' });
+    const relPath = `/uploads/${repairId}/${request.file.filename}`;
+    const result = await req()
+      .input('rid',  sql.Int,      repairId)
+      .input('ft',   sql.NVarChar, file_type || 'other')
+      .input('fn',   sql.NVarChar, request.file.originalname)
+      .input('fp',   sql.NVarChar, relPath)
+      .input('fs',   sql.Int,      request.file.size)
+      .input('by',   sql.Int,      request.user.id || null)
+      .query(`INSERT INTO repair_attachments (repair_id,file_type,file_name,file_path,file_size,uploaded_by)
+              OUTPUT INSERTED.* VALUES (@rid,@ft,@fn,@fp,@fs,@by)`);
+    res.json(result.recordset[0]);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Edit base info (reported fields — device, contact, symptom etc.)
+app.put('/api/repair/:id/info', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const b  = request.body;
+    await req()
+      .input('id',  sql.Int,      id)
+      .input('dt',  sql.NVarChar, b.device_type     || null)
+      .input('dm',  sql.NVarChar, b.device_model    || null)
+      .input('vn',  sql.NVarChar, b.vendor          || null)
+      .input('cn',  sql.NVarChar, b.company_name    || null)
+      .input('sn',  sql.NVarChar, b.serial_no       || null)
+      .input('sy',  sql.NVarChar, b.symptom         || null)
+      .input('ifix',sql.NVarChar, b.initial_fix     || null)
+      .input('ct',  sql.NVarChar, b.contact_name    || null)
+      .input('cp',  sql.NVarChar, b.contact_phone   || null)
+      .input('li',  sql.NVarChar, b.line_id         || null)
+      .input('wa',  sql.Bit,      b.warranty ? 1 : 0)
+      .input('we',  sql.Date,     b.warranty_expire || null)
+      .input('dl',  sql.NVarChar, b.device_location || null)
+      .input('ub',  sql.Int,      request.user.id   || null)
+      .query(`UPDATE repair_jobs SET
+        device_type=@dt, device_model=@dm, vendor=@vn, company_name=@cn,
+        serial_no=@sn, symptom=@sy, initial_fix=@ifix,
+        contact_name=@ct, contact_phone=@cp, line_id=@li,
+        warranty=@wa, warranty_expire=@we, device_location=@dl,
+        updated_at=GETDATE(), updated_by=@ub WHERE id=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Delete repair job (manager only)
+app.delete('/api/repair/:id', authRequired, managerRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    // Delete files on disk first
+    const files = (await req().input('id', sql.Int, id)
+      .query('SELECT file_path FROM repair_attachments WHERE repair_id=@id')).recordset;
+    for (const f of files) {
+      try { const fp = path.join(UPLOAD_DIR, f.file_path.replace('/uploads/','')); if (fs.existsSync(fp)) fs.unlinkSync(fp); } catch {}
+    }
+    await req().input('id', sql.Int, id).query('DELETE FROM repair_jobs WHERE id=@id');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Delete attachment
+app.delete('/api/repair/attachments/:id', authRequired, async (request, res) => {
+  try {
+    const row = (await req().input('id', sql.Int, request.params.id)
+      .query('SELECT * FROM repair_attachments WHERE id=@id')).recordset[0];
+    if (!row) return res.status(404).json({ error: 'not found' });
+    // Delete file from disk
+    const fullPath = path.join(UPLOAD_DIR, row.file_path.replace('/uploads/',''));
+    if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
+    await req().input('id', sql.Int, request.params.id)
+      .query('DELETE FROM repair_attachments WHERE id=@id');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Search shop from LicenseDB
+
+// ══════════════════════════════════════════════════════════
 //  TEAMS (cs_team)
 // ══════════════════════════════════════════════════════════
-app.get('/api/teams', async (request, res) => {
+app.get('/api/teams', authRequired, async (request, res) => {
   try {
     const result = await req().query(
       'SELECT * FROM teams WHERE active=1 ORDER BY sort_order, display_name'
@@ -895,7 +2414,7 @@ app.get('/api/teams', async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/teams', async (request, res) => {
+app.post('/api/teams', authRequired, managerRequired, async (request, res) => {
   const { name, display_name, color, sort_order } = request.body;
   if (!name || !display_name) return res.status(400).json({ error: 'name and display_name required' });
   try {
@@ -910,7 +2429,7 @@ app.post('/api/teams', async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.put('/api/teams/:id', async (request, res) => {
+app.put('/api/teams/:id', authRequired, managerRequired, async (request, res) => {
   const { name, display_name, color, sort_order, active } = request.body;
   try {
     await req()
@@ -926,7 +2445,7 @@ app.put('/api/teams/:id', async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.delete('/api/teams/:id', async (request, res) => {
+app.delete('/api/teams/:id', authRequired, managerRequired, async (request, res) => {
   try {
     await req().input('id', sql.Int, request.params.id)
       .query('UPDATE teams SET active=0 WHERE id=@id');
@@ -944,7 +2463,7 @@ app.post('/api/auth/login', async (request, res) => {
     const result = await req()
       .input('uname', sql.NVarChar, username)
       .query(`SELECT au.id, au.username, au.password_hash, au.role, au.ext_username,
-                     au.employee_id, e.name, e.team, e.nickname
+                     au.employee_id, au.calluserid, e.name, e.team, e.nickname
               FROM app_users au
               LEFT JOIN employees e ON e.id = au.employee_id
               WHERE au.username = @uname AND au.active = 1`);
@@ -955,6 +2474,7 @@ app.post('/api/auth/login', async (request, res) => {
     const payload = {
       id: user.id, username: user.username, role: user.role,
       employee_id: user.employee_id, ext_username: user.ext_username,
+      calluserid: user.calluserid || null,
       name: user.name, team: user.team
     };
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '10h' });
@@ -990,7 +2510,7 @@ app.post('/api/auth/change-password', authRequired, async (request, res) => {
 app.get('/api/users', authRequired, async (request, res) => {
   try {
     const result = await req().query(`
-      SELECT au.id, au.username, au.role, au.ext_username, au.active, au.created_at,
+      SELECT au.id, au.username, au.role, au.ext_username, au.calluserid, au.active, au.created_at,
              au.employee_id, e.name, e.team, e.nickname
       FROM app_users au
       LEFT JOIN employees e ON e.id = au.employee_id
@@ -1010,22 +2530,24 @@ app.post('/api/users', authRequired, async (request, res) => {
       .input('hash',     sql.NVarChar, hash)
       .input('role',     sql.NVarChar, role         || 'staff')
       .input('extuname', sql.NVarChar, ext_username || null)
-      .query(`INSERT INTO app_users (employee_id, username, password_hash, role, ext_username)
-              OUTPUT INSERTED.id VALUES (@eid,@uname,@hash,@role,@extuname)`);
+      .input('calluid',  sql.Int,      request.body.calluserid || null)
+      .query(`INSERT INTO app_users (employee_id, username, password_hash, role, ext_username, calluserid)
+              OUTPUT INSERTED.id VALUES (@eid,@uname,@hash,@role,@extuname,@calluid)`);
     res.json({ id: result.recordset[0].id });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.put('/api/users/:id', authRequired, async (request, res) => {
-  const { username, password, role, ext_username, active } = request.body;
+  const { username, password, role, ext_username, active, calluserid } = request.body;
   try {
     const r = req()
       .input('uname',    sql.NVarChar, username)
       .input('role',     sql.NVarChar, role)
       .input('extuname', sql.NVarChar, ext_username || null)
+      .input('calluid',  sql.Int,      calluserid   || null)
       .input('active',   sql.Bit,      active ?? 1)
       .input('id',       sql.Int,      request.params.id);
-    let q = 'UPDATE app_users SET username=@uname,role=@role,ext_username=@extuname,active=@active';
+    let q = 'UPDATE app_users SET username=@uname,role=@role,ext_username=@extuname,calluserid=@calluid,active=@active';
     if (password) {
       const hash = await bcrypt.hash(password, 10);
       r.input('hash', sql.NVarChar, hash);
@@ -1055,7 +2577,7 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
     const today = new Date().toISOString().split('T')[0];
     const msStr = dateFrom || (today.substring(0, 7) + '-01');
     const msDate = new Date(msStr);
-    const meDate = dateTo ? new Date(dateTo + 'T23:59:59') : new Date(new Date(msStr).setMonth(msDate.getMonth() + 1));
+    const meDate = dateTo ? new Date(new Date(dateTo).getTime() + 86400000) : new Date(new Date(msStr).setMonth(msDate.getMonth() + 1));
 
     // Previous period = same duration shifted back (fair comparison)
     const durationMs  = meDate - msDate;
@@ -1096,54 +2618,73 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
     const r7 = mkR(msDate, meDate);   const sc7 = appendScopeClause(r7, scope);
     const r8 = mkR(msDate, meDate);   const sc8 = appendScopeClause(r8, scope);
     const r9 = mkR(msDate, meDate);   const sc9 = appendScopeClause(r9, scope);
+    const r10 = mkR(msDate, meDate);  const sc10 = appendScopeClause(r10, scope);
+    const r11 = extReq()
+      .input('ms', sql.DateTime, prevFromDate)
+      .input('me', sql.DateTime, prevToDate); const sc11 = appendScopeClause(r11, scope);
 
-    const [d1, d2, d3, d4, d5, d6, d7, d8, d9] = await Promise.all([
+    const [d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11] = await Promise.all([
       // Daily trend
       r1.query(`SELECT CAST(cl.ReceiveDate AS DATE) AS day, COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
-        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc1}
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc1}
         GROUP BY CAST(cl.ReceiveDate AS DATE) ORDER BY day`),
       // Category stats
-      r2.query(`SELECT cl.Subject AS category, COUNT(*) AS cnt
+      r2.query(`SELECT ISNULL(pt.ProblemTypeDetail, 'อื่นๆ') AS category, COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
-        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc2}
-        GROUP BY cl.Subject ORDER BY cnt DESC`),
+        LEFT JOIN ProblemType pt ON pt.ProblemTypeId = cl.ProblemTypeId
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc2}
+        GROUP BY pt.ProblemTypeDetail ORDER BY cnt DESC`),
       // Agent cases — this period
       r3.query(`SELECT u.UserName, COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
-        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc3}
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc3}
         GROUP BY u.UserName ORDER BY cnt DESC`),
       // Agent cases — previous period
       r4.query(`SELECT u.UserName, COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
-        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc4}
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc4}
         GROUP BY u.UserName`),
       // Agent × category
       r5.query(`SELECT TOP 300 u.UserName, cl.Subject AS category, COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
-        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc5}
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc5}
         GROUP BY u.UserName, cl.Subject ORDER BY u.UserName, cnt DESC`),
       // Hourly distribution
       r6.query(`SELECT DATEPART(hour, cl.ReceiveDate) AS hr, COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
-        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc6}
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc6}
         GROUP BY DATEPART(hour, cl.ReceiveDate) ORDER BY hr`),
       // Day-of-week distribution
       r7.query(`SELECT DATEPART(weekday, cl.ReceiveDate) AS dow, COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
-        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc7}
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc7}
         GROUP BY DATEPART(weekday, cl.ReceiveDate) ORDER BY dow`),
       // Category daily trend (top cats over time)
-      r8.query(`SELECT TOP 500 CAST(cl.ReceiveDate AS DATE) AS day, cl.Subject AS cat, COUNT(*) AS cnt
+      r8.query(`SELECT TOP 500 CAST(cl.ReceiveDate AS DATE) AS day,
+                       ISNULL(pt.ProblemTypeDetail,'อื่นๆ') AS cat, COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
-        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc8}
-        GROUP BY CAST(cl.ReceiveDate AS DATE), cl.Subject ORDER BY day, cnt DESC`),
+        LEFT  JOIN ProblemType pt ON pt.ProblemTypeId = cl.ProblemTypeId
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc8}
+        GROUP BY CAST(cl.ReceiveDate AS DATE), pt.ProblemTypeDetail ORDER BY day, cnt DESC`),
       // Closed count this period
       r9.query(`SELECT COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
         INNER JOIN CallStatus cs ON cs.StatusId = cl.StatusId
         WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me
           AND (cs.StatusName LIKE '%close%' OR cs.StatusName LIKE '%ปิด%' OR cs.StatusName LIKE '%complete%')${sc9}`),
+      // Hour × Agent heatmap
+      r10.query(`SELECT DATEPART(hour, cl.ReceiveDate) AS hr, u.UserName, COUNT(*) AS cnt
+        FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
+        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc10}
+        GROUP BY DATEPART(hour, cl.ReceiveDate), u.UserName
+        ORDER BY hr, u.UserName`),
+      // Closed count previous period
+      r11.query(`SELECT COUNT(*) AS cnt
+        FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
+        INNER JOIN CallStatus cs ON cs.StatusId = cl.StatusId
+        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me
+          AND (cs.StatusName LIKE '%close%' OR cs.StatusName LIKE '%ปิด%' OR cs.StatusName LIKE '%complete%')${sc11}`),
     ]);
 
     // Build ext_username → employee name map
@@ -1165,7 +2706,9 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
       hourlyStats:   d6.recordset,
       dowStats:      d7.recordset,
       catDailyTrend: d8.recordset,
-      closedThis:    d9.recordset[0]?.cnt || 0,
+      closedThis:      d9.recordset[0]?.cnt || 0,
+      hourlyAgentGrid: d10.recordset,
+      closedLast:      d11.recordset[0]?.cnt || 0,
       nameMap,
       daysThis,
       daysPrev:  daysThis,
@@ -1180,7 +2723,7 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
 // ══════════════════════════════════════════════════════════
 //  AI ANALYSIS — SSE streaming (real-time situation analysis)
 // ══════════════════════════════════════════════════════════
-app.get('/api/ai-analysis', async (_, res) => {
+app.get('/api/ai-analysis', authRequired, async (_, res) => {
   if (!process.env.ANTHROPIC_API_KEY) {
     return res.status(503).json({ error: 'ANTHROPIC_API_KEY ยังไม่ได้ตั้งค่าใน .env' });
   }
@@ -1337,8 +2880,613 @@ ${JSON.stringify(snap, null, 2)}
   }
 });
 
+// ══════════════════════════════════════════════════════════
+//  CUSTOMER REQUIREMENTS
+// ══════════════════════════════════════════════════════════
+async function ensureRequirementsTables() {
+  try {
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='customer_requirements' AND xtype='U')
+      CREATE TABLE customer_requirements (
+        id              INT PRIMARY KEY IDENTITY,
+        req_no          NVARCHAR(20)  NOT NULL,
+        reported_date   DATE          DEFAULT GETDATE(),
+        work_type       NVARCHAR(100) DEFAULT 'Customize',
+        ma_percent      DECIMAL(5,2)  DEFAULT 0,
+        sales_person    NVARCHAR(100) NULL,
+        work_status     NVARCHAR(50)  DEFAULT 'งานใหม่',
+        doc_status      NVARCHAR(100) NULL,
+        company_name    NVARCHAR(200) NOT NULL,
+        customer_code   NVARCHAR(50)  NULL,
+        track_token     NVARCHAR(64)  NOT NULL,
+        title           NVARCHAR(300) NOT NULL,
+        description     NVARCHAR(MAX) NULL,
+        so_no           NVARCHAR(100) NULL,
+        estimate_time   NVARCHAR(200) NULL,
+        spec_doc        NVARCHAR(500) NULL,
+        azure_id        NVARCHAR(500) NULL,
+        user_manual     NVARCHAR(500) NULL,
+        update_version  NVARCHAR(100) NULL,
+        delivery_doc    NVARCHAR(500) NULL,
+        contract_start  DATE NULL,
+        contract_end    DATE NULL,
+        priority        NVARCHAR(20)  DEFAULT 'medium',
+        progress        INT           DEFAULT 0,
+        notes           NVARCHAR(MAX) NULL,
+        created_by      NVARCHAR(100) NULL,
+        created_at      DATETIME      DEFAULT GETDATE(),
+        updated_at      DATETIME      DEFAULT GETDATE()
+      )`);
+    // Add columns to existing table if missing
+    const newCols = [
+      ['reported_date',  'DATE NULL'],
+      ['work_type',      "NVARCHAR(100) DEFAULT 'Customize'"],
+      ['ma_percent',     'DECIMAL(5,2) DEFAULT 0'],
+      ['sales_person',   'NVARCHAR(100) NULL'],
+      ['work_status',    "NVARCHAR(50) DEFAULT 'งานใหม่'"],
+      ['doc_status',     'NVARCHAR(100) NULL'],
+      ['customer_code',  'NVARCHAR(50) NULL'],
+      ['so_no',          'NVARCHAR(100) NULL'],
+      ['estimate_time',  'NVARCHAR(200) NULL'],
+      ['spec_doc',       'NVARCHAR(500) NULL'],
+      ['azure_id',       'NVARCHAR(500) NULL'],
+      ['user_manual',    'NVARCHAR(500) NULL'],
+      ['update_version', 'NVARCHAR(100) NULL'],
+      ['delivery_doc',   'NVARCHAR(500) NULL'],
+      ['contract_start',     'DATE NULL'],
+      ['contract_end',       'DATE NULL'],
+      ['customer_link_token','NVARCHAR(64) NULL'],
+    ];
+    for (const [col, def] of newCols) {
+      try {
+        await req().query(`
+          IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('customer_requirements') AND name='${col}')
+            ALTER TABLE customer_requirements ADD ${col} ${def}`);
+      } catch(e2) { console.warn(`⚠️  Could not add customer_requirements.${col}:`, e2.message); }
+    }
+    console.log('✅ Requirements table ready');
+  } catch(e) { console.error('❌ Requirements table error:', e.message); }
+}
+
+// ── GET /api/requirements ─────────────────────────────────
+app.get('/api/requirements', authRequired, async (request, res) => {
+  try {
+    const { company, status, priority, category } = request.query;
+    const r = req();
+    let q = 'SELECT * FROM customer_requirements WHERE 1=1';
+    if (company)  { q += ' AND company_name LIKE @co';  r.input('co',  sql.NVarChar, `%${company}%`); }
+    if (status)   { q += ' AND work_status=@st';       r.input('st',  sql.NVarChar, status); }
+    if (priority) { q += ' AND priority=@pr';          r.input('pr',  sql.NVarChar, priority); }
+    if (category) { q += ' AND work_type=@cat';        r.input('cat', sql.NVarChar, category); }
+    q += ' ORDER BY created_at DESC';
+    res.json((await r.query(q)).recordset);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── POST /api/requirements ────────────────────────────────
+app.post('/api/requirements', authRequired, async (request, res) => {
+  try {
+    const b = request.body;
+    if (!b.company_name?.trim() || !b.title?.trim()) return res.status(400).json({ error: 'company_name and title required' });
+    const companyName = b.company_name.trim();
+    const existing = (await req().input('co', sql.NVarChar, companyName)
+      .query('SELECT TOP 1 track_token FROM customer_requirements WHERE company_name=@co')).recordset[0];
+    const trackToken = existing?.track_token || crypto.randomBytes(22).toString('hex');
+    const custLinkToken = b.customer_link_token || null;
+    const n = (await req().query('SELECT COUNT(*)+1 AS n FROM customer_requirements')).recordset[0].n;
+    const req_no = `REQ-${new Date().getFullYear()}-${String(n).padStart(3,'0')}`;
+    const r = req()
+      .input('req_no',               sql.NVarChar, req_no)
+      .input('reported_date',        sql.Date,     b.reported_date  ? new Date(b.reported_date) : new Date())
+      .input('work_type',            sql.NVarChar, b.work_type      || 'Customize')
+      .input('ma_percent',           sql.Decimal,  parseFloat(b.ma_percent)||0)
+      .input('sales_person',         sql.NVarChar, b.sales_person   || null)
+      .input('work_status',          sql.NVarChar, b.work_status    || 'งานใหม่')
+      .input('doc_status',           sql.NVarChar, b.doc_status     || null)
+      .input('company_name',         sql.NVarChar, companyName)
+      .input('customer_code',        sql.NVarChar, b.customer_code  || null)
+      .input('track_token',          sql.NVarChar, trackToken)
+      .input('customer_link_token',  sql.NVarChar, custLinkToken)
+      .input('title',                sql.NVarChar, b.title.trim())
+      .input('description',          sql.NVarChar, b.description    || null)
+      .input('so_no',                sql.NVarChar, b.so_no          || null)
+      .input('estimate_time',        sql.NVarChar, b.estimate_time  || null)
+      .input('spec_doc',             sql.NVarChar, b.spec_doc       || null)
+      .input('azure_id',             sql.NVarChar, b.azure_id       || null)
+      .input('user_manual',          sql.NVarChar, b.user_manual    || null)
+      .input('update_version',       sql.NVarChar, b.update_version || null)
+      .input('delivery_doc',         sql.NVarChar, b.delivery_doc   || null)
+      .input('contract_start',       sql.Date,     b.contract_start ? new Date(b.contract_start) : null)
+      .input('contract_end',         sql.Date,     b.contract_end   ? new Date(b.contract_end)   : null)
+      .input('priority',             sql.NVarChar, b.priority       || 'medium')
+      .input('progress',             sql.Int,      parseInt(b.progress)||0)
+      .input('notes',                sql.NVarChar, b.notes          || null)
+      .input('created_by',           sql.NVarChar, request.user.username);
+    const result = await r.query(`
+      INSERT INTO customer_requirements
+        (req_no,reported_date,work_type,ma_percent,sales_person,work_status,doc_status,
+         company_name,customer_code,track_token,customer_link_token,title,description,so_no,
+         estimate_time,spec_doc,azure_id,user_manual,update_version,delivery_doc,
+         contract_start,contract_end,priority,progress,notes,created_by)
+      OUTPUT INSERTED.*
+      VALUES
+        (@req_no,@reported_date,@work_type,@ma_percent,@sales_person,@work_status,@doc_status,
+         @company_name,@customer_code,@track_token,@customer_link_token,@title,@description,@so_no,
+         @estimate_time,@spec_doc,@azure_id,@user_manual,@update_version,@delivery_doc,
+         @contract_start,@contract_end,@priority,@progress,@notes,@created_by)`);
+    res.json(result.recordset[0]);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── PUT /api/requirements/:id ─────────────────────────────
+app.put('/api/requirements/:id', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const b = request.body;
+    const companyName = (b.company_name || '').trim();
+    const custLinkToken = b.customer_link_token || null;
+    await req()
+      .input('id',                   sql.Int,      id)
+      .input('reported_date',        sql.Date,     b.reported_date  ? new Date(b.reported_date) : null)
+      .input('work_type',            sql.NVarChar, b.work_type      || 'Customize')
+      .input('ma_percent',           sql.Decimal,  parseFloat(b.ma_percent)||0)
+      .input('sales_person',         sql.NVarChar, b.sales_person   || null)
+      .input('work_status',          sql.NVarChar, b.work_status    || 'งานใหม่')
+      .input('doc_status',           sql.NVarChar, b.doc_status     || null)
+      .input('company_name',         sql.NVarChar, companyName)
+      .input('customer_code',        sql.NVarChar, b.customer_code  || null)
+      .input('customer_link_token',  sql.NVarChar, custLinkToken)
+      .input('title',                sql.NVarChar, b.title)
+      .input('description',          sql.NVarChar, b.description    || null)
+      .input('so_no',                sql.NVarChar, b.so_no          || null)
+      .input('estimate_time',        sql.NVarChar, b.estimate_time  || null)
+      .input('spec_doc',             sql.NVarChar, b.spec_doc       || null)
+      .input('azure_id',             sql.NVarChar, b.azure_id       || null)
+      .input('user_manual',          sql.NVarChar, b.user_manual    || null)
+      .input('update_version',       sql.NVarChar, b.update_version || null)
+      .input('delivery_doc',         sql.NVarChar, b.delivery_doc   || null)
+      .input('contract_start',       sql.Date,     b.contract_start ? new Date(b.contract_start) : null)
+      .input('contract_end',         sql.Date,     b.contract_end   ? new Date(b.contract_end)   : null)
+      .input('priority',             sql.NVarChar, b.priority       || 'medium')
+      .input('progress',             sql.Int,      parseInt(b.progress)||0)
+      .input('notes',                sql.NVarChar, b.notes          || null)
+      .query(`UPDATE customer_requirements SET
+        reported_date=@reported_date, work_type=@work_type, ma_percent=@ma_percent,
+        sales_person=@sales_person, work_status=@work_status, doc_status=@doc_status,
+        company_name=@company_name, customer_code=@customer_code,
+        customer_link_token=@customer_link_token, title=@title,
+        description=@description, so_no=@so_no, estimate_time=@estimate_time,
+        spec_doc=@spec_doc, azure_id=@azure_id, user_manual=@user_manual,
+        update_version=@update_version, delivery_doc=@delivery_doc,
+        contract_start=@contract_start, contract_end=@contract_end,
+        priority=@priority, progress=@progress, notes=@notes,
+        updated_at=GETDATE() WHERE id=@id`);
+    const updated = (await req().input('id', sql.Int, id)
+      .query('SELECT * FROM customer_requirements WHERE id=@id')).recordset[0];
+    res.json(updated);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── DELETE /api/requirements/:id ──────────────────────────
+app.delete('/api/requirements/:id', authRequired, async (request, res) => {
+  try {
+    await req().input('id', sql.Int, parseInt(request.params.id))
+      .query('DELETE FROM customer_requirements WHERE id=@id');
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /api/requirements/portal-links ───────────────────
+// Returns all customer_links for the dropdown in requirements modal
+app.get('/api/requirements/portal-links', authRequired, async (_, res) => {
+  try {
+    const rows = (await req()
+      .query('SELECT token, company_name, group_name, link_type FROM customer_links ORDER BY company_name')).recordset;
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /api/requirements/companies ──────────────────────
+app.get('/api/requirements/companies', authRequired, async (_, res) => {
+  try {
+    const r = (await req().query(
+      'SELECT DISTINCT company_name FROM customer_requirements ORDER BY company_name'
+    )).recordset.map(r => r.company_name);
+    res.json(r);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /api/requirements/search-customer ────────────────
+app.get('/api/requirements/search-customer', authRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.json([]);
+    const q = request.query.q || '';
+    if (q.length < 2) return res.json([]);
+    const result = await extReq()
+      .input('q', sql.NVarChar, `%${q}%`)
+      .query(`SELECT TOP 20 RegistrationId AS id, CompanyName AS name
+              FROM CustomerRegistration
+              WHERE CompanyName LIKE @q
+              ORDER BY CompanyName`);
+    res.json(result.recordset);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /api/public/track/:token/requirements ────────────
+// Same logic as repairs-by-token: group → IN (LicenseDB companies), company → exact match
+
+app.get('/api/public/track/:token/requirements', async (request, res) => {
+  try {
+    const tok  = request.params.token;
+    const link = (await req().input('tok', sql.NVarChar, tok)
+      .query('SELECT * FROM customer_links WHERE token=@tok')).recordset[0];
+    if (!link) return res.status(404).json({ error: 'Link ไม่พบ' });
+
+    const isGroup = link.link_type === 'group' && link.group_id;
+    const COLS = `id,req_no,reported_date,work_type,sales_person,work_status,doc_status,
+                  company_name,title,description,so_no,estimate_time,spec_doc,azure_id,
+                  user_manual,update_version,delivery_doc,contract_start,contract_end,
+                  priority,progress,created_at,updated_at`;
+
+    let rows;
+    if (isGroup) {
+      if (!getExtPool()) return res.json([]);
+      const names = (await extReq().input('gid', sql.Int, link.group_id)
+        .query(`SELECT DISTINCT CompanyName FROM CustomerRegistration WHERE GroupId=@gid`))
+        .recordset.map(r => r.CompanyName);
+      if (!names.length) return res.json([]);
+      const r = req();
+      names.forEach((cn, i) => r.input(`cn${i}`, sql.NVarChar, cn));
+      const inClause = names.map((_, i) => `@cn${i}`).join(',');
+      rows = (await r.query(
+        `SELECT ${COLS} FROM customer_requirements WHERE company_name IN (${inClause}) ORDER BY created_at DESC`
+      )).recordset;
+    } else {
+      rows = (await req().input('cn', sql.NVarChar, link.company_name)
+        .query(`SELECT ${COLS} FROM customer_requirements WHERE company_name=@cn ORDER BY created_at DESC`)
+      ).recordset;
+    }
+
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /api/public/requirements/:token ──────────────────
+app.get('/api/public/requirements/:token', async (request, res) => {
+  try {
+    const tok = request.params.token;
+    const rows = (await req().input('tok', sql.NVarChar, tok)
+      .query(`SELECT id,req_no,title,category,description,priority,status,assigned_to,due_date,progress,created_at,updated_at
+              FROM customer_requirements WHERE track_token=@tok ORDER BY created_at ASC`)).recordset;
+    if (!rows.length) return res.status(404).json({ error: 'ไม่พบข้อมูล' });
+    const company = (await req().input('tok', sql.NVarChar, tok)
+      .query('SELECT TOP 1 company_name FROM customer_requirements WHERE track_token=@tok')).recordset[0]?.company_name;
+    res.json({ company, requirements: rows });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── Start ─────────────────────────────────────────────────
-init().then(() => {
+async function ensureRepairTables() {
+  try {
+    const r = req();
+    await r.query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='repair_jobs' AND xtype='U')
+      CREATE TABLE repair_jobs (
+        id INT PRIMARY KEY IDENTITY, job_no NVARCHAR(20) NOT NULL UNIQUE,
+        reported_at DATETIME DEFAULT GETDATE(),
+        device_type NVARCHAR(100), device_model NVARCHAR(100), vendor NVARCHAR(100),
+        registration_id INT, company_name NVARCHAR(255),
+        serial_no NVARCHAR(100), symptom NVARCHAR(MAX), initial_fix NVARCHAR(MAX),
+        contact_name NVARCHAR(100), contact_phone NVARCHAR(50), line_id NVARCHAR(100),
+        warranty BIT DEFAULT 0, warranty_expire DATE, device_location NVARCHAR(255),
+        reported_by INT,
+        status NVARCHAR(30) DEFAULT 'received',
+        finance_status NVARCHAR(30) DEFAULT 'pending',
+        quote_date DATE, quote_no NVARCHAR(50),
+        received_date DATE, sent_supplier_date DATE,
+        returned_from_supplier_date DATE, returned_to_customer_date DATE,
+        spare_serial_no NVARCHAR(100), taken_back_items NVARCHAR(MAX), remark NVARCHAR(MAX),
+        created_at DATETIME DEFAULT GETDATE(), updated_at DATETIME DEFAULT GETDATE(), updated_by INT,
+        public_token NVARCHAR(48) NULL UNIQUE
+      )`);
+    // Add public_token column if table exists but column missing
+    await req().query(`
+      IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('repair_jobs') AND name='public_token')
+        ALTER TABLE repair_jobs ADD public_token NVARCHAR(48) NULL`);
+    // Generate tokens for existing jobs that don't have one
+    const noToken = (await req().query(
+      `SELECT id FROM repair_jobs WHERE public_token IS NULL`)).recordset;
+    for (const row of noToken) {
+      const tok = crypto.randomBytes(18).toString('hex');
+      await req().input('id', sql.Int, row.id).input('tok', sql.NVarChar, tok)
+        .query(`UPDATE repair_jobs SET public_token=@tok WHERE id=@id AND public_token IS NULL`);
+    }
+    if (noToken.length) console.log(`✅ Generated tokens for ${noToken.length} existing repair jobs`);
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='repair_attachments' AND xtype='U')
+      CREATE TABLE repair_attachments (
+        id INT PRIMARY KEY IDENTITY, repair_id INT NOT NULL,
+        file_type NVARCHAR(30) NOT NULL, file_name NVARCHAR(255) NOT NULL,
+        file_path NVARCHAR(500) NOT NULL, file_size INT,
+        uploaded_by INT, uploaded_at DATETIME DEFAULT GETDATE(),
+        CONSTRAINT FK_attach_job FOREIGN KEY (repair_id) REFERENCES repair_jobs(id) ON DELETE CASCADE
+      )`);
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='repair_timeline' AND xtype='U')
+      CREATE TABLE repair_timeline (
+        id INT PRIMARY KEY IDENTITY, repair_id INT NOT NULL,
+        field_changed NVARCHAR(50), old_value NVARCHAR(255), new_value NVARCHAR(255),
+        changed_by INT, changed_at DATETIME DEFAULT GETDATE(), note NVARCHAR(500),
+        CONSTRAINT FK_timeline_job FOREIGN KEY (repair_id) REFERENCES repair_jobs(id) ON DELETE CASCADE
+      )`);
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='repair_notification_log' AND xtype='U')
+      CREATE TABLE repair_notification_log (
+        id INT PRIMARY KEY IDENTITY, repair_id INT NOT NULL,
+        channel NVARCHAR(10) NOT NULL, recipient NVARCHAR(255),
+        message NVARCHAR(MAX), status NVARCHAR(10) DEFAULT 'sent',
+        error_msg NVARCHAR(500), sent_at DATETIME DEFAULT GETDATE(),
+        CONSTRAINT FK_notif_job FOREIGN KEY (repair_id) REFERENCES repair_jobs(id) ON DELETE CASCADE
+      )`);
+    // Add columns that may be missing from existing tables
+    for (const [tbl, col, def] of [
+      ['repair_jobs',     'public_token', 'NVARCHAR(48) NULL'],
+      ['repair_timeline', 'read_at',      'DATETIME NULL'],
+      ['repair_timeline', 'replied_at',   'DATETIME NULL'],
+    ]) {
+      try {
+        await req().query(`
+          IF NOT EXISTS (SELECT 1 FROM sys.columns
+                         WHERE object_id=OBJECT_ID('${tbl}') AND name='${col}')
+            ALTER TABLE ${tbl} ADD ${col} ${def}`);
+      } catch(e2) { console.warn(`⚠️  Could not add ${tbl}.${col}:`, e2.message); }
+    }
+    console.log('✅ Repair tables ready');
+  } catch(e) { console.error('❌ Repair table error:', e.message); }
+}
+
+// ══════════════════════════════════════════════════════════
+//  SPECIALIST LOG
+// ══════════════════════════════════════════════════════════
+async function ensureSpecialistTable() {
+  try {
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='specialist_log' AND xtype='U')
+      CREATE TABLE specialist_log (
+        id               INT PRIMARY KEY IDENTITY,
+        calllog_id       INT,
+        company_name     NVARCHAR(255),
+        subject          NVARCHAR(500),
+        problem_type     NVARCHAR(200),
+        -- Contact info
+        contact_name     NVARCHAR(100),
+        contact_phone    NVARCHAR(50),
+        line_id          NVARCHAR(100),
+        line_group       NVARCHAR(200),
+        customer_location NVARCHAR(255),
+        -- Assignment
+        original_agent   INT,
+        assigned_to_team NVARCHAR(50),
+        assigned_to_user INT,
+        priority         NVARCHAR(20) DEFAULT 'normal',
+        note             NVARCHAR(MAX),
+        assigned_at      DATETIME DEFAULT GETDATE(),
+        -- Resolution
+        status           NVARCHAR(20) DEFAULT 'pending',
+        resolved_by      INT,
+        resolved_at      DATETIME,
+        resolution_note  NVARCHAR(MAX),
+        updated_at       DATETIME DEFAULT GETDATE()
+      )`);
+    // Add columns if missing
+    for (const [col, def] of [
+      ['issue_id',     'NVARCHAR(100) NULL'],
+      ['accepted_by',  'INT NULL'],
+      ['accepted_at',  'DATETIME NULL'],
+      ['description',  'NVARCHAR(MAX) NULL'],
+      ['solution',     'NVARCHAR(MAX) NULL'],
+    ]) {
+      try {
+        await req().query(`
+          IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('specialist_log') AND name='${col}')
+            ALTER TABLE specialist_log ADD ${col} ${def}`);
+      } catch {}
+    }
+    console.log('✅ specialist_log table ready');
+  } catch(e) { console.error('❌ specialist_log error:', e.message); }
+}
+
+// Lightweight badge count only
+app.get('/api/specialist/badge', authRequired, async (request, res) => {
+  try {
+    const r = await req().query(
+      `SELECT COUNT(*) AS cnt FROM specialist_log WHERE status='pending'`);
+    res.json({ pending: r.recordset[0]?.cnt || 0 });
+  } catch(e) { res.json({ pending: 0 }); }
+});
+
+// Get all specialist logs
+app.get('/api/specialist', authRequired, async (request, res) => {
+  try {
+    const { status, team, my } = request.query;
+    const r = req();
+    // Simplified query — store names at create/accept time, minimal JOINs
+    let q = `SELECT TOP 200 sl.*,
+               e1.name AS agent_name, e1.team AS agent_team,
+               e4.name AS accepted_by_name
+             FROM specialist_log sl
+             LEFT JOIN app_users au1 ON au1.id = sl.original_agent
+             LEFT JOIN employees  e1 ON e1.id  = au1.employee_id
+             LEFT JOIN app_users au4 ON au4.id = sl.accepted_by
+             LEFT JOIN employees  e4 ON e4.id  = au4.employee_id
+             WHERE sl.assigned_at >= DATEADD(day,-90,GETDATE())`;
+    if (status)  { q += ' AND sl.status=@st';    r.input('st', sql.NVarChar, status); }
+    if (team)    { q += ' AND sl.assigned_to_team=@tm'; r.input('tm', sql.NVarChar, team); }
+    if (my==='1'){ q += ' AND sl.assigned_to_user=@me'; r.input('me', sql.Int, request.user.id||0); }
+    q += ' ORDER BY sl.assigned_at DESC';
+    res.json((await r.query(q)).recordset);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Create specialist log (assign to specialist)
+app.post('/api/specialist', authRequired, async (request, res) => {
+  try {
+    const b = request.body;
+    // Duplicate guard: block if an active (non-resolved/cancelled) job exists for same calllog_id
+    if (b.calllog_id) {
+      const dup = await req()
+        .input('cid', sql.Int, b.calllog_id)
+        .query(`SELECT id FROM specialist_log WHERE calllog_id=@cid AND status NOT IN ('resolved','cancelled')`);
+      if (dup.recordset.length > 0) {
+        return res.status(409).json({ error: `มีงาน Specialist สำหรับเคสนี้อยู่แล้ว (#${dup.recordset[0].id})`, duplicate_id: dup.recordset[0].id });
+      }
+    }
+    const result = await req()
+      .input('cid',  sql.Int,      b.calllog_id       || null)
+      .input('cn',   sql.NVarChar, b.company_name      || null)
+      .input('subj', sql.NVarChar, b.subject           || null)
+      .input('pt',   sql.NVarChar, b.problem_type      || null)
+      .input('ctn',  sql.NVarChar, b.contact_name      || null)
+      .input('ctp',  sql.NVarChar, b.contact_phone     || null)
+      .input('li',   sql.NVarChar, b.line_id           || null)
+      .input('lg',   sql.NVarChar, b.line_group        || null)
+      .input('loc',  sql.NVarChar, b.customer_location || null)
+      .input('oa',   sql.Int,      request.user.id     || null)
+      .input('att',  sql.NVarChar, b.assigned_to_team  || null)
+      .input('atu',  sql.Int,      b.assigned_to_user  || null)
+      .input('nt',   sql.NVarChar, b.note              || null)
+      .input('desc', sql.NVarChar, b.description       || null)
+      .input('sol',  sql.NVarChar, b.solution          || null)
+      .query(`INSERT INTO specialist_log
+        (calllog_id,company_name,subject,problem_type,
+         contact_name,contact_phone,line_id,line_group,customer_location,
+         original_agent,assigned_to_team,assigned_to_user,note,description,solution)
+        OUTPUT INSERTED.id VALUES
+        (@cid,@cn,@subj,@pt,@ctn,@ctp,@li,@lg,@loc,@oa,@att,@atu,@nt,@desc,@sol)`);
+    // Line notify
+    const uname = request.user.name || request.user.username;
+    await sendLineNotify(`\n🔧 [Specialist] ${b.company_name||'—'}\nมอบหมายโดย: ${uname}\nทีม: ${b.assigned_to_team||'—'}\n${b.note||''}`);
+    res.json({ id: result.recordset[0].id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Update specialist log
+app.put('/api/specialist/:id', authRequired, async (request, res) => {
+  try {
+    const b  = request.body;
+    const id = parseInt(request.params.id);
+    const cur = (await req().input('id', sql.Int, id)
+      .query('SELECT * FROM specialist_log WHERE id=@id')).recordset[0];
+    if (!cur) return res.status(404).json({ error: 'not found' });
+    await req()
+      .input('id',  sql.Int,      id)
+      .input('st',  sql.NVarChar, b.status              ?? cur.status)
+      .input('att', sql.NVarChar, b.assigned_to_team    ?? cur.assigned_to_team)
+      .input('atu', sql.Int,      b.assigned_to_user    ?? cur.assigned_to_user)
+      .input('pr',  sql.NVarChar, b.priority            ?? cur.priority)
+      .input('nt',  sql.NVarChar, b.note                ?? cur.note)
+      .input('ctn', sql.NVarChar, b.contact_name        ?? cur.contact_name)
+      .input('ctp', sql.NVarChar, b.contact_phone       ?? cur.contact_phone)
+      .input('li',  sql.NVarChar, b.line_id             ?? cur.line_id)
+      .input('lg',  sql.NVarChar, b.line_group          ?? cur.line_group)
+      .input('loc', sql.NVarChar, b.customer_location   ?? cur.customer_location)
+      .input('rnt', sql.NVarChar, b.resolution_note     ?? cur.resolution_note)
+      .input('iid', sql.NVarChar, b.issue_id            ?? cur.issue_id)
+      .input('rb',  sql.Int,      b.status==='resolved' ? (request.user.id||null) : cur.resolved_by)
+      .input('aby', sql.Int,      b.status==='in_progress' && !cur.accepted_by ? (request.user.id||null) : cur.accepted_by)
+      .query(`UPDATE specialist_log SET
+        status=@st, assigned_to_team=@att, assigned_to_user=@atu, priority=@pr, note=@nt,
+        contact_name=@ctn, contact_phone=@ctp, line_id=@li, line_group=@lg,
+        customer_location=@loc, resolution_note=@rnt, issue_id=@iid, resolved_by=@rb,
+        accepted_by=@aby,
+        accepted_at=CASE WHEN @st='in_progress' AND accepted_at IS NULL THEN GETDATE() ELSE accepted_at END,
+        resolved_at=CASE WHEN @st='resolved' AND resolved_at IS NULL THEN GETDATE() ELSE resolved_at END,
+        updated_at=GETDATE()
+        WHERE id=@id`);
+    // Notify on status change
+    if (b.status && b.status !== cur.status) {
+      const statusLabel = {pending:'รอดำเนินการ',in_progress:'กำลังดำเนินการ',resolved:'แก้ไขแล้ว',rejected:'ปฏิเสธ',cancelled:'ยกเลิก'};
+      const uname = request.user.name || request.user.username;
+      await sendLineNotify(`\n🔧 [Specialist] ${cur.company_name||'—'}\nสถานะ: ${statusLabel[b.status]||b.status}\nโดย: ${uname}${b.resolution_note?'\n'+b.resolution_note:''}`);
+    }
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Delete specialist log
+app.delete('/api/specialist/:id', authRequired, managerRequired, async (request, res) => {
+  try {
+    await req().input('id', sql.Int, parseInt(request.params.id))
+      .query('DELETE FROM specialist_log WHERE id=@id');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Get contact info from LicenseDB by company name
+app.get('/api/specialist/contact-info', authRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.json({});
+    const { company } = request.query;
+    if (!company) return res.json({});
+    const r = await extReq().input('cn', sql.NVarChar, `%${company}%`)
+      .query(`SELECT TOP 1 ContactName, Phone, MobilePhone, Email, Address, City
+              FROM CustomerRegistration WHERE CompanyName LIKE @cn AND (Hide=0 OR Hide IS NULL)`);
+    res.json(r.recordset[0] || {});
+  } catch(e) { res.json({}); }
+});
+
+// Convert Thai time input (UTC+7) → UTC datetime string for SQL Server (which stores UTC)
+function thaiToUtc(s) {
+  if (!s) return null;
+  // Append +07:00 so new Date() correctly interprets as UTC+7, then convert to UTC
+  const d = new Date(s + ':00+07:00');
+  if (isNaN(d)) return null;
+  return d.toISOString().replace('T',' ').substring(0, 19); // UTC 'YYYY-MM-DD HH:MM:SS'
+}
+
+// Store datetime "face value" — LicenseDB stores local Thai time as-is (no UTC conversion).
+// Append Z so mssql sends the face value as UTC, matching how legacy records are stored.
+// e.g. user enters "10:30" → DB stores 10:30 → parseDbDate strips Z → shows 10:30 ✓
+function faceValueDate(s) {
+  if (!s) return null;
+  const withZ = s.length === 16 ? s + ':00Z' : (s.endsWith('Z') ? s : s + 'Z');
+  const d = new Date(withZ);
+  return isNaN(d) ? null : d;
+}
+
+init().then(async () => {
+  // Drop hardcoded team CHECK constraint so dynamic teams work
+  try {
+    await getPool().request().query(`
+      IF EXISTS (SELECT 1 FROM sys.check_constraints
+                 WHERE name='CK_emp_team' AND parent_object_id=OBJECT_ID('employees'))
+        ALTER TABLE employees DROP CONSTRAINT CK_emp_team`);
+  } catch(e) { console.warn('CK_emp_team drop skipped:', e.message); }
+
+  // Add calluserid column to app_users (LicenseDB Users.UserId)
+  try {
+    await getPool().request().query(`
+      IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('app_users') AND name='calluserid')
+        ALTER TABLE app_users ADD calluserid INT NULL`);
+  } catch(e) { console.warn('calluserid migration:', e.message); }
+
+  await ensureCustomerLinksTable();
+  await ensureRepairTables();
+  await ensureSpecialistTable();
+  await ensureRequirementsTables();
+
+  // Drop CHECK constraint on shifts.shift_type so 'dayoff' can be inserted
+  try {
+    await getPool().request().query(`
+      DECLARE @cn NVARCHAR(200);
+      SELECT @cn = cc.CONSTRAINT_NAME
+      FROM INFORMATION_SCHEMA.CHECK_CONSTRAINTS cc
+      JOIN INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE cu ON cc.CONSTRAINT_NAME = cu.CONSTRAINT_NAME
+      WHERE cu.TABLE_NAME = 'shifts' AND cu.COLUMN_NAME = 'shift_type';
+      IF @cn IS NOT NULL EXEC('ALTER TABLE shifts DROP CONSTRAINT [' + @cn + ']');
+    `);
+  } catch(e) { console.warn('drop shifts check constraint:', e.message); }
+
   app.listen(PORT, () => console.log(`🚀 CS Team App running at http://localhost:${PORT}`));
 }).catch(err => {
   console.error('❌ Startup failed:', err.message);
