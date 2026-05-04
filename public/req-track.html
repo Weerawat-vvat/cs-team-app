@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>ติดตาม Requirements — CS Team</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Tahoma,sans-serif;background:#f1f5f9;color:#1e293b;min-height:100vh}
+.top-bar{background:#1e293b;padding:.8rem 1.25rem;display:flex;align-items:center;justify-content:space-between;gap:.75rem}
+.top-bar .logo{font-size:.95rem;font-weight:800;color:#fff}
+.top-bar .sub{font-size:.72rem;color:#94a3b8;margin-top:.1rem}
+.container{max-width:900px;margin:0 auto;padding:1.25rem 1rem}
+
+/* Stat cards */
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem;margin-bottom:1rem}
+@media(max-width:600px){.stat-grid{grid-template-columns:repeat(2,1fr)}}
+.stat-card{background:#fff;border-radius:9px;padding:.5rem .8rem;border:1px solid #e2e8f0;box-shadow:0 1px 3px #0001;display:flex;align-items:center;gap:.5rem}
+.stat-card .icon{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0}
+.stat-card .label{font-size:.67rem;color:#64748b;font-weight:500}
+.stat-card .value{font-size:1.2rem;font-weight:800;line-height:1.1}
+
+/* Requirement cards */
+.req-card{background:#fff;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 1px 4px #0001;margin-bottom:.75rem;overflow:hidden}
+.req-header{padding:.75rem 1rem;display:flex;align-items:flex-start;gap:.75rem;cursor:pointer;user-select:none}
+.req-header:hover{background:#fafafa}
+.req-no{font-size:.78rem;font-weight:800;color:#64748b;flex-shrink:0;padding-top:.1rem}
+.req-title{font-size:.9rem;font-weight:700;color:#1e293b;flex:1}
+.req-sub{font-size:.75rem;color:#64748b;margin-top:.2rem}
+.req-badges{display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.4rem}
+.badge{display:inline-block;padding:.15rem .5rem;border-radius:20px;font-size:.68rem;font-weight:700;white-space:nowrap}
+.req-body{border-top:1px solid #f1f5f9;padding:.75rem 1rem;display:none}
+.req-body.open{display:block}
+.req-label{font-size:.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.2rem}
+.req-value{font-size:.83rem;color:#1e293b;white-space:pre-wrap;word-break:break-word}
+.progress-wrap{display:flex;align-items:center;gap:.6rem;margin:.4rem 0 .6rem}
+.progress-track{flex:1;height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden}
+.progress-fill{height:100%;border-radius:4px;transition:width .4s}
+
+/* Filter bar */
+.filter-bar{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.55rem .85rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.85rem;box-shadow:0 1px 3px #0001}
+.fsel{border:1px solid #e2e8f0;border-radius:7px;padding:.28rem .55rem;font-size:.78rem;color:#1e293b;background:#fff;outline:none;cursor:pointer}
+.fsel:focus{border-color:#2563eb}
+
+.empty{text-align:center;padding:3rem;color:#94a3b8;font-size:.88rem}
+.loading{text-align:center;padding:4rem;color:#64748b}
+.error-box{background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:1.5rem;text-align:center;color:#b91c1c;margin-top:1rem}
+.updated{font-size:.72rem;color:#94a3b8;text-align:center;margin-top:1.5rem;padding-bottom:1.5rem}
+</style>
+</head>
+<body>
+<div class="top-bar">
+  <div>
+    <div class="logo" id="page-title">📋 CS Team — Requirements</div>
+    <div class="sub">Customer Requirements Tracking</div>
+  </div>
+</div>
+
+<div class="container" id="root">
+  <div class="loading">⏳ กำลังโหลด...</div>
+</div>
+
+<script>
+const token = new URLSearchParams(location.search).get('t');
+let _data = [];
+
+function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fmtDate(s){
+  if(!s) return '—';
+  const d = new Date(String(s).replace('Z',''));
+  return d.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'});
+}
+function isClosed(s){ return s==='เสร็จสิ้น'||s==='ยกเลิก'; }
+
+const PRIORITY_STYLE = {
+  critical:'background:#fee2e2;color:#b91c1c',
+  high:    'background:#ffedd5;color:#c2410c',
+  medium:  'background:#fef9c3;color:#854d0e',
+  low:     'background:#dcfce7;color:#15803d',
+};
+const PRIORITY_LABEL = { critical:'🔴 Critical', high:'🟠 High', medium:'🟡 Medium', low:'🟢 Low' };
+const STATUS_STYLE = {
+  'รับเรื่อง':        'background:#dbeafe;color:#1d4ed8',
+  'วิเคราะห์':         'background:#ede9fe;color:#5b21b6',
+  'กำลังดำเนินการ':    'background:#fef9c3;color:#854d0e',
+  'ทดสอบ':            'background:#ffedd5;color:#c2410c',
+  'รอส่งมอบ':         'background:#e0f2fe;color:#0369a1',
+  'เสร็จสิ้น':         'background:#dcfce7;color:#15803d',
+  'ยกเลิก':            'background:#f1f5f9;color:#64748b',
+};
+
+function priBadge(p){
+  const s = PRIORITY_STYLE[p]||PRIORITY_STYLE.medium;
+  return `<span class="badge" style="${s}">${PRIORITY_LABEL[p]||p}</span>`;
+}
+function statusBadge(s){
+  const style = STATUS_STYLE[s]||'background:#f1f5f9;color:#475569';
+  return `<span class="badge" style="${style}">${esc(s||'—')}</span>`;
+}
+function progressBar(pct){
+  const p = Math.max(0,Math.min(100,pct||0));
+  const col = p>=100?'#16a34a':p>=60?'#2563eb':p>=30?'#d97706':'#94a3b8';
+  return `<div class="progress-wrap">
+    <div class="progress-track"><div class="progress-fill" style="width:${p}%;background:${col}"></div></div>
+    <span style="font-size:.8rem;font-weight:700;color:${col};min-width:36px">${p}%</span>
+  </div>`;
+}
+
+async function loadData(){
+  const root = document.getElementById('root');
+  try {
+    const res = await fetch(`/api/public/requirements/${token}`);
+    const json = await res.json();
+    if(!res.ok){ root.innerHTML=`<div class="error-box">❌ ${esc(json.error||'ไม่พบข้อมูล')}</div>`; return; }
+    _data = json.requirements || [];
+    document.title = `Requirements — ${json.company}`;
+    document.getElementById('page-title').textContent = `📋 ${json.company}`;
+    render();
+  } catch(e){
+    root.innerHTML=`<div class="error-box">❌ ${esc(e.message)}</div>`;
+  }
+}
+
+function render(){
+  const root = document.getElementById('root');
+  const statusFilter   = document.getElementById('f-status')?.value  || '';
+  const priorityFilter = document.getElementById('f-priority')?.value || '';
+  let list = _data;
+  if(statusFilter)   list = list.filter(r=>r.status===statusFilter);
+  if(priorityFilter) list = list.filter(r=>r.priority===priorityFilter);
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  const inProg  = _data.filter(r=>['กำลังดำเนินการ','วิเคราะห์','ทดสอบ','รอส่งมอบ'].includes(r.status)).length;
+  const done    = _data.filter(r=>r.status==='เสร็จสิ้น').length;
+  const overdue = _data.filter(r=>r.due_date&&!isClosed(r.status)&&new Date(r.due_date)<today).length;
+
+  root.innerHTML = `
+    <!-- Stat cards -->
+    <div class="stat-grid">
+      <div class="stat-card"><div class="icon" style="background:#eff6ff">📋</div><div><div class="label">ทั้งหมด</div><div class="value" style="color:#2563eb">${_data.length}</div></div></div>
+      <div class="stat-card"><div class="icon" style="background:#fef9c3">⚙️</div><div><div class="label">กำลังดำเนินการ</div><div class="value" style="color:#854d0e">${inProg}</div></div></div>
+      <div class="stat-card"><div class="icon" style="background:#dcfce7">✅</div><div><div class="label">เสร็จสิ้น</div><div class="value" style="color:#16a34a">${done}</div></div></div>
+      <div class="stat-card"><div class="icon" style="background:#fee2e2">🔴</div><div><div class="label">เกินกำหนด</div><div class="value" style="color:#dc2626">${overdue}</div></div></div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filter-bar">
+      <select class="fsel" id="f-status" onchange="render()">
+        <option value="">ทุกสถานะ</option>
+        <option>รับเรื่อง</option><option>วิเคราะห์</option>
+        <option>กำลังดำเนินการ</option><option>ทดสอบ</option>
+        <option>รอส่งมอบ</option><option>เสร็จสิ้น</option><option>ยกเลิก</option>
+      </select>
+      <select class="fsel" id="f-priority" onchange="render()">
+        <option value="">ทุก Priority</option>
+        <option value="critical">🔴 Critical</option>
+        <option value="high">🟠 High</option>
+        <option value="medium">🟡 Medium</option>
+        <option value="low">🟢 Low</option>
+      </select>
+      <span style="font-size:.77rem;color:#64748b;margin-left:auto">${list.length} รายการ</span>
+    </div>
+
+    <!-- Requirement cards -->
+    <div id="req-list">
+      ${list.length ? list.map((r,i) => {
+        const due = r.due_date ? new Date(r.due_date) : null;
+        const isOvd = due && !isClosed(r.status) && due < today;
+        return `<div class="req-card">
+          <div class="req-header" onclick="toggleCard(${i})">
+            <div class="req-no">${esc(r.req_no)}</div>
+            <div style="flex:1;min-width:0">
+              <div class="req-title">${esc(r.title)}</div>
+              <div class="req-badges">
+                ${priBadge(r.priority)}
+                ${statusBadge(r.status)}
+                ${r.category?`<span class="badge" style="background:#f1f5f9;color:#475569">${esc(r.category)}</span>`:''}
+                ${due?`<span class="badge" style="${isOvd?'background:#fee2e2;color:#b91c1c':'background:#f1f5f9;color:#475569'}">📅 ${fmtDate(r.due_date)}${isOvd?' ⚠️ เกินกำหนด':''}</span>`:''}
+              </div>
+            </div>
+            <span style="font-size:.75rem;color:#94a3b8;flex-shrink:0;padding-top:.15rem" id="arr-${i}">▼</span>
+          </div>
+          <div class="req-body" id="body-${i}">
+            <div class="req-label">ความคืบหน้า</div>
+            ${progressBar(r.progress)}
+            ${r.description?`<div class="req-label" style="margin-top:.4rem">รายละเอียด</div>
+            <div class="req-value" style="margin-bottom:.6rem">${esc(r.description)}</div>`:''}
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;font-size:.8rem;color:#64748b;margin-top:.25rem">
+              <div>🗓 สร้างเมื่อ: ${fmtDate(r.created_at)}</div>
+              <div>🔄 อัปเดต: ${fmtDate(r.updated_at)}</div>
+              ${r.assigned_to?`<div>👤 ผู้รับผิดชอบ: ${esc(r.assigned_to)}</div>`:''}
+            </div>
+          </div>
+        </div>`;
+      }).join('') : '<div class="empty">ไม่พบรายการ</div>'}
+    </div>
+    <div class="updated">ข้อมูล ณ ${new Date().toLocaleString('th-TH')}</div>`;
+
+  // Restore filter values
+  if(statusFilter)   document.getElementById('f-status').value   = statusFilter;
+  if(priorityFilter) document.getElementById('f-priority').value = priorityFilter;
+}
+
+function toggleCard(i){
+  const body = document.getElementById('body-'+i);
+  const arr  = document.getElementById('arr-'+i);
+  const open = body.classList.toggle('open');
+  if(arr) arr.textContent = open ? '▲' : '▼';
+}
+
+async function init(){
+  const root = document.getElementById('root');
+  if(!token){ root.innerHTML='<div class="error-box">❌ ไม่พบ link ที่ถูกต้อง</div>'; return; }
+  await loadData();
+}
+
+init();
+</script>
+</body>
+</html>

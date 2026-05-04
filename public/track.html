@@ -22,18 +22,25 @@ body{font-family:'Segoe UI',Tahoma,sans-serif;background:#f1f5f9;color:#1e293b;m
 .date-range-label{font-size:.75rem;color:#64748b;margin-left:auto;white-space:nowrap}
 
 /* Stat cards */
-.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem;margin-bottom:1rem}
-@media(max-width:700px){.stat-grid{grid-template-columns:repeat(2,1fr)}}
-.stat-card{background:#fff;border-radius:12px;padding:.9rem 1.1rem;border:1px solid #e2e8f0;box-shadow:0 1px 4px #0001}
-.stat-card .icon{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;margin-bottom:.5rem}
-.stat-card .label{font-size:.73rem;color:#64748b;font-weight:500}
-.stat-card .value{font-size:1.75rem;font-weight:800;line-height:1;margin:.15rem 0}
-.stat-card .sub{font-size:.7rem;color:#94a3b8}
+.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.45rem;margin-bottom:.75rem}
+@media(max-width:700px){.stat-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:480px){.stat-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:480px){.req-stat-grid{grid-template-columns:1fr 1fr!important}}
+.stat-card{background:#fff;border-radius:9px;padding:.45rem .75rem;border:1px solid #e2e8f0;box-shadow:0 1px 3px #0001;display:flex;align-items:center;gap:.5rem}
+.stat-card .icon{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0}
+.stat-card .label{font-size:.67rem;color:#64748b;font-weight:500}
+.stat-card .value{font-size:1.2rem;font-weight:800;line-height:1.1;margin:.04rem 0}
+.stat-card .sub{font-size:.65rem;color:#94a3b8}
 
 /* Page tabs */
-.page-tabs{display:flex;gap:.3rem;margin-bottom:1rem;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.35rem;box-shadow:0 1px 3px #0001;width:fit-content}
-.page-tab{border:none;background:none;padding:.4rem 1.1rem;border-radius:7px;font-size:.83rem;cursor:pointer;color:#64748b;font-weight:500;font-family:inherit;transition:.12s}
-.page-tab.active{background:#2563eb;color:#fff;font-weight:700}
+.nav-tabs{display:flex;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:.3rem;gap:.2rem;box-shadow:0 1px 4px #0001;margin-bottom:1rem;flex-wrap:wrap}
+.nav-tab{border:none;background:none;padding:.5rem 1rem;border-radius:8px;font-size:.82rem;cursor:pointer;color:#64748b;font-weight:500;font-family:inherit;transition:all .15s;display:flex;align-items:center;gap:.4rem;white-space:nowrap}
+.nav-tab:hover{background:#f1f5f9;color:#1e293b}
+.nav-tab.active{background:#2563eb;color:#fff;font-weight:700;box-shadow:0 2px 8px #2563eb33}
+.nav-tab svg{width:15px;height:15px;flex-shrink:0;opacity:.8}
+.nav-tab.active svg{opacity:1}
+.nav-tab .tab-badge{background:rgba(255,255,255,.25);color:inherit;border-radius:20px;font-size:.68rem;padding:.05rem .35rem;font-weight:700;min-width:18px;text-align:center}
+.nav-tab:not(.active) .tab-badge{background:#e2e8f0;color:#475569}
 
 /* Charts */
 .chart-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:.75rem;margin-bottom:.75rem}
@@ -137,7 +144,7 @@ tr:hover td{background:#f8fafc}
       <textarea id="c-msg" rows="3" placeholder="อธิบายปัญหา..." style="width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:.38rem .65rem;font-size:.82rem;font-family:inherit;resize:vertical;outline:none"></textarea></div>
     <div style="display:flex;gap:.5rem;justify-content:flex-end">
       <button onclick="closeComplain()" style="border:1px solid #e2e8f0;background:#fff;border-radius:8px;padding:.38rem .85rem;font-size:.8rem;cursor:pointer">ยกเลิก</button>
-      <button class="btn btn-red" onclick="submitComplain()">📤 ส่ง</button>
+      <button class="btn btn-red" id="complain-submit-btn" onclick="submitComplain()">📤 ส่ง</button>
     </div>
   </div>
 </div>
@@ -147,6 +154,55 @@ const token = new URLSearchParams(location.search).get('t');
 let _data = null, _statusTab = 'open', _branchFilter = '', _page = 1, _perPage = 25, _search = '';
 let _charts = {};
 let _dateFrom = '', _dateTo = '';
+let _requirements = null;
+
+// ── Requirements helpers ──────────────────────────────────
+const REQ_STATUS_STYLE = {
+  'รับเรื่อง':       'background:#dbeafe;color:#1d4ed8',
+  'วิเคราะห์':        'background:#ede9fe;color:#5b21b6',
+  'กำลังดำเนินการ':   'background:#fef9c3;color:#854d0e',
+  'ทดสอบ':           'background:#ffedd5;color:#c2410c',
+  'รอส่งมอบ':        'background:#e0f2fe;color:#0369a1',
+  'เสร็จสิ้น':        'background:#dcfce7;color:#15803d',
+  'ยกเลิก':           'background:#f1f5f9;color:#64748b',
+};
+const REQ_PRIORITY_STYLE = {
+  critical:'background:#fee2e2;color:#b91c1c',
+  high:    'background:#ffedd5;color:#c2410c',
+  medium:  'background:#fef9c3;color:#854d0e',
+  low:     'background:#dcfce7;color:#15803d',
+};
+const REQ_PRIORITY_LABEL = { critical:'🔴 Critical', high:'🟠 High', medium:'🟡 Medium', low:'🟢 Low' };
+
+const REQ_STATUS_PROGRESS = {
+  'งานใหม่':            5,
+  'กำลังประเมินราคา':   15,
+  'กำลังดำเนินการ':     50,
+  'UAT':                75,
+  'รอส่งมอบ':           90,
+  'ส่งมอบแล้ว':         100,
+  'ยกเลิก':             0,
+};
+function reqAutoProgress(status){ return REQ_STATUS_PROGRESS[status] ?? 0; }
+
+function reqStatusBadge(s){
+  const style = REQ_STATUS_STYLE[s]||'background:#f1f5f9;color:#475569';
+  return `<span style="${style};padding:.15rem .5rem;border-radius:20px;font-size:.7rem;font-weight:700;white-space:nowrap">${esc(s||'—')}</span>`;
+}
+function reqPriBadge(p){
+  const style = REQ_PRIORITY_STYLE[p]||REQ_PRIORITY_STYLE.medium;
+  return `<span style="${style};padding:.15rem .5rem;border-radius:20px;font-size:.7rem;font-weight:700;white-space:nowrap">${REQ_PRIORITY_LABEL[p]||p}</span>`;
+}
+function reqProgressBar(pct){
+  const p = Math.max(0,Math.min(100,pct||0));
+  const col = p>=100?'#16a34a':p>=60?'#2563eb':p>=30?'#d97706':'#94a3b8';
+  return `<div style="display:flex;align-items:center;gap:.5rem;margin:.3rem 0">
+    <div style="flex:1;height:7px;background:#e2e8f0;border-radius:4px;overflow:hidden">
+      <div style="width:${p}%;height:100%;background:${col};border-radius:4px;transition:width .4s"></div>
+    </div>
+    <span style="font-size:.75rem;font-weight:700;color:${col};min-width:32px">${p}%</span>
+  </div>`;
+}
 
 // ── Helpers ──────────────────────────────────────────────
 function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -203,7 +259,9 @@ async function loadData(){
     renderStats();
     const tab = document.getElementById('active-tab')?.dataset?.tab || 'overview';
     if(tab==='overview') renderOverview();
-    else renderList();
+    else if(tab==='list') renderList();
+    else if(tab==='repair') renderRepair();
+    else if(tab==='requirements') renderRequirements();
   } catch(e){
     root.innerHTML=`<div class="error-box">❌ ${esc(e.message)}</div>`;
   }
@@ -233,19 +291,29 @@ async function init(){
 
     <!-- Stat cards -->
     <div class="stat-grid" id="stat-grid">
-      <div class="stat-card"><div class="icon" style="background:#eff6ff">📋</div><div class="label">Case ทั้งหมด</div><div class="value" id="s-total" style="color:#2563eb">—</div></div>
-      <div class="stat-card"><div class="icon" style="background:#fef2f2">⏳</div><div class="label">ค้างอยู่ (OPEN)</div><div class="value" id="s-open" style="color:#dc2626">—</div></div>
-      <div class="stat-card"><div class="icon" style="background:#f0fdf4">✅</div><div class="label">แก้ไขแล้ว (CLOSE)</div><div class="value" id="s-close" style="color:#16a34a">—</div></div>
-      <div class="stat-card"><div class="icon" style="background:#faf5ff">⏱️</div><div class="label">เวลาแก้ไขเฉลี่ย</div><div class="value" id="s-avg" style="color:#7c3aed;font-size:1.3rem">—</div></div>
+      <div class="stat-card"><div class="icon" style="background:#eff6ff">📋</div><div><div class="label">Case ทั้งหมด</div><div class="value" id="s-total" style="color:#2563eb">—</div></div></div>
+      <div class="stat-card"><div class="icon" style="background:#fef2f2">⏳</div><div><div class="label">ค้างอยู่ (OPEN)</div><div class="value" id="s-open" style="color:#dc2626">—</div></div></div>
+      <div class="stat-card"><div class="icon" style="background:#f0fdf4">✅</div><div><div class="label">แก้ไขแล้ว (CLOSE)</div><div class="value" id="s-close" style="color:#16a34a">—</div></div></div>
     </div>
 
     <!-- Page tabs -->
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;margin-bottom:.75rem">
-      <div class="page-tabs">
-        <button class="page-tab active" id="active-tab" data-tab="overview" onclick="switchTab('overview',this)">📊 Overview</button>
-        <button class="page-tab" data-tab="list" onclick="switchTab('list',this)">📋 รายการ Case</button>
-        <button class="page-tab" data-tab="repair" onclick="switchTab('repair',this)">🔧 ติดตามงานซ่อม</button>
-      </div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" id="active-tab" data-tab="overview" onclick="switchTab('overview',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Overview
+      </button>
+      <button class="nav-tab" data-tab="list" onclick="switchTab('list',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
+        รายการ Case
+      </button>
+      <button class="nav-tab" data-tab="repair" onclick="switchTab('repair',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+        งานซ่อม
+      </button>
+      <button class="nav-tab" data-tab="requirements" onclick="switchTab('requirements',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/><polyline points="9 11 12 14 16 10"/></svg>
+        Requirements
+      </button>
     </div>
 
     <div id="tab-content"></div>`;
@@ -254,12 +322,13 @@ async function init(){
 }
 
 function switchTab(tab, btn){
-  document.querySelectorAll('.page-tab').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   btn.id='active-tab'; btn.dataset.tab=tab;
   if(tab==='overview') renderOverview();
   else if(tab==='list') renderList();
   else if(tab==='repair') renderRepair();
+  else if(tab==='requirements') renderRequirements();
 }
 
 function renderStats(){
@@ -268,12 +337,9 @@ function renderStats(){
   const total = t.length;
   const open  = t.filter(x=>!isClosed(x.status)).length;
   const close = t.filter(x=>isClosed(x.status)).length;
-  const wt    = t.filter(x=>x.resolve_minutes!=null&&x.resolve_minutes>=0);
-  const avg   = wt.length ? Math.round(wt.reduce((s,x)=>s+x.resolve_minutes,0)/wt.length) : null;
   document.getElementById('s-total').textContent = total.toLocaleString();
   document.getElementById('s-open').textContent  = open.toLocaleString();
   document.getElementById('s-close').textContent = close.toLocaleString();
-  document.getElementById('s-avg').textContent   = avg!=null ? fmtDur(avg) : '—';
 }
 
 // ── Overview Tab ─────────────────────────────────────────
@@ -332,6 +398,18 @@ function renderOverview(){
             <div style="color:#94a3b8;font-size:.7rem">${fmtDate(t.opened_at)}</div>
           </div>`).join('')||'<div class="empty">ไม่มีข้อมูล</div>'}
       </div>`:''}
+    </div>
+
+    <!-- Peak Time -->
+    <div class="chart-grid">
+      <div class="card">
+        <div class="card-title">⏰ Peak Time — ช่วงเวลาที่แจ้งปัญหามากสุด</div>
+        <div class="chart-wrap"><canvas id="c-peak-hour"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">📅 Peak Day — วันที่แจ้งปัญหามากสุด</div>
+        <div style="display:flex;flex-direction:column;gap:.35rem;margin-top:.25rem" id="peak-day-list"></div>
+      </div>
     </div>`;
 
   // Draw charts
@@ -391,6 +469,68 @@ function renderOverview(){
               fillStyle:colors[i], strokeStyle:'#fff', lineWidth:1, index:i })) } } } }
     });
   }
+
+  // ── Peak Time ─────────────────────────────────────────────
+  // Count tickets by hour (0–23) — client-side only, no extra API call
+  const hourCounts = Array(24).fill(0);
+  const dayCounts  = Array(7).fill(0); // 0=Sun…6=Sat
+  tickets.forEach(t => {
+    const dt = parseD(t.opened_at);
+    if(!dt) return;
+    hourCounts[dt.getHours()]++;
+    dayCounts[dt.getDay()]++;
+  });
+  const maxHour = Math.max(...hourCounts, 1);
+
+  // Color bars: red for peak, amber for near-peak, blue for normal
+  const hourColors = hourCounts.map(c => {
+    if(c >= maxHour * .75) return '#ef4444';
+    if(c >= maxHour * .45) return '#f59e0b';
+    return '#93c5fd';
+  });
+
+  if(document.getElementById('c-peak-hour')){
+    _charts.peakHour = new Chart(document.getElementById('c-peak-hour'), {
+      type:'bar',
+      data:{
+        labels: Array.from({length:24}, (_,i) => `${String(i).padStart(2,'0')}:00`),
+        datasets:[{ label:'จำนวน Case', data:hourCounts, backgroundColor:hourColors, borderRadius:3, borderSkipped:false }]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{ display:false },
+          tooltip:{ callbacks:{ label: ctx => ` ${ctx.parsed.y} case` } } },
+        scales:{
+          x:{ ticks:{ font:{size:8}, color:'#64748b', maxRotation:0,
+                callback:(_, i) => (i%3===0 ? `${String(i).padStart(2,'0')}:00` : '') },
+              grid:{display:false} },
+          y:{ beginAtZero:true, ticks:{font:{size:9},color:'#64748b',stepSize:1}, grid:{color:'#f1f5f9'} }
+        }
+      }
+    });
+  }
+
+  // Peak day bar list
+  const dayNames = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัส','ศุกร์','เสาร์'];
+  const dayEmoji = ['☀️','🔵','🔴','🟢','🟠','🟡','🟣'];
+  const maxDay   = Math.max(...dayCounts, 1);
+  const peakDayEl = document.getElementById('peak-day-list');
+  if(peakDayEl){
+    peakDayEl.innerHTML = dayNames.map((name, i) => {
+      const cnt  = dayCounts[i];
+      const pct  = Math.round(cnt / maxDay * 100);
+      const isPeak = cnt === maxDay && cnt > 0;
+      const barCol = isPeak ? '#ef4444' : pct >= 60 ? '#f59e0b' : '#93c5fd';
+      return `<div style="display:flex;align-items:center;gap:.5rem">
+        <span style="font-size:.8rem;width:56px;flex-shrink:0;font-weight:${isPeak?'700':'400'};color:${isPeak?'#dc2626':'#475569'}">${dayEmoji[i]} ${name}</span>
+        <div style="flex:1;height:16px;background:#f1f5f9;border-radius:4px;overflow:hidden">
+          <div style="width:${pct}%;height:100%;background:${barCol};border-radius:4px;transition:width .4s"></div>
+        </div>
+        <span style="font-size:.8rem;font-weight:700;color:${barCol};min-width:28px;text-align:right">${cnt}</span>
+        ${isPeak?'<span style="font-size:.68rem;background:#fee2e2;color:#b91c1c;padding:.1rem .35rem;border-radius:20px;font-weight:700">🔥 Peak</span>':''}
+      </div>`;
+    }).join('');
+  }
 }
 
 // ── List Tab ──────────────────────────────────────────────
@@ -400,6 +540,8 @@ function renderList(){
   const isGrp = d.isGroup;
   const branches = d.branches||[];
   const statuses = [...new Set((d.tickets||[]).map(t=>t.status).filter(Boolean))].sort();
+  const types    = [...new Set((d.tickets||[]).map(t=>t.problem_type).filter(Boolean))].sort();
+  const subjects = [...new Set((d.tickets||[]).map(t=>t.title).filter(Boolean))].sort();
 
   document.getElementById('tab-content').innerHTML = `
     <!-- Filter bar -->
@@ -408,11 +550,19 @@ function renderList(){
         <option value="">ทุกสาขา (${branches.length})</option>
         ${branches.map(b=>`<option value="${esc(b)}">${esc(b)}</option>`).join('')}
       </select>` : ''}
+      <select class="filter-select" id="l-type" onchange="listFilter()">
+        <option value="">ทุกประเภท</option>
+        ${types.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('')}
+      </select>
+      <select class="filter-select" id="l-subject" onchange="listFilter()">
+        <option value="">ทุกหัวข้อ</option>
+        ${subjects.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('')}
+      </select>
       <select class="filter-select" id="l-status" onchange="listFilter()">
-        <option value="">สถานะ: ทั้งหมด</option>
+        <option value="">ทุกสถานะ</option>
         ${statuses.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('')}
       </select>
-      <input class="filter-input" id="l-search" placeholder="🔍 ค้นหาสาขา / ปัญหา..." oninput="listFilter()"/>
+      <input class="filter-input" id="l-search" placeholder="🔍 ค้นหา..." oninput="listFilter()"/>
       <select class="filter-select" id="l-perpage" onchange="listFilter()">
         <option value="25">25/หน้า</option><option value="50">50/หน้า</option><option value="100">100/หน้า</option>
       </select>
@@ -461,6 +611,8 @@ function renderListTable(){
   if(!_data) return;
   const branch  = document.getElementById('l-branch')?.value || '';
   const status  = document.getElementById('l-status')?.value || '';
+  const type    = document.getElementById('l-type')?.value || '';
+  const subject = document.getElementById('l-subject')?.value || '';
   const search  = (document.getElementById('l-search')?.value||'').toLowerCase();
   const perPage = parseInt(document.getElementById('l-perpage')?.value||'25');
   const isGrp   = _data.isGroup;
@@ -468,6 +620,8 @@ function renderListTable(){
   let list = _data.tickets||[];
   if(branch)  list = list.filter(t=>t.CompanyName===branch);
   if(status)  list = list.filter(t=>t.status===status);
+  if(type)    list = list.filter(t=>t.problem_type===type);
+  if(subject) list = list.filter(t=>t.title===subject);
   if(_statusTab==='open')  list = list.filter(t=>!isClosed(t.status));
   if(_statusTab==='close') list = list.filter(t=>isClosed(t.status));
   if(search)  list = list.filter(t=>
@@ -530,16 +684,37 @@ function renderListTable(){
 function goPage(p){ _page=p; renderListTable(); document.getElementById('tab-content').scrollIntoView({behavior:'smooth',block:'start'}); }
 
 // ── Complaint ─────────────────────────────────────────────
-function openComplain(tid){ document.getElementById('c-ticket-id').value=tid||''; document.getElementById('c-email').value=''; document.getElementById('c-msg').value=''; document.getElementById('modal-complain').style.display='flex'; }
+function openComplain(tid){
+  document.getElementById('c-ticket-id').value=tid||'';
+  document.getElementById('c-email').value='';
+  document.getElementById('c-msg').value='';
+  const btn=document.getElementById('complain-submit-btn');
+  if(btn){ btn.disabled=false; btn.textContent='📤 ส่ง'; }
+  document.getElementById('modal-complain').style.display='flex';
+}
 function closeComplain(){ document.getElementById('modal-complain').style.display='none'; }
+
+let _complainSubmitting = false;
 async function submitComplain(){
+  if(_complainSubmitting) return;
   const msg = document.getElementById('c-msg').value.trim();
   if(!msg){ alert('กรุณาระบุรายละเอียด'); return; }
-  const r = await fetch('/api/public/complaint',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({token,ticket_id:document.getElementById('c-ticket-id').value||null,email:document.getElementById('c-email').value||null,message:msg})});
-  const d = await r.json();
-  closeComplain();
-  alert(r.ok?'📤 ส่งแล้ว! ทีม CS จะติดต่อกลับ':'❌ '+(d.error||'ส่งไม่สำเร็จ'));
+  const btn = document.getElementById('complain-submit-btn');
+  _complainSubmitting = true;
+  if(btn){ btn.disabled=true; btn.textContent='⏳ กำลังส่ง...'; }
+  try {
+    const r = await fetch('/api/public/complaint',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({token,ticket_id:document.getElementById('c-ticket-id').value||null,
+        email:document.getElementById('c-email').value||null,message:msg})});
+    const d = await r.json();
+    closeComplain();
+    alert(r.ok?'📤 ส่งแล้ว! ทีม CS จะติดต่อกลับ':'❌ '+(d.error||'ส่งไม่สำเร็จ'));
+  } catch(e){
+    alert('❌ ส่งไม่สำเร็จ กรุณาลองใหม่');
+    if(btn){ btn.disabled=false; btn.textContent='📤 ส่ง'; }
+  } finally {
+    _complainSubmitting = false;
+  }
 }
 
 // ── Repair Tab ────────────────────────────────────────────
@@ -680,6 +855,89 @@ async function sendRepairMsg(repairToken, jobId){
     document.getElementById(`rm-${jobId}`).value='';
     alert('📤 ส่งแล้ว! ทีม CS จะติดต่อกลับ');
   } else alert('❌ '+(d.error||'ส่งไม่สำเร็จ'));
+}
+
+// ── Requirements Tab ─────────────────────────────────────
+async function renderRequirements(){
+  const wrap = document.getElementById('tab-content');
+  wrap.innerHTML = '<div class="loading">⏳ กำลังโหลด...</div>';
+  try {
+    if(!_requirements){
+      const r = await fetch(`/api/public/track/${token}/requirements`);
+      _requirements = await r.json();
+      if(!r.ok) throw new Error(_requirements.error||'โหลดไม่สำเร็จ');
+    }
+    const reqs = Array.isArray(_requirements) ? _requirements : (_requirements.requirements||[]);
+    const today = new Date(); today.setHours(0,0,0,0);
+    const inProg  = reqs.filter(r=>['กำลังดำเนินการ','วิเคราะห์','ทดสอบ','รอส่งมอบ'].includes(r.work_status)).length;
+    const done    = reqs.filter(r=>r.work_status==='เสร็จสิ้น').length;
+    const overdue = reqs.filter(r=>{
+      const due = r.contract_end ? new Date(String(r.contract_end).replace('Z','')) : null;
+      return due && !['เสร็จสิ้น','ยกเลิก'].includes(r.work_status) && due < today;
+    }).length;
+
+    wrap.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem;margin-bottom:.85rem">
+        <div class="stat-card"><div class="icon" style="background:#eff6ff">📋</div><div><div class="label">ทั้งหมด</div><div class="value" style="color:#2563eb">${reqs.length}</div></div></div>
+        <div class="stat-card"><div class="icon" style="background:#fef9c3">⚙️</div><div><div class="label">กำลังดำเนินการ</div><div class="value" style="color:#854d0e">${inProg}</div></div></div>
+        <div class="stat-card"><div class="icon" style="background:#dcfce7">✅</div><div><div class="label">เสร็จสิ้น</div><div class="value" style="color:#16a34a">${done}</div></div></div>
+        <div class="stat-card"><div class="icon" style="background:#fee2e2">⚠️</div><div><div class="label">เกินกำหนด</div><div class="value" style="color:#dc2626">${overdue}</div></div></div>
+      </div>
+
+      ${reqs.length===0 ? '<div class="empty">ยังไม่มี Requirements</div>' :
+        reqs.map((r,i) => {
+          const closed = r.work_status==='เสร็จสิ้น'||r.work_status==='ยกเลิก';
+          const dueDate = r.contract_end ? new Date(String(r.contract_end).replace('Z','')) : null;
+          const isOvd = dueDate && !closed && dueDate < today;
+          const links = [
+            r.estimate_time ? `<a href="${esc(r.estimate_time)}" target="_blank" style="display:inline-flex;align-items:center;gap:.25rem;font-size:.77rem;color:#2563eb;text-decoration:none;background:#eff6ff;padding:.2rem .55rem;border-radius:6px">🔗 Estimate</a>` : '',
+            r.spec_doc      ? `<a href="${esc(r.spec_doc)}" target="_blank" style="display:inline-flex;align-items:center;gap:.25rem;font-size:.77rem;color:#2563eb;text-decoration:none;background:#eff6ff;padding:.2rem .55rem;border-radius:6px">🔗 Spec</a>` : '',
+            r.azure_id      ? `<a href="${esc(r.azure_id)}" target="_blank" style="display:inline-flex;align-items:center;gap:.25rem;font-size:.77rem;color:#2563eb;text-decoration:none;background:#eff6ff;padding:.2rem .55rem;border-radius:6px">🔗 Azure</a>` : '',
+            r.user_manual   ? `<a href="${esc(r.user_manual)}" target="_blank" style="display:inline-flex;align-items:center;gap:.25rem;font-size:.77rem;color:#2563eb;text-decoration:none;background:#eff6ff;padding:.2rem .55rem;border-radius:6px">🔗 คู่มือ</a>` : '',
+            r.delivery_doc  ? `<a href="${esc(r.delivery_doc)}" target="_blank" style="display:inline-flex;align-items:center;gap:.25rem;font-size:.77rem;color:#2563eb;text-decoration:none;background:#eff6ff;padding:.2rem .55rem;border-radius:6px">🔗 เอกสารส่งมอบ</a>` : '',
+          ].filter(Boolean);
+          return `<div class="card" style="margin-bottom:.6rem;padding:0;overflow:hidden">
+            <div onclick="toggleReqDetail('rq-${i}',${i})" style="padding:.85rem 1rem;cursor:pointer;display:flex;align-items:flex-start;gap:.75rem">
+              <div style="font-size:.75rem;font-weight:800;color:#64748b;padding-top:.1rem;flex-shrink:0;min-width:70px">${esc(r.req_no||'')}</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:.88rem;font-weight:700;color:#1e293b">${esc(r.title||'')}</div>
+                <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.35rem">
+                  ${reqPriBadge(r.priority)}
+                  ${reqStatusBadge(r.work_status)}
+                  ${r.work_type?`<span style="background:#f1f5f9;color:#475569;padding:.15rem .5rem;border-radius:20px;font-size:.7rem;font-weight:700">${esc(r.work_type)}</span>`:''}
+                  ${isOvd?`<span style="background:#fee2e2;color:#b91c1c;padding:.15rem .5rem;border-radius:20px;font-size:.7rem;font-weight:700">⚠️ เกินกำหนด</span>`:''}
+                </div>
+              </div>
+              <span style="font-size:.72rem;color:#94a3b8;flex-shrink:0;padding-top:.15rem" id="rq-arr-${i}">▼</span>
+            </div>
+            <div id="rq-${i}" onclick="event.stopPropagation()" style="display:none;border-top:1px solid #f1f5f9;padding:.75rem 1rem .9rem">
+              <div style="font-size:.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.2rem">ความคืบหน้า</div>
+              ${reqProgressBar(reqAutoProgress(r.work_status))}
+              ${r.description?`<div style="font-size:.72rem;font-weight:700;color:#64748b;margin-top:.5rem;margin-bottom:.25rem;text-transform:uppercase;letter-spacing:.04em">รายละเอียด</div>
+              <div style="font-size:.82rem;color:#1e293b;white-space:pre-wrap;word-break:break-word">${esc(r.description)}</div>`:''}
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:.35rem;font-size:.78rem;color:#64748b;margin-top:.6rem">
+                ${r.reported_date?`<div>📅 วันที่แจ้ง: ${fmtD(r.reported_date)}</div>`:''}
+                ${r.contract_end?`<div${isOvd?' style="color:#b91c1c;font-weight:600"':''}>🗓 กำหนด: ${fmtD(r.contract_end)}${isOvd?' ⚠️':''}</div>`:''}
+                ${r.so_no?`<div>📄 SO: ${esc(r.so_no)}</div>`:''}
+                ${r.sales_person?`<div>👤 ฝ่ายขาย: ${esc(r.sales_person)}</div>`:''}
+                ${r.update_version?`<div>🏷 เวอร์ชั่น: ${esc(r.update_version)}</div>`:''}
+              </div>
+              ${links.length ? `<div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.6rem">${links.join('')}</div>` : ''}
+            </div>
+          </div>`;
+        }).join('')}`;
+  } catch(e){
+    wrap.innerHTML=`<div class="error-box">❌ ${esc(e.message)}</div>`;
+  }
+}
+
+function toggleReqDetail(id, idx){
+  const el = document.getElementById(id);
+  const arr = document.getElementById('rq-arr-'+idx);
+  if(!el) return;
+  const open = el.style.display==='none';
+  el.style.display = open ? '' : 'none';
+  if(arr) arr.textContent = open ? '▲' : '▼';
 }
 
 init();
