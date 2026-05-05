@@ -331,6 +331,21 @@ app.get('/api/shift-types', authRequired, async (_, res) => {
       UPDATE shift_types SET start_time='15:00',end_time='00:00',color_bg='#e2e8f0',color_text='#475569' WHERE shift_key='night';
       UPDATE shift_types SET color_bg='#fef2f2',color_text='#b91c1c' WHERE shift_key='dayoff';
     `);
+    // Insert new shift/leave types if not exists
+    await req().query(`
+      IF NOT EXISTS (SELECT 1 FROM shift_types WHERE shift_key='mid')
+        INSERT INTO shift_types (shift_key,name,start_time,end_time,color_bg,color_text,sort_order)
+        VALUES ('mid',N'กลางวัน','10:00','19:00','#e0f2fe','#0369a1',2);
+      IF NOT EXISTS (SELECT 1 FROM shift_types WHERE shift_key='leave_personal')
+        INSERT INTO shift_types (shift_key,name,start_time,end_time,color_bg,color_text,sort_order)
+        VALUES ('leave_personal',N'ลากิจ',NULL,NULL,'#fef9c3','#854d0e',5);
+      IF NOT EXISTS (SELECT 1 FROM shift_types WHERE shift_key='leave_sick')
+        INSERT INTO shift_types (shift_key,name,start_time,end_time,color_bg,color_text,sort_order)
+        VALUES ('leave_sick',N'ลาป่วย',NULL,NULL,'#fee2e2','#991b1b',6);
+      IF NOT EXISTS (SELECT 1 FROM shift_types WHERE shift_key='leave_annual')
+        INSERT INTO shift_types (shift_key,name,start_time,end_time,color_bg,color_text,sort_order)
+        VALUES ('leave_annual',N'ลาพักร้อน',NULL,NULL,'#f3e8ff','#6b21a8',7);
+    `);
     const rows = (await req().query('SELECT * FROM shift_types ORDER BY sort_order')).recordset;
     res.json(rows);
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -1214,8 +1229,8 @@ app.get('/api/duty/live', authRequired, managerRequired, async (request, res) =>
       JOIN employees e      ON e.id = s.employee_id
       JOIN shift_types st   ON st.shift_key = s.shift_type
       LEFT JOIN app_users au ON au.employee_id = e.id AND au.active = 1
-      WHERE CAST(s.date AS DATE) = CAST(GETDATE() AS DATE)
-        AND s.shift_type NOT IN ('dayoff','leave')
+      WHERE s.shift_date = CAST(GETDATE() AS DATE)
+        AND s.shift_type NOT IN ('dayoff','leave_personal','leave_sick','leave_annual')
         AND e.active = 1
       ORDER BY st.sort_order, e.name`);
 
