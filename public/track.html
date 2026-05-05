@@ -289,13 +289,6 @@ async function init(){
       <span class="date-range-label" id="date-label"></span>
     </div>
 
-    <!-- Stat cards -->
-    <div class="stat-grid" id="stat-grid">
-      <div class="stat-card"><div class="icon" style="background:#eff6ff">📋</div><div><div class="label">Case ทั้งหมด</div><div class="value" id="s-total" style="color:#2563eb">—</div></div></div>
-      <div class="stat-card"><div class="icon" style="background:#fef2f2">⏳</div><div><div class="label">ค้างอยู่ (OPEN)</div><div class="value" id="s-open" style="color:#dc2626">—</div></div></div>
-      <div class="stat-card"><div class="icon" style="background:#f0fdf4">✅</div><div><div class="label">แก้ไขแล้ว (CLOSE)</div><div class="value" id="s-close" style="color:#16a34a">—</div></div></div>
-    </div>
-
     <!-- Page tabs -->
     <div class="nav-tabs">
       <button class="nav-tab active" id="active-tab" data-tab="overview" onclick="switchTab('overview',this)">
@@ -331,15 +324,19 @@ function switchTab(tab, btn){
   else if(tab==='requirements') renderRequirements();
 }
 
-function renderStats(){
-  if(!_data) return;
+function renderStats(){ /* stats now rendered inside each tab */ }
+
+function caseStatsHtml(){
+  if(!_data) return '';
   const t = _data.tickets||[];
   const total = t.length;
   const open  = t.filter(x=>!isClosed(x.status)).length;
   const close = t.filter(x=>isClosed(x.status)).length;
-  document.getElementById('s-total').textContent = total.toLocaleString();
-  document.getElementById('s-open').textContent  = open.toLocaleString();
-  document.getElementById('s-close').textContent = close.toLocaleString();
+  return `<div class="stat-grid" style="margin-bottom:.85rem">
+    <div class="stat-card"><div class="icon" style="background:#eff6ff">📋</div><div><div class="label">Case ทั้งหมด</div><div class="value" style="color:#2563eb">${total.toLocaleString()}</div></div></div>
+    <div class="stat-card"><div class="icon" style="background:#fef2f2">⏳</div><div><div class="label">ค้างอยู่ (OPEN)</div><div class="value" style="color:#dc2626">${open.toLocaleString()}</div></div></div>
+    <div class="stat-card"><div class="icon" style="background:#f0fdf4">✅</div><div><div class="label">แก้ไขแล้ว (CLOSE)</div><div class="value" style="color:#16a34a">${close.toLocaleString()}</div></div></div>
+  </div>`;
 }
 
 // ── Overview Tab ─────────────────────────────────────────
@@ -365,6 +362,7 @@ function renderOverview(){
     </div>`).join('') || '<div style="color:#94a3b8;font-size:.82rem;padding:.5rem 0">ไม่มีข้อมูล</div>';
 
   document.getElementById('tab-content').innerHTML = `
+    ${caseStatsHtml()}
     ${isGrp ? `
     <div class="chart-grid">
       <div class="card">
@@ -544,6 +542,7 @@ function renderList(){
   const subjects = [...new Set((d.tickets||[]).map(t=>t.title).filter(Boolean))].sort();
 
   document.getElementById('tab-content').innerHTML = `
+    ${caseStatsHtml()}
     <!-- Filter bar -->
     <div class="filter-bar">
       ${isGrp ? `<select class="filter-select" id="l-branch" onchange="listFilter()">
@@ -748,65 +747,78 @@ async function renderRepair(){
       if (!r.ok) throw new Error(_repairs.error||'โหลดไม่สำเร็จ');
     }
     const jobs = _repairs;
-    const total    = jobs.length;
-    const active   = jobs.filter(j=>!['closed','cancelled','returned_to_customer'].includes(j.status)).length;
-    const done     = jobs.filter(j=>['closed','returned_to_customer'].includes(j.status)).length;
+    const total  = jobs.length;
+    const active = jobs.filter(j=>!['closed','cancelled','returned_to_customer'].includes(j.status)).length;
+    const done   = jobs.filter(j=>['closed','returned_to_customer'].includes(j.status)).length;
 
     wrap.innerHTML = `
-      <!-- Repair stats -->
       <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:.85rem">
         <div class="stat-card" style="flex:1;min-width:120px;padding:.7rem .9rem">
-          <div class="label">🔧 ทั้งหมด</div>
-          <div class="value" style="color:#2563eb;font-size:1.5rem">${total}</div>
+          <div class="label">🔧 ทั้งหมด</div><div class="value" style="color:#2563eb;font-size:1.5rem">${total}</div>
         </div>
         <div class="stat-card" style="flex:1;min-width:120px;padding:.7rem .9rem">
-          <div class="label">🔄 กำลังดำเนินการ</div>
-          <div class="value" style="color:#b45309;font-size:1.5rem">${active}</div>
+          <div class="label">🔄 กำลังดำเนินการ</div><div class="value" style="color:#b45309;font-size:1.5rem">${active}</div>
         </div>
         <div class="stat-card" style="flex:1;min-width:120px;padding:.7rem .9rem">
-          <div class="label">✅ เสร็จแล้ว</div>
-          <div class="value" style="color:#16a34a;font-size:1.5rem">${done}</div>
+          <div class="label">✅ เสร็จแล้ว</div><div class="value" style="color:#16a34a;font-size:1.5rem">${done}</div>
         </div>
       </div>
-
-      <!-- Repair list -->
-      ${jobs.length===0 ? '<div class="empty">ยังไม่มีงานซ่อม</div>' :
-        jobs.map(j=>`
-        <div class="card" style="margin-bottom:.6rem;padding:0;overflow:hidden">
-          <div onclick="toggleRepairDetail('rd-${j.id}')" style="padding:.85rem 1rem;cursor:pointer;display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem;flex-wrap:wrap">
-            <div>
-              <div style="font-size:.88rem;font-weight:700;color:#2563eb">${esc(j.job_no)}</div>
-              <div style="font-size:.78rem;color:#475569;margin-top:.15rem">
-                ${j.device_type?`📦 ${esc(j.device_type)}`:''}
-                ${j.device_model?` · ${esc(j.device_model)}`:''}
-                ${j.serial_no?` · <span style="font-family:monospace">S/N: ${esc(j.serial_no)}</span>`:''}
-              </div>
-              ${_data?.isGroup?`<div style="font-size:.73rem;color:#64748b;margin-top:.1rem">🏢 ${esc(j.company_name||'')}</div>`:''}
-            </div>
-            <div style="text-align:right">
-              ${repairBadge(j.status)}
-              <div style="font-size:.7rem;color:#94a3b8;margin-top:.2rem">${fmtDate(j.reported_at)}</div>
-            </div>
-          </div>
-          </div><!-- end header -->
-          <!-- Expandable detail — stop propagation to prevent collapse when clicking inside -->
-          <div id="rd-${j.id}" onclick="event.stopPropagation()" style="display:none;border-top:1px solid #f1f5f9;padding:.75rem 1rem .9rem">
-            ${renderRepairTimeline(j)}
-            ${j.public_token && !['returned_to_customer','closed','cancelled'].includes(j.status) ? `
-            <div style="margin-top:.65rem;background:#f8fafc;border-radius:8px;padding:.65rem .8rem">
-              <div style="font-size:.75rem;font-weight:700;color:#64748b;margin-bottom:.4rem">📩 ส่งข้อความถึงทีม CS</div>
-              <input class="msg-name" id="rn-${j.id}" placeholder="ชื่อของคุณ (ไม่บังคับ)" style="margin-bottom:.3rem"/>
-              <textarea class="msg-input" id="rm-${j.id}" rows="2" placeholder="พิมพ์ข้อความ..." style="min-height:55px;margin-bottom:.35rem"></textarea>
-              <button class="send-btn" onclick="sendRepairMsg('${j.public_token}',${j.id})">📤 ส่ง</button>
-            </div>` : j.public_token && ['returned_to_customer','closed','cancelled'].includes(j.status) ? `
-            <div style="text-align:center;color:#16a34a;font-size:.82rem;font-weight:600;margin-top:.5rem;background:#f0fdf4;border-radius:8px;padding:.5rem">
-              ✅ งานนี้เสร็จสิ้นแล้ว — ขอบคุณที่ใช้บริการครับ
-            </div>` : ''}
-          </div>
-        </div>`).join('')}`;
+      <div style="margin-bottom:.75rem">
+        <input id="rp-q" type="text" placeholder="🔍 ค้นหา Job No / ร้าน / ประเภทอุปกรณ์ / S/N..." oninput="rpSearch()"
+          style="width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:.52rem .85rem;font-size:.88rem;outline:none"
+          onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'"/>
+      </div>
+      <div id="rp-jobs-list">${repairJobsHtml(jobs)}</div>`;
   } catch(e){
     wrap.innerHTML=`<div class="error-box">❌ ${esc(e.message)}</div>`;
   }
+}
+
+function repairJobsHtml(jobs){
+  if(!jobs.length) return '<div class="empty">ยังไม่มีงานซ่อม</div>';
+  return jobs.map(j=>`
+    <div class="card" style="margin-bottom:.6rem;padding:0;overflow:hidden">
+      <div onclick="toggleRepairDetail('rd-${j.id}')" style="padding:.85rem 1rem;cursor:pointer;display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem;flex-wrap:wrap">
+        <div>
+          <div style="font-size:.88rem;font-weight:700;color:#2563eb">${esc(j.job_no)}</div>
+          <div style="font-size:.78rem;color:#475569;margin-top:.15rem">
+            ${j.device_type?`📦 ${esc(j.device_type)}`:''}
+            ${j.device_model?` · ${esc(j.device_model)}`:''}
+            ${j.serial_no?` · <span style="font-family:monospace">S/N: ${esc(j.serial_no)}</span>`:''}
+          </div>
+          ${_data?.isGroup?`<div style="font-size:.73rem;color:#64748b;margin-top:.1rem">🏢 ${esc(j.company_name||'')}</div>`:''}
+        </div>
+        <div style="text-align:right">
+          ${repairBadge(j.status)}
+          <div style="font-size:.7rem;color:#94a3b8;margin-top:.2rem">${fmtDate(j.reported_at)}</div>
+        </div>
+      </div>
+      <div id="rd-${j.id}" onclick="event.stopPropagation()" style="display:none;border-top:1px solid #f1f5f9;padding:.75rem 1rem .9rem">
+        ${renderRepairTimeline(j)}
+        ${j.public_token && !['returned_to_customer','closed','cancelled'].includes(j.status) ? `
+        <div style="margin-top:.65rem;background:#f8fafc;border-radius:8px;padding:.65rem .8rem">
+          <div style="font-size:.75rem;font-weight:700;color:#64748b;margin-bottom:.4rem">📩 ส่งข้อความถึงทีม CS</div>
+          <input class="msg-name" id="rn-${j.id}" placeholder="ชื่อของคุณ (ไม่บังคับ)" style="margin-bottom:.3rem"/>
+          <textarea class="msg-input" id="rm-${j.id}" rows="2" placeholder="พิมพ์ข้อความ..." style="min-height:55px;margin-bottom:.35rem"></textarea>
+          <button class="send-btn" onclick="sendRepairMsg('${j.public_token}',${j.id})">📤 ส่ง</button>
+        </div>` : j.public_token && ['returned_to_customer','closed','cancelled'].includes(j.status) ? `
+        <div style="text-align:center;color:#16a34a;font-size:.82rem;font-weight:600;margin-top:.5rem;background:#f0fdf4;border-radius:8px;padding:.5rem">
+          ✅ งานนี้เสร็จสิ้นแล้ว — ขอบคุณที่ใช้บริการครับ
+        </div>` : ''}
+      </div>
+    </div>`).join('');
+}
+
+function rpSearch(){
+  const q = (document.getElementById('rp-q')?.value||'').toLowerCase();
+  const filtered = (_repairs||[]).filter(j=>
+    !q || (j.job_no||'').toLowerCase().includes(q) ||
+    (j.company_name||'').toLowerCase().includes(q) ||
+    (j.device_type||'').toLowerCase().includes(q) ||
+    (j.serial_no||'').toLowerCase().includes(q)
+  );
+  const el = document.getElementById('rp-jobs-list');
+  if(el) el.innerHTML = repairJobsHtml(filtered);
 }
 
 function renderRepairTimeline(j){
@@ -884,8 +896,21 @@ async function renderRequirements(){
         <div class="stat-card"><div class="icon" style="background:#fee2e2">⚠️</div><div><div class="label">เกินกำหนด</div><div class="value" style="color:#dc2626">${overdue}</div></div></div>
       </div>
 
-      ${reqs.length===0 ? '<div class="empty">ยังไม่มี Requirements</div>' :
-        reqs.map((r,i) => {
+      <div style="margin-bottom:.75rem">
+        <input id="rq-q" type="text" placeholder="🔍 ค้นหาหัวข้อ / Req No / SO..." oninput="rqSearch()"
+          style="width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:.52rem .85rem;font-size:.88rem;outline:none"
+          onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'"/>
+      </div>
+      <div id="rq-items-list">${reqItemsHtml(reqs)}</div>`;
+  } catch(e){
+    wrap.innerHTML=`<div class="error-box">❌ ${esc(e.message)}</div>`;
+  }
+}
+
+function reqItemsHtml(reqs){
+  const today = new Date(); today.setHours(0,0,0,0);
+  if(!reqs.length) return '<div class="empty">ยังไม่มี Requirements</div>';
+  return reqs.map((r,i) => {
           const closed = r.work_status==='เสร็จสิ้น'||r.work_status==='ยกเลิก';
           const dueDate = r.contract_end ? new Date(String(r.contract_end).replace('Z','')) : null;
           const isOvd = dueDate && !closed && dueDate < today;
@@ -925,10 +950,20 @@ async function renderRequirements(){
               ${links.length ? `<div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.6rem">${links.join('')}</div>` : ''}
             </div>
           </div>`;
-        }).join('')}`;
-  } catch(e){
-    wrap.innerHTML=`<div class="error-box">❌ ${esc(e.message)}</div>`;
-  }
+        }).join('');
+}
+
+function rqSearch(){
+  const q = (document.getElementById('rq-q')?.value||'').toLowerCase();
+  const all = Array.isArray(_requirements) ? _requirements : (_requirements?.requirements||[]);
+  const filtered = all.filter(r=>
+    !q || (r.title||'').toLowerCase().includes(q) ||
+    (r.req_no||'').toLowerCase().includes(q) ||
+    (r.so_no||'').toLowerCase().includes(q) ||
+    (r.description||'').toLowerCase().includes(q)
+  );
+  const el = document.getElementById('rq-items-list');
+  if(el) el.innerHTML = reqItemsHtml(filtered);
 }
 
 function toggleReqDetail(id, idx){
