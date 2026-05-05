@@ -2077,7 +2077,7 @@ app.get('/api/public/repair-link-info/:token', async (request, res) => {
       const br = await extReq().input('gid', sql.Int, link.group_id)
         .query(`SELECT cr.CompanyName, cr.RegistrationId
                 FROM CustomerRegistration cr
-                WHERE cr.GroupId=@gid AND cr.Active=1
+                WHERE cr.GroupId=@gid
                 ORDER BY cr.CompanyName`);
       branches = br.recordset.map(r => ({ name: r.CompanyName, id: r.RegistrationId }));
     }
@@ -3256,7 +3256,7 @@ app.get('/api/customer-groups', authRequired, async (request, res) => {
       .query(`SELECT TOP 20 cg.GroupId AS group_id, cg.GroupName AS group_name,
                 COUNT(cr.RegistrationId) AS branch_count
               FROM CustomerGroup cg
-              LEFT JOIN CustomerRegistration cr ON cr.GroupId = cg.GroupId AND (cr.Active=1 OR cr.Active IS NULL)
+              LEFT JOIN CustomerRegistration cr ON cr.GroupId = cg.GroupId
               WHERE cg.GroupName LIKE @q AND cg.GroupId <> 1
               GROUP BY cg.GroupId, cg.GroupName
               ORDER BY cg.GroupName`);
