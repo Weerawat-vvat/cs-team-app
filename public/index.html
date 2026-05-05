@@ -1897,16 +1897,16 @@ textarea{resize:vertical;min-height:80px}
     <div style="background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:.85rem;margin-bottom:1rem">
       <div style="font-size:.8rem;font-weight:700;color:#334155;margin-bottom:.6rem">➕ สร้างลิงก์ใหม่</div>
       <div style="display:flex;gap:.5rem;margin-bottom:.5rem">
-        <select id="rl-type" style="width:130px;flex-shrink:0" onchange="rlTypeChange()">
-          <option value="company">ลูกค้ารายเดี่ยว</option>
-          <option value="group">กลุ่มลูกค้า</option>
+        <select id="rl-type" style="width:140px;flex-shrink:0" onchange="rlTypeChange()">
+          <option value="group">👥 กลุ่มลูกค้า</option>
+          <option value="company">🏪 ลูกค้ารายเดี่ยว</option>
         </select>
         <div style="flex:1;position:relative">
-          <input id="rl-search" type="text" placeholder="ค้นหาชื่อร้านค้า / กลุ่ม..." oninput="rlSearchDebounce()" autocomplete="off" style="width:100%"/>
+          <input id="rl-search" type="text" placeholder="ค้นหาชื่อกลุ่ม..." oninput="rlSearchDebounce()" autocomplete="off" style="width:100%"/>
           <div id="rl-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 12px #0002;z-index:999;max-height:200px;overflow-y:auto"></div>
         </div>
       </div>
-      <div id="rl-selected-box" style="display:none;background:#dbeafe;border-radius:6px;padding:.4rem .7rem;margin-bottom:.5rem;font-size:.82rem;display:flex;align-items:center;justify-content:space-between">
+      <div id="rl-selected-box" style="display:none;background:#dbeafe;border-radius:6px;padding:.4rem .7rem;margin-bottom:.5rem;font-size:.82rem;align-items:center;justify-content:space-between">
         <span id="rl-selected-label"></span>
         <button onclick="rlClearSelected()" style="background:none;border:none;cursor:pointer;color:#64748b;font-size:1rem;padding:0">×</button>
       </div>
@@ -4116,7 +4116,10 @@ async function openRepairLinkModal() {
 
 function rlTypeChange() {
   _rlSelected = null;
-  document.getElementById('rl-search').value = '';
+  const type = document.getElementById('rl-type').value;
+  const input = document.getElementById('rl-search');
+  input.value = '';
+  input.placeholder = type === 'group' ? 'ค้นหาชื่อกลุ่ม...' : 'ค้นหาชื่อร้านค้า / License...';
   document.getElementById('rl-dropdown').style.display = 'none';
   document.getElementById('rl-selected-box').style.display = 'none';
   document.getElementById('rl-create-btn').disabled = true;
