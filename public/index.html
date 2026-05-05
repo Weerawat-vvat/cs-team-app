@@ -1690,7 +1690,10 @@ textarea{resize:vertical;min-height:80px}
 <div id="page-repair" class="page">
   <div class="section-header" style="margin-bottom:.75rem">
     <div class="section-title">🔧 งานซ่อม</div>
-    <button class="btn btn-primary btn-sm" onclick="openRepairForm()">+ แจ้งซ่อมใหม่</button>
+    <div style="display:flex;gap:.5rem">
+      <button class="btn btn-ghost btn-sm" onclick="openRepairLinkModal()">🔗 ลิงก์แจ้งซ่อม</button>
+      <button class="btn btn-primary btn-sm" onclick="openRepairForm()">+ แจ้งซ่อมใหม่</button>
+    </div>
   </div>
 
   <!-- Stat Bar -->
@@ -1884,6 +1887,39 @@ textarea{resize:vertical;min-height:80px}
 </main>
 
 <!-- ══════════ REPAIR MODALS ══════════ -->
+
+<!-- Repair Link Management Modal -->
+<div class="overlay" id="modal-repair-link">
+  <div class="modal" style="max-width:600px;max-height:88vh;overflow-y:auto;padding:1.1rem 1.25rem">
+    <div class="modal-title" style="margin-bottom:.75rem">🔗 ลิงก์แจ้งซ่อมสำหรับลูกค้า <button class="modal-close" onclick="closeModal('modal-repair-link')">×</button></div>
+
+    <!-- สร้างลิงก์ใหม่ -->
+    <div style="background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:.85rem;margin-bottom:1rem">
+      <div style="font-size:.8rem;font-weight:700;color:#334155;margin-bottom:.6rem">➕ สร้างลิงก์ใหม่</div>
+      <div style="display:flex;gap:.5rem;margin-bottom:.5rem">
+        <select id="rl-type" style="width:130px;flex-shrink:0" onchange="rlTypeChange()">
+          <option value="company">ลูกค้ารายเดี่ยว</option>
+          <option value="group">กลุ่มลูกค้า</option>
+        </select>
+        <div style="flex:1;position:relative">
+          <input id="rl-search" type="text" placeholder="ค้นหาชื่อร้านค้า / กลุ่ม..." oninput="rlSearchDebounce()" autocomplete="off" style="width:100%"/>
+          <div id="rl-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 12px #0002;z-index:999;max-height:200px;overflow-y:auto"></div>
+        </div>
+      </div>
+      <div id="rl-selected-box" style="display:none;background:#dbeafe;border-radius:6px;padding:.4rem .7rem;margin-bottom:.5rem;font-size:.82rem;display:flex;align-items:center;justify-content:space-between">
+        <span id="rl-selected-label"></span>
+        <button onclick="rlClearSelected()" style="background:none;border:none;cursor:pointer;color:#64748b;font-size:1rem;padding:0">×</button>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="rlCreateLink()" id="rl-create-btn" disabled style="width:100%">🔗 สร้าง / คัดลอกลิงก์</button>
+    </div>
+
+    <!-- รายการลิงก์ที่มีอยู่ -->
+    <div style="font-size:.8rem;font-weight:700;color:#334155;margin-bottom:.5rem">📋 ลิงก์ทั้งหมด</div>
+    <div id="rl-list-wrap">
+      <div style="color:var(--muted);font-size:.82rem;text-align:center;padding:1rem">กำลังโหลด...</div>
+    </div>
+  </div>
+</div>
 
 <!-- Repair Form Modal -->
 <div class="overlay" id="modal-repair-form">
@@ -4061,6 +4097,145 @@ async function genCustomerLink(e, companyName, btn) {
     showToast('❌ ' + (err.message || 'ไม่สามารถสร้าง link ได้'), 'error');
   }
 }
+
+// ─── Repair Link Modal ───────────────────────────────────────────────────────
+let _rlSelected = null; // { type, company_name, group_name, group_id }
+let _rlSearchTimer = null;
+
+async function openRepairLinkModal() {
+  _rlSelected = null;
+  document.getElementById('rl-search').value = '';
+  document.getElementById('rl-dropdown').style.display = 'none';
+  document.getElementById('rl-selected-box').style.display = 'none';
+  document.getElementById('rl-create-btn').disabled = true;
+  document.getElementById('rl-type').value = 'company';
+  document.getElementById('rl-list-wrap').innerHTML = '<div style="color:var(--muted);font-size:.82rem;text-align:center;padding:1rem">กำลังโหลด...</div>';
+  openModal('modal-repair-link');
+  await rlLoadList();
+}
+
+function rlTypeChange() {
+  _rlSelected = null;
+  document.getElementById('rl-search').value = '';
+  document.getElementById('rl-dropdown').style.display = 'none';
+  document.getElementById('rl-selected-box').style.display = 'none';
+  document.getElementById('rl-create-btn').disabled = true;
+}
+
+function rlSearchDebounce() {
+  clearTimeout(_rlSearchTimer);
+  _rlSearchTimer = setTimeout(rlDoSearch, 320);
+}
+
+async function rlDoSearch() {
+  const type = document.getElementById('rl-type').value;
+  const q = document.getElementById('rl-search').value.trim();
+  const dd = document.getElementById('rl-dropdown');
+  if (!q) { dd.style.display = 'none'; return; }
+
+  let results = [];
+  if (type === 'group') {
+    const data = await api(`/api/customer-groups?search=${encodeURIComponent(q)}`, { silent: true }).catch(() => []);
+    results = (data || []).map(g => ({ label: g.group_name, sub: `กลุ่ม · ${g.branch_count || 0} สาขา`, value: { type: 'group', group_name: g.group_name, group_id: g.group_id, company_name: g.group_name } }));
+  } else {
+    const data = await api(`/api/requirements/search-customer?q=${encodeURIComponent(q)}`, { silent: true }).catch(() => []);
+    results = (data || []).map(c => ({ label: c.name || c.CompanyName, sub: `ID: ${c.id || c.RegistrationId || ''}`, value: { type: 'company', company_name: c.name || c.CompanyName } }));
+  }
+
+  if (!results.length) {
+    dd.innerHTML = '<div style="padding:.5rem .75rem;color:var(--muted);font-size:.82rem">ไม่พบข้อมูล</div>';
+  } else {
+    dd.innerHTML = results.map((r, i) => `
+      <div onclick="rlSelectItem(${i})" style="padding:.45rem .75rem;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:.82rem" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+        <div style="font-weight:600">${escHtml(r.label)}</div>
+        ${r.sub ? `<div style="font-size:.72rem;color:var(--muted)">${escHtml(r.sub)}</div>` : ''}
+      </div>`).join('');
+    dd._data = results;
+  }
+  dd.style.display = 'block';
+}
+
+function rlSelectItem(i) {
+  const dd = document.getElementById('rl-dropdown');
+  const item = dd._data?.[i];
+  if (!item) return;
+  _rlSelected = item.value;
+  document.getElementById('rl-search').value = '';
+  dd.style.display = 'none';
+  const box = document.getElementById('rl-selected-box');
+  const typeLabel = _rlSelected.type === 'group' ? '👥 กลุ่ม: ' : '🏪 ';
+  document.getElementById('rl-selected-label').textContent = typeLabel + (_rlSelected.group_name || _rlSelected.company_name);
+  box.style.display = 'flex';
+  document.getElementById('rl-create-btn').disabled = false;
+}
+
+function rlClearSelected() {
+  _rlSelected = null;
+  document.getElementById('rl-selected-box').style.display = 'none';
+  document.getElementById('rl-create-btn').disabled = true;
+}
+
+async function rlCreateLink() {
+  if (!_rlSelected) return;
+  const btn = document.getElementById('rl-create-btn');
+  btn.textContent = '⏳ กำลังสร้าง...';
+  btn.disabled = true;
+  try {
+    const body = _rlSelected.type === 'group'
+      ? { group_id: _rlSelected.group_id, group_name: _rlSelected.group_name }
+      : { company_name: _rlSelected.company_name };
+    const data = await api('/api/customer-links', { method: 'POST', silent: true, body });
+    if (!data || data.error) { showToast('❌ ' + (data?.error || 'เกิดข้อผิดพลาด'), 'error'); return; }
+    const link = `${location.origin}/repair-submit.html?token=${data.token}`;
+    try { await navigator.clipboard.writeText(link); showToast('✅ คัดลอกลิงก์แล้ว!'); }
+    catch { prompt('คัดลอกลิงก์นี้:', link); }
+    rlClearSelected();
+    await rlLoadList();
+  } finally {
+    btn.textContent = '🔗 สร้าง / คัดลอกลิงก์';
+    btn.disabled = !!_rlSelected === false;
+  }
+}
+
+async function rlLoadList() {
+  const wrap = document.getElementById('rl-list-wrap');
+  const links = await api('/api/customer-links', { silent: true }).catch(() => []);
+  if (!links || !links.length) {
+    wrap.innerHTML = '<div style="color:var(--muted);font-size:.82rem;text-align:center;padding:1rem">ยังไม่มีลิงก์</div>';
+    return;
+  }
+  wrap.innerHTML = links.map(lk => {
+    const url = `${location.origin}/repair-submit.html?token=${lk.token}`;
+    const badge = lk.link_type === 'group'
+      ? `<span style="background:#dbeafe;color:#1d4ed8;font-size:.68rem;padding:.1rem .4rem;border-radius:10px;font-weight:700">กลุ่ม</span>`
+      : `<span style="background:#dcfce7;color:#15803d;font-size:.68rem;padding:.1rem .4rem;border-radius:10px;font-weight:700">รายเดี่ยว</span>`;
+    const name = lk.group_name || lk.company_name || '—';
+    return `<div style="display:flex;align-items:center;gap:.5rem;padding:.45rem .5rem;border-bottom:1px solid #f1f5f9;font-size:.8rem">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:.35rem;flex-wrap:wrap">
+          ${badge}
+          <span style="font-weight:600;color:#1e293b">${escHtml(name)}</span>
+        </div>
+        <div style="color:var(--muted);font-size:.7rem;margin-top:.1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(url)}</div>
+      </div>
+      <button onclick="rlCopyLink('${escHtml(url)}')" style="background:none;border:1px solid var(--border);border-radius:5px;padding:.2rem .5rem;cursor:pointer;font-size:.75rem;color:#475569;white-space:nowrap" title="คัดลอกลิงก์">📋 Copy</button>
+      <button onclick="rlDeleteLink(${lk.id})" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:.85rem;padding:.2rem .35rem" title="ลบ">🗑</button>
+    </div>`;
+  }).join('');
+}
+
+async function rlCopyLink(url) {
+  try { await navigator.clipboard.writeText(url); showToast('✅ คัดลอกลิงก์แล้ว!'); }
+  catch { prompt('คัดลอกลิงก์นี้:', url); }
+}
+
+async function rlDeleteLink(id) {
+  if (!confirm('ลบลิงก์นี้? ลูกค้าจะใช้ลิงก์เดิมไม่ได้อีก')) return;
+  await api(`/api/customer-links/${id}`, { method: 'DELETE', silent: true });
+  showToast('🗑 ลบลิงก์แล้ว');
+  await rlLoadList();
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 function tkStatusBadge(status) {
   const s = (status || '').toLowerCase();

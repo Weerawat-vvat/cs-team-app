@@ -1644,7 +1644,26 @@ async function ensureCustomerLinksTable() {
 // Get or create public link for a company (auto-detect group)
 app.post('/api/customer-links', authRequired, async (request, res) => {
   try {
-    const { company_name } = request.body;
+    const { company_name, group_id, group_name } = request.body;
+
+    // Direct group link creation (admin selected group explicitly)
+    if (group_id) {
+      const existing = await req().input('gid', sql.Int, group_id)
+        .query('SELECT * FROM customer_links WHERE group_id=@gid');
+      if (existing.recordset.length) return res.json({ ...existing.recordset[0], link_type: 'group' });
+      const token = crypto.randomBytes(24).toString('hex');
+      const result = await req()
+        .input('cn',  sql.NVarChar, group_name || '')
+        .input('tok', sql.NVarChar, token)
+        .input('by',  sql.Int,      request.user.id || null)
+        .input('gid', sql.Int,      group_id)
+        .input('gn',  sql.NVarChar, group_name || '')
+        .query(`INSERT INTO customer_links (company_name, token, created_by, group_id, group_name, link_type)
+                OUTPUT INSERTED.*
+                VALUES (@cn, @tok, @by, @gid, @gn, 'group')`);
+      return res.json({ ...result.recordset[0], link_type: 'group' });
+    }
+
     if (!company_name) return res.status(400).json({ error: 'company_name required' });
 
     // Auto-detect: does this company have a real GroupId (not 1)?
@@ -2045,6 +2064,32 @@ app.get('/api/public/repair/:token', async (request, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// PUBLIC — get link info + branch list for repair submit form (no auth)
+app.get('/api/public/repair-link-info/:token', async (request, res) => {
+  try {
+    const link = (await req().input('tok', sql.NVarChar, request.params.token)
+      .query('SELECT * FROM customer_links WHERE token=@tok')).recordset[0];
+    if (!link) return res.status(404).json({ error: 'Link ไม่พบหรือถูกลบแล้ว' });
+
+    const isGroup = link.link_type === 'group' && link.group_id;
+    let branches = [];
+    if (isGroup && getExtPool()) {
+      const br = await extReq().input('gid', sql.Int, link.group_id)
+        .query(`SELECT cr.CompanyName, cr.RegistrationId
+                FROM CustomerRegistration cr
+                WHERE cr.GroupId=@gid AND cr.Active=1
+                ORDER BY cr.CompanyName`);
+      branches = br.recordset.map(r => ({ name: r.CompanyName, id: r.RegistrationId }));
+    }
+    res.json({
+      type:         isGroup ? 'group' : 'company',
+      company_name: link.company_name,
+      group_name:   link.group_name || link.company_name,
+      branches
+    });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // Get all repair jobs for a customer link token (no auth)
 app.get('/api/public/repairs-by-token/:token', async (request, res) => {
   try {
@@ -2088,6 +2133,92 @@ app.get('/api/public/repairs-by-token/:token', async (request, res) => {
 });
 
 // Customer message from tracking page (no auth)
+// PUBLIC — Customer submits new repair request (no auth, supports file upload)
+const publicUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const dir = path.join(UPLOAD_DIR, 'tmp');
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    },
+    filename: (req, file, cb) => {
+      const ext  = path.extname(file.originalname);
+      const base = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9ก-๙_-]/g, '_');
+      cb(null, `${Date.now()}_${base}${ext}`);
+    }
+  }),
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = /jpeg|jpg|png|gif|pdf/;
+    cb(null, allowed.test(path.extname(file.originalname).toLowerCase()));
+  }
+});
+
+app.post('/api/public/repair/submit', publicUpload.array('attachments', 5), async (request, res) => {
+  try {
+    const b = request.body;
+    if (!b.company_name?.trim()) return res.status(400).json({ error: 'กรุณาระบุชื่อร้าน/สาขา' });
+    if (!b.symptom?.trim())      return res.status(400).json({ error: 'กรุณาระบุอาการ' });
+    if (!b.contact_name?.trim()) return res.status(400).json({ error: 'กรุณาระบุชื่อผู้แจ้ง' });
+    if (!b.contact_phone?.trim())return res.status(400).json({ error: 'กรุณาระบุเบอร์ติดต่อ' });
+
+    const jobNo = await genJobNo();
+    const token = crypto.randomBytes(18).toString('hex');
+    const reportedAt = b.reported_date ? new Date(b.reported_date) : new Date();
+
+    const result = await req()
+      .input('jn',  sql.NVarChar, jobNo)
+      .input('cn',  sql.NVarChar, b.company_name.trim())
+      .input('dt',  sql.NVarChar, b.device_type    || null)
+      .input('dm',  sql.NVarChar, b.device_model   || null)
+      .input('sn',  sql.NVarChar, b.serial_no      || null)
+      .input('sy',  sql.NVarChar, b.symptom.trim())
+      .input('dl',  sql.NVarChar, b.device_location|| null)
+      .input('ct',  sql.NVarChar, b.contact_name.trim())
+      .input('cp',  sql.NVarChar, b.contact_phone.trim())
+      .input('ra',  sql.DateTime, reportedAt)
+      .input('pt',  sql.NVarChar, token)
+      .query(`INSERT INTO repair_jobs
+        (job_no,company_name,device_type,device_model,serial_no,symptom,
+         device_location,contact_name,contact_phone,reported_at,public_token,status)
+        OUTPUT INSERTED.id, INSERTED.job_no, INSERTED.public_token
+        VALUES (@jn,@cn,@dt,@dm,@sn,@sy,@dl,@ct,@cp,@ra,@pt,'received')`);
+
+    const newId    = result.recordset[0].id;
+    const newJob   = result.recordset[0].job_no;
+    const newToken = result.recordset[0].public_token;
+
+    // Move uploaded files from tmp → job folder and save to repair_attachments
+    if (request.files?.length) {
+      const jobDir = path.join(UPLOAD_DIR, String(newId));
+      if (!fs.existsSync(jobDir)) fs.mkdirSync(jobDir, { recursive: true });
+      for (const file of request.files) {
+        const newPath = path.join(jobDir, file.filename);
+        fs.renameSync(file.path, newPath);
+        const relPath = `/uploads/${newId}/${file.filename}`;
+        const ftype = /pdf/.test(path.extname(file.originalname).toLowerCase()) ? 'pdf' : 'image';
+        await req()
+          .input('rid',  sql.Int,      newId)
+          .input('ft',   sql.NVarChar, ftype)
+          .input('fn',   sql.NVarChar, file.originalname)
+          .input('fp',   sql.NVarChar, relPath)
+          .input('fs',   sql.Int,      file.size)
+          .query(`INSERT INTO repair_attachments (repair_id,file_type,file_name,file_path,file_size)
+                  VALUES (@rid,@ft,@fn,@fp,@fs)`);
+      }
+    }
+
+    await req().input('rid', sql.Int, newId)
+      .query(`INSERT INTO repair_timeline (repair_id,field_changed,new_value,note)
+              VALUES (@rid,'status','received','ลูกค้าแจ้งซ่อมผ่านระบบออนไลน์')`);
+
+    const fileNote = request.files?.length ? ` (แนบรูป ${request.files.length} ไฟล์)` : '';
+    await sendLineNotify(`\n🔧 [แจ้งซ่อมใหม่] ${b.company_name}\nJob: ${newJob}\nอุปกรณ์: ${b.device_type||'—'} ${b.device_model||''}\nS/N: ${b.serial_no||'—'}\nอาการ: ${b.symptom}\nผู้แจ้ง: ${b.contact_name} ${b.contact_phone}${fileNote}`);
+
+    res.json({ id: newId, job_no: newJob, token: newToken });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/public/repair/:token/message', async (request, res) => {
   try {
     const { token } = request.params;
@@ -3110,6 +3241,25 @@ app.get('/api/requirements/search-customer', authRequired, async (request, res) 
               FROM CustomerRegistration
               WHERE CompanyName LIKE @q
               ORDER BY CompanyName`);
+    res.json(result.recordset);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /api/customer-groups?search= ────────────────────
+app.get('/api/customer-groups', authRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.json([]);
+    const q = request.query.search || '';
+    if (q.length < 1) return res.json([]);
+    const result = await extReq()
+      .input('q', sql.NVarChar, `%${q}%`)
+      .query(`SELECT TOP 20 cg.GroupId AS group_id, cg.GroupName AS group_name,
+                COUNT(cr.RegistrationId) AS branch_count
+              FROM CustomerGroup cg
+              LEFT JOIN CustomerRegistration cr ON cr.GroupId = cg.GroupId AND (cr.Active=1 OR cr.Active IS NULL)
+              WHERE cg.GroupName LIKE @q AND cg.GroupId <> 1
+              GROUP BY cg.GroupId, cg.GroupName
+              ORDER BY cg.GroupName`);
     res.json(result.recordset);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

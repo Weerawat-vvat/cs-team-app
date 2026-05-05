@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>แจ้งซ่อมอุปกรณ์</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Tahoma,sans-serif;background:#f8fafc;color:#1e293b;min-height:100vh}
+
+.header{background:#1e40af;color:#fff;padding:1.5rem 1.5rem 1.25rem}
+.header-inner{max-width:640px;margin:0 auto}
+.header h1{font-size:1.3rem;font-weight:700;display:flex;align-items:center;gap:.5rem}
+.header-sub{font-size:.8rem;background:rgba(255,255,255,.15);border-radius:20px;padding:.2rem .75rem;margin-top:.4rem;display:inline-block}
+.header p{font-size:.83rem;opacity:.8;margin-top:.3rem;line-height:1.5}
+
+.container{max-width:640px;margin:0 auto;padding:1.25rem 1rem 3rem}
+
+.card{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:1rem;overflow:hidden}
+.card-head{background:#f1f5f9;padding:.65rem 1.1rem;font-size:.82rem;font-weight:700;color:#334155;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:.4rem}
+.card-body{padding:1.1rem}
+
+.form-group{margin-bottom:.9rem}
+.form-group:last-child{margin-bottom:0}
+label{display:block;font-size:.8rem;font-weight:600;color:#475569;margin-bottom:.28rem}
+.req{color:#ef4444}
+input[type=text],input[type=tel],input[type=date],select,textarea{
+  width:100%;border:1px solid #cbd5e1;border-radius:7px;padding:.52rem .75rem;
+  font-size:.88rem;font-family:inherit;color:#1e293b;background:#fff;outline:none;
+  transition:border .15s,box-shadow .15s}
+input:focus,select:focus,textarea:focus{border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.12)}
+input[readonly]{background:#f8fafc;color:#64748b;cursor:default}
+textarea{resize:vertical;min-height:90px;line-height:1.5}
+select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right .7rem center;padding-right:2rem}
+
+.locked-badge{background:#eff6ff;border:1px solid #bfdbfe;border-radius:7px;padding:.52rem .75rem;font-size:.88rem;color:#1e40af;font-weight:600;display:flex;align-items:center;gap:.4rem}
+.locked-badge .lock-icon{opacity:.6;font-size:.8rem}
+
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+@media(max-width:480px){.grid-2{grid-template-columns:1fr}}
+
+.err{color:#ef4444;font-size:.75rem;margin-top:.25rem;display:none}
+
+/* File upload */
+.upload-note{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:.75rem 1rem;font-size:.8rem;color:#92400e;line-height:1.6;margin-bottom:.9rem;display:flex;gap:.5rem}
+.upload-note .icon{font-size:1.1rem;flex-shrink:0;margin-top:.05rem}
+.drop-zone{border:2px dashed #cbd5e1;border-radius:8px;padding:1.5rem 1rem;text-align:center;cursor:pointer;transition:all .2s;background:#fafafa}
+.drop-zone:hover,.drop-zone.drag-over{border-color:#3b82f6;background:#eff6ff}
+.drop-zone input[type=file]{display:none}
+.drop-zone .dz-icon{font-size:2rem;margin-bottom:.4rem}
+.drop-zone .dz-label{font-size:.85rem;color:#334155;font-weight:600}
+.drop-zone .dz-sub{font-size:.75rem;color:#94a3b8;margin-top:.2rem}
+.preview-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:.5rem;margin-top:.75rem}
+.preview-item{position:relative;border-radius:6px;overflow:hidden;background:#f1f5f9;aspect-ratio:1}
+.preview-item img{width:100%;height:100%;object-fit:cover}
+.preview-item .remove-btn{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:.7rem;cursor:pointer;display:flex;align-items:center;justify-content:center}
+
+.btn-submit{width:100%;background:#1e40af;color:#fff;border:none;border-radius:8px;padding:.85rem;font-size:1rem;font-weight:700;cursor:pointer;transition:background .15s;margin-top:.5rem}
+.btn-submit:hover{background:#1d4ed8}
+.btn-submit:disabled{background:#93c5fd;cursor:not-allowed}
+
+.submit-err{background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.7rem 1rem;font-size:.82rem;color:#dc2626;margin-bottom:.75rem;display:none}
+.loading{text-align:center;padding:.5rem;color:#64748b;font-size:.85rem;display:none}
+.progress-wrap{background:#e2e8f0;border-radius:4px;height:6px;margin:.5rem 0;overflow:hidden;display:none}
+.progress-bar{height:100%;background:#3b82f6;border-radius:4px;transition:width .3s;width:0%}
+
+#success-box{display:none}
+.success-card{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);padding:2.5rem 1.5rem;text-align:center}
+.success-icon{font-size:3.5rem;margin-bottom:.75rem}
+.success-card h2{color:#166534;font-size:1.2rem;font-weight:700;margin-bottom:.4rem}
+.job-badge{display:inline-block;background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:.5rem 1.5rem;margin:.75rem 0}
+.job-no{font-size:1.8rem;font-weight:800;color:#15803d;letter-spacing:2px}
+.job-label{font-size:.75rem;color:#16a34a;margin-bottom:.1rem}
+.success-card p{color:#475569;font-size:.85rem;line-height:1.6;margin-bottom:1.25rem}
+.btn-track{display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:.65rem 1.75rem;border-radius:8px;font-weight:700;font-size:.9rem;margin-bottom:.75rem}
+.btn-again{display:block;color:#64748b;font-size:.82rem;margin-top:.5rem;cursor:pointer;background:none;border:none;font-family:inherit}
+.btn-again:hover{color:#1e40af}
+
+.required-note{font-size:.75rem;color:#94a3b8;margin-bottom:.75rem}
+.loading-screen{text-align:center;padding:3rem 1rem;color:#64748b}
+.error-screen{text-align:center;padding:3rem 1rem;color:#dc2626;background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <h1>🔧 แบบฟอร์มแจ้งซ่อมอุปกรณ์</h1>
+    <div id="header-org" style="display:none" class="header-sub"></div>
+    <p>กรุณากรอกข้อมูลให้ครบถ้วน เพื่อให้ทีมงานดำเนินการได้รวดเร็วยิ่งขึ้น</p>
+  </div>
+</div>
+
+<div class="container">
+
+  <div id="loading-screen" class="loading-screen">⏳ กำลังโหลด...</div>
+  <div id="error-screen"   class="error-screen"   style="display:none"></div>
+
+  <!-- Success -->
+  <div id="success-box" style="display:none">
+    <div class="success-card">
+      <div class="success-icon">✅</div>
+      <h2>ส่งแบบฟอร์มสำเร็จ!</h2>
+      <div class="job-badge">
+        <div class="job-label">หมายเลขงานซ่อมของคุณ</div>
+        <div class="job-no" id="result-job-no">—</div>
+      </div>
+      <p>ทีมงานได้รับข้อมูลของคุณแล้ว<br>จะติดต่อกลับภายใน 1 วันทำการ<br>คุณสามารถติดตามสถานะได้ที่ลิงก์ด้านล่าง</p>
+      <a id="result-track-link" href="#" class="btn-track" target="_blank">📋 ติดตามสถานะงานซ่อม</a>
+      <button class="btn-again" onclick="resetForm()">+ แจ้งซ่อมรายการใหม่</button>
+    </div>
+  </div>
+
+  <!-- Form -->
+  <div id="form-box" style="display:none">
+    <p class="required-note">ช่องที่มี <span style="color:#ef4444">*</span> จำเป็นต้องกรอก</p>
+
+    <!-- ข้อมูลร้านค้า -->
+    <div class="card">
+      <div class="card-head">🏪 ข้อมูลร้านค้า</div>
+      <div class="card-body">
+        <div class="form-group">
+          <label>ชื่อร้าน / สาขา <span class="req">*</span></label>
+          <!-- Free text (no token) -->
+          <input id="f-company-text" type="text" placeholder="เช่น ร้านอาหาร ABC สาขา Central World" style="display:none"/>
+          <!-- Locked (single company token) -->
+          <div id="f-company-locked" class="locked-badge" style="display:none">
+            <span class="lock-icon">🔒</span>
+            <span id="f-company-locked-name"></span>
+          </div>
+          <!-- Dropdown (group token) -->
+          <select id="f-company-select" style="display:none">
+            <option value="">— เลือกสาขา —</option>
+          </select>
+          <div class="err" id="err-company">กรุณาระบุชื่อร้าน/สาขา</div>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>ผู้แจ้ง <span class="req">*</span></label>
+            <input id="f-contact-name" type="text" placeholder="ชื่อ-นามสกุล"/>
+            <div class="err" id="err-contact">กรุณาระบุชื่อผู้แจ้ง</div>
+          </div>
+          <div class="form-group">
+            <label>เบอร์ติดต่อ <span class="req">*</span></label>
+            <input id="f-contact-phone" type="tel" placeholder="08X-XXXXXXX"/>
+            <div class="err" id="err-phone">กรุณาระบุเบอร์ติดต่อ</div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>วันที่แจ้งซ่อม <span class="req">*</span></label>
+          <input id="f-reported-date" type="date"/>
+        </div>
+      </div>
+    </div>
+
+    <!-- ข้อมูลอุปกรณ์ -->
+    <div class="card">
+      <div class="card-head">🖥️ ข้อมูลอุปกรณ์</div>
+      <div class="card-body">
+        <div class="grid-2">
+          <div class="form-group">
+            <label>ประเภทอุปกรณ์</label>
+            <select id="f-device-type">
+              <option value="">— เลือก —</option>
+              <option>เครื่องแคชเชียร์</option>
+              <option>เครื่องออเดอร์</option>
+              <option>เครื่องปริ้นเตอร์</option>
+              <option>เครื่อง POS</option>
+              <option>ลิ้นชักเก็บเงิน</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>ชื่อรุ่น</label>
+            <input id="f-device-model" type="text" placeholder="เช่น Epson TM-T82X"/>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Serial Number (S/N)</label>
+            <input id="f-serial-no" type="text" placeholder="S/N ของเครื่อง"/>
+          </div>
+          <div class="form-group">
+            <label>จุดวางเครื่อง</label>
+            <input id="f-device-location" type="text" placeholder="เช่น เคาน์เตอร์หน้า"/>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- รายละเอียดปัญหา -->
+    <div class="card">
+      <div class="card-head">📋 รายละเอียดปัญหา</div>
+      <div class="card-body">
+        <div class="form-group">
+          <label>อาการที่พบ <span class="req">*</span></label>
+          <textarea id="f-symptom" rows="4" placeholder="อธิบายอาการที่พบ เช่น เครื่องพิมพ์ไม่ทำงาน กระดาษติด เปิดไม่ติด..."></textarea>
+          <div class="err" id="err-symptom">กรุณาระบุอาการที่พบ</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- แนบรูปภาพ -->
+    <div class="card">
+      <div class="card-head">📷 แนบรูปภาพ</div>
+      <div class="card-body">
+        <div class="upload-note">
+          <span class="icon">💡</span>
+          <span>รบกวนถ่ายรูป <strong>Serial Number</strong> ให้ชัดเจนค่ะ เพื่อให้ทีมงานสามารถตรวจสอบการรับประกันและวินิจฉัยปัญหาได้อย่างถูกต้อง กรุณาถ่ายในที่แสงสว่างเพียงพอและให้เห็นตัวเลขชัดเจน ขอบคุณค่ะ</span>
+        </div>
+        <div class="drop-zone" id="drop-zone" onclick="document.getElementById('f-files').click()"
+             ondragover="event.preventDefault();this.classList.add('drag-over')"
+             ondragleave="this.classList.remove('drag-over')"
+             ondrop="handleDrop(event)">
+          <input type="file" id="f-files" accept="image/*,application/pdf" multiple onchange="handleFiles(this.files)"/>
+          <div class="dz-icon">📎</div>
+          <div class="dz-label">แตะหรือลากไฟล์มาวางที่นี่</div>
+          <div class="dz-sub">รองรับ JPG, PNG, PDF (สูงสุด 5 ไฟล์, ไม่เกิน 20 MB/ไฟล์)</div>
+        </div>
+        <div class="preview-grid" id="preview-grid"></div>
+      </div>
+    </div>
+
+    <div class="submit-err" id="submit-err"></div>
+    <div class="progress-wrap" id="progress-wrap"><div class="progress-bar" id="progress-bar"></div></div>
+    <div class="loading" id="loading">⏳ กำลังส่งข้อมูล...</div>
+    <button class="btn-submit" id="btn-submit" onclick="submitForm()">📤 ส่งแบบฟอร์มแจ้งซ่อม</button>
+  </div>
+
+</div>
+
+<script>
+let selectedFiles = [];
+let _linkToken  = null;
+let _linkType   = 'free';  // 'free' | 'company' | 'group'
+let _companyName = '';     // locked company name (single link)
+
+// ── Init ─────────────────────────────────────────────────
+async function init() {
+  document.getElementById('f-reported-date').value = new Date().toISOString().split('T')[0];
+  const params = new URLSearchParams(location.search);
+  _linkToken   = params.get('token') || params.get('t') || null;
+
+  if (_linkToken) {
+    try {
+      const info = await fetch(`/api/public/repair-link-info/${_linkToken}`).then(r => r.json());
+      if (info.error) throw new Error(info.error);
+
+      _linkType = info.type;
+
+      // Show org badge in header
+      const orgEl = document.getElementById('header-org');
+      orgEl.textContent = info.type === 'group' ? `🏢 ${info.group_name}` : `🏪 ${info.company_name}`;
+      orgEl.style.display = '';
+
+      if (info.type === 'company') {
+        // Single company — lock the field
+        _companyName = info.company_name;
+        document.getElementById('f-company-locked-name').textContent = info.company_name;
+        document.getElementById('f-company-locked').style.display = '';
+      } else {
+        // Group — show dropdown of branches
+        const sel = document.getElementById('f-company-select');
+        info.branches.forEach(b => {
+          const opt = document.createElement('option');
+          opt.value = b.name;
+          opt.textContent = b.name;
+          sel.appendChild(opt);
+        });
+        sel.style.display = '';
+      }
+    } catch(e) {
+      document.getElementById('loading-screen').style.display = 'none';
+      document.getElementById('error-screen').style.display = '';
+      document.getElementById('error-screen').innerHTML =
+        `<div style="font-size:2rem;margin-bottom:.75rem">⚠️</div><b>ลิงก์ไม่ถูกต้องหรือหมดอายุแล้ว</b><br><span style="font-size:.82rem;color:#94a3b8">${e.message}</span>`;
+      return;
+    }
+  } else {
+    // No token — free-text input
+    document.getElementById('f-company-text').style.display = '';
+  }
+
+  document.getElementById('loading-screen').style.display = 'none';
+  document.getElementById('form-box').style.display = '';
+}
+
+function getCompanyValue() {
+  if (_linkType === 'company') return _companyName;
+  if (_linkType === 'group')   return document.getElementById('f-company-select').value;
+  return document.getElementById('f-company-text').value;
+}
+
+// ── File upload ────────────────────────────────────────────
+function handleFiles(fileList) {
+  Array.from(fileList).forEach(f => {
+    if (selectedFiles.length >= 5) return;
+    if (f.size > 20 * 1024 * 1024) { alert(`ไฟล์ ${f.name} ใหญ่เกิน 20 MB`); return; }
+    selectedFiles.push(f);
+  });
+  selectedFiles = selectedFiles.slice(0, 5);
+  renderPreviews();
+}
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.remove('drag-over');
+  handleFiles(e.dataTransfer.files);
+}
+function renderPreviews() {
+  const grid = document.getElementById('preview-grid');
+  grid.innerHTML = selectedFiles.map((f, i) => {
+    const url   = URL.createObjectURL(f);
+    const isImg = f.type.startsWith('image/');
+    return `<div class="preview-item">
+      ${isImg ? `<img src="${url}" alt="${f.name}"/>` : `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:2rem">📄</div>`}
+      <button class="remove-btn" onclick="removeFile(${i})">✕</button>
+    </div>`;
+  }).join('');
+}
+function removeFile(i) { selectedFiles.splice(i, 1); renderPreviews(); }
+
+// ── Validate ──────────────────────────────────────────────
+function validate() {
+  let ok = true;
+  // Company
+  const company = getCompanyValue();
+  const errCo = document.getElementById('err-company');
+  if (!company.trim()) { errCo.style.display = ''; ok = false; } else errCo.style.display = 'none';
+  // Other fields
+  [['f-contact-name','err-contact'],['f-contact-phone','err-phone'],['f-symptom','err-symptom']].forEach(([fid,eid]) => {
+    const el = document.getElementById(fid);
+    const err = document.getElementById(eid);
+    if (!el.value.trim()) { err.style.display = ''; if(ok) el.focus(); ok = false; } else err.style.display = 'none';
+  });
+  return ok;
+}
+
+// ── Submit ────────────────────────────────────────────────
+async function submitForm() {
+  if (!validate()) return;
+  const btn      = document.getElementById('btn-submit');
+  const loading  = document.getElementById('loading');
+  const errBox   = document.getElementById('submit-err');
+  const progWrap = document.getElementById('progress-wrap');
+  const progBar  = document.getElementById('progress-bar');
+  btn.disabled = true; loading.style.display = ''; errBox.style.display = 'none';
+
+  const fd = new FormData();
+  fd.append('company_name',    getCompanyValue().trim());
+  fd.append('reported_date',   document.getElementById('f-reported-date').value);
+  fd.append('device_type',     document.getElementById('f-device-type').value);
+  fd.append('device_model',    document.getElementById('f-device-model').value.trim());
+  fd.append('serial_no',       document.getElementById('f-serial-no').value.trim());
+  fd.append('symptom',         document.getElementById('f-symptom').value.trim());
+  fd.append('device_location', document.getElementById('f-device-location').value.trim());
+  fd.append('contact_name',    document.getElementById('f-contact-name').value.trim());
+  fd.append('contact_phone',   document.getElementById('f-contact-phone').value.trim());
+  if (_linkToken) fd.append('link_token', _linkToken);
+  selectedFiles.forEach(f => fd.append('attachments', f));
+
+  try {
+    const data = await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/public/repair/submit');
+      xhr.upload.onprogress = e => {
+        if (e.lengthComputable) { progWrap.style.display=''; progBar.style.width=Math.round(e.loaded/e.total*100)+'%'; }
+      };
+      xhr.onload = () => { const d = JSON.parse(xhr.responseText); (xhr.status>=200&&xhr.status<300&&!d.error) ? resolve(d) : reject(new Error(d.error||'เกิดข้อผิดพลาด')); };
+      xhr.onerror = () => reject(new Error('ไม่สามารถเชื่อมต่อได้'));
+      xhr.send(fd);
+    });
+    document.getElementById('result-job-no').textContent = data.job_no;
+    document.getElementById('result-track-link').href = `${location.origin}/repair-track.html?token=${data.token}`;
+    document.getElementById('form-box').style.display    = 'none';
+    document.getElementById('success-box').style.display = '';
+    window.scrollTo(0, 0);
+  } catch(e) {
+    errBox.textContent = '❌ ' + e.message; errBox.style.display = '';
+    btn.disabled = false;
+  }
+  loading.style.display = 'none'; progWrap.style.display = 'none';
+}
+
+function resetForm() {
+  selectedFiles = []; renderPreviews();
+  ['f-company-text','f-contact-name','f-contact-phone','f-device-model','f-serial-no','f-symptom','f-device-location'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  document.getElementById('f-device-type').value = '';
+  if (document.getElementById('f-company-select')) document.getElementById('f-company-select').value = '';
+  document.getElementById('f-reported-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('btn-submit').disabled = false;
+  document.getElementById('success-box').style.display = 'none';
+  document.getElementById('form-box').style.display    = '';
+  window.scrollTo(0, 0);
+}
+
+init();
+</script>
+</body>
+</html>
