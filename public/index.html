@@ -4175,13 +4175,12 @@ async function rlCreateLink() {
 async function rlLoadList() {
   const wrap = document.getElementById('rl-list-wrap');
   const links = await api('/api/customer-links', { silent: true }).catch(() => []);
-  if (!links || !links.length) {
-    wrap.innerHTML = '<div style="color:var(--muted);font-size:.82rem;text-align:center;padding:1rem">ยังไม่มีลิงก์</div>';
+  const groups = (links || []).filter(lk => lk.link_type === 'group');
+
+  if (!groups.length) {
+    wrap.innerHTML = '<div style="color:var(--muted);font-size:.82rem;text-align:center;padding:1rem">ยังไม่มีลิงก์กลุ่มลูกค้า</div>';
     return;
   }
-
-  const groups   = links.filter(lk => lk.link_type === 'group');
-  const singles  = links.filter(lk => lk.link_type !== 'group');
 
   function rlRow(lk) {
     const url  = `${location.origin}/repair-submit.html?token=${lk.token}`;
@@ -4196,17 +4195,12 @@ async function rlLoadList() {
     </div>`;
   }
 
-  function rlSection(title, color, bgColor, items) {
-    if (!items.length) return '';
-    return `
-      <div style="font-size:.75rem;font-weight:700;color:${color};background:${bgColor};padding:.3rem .6rem;border-radius:6px;margin-bottom:.25rem;margin-top:.5rem">${title} (${items.length})</div>
-      <div style="border:1px solid #e2e8f0;border-radius:6px;overflow:hidden;margin-bottom:.5rem">
-        ${items.map(rlRow).join('')}
-      </div>`;
-  }
+  wrap.innerHTML = `
+    <div style="font-size:.75rem;font-weight:700;color:#1d4ed8;background:#dbeafe;padding:.3rem .6rem;border-radius:6px;margin-bottom:.25rem">👥 กลุ่มลูกค้า (${groups.length})</div>
+    <div style="border:1px solid #e2e8f0;border-radius:6px;overflow:hidden">
+      ${groups.map(rlRow).join('')}
+    </div>`;
 
-  wrap.innerHTML =
-    rlSection('👥 กลุ่มลูกค้า', '#1d4ed8', '#dbeafe', groups) +
     rlSection('🏪 ลูกค้ารายเดี่ยว', '#15803d', '#dcfce7', singles);
 }
 
