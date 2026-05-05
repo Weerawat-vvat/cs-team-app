@@ -4207,24 +4207,35 @@ async function rlLoadList() {
     wrap.innerHTML = '<div style="color:var(--muted);font-size:.82rem;text-align:center;padding:1rem">ยังไม่มีลิงก์</div>';
     return;
   }
-  wrap.innerHTML = links.map(lk => {
-    const url = `${location.origin}/repair-submit.html?token=${lk.token}`;
-    const badge = lk.link_type === 'group'
-      ? `<span style="background:#dbeafe;color:#1d4ed8;font-size:.68rem;padding:.1rem .4rem;border-radius:10px;font-weight:700">กลุ่ม</span>`
-      : `<span style="background:#dcfce7;color:#15803d;font-size:.68rem;padding:.1rem .4rem;border-radius:10px;font-weight:700">รายเดี่ยว</span>`;
+
+  const groups   = links.filter(lk => lk.link_type === 'group');
+  const singles  = links.filter(lk => lk.link_type !== 'group');
+
+  function rlRow(lk) {
+    const url  = `${location.origin}/repair-submit.html?token=${lk.token}`;
     const name = lk.group_name || lk.company_name || '—';
     return `<div style="display:flex;align-items:center;gap:.5rem;padding:.45rem .5rem;border-bottom:1px solid #f1f5f9;font-size:.8rem">
       <div style="flex:1;min-width:0">
-        <div style="display:flex;align-items:center;gap:.35rem;flex-wrap:wrap">
-          ${badge}
-          <span style="font-weight:600;color:#1e293b">${escHtml(name)}</span>
-        </div>
+        <div style="font-weight:600;color:#1e293b">${escHtml(name)}</div>
         <div style="color:var(--muted);font-size:.7rem;margin-top:.1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(url)}</div>
       </div>
-      <button onclick="rlCopyLink('${escHtml(url)}')" style="background:none;border:1px solid var(--border);border-radius:5px;padding:.2rem .5rem;cursor:pointer;font-size:.75rem;color:#475569;white-space:nowrap" title="คัดลอกลิงก์">📋 Copy</button>
+      <button onclick="rlCopyLink('${escHtml(url)}')" style="background:none;border:1px solid var(--border);border-radius:5px;padding:.2rem .5rem;cursor:pointer;font-size:.75rem;color:#475569;white-space:nowrap">📋 Copy</button>
       <button onclick="rlDeleteLink(${lk.id})" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:.85rem;padding:.2rem .35rem" title="ลบ">🗑</button>
     </div>`;
-  }).join('');
+  }
+
+  function rlSection(title, color, bgColor, items) {
+    if (!items.length) return '';
+    return `
+      <div style="font-size:.75rem;font-weight:700;color:${color};background:${bgColor};padding:.3rem .6rem;border-radius:6px;margin-bottom:.25rem;margin-top:.5rem">${title} (${items.length})</div>
+      <div style="border:1px solid #e2e8f0;border-radius:6px;overflow:hidden;margin-bottom:.5rem">
+        ${items.map(rlRow).join('')}
+      </div>`;
+  }
+
+  wrap.innerHTML =
+    rlSection('👥 กลุ่มลูกค้า', '#1d4ed8', '#dbeafe', groups) +
+    rlSection('🏪 ลูกค้ารายเดี่ยว', '#15803d', '#dcfce7', singles);
 }
 
 async function rlCopyLink(url) {
