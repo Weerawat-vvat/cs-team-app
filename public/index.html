@@ -1895,20 +1895,14 @@ textarea{resize:vertical;min-height:80px}
 
     <!-- สร้างลิงก์ใหม่ -->
     <div style="background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:.85rem;margin-bottom:1rem">
-      <div style="font-size:.8rem;font-weight:700;color:#334155;margin-bottom:.6rem">➕ สร้างลิงก์ใหม่</div>
-      <div style="display:flex;gap:.5rem;margin-bottom:.5rem">
-        <select id="rl-type" style="width:140px;flex-shrink:0" onchange="rlTypeChange()">
-          <option value="group">👥 กลุ่มลูกค้า</option>
-          <option value="company">🏪 ลูกค้ารายเดี่ยว</option>
-        </select>
-        <div style="flex:1;position:relative">
-          <input id="rl-search" type="text" placeholder="ค้นหาชื่อกลุ่ม..." oninput="rlSearchDebounce()" autocomplete="off" style="width:100%"/>
-          <div id="rl-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 12px #0002;z-index:999;max-height:200px;overflow-y:auto"></div>
-        </div>
+      <div style="font-size:.8rem;font-weight:700;color:#334155;margin-bottom:.6rem">➕ สร้างลิงก์ใหม่ (กลุ่มลูกค้า)</div>
+      <div style="position:relative;margin-bottom:.5rem">
+        <input id="rl-search" type="text" placeholder="🔍 ค้นหาชื่อกลุ่ม / GroupCode..." oninput="rlSearchDebounce()" autocomplete="off" style="width:100%"/>
+        <div id="rl-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 12px #0002;z-index:999;max-height:220px;overflow-y:auto"></div>
       </div>
-      <div id="rl-selected-box" style="display:none;background:#dbeafe;border-radius:6px;padding:.4rem .7rem;margin-bottom:.5rem;font-size:.82rem;align-items:center;justify-content:space-between">
-        <span id="rl-selected-label"></span>
-        <button onclick="rlClearSelected()" style="background:none;border:none;cursor:pointer;color:#64748b;font-size:1rem;padding:0">×</button>
+      <div id="rl-selected-box" style="display:none;background:#dbeafe;border-radius:6px;padding:.45rem .75rem;margin-bottom:.5rem;font-size:.82rem;align-items:center;justify-content:space-between">
+        <span id="rl-selected-label" style="font-weight:600"></span>
+        <button onclick="rlClearSelected()" style="background:none;border:none;cursor:pointer;color:#64748b;font-size:1.1rem;padding:0;line-height:1">×</button>
       </div>
       <button class="btn btn-primary btn-sm" onclick="rlCreateLink()" id="rl-create-btn" disabled style="width:100%">🔗 สร้าง / คัดลอกลิงก์</button>
     </div>
@@ -4099,7 +4093,7 @@ async function genCustomerLink(e, companyName, btn) {
 }
 
 // ─── Repair Link Modal ───────────────────────────────────────────────────────
-let _rlSelected = null; // { type, company_name, group_name, group_id }
+let _rlSelected = null; // { group_id, group_name, group_code }
 let _rlSearchTimer = null;
 
 async function openRepairLinkModal() {
@@ -4108,21 +4102,9 @@ async function openRepairLinkModal() {
   document.getElementById('rl-dropdown').style.display = 'none';
   document.getElementById('rl-selected-box').style.display = 'none';
   document.getElementById('rl-create-btn').disabled = true;
-  document.getElementById('rl-type').value = 'company';
   document.getElementById('rl-list-wrap').innerHTML = '<div style="color:var(--muted);font-size:.82rem;text-align:center;padding:1rem">กำลังโหลด...</div>';
   openModal('modal-repair-link');
   await rlLoadList();
-}
-
-function rlTypeChange() {
-  _rlSelected = null;
-  const type = document.getElementById('rl-type').value;
-  const input = document.getElementById('rl-search');
-  input.value = '';
-  input.placeholder = type === 'group' ? 'ค้นหาชื่อกลุ่ม...' : 'ค้นหาชื่อร้านค้า / License...';
-  document.getElementById('rl-dropdown').style.display = 'none';
-  document.getElementById('rl-selected-box').style.display = 'none';
-  document.getElementById('rl-create-btn').disabled = true;
 }
 
 function rlSearchDebounce() {
@@ -4131,27 +4113,20 @@ function rlSearchDebounce() {
 }
 
 async function rlDoSearch() {
-  const type = document.getElementById('rl-type').value;
   const q = document.getElementById('rl-search').value.trim();
   const dd = document.getElementById('rl-dropdown');
   if (!q) { dd.style.display = 'none'; return; }
 
-  let results = [];
-  if (type === 'group') {
-    const data = await api(`/api/customer-groups?search=${encodeURIComponent(q)}`, { silent: true }).catch(() => []);
-    results = (data || []).map(g => ({ label: g.group_name, sub: `กลุ่ม · ${g.branch_count || 0} สาขา`, value: { type: 'group', group_name: g.group_name, group_id: g.group_id, company_name: g.group_name } }));
-  } else {
-    const data = await api(`/api/requirements/search-customer?q=${encodeURIComponent(q)}`, { silent: true }).catch(() => []);
-    results = (data || []).map(c => ({ label: c.name || c.CompanyName, sub: `ID: ${c.id || c.RegistrationId || ''}`, value: { type: 'company', company_name: c.name || c.CompanyName } }));
-  }
+  const data = await api(`/api/customer-groups?search=${encodeURIComponent(q)}`, { silent: true }).catch(() => []);
+  const results = data || [];
 
   if (!results.length) {
-    dd.innerHTML = '<div style="padding:.5rem .75rem;color:var(--muted);font-size:.82rem">ไม่พบข้อมูล</div>';
+    dd.innerHTML = '<div style="padding:.5rem .75rem;color:var(--muted);font-size:.82rem">ไม่พบกลุ่มลูกค้า</div>';
   } else {
-    dd.innerHTML = results.map((r, i) => `
-      <div onclick="rlSelectItem(${i})" style="padding:.45rem .75rem;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:.82rem" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
-        <div style="font-weight:600">${escHtml(r.label)}</div>
-        ${r.sub ? `<div style="font-size:.72rem;color:var(--muted)">${escHtml(r.sub)}</div>` : ''}
+    dd.innerHTML = results.map((g, i) => `
+      <div onclick="rlSelectItem(${i})" style="padding:.5rem .75rem;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:.82rem" onmouseover="this.style.background='#f0f9ff'" onmouseout="this.style.background=''">
+        <div style="font-weight:600;color:#1e293b">${escHtml(g.group_name)}</div>
+        <div style="font-size:.72rem;color:var(--muted)">Code: ${escHtml(g.group_code || '—')} · ${g.branch_count || 0} สาขา</div>
       </div>`).join('');
     dd._data = results;
   }
@@ -4160,15 +4135,14 @@ async function rlDoSearch() {
 
 function rlSelectItem(i) {
   const dd = document.getElementById('rl-dropdown');
-  const item = dd._data?.[i];
-  if (!item) return;
-  _rlSelected = item.value;
+  const g = dd._data?.[i];
+  if (!g) return;
+  _rlSelected = { group_id: g.group_id, group_name: g.group_name, group_code: g.group_code };
   document.getElementById('rl-search').value = '';
   dd.style.display = 'none';
-  const box = document.getElementById('rl-selected-box');
-  const typeLabel = _rlSelected.type === 'group' ? '👥 กลุ่ม: ' : '🏪 ';
-  document.getElementById('rl-selected-label').textContent = typeLabel + (_rlSelected.group_name || _rlSelected.company_name);
-  box.style.display = 'flex';
+  document.getElementById('rl-selected-label').textContent =
+    `👥 ${g.group_name}${g.group_code ? '  (' + g.group_code + ')' : ''}  · ${g.branch_count || 0} สาขา`;
+  document.getElementById('rl-selected-box').style.display = 'flex';
   document.getElementById('rl-create-btn').disabled = false;
 }
 
@@ -4184,9 +4158,7 @@ async function rlCreateLink() {
   btn.textContent = '⏳ กำลังสร้าง...';
   btn.disabled = true;
   try {
-    const body = _rlSelected.type === 'group'
-      ? { group_id: _rlSelected.group_id, group_name: _rlSelected.group_name }
-      : { company_name: _rlSelected.company_name };
+    const body = { group_id: _rlSelected.group_id, group_name: _rlSelected.group_name };
     const data = await api('/api/customer-links', { method: 'POST', silent: true, body });
     if (!data || data.error) { showToast('❌ ' + (data?.error || 'เกิดข้อผิดพลาด'), 'error'); return; }
     const link = `${location.origin}/repair-submit.html?token=${data.token}`;

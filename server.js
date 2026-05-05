@@ -3250,15 +3250,16 @@ app.get('/api/customer-groups', authRequired, async (request, res) => {
   try {
     if (!getExtPool()) return res.json([]);
     const q = request.query.search || '';
-    if (q.length < 1) return res.json([]);
     const result = await extReq()
-      .input('q', sql.NVarChar, `%${q}%`)
-      .query(`SELECT TOP 20 cg.GroupId AS group_id, cg.GroupName AS group_name,
+      .input('q', sql.NVarChar, q ? `%${q}%` : '%')
+      .query(`SELECT TOP 30 cg.GroupId AS group_id, cg.GroupName AS group_name,
+                cg.GroupCode AS group_code,
                 COUNT(cr.RegistrationId) AS branch_count
               FROM CustomerGroup cg
               LEFT JOIN CustomerRegistration cr ON cr.GroupId = cg.GroupId
-              WHERE cg.GroupName LIKE @q AND cg.GroupId <> 1
-              GROUP BY cg.GroupId, cg.GroupName
+              WHERE cg.Active = 1 AND cg.GroupId <> 1
+                AND (cg.GroupName LIKE @q OR cg.GroupCode LIKE @q)
+              GROUP BY cg.GroupId, cg.GroupName, cg.GroupCode
               ORDER BY cg.GroupName`);
     res.json(result.recordset);
   } catch(e) { res.status(500).json({ error: e.message }); }
