@@ -85,7 +85,10 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
 
 <div class="header">
   <div class="header-inner">
-    <h1>🔧 แบบฟอร์มแจ้งซ่อมอุปกรณ์</h1>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+      <h1>🔧 แบบฟอร์มแจ้งซ่อมอุปกรณ์</h1>
+      <a id="header-track-link" href="#" style="display:none;background:rgba(255,255,255,.18);color:#fff;text-decoration:none;border:1px solid rgba(255,255,255,.4);border-radius:20px;padding:.3rem .9rem;font-size:.8rem;font-weight:600;white-space:nowrap;margin-top:.15rem">📋 ตรวจสอบงานทั้งหมด</a>
+    </div>
     <div id="header-org" style="display:none" class="header-sub"></div>
     <p>กรุณากรอกข้อมูลให้ครบถ้วน เพื่อให้ทีมงานดำเนินการได้รวดเร็วยิ่งขึ้น</p>
   </div>
@@ -254,6 +257,11 @@ async function init() {
       const orgEl = document.getElementById('header-org');
       orgEl.textContent = info.type === 'group' ? `🏢 ${info.group_name}` : `🏪 ${info.company_name}`;
       orgEl.style.display = '';
+
+      // Show track link button
+      const trackLink = document.getElementById('header-track-link');
+      trackLink.href = `/track.html?t=${_linkToken}`;
+      trackLink.style.display = '';
 
       if (info.type === 'company') {
         // Single company — lock the field
