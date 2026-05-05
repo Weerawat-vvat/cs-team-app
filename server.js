@@ -1201,6 +1201,88 @@ app.post('/api/kpi/comment', authRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── GET /api/duty/live — today's shifts + per-person case counts ─────────────
+app.get('/api/duty/live', authRequired, managerRequired, async (request, res) => {
+  try {
+    // 1. Today's shifts with employee + shift type info
+    const shiftsRes = await req().query(`
+      SELECT s.shift_type, e.id AS emp_id, e.name, e.team,
+             st.name AS shift_name, st.start_time, st.end_time,
+             st.color_bg, st.color_text, st.sort_order,
+             au.ext_username
+      FROM shifts s
+      JOIN employees e      ON e.id = s.employee_id
+      JOIN shift_types st   ON st.shift_key = s.shift_type
+      LEFT JOIN app_users au ON au.employee_id = e.id AND au.active = 1
+      WHERE CAST(s.date AS DATE) = CAST(GETDATE() AS DATE)
+        AND s.shift_type NOT IN ('dayoff','leave')
+        AND e.active = 1
+      ORDER BY st.sort_order, e.name`);
+
+    const rows = shiftsRes.recordset;
+    const usernames = [...new Set(rows.map(r => r.ext_username).filter(Boolean))];
+
+    // 2. Case counts from LicenseDB
+    let caseCounts = {};
+    if (getExtPool() && usernames.length) {
+      const inList = usernames.map((_, i) => `@u${i}`).join(',');
+      const qr = extReq();
+      usernames.forEach((u, i) => qr.input(`u${i}`, sql.NVarChar, u));
+      const cRes = await qr.query(`
+        SELECT u.UserName,
+          COUNT(CASE WHEN CAST(cl.ReceiveDate AS DATE) = CAST(GETDATE() AS DATE) THEN 1 END) AS today_cases,
+          COUNT(CASE WHEN cs.StatusName NOT LIKE '%close%' AND cs.StatusName NOT LIKE '%complete%'
+                          AND cs.StatusName NOT LIKE '%cancel%' THEN 1 END) AS open_cases
+        FROM Calllog cl
+        JOIN Users u       ON u.UserId    = cl.SupportId
+        JOIN CallStatus cs ON cs.StatusId = cl.StatusId
+        WHERE cl.Active = 1
+          AND u.UserName IN (${inList})
+          AND (CAST(cl.ReceiveDate AS DATE) = CAST(GETDATE() AS DATE)
+            OR (cs.StatusName NOT LIKE '%close%' AND cs.StatusName NOT LIKE '%complete%'
+                AND cs.StatusName NOT LIKE '%cancel%'))
+        GROUP BY u.UserName`);
+      cRes.recordset.forEach(r => { caseCounts[r.UserName] = r; });
+    }
+
+    // 3. Merge and group by shift_type
+    const grouped = {};
+    for (const r of rows) {
+      if (!grouped[r.shift_type]) {
+        grouped[r.shift_type] = {
+          shift_key: r.shift_type, shift_name: r.shift_name,
+          start_time: r.start_time, end_time: r.end_time,
+          color_bg: r.color_bg, color_text: r.color_text,
+          sort_order: r.sort_order, members: []
+        };
+      }
+      const cc = caseCounts[r.ext_username] || { today_cases: 0, open_cases: 0 };
+      grouped[r.shift_type].members.push({
+        emp_id: r.emp_id, name: r.name, team: r.team,
+        today_cases: cc.today_cases || 0, open_cases: cc.open_cases || 0
+      });
+    }
+
+    const shifts = Object.values(grouped).sort((a, b) => a.sort_order - b.sort_order);
+    res.json({ shifts, generated_at: new Date().toISOString() });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /api/duty/hourly — cases per hour today (all team) ───────────────────
+app.get('/api/duty/hourly', authRequired, managerRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.json([]);
+    const result = await extReq().query(`
+      SELECT DATEPART(HOUR, cl.ReceiveDate) AS hr, COUNT(*) AS cnt
+      FROM Calllog cl
+      WHERE cl.Active = 1
+        AND CAST(cl.ReceiveDate AS DATE) = CAST(GETDATE() AS DATE)
+      GROUP BY DATEPART(HOUR, cl.ReceiveDate)
+      ORDER BY hr`);
+    res.json(result.recordset);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/kpi/history', authRequired, async (request, res) => {
   try {
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });

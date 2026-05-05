@@ -571,6 +571,11 @@ textarea{resize:vertical;min-height:80px}
         <a href="https://online-tool.azurewebsites.net/dashboard" target="_blank" rel="noopener" class="s-sub" style="text-decoration:none">INFOGRAMMER Tools</a>
       </div>
     </div>
+    <!-- duty board — manager only -->
+    <button class="s-tab" id="nav-btn-duty" onclick="showPage('duty',this)" style="display:none">
+      <svg class="s-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Duty Board
+    </button>
     <!-- 6. ประเมินทีม -->
     <button class="s-tab" id="nav-btn-kpi" onclick="showPage('kpi',this)">
       <svg class="s-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
@@ -1222,6 +1227,48 @@ textarea{resize:vertical;min-height:80px}
 </div>
 
 <!-- ═══════════════════ PAGE: KPI ═══════════════════ -->
+<!-- ═══════════════════ PAGE: DUTY BOARD ═══════════════════ -->
+<div id="page-duty" class="page">
+  <div class="section-header" style="margin-bottom:.75rem">
+    <div>
+      <div class="section-title">🕐 Duty Board</div>
+      <div id="duty-clock" style="font-size:.8rem;color:var(--muted);margin-top:.15rem"></div>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="loadDutyBoard()">🔄 รีเฟรช</button>
+  </div>
+
+  <!-- Active shift indicator -->
+  <div id="duty-active-shift" style="margin-bottom:.85rem"></div>
+
+  <!-- Shift cards -->
+  <div id="duty-shift-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:.75rem;margin-bottom:1rem">
+    <div style="color:var(--muted);font-size:.85rem;padding:1rem">กำลังโหลด...</div>
+  </div>
+
+  <!-- Hourly chart -->
+  <div class="card" style="padding:1rem;margin-bottom:1rem">
+    <div style="font-size:.85rem;font-weight:700;color:var(--hd);margin-bottom:.75rem">📊 Case เข้าแต่ละชั่วโมงวันนี้</div>
+    <div id="duty-hourly-chart" style="display:flex;align-items:flex-end;gap:3px;height:100px;padding-bottom:.25rem"></div>
+    <div id="duty-hourly-labels" style="display:flex;gap:3px;margin-top:.2rem"></div>
+  </div>
+
+  <!-- Summary table -->
+  <div class="card" style="padding:.5rem 0">
+    <div style="font-size:.85rem;font-weight:700;color:var(--hd);padding:.5rem 1rem .25rem">📋 สรุปรายคนวันนี้</div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>ชื่อ</th><th>ทีม</th><th>กะ</th>
+          <th style="text-align:right">วันนี้</th>
+          <th style="text-align:right">ค้างอยู่</th>
+          <th style="text-align:right">เฉลี่ย/ชม.</th>
+        </tr></thead>
+        <tbody id="duty-summary-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <div id="page-kpi" class="page">
   <div class="page-top-panel">
   <div class="section-header" style="margin-bottom:.75rem">
@@ -2629,6 +2676,7 @@ function showPage(name, btn) {
   if (name === 'requirements')  loadRequirements();
   // create-case is now a modal
   if (name === 'specialist') { loadSpecialist(); }
+  if (name === 'duty')      { loadDutyBoard(); }
 }
 
 // ══════════════════════════════════════════════════════════
@@ -4398,6 +4446,171 @@ function kpiRange(preset, btn) {
   loadKpi();
 }
 
+// ══════════════════════════════════════════════════════════
+//  DUTY BOARD
+// ══════════════════════════════════════════════════════════
+let _dutyClockTimer = null;
+let _dutyRefreshTimer = null;
+
+function dutyNowActive(start, end) {
+  if (!start || !end) return false;
+  const now = new Date();
+  const hm = h => { const [hh, mm] = h.split(':').map(Number); return hh * 60 + mm; };
+  const cur = now.getHours() * 60 + now.getMinutes();
+  const s = hm(start), e = hm(end);
+  return e < s ? (cur >= s || cur < e) : (cur >= s && cur < e); // handles midnight crossing
+}
+
+async function loadDutyBoard() {
+  // Clock
+  clearInterval(_dutyClockTimer);
+  _dutyClockTimer = setInterval(() => {
+    const el = document.getElementById('duty-clock');
+    if (el) el.textContent = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    else clearInterval(_dutyClockTimer);
+  }, 1000);
+
+  // Auto-refresh every 5 min
+  clearInterval(_dutyRefreshTimer);
+  _dutyRefreshTimer = setInterval(() => { if (document.getElementById('page-duty')?.classList.contains('active')) loadDutyBoard(); }, 300000);
+
+  const [live, hourly] = await Promise.all([
+    api('/api/duty/live', { silent: true }).catch(() => ({ shifts: [] })),
+    api('/api/duty/hourly', { silent: true }).catch(() => [])
+  ]);
+
+  renderDutyActiveShift(live.shifts || []);
+  renderDutyShiftCards(live.shifts || []);
+  renderDutyHourly(hourly || [], live.shifts || []);
+  renderDutySummary(live.shifts || []);
+}
+
+function renderDutyActiveShift(shifts) {
+  const el = document.getElementById('duty-active-shift');
+  if (!el) return;
+  const active = shifts.filter(s => dutyNowActive(s.start_time, s.end_time));
+  if (!active.length) { el.innerHTML = '<div style="font-size:.8rem;color:var(--muted)">ไม่มีกะที่ active ในขณะนี้</div>'; return; }
+  el.innerHTML = active.map(s => `
+    <span style="display:inline-flex;align-items:center;gap:.4rem;background:${s.color_bg};color:${s.color_text};
+      border-radius:20px;padding:.3rem .9rem;font-size:.82rem;font-weight:700;margin-right:.4rem">
+      ● กะ${s.shift_name} กำลัง Active (${s.start_time}–${s.end_time})
+    </span>`).join('');
+}
+
+function renderDutyShiftCards(shifts) {
+  const wrap = document.getElementById('duty-shift-cards');
+  if (!wrap) return;
+  if (!shifts.length) {
+    wrap.innerHTML = '<div style="color:var(--muted);font-size:.85rem;padding:1rem">ไม่มีข้อมูลกะวันนี้</div>';
+    return;
+  }
+  wrap.innerHTML = shifts.map(s => {
+    const isActive = dutyNowActive(s.start_time, s.end_time);
+    const totalToday = s.members.reduce((a, m) => a + (m.today_cases || 0), 0);
+    const totalOpen  = s.members.reduce((a, m) => a + (m.open_cases  || 0), 0);
+    const maxToday   = Math.max(...s.members.map(m => m.today_cases || 0), 1);
+    return `
+      <div class="card" style="padding:0;overflow:hidden;border:2px solid ${isActive ? s.color_bg : 'var(--border)'}">
+        <div style="background:${s.color_bg};color:${s.color_text};padding:.6rem 1rem;display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <span style="font-weight:800;font-size:.92rem">กะ${s.shift_name}</span>
+            <span style="font-size:.75rem;opacity:.75;margin-left:.4rem">${s.start_time || ''}–${s.end_time || ''}</span>
+          </div>
+          <div style="text-align:right;font-size:.75rem">
+            <div style="font-weight:700">${totalToday} case วันนี้</div>
+            <div style="opacity:.75">${totalOpen} ค้างอยู่</div>
+          </div>
+        </div>
+        <div style="padding:.6rem .85rem">
+          ${s.members.length === 0
+            ? '<div style="color:var(--muted);font-size:.8rem;padding:.25rem 0">ไม่มีคนในกะนี้</div>'
+            : s.members.map(m => {
+                const pct = Math.round((m.today_cases || 0) / maxToday * 100);
+                return `
+                  <div style="margin-bottom:.55rem">
+                    <div style="display:flex;justify-content:space-between;font-size:.8rem;margin-bottom:.2rem">
+                      <span style="font-weight:600;color:var(--hd)">${escHtml(m.name)}</span>
+                      <span style="color:var(--muted);font-size:.72rem">${m.today_cases} วันนี้ · <span style="color:#dc2626;font-weight:700">${m.open_cases} ค้าง</span></span>
+                    </div>
+                    <div style="background:#f1f5f9;border-radius:4px;height:6px;overflow:hidden">
+                      <div style="height:100%;width:${pct}%;background:${s.color_text};border-radius:4px;transition:width .4s"></div>
+                    </div>
+                  </div>`;
+              }).join('')}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderDutyHourly(hourly, shifts) {
+  const chartEl  = document.getElementById('duty-hourly-chart');
+  const labelEl  = document.getElementById('duty-hourly-labels');
+  if (!chartEl || !labelEl) return;
+
+  const nowH = new Date().getHours();
+  // Build 0-23 map
+  const map = {};
+  hourly.forEach(r => { map[r.hr] = r.cnt; });
+  const maxCnt = Math.max(...Object.values(map), 1);
+
+  // Show hours 6-23
+  const hours = Array.from({ length: 18 }, (_, i) => i + 6);
+  chartEl.innerHTML = hours.map(h => {
+    const cnt = map[h] || 0;
+    const pct = Math.round(cnt / maxCnt * 100);
+    const isNow = h === nowH;
+    const color = isNow ? '#2563eb' : '#93c5fd';
+    return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px" title="${h}:00 — ${cnt} case">
+      ${cnt > 0 ? `<div style="font-size:.6rem;color:#475569">${cnt}</div>` : '<div style="font-size:.6rem;color:transparent">0</div>'}
+      <div style="width:100%;background:${color};border-radius:3px 3px 0 0;height:${Math.max(pct, cnt > 0 ? 4 : 0)}%;min-height:${cnt > 0 ? '3px' : '0'}"
+           ${isNow ? 'title="ชั่วโมงนี้"' : ''}></div>
+    </div>`;
+  }).join('');
+
+  // Shift range markers on labels
+  const shiftColors = {};
+  shifts.forEach(s => { if (s.start_time) shiftColors[parseInt(s.start_time)] = { bg: s.color_bg, text: s.color_text, name: s.shift_name }; });
+
+  labelEl.innerHTML = hours.map(h => {
+    const isNow = h === nowH;
+    const marker = shiftColors[h];
+    return `<div style="flex:1;text-align:center;font-size:.6rem;color:${isNow ? '#2563eb' : '#94a3b8'};font-weight:${isNow ? '700' : '400'};position:relative">
+      ${h}
+      ${marker ? `<div style="position:absolute;top:-14px;left:50%;transform:translateX(-50%);background:${marker.bg};color:${marker.text};border-radius:3px;padding:0 2px;white-space:nowrap;font-size:.55rem;font-weight:700">▲${marker.name}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function renderDutySummary(shifts) {
+  const tbody = document.getElementById('duty-summary-tbody');
+  if (!tbody) return;
+  if (!shifts.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">ไม่มีข้อมูล</td></tr>'; return; }
+
+  // Flatten all members with shift info
+  const all = [];
+  shifts.forEach(s => {
+    const isActive = dutyNowActive(s.start_time, s.end_time);
+    const startH = s.start_time ? parseInt(s.start_time) : 0;
+    const nowH = new Date().getHours();
+    const hoursWorked = isActive ? Math.max(nowH - startH, 1) : (s.end_time ? parseInt(s.end_time) - startH : 8);
+    s.members.forEach(m => all.push({ ...m, shift_name: s.shift_name, color_bg: s.color_bg, color_text: s.color_text, hoursWorked: Math.max(hoursWorked, 1) }));
+  });
+  all.sort((a, b) => (b.open_cases - a.open_cases) || (b.today_cases - a.today_cases));
+
+  tbody.innerHTML = all.map(m => {
+    const avg = (m.today_cases / m.hoursWorked).toFixed(1);
+    const openColor = m.open_cases > 5 ? '#dc2626' : m.open_cases > 2 ? '#b45309' : '#16a34a';
+    return `<tr>
+      <td style="font-weight:600">${escHtml(m.name)}</td>
+      <td><span style="font-size:.72rem;color:#64748b">${escHtml(m.team || '—')}</span></td>
+      <td><span style="background:${m.color_bg};color:${m.color_text};padding:.1rem .45rem;border-radius:10px;font-size:.72rem;font-weight:700">${escHtml(m.shift_name)}</span></td>
+      <td style="text-align:right;font-weight:700">${m.today_cases}</td>
+      <td style="text-align:right;font-weight:700;color:${openColor}">${m.open_cases}</td>
+      <td style="text-align:right;color:var(--muted)">${avg}</td>
+    </tr>`;
+  }).join('');
+}
+
 async function loadKpi() {
   const team    = document.getElementById('kpi-filter-team').value;
   const dfrom   = document.getElementById('kpi-date-from')?.value || _kpiDateFrom;
@@ -4858,6 +5071,7 @@ function applyUserContext() {
 
   // Nav: Users tab — manager/admin only
   document.getElementById('nav-btn-users').style.display    = isManager ? '' : 'none';
+  document.getElementById('nav-btn-duty').style.display     = isManager ? '' : 'none';
   // Settings group visible to team_lead+
   document.getElementById('nav-settings-group').style.display = isLead ? '' : 'none';
   // Hide users sub-item for non-managers
