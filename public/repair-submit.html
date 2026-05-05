@@ -242,7 +242,10 @@ async function init() {
 
   if (_linkToken) {
     try {
-      const info = await fetch(`/api/public/repair-link-info/${_linkToken}`).then(r => r.json());
+      const resp = await fetch(`/api/public/repair-link-info/${_linkToken}`);
+      if (!resp.ok && resp.status === 404) throw new Error('ลิงก์ไม่พบหรือถูกลบแล้ว');
+      if (!resp.ok) throw new Error(`Server error ${resp.status}`);
+      const info = await resp.json();
       if (info.error) throw new Error(info.error);
 
       _linkType = info.type;
