@@ -3574,7 +3574,7 @@ function renderShiftTable(shifts, ws) {
     let wc = 0;
     days.forEach(d => {
       const s = shiftMap[emp.id]?.[fmtDateISO(d)];
-      if (s && s.status !== 'leave' && s.status !== 'approved_leave') wc++;
+      if (s && s.status !== 'leave' && s.status !== 'approved_leave' && s.shift_type !== 'dayoff' && !s.shift_type?.startsWith('leave_')) wc++;
     });
     workCount[emp.id] = wc;
   });
@@ -7780,13 +7780,15 @@ function _shiftDragEnd(event) {
 async function confirmDragShift(shiftType) {
   _closeShiftPickPopup();
   const dates = [..._dragDates], empId = _dragEmpId;
-  let ok = 0;
+  let ok = 0, lastErr = '';
   for (const date of dates) {
-    try { await api('/api/shifts', { method:'POST', silent:true, body:{ employee_id:empId, shift_type:shiftType, shift_date:date }}); ok++; }
-    catch {}
+    const r = await api('/api/shifts', { method:'POST', silent:true, body:{ employee_id:empId, shift_type:shiftType, shift_date:date }});
+    if (r?.error) lastErr = r.error;
+    else ok++;
   }
   _clearDragState();
-  showToast(`✅ สร้างกะแล้ว ${ok}/${dates.length} วัน`, 'success');
+  if (lastErr && ok === 0) showToast(`❌ ${lastErr}`, 'error');
+  else showToast(`✅ สร้างกะแล้ว ${ok}/${dates.length} วัน`, 'success');
   _scheduleView === 'month' ? loadScheduleMonth() : loadSchedule();
 }
 
@@ -7925,9 +7927,9 @@ function renderMonthTable(shifts, year, month) {
   });
 
   const canEdit = isLeadRole();
-  const MBGS = { morning:'#dcfce7', afternoon:'#ffedd5', night:'#e2e8f0', dayoff:'#fef2f2', leave:'#fef2f2', approved_leave:'#fef2f2' };
-  const MCLR = { morning:'#166534', afternoon:'#c2410c', night:'#475569', dayoff:'#b91c1c', leave:'#b91c1c', approved_leave:'#b91c1c' };
-  const MLBL = { morning:'เช้า', afternoon:'บ่าย', night:'ดึก', dayoff:'OFF', leave:'OFF', approved_leave:'OFF' };
+  const MBGS = { morning:'#dcfce7', mid:'#e0f2fe', afternoon:'#ffedd5', night:'#e2e8f0', dayoff:'#fef2f2', leave:'#fef2f2', approved_leave:'#fef2f2', leave_personal:'#fef9c3', leave_sick:'#fee2e2', leave_annual:'#f3e8ff' };
+  const MCLR = { morning:'#166534', mid:'#0369a1', afternoon:'#c2410c', night:'#475569', dayoff:'#b91c1c', leave:'#b91c1c', approved_leave:'#b91c1c', leave_personal:'#854d0e', leave_sick:'#991b1b', leave_annual:'#6b21a8' };
+  const MLBL = { morning:'เช้า', mid:'กลาง', afternoon:'บ่าย', night:'ดึก', dayoff:'OFF', leave:'ลา', approved_leave:'ลา', leave_personal:'ลากิจ', leave_sick:'ลาป่วย', leave_annual:'ลาพักร้อน' };
 
   const esc = s => s.replace(/'/g, "\\'");
 

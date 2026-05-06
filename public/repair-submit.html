@@ -79,6 +79,15 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
 .required-note{font-size:.75rem;color:#94a3b8;margin-bottom:.75rem}
 .loading-screen{text-align:center;padding:3rem 1rem;color:#64748b}
 .error-screen{text-align:center;padding:3rem 1rem;color:#dc2626;background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+
+/* autocomplete */
+.ac-wrap{position:relative}
+.ac-dropdown{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #cbd5e1;border-radius:7px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:999;max-height:220px;overflow-y:auto;display:none}
+.ac-item{padding:.55rem .8rem;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:.85rem}
+.ac-item:last-child{border-bottom:none}
+.ac-item:hover,.ac-item.active{background:#eff6ff}
+.ac-item .ac-main{font-weight:600;color:#1e293b}
+.ac-item .ac-sub{font-size:.73rem;color:#64748b;margin-top:.1rem}
 </style>
 </head>
 <body>
@@ -124,17 +133,25 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
       <div class="card-body">
         <div class="form-group">
           <label>ชื่อร้าน / สาขา <span class="req">*</span></label>
-          <!-- Free text (no token) -->
-          <input id="f-company-text" type="text" placeholder="เช่น ร้านอาหาร ABC สาขา Central World" style="display:none"/>
+          <!-- Search autocomplete (no token) -->
+          <div id="f-company-search-wrap" class="ac-wrap" style="display:none">
+            <input id="f-company-search" type="text" placeholder="พิมพ์ชื่อร้าน/บริษัท เพื่อค้นหา..." autocomplete="off"
+              oninput="acSearch(this.value)" onkeydown="acKeydown(event)" onfocus="if(this.value.length>=1)acSearch(this.value)" onblur="setTimeout(acHide,200)"/>
+            <div id="ac-dropdown" class="ac-dropdown"></div>
+          </div>
           <!-- Locked (single company token) -->
           <div id="f-company-locked" class="locked-badge" style="display:none">
             <span class="lock-icon">🔒</span>
             <span id="f-company-locked-name"></span>
           </div>
-          <!-- Dropdown (group token) -->
-          <select id="f-company-select" style="display:none">
-            <option value="">— เลือกสาขา —</option>
-          </select>
+          <!-- Group search autocomplete -->
+          <div id="f-company-group-wrap" class="ac-wrap" style="display:none">
+            <input id="f-company-group" type="text" placeholder="พิมพ์ชื่อสาขา เพื่อกรอง..." autocomplete="off"
+              oninput="acGroupFilter(this.value)" onkeydown="acGroupKeydown(event)" onfocus="acGroupOpen()" onblur="setTimeout(acGroupHide,200)"/>
+            <div id="ac-group-dropdown" class="ac-dropdown"></div>
+          </div>
+          <!-- Hidden select (kept for fallback) -->
+          <select id="f-company-select" style="display:none"></select>
           <div class="err" id="err-company">กรุณาระบุชื่อร้าน/สาขา</div>
         </div>
         <div class="grid-2">
@@ -269,15 +286,9 @@ async function init() {
         document.getElementById('f-company-locked-name').textContent = info.company_name;
         document.getElementById('f-company-locked').style.display = '';
       } else {
-        // Group — show dropdown of branches
-        const sel = document.getElementById('f-company-select');
-        info.branches.forEach(b => {
-          const opt = document.createElement('option');
-          opt.value = b.name;
-          opt.textContent = b.name;
-          sel.appendChild(opt);
-        });
-        sel.style.display = '';
+        // Group — searchable branch list (full objects)
+        _groupBranches = info.branches;
+        document.getElementById('f-company-group-wrap').style.display = '';
       }
     } catch(e) {
       document.getElementById('loading-screen').style.display = 'none';
@@ -287,8 +298,8 @@ async function init() {
       return;
     }
   } else {
-    // No token — free-text input
-    document.getElementById('f-company-text').style.display = '';
+    // No token — autocomplete search
+    document.getElementById('f-company-search-wrap').style.display = '';
   }
 
   document.getElementById('loading-screen').style.display = 'none';
@@ -297,8 +308,112 @@ async function init() {
 
 function getCompanyValue() {
   if (_linkType === 'company') return _companyName;
-  if (_linkType === 'group')   return document.getElementById('f-company-select').value;
-  return document.getElementById('f-company-text').value;
+  if (_linkType === 'group')   return _acGroupSelected;
+  return _acSelected || document.getElementById('f-company-search').value;
+}
+
+// ── Group branch autocomplete ─────────────────────────────
+let _groupBranches   = [];   // array of branch objects
+let _acGroupFiltered = [];   // currently shown subset
+let _acGroupSelected = '';
+let _acGroupIdx      = -1;
+
+function acGroupOpen() {
+  acGroupFilter(document.getElementById('f-company-group').value);
+}
+
+function acGroupFilter(q) {
+  _acGroupSelected = '';
+  const dd = document.getElementById('ac-group-dropdown');
+  _acGroupFiltered = q.trim()
+    ? _groupBranches.filter(b => b.name.toLowerCase().includes(q.toLowerCase()))
+    : _groupBranches;
+  if (!_acGroupFiltered.length) { dd.style.display = 'none'; return; }
+  _acGroupIdx = -1;
+  dd.innerHTML = _acGroupFiltered.map((b, i) =>
+    `<div class="ac-item" onmousedown="acGroupSelect(${i})">
+      <div class="ac-main">${b.name}</div>
+    </div>`
+  ).join('');
+  dd.style.display = 'block';
+}
+
+function acGroupSelect(i) {
+  const b = _acGroupFiltered[i];
+  if (!b) return;
+  _acGroupSelected = b.name;
+  document.getElementById('f-company-group').value = b.name;
+  acGroupHide();
+}
+
+function acGroupHide() {
+  document.getElementById('ac-group-dropdown').style.display = 'none';
+}
+
+function acGroupKeydown(e) {
+  const dd    = document.getElementById('ac-group-dropdown');
+  const items = dd.querySelectorAll('.ac-item');
+  if (!items.length) return;
+  if (e.key === 'ArrowDown')      { e.preventDefault(); _acGroupIdx = Math.min(_acGroupIdx + 1, items.length - 1); items.forEach((el, i) => el.classList.toggle('active', i === _acGroupIdx)); }
+  else if (e.key === 'ArrowUp')   { e.preventDefault(); _acGroupIdx = Math.max(_acGroupIdx - 1, 0); items.forEach((el, i) => el.classList.toggle('active', i === _acGroupIdx)); }
+  else if (e.key === 'Enter' && _acGroupIdx >= 0) { e.preventDefault(); acGroupSelect(_acGroupIdx); }
+  else if (e.key === 'Escape') acGroupHide();
+}
+
+// ── License search autocomplete ───────────────────────────
+let _acSelected = '';
+let _acItems    = [];
+let _acIdx      = -1;
+let _acTimer    = null;
+
+function acSearch(q) {
+  _acSelected = '';
+  clearTimeout(_acTimer);
+  if (q.length < 1) { acHide(); return; }
+  _acTimer = setTimeout(async () => {
+    try {
+      const res  = await fetch(`/api/public/license-search?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      _acItems = data;
+      _acIdx   = -1;
+      const dd = document.getElementById('ac-dropdown');
+      if (!data.length) { dd.style.display = 'none'; return; }
+      dd.innerHTML = data.map((d, i) => {
+        const sub = [d.ProductName, d.LicenseTypeName, d.GroupName].filter(Boolean).join(' · ');
+        return `<div class="ac-item" onmousedown="acSelect(${i})">
+          <div class="ac-main">${d.CompanyName}</div>
+          ${sub ? `<div class="ac-sub">${sub}</div>` : ''}
+        </div>`;
+      }).join('');
+      dd.style.display = 'block';
+    } catch {}
+  }, 280);
+}
+
+function acSelect(i) {
+  const d = _acItems[i];
+  if (!d) return;
+  _acSelected = d.CompanyName;
+  document.getElementById('f-company-search').value = d.CompanyName;
+  acHide();
+}
+
+function acHide() {
+  document.getElementById('ac-dropdown').style.display = 'none';
+}
+
+function acKeydown(e) {
+  const dd    = document.getElementById('ac-dropdown');
+  const items = dd.querySelectorAll('.ac-item');
+  if (!items.length) return;
+  if (e.key === 'ArrowDown') { e.preventDefault(); _acIdx = Math.min(_acIdx + 1, items.length - 1); acHighlight(items); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); _acIdx = Math.max(_acIdx - 1, 0); acHighlight(items); }
+  else if (e.key === 'Enter' && _acIdx >= 0) { e.preventDefault(); acSelect(_acIdx); }
+  else if (e.key === 'Escape') acHide();
+}
+
+function acHighlight(items) {
+  items.forEach((el, i) => el.classList.toggle('active', i === _acIdx));
 }
 
 // ── File upload ────────────────────────────────────────────

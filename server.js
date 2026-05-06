@@ -324,12 +324,16 @@ app.get('/api/shift-types', authRequired, async (_, res) => {
           ('night',    N'ดึก',    '15:00','00:00','#e2e8f0','#475569',3),
           ('dayoff',   N'DayOFF', NULL,    NULL,  '#fef2f2','#b91c1c',4)
       END`);
-    // Always sync canonical values (times + colors) for built-in shift types
+    // Always sync canonical values (times + colors) for all built-in shift types
     await req().query(`
       UPDATE shift_types SET start_time='08:30',end_time='17:30',color_bg='#dcfce7',color_text='#166534' WHERE shift_key='morning';
+      UPDATE shift_types SET start_time='10:00',end_time='19:00',color_bg='#e0f2fe',color_text='#0369a1' WHERE shift_key='mid';
       UPDATE shift_types SET start_time='12:00',end_time='21:00',color_bg='#ffedd5',color_text='#c2410c' WHERE shift_key='afternoon';
       UPDATE shift_types SET start_time='15:00',end_time='00:00',color_bg='#e2e8f0',color_text='#475569' WHERE shift_key='night';
       UPDATE shift_types SET color_bg='#fef2f2',color_text='#b91c1c' WHERE shift_key='dayoff';
+      UPDATE shift_types SET start_time=NULL,end_time=NULL,color_bg='#fef9c3',color_text='#854d0e' WHERE shift_key='leave_personal';
+      UPDATE shift_types SET start_time=NULL,end_time=NULL,color_bg='#fee2e2',color_text='#991b1b' WHERE shift_key='leave_sick';
+      UPDATE shift_types SET start_time=NULL,end_time=NULL,color_bg='#f3e8ff',color_text='#6b21a8' WHERE shift_key='leave_annual';
     `);
     // Insert new shift/leave types if not exists
     await req().query(`
@@ -398,14 +402,15 @@ app.get('/api/shifts/month', authRequired, async (request, res) => {
 app.post('/api/shifts', async (request, res) => {
   try {
     const { employee_id, shift_type, shift_date } = request.body;
-    const isDayOff = shift_type === 'dayoff';
+    const isLeaveOrOff = shift_type === 'dayoff' || shift_type.startsWith('leave_');
 
+    // detect any existing shift on this date (regardless of status)
     const existing = await req().input('eid', sql.Int, employee_id).input('date', sql.Date, shift_date)
-      .query('SELECT id FROM shifts WHERE employee_id=@eid AND shift_date=@date AND status NOT IN (\'leave\',\'approved_leave\')');
+      .query('SELECT id FROM shifts WHERE employee_id=@eid AND shift_date=@date');
     const isReplace = existing.recordset.length > 0;
 
-    // 5-shift limit applies only to actual work shifts (not dayoff)
-    if (!isReplace && !isDayOff) {
+    // 5-shift limit applies only to actual work shifts (not dayoff/leave)
+    if (!isReplace && !isLeaveOrOff) {
       const d = new Date(shift_date);
       const day = d.getDay();
       const diffToMon = (day === 0 ? -6 : 1 - day);
@@ -418,8 +423,8 @@ app.post('/api/shifts', async (request, res) => {
         .query(`SELECT COUNT(*) AS cnt FROM shifts
                 WHERE employee_id=@eid2
                   AND shift_date >= @ws AND shift_date <= @we
-                  AND shift_type != 'dayoff'
-                  AND status NOT IN ('leave','approved_leave')`);
+                  AND shift_type NOT IN ('dayoff','leave_personal','leave_sick','leave_annual')
+                  AND (status IS NULL OR status NOT IN ('leave','approved_leave'))`);
       const weekShifts = countRes.recordset[0].cnt;
       if (weekShifts >= 5) {
         return res.status(400).json({ error: `พนักงานมีกะครบ 5 วันแล้วในสัปดาห์นี้` });
@@ -2161,6 +2166,31 @@ app.get('/api/public/repair/:token', async (request, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// PUBLIC — search customers from LicenseDB (no auth)
+app.get('/api/public/license-search', async (request, res) => {
+  try {
+    if (!getExtPool()) return res.json([]);
+    const q = (request.query.q || '').trim();
+    const result = await extReq()
+      .input('q', sql.NVarChar, `%${q}%`)
+      .query(`
+        SELECT TOP 50
+          r.CompanyName,
+          p.ProductName,
+          lt.LicenseTypeName,
+          cg.GroupName
+        FROM CustomerRegistration r
+        LEFT JOIN Product p       ON r.ProductId      = p.ProductId
+        LEFT JOIN LicenseType lt  ON r.LicenseTypeId  = lt.LicenseTypeId
+        LEFT JOIN CustomerGroup cg ON r.GroupId        = cg.GroupId
+        WHERE (r.Hide != 1 OR r.Hide IS NULL)
+          AND r.CompanyName LIKE @q
+        ORDER BY r.InsertDate DESC
+      `);
+    res.json(result.recordset);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // PUBLIC — get link info + branch list for repair submit form (no auth)
 app.get('/api/public/repair-link-info/:token', async (request, res) => {
   try {
@@ -2172,11 +2202,22 @@ app.get('/api/public/repair-link-info/:token', async (request, res) => {
     let branches = [];
     if (isGroup && getExtPool()) {
       const br = await extReq().input('gid', sql.Int, link.group_id)
-        .query(`SELECT cr.CompanyName, cr.RegistrationId
+        .query(`SELECT cr.RegistrationId, cr.CompanyName, cr.ContactName, cr.Phone, cr.MobilePhone,
+                       p.ProductName, lt.LicenseTypeName
                 FROM CustomerRegistration cr
+                LEFT JOIN Product      p  ON p.ProductId      = cr.ProductId
+                LEFT JOIN LicenseType  lt ON lt.LicenseTypeId = cr.LicenseTypeId
                 WHERE cr.GroupId=@gid
+                  AND (cr.Hide != 1 OR cr.Hide IS NULL)
                 ORDER BY cr.CompanyName`);
-      branches = br.recordset.map(r => ({ name: r.CompanyName, id: r.RegistrationId }));
+      branches = br.recordset.map(r => ({
+        name:            r.CompanyName,
+        id:              r.RegistrationId,
+        contact_name:    r.ContactName,
+        phone:           r.Phone || r.MobilePhone,
+        product_name:    r.ProductName,
+        license_type:    r.LicenseTypeName
+      }));
     }
     res.json({
       type:         isGroup ? 'group' : 'company',
@@ -3736,6 +3777,17 @@ init().then(async () => {
       IF @cn IS NOT NULL EXEC('ALTER TABLE shifts DROP CONSTRAINT [' + @cn + ']');
     `);
   } catch(e) { console.warn('drop shifts check constraint:', e.message); }
+
+  // Widen shifts.shift_type column to fit longer keys like 'leave_personal'
+  try {
+    await getPool().request().query(`
+      IF EXISTS (
+        SELECT 1 FROM sys.columns
+        WHERE object_id=OBJECT_ID('shifts') AND name='shift_type' AND max_length < 30
+      )
+        ALTER TABLE shifts ALTER COLUMN shift_type NVARCHAR(30) NOT NULL;
+    `);
+  } catch(e) { console.warn('widen shift_type column:', e.message); }
 
   app.listen(PORT, () => console.log(`🚀 CS Team App running at http://localhost:${PORT}`));
 }).catch(err => {
