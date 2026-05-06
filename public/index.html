@@ -977,19 +977,16 @@ textarea{resize:vertical;min-height:80px}
       <table id="ticket-table">
         <thead>
           <tr>
-            <th style="width:28px"></th>
+            <th style="width:24px"></th>
             <th>#</th>
             <th>วันที่รับ</th>
             <th>ลูกค้า</th>
             <th>ประเภท / หัวข้อ</th>
-            <th>รายละเอียดปัญหา</th>
-            <th>วิธีแก้ไข</th>
             <th>Agent</th>
             <th>สถานะ</th>
             <th>วันที่ปิด</th>
             <th>ใช้เวลา</th>
             <th>⭐</th>
-            <th>Comment</th>
           </tr>
         </thead>
         <tbody id="ticket-tbody"></tbody>
@@ -3929,7 +3926,7 @@ function renderTickets() {
 
   const tbody = document.getElementById('ticket-tbody');
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="13" class="empty"><div class="icon">🎫</div>ไม่พบเคส</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" class="empty"><div class="icon">🎫</div>ไม่พบเคส</td></tr>';
     return;
   }
 
@@ -3976,17 +3973,16 @@ function renderTickets() {
       <td style="font-size:.78rem;white-space:nowrap">
         <div>${dateStr}</div><div style="color:var(--muted);font-size:.72rem">${timeStr}</div>
       </td>
-      <td style="white-space:nowrap">${custTag}</td>
+      <td style="max-width:160px">
+        <div style="font-size:.82rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(t.CompanyName||'')}">${escHtml(t.CompanyName||'—')}</div>
+        <button onclick="genCustomerLink(event,'${escHtml(t.CompanyName||'').replace(/'/g,"\\'")}',this)" title="Copy link ลูกค้า" style="border:none;background:none;cursor:pointer;padding:0;color:#94a3b8;font-size:.7rem;line-height:1.4" tabindex="-1">🔗 link</button>
+      </td>
       <td style="max-width:190px">
         ${t.problem_type_detail
           ? `<div style="margin-bottom:.18rem"><span style="display:inline-block;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;font-size:.67rem;padding:.03rem .35rem;white-space:nowrap;max-width:100%">${escHtml(t.problem_type_detail)}</span></div>`
           : ''}
         <div style="font-size:.83rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(t.title||'').replace(/"/g,'&quot;')}">${t.title||'—'}</div>
       </td>
-      <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.77rem;color:var(--muted)"
-          title="${(t.description||'').replace(/"/g,'&quot;')}">${descShort||'—'}</td>
-      <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.77rem;color:#4ade80"
-          title="${(t.Solution||'').replace(/"/g,'&quot;')}">${solShort||'—'}</td>
       <td style="font-size:.82rem;white-space:nowrap">${dn(t.assigned_name)||'—'}</td>
       <td>${tkStatusBadge(t.status)}${isOverdue ? `<div style="font-size:.68rem;color:#fca5a5;font-weight:700">⚠️ ค้างนาน</div>` : ''}</td>
       <td style="font-size:.78rem;white-space:nowrap">
@@ -3997,8 +3993,6 @@ function renderTickets() {
         ${t.Stars ? `<span class="tk-star-display" title="${t.Stars} ดาว">${'★'.repeat(t.Stars)}${'☆'.repeat(5-t.Stars)}</span>`
                   : `<span class="tk-star-display empty">☆☆☆☆☆</span>`}
       </td>
-      <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.77rem;color:var(--muted)"
-          title="${(t.ticket_comment||'').replace(/"/g,'&quot;')}">${commentShort||'—'}</td>
     </tr>`);
 
     // Detail expand row
@@ -4032,8 +4026,13 @@ function renderTickets() {
         : `<div class="tk-star-display">${curStars ? '★'.repeat(curStars)+'☆'.repeat(5-curStars) : '☆☆☆☆☆'}</div>`;
 
       rows.push(`<tr class="tk-row-detail" onclick="event.stopPropagation()">
-        <td colspan="13" style="padding:.75rem 1rem 1rem">
-          ${(desc||sol) ? `<div style="display:grid;grid-template-columns:${sol?'1fr 1fr':'1fr'};gap:1rem;margin-bottom:.75rem">
+        <td colspan="10" style="padding:.65rem .9rem .85rem">
+          <div style="background:#f8fafc;border-radius:7px;padding:.38rem .7rem;margin-bottom:.55rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;border:1px solid #e2e8f0">
+            <span style="font-size:.8rem;font-weight:700;color:#1e293b">🏢 ${escHtml(t.CompanyName||'—')}</span>
+            ${t.problem_type_detail?`<span style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;font-size:.7rem;padding:.05rem .38rem">${escHtml(t.problem_type_detail)}</span>`:''}
+            <span style="font-size:.75rem;color:var(--muted);margin-left:auto">Agent: ${dn(t.assigned_name)||'—'}</span>
+          </div>
+          ${(desc||sol) ? `<div style="display:grid;grid-template-columns:${sol?'1fr 1fr':'1fr'};gap:.75rem;margin-bottom:.65rem">
             ${desc ? `<div class="tk-detail-box">
               <div class="tk-detail-label">📋 รายละเอียดปัญหา</div>
               <div class="tk-detail-text">${escHtml(desc)}</div>
