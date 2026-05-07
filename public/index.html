@@ -5721,15 +5721,17 @@ async function loadSpecialist() {
       teams.map(t=>`<option value="${escHtml(t)}" ${t===cur?'selected':''}>${escHtml(t)}</option>`).join('');
   }
 
-  // Populate member dropdown (agent + accepted_by combined, unique names)
+  // Populate member dropdown — accepted_by_name only (ผู้รับงาน)
   const memberNames = [...new Set(
-    _allSpecialist.flatMap(s=>[s.agent_name, s.accepted_by_name]).filter(Boolean)
+    _allSpecialist.map(s=>s.accepted_by_name).filter(Boolean)
   )].sort((a,b)=>a.localeCompare(b,'th'));
   const mSel = document.getElementById('sp-filter-member');
   if (mSel) {
     const curM = mSel.value;
     mSel.innerHTML = '<option value="">👤 ทุกพนักงาน</option>' +
+      '<option value="__none__">⚠️ ยังไม่มีผู้รับงาน</option>' +
       memberNames.map(n=>`<option value="${escHtml(n)}" ${n===curM?'selected':''}>${escHtml(n)}</option>`).join('');
+    if (curM) mSel.value = curM;
   }
 
   // Also populate assign modal team dropdown from allTeams
@@ -5745,9 +5747,8 @@ async function loadSpecialist() {
     (s.company_name||'').toLowerCase().includes(search.toLowerCase()) ||
     (s.subject||'').toLowerCase().includes(search.toLowerCase()) ||
     (s.calllog_description||s.description||'').toLowerCase().includes(search.toLowerCase()));
-  if (member)  list = list.filter(s=>
-    (s.agent_name||'').toLowerCase().includes(member.toLowerCase()) ||
-    (s.accepted_by_name||'').toLowerCase().includes(member.toLowerCase()));
+  if (member === '__none__') list = list.filter(s=>!s.accepted_by_name);
+  else if (member)           list = list.filter(s=>(s.accepted_by_name||'')===member);
 
   renderSpecialistTable(list);
 }
