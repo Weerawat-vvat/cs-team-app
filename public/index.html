@@ -417,15 +417,11 @@ textarea{resize:vertical;min-height:80px}
     </button>
     <!-- 3. Specialist -->
     <div>
-      <button class="s-tab" id="nav-btn-specialist" onclick="toggleSpecialistMenu(this)">
+      <button class="s-tab" id="nav-btn-specialist" onclick="showPage('specialist',this)">
         <svg class="s-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
         Specialist
         <span id="specialist-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.62rem;padding:.02rem .38rem;font-weight:700"></span>
-        <span class="s-arrow" id="specialist-arrow">›</span>
       </button>
-      <div class="s-sub-menu" id="specialist-sub">
-        <button class="s-sub" id="nav-sub-sp-issue" onclick="navSpecialist('issue',this)">🔗 ติดตาม Issue URL</button>
-      </div>
     </div>
     <!-- 4. งานซ่อม -->
     <button class="s-tab" id="nav-btn-repair" onclick="showPage('repair',this)">
@@ -1153,7 +1149,6 @@ textarea{resize:vertical;min-height:80px}
   <div class="section-header" style="margin-bottom:.75rem">
     <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
       <div class="section-title">🎯 Specialist Queue</div>
-      <span id="sp-sub-label" style="display:none;background:#ede9fe;color:#6d28d9;border:1px solid #c4b5fd;border-radius:20px;font-size:.72rem;font-weight:700;padding:.15rem .65rem">🔗 ติดตาม Issue URL</span>
     </div>
   </div>
 
@@ -1177,9 +1172,9 @@ textarea{resize:vertical;min-height:80px}
   <div class="page-datebar" style="flex-direction:column;align-items:flex-start;gap:.45rem;margin-bottom:.75rem">
     <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;width:100%">
       <div class="drb" id="sp-drb">
-        <button class="drb-btn" onclick="spRange('today',this)">วันนี้</button>
+        <button class="drb-btn active" onclick="spRange('today',this)">วันนี้</button>
         <button class="drb-btn" onclick="spRange('thisweek',this)">สัปดาห์นี้</button>
-        <button class="drb-btn active" onclick="spRange('thismonth',this)">เดือนนี้</button>
+        <button class="drb-btn" onclick="spRange('thismonth',this)">เดือนนี้</button>
         <button class="drb-btn" onclick="spRange('30d',this)">30 วัน</button>
         <button class="drb-btn" onclick="spRange('custom',this)">กำหนดเอง</button>
       </div>
@@ -1199,6 +1194,10 @@ textarea{resize:vertical;min-height:80px}
       <select id="sp-filter-member" onchange="loadSpecialist()" style="min-width:140px">
         <option value="">👤 ทุกพนักงาน</option>
       </select>
+      <button id="sp-issue-toggle" onclick="spToggleIssue()"
+        style="border:1px solid #c4b5fd;background:#fff;color:#6d28d9;border-radius:20px;padding:.28rem .75rem;font-size:.77rem;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit;transition:.15s">
+        🔗 Issue URL
+      </button>
     </div>
     <div class="drb-custom" id="sp-custom-range">
       <input id="sp-date-from" type="date" style="max-width:135px" title="วันที่เริ่มต้น"/>
@@ -2215,13 +2214,9 @@ function showPage(name, btn) {
   if (name === 'repair')       { loadRepair(); pollRepairMessages(); }
   // create-case is now a modal
   if (name === 'specialist') {
-    // Always keep sub-menu open when on this page
-    document.getElementById('specialist-sub')?.classList.add('open');
-    document.getElementById('specialist-arrow').textContent = '⌄';
-    // Set default date range to thismonth on first open
     if (!document.getElementById('sp-date-from')?.value) {
       const activeBtn = document.querySelector('#sp-drb .drb-btn.active');
-      spRange('thismonth', activeBtn);
+      spRange('today', activeBtn);
     } else {
       loadSpecialist();
     }
@@ -5262,28 +5257,17 @@ let _settingTab = 'subjects';
 
 let _spSubFilter = 'all'; // 'all' | 'issue'
 
-function toggleSpecialistMenu(btn) {
-  const sub   = document.getElementById('specialist-sub');
-  const arrow = document.getElementById('specialist-arrow');
-  // Clicking the main Specialist button always resets to "all" and shows the page
-  _spSubFilter = 'all';
-  document.querySelectorAll('#specialist-sub .s-sub').forEach(b => b.classList.remove('active'));
-  if (!sub.classList.contains('open')) {
-    sub.classList.add('open');
-    arrow.textContent = '⌄';
+function spToggleIssue() {
+  _spSubFilter = _spSubFilter === 'issue' ? 'all' : 'issue';
+  const btn = document.getElementById('sp-issue-toggle');
+  if (btn) {
+    const on = _spSubFilter === 'issue';
+    btn.style.background    = on ? '#ede9fe' : '#fff';
+    btn.style.color         = on ? '#5b21b6' : '#6d28d9';
+    btn.style.borderColor   = on ? '#7c3aed' : '#c4b5fd';
+    btn.style.fontWeight    = on ? '700'     : '600';
   }
-  showPage('specialist', btn);
-}
-
-function navSpecialist(sub, el) {
-  _spSubFilter = sub;
-  // Mark active sub-item
-  document.querySelectorAll('#specialist-sub .s-sub').forEach(b=>b.classList.remove('active'));
-  if (el) el.classList.add('active');
-  // Ensure page is shown + nav button active
-  const navBtn = document.getElementById('nav-btn-specialist');
-  showPage('specialist', navBtn);
-  // loadSpecialist is called by showPage, _spSubFilter already set
+  loadSpecialist();
 }
 
 function toggleToolsMenu(btn) {
@@ -5798,12 +5782,6 @@ async function loadSpecialist() {
   if (member === '__none__') list = list.filter(s=>!s.accepted_by_name);
   else if (member)           list = list.filter(s=>(s.accepted_by_name||'')===member);
   if (_spSubFilter === 'issue') list = list.filter(s=>s.issue_id && s.issue_id.trim());
-
-  // Update sub-filter label in page header
-  const spSubLbl = document.getElementById('sp-sub-label');
-  if (spSubLbl) {
-    spSubLbl.style.display = _spSubFilter === 'issue' ? '' : 'none';
-  }
 
   renderSpecialistTable(list);
 }
