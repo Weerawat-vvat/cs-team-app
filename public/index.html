@@ -2129,18 +2129,27 @@ function teamBadgeHtml(t) {
   const style = teamBadgeStyle(t);
   return `<span class="badge ${cls}" ${style}>${teamLabel(t)}</span>`;
 }
+const SHIFT_META = {
+  morning:        { label:'เช้า',      time:'08:30–17:30', bg:'#dbeafe', col:'#1e40af' },
+  afternoon:      { label:'บ่าย',      time:'12:00–21:00', bg:'#fef3c7', col:'#92400e' },
+  midday:         { label:'กลางวัน',   time:'10:00–19:00', bg:'#dcfce7', col:'#166534' },
+  mid:            { label:'กลางวัน',   time:'10:00–19:00', bg:'#dcfce7', col:'#166534' },
+  night:          { label:'ดึก',       time:'15:00–00:00', bg:'#ede9fe', col:'#5b21b6' },
+  dayoff:         { label:'DayOFF',    time:'',             bg:'#f1f5f9', col:'#64748b' },
+  off:            { label:'DayOFF',    time:'',             bg:'#f1f5f9', col:'#64748b' },
+  leave_sick:     { label:'ลาป่วย',   time:'',             bg:'#fee2e2', col:'#b91c1c' },
+  leave_personal: { label:'ลากิจ',    time:'',             bg:'#fef9c3', col:'#b45309' },
+  leave_annual:   { label:'ลาพักร้อน',time:'',             bg:'#fce7f3', col:'#9d174d' },
+};
+const LEAVE_SHIFT_TYPES = new Set(['leave_sick','leave_personal','leave_annual']);
+
 function shiftLabel(s, withTime) {
-  const base = {morning:'🌅 เช้า', afternoon:'🌤 บ่าย', night:'🌙 ดึก'}[s] || s;
-  if (!withTime) return base;
-  const time = {morning:'08:30–16:30', afternoon:'15:30–23:59', night:'16:00–23:59'}[s] || '';
-  return time ? `${base} (${time})` : base;
+  const m = SHIFT_META[s];
+  if (!m) return s || '—';
+  return withTime && m.time ? `${m.label} (${m.time})` : m.label;
 }
-function shiftBg(s) {
-  return {morning:'#dbeafe', afternoon:'#fef3c7', night:'#ede9fe'}[s] || '#f1f5f9';
-}
-function shiftColor(s) {
-  return {morning:'#1e40af', afternoon:'#92400e', night:'#5b21b6'}[s] || '#334155';
-}
+function shiftBg(s)    { return SHIFT_META[s]?.bg  || '#f1f5f9'; }
+function shiftColor(s) { return SHIFT_META[s]?.col || '#334155'; }
 function statusLabel(s) {
   return {open:'Open', in_progress:'In Progress', waiting_vendor:'Waiting Vendor', closed:'Closed'}[s] || s;
 }
@@ -3133,16 +3142,17 @@ function renderShiftTable(shifts, ws) {
       const iso = fmtDateISO(d);
       const s   = shiftMap[emp.id]?.[iso];
       if (s) {
-        const isLeave = s.status === 'leave' || s.status === 'approved_leave';
+        const isLeave = s.status === 'leave' || s.status === 'approved_leave'
+          || LEAVE_SHIFT_TYPES.has(s.shift_type);
         // Lead+ can click to edit; staff sees read-only badge
         const clickAttr = canEdit
           ? `onclick="editShiftModal(${s.id},'${s.shift_type}','${s.status}')" style="cursor:pointer"`
           : `style="cursor:default"`;
         rows += `<td style="padding:.3rem .25rem">
-          <div style="background:${isLeave?'#fef2f2':shiftBg(s.shift_type)};color:${isLeave?'#b91c1c':shiftColor(s.shift_type)};
+          <div style="background:${shiftBg(s.shift_type)};color:${shiftColor(s.shift_type)};
                border-radius:6px;padding:.18rem .4rem;font-size:.72rem;font-weight:600;text-align:center"
-               title="${isLeave?'วันหยุด':shiftLabel(s.shift_type,true)}" ${clickAttr}>
-            ${isLeave?'🏖 หยุด':shiftLabel(s.shift_type)}
+               title="${shiftLabel(s.shift_type,true)}" ${clickAttr}>
+            ${shiftLabel(s.shift_type)}
           </div></td>`;
       } else {
         if (canEdit) {
