@@ -1209,7 +1209,7 @@ textarea{resize:vertical;min-height:80px}
         <thead><tr>
           <th style="width:20px"></th><th>#</th><th>ร้านค้า</th><th>หัวข้อ / ประเภท</th>
           <th>ผู้ติดต่อ</th><th>ทีม</th><th>Priority</th>
-          <th>สถานะ</th><th>วันที่มอบหมาย</th><th></th>
+          <th>สถานะ</th><th>วันที่มอบหมาย</th>
         </tr></thead>
         <tbody id="specialist-tbody"></tbody>
       </table>
@@ -5760,7 +5760,6 @@ function renderSpecialistTable(list) {
   if (!list.length) { tbody.innerHTML='<tr><td colspan="9" class="empty">ไม่พบข้อมูล</td></tr>'; return; }
 
   const spLead = isLeadRole();
-  // Build all rows
   tbody.innerHTML = list.map(s=>{
     const descText    = s.calllog_description || s.description || '';
     const solText     = s.calllog_solution    || s.solution    || '';
@@ -5795,67 +5794,98 @@ function renderSpecialistTable(list) {
         ${s.resolution_note?`<div style="font-size:.67rem;color:#16a34a;margin-top:.15rem">✅ แก้ไขแล้ว</div>`:''}
       </td>
       <td style="font-size:.75rem;white-space:nowrap">${fmtDate(s.assigned_at)}</td>
-      <td onclick="event.stopPropagation()" style="white-space:nowrap">
-        <button class="btn btn-ghost btn-sm" title="แก้ไข / ดูรายละเอียดเต็ม" onclick="openSpecialistDetail(${s.id})">✏️</button>
-      </td>
     </tr>
     <tr id="sp-detail-row-${s.id}" class="sp-row-detail" style="display:none">
-      <td colspan="10" style="padding:0">
-        <div style="background:#f8fafc;border-left:3px solid #7c3aed;padding:.7rem 1rem .8rem 1.2rem;margin:.0rem 0">
+      <td colspan="9" style="padding:0">
+        <div style="background:#f8fafc;border-left:3px solid #7c3aed;padding:.75rem 1.1rem .9rem 1.3rem">
 
-          <!-- Header bar -->
-          <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.6rem">
-            <span style="font-size:.85rem;font-weight:700;color:#1e293b">🏢 ${escHtml(s.company_name||'—')}</span>
-            ${s.problem_type?`<span style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;font-size:.7rem;padding:.03rem .4rem">${escHtml(s.problem_type)}</span>`:''}
-            <span style="font-size:.75rem;color:var(--muted)">มอบหมายโดย: ${escHtml(s.agent_name||'—')}</span>
-            ${s.calllog_id?`<button onclick="viewRefCase(${s.calllog_id})" style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:6px;padding:.15rem .55rem;font-size:.73rem;font-weight:600;cursor:pointer;margin-left:auto">🔗 ดูเคส #${s.calllog_id}</button>`:''}
+          <!-- Header -->
+          <div style="display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;margin-bottom:.65rem;padding-bottom:.55rem;border-bottom:1px solid #e9d5ff">
+            <span style="font-size:.88rem;font-weight:700;color:#1e293b">🏢 ${escHtml(s.company_name||'—')}</span>
+            ${s.problem_type?`<span style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;font-size:.72rem;padding:.03rem .42rem">${escHtml(s.problem_type)}</span>`:''}
+            <span style="font-size:.73rem;color:var(--muted)">📤 ${escHtml(s.agent_name||'—')}</span>
+            ${s.accepted_by_name?`<span style="font-size:.73rem;color:#2563eb;font-weight:600">👤 ${escHtml(s.accepted_by_name)}</span>`:''}
+            ${s.calllog_id?`<button onclick="event.stopPropagation();viewRefCase(${s.calllog_id})"
+              style="margin-left:auto;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:6px;padding:.18rem .6rem;font-size:.73rem;font-weight:600;cursor:pointer">
+              🔗 ดูเคส #${s.calllog_id}</button>`:''}
           </div>
 
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;margin-bottom:.6rem">
-            <!-- Left: problem detail -->
+          <!-- Main grid: 3 cols -->
+          <div style="display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:1rem;margin-bottom:.7rem">
+
+            <!-- Col 1: Problem description -->
             <div>
-              ${descText?`<div style="margin-bottom:.5rem">
-                <div style="font-size:.69rem;font-weight:700;color:#475569;text-transform:uppercase;margin-bottom:.2rem">📋 รายละเอียดปัญหา</div>
-                <div style="font-size:.8rem;line-height:1.55;white-space:pre-wrap;color:var(--text)">${escHtml(descText)}</div>
+              ${descText?`<div style="margin-bottom:.55rem">
+                <div style="font-size:.68rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.25rem">📋 รายละเอียดปัญหา</div>
+                <div style="font-size:.8rem;line-height:1.6;white-space:pre-wrap;color:var(--text)">${escHtml(descText)}</div>
               </div>`:''}
               ${solText?`<div>
-                <div style="font-size:.69rem;font-weight:700;color:#0369a1;text-transform:uppercase;margin-bottom:.2rem">💡 แนวทางเบื้องต้น (Helpdesk)</div>
-                <div style="font-size:.8rem;line-height:1.55;white-space:pre-wrap;color:#0c4a6e">${escHtml(solText)}</div>
+                <div style="font-size:.68rem;font-weight:700;color:#0369a1;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.25rem">💡 แนวทางเบื้องต้น (Helpdesk)</div>
+                <div style="font-size:.8rem;line-height:1.6;white-space:pre-wrap;color:#0c4a6e">${escHtml(solText)}</div>
               </div>`:''}
-              ${!descText&&!solText?`<div style="color:var(--muted);font-size:.78rem">— ไม่มีรายละเอียดจาก Helpdesk —</div>`:''}
+              ${!descText&&!solText?`<div style="color:var(--muted);font-size:.78rem;padding-top:.2rem">— ไม่มีรายละเอียดจาก Helpdesk —</div>`:''}
             </div>
-            <!-- Right: contact + note + status -->
+
+            <!-- Col 2: Contact info -->
             <div>
-              <div style="font-size:.69rem;font-weight:700;color:#475569;text-transform:uppercase;margin-bottom:.3rem">📞 ข้อมูลติดต่อ</div>
+              <div style="font-size:.68rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.3rem">📞 ข้อมูลติดต่อ</div>
               ${[['ผู้ติดต่อ',s.contact_name],['เบอร์โทร',s.contact_phone],['Line ID',s.line_id],['Line Group',s.line_group]]
                 .filter(([,v])=>v)
-                .map(([k,v])=>`<div style="font-size:.78rem;margin-bottom:.18rem"><span style="color:var(--muted)">${k}:</span> ${escHtml(v)}</div>`)
+                .map(([k,v])=>`<div style="font-size:.78rem;margin-bottom:.2rem"><span style="color:var(--muted);font-size:.72rem">${k}:</span><br>${escHtml(v)}</div>`)
                 .join('')||'<div style="font-size:.78rem;color:var(--muted)">—</div>'}
-              ${s.note?`<div style="margin-top:.45rem">
-                <div style="font-size:.69rem;font-weight:700;color:#7c3aed;text-transform:uppercase;margin-bottom:.2rem">📝 Note</div>
+              ${s.note?`<div style="margin-top:.5rem">
+                <div style="font-size:.68rem;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.2rem">📝 Note</div>
                 <div style="font-size:.78rem;color:#4c1d95;white-space:pre-wrap">${escHtml(s.note)}</div>
               </div>`:''}
-              <div style="margin-top:.45rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
-                <span style="font-size:.72rem;color:var(--muted);font-weight:600">สถานะ:</span>
-                ${spLead?`<select onchange="spUpdateStatusInline(${s.id},this.value)" style="border:1px solid var(--border);border-radius:7px;padding:.25rem .55rem;font-size:.8rem;background:#fff;outline:none;font-family:inherit">
-                  ${Object.entries(SP_STATUS).map(([v,l])=>`<option value="${v}" ${s.status===v?'selected':''}>${l}</option>`).join('')}
-                </select>`:spStatusBadge(s.status)}
+            </div>
+
+            <!-- Col 3: Status + Issue URL -->
+            <div>
+              <div style="font-size:.68rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.3rem">⚙️ จัดการ</div>
+              <div style="margin-bottom:.45rem">
+                <div style="font-size:.72rem;color:var(--muted);margin-bottom:.2rem">สถานะ</div>
+                ${spLead
+                  ?`<select onchange="event.stopPropagation();spUpdateStatusInline(${s.id},this.value)"
+                      style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.28rem .5rem;font-size:.8rem;background:#fff;outline:none;font-family:inherit">
+                      ${Object.entries(SP_STATUS).map(([v,l])=>`<option value="${v}" ${s.status===v?'selected':''}>${l}</option>`).join('')}
+                    </select>`
+                  :spStatusBadge(s.status)}
+              </div>
+              <div>
+                <div style="font-size:.72rem;color:var(--muted);margin-bottom:.2rem">🐛 Issue URL</div>
+                ${spLead
+                  ?`<input value="${escHtml(s.issue_id||'')}" placeholder="https://... หรือ ISS-123"
+                      onclick="event.stopPropagation()"
+                      onblur="saveIssueId(${s.id},this.value)"
+                      style="width:100%;border:1px solid var(--border);border-radius:6px;padding:.28rem .5rem;font-size:.78rem;outline:none;background:#fff;box-sizing:border-box"/>
+                    ${s.issue_id&&s.issue_id.startsWith('http')?`<a href="${escHtml(s.issue_id)}" target="_blank" rel="noopener"
+                      onclick="event.stopPropagation()"
+                      style="display:inline-block;margin-top:.2rem;font-size:.73rem;color:#7c3aed;font-weight:600">🔗 เปิด Issue</a>`:''}`
+                  :s.issue_id
+                    ?(s.issue_id.startsWith('http')
+                      ?`<a href="${escHtml(s.issue_id)}" target="_blank" rel="noopener" onclick="event.stopPropagation()"
+                          style="font-size:.78rem;color:#7c3aed;font-weight:600;word-break:break-all">${escHtml(s.issue_id)}</a>`
+                      :`<span style="font-family:monospace;font-size:.78rem;color:#7c3aed">${escHtml(s.issue_id)}</span>`)
+                    :`<span style="font-size:.75rem;color:#94a3b8">ยังไม่ระบุ</span>`}
               </div>
             </div>
           </div>
 
           <!-- Specialist resolution -->
           ${s.resolution_note?`
-          <div style="background:#f0fdf4;border-radius:7px;padding:.45rem .75rem;margin-top:.1rem">
-            <div style="font-size:.69rem;font-weight:700;color:#15803d;text-transform:uppercase;margin-bottom:.2rem">✅ การแก้ไขของ Specialist</div>
-            <div style="font-size:.82rem;color:#14532d;white-space:pre-wrap;line-height:1.5">${escHtml(s.resolution_note)}</div>
-          </div>`:''}
-          ${!s.resolution_note&&s.status!=='resolved'&&spLead?`
-          <div style="display:flex;gap:.5rem;align-items:flex-start;margin-top:.3rem">
-            <textarea id="sp-inline-note-${s.id}" rows="2" placeholder="บันทึกการแก้ไขของ Specialist..." onclick="event.stopPropagation()"
-              style="flex:1;border:1px solid var(--border);border-radius:7px;padding:.35rem .6rem;font-size:.8rem;font-family:inherit;resize:vertical"></textarea>
-            <button class="btn btn-success btn-sm" onclick="event.stopPropagation();saveSpResolveInline(${s.id})">✅ แก้ไขแล้ว</button>
-          </div>`:''}
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:.5rem .85rem">
+            <div style="font-size:.68rem;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.22rem">✅ การแก้ไขของ Specialist</div>
+            <div style="font-size:.82rem;color:#14532d;white-space:pre-wrap;line-height:1.55">${escHtml(s.resolution_note)}</div>
+          </div>`:
+          (s.status!=='resolved'?`
+          <div style="display:flex;gap:.55rem;align-items:flex-start">
+            <textarea id="sp-inline-note-${s.id}" rows="2"
+              placeholder="${spLead?'บันทึกการแก้ไขของ Specialist...':'รอการแก้ไขจาก Specialist'}"
+              ?disabled="${!spLead}"
+              onclick="event.stopPropagation()"
+              style="flex:1;border:1px solid var(--border);border-radius:7px;padding:.35rem .6rem;font-size:.8rem;font-family:inherit;resize:vertical;${!spLead?'background:#f8fafc;color:var(--muted)':''}"></textarea>
+            ${spLead?`<button class="btn btn-success btn-sm" onclick="event.stopPropagation();saveSpResolveInline(${s.id})">✅ แก้ไขแล้ว</button>`:''}
+          </div>`:'')}
         </div>
       </td>
     </tr>`;
