@@ -15,7 +15,7 @@
   --danger:#ef4444; --warn:#f59e0b; --success:#22c55e; --accent:#2563eb;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;display:flex}
+body{font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex}
 
 /* ── SIDEBAR ── */
 .sidebar{width:215px;min-width:215px;background:#161f2e;border-right:1px solid #1e2d40;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;z-index:100;flex-shrink:0}
@@ -47,23 +47,7 @@ body{font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--t
 .sidebar-logout:hover{background:#ef4444;color:#fff;border-color:#ef4444}
 
 /* ── MAIN WRAP ── */
-.main-wrap{flex:1;overflow-y:auto;height:100vh;min-width:0}
-
-/* ── PAGE TOP PANEL (sticky filter + stat cards) ── */
-.page-top-panel{
-  position:sticky;top:0;z-index:50;
-  /* ดึงออกจาก padding ของ .page ให้ชิดขอบ */
-  margin:-1.25rem -1.5rem .9rem;
-  padding:.85rem 1.5rem .75rem;
-  background:rgba(241,245,249,.95);
-  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
-  border-bottom:1px solid var(--border);
-  box-shadow:0 3px 12px rgba(0,0,0,.07);
-}
-/* mobile: ไม่ sticky — scrolls ตามปกติ */
-@media(max-width:768px){
-  .page-top-panel{position:static;margin:0 0 .75rem;padding:0;border-bottom:none;box-shadow:none;background:transparent;backdrop-filter:none}
-}
+.main-wrap{flex:1;overflow-y:auto;min-height:100vh;min-width:0}
 
 /* ── LAYOUT ── */
 .page{display:none;padding:1.25rem 1.5rem;max-width:1500px;margin:0 auto}
@@ -126,16 +110,9 @@ body{font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--t
 .badge-pending{background:#fff7ed;color:#c2410c}
 .badge-approved{background:#f0fdf4;color:#166534}
 .badge-rejected{background:#fef2f2;color:#b91c1c}
-.badge-morning{background:#dcfce7;color:#166534}
-.badge-mid{background:#e0f2fe;color:#0369a1}
-.badge-afternoon{background:#ffedd5;color:#c2410c}
-.badge-night{background:#e2e8f0;color:#475569}
-.badge-dayoff{background:#fef2f2;color:#b91c1c}
-.badge-leave_personal{background:#fef9c3;color:#854d0e}
-.badge-leave_sick{background:#fee2e2;color:#991b1b}
-.badge-leave_annual{background:#f3e8ff;color:#6b21a8}
-.shift-drag-sel{outline:2px solid #2563eb!important;background:#bfdbfe!important;color:#1e40af!important;border-radius:4px}
-#shift-pick-popup{position:fixed;background:#fff;border-radius:12px;padding:.75rem 1rem;box-shadow:0 8px 32px rgba(0,0,0,.18);z-index:9999;min-width:230px;display:none;user-select:none}
+.badge-morning{background:#dbeafe;color:#1e40af}
+.badge-afternoon{background:#fef3c7;color:#92400e}
+.badge-night{background:#ede9fe;color:#5b21b6}
 .badge-high{background:#fef2f2;color:#b91c1c}
 .badge-normal{background:#f0f9ff;color:#0369a1}
 .badge-low{background:#f0fdf4;color:#166534}
@@ -302,6 +279,13 @@ textarea{resize:vertical;min-height:80px}
 .ai-tag-ok{background:#052e16;color:#86efac;border:1px solid #14532d}
 .ai-tag-info{background:#1e1b4b;color:#a5b4fc;border:1px solid #312e81}
 .ai-footer-bar{display:flex;justify-content:space-between;align-items:center;margin-top:.6rem;padding-top:.45rem;border-top:1px solid #2d2b4e;font-size:.71rem;color:#4f46e5}
+.ai-spinner{display:inline-block;width:18px;height:18px;border:2px solid #c4b5fd;border-top-color:#7c3aed;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ai-suggest-box{background:#f0fdf4;border:1px solid #86efac;border-radius:12px;padding:1rem 1.25rem;margin-bottom:1rem;display:none}
+.ai-suggest-box.open{display:block}
+.ai-suggest-actions{display:flex;gap:.5rem;margin-top:.75rem;flex-wrap:wrap}
+.ai-forecast-box{background:#fffbeb;border:1px solid #fed7aa;border-radius:12px;padding:1.1rem 1.25rem;margin-top:1rem;display:none}
+.ai-forecast-box.open{display:block}
 .ai-forecast-body{font-size:.86rem;line-height:1.75;white-space:pre-wrap;color:var(--text)}
 
 /* ── LOGIN OVERLAY ── */
@@ -389,110 +373,6 @@ textarea{resize:vertical;min-height:80px}
 .tt-fill{height:8px;border-radius:20px;transition:width .5s,background .5s;width:0%}
 .target-input{width:64px;text-align:center;border:1px solid var(--border);border-radius:6px;padding:.2rem .35rem;font-size:.85rem;background:var(--card2);color:var(--text)}
 .target-input:focus{outline:2px solid var(--accent);border-color:var(--accent)}
-
-/* ══════════════════════════════════════
-   MOBILE — Hamburger + Drawer Sidebar
-══════════════════════════════════════ */
-/* Top bar (mobile only) */
-.mobile-topbar{display:none;position:fixed;top:0;left:0;right:0;height:52px;background:#161f2e;border-bottom:1px solid #1e2d40;align-items:center;padding:0 1rem;gap:.75rem;z-index:200;box-shadow:0 2px 8px #0004}
-.mobile-topbar-brand{display:flex;align-items:center;gap:.5rem;flex:1;min-width:0}
-.mobile-topbar-icon{font-size:1.1rem;line-height:1;flex-shrink:0}
-.mobile-topbar-name{font-size:.88rem;font-weight:800;color:#fff;white-space:nowrap}
-.mobile-topbar-page{font-size:.75rem;color:#64748b;white-space:nowrap;margin-left:.4rem}
-/* Hamburger button */
-.hamburger-btn{background:none;border:none;color:#94a3b8;cursor:pointer;padding:.4rem;border-radius:6px;display:flex;flex-direction:column;justify-content:center;gap:5px;flex-shrink:0;-webkit-tap-highlight-color:transparent}
-.hamburger-btn span{display:block;width:20px;height:2px;background:currentColor;border-radius:2px;transition:.25s ease}
-.hamburger-btn.open span:nth-child(1){transform:translateY(7px) rotate(45deg)}
-.hamburger-btn.open span:nth-child(2){opacity:0;transform:scaleX(0)}
-.hamburger-btn.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
-/* Overlay backdrop */
-.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:155;backdrop-filter:blur(1px);transition:opacity .25s}
-.sidebar-overlay.show{display:block}
-/* Mobile media query */
-@media(max-width:768px){
-  /* ── Layout ── */
-  .mobile-topbar{display:flex}
-  .sidebar{position:fixed;top:0;left:0;height:100vh;z-index:160;transform:translateX(-100%);transition:transform .28s cubic-bezier(.4,0,.2,1)}
-  .sidebar.open{transform:translateX(0)}
-  .main-wrap{padding-top:52px;height:calc(100vh - 0px)}
-  .page{padding:.8rem .85rem}
-
-  /* ── General Components ── */
-  .section-header{flex-wrap:wrap;gap:.4rem}
-  .section-title{font-size:.88rem}
-  .card{padding:.6rem .7rem}
-  .card-title{font-size:.8rem;margin-bottom:.5rem;padding-bottom:.3rem}
-  .btn-group{flex-wrap:wrap;gap:.25rem}
-  .btn{font-size:.75rem;padding:.3rem .6rem}
-  .btn-sm{font-size:.72rem;padding:.26rem .52rem}
-  .section-divider{margin:.6rem 0 .35rem;font-size:.68rem}
-  .grid-3{grid-template-columns:1fr!important}
-
-  /* ── Date Range Buttons: horizontal scroll (ไม่ตัดบรรทัด) ── */
-  .drb{display:flex!important;overflow-x:auto;flex-wrap:nowrap!important;-webkit-overflow-scrolling:touch;padding-bottom:.2rem}
-  .drb::-webkit-scrollbar{height:0}
-  .drb-btn{flex-shrink:0;font-size:.71rem;padding:.2rem .5rem}
-  .page-datebar{padding:.45rem .7rem;gap:.4rem}
-
-  /* ══ DASHBOARD ══ */
-  /* ซ่อน: target tracker, heatmap, DoW chart, AI insight */
-  #target-tracker{display:none!important}
-  #card-heatmap{display:none!important}
-  #card-dow{display:none!important}
-  .ai-insight-box{display:none!important}
-  #dash-scope-badge{font-size:.65rem!important}
-  /* stat cards */
-  .stat-flat{padding:.5rem .6rem}
-  .stat-flat .value{font-size:1.4rem}
-  .stat-flat .label{font-size:.68rem}
-  .stat-flat .sub{font-size:.67rem}
-  /* charts: รวมเป็น 1 col */
-  #page-dashboard .grid-2{grid-template-columns:1fr!important}
-
-  /* ══ TICKETS TABLE ══ */
-  /* ซ่อน: expand(1), รายละเอียด(6), วิธีแก้(7), วันปิด(10), ใช้เวลา(11), ⭐(12), Comment(13) */
-  #ticket-table th:nth-child(1),#ticket-table td:nth-child(1),
-  #ticket-table th:nth-child(6),#ticket-table td:nth-child(6),
-  #ticket-table th:nth-child(7),#ticket-table td:nth-child(7),
-  #ticket-table th:nth-child(10),#ticket-table td:nth-child(10),
-  #ticket-table th:nth-child(11),#ticket-table td:nth-child(11),
-  #ticket-table th:nth-child(12),#ticket-table td:nth-child(12),
-  #ticket-table th:nth-child(13),#ticket-table td:nth-child(13){display:none}
-  /* ซ่อน filter ที่ไม่จำเป็น */
-  #tk-filter-problem-type,#tk-filter-subject,#tk-filter-agent{display:none!important}
-  /* ลด font ใน ticket table */
-  #ticket-table td,#ticket-table th{font-size:.72rem;padding:.35rem .4rem;white-space:nowrap}
-  #ticket-table td:nth-child(5){max-width:110px;overflow:hidden;text-overflow:ellipsis}
-
-  /* ══ KPI TABLE ══ */
-  /* ซ่อน: แนวโน้ม(5), เวลาเฉลี่ย(7), 📣(10), สม่ำเสมอ(11) */
-  #page-kpi .tbl-wrap th:nth-child(5),#page-kpi .tbl-wrap td:nth-child(5),
-  #page-kpi .tbl-wrap th:nth-child(7),#page-kpi .tbl-wrap td:nth-child(7),
-  #page-kpi .tbl-wrap th:nth-child(10),#page-kpi .tbl-wrap td:nth-child(10),
-  #page-kpi .tbl-wrap th:nth-child(11),#page-kpi .tbl-wrap td:nth-child(11){display:none}
-  #page-kpi .grid-2,#page-kpi .grid-3{grid-template-columns:1fr!important}
-  /* ซ่อน AI forecast */
-  #ai-forecast-box{display:none!important}
-
-  /* ══ OVERDUE TABLE (dashboard) ══ */
-  /* ซ่อน: ประเภท(2), บริษัท(7) */
-  #dash-overdue th:nth-child(2),#dash-overdue td:nth-child(2),
-  #dash-overdue th:nth-child(7),#dash-overdue td:nth-child(7){display:none}
-  #dash-overdue td,#dash-overdue th{font-size:.71rem;padding:.3rem .35rem}
-
-  /* ══ SCHEDULE ══ */
-  #page-schedule .tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
-  #page-schedule table td,#page-schedule table th{font-size:.72rem;padding:.3rem .35rem}
-
-  /* ══ REPAIR / SPECIALIST ══ */
-  #page-repair .tbl-wrap,#page-specialist .tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
-  #page-repair table td,#page-repair table th,
-  #page-specialist table td,#page-specialist table th{font-size:.72rem;padding:.3rem .35rem}
-
-  /* ══ PAGINATION ══ */
-  #tk-pagination{gap:.25rem;margin-top:.5rem}
-  #tk-pagination button{font-size:.72rem;padding:.25rem .45rem;min-width:28px}
-}
 </style>
 </head>
 <body>
@@ -515,22 +395,8 @@ textarea{resize:vertical;min-height:80px}
   </div>
 </div>
 
-<!-- MOBILE TOP BAR -->
-<div class="mobile-topbar">
-  <button class="hamburger-btn" id="hamburger-btn" onclick="toggleSidebar()" aria-label="เมนู">
-    <span></span><span></span><span></span>
-  </button>
-  <div class="mobile-topbar-brand">
-    <span class="mobile-topbar-icon">🎧</span>
-    <span class="mobile-topbar-name">CS Team Manager</span>
-    <span class="mobile-topbar-page" id="mobile-page-title"></span>
-  </div>
-</div>
-<!-- SIDEBAR OVERLAY -->
-<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
-
 <!-- SIDEBAR -->
-<aside class="sidebar" id="main-sidebar">
+<aside class="sidebar">
   <div class="sidebar-brand">
     <div class="sidebar-logo-icon">🎧</div>
     <div class="sidebar-name">CS Team Manager</div>
@@ -553,12 +419,7 @@ textarea{resize:vertical;min-height:80px}
       Specialist
       <span id="specialist-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.62rem;padding:.02rem .38rem;margin-left:auto;font-weight:700"></span>
     </button>
-    <!-- 4. Requirement -->
-    <button class="s-tab" id="nav-btn-requirements" onclick="showPage('requirements',this)">
-      <svg class="s-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-      Requirements
-    </button>
-    <!-- 5. งานซ่อม -->
+    <!-- 4. งานซ่อม -->
     <button class="s-tab" id="nav-btn-repair" onclick="showPage('repair',this)">
       <svg class="s-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
       งานซ่อม
@@ -576,11 +437,6 @@ textarea{resize:vertical;min-height:80px}
         <a href="https://online-tool.azurewebsites.net/dashboard" target="_blank" rel="noopener" class="s-sub" style="text-decoration:none">INFOGRAMMER Tools</a>
       </div>
     </div>
-    <!-- duty board — manager only -->
-    <button class="s-tab" id="nav-btn-duty" onclick="showPage('duty',this)" style="display:none">
-      <svg class="s-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-      Duty Board
-    </button>
     <!-- 6. ประเมินทีม -->
     <button class="s-tab" id="nav-btn-kpi" onclick="showPage('kpi',this)">
       <svg class="s-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
@@ -601,7 +457,6 @@ textarea{resize:vertical;min-height:80px}
       </button>
       <div class="s-sub-menu" id="settings-sub">
         <button class="s-sub" id="nav-sub-schedule" onclick="navSettings('schedule',this)">ตารางงาน</button>
-        <button class="s-sub" id="nav-sub-shifts" onclick="navSettings('shifts',this)">กำหนดกะ</button>
         <button class="s-sub" id="nav-sub-subjects" onclick="navSettings('subjects',this)">หัวข้อ / ประเภทปัญหา</button>
         <button class="s-sub" id="nav-sub-users" onclick="navSettings('users',this)">จัดการ User</button>
       </div>
@@ -627,7 +482,6 @@ textarea{resize:vertical;min-height:80px}
 <!-- ═══════════════════ PAGE: DASHBOARD / OVERVIEW ═══════════════════ -->
 <div id="page-dashboard" class="page active">
 
-  <div class="page-top-panel">
   <div class="section-header" style="margin-bottom:.65rem">
     <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
       <div class="section-title">📊 Overview — ภาพรวมทีม CS</div>
@@ -718,7 +572,6 @@ textarea{resize:vertical;min-height:80px}
     </div>
     <div id="tt-details" style="font-size:.75rem;color:var(--muted);white-space:nowrap"></div>
   </div>
-  </div><!-- /page-top-panel -->
 
   <!-- ── Charts Row 1: Donut + Agent Compare Bar ── -->
   <div class="grid-2" style="grid-template-columns:1fr 2fr">
@@ -733,7 +586,7 @@ textarea{resize:vertical;min-height:80px}
   </div>
 
   <!-- ── Hour × Agent Heatmap ── -->
-  <div class="card" id="card-heatmap" style="padding:.65rem .9rem">
+  <div class="card" style="padding:.65rem .9rem">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem;flex-wrap:wrap;gap:.35rem">
       <div style="font-size:.88rem;font-weight:700;color:var(--text)">🔥 จำนวนเคส ตามชั่วโมง × Agent</div>
       <div style="display:flex;gap:.35rem">
@@ -757,7 +610,7 @@ textarea{resize:vertical;min-height:80px}
       </div>
       <canvas id="chart-daily-trend" height="160"></canvas>
     </div>
-    <div class="card" id="card-dow">
+    <div class="card">
       <div class="card-title">📆 วันที่ยุ่งที่สุด</div>
       <canvas id="chart-dow" height="160"></canvas>
     </div>
@@ -822,51 +675,44 @@ textarea{resize:vertical;min-height:80px}
   <div class="section-header">
     <div class="section-title">📅 ตารางกะ & วันหยุด</div>
     <div class="btn-group">
+      <button id="btn-add-shift" class="btn btn-primary btn-sm" onclick="openModal('modal-add-shift')">+ กำหนดกะ</button>
       <button class="btn btn-warn btn-sm" onclick="openModal('modal-leave-req')">📩 ขอวันหยุด</button>
-      <button class="btn btn-sm" style="background:#0f172a;color:#fff" onclick="toggleScheduleView()">📅 <span id="schedule-view-label">มุมมองรายเดือน</span></button>
+      <button id="btn-ai-shifts" class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="aiSuggestShifts()">✨ AI แนะนำกะ</button>
+      <button class="btn btn-sm" style="background:#ef4444;color:#fff" onclick="clearWeekShifts()">🗑️ เครียตาราง</button>
+    </div>
+  </div>
+
+  <!-- AI Shift Suggestion Box -->
+  <div class="ai-suggest-box" id="ai-suggest-box">
+    <div style="font-weight:700;color:#166534;margin-bottom:.5rem">✨ AI แนะนำตารางกะสัปดาห์นี้</div>
+    <div id="ai-suggest-status" style="font-size:.85rem;color:#64748b"></div>
+    <div id="ai-suggest-preview"></div>
+    <div class="ai-suggest-actions" id="ai-suggest-actions" style="display:none">
+      <button class="btn btn-success btn-sm" onclick="applyAiShifts()">✅ นำไปใช้ทั้งหมด</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeAiSuggest()">ยกเลิก</button>
     </div>
   </div>
 
   <!-- Week Nav -->
-  <div id="week-nav-bar" class="week-nav">
+  <div class="week-nav">
     <button class="btn btn-ghost btn-sm" onclick="changeWeek(-1)">◀ สัปดาห์ก่อน</button>
     <span id="week-label">—</span>
     <button class="btn btn-ghost btn-sm" onclick="changeWeek(1)">สัปดาห์หน้า ▶</button>
     <button class="btn btn-ghost btn-sm" onclick="resetWeek()">วันนี้</button>
   </div>
 
-  <!-- Month Nav -->
-  <div id="month-nav-bar" class="week-nav" style="display:none">
-    <button class="btn btn-ghost btn-sm" onclick="changeMonth(-1)">◀ เดือนก่อน</button>
-    <span id="month-label" style="font-weight:700;font-size:.92rem">—</span>
-    <button class="btn btn-ghost btn-sm" onclick="changeMonth(1)">เดือนหน้า ▶</button>
-    <button class="btn btn-ghost btn-sm" onclick="resetMonth()">เดือนนี้</button>
-  </div>
+  <!-- Coverage warning -->
+  <div id="coverage-warn" style="margin-bottom:.75rem"></div>
 
   <!-- Team filter tabs (filled dynamically) -->
   <div class="tabs" id="schedule-tabs"></div>
 
-  <!-- Week view -->
-  <div id="shift-week-wrap" class="card">
+  <div class="card">
     <div class="tbl-wrap">
       <table class="shift-table" id="shift-table-head">
         <thead id="shift-thead"></thead>
         <tbody id="shift-tbody"></tbody>
       </table>
-    </div>
-  </div>
-
-  <!-- Month view -->
-  <div id="shift-month-wrap" style="display:none">
-    <div class="card" style="overflow:hidden">
-      <!-- legend (rendered from _shiftTypes) -->
-      <div id="shift-month-legend" style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:center;padding:.5rem .25rem .75rem;font-size:.75rem"></div>
-      <div class="tbl-wrap">
-        <table id="shift-month-table" style="min-width:900px;border-collapse:collapse;font-size:.72rem">
-          <thead id="shift-month-thead"></thead>
-          <tbody id="shift-month-tbody"></tbody>
-        </table>
-      </div>
     </div>
   </div>
 
@@ -884,14 +730,10 @@ textarea{resize:vertical;min-height:80px}
       </table>
     </div>
   </div>
-
-  <!-- Coverage warning (bottom) -->
-  <div id="coverage-warn" style="margin-top:.75rem"></div>
 </div>
 
 <!-- ═══════════════════ PAGE: TICKETS ═══════════════════ -->
 <div id="page-tickets" class="page">
-  <div class="page-top-panel">
   <div class="section-header" style="margin-bottom:.75rem">
     <div class="section-title">🎫 ติดตามเคส — Calllog</div>
     <div style="display:flex;align-items:center;gap:.5rem">
@@ -920,9 +762,6 @@ textarea{resize:vertical;min-height:80px}
       <select id="tk-filter-problem-type" onchange="loadTickets()">
         <option value="">ทุกประเภทปัญหา</option>
       </select>
-      <select id="tk-filter-subject" onchange="loadTickets()">
-        <option value="">ทุกหัวข้อ</option>
-      </select>
       <select id="tk-filter-status" onchange="loadTickets()">
         <option value="">ทุกสถานะ</option>
       </select>
@@ -940,22 +779,26 @@ textarea{resize:vertical;min-height:80px}
   </div>
 
   <!-- Stat Bar (compact) -->
-  <div id="tk-stats" style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.5rem;margin-bottom:.1rem">
-    <div style="background:#fff;border:1px solid var(--border);border-radius:7px;padding:.22rem .6rem;display:flex;align-items:center;gap:.4rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.68rem;color:var(--muted)">📋 ทั้งหมด</span>
-      <span style="font-size:.92rem;font-weight:800;color:var(--hd)" id="tk-stat-total">—</span>
+  <div id="tk-stats" style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.6rem;margin-bottom:.1rem">
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">📋 ทั้งหมด</span>
+      <span style="font-size:1.1rem;font-weight:800;color:var(--hd)" id="tk-stat-total">—</span>
     </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:7px;padding:.22rem .6rem;display:flex;align-items:center;gap:.4rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.68rem;color:var(--muted)">🔴 เปิดอยู่</span>
-      <span style="font-size:.92rem;font-weight:800;color:var(--danger)" id="tk-stat-open">—</span>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">🔴 เปิดอยู่</span>
+      <span style="font-size:1.1rem;font-weight:800;color:var(--danger)" id="tk-stat-open">—</span>
     </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:7px;padding:.22rem .6rem;display:flex;align-items:center;gap:.4rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.68rem;color:var(--muted)">⚠️ ค้าง &gt;24ชม.</span>
-      <span style="font-size:.92rem;font-weight:800;color:#dc2626" id="tk-stat-overdue">—</span>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">⚠️ ค้าง &gt;24ชม. (ทั้งระบบ)</span>
+      <span style="font-size:1.1rem;font-weight:800;color:#dc2626" id="tk-stat-overdue">—</span>
     </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:7px;padding:.22rem .6rem;display:flex;align-items:center;gap:.4rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.68rem;color:var(--muted)">✅ ปิดแล้ว</span>
-      <span style="font-size:.92rem;font-weight:800;color:var(--success)" id="tk-stat-closed">—</span>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">✅ ปิดแล้ว</span>
+      <span style="font-size:1.1rem;font-weight:800;color:var(--success)" id="tk-stat-closed">—</span>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">⏱️ เฉลี่ยแก้ไข</span>
+      <span style="font-size:1.1rem;font-weight:800;color:#7c3aed" id="tk-stat-avg">—</span>
     </div>
   </div>
 
@@ -970,7 +813,6 @@ textarea{resize:vertical;min-height:80px}
     </select>
     <span style="font-size:.78rem;color:var(--muted)">รายการต่อหน้า</span>
   </div>
-  </div><!-- /page-top-panel -->
 
   <div class="card" style="padding:.5rem 0">
     <div class="tbl-wrap">
@@ -982,11 +824,12 @@ textarea{resize:vertical;min-height:80px}
             <th>วันที่รับ</th>
             <th>ลูกค้า</th>
             <th>ประเภท / หัวข้อ</th>
+            <th>รายละเอียดปัญหา</th>
             <th>Agent</th>
             <th>สถานะ</th>
             <th>วันที่ปิด</th>
-            <th>ใช้เวลา</th>
-            <th>⭐</th>
+            <th title="เวลาแก้ไขตามที่ตั้งไว้">เป้าหมาย</th>
+            <th title="ใช้เวลาไปจริงๆ">ใช้เวลาจริง</th>
           </tr>
         </thead>
         <tbody id="ticket-tbody"></tbody>
@@ -998,281 +841,8 @@ textarea{resize:vertical;min-height:80px}
   <div id="tk-pagination" style="display:flex;align-items:center;justify-content:center;gap:.35rem;margin-top:.75rem;flex-wrap:wrap"></div>
 </div>
 
-<!-- ═══════════════════ PAGE: REQUIREMENTS ═══════════════════ -->
-<div id="page-requirements" class="page">
-  <div class="section-header" style="margin-bottom:.75rem">
-    <div class="section-title">📋 Customer Requirements</div>
-    <button class="btn btn-primary btn-sm" onclick="openReqModal()">➕ สร้าง Requirement</button>
-  </div>
-
-  <!-- Stat Bar -->
-  <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem">
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">📋 ทั้งหมด</span>
-      <span style="font-size:1.1rem;font-weight:800;color:var(--hd)" id="req-stat-total">—</span>
-    </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">⚙️ กำลังดำเนินการ</span>
-      <span style="font-size:1.1rem;font-weight:800;color:#b45309" id="req-stat-inprog">—</span>
-    </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">✅ ส่งมอบแล้ว</span>
-      <span style="font-size:1.1rem;font-weight:800;color:#16a34a" id="req-stat-done">—</span>
-    </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">⚠️ เกินกำหนด</span>
-      <span style="font-size:1.1rem;font-weight:800;color:#dc2626" id="req-stat-overdue">—</span>
-    </div>
-  </div>
-
-  <!-- Filter Bar -->
-  <div class="page-datebar" style="margin-bottom:.75rem;gap:.5rem;flex-wrap:wrap">
-    <input id="req-f-company" type="search" placeholder="🔍 ค้นหาบริษัท..." oninput="reqFilterDebounce()" style="min-width:180px;flex:1"/>
-    <select id="req-f-status" onchange="loadRequirements()">
-      <option value="">ทุกสถานะ</option>
-      <option>งานใหม่</option><option>กำลังประเมินราคา</option>
-      <option>กำลังดำเนินการ</option><option>UAT</option>
-      <option>รอส่งมอบ</option><option>ส่งมอบแล้ว</option><option>ยกเลิก</option>
-    </select>
-    <select id="req-f-priority" onchange="loadRequirements()">
-      <option value="">ทุก Priority</option>
-      <option value="critical">🔴 Critical</option>
-      <option value="high">🟠 High</option>
-      <option value="medium">🟡 Medium</option>
-      <option value="low">🟢 Low</option>
-    </select>
-    <select id="req-f-type" onchange="loadRequirements()">
-      <option value="">ทุกประเภทงาน</option>
-      <option>Customize</option><option>Bug Fix</option>
-      <option>New Feature</option><option>Consulting</option>
-      <option>Training</option><option>อื่นๆ</option>
-    </select>
-  </div>
-
-  <div id="req-list"></div>
-</div>
-
-<!-- ═══════════════════ MODAL: REQUIREMENT FORM ═══════════════════ -->
-<div id="modal-req" class="overlay">
-  <div class="modal" style="max-width:640px;width:96%">
-    <div class="modal-title">
-      <span id="req-modal-title">➕ งาน Customize</span>
-      <button class="modal-close" onclick="closeReqModal()">×</button>
-    </div>
-    <input type="hidden" id="req-edit-id"/>
-
-    <!-- Section 1: ข้อมูลทั่วไป -->
-    <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.5rem;padding-bottom:.25rem;border-bottom:1px solid var(--border)">ข้อมูลทั่วไป</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 80px 1fr;gap:.6rem;margin-bottom:.75rem">
-      <div class="form-group" style="margin:0">
-        <label>วันที่แจ้งงาน</label>
-        <input type="date" id="req-reported-date"/>
-      </div>
-      <div class="form-group" style="margin:0">
-        <label>ประเภทงาน</label>
-        <select id="req-work-type">
-          <option>Customize</option><option>Bug Fix</option>
-          <option>New Feature</option><option>Consulting</option><option>Training</option><option>อื่นๆ</option>
-        </select>
-      </div>
-      <div class="form-group" style="margin:0">
-        <label>% MA</label>
-        <input type="number" id="req-ma-percent" min="0" max="100" step="5" value="0"/>
-      </div>
-      <div class="form-group" style="margin:0">
-        <label>ฝ่ายขาย (Sales)</label>
-        <input type="text" id="req-sales-person" placeholder="ชื่อ Sales..."/>
-      </div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.75rem">
-      <div class="form-group" style="margin:0">
-        <label>สถานะงาน</label>
-        <select id="req-work-status" onchange="updateReqProgress()">
-          <option>งานใหม่</option><option>กำลังประเมินราคา</option>
-          <option>กำลังดำเนินการ</option><option>UAT</option>
-          <option>รอส่งมอบ</option><option>ส่งมอบแล้ว</option><option>ยกเลิก</option>
-        </select>
-      </div>
-      <div class="form-group" style="margin:0">
-        <label>สถานะทางเอกสารการขาย</label>
-        <select id="req-doc-status">
-          <option value="">-- เลือก --</option>
-          <option>อยู่ระหว่างประเมินราคา</option><option>เสนอราคาแล้ว</option>
-          <option>รออนุมัติ PO</option><option>ได้รับ PO แล้ว</option>
-          <option>ออก SO แล้ว</option><option>ปิดงานแล้ว</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- Section 2: ลูกค้า -->
-    <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.5rem;padding-bottom:.25rem;border-bottom:1px solid var(--border)">ข้อมูลลูกค้า</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.75rem">
-      <div class="form-group" style="margin:0;position:relative">
-        <label>ชื่อลูกค้า / บริษัท *</label>
-        <input type="text" id="req-company" placeholder="พิมพ์เพื่อค้นหาลูกค้า..." autocomplete="off"
-          oninput="reqSearchCustomer(this.value)" style="width:100%"/>
-        <div id="req-company-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px #0002;z-index:300;max-height:200px;overflow-y:auto;margin-top:2px"></div>
-      </div>
-      <div class="form-group" style="margin:0">
-        <label>ลิงค์ Portal ลูกค้า <span style="font-size:.7rem;color:var(--muted);font-weight:400">(track.html)</span></label>
-        <select id="req-customer-link-token" style="width:100%">
-          <option value="">-- เลือก Portal Link --</option>
-        </select>
-        <div style="font-size:.68rem;color:var(--muted);margin-top:.2rem">เลือกเพื่อให้ลูกค้าเห็น Requirement ในหน้าติดตาม Case</div>
-      </div>
-    </div>
-
-    <!-- Section 3: รายละเอียดงาน -->
-    <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.5rem;padding-bottom:.25rem;border-bottom:1px solid var(--border)">รายละเอียดงาน</div>
-    <div class="form-group" style="margin:0 0 .6rem">
-      <label>หัวข้อ / ชื่องาน *</label>
-      <input type="text" id="req-title" placeholder="ชื่องาน Customize..."/>
-    </div>
-    <div class="form-group" style="margin:0 0 .75rem">
-      <label>รายละเอียดงาน</label>
-      <textarea id="req-description" rows="3" placeholder="อธิบายรายละเอียด requirement..." style="resize:vertical"></textarea>
-    </div>
-
-    <!-- Section 4: เอกสารและเทคนิค -->
-    <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.5rem;padding-bottom:.25rem;border-bottom:1px solid var(--border)">เอกสารและเทคนิค</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.6rem">
-      <div class="form-group" style="margin:0">
-        <label>SO</label>
-        <input type="text" id="req-so-no" placeholder="เลขที่ SO..."/>
-      </div>
-      <div class="form-group" style="margin:0">
-        <label>Estimate Time <span style="color:var(--muted);font-weight:400;font-size:.73rem">(URL เอกสาร)</span></label>
-        <div style="display:flex;gap:.3rem">
-          <input type="url" id="req-estimate-time" placeholder="https://..." style="flex:1;min-width:0"/>
-          <button type="button" onclick="openUrlField('req-estimate-time')" title="เปิด URL" style="border:1px solid var(--border);border-radius:6px;background:#f8fafc;padding:0 .5rem;cursor:pointer;flex-shrink:0">🔗</button>
-        </div>
-      </div>
-      <div class="form-group" style="margin:0">
-        <label>เอกสาร Spec. <span style="color:var(--muted);font-weight:400;font-size:.73rem">(URL)</span></label>
-        <div style="display:flex;gap:.3rem">
-          <input type="url" id="req-spec-doc" placeholder="https://..." style="flex:1;min-width:0"/>
-          <button type="button" onclick="openUrlField('req-spec-doc')" title="เปิด URL" style="border:1px solid var(--border);border-radius:6px;background:#f8fafc;padding:0 .5rem;cursor:pointer;flex-shrink:0">🔗</button>
-        </div>
-      </div>
-      <div class="form-group" style="margin:0">
-        <label>AZURE ID <span style="color:var(--muted);font-weight:400;font-size:.73rem">(URL)</span></label>
-        <div style="display:flex;gap:.3rem">
-          <input type="url" id="req-azure-id" placeholder="https://dev.azure.com/..." style="flex:1;min-width:0"/>
-          <button type="button" onclick="openUrlField('req-azure-id')" title="เปิด URL" style="border:1px solid var(--border);border-radius:6px;background:#f8fafc;padding:0 .5rem;cursor:pointer;flex-shrink:0">🔗</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Section 5: ส่งมอบ -->
-    <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.5rem;padding-bottom:.25rem;border-bottom:1px solid var(--border)">การส่งมอบ</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.6rem">
-      <div class="form-group" style="margin:0">
-        <label>คู่มือการใช้งาน <span style="color:var(--muted);font-weight:400;font-size:.73rem">(URL)</span></label>
-        <div style="display:flex;gap:.3rem">
-          <input type="url" id="req-user-manual" placeholder="https://..." style="flex:1;min-width:0"/>
-          <button type="button" onclick="openUrlField('req-user-manual')" title="เปิด URL" style="border:1px solid var(--border);border-radius:6px;background:#f8fafc;padding:0 .5rem;cursor:pointer;flex-shrink:0">🔗</button>
-        </div>
-      </div>
-      <div class="form-group" style="margin:0">
-        <label>เวอร์ชั่นอัปเดท</label>
-        <input type="text" id="req-update-version" placeholder="เช่น v2.1.5"/>
-      </div>
-      <div class="form-group" style="margin:0">
-        <label>เอกสารส่งมอบ <span style="color:var(--muted);font-weight:400;font-size:.73rem">(URL)</span></label>
-        <div style="display:flex;gap:.3rem">
-          <input type="url" id="req-delivery-doc" placeholder="https://..." style="flex:1;min-width:0"/>
-          <button type="button" onclick="openUrlField('req-delivery-doc')" title="เปิด URL" style="border:1px solid var(--border);border-radius:6px;background:#f8fafc;padding:0 .5rem;cursor:pointer;flex-shrink:0">🔗</button>
-        </div>
-      </div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.75rem">
-      <div class="form-group" style="margin:0">
-        <label>วันที่เริ่มสัญญา</label>
-        <input type="date" id="req-contract-start"/>
-      </div>
-      <div class="form-group" style="margin:0">
-        <label>วันที่หมดสัญญา</label>
-        <input type="date" id="req-contract-end"/>
-      </div>
-    </div>
-
-    <!-- Section 6: ความคืบหน้า + หมายเหตุ -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem">
-      <div class="form-group" style="margin:0">
-        <label>Priority</label>
-        <select id="req-priority">
-          <option value="medium">🟡 Medium</option>
-          <option value="high">🟠 High</option>
-          <option value="critical">🔴 Critical</option>
-          <option value="low">🟢 Low</option>
-        </select>
-      </div>
-      <div class="form-group" style="margin:0">
-        <label>ความคืบหน้า <span style="color:var(--primary);font-weight:700" id="req-prog-val">0</span>% <span style="font-size:.7rem;color:var(--muted);font-weight:400">(อัตโนมัติจากสถานะ)</span></label>
-        <div style="display:flex;align-items:center;gap:.6rem;margin-top:.35rem">
-          <div style="flex:1;height:10px;background:#e2e8f0;border-radius:5px;overflow:hidden">
-            <div id="req-prog-bar" style="height:100%;border-radius:5px;background:#94a3b8;width:0%;transition:width .3s"></div>
-          </div>
-        </div>
-      </div>
-      <div class="form-group" style="grid-column:1/-1;margin:0">
-        <label>หมายเหตุ <span style="color:var(--muted);font-weight:400;font-size:.75rem">(ภายใน)</span></label>
-        <textarea id="req-notes" rows="2" placeholder="หมายเหตุภายใน..." style="resize:vertical"></textarea>
-      </div>
-    </div>
-
-    <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:1.1rem">
-      <button class="btn" onclick="closeReqModal()" style="border:1px solid var(--border);background:#fff;color:var(--text)">ยกเลิก</button>
-      <button class="btn btn-primary" onclick="saveRequirement()">💾 บันทึก</button>
-    </div>
-  </div>
-</div>
-
 <!-- ═══════════════════ PAGE: KPI ═══════════════════ -->
-<!-- ═══════════════════ PAGE: DUTY BOARD ═══════════════════ -->
-<div id="page-duty" class="page">
-  <div class="section-header" style="margin-bottom:.75rem">
-    <div>
-      <div class="section-title">🕐 Duty Board</div>
-      <div id="duty-clock" style="font-size:.8rem;color:var(--muted);margin-top:.15rem"></div>
-    </div>
-    <button class="btn btn-ghost btn-sm" onclick="loadDutyBoard()">🔄 รีเฟรช</button>
-  </div>
-
-  <!-- Active shift indicator -->
-  <div id="duty-active-shift" style="margin-bottom:.85rem"></div>
-
-  <!-- Shift cards -->
-  <div id="duty-shift-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:.75rem;margin-bottom:1rem">
-    <div style="color:var(--muted);font-size:.85rem;padding:1rem">กำลังโหลด...</div>
-  </div>
-
-  <!-- Hourly chart -->
-  <div class="card" style="padding:1rem;margin-bottom:1rem">
-    <div style="font-size:.85rem;font-weight:700;color:var(--hd);margin-bottom:.75rem">📊 Case เข้าแต่ละชั่วโมงวันนี้</div>
-    <div id="duty-hourly-chart" style="display:flex;align-items:flex-end;gap:3px;height:100px;padding-bottom:.25rem"></div>
-    <div id="duty-hourly-labels" style="display:flex;gap:3px;margin-top:.2rem"></div>
-  </div>
-
-  <!-- Summary table -->
-  <div class="card" style="padding:.5rem 0">
-    <div style="font-size:.85rem;font-weight:700;color:var(--hd);padding:.5rem 1rem .25rem">📋 สรุปรายคนวันนี้</div>
-    <div class="tbl-wrap">
-      <table>
-        <thead><tr>
-          <th>ชื่อ</th><th>ทีม</th><th>กะ</th>
-          <th style="text-align:right">วันนี้</th>
-          <th style="text-align:right">ค้างอยู่</th>
-          <th style="text-align:right">เฉลี่ย/ชม.</th>
-        </tr></thead>
-        <tbody id="duty-summary-tbody"></tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
 <div id="page-kpi" class="page">
-  <div class="page-top-panel">
   <div class="section-header" style="margin-bottom:.75rem">
     <div class="section-title">📈 ประเมินผลทีม (KPI)</div>
     <div class="btn-group">
@@ -1337,7 +907,6 @@ textarea{resize:vertical;min-height:80px}
       <span style="font-size:.9rem;font-weight:800;color:var(--accent)" id="kpi-stat-top">—</span>
     </div>
   </div>
-  </div><!-- /page-top-panel -->
 
   <!-- AI Forecast -->
   <div class="ai-forecast-box" id="ai-forecast-box">
@@ -1593,20 +1162,43 @@ textarea{resize:vertical;min-height:80px}
     </div>
   </div>
 
-  <!-- Filter -->
-  <div class="page-datebar" style="margin-bottom:.75rem;gap:.5rem;flex-wrap:wrap">
-    <select id="sp-filter-status" onchange="loadSpecialist()">
-      <option value="">ทุกสถานะ</option>
-      <option value="pending">⏳ รอดำเนินการ</option>
-      <option value="in_progress">🔄 กำลังดำเนินการ</option>
-      <option value="resolved">✅ แก้ไขแล้ว</option>
-      <option value="rejected">❌ ปฏิเสธ</option>
-      <option value="cancelled">🚫 ยกเลิก</option>
-    </select>
-    <select id="sp-filter-team" onchange="loadSpecialist()">
-      <option value="">ทุกทีม</option>
-    </select>
-    <input id="sp-search" type="text" placeholder="🔍 ค้นหาร้าน / หัวข้อ..." oninput="spSearchDebounce()" style="flex:1;min-width:160px"/>
+  <!-- Date & Filter Bar -->
+  <div class="page-datebar" style="flex-direction:column;align-items:flex-start;gap:.45rem;margin-bottom:.75rem">
+    <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;width:100%">
+      <div class="drb" id="sp-drb">
+        <button class="drb-btn" onclick="spRange('today',this)">วันนี้</button>
+        <button class="drb-btn" onclick="spRange('thisweek',this)">สัปดาห์นี้</button>
+        <button class="drb-btn active" onclick="spRange('thismonth',this)">เดือนนี้</button>
+        <button class="drb-btn" onclick="spRange('30d',this)">30 วัน</button>
+        <button class="drb-btn" onclick="spRange('custom',this)">กำหนดเอง</button>
+      </div>
+      <span style="color:var(--border)">|</span>
+      <select id="sp-filter-status" onchange="loadSpecialist()">
+        <option value="">ทุกสถานะ</option>
+        <option value="pending">⏳ รอดำเนินการ</option>
+        <option value="in_progress">🔄 กำลังดำเนินการ</option>
+        <option value="resolved">✅ แก้ไขแล้ว</option>
+        <option value="rejected">❌ ปฏิเสธ</option>
+        <option value="cancelled">🚫 ยกเลิก</option>
+      </select>
+      <select id="sp-filter-team" onchange="loadSpecialist()">
+        <option value="">ทุกทีม</option>
+      </select>
+      <select id="sp-filter-priority" onchange="loadSpecialist()">
+        <option value="">ทุก Priority</option>
+        <option value="urgent">🔴 Urgent</option>
+        <option value="high">🟠 High</option>
+        <option value="normal">🟡 Normal</option>
+        <option value="low">🟢 Low</option>
+      </select>
+      <input id="sp-search" type="text" placeholder="🔍 ค้นหาร้าน / หัวข้อ..." oninput="spSearchDebounce()" style="flex:1;min-width:160px"/>
+    </div>
+    <div class="drb-custom" id="sp-custom-range">
+      <input id="sp-date-from" type="date" style="max-width:135px" title="วันที่เริ่มต้น"/>
+      <span style="color:var(--muted);font-size:.8rem">ถึง</span>
+      <input id="sp-date-to" type="date" style="max-width:135px" title="วันที่สิ้นสุด"/>
+      <button class="btn btn-sm btn-primary" onclick="loadSpecialist()">ค้นหา</button>
+    </div>
   </div>
 
   <div class="card" style="padding:.5rem 0">
@@ -1614,8 +1206,8 @@ textarea{resize:vertical;min-height:80px}
       <table>
         <thead><tr>
           <th>#</th><th>ร้านค้า</th><th>หัวข้อ / ประเภท</th>
-          <th>ผู้ติดต่อ</th><th>รายละเอียดปัญหา</th><th>วิธีแก้ไข / ตรวจสอบเบื้องต้น</th>
-          <th>ทีม</th><th>สถานะ</th><th>วันที่มอบหมาย</th><th></th>
+          <th>ผู้ติดต่อ</th><th>ทีม</th><th>Priority</th>
+          <th>สถานะ</th><th>วันที่มอบหมาย</th><th></th>
         </tr></thead>
         <tbody id="specialist-tbody"></tbody>
       </table>
@@ -1709,11 +1301,22 @@ textarea{resize:vertical;min-height:80px}
     </div>
     <!-- Assignment -->
     <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin:.75rem 0 .5rem">🎯 มอบหมาย</div>
-    <div class="form-group">
-      <label>ทีม Specialist *</label>
-      <select id="asp-team">
-        <option value="">เลือกทีม</option>
-      </select>
+    <div class="grid-2">
+      <div class="form-group">
+        <label>ทีม Specialist *</label>
+        <select id="asp-team">
+          <option value="">เลือกทีม</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Priority</label>
+        <select id="asp-priority">
+          <option value="normal">🟡 Normal</option>
+          <option value="high">🟠 High</option>
+          <option value="urgent">🔴 Urgent</option>
+          <option value="low">🟢 Low</option>
+        </select>
+      </div>
     </div>
     <div class="form-group">
       <label>รายละเอียด / Note</label>
@@ -1739,10 +1342,7 @@ textarea{resize:vertical;min-height:80px}
 <div id="page-repair" class="page">
   <div class="section-header" style="margin-bottom:.75rem">
     <div class="section-title">🔧 งานซ่อม</div>
-    <div style="display:flex;gap:.5rem">
-      <button class="btn btn-ghost btn-sm" onclick="openRepairLinkModal()">🔗 ลิงก์แจ้งซ่อม</button>
-      <button class="btn btn-primary btn-sm" onclick="openRepairForm()">+ แจ้งซ่อมใหม่</button>
-    </div>
+    <button class="btn btn-primary btn-sm" onclick="openRepairForm()">+ แจ้งซ่อมใหม่</button>
   </div>
 
   <!-- Stat Bar -->
@@ -1802,14 +1402,6 @@ textarea{resize:vertical;min-height:80px}
 <div id="page-settings" class="page">
   <div class="section-header" style="margin-bottom:.75rem">
     <div class="section-title" id="settings-page-title">⚙️ หัวข้อ / ประเภทปัญหา</div>
-  </div>
-
-  <!-- Shift types settings tab -->
-  <div id="stab-content-shifts" style="display:none">
-    <div class="section-header" style="margin-bottom:.75rem">
-      <div style="font-size:.92rem;font-weight:700">⏰ กำหนดเวลากะทำงาน</div>
-    </div>
-    <div id="shift-types-list"></div>
   </div>
 
   <!-- Schedule tab (embed page-schedule content via iframe-like show/hide) -->
@@ -1937,33 +1529,6 @@ textarea{resize:vertical;min-height:80px}
 
 <!-- ══════════ REPAIR MODALS ══════════ -->
 
-<!-- Repair Link Management Modal -->
-<div class="overlay" id="modal-repair-link">
-  <div class="modal" style="max-width:600px;max-height:88vh;overflow-y:auto;padding:1.1rem 1.25rem">
-    <div class="modal-title" style="margin-bottom:.75rem">🔗 ลิงก์แจ้งซ่อมสำหรับลูกค้า <button class="modal-close" onclick="closeModal('modal-repair-link')">×</button></div>
-
-    <!-- สร้างลิงก์ใหม่ -->
-    <div style="background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:.85rem;margin-bottom:1rem">
-      <div style="font-size:.8rem;font-weight:700;color:#334155;margin-bottom:.6rem">➕ สร้างลิงก์ใหม่ (กลุ่มลูกค้า)</div>
-      <div style="position:relative;margin-bottom:.5rem">
-        <input id="rl-search" type="text" placeholder="🔍 ค้นหาชื่อกลุ่ม / GroupCode..." oninput="rlSearchDebounce()" autocomplete="off" style="width:100%"/>
-        <div id="rl-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 12px #0002;z-index:999;max-height:220px;overflow-y:auto"></div>
-      </div>
-      <div id="rl-selected-box" style="display:none;background:#dbeafe;border-radius:6px;padding:.45rem .75rem;margin-bottom:.5rem;font-size:.82rem;align-items:center;justify-content:space-between">
-        <span id="rl-selected-label" style="font-weight:600"></span>
-        <button onclick="rlClearSelected()" style="background:none;border:none;cursor:pointer;color:#64748b;font-size:1.1rem;padding:0;line-height:1">×</button>
-      </div>
-      <button class="btn btn-primary btn-sm" onclick="rlCreateLink()" id="rl-create-btn" disabled style="width:100%">🔗 สร้าง / คัดลอกลิงก์</button>
-    </div>
-
-    <!-- รายการลิงก์ที่มีอยู่ -->
-    <div style="font-size:.8rem;font-weight:700;color:#334155;margin-bottom:.5rem">📋 ลิงก์ทั้งหมด</div>
-    <div id="rl-list-wrap">
-      <div style="color:var(--muted);font-size:.82rem;text-align:center;padding:1rem">กำลังโหลด...</div>
-    </div>
-  </div>
-</div>
-
 <!-- Repair Form Modal -->
 <div class="overlay" id="modal-repair-form">
   <div class="modal" style="max-width:660px;max-height:88vh;overflow-y:auto;padding:1.1rem 1.25rem">
@@ -2075,16 +1640,6 @@ textarea{resize:vertical;min-height:80px}
   </div>
 </div>
 
-<!-- Shift picker popup (drag-to-assign) -->
-<div id="shift-pick-popup">
-  <div id="shift-pick-title" style="font-size:.82rem;font-weight:700;color:#334155;margin-bottom:.6rem">—</div>
-  <div id="shift-pick-btns" style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.45rem"></div>
-  <div style="display:flex;gap:.4rem">
-    <button id="shift-pick-del" class="btn btn-sm" style="background:#fef2f2;color:#b91c1c;font-weight:700" onclick="deleteDragShift()">🗑 ลบ</button>
-    <button class="btn btn-ghost btn-sm" onclick="cancelDragShift()">✕ ยกเลิก</button>
-  </div>
-</div>
-
 <!-- ══════════ MODALS ══════════ -->
 
 <!-- Modal: Add Shift -->
@@ -2097,7 +1652,11 @@ textarea{resize:vertical;min-height:80px}
     </div>
     <div class="form-group">
       <label>กะ</label>
-      <select id="s-type"></select>
+      <select id="s-type">
+        <option value="morning">🌅 เช้า (08:30–16:30)</option>
+        <option value="afternoon">🌤 บ่าย (15:30–23:59)</option>
+        <option value="night">🌙 ดึก (16:00–23:59)</option>
+      </select>
     </div>
     <div class="form-group">
       <label>วันที่</label>
@@ -2532,11 +2091,7 @@ function fmtDateShort(d) {
   return new Date(d).toLocaleDateString('th-TH', { day:'numeric', month:'short' });
 }
 function fmtDateISO(d) {
-  // ใช้ local date (ไม่ใช่ UTC) เพื่อหลีกเลี่ยง timezone offset ทำให้วันที่เลื่อนไป -1 วัน
-  const y   = d.getFullYear();
-  const m   = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  return d.toISOString().split('T')[0];
 }
 function timeAgo(dtStr) {
   const diff = Date.now() - (parseDbDate(dtStr)?.getTime() || 0);
@@ -2567,29 +2122,18 @@ function teamBadgeHtml(t) {
   const style = teamBadgeStyle(t);
   return `<span class="badge ${cls}" ${style}>${teamLabel(t)}</span>`;
 }
-// Shift type config — loaded from DB, falls back to defaults
-let _shiftTypes = [
-  { shift_key:'morning',       name:'เช้า',        start_time:'08:30', end_time:'17:30', color_bg:'#dcfce7', color_text:'#166534' },
-  { shift_key:'mid',           name:'กลางวัน',     start_time:'10:00', end_time:'19:00', color_bg:'#e0f2fe', color_text:'#0369a1' },
-  { shift_key:'afternoon',     name:'บ่าย',        start_time:'12:00', end_time:'21:00', color_bg:'#ffedd5', color_text:'#c2410c' },
-  { shift_key:'night',         name:'ดึก',         start_time:'15:00', end_time:'00:00', color_bg:'#e2e8f0', color_text:'#475569' },
-  { shift_key:'dayoff',        name:'DayOFF',      start_time:null,    end_time:null,    color_bg:'#fef2f2', color_text:'#b91c1c' },
-  { shift_key:'leave_personal',name:'ลากิจ',       start_time:null,    end_time:null,    color_bg:'#fef9c3', color_text:'#854d0e' },
-  { shift_key:'leave_sick',    name:'ลาป่วย',      start_time:null,    end_time:null,    color_bg:'#fee2e2', color_text:'#991b1b' },
-  { shift_key:'leave_annual',  name:'ลาพักร้อน',   start_time:null,    end_time:null,    color_bg:'#f3e8ff', color_text:'#6b21a8' },
-];
-async function loadShiftTypes() {
-  try { _shiftTypes = await api('/api/shift-types'); } catch {}
-}
-function _st(key) { return _shiftTypes.find(s => s.shift_key === key) || {}; }
 function shiftLabel(s, withTime) {
-  const t = _st(s);
-  const base = t.name || s;
-  if (!withTime || !t.start_time) return base;
-  return `${base} (${t.start_time}–${t.end_time||'?'})`;
+  const base = {morning:'🌅 เช้า', afternoon:'🌤 บ่าย', night:'🌙 ดึก'}[s] || s;
+  if (!withTime) return base;
+  const time = {morning:'08:30–16:30', afternoon:'15:30–23:59', night:'16:00–23:59'}[s] || '';
+  return time ? `${base} (${time})` : base;
 }
-function shiftBg(s)    { return _st(s).color_bg   || '#f1f5f9'; }
-function shiftColor(s) { return _st(s).color_text  || '#334155'; }
+function shiftBg(s) {
+  return {morning:'#dbeafe', afternoon:'#fef3c7', night:'#ede9fe'}[s] || '#f1f5f9';
+}
+function shiftColor(s) {
+  return {morning:'#1e40af', afternoon:'#92400e', night:'#5b21b6'}[s] || '#334155';
+}
 function statusLabel(s) {
   return {open:'Open', in_progress:'In Progress', waiting_vendor:'Waiting Vendor', closed:'Closed'}[s] || s;
 }
@@ -2628,7 +2172,7 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 
 // click outside to close
 // Modals ที่ห้ามปิดเมื่อกด outside (ข้อมูลอาจหาย)
-const NO_BACKDROP_CLOSE = new Set(['modal-repair-form','modal-repair-detail','modal-person','modal-create-case','modal-edit-ticket-full','modal-specialist-detail','modal-assign-specialist','modal-req']);
+const NO_BACKDROP_CLOSE = new Set(['modal-repair-form','modal-repair-detail','modal-person','modal-create-case','modal-edit-ticket-full','modal-specialist-detail','modal-assign-specialist']);
 
 document.querySelectorAll('.overlay').forEach(el => {
   el.addEventListener('click', e => {
@@ -2640,49 +2184,29 @@ document.querySelectorAll('.overlay').forEach(el => {
 // ══════════════════════════════════════════════════════════
 //  NAV
 // ══════════════════════════════════════════════════════════
-// ── Mobile Sidebar ────────────────────────────────────────
-const _mobilePageTitles = {
-  dashboard: 'Dashboard', tickets: 'ติดตามเคส', specialist: 'Specialist',
-  repair: 'งานซ่อม', requirements: 'Requirements', kpi: 'ประเมินทีม', schedule: 'ตารางกะ',
-  settings: 'ตั้งค่า', users: 'จัดการทีม', complaints: 'ร้องเรียน'
-};
-function toggleSidebar() {
-  const sidebar  = document.getElementById('main-sidebar');
-  const overlay  = document.getElementById('sidebar-overlay');
-  const hamburger = document.getElementById('hamburger-btn');
-  const isOpen = sidebar.classList.contains('open');
-  sidebar.classList.toggle('open', !isOpen);
-  overlay.classList.toggle('show', !isOpen);
-  hamburger.classList.toggle('open', !isOpen);
-}
-function closeSidebar() {
-  document.getElementById('main-sidebar')?.classList.remove('open');
-  document.getElementById('sidebar-overlay')?.classList.remove('show');
-  document.getElementById('hamburger-btn')?.classList.remove('open');
-}
-
 function showPage(name, btn) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.s-tab').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
   if (btn) btn.classList.add('active');
-  // ปิด sidebar บน mobile เมื่อเลือกหน้า
-  if (window.innerWidth <= 768) closeSidebar();
-  // อัปเดต title ใน mobile topbar
-  const titleEl = document.getElementById('mobile-page-title');
-  if (titleEl) titleEl.textContent = _mobilePageTitles[name] ? `— ${_mobilePageTitles[name]}` : '';
   if (name === 'dashboard') { loadDashboard(); loadDashboardCharts(); }
-  if (name === 'schedule')  _applyScheduleView();
+  if (name === 'schedule')  loadSchedule();
   if (name === 'tickets')   loadTickets();
   if (name === 'kpi')       loadKpi();
   if (name === 'users')      loadUsers();
   if (name === 'complaints') loadComplaints();
   if (name === 'settings')   loadSettings();
-  if (name === 'repair')        { loadRepair(); pollRepairMessages(); }
-  if (name === 'requirements')  loadRequirements();
+  if (name === 'repair')       { loadRepair(); pollRepairMessages(); }
   // create-case is now a modal
-  if (name === 'specialist') { loadSpecialist(); }
-  if (name === 'duty')      { loadDutyBoard(); }
+  if (name === 'specialist') {
+    // Set default date range to thismonth on first open
+    if (!document.getElementById('sp-date-from')?.value) {
+      const activeBtn = document.querySelector('#sp-drb .drb-btn.active');
+      spRange('thismonth', activeBtn);
+    } else {
+      loadSpecialist();
+    }
+  }
 }
 
 // ══════════════════════════════════════════════════════════
@@ -3487,7 +3011,7 @@ function setShiftTeam(t, btn) {
   shiftTeamFilter = t;
   document.querySelectorAll('#schedule-tabs .tab').forEach(b => b.classList.remove('active'));
   if (btn) { btn.classList.add('active'); }
-  _scheduleView === 'month' ? loadScheduleMonth() : loadSchedule();
+  loadSchedule();
 }
 
 async function loadSchedule() {
@@ -3571,7 +3095,7 @@ function renderShiftTable(shifts, ws) {
     let wc = 0;
     days.forEach(d => {
       const s = shiftMap[emp.id]?.[fmtDateISO(d)];
-      if (s && s.status !== 'leave' && s.status !== 'approved_leave' && s.shift_type !== 'dayoff' && !s.shift_type?.startsWith('leave_')) wc++;
+      if (s && s.status !== 'leave' && s.status !== 'approved_leave') wc++;
     });
     workCount[emp.id] = wc;
   });
@@ -3595,33 +3119,31 @@ function renderShiftTable(shifts, ws) {
       ${emp.name}${isLead?` <span style="font-size:.68rem;color:var(--muted)">(หน.)</span>`:''}
       <span title="${wcTitle}" style="font-size:.68rem;font-weight:700;color:${wcColor};margin-left:.3rem;cursor:default">${wc}/5</span>
     </td>`;
-    const escN = emp.name.replace(/'/g, "\\'");
     days.forEach(d => {
       const iso = fmtDateISO(d);
       const s   = shiftMap[emp.id]?.[iso];
       if (s) {
         const isLeave = s.status === 'leave' || s.status === 'approved_leave';
-        const bg  = isLeave ? '#fef2f2' : shiftBg(s.shift_type);
-        const col = isLeave ? '#b91c1c' : shiftColor(s.shift_type);
-        const lbl = isLeave ? '🏖 หยุด' : shiftLabel(s.shift_type);
-        if (canEdit) {
-          rows += `<td style="padding:.3rem .25rem;user-select:none;cursor:pointer"
-            onmousedown="shiftCellDown(${emp.id},'${escN}','${iso}',${s.id},this,event)"
-            onmouseover="shiftCellOver(${emp.id},'${iso}',${s.id},this)"
-            ondragstart="return false">
-            <div style="background:${bg};color:${col};border-radius:6px;padding:.18rem .4rem;font-size:.72rem;font-weight:600;text-align:center"
-                 title="${isLeave?'วันหยุด':shiftLabel(s.shift_type,true)}">${lbl}</div></td>`;
-        } else {
-          rows += `<td style="padding:.3rem .25rem"><div style="background:${bg};color:${col};border-radius:6px;padding:.18rem .4rem;font-size:.72rem;font-weight:600;text-align:center">${lbl}</div></td>`;
-        }
+        // Lead+ can click to edit; staff sees read-only badge
+        const clickAttr = canEdit
+          ? `onclick="editShiftModal(${s.id},'${s.shift_type}','${s.status}')" style="cursor:pointer"`
+          : `style="cursor:default"`;
+        rows += `<td style="padding:.3rem .25rem">
+          <div style="background:${isLeave?'#fef2f2':shiftBg(s.shift_type)};color:${isLeave?'#b91c1c':shiftColor(s.shift_type)};
+               border-radius:6px;padding:.18rem .4rem;font-size:.72rem;font-weight:600;text-align:center"
+               title="${isLeave?'วันหยุด':shiftLabel(s.shift_type,true)}" ${clickAttr}>
+            ${isLeave?'🏖 หยุด':shiftLabel(s.shift_type)}
+          </div></td>`;
       } else {
         if (canEdit) {
-          rows += `<td style="padding:.3rem .25rem;text-align:center;color:#cbd5e1;cursor:pointer;user-select:none"
-            onmousedown="shiftCellDown(${emp.id},'${escN}','${iso}',null,this,event)"
-            onmouseover="shiftCellOver(${emp.id},'${iso}',null,this)"
-            ondragstart="return false">·</td>`;
+          rows += `<td style="padding:.3rem .25rem">
+            <div style="color:#cbd5e1;font-size:.78rem;text-align:center;cursor:pointer;border-radius:6px;padding:.18rem .4rem;transition:.15s"
+                 onmouseover="this.style.background='#f1f5f9';this.style.color='#2563eb'"
+                 onmouseout="this.style.background='';this.style.color='#cbd5e1'"
+                 onclick="quickAddShift(${emp.id},'${iso}')" title="เพิ่มกะ">+</div>
+          </td>`;
         } else {
-          rows += `<td style="padding:.3rem .25rem"></td>`;
+          rows += `<td style="padding:.3rem .25rem"></td>`; // staff: empty, no "+"
         }
       }
     });
@@ -3713,13 +3235,6 @@ function renderCoverageWarn(coverage, ws) {
 }
 
 function quickAddShift(empId, dateStr) {
-  // populate dropdown from _shiftTypes
-  const sel = document.getElementById('s-type');
-  const icons = { morning:'🌅', afternoon:'🌤', night:'🌙' };
-  sel.innerHTML = _shiftTypes
-    .filter(t => t.shift_key !== 'dayoff')
-    .map(t => `<option value="${t.shift_key}">${icons[t.shift_key]||''} ${t.name}${t.start_time ? ` (${t.start_time}–${t.end_time||''})` : ''}</option>`)
-    .join('');
   document.getElementById('s-emp').value  = empId;
   document.getElementById('s-date').value = dateStr;
   openModal('modal-add-shift');
@@ -3799,10 +3314,9 @@ async function initTicketFilters() {
   if (tkStatusesLoaded) return;
   tkStatusesLoaded = true;
   try {
-    const [statuses, problemTypes, subjects] = await Promise.all([
+    const [statuses, problemTypes] = await Promise.all([
       api('/api/tickets/meta/statuses'),
-      api('/api/tickets/meta/problem-types'),
-      api('/api/tickets/meta/categories')
+      api('/api/tickets/meta/problem-types')
     ]);
     document.getElementById('tk-filter-status').innerHTML =
       '<option value="">ทุกสถานะ</option>' +
@@ -3810,18 +3324,6 @@ async function initTicketFilters() {
     document.getElementById('tk-filter-problem-type').innerHTML =
       '<option value="">ทุกประเภทปัญหา</option>' +
       problemTypes.map(p => `<option value="${escHtml(p)}">${escHtml(p)}</option>`).join('');
-    // subjects = [{category, problem_type}, ...] — group by problem_type
-    const subjectsByType = {};
-    subjects.forEach(s => {
-      const grp = s.problem_type || 'อื่นๆ';
-      if (!subjectsByType[grp]) subjectsByType[grp] = [];
-      subjectsByType[grp].push(s.category);
-    });
-    document.getElementById('tk-filter-subject').innerHTML =
-      '<option value="">ทุกหัวข้อ</option>' +
-      Object.entries(subjectsByType).map(([grp, items]) =>
-        `<optgroup label="${escHtml(grp)}">${items.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('')}</optgroup>`
-      ).join('');
   } catch {}
 }
 
@@ -3849,7 +3351,6 @@ async function loadTickets() {
   const agent       = document.getElementById('tk-filter-agent').value;
   const team        = document.getElementById('tk-filter-team')?.value || '';
   const problemType = document.getElementById('tk-filter-problem-type')?.value || '';
-  const subject     = document.getElementById('tk-filter-subject')?.value || '';
   const dateFrom    = document.getElementById('tk-date-from').value;
   const dateTo      = document.getElementById('tk-date-to').value;
   const searchVal   = document.getElementById('tk-search')?.value?.trim() || '';
@@ -3860,7 +3361,6 @@ async function loadTickets() {
     // date/filter params only apply for text/normal search
     if (status)      url += `status=${encodeURIComponent(status)}&`;
     if (problemType) url += `problemType=${encodeURIComponent(problemType)}&`;
-    if (subject)     url += `subject=${encodeURIComponent(subject)}&`;
     if (team)        url += `team=${encodeURIComponent(team)}&`;
     if (dateFrom)    url += `dateFrom=${dateFrom}&`;
     if (dateTo)      url += `dateTo=${dateTo}&`;
@@ -3902,11 +3402,19 @@ function renderTickets() {
   const tkTotal   = filtered.length;
   const tkClosed  = filtered.filter(isClosed).length;
   const tkOpen    = filtered.filter(t => !isClosed(t)).length;
+  const now24h    = Date.now() - 24 * 3600 * 1000;
   // overdue count is fetched separately (see loadTicketOverdue) — don't recalculate from filtered
+  const closedWithTime = filtered.filter(t => isClosed(t) && t.TimeDiff_Minutes != null && t.TimeDiff_Minutes >= 0);
+  let tkAvg = '—';
+  if (closedWithTime.length) {
+    const avgMin = closedWithTime.reduce((s, t) => s + t.TimeDiff_Minutes, 0) / closedWithTime.length;
+    tkAvg = avgMin >= 60 ? `${Math.floor(avgMin/60)}ชม.${Math.round(avgMin%60)}น.` : `${Math.round(avgMin)}น.`;
+  }
   const _setEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   _setEl('tk-stat-total',  tkTotal);
   _setEl('tk-stat-open',   tkOpen);
   _setEl('tk-stat-closed', tkClosed);
+  _setEl('tk-stat-avg',    tkAvg);
   // tk-stat-overdue is updated by loadTicketOverdue() independently
 
   // Sort newest → oldest
@@ -3926,7 +3434,7 @@ function renderTickets() {
 
   const tbody = document.getElementById('ticket-tbody');
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="10" class="empty"><div class="icon">🎫</div>ไม่พบเคส</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" class="empty"><div class="icon">🎫</div>ไม่พบเคส</td></tr>';
     return;
   }
 
@@ -3945,13 +3453,15 @@ function renderTickets() {
     const closeTimeStr = closeD ? closeD.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}) : '';
 
     // Resolution time — show hr:min if >= 60 min
-    let diffDisp = '—';
-    if (t.TimeDiff_Minutes != null) {
-      const m = t.TimeDiff_Minutes;
-      diffDisp = m >= 60 ? `${Math.floor(m/60)}ชม. ${m%60}น.` : `${m} น.`;
-    }
+    const fmtMin = m => m == null ? '—' : m >= 60 ? `${Math.floor(m/60)}ชม. ${m%60}น.` : `${m} น.`;
+    let diffDisp   = fmtMin(t.TimeDiff_Minutes);
+    let targetDisp = fmtMin(t.time_to_resolve);
 
-    const descShort    = (t.description||'').trim().slice(0,70) + ((t.description||'').length>70?'…':'');
+    const isOverTarget = t.time_to_resolve != null && t.TimeDiff_Minutes != null && t.TimeDiff_Minutes > t.time_to_resolve;
+    const isClosed     = (t.status||'').match(/close|ปิด|complete|เสร็จ/i);
+    const isSpecialist = (t.status||'').toLowerCase().includes('specialist');
+
+    const descShort    = (t.description||'').trim().slice(0,60) + ((t.description||'').length>60?'…':'');
     const solShort     = (t.Solution||'').trim().slice(0,70) + ((t.Solution||'').length>70?'…':'');
     const commentShort = (t.ticket_comment||'').trim().slice(0,40) + ((t.ticket_comment||'').length>40?'…':'');
 
@@ -3977,21 +3487,45 @@ function renderTickets() {
         <div style="font-size:.82rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(t.CompanyName||'')}">${escHtml(t.CompanyName||'—')}</div>
         <button onclick="genCustomerLink(event,'${escHtml(t.CompanyName||'').replace(/'/g,"\\'")}',this)" title="Copy link ลูกค้า" style="border:none;background:none;cursor:pointer;padding:0;color:#94a3b8;font-size:.7rem;line-height:1.4" tabindex="-1">🔗 link</button>
       </td>
-      <td style="max-width:190px">
+      <td style="max-width:180px">
         ${t.problem_type_detail
           ? `<div style="margin-bottom:.18rem"><span style="display:inline-block;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;font-size:.67rem;padding:.03rem .35rem;white-space:nowrap;max-width:100%">${escHtml(t.problem_type_detail)}</span></div>`
           : ''}
         <div style="font-size:.83rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(t.title||'').replace(/"/g,'&quot;')}">${t.title||'—'}</div>
       </td>
-      <td style="font-size:.82rem;white-space:nowrap">${dn(t.assigned_name)||'—'}</td>
-      <td>${tkStatusBadge(t.status)}${isOverdue ? `<div style="font-size:.68rem;color:#fca5a5;font-weight:700">⚠️ ค้างนาน</div>` : ''}</td>
+      <td style="max-width:160px;font-size:.78rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(t.description||'')}">
+        ${descShort || '—'}
+      </td>
+      <td style="font-size:.82rem;white-space:nowrap">
+        <div>${dn(t.assigned_name)||'—'}</div>
+        ${t.specialist ? (() => {
+          const sp = t.specialist;
+          const fmtDT = d => { if (!d) return ''; const dt = parseDbDate(d);
+            const isTdy = dt.toDateString() === new Date().toDateString();
+            return isTdy
+              ? dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}) + ' น.'
+              : dt.toLocaleDateString('th-TH',{day:'numeric',month:'short'}) + ' ' + dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}) + ' น.';
+          };
+          return `<div style="font-size:.67rem;color:#7c3aed;margin-top:.15rem">🎯 #SP-${sp.sp_id}</div>
+            <div style="font-size:.65rem;color:#94a3b8">📤 ${sp.sp_assigned_by||'—'} ${fmtDT(sp.assigned_at)}</div>
+            ${sp.sp_resolved_by ? `<div style="font-size:.65rem;color:#16a34a">✅ ${sp.sp_resolved_by} ${fmtDT(sp.resolved_at)}</div>` : ''}`;
+        })() : ''}
+      </td>
+      <td>
+        ${tkStatusBadge(t.status)}
+        ${isOverdue ? `<div style="font-size:.68rem;color:#fca5a5;font-weight:700">⚠️ ค้างนาน</div>` : ''}
+        ${isSpecialist && !t.specialist ? `
+          <button class="btn btn-sm" style="margin-top:.25rem;background:#7c3aed;color:#fff;font-size:.68rem;padding:.15rem .45rem;width:100%"
+            onclick="event.stopPropagation();spAutoAssign(${JSON.stringify({id:t.id,title:t.title,CompanyName:t.CompanyName,problem_type_detail:t.problem_type_detail,category:t.category,InformName:t.InformName,InformTel:t.InformTel,description:t.description||'',solution:t.Solution||''}).replace(/"/g,'&quot;')})">
+            🎯 ส่ง Specialist
+          </button>` : ''}
+      </td>
       <td style="font-size:.78rem;white-space:nowrap">
         ${closeD ? `<div>${closeDateStr}</div><div style="color:var(--muted);font-size:.72rem">${closeTimeStr}</div>` : '—'}
       </td>
-      <td style="font-size:.8rem;white-space:nowrap;text-align:right;color:${t.TimeDiff_Minutes!=null&&t.TimeDiff_Minutes<0?'#fca5a5':'var(--text)'}">${diffDisp}</td>
-      <td style="white-space:nowrap;text-align:center">
-        ${t.Stars ? `<span class="tk-star-display" title="${t.Stars} ดาว">${'★'.repeat(t.Stars)}${'☆'.repeat(5-t.Stars)}</span>`
-                  : `<span class="tk-star-display empty">☆☆☆☆☆</span>`}
+      <td style="font-size:.8rem;white-space:nowrap;text-align:center;color:var(--muted)">${targetDisp}</td>
+      <td style="font-size:.8rem;white-space:nowrap;text-align:center;color:${isOverTarget?'#dc2626':t.TimeDiff_Minutes!=null?'#16a34a':'var(--text)'}">
+        ${diffDisp}${isOverTarget?` <span style="font-size:.65rem">⚠️</span>`:''}
       </td>
     </tr>`);
 
@@ -4026,7 +3560,7 @@ function renderTickets() {
         : `<div class="tk-star-display">${curStars ? '★'.repeat(curStars)+'☆'.repeat(5-curStars) : '☆☆☆☆☆'}</div>`;
 
       rows.push(`<tr class="tk-row-detail" onclick="event.stopPropagation()">
-        <td colspan="10" style="padding:.65rem .9rem .85rem">
+        <td colspan="11" style="padding:.65rem .9rem .85rem">
           <div style="background:#f8fafc;border-radius:7px;padding:.38rem .7rem;margin-bottom:.55rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;border:1px solid #e2e8f0">
             <span style="font-size:.8rem;font-weight:700;color:#1e293b">🏢 ${escHtml(t.CompanyName||'—')}</span>
             ${t.problem_type_detail?`<span style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;font-size:.7rem;padding:.05rem .38rem">${escHtml(t.problem_type_detail)}</span>`:''}
@@ -4038,7 +3572,7 @@ function renderTickets() {
               <div class="tk-detail-text">${escHtml(desc)}</div>
             </div>` : ''}
             ${sol ? `<div class="tk-detail-box tk-solution-box">
-              <div class="tk-detail-label">✅ วิธีแก้ไข / ตรวจสอบเบื้องต้น</div>
+              <div class="tk-detail-label">✅ วิธีแก้ไข</div>
               <div class="tk-detail-text">${escHtml(sol)}</div>
             </div>` : ''}
           </div>` : ''}
@@ -4147,131 +3681,6 @@ async function genCustomerLink(e, companyName, btn) {
     showToast('❌ ' + (err.message || 'ไม่สามารถสร้าง link ได้'), 'error');
   }
 }
-
-// ─── Repair Link Modal ───────────────────────────────────────────────────────
-let _rlSelected = null; // { group_id, group_name, group_code }
-let _rlSearchTimer = null;
-
-async function openRepairLinkModal() {
-  _rlSelected = null;
-  document.getElementById('rl-search').value = '';
-  document.getElementById('rl-dropdown').style.display = 'none';
-  document.getElementById('rl-selected-box').style.display = 'none';
-  document.getElementById('rl-create-btn').disabled = true;
-  document.getElementById('rl-list-wrap').innerHTML = '<div style="color:var(--muted);font-size:.82rem;text-align:center;padding:1rem">กำลังโหลด...</div>';
-  openModal('modal-repair-link');
-  await rlLoadList();
-}
-
-function rlSearchDebounce() {
-  clearTimeout(_rlSearchTimer);
-  _rlSearchTimer = setTimeout(rlDoSearch, 320);
-}
-
-async function rlDoSearch() {
-  const q = document.getElementById('rl-search').value.trim();
-  const dd = document.getElementById('rl-dropdown');
-  if (!q) { dd.style.display = 'none'; return; }
-
-  const data = await api(`/api/customer-groups?search=${encodeURIComponent(q)}`, { silent: true }).catch(() => []);
-  const results = data || [];
-
-  if (!results.length) {
-    dd.innerHTML = '<div style="padding:.5rem .75rem;color:var(--muted);font-size:.82rem">ไม่พบกลุ่มลูกค้า</div>';
-  } else {
-    dd.innerHTML = results.map((g, i) => `
-      <div onclick="rlSelectItem(${i})" style="padding:.5rem .75rem;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:.82rem" onmouseover="this.style.background='#f0f9ff'" onmouseout="this.style.background=''">
-        <div style="font-weight:600;color:#1e293b">${escHtml(g.group_name)}</div>
-        <div style="font-size:.72rem;color:var(--muted)">Code: ${escHtml(g.group_code || '—')} · ${g.branch_count || 0} สาขา</div>
-      </div>`).join('');
-    dd._data = results;
-  }
-  dd.style.display = 'block';
-}
-
-function rlSelectItem(i) {
-  const dd = document.getElementById('rl-dropdown');
-  const g = dd._data?.[i];
-  if (!g) return;
-  _rlSelected = { group_id: g.group_id, group_name: g.group_name, group_code: g.group_code };
-  document.getElementById('rl-search').value = '';
-  dd.style.display = 'none';
-  document.getElementById('rl-selected-label').textContent =
-    `👥 ${g.group_name}${g.group_code ? '  (' + g.group_code + ')' : ''}  · ${g.branch_count || 0} สาขา`;
-  document.getElementById('rl-selected-box').style.display = 'flex';
-  document.getElementById('rl-create-btn').disabled = false;
-}
-
-function rlClearSelected() {
-  _rlSelected = null;
-  document.getElementById('rl-selected-box').style.display = 'none';
-  document.getElementById('rl-create-btn').disabled = true;
-}
-
-async function rlCreateLink() {
-  if (!_rlSelected) return;
-  const btn = document.getElementById('rl-create-btn');
-  btn.textContent = '⏳ กำลังสร้าง...';
-  btn.disabled = true;
-  try {
-    const body = { group_id: _rlSelected.group_id, group_name: _rlSelected.group_name };
-    const data = await api('/api/customer-links', { method: 'POST', silent: true, body });
-    if (!data || data.error) { showToast('❌ ' + (data?.error || 'เกิดข้อผิดพลาด'), 'error'); return; }
-    const link = `${location.origin}/repair-submit.html?token=${data.token}`;
-    try { await navigator.clipboard.writeText(link); showToast('✅ คัดลอกลิงก์แล้ว!'); }
-    catch { prompt('คัดลอกลิงก์นี้:', link); }
-    rlClearSelected();
-    await rlLoadList();
-  } finally {
-    btn.textContent = '🔗 สร้าง / คัดลอกลิงก์';
-    btn.disabled = !!_rlSelected === false;
-  }
-}
-
-async function rlLoadList() {
-  const wrap = document.getElementById('rl-list-wrap');
-  const links = await api('/api/customer-links', { silent: true }).catch(() => []);
-  const groups = (links || []).filter(lk => lk.link_type === 'group');
-
-  if (!groups.length) {
-    wrap.innerHTML = '<div style="color:var(--muted);font-size:.82rem;text-align:center;padding:1rem">ยังไม่มีลิงก์กลุ่มลูกค้า</div>';
-    return;
-  }
-
-  function rlRow(lk) {
-    const url  = `${location.origin}/repair-submit.html?token=${lk.token}`;
-    const name = lk.group_name || lk.company_name || '—';
-    return `<div style="display:flex;align-items:center;gap:.5rem;padding:.45rem .5rem;border-bottom:1px solid #f1f5f9;font-size:.8rem">
-      <div style="flex:1;min-width:0">
-        <div style="font-weight:600;color:#1e293b">${escHtml(name)}</div>
-        <div style="color:var(--muted);font-size:.7rem;margin-top:.1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(url)}</div>
-      </div>
-      <button onclick="rlCopyLink('${escHtml(url)}')" style="background:none;border:1px solid var(--border);border-radius:5px;padding:.2rem .5rem;cursor:pointer;font-size:.75rem;color:#475569;white-space:nowrap">📋 Copy</button>
-      <button onclick="rlDeleteLink(${lk.id})" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:.85rem;padding:.2rem .35rem" title="ลบ">🗑</button>
-    </div>`;
-  }
-
-  wrap.innerHTML = `
-    <div style="font-size:.75rem;font-weight:700;color:#1d4ed8;background:#dbeafe;padding:.3rem .6rem;border-radius:6px;margin-bottom:.25rem">👥 กลุ่มลูกค้า (${groups.length})</div>
-    <div style="border:1px solid #e2e8f0;border-radius:6px;overflow:hidden">
-      ${groups.map(rlRow).join('')}
-    </div>`;
-
-    rlSection('🏪 ลูกค้ารายเดี่ยว', '#15803d', '#dcfce7', singles);
-}
-
-async function rlCopyLink(url) {
-  try { await navigator.clipboard.writeText(url); showToast('✅ คัดลอกลิงก์แล้ว!'); }
-  catch { prompt('คัดลอกลิงก์นี้:', url); }
-}
-
-async function rlDeleteLink(id) {
-  if (!confirm('ลบลิงก์นี้? ลูกค้าจะใช้ลิงก์เดิมไม่ได้อีก')) return;
-  await api(`/api/customer-links/${id}`, { method: 'DELETE', silent: true });
-  showToast('🗑 ลบลิงก์แล้ว');
-  await rlLoadList();
-}
-// ─────────────────────────────────────────────────────────────────────────────
 
 function tkStatusBadge(status) {
   const s = (status || '').toLowerCase();
@@ -4452,171 +3861,6 @@ function kpiRange(preset, btn) {
   document.getElementById('kpi-date-from').value = _kpiDateFrom;
   document.getElementById('kpi-date-to').value   = _kpiDateTo;
   loadKpi();
-}
-
-// ══════════════════════════════════════════════════════════
-//  DUTY BOARD
-// ══════════════════════════════════════════════════════════
-let _dutyClockTimer = null;
-let _dutyRefreshTimer = null;
-
-function dutyNowActive(start, end) {
-  if (!start || !end) return false;
-  const now = new Date();
-  const hm = h => { const [hh, mm] = h.split(':').map(Number); return hh * 60 + mm; };
-  const cur = now.getHours() * 60 + now.getMinutes();
-  const s = hm(start), e = hm(end);
-  return e < s ? (cur >= s || cur < e) : (cur >= s && cur < e); // handles midnight crossing
-}
-
-async function loadDutyBoard() {
-  // Clock
-  clearInterval(_dutyClockTimer);
-  _dutyClockTimer = setInterval(() => {
-    const el = document.getElementById('duty-clock');
-    if (el) el.textContent = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    else clearInterval(_dutyClockTimer);
-  }, 1000);
-
-  // Auto-refresh every 5 min
-  clearInterval(_dutyRefreshTimer);
-  _dutyRefreshTimer = setInterval(() => { if (document.getElementById('page-duty')?.classList.contains('active')) loadDutyBoard(); }, 300000);
-
-  const [live, hourly] = await Promise.all([
-    api('/api/duty/live', { silent: true }).catch(() => ({ shifts: [] })),
-    api('/api/duty/hourly', { silent: true }).catch(() => [])
-  ]);
-
-  renderDutyActiveShift(live.shifts || []);
-  renderDutyShiftCards(live.shifts || []);
-  renderDutyHourly(hourly || [], live.shifts || []);
-  renderDutySummary(live.shifts || []);
-}
-
-function renderDutyActiveShift(shifts) {
-  const el = document.getElementById('duty-active-shift');
-  if (!el) return;
-  const active = shifts.filter(s => dutyNowActive(s.start_time, s.end_time));
-  if (!active.length) { el.innerHTML = '<div style="font-size:.8rem;color:var(--muted)">ไม่มีกะที่ active ในขณะนี้</div>'; return; }
-  el.innerHTML = active.map(s => `
-    <span style="display:inline-flex;align-items:center;gap:.4rem;background:${s.color_bg};color:${s.color_text};
-      border-radius:20px;padding:.3rem .9rem;font-size:.82rem;font-weight:700;margin-right:.4rem">
-      ● กะ${s.shift_name} กำลัง Active (${s.start_time}–${s.end_time})
-    </span>`).join('');
-}
-
-function renderDutyShiftCards(shifts) {
-  const wrap = document.getElementById('duty-shift-cards');
-  if (!wrap) return;
-  if (!shifts.length) {
-    wrap.innerHTML = '<div style="color:var(--muted);font-size:.85rem;padding:1rem">ไม่มีข้อมูลกะวันนี้</div>';
-    return;
-  }
-  wrap.innerHTML = shifts.map(s => {
-    const isActive = dutyNowActive(s.start_time, s.end_time);
-    const totalToday = s.members.reduce((a, m) => a + (m.today_cases || 0), 0);
-    const totalOpen  = s.members.reduce((a, m) => a + (m.open_cases  || 0), 0);
-    const maxToday   = Math.max(...s.members.map(m => m.today_cases || 0), 1);
-    return `
-      <div class="card" style="padding:0;overflow:hidden;border:2px solid ${isActive ? s.color_bg : 'var(--border)'}">
-        <div style="background:${s.color_bg};color:${s.color_text};padding:.6rem 1rem;display:flex;align-items:center;justify-content:space-between">
-          <div>
-            <span style="font-weight:800;font-size:.92rem">กะ${s.shift_name}</span>
-            <span style="font-size:.75rem;opacity:.75;margin-left:.4rem">${s.start_time || ''}–${s.end_time || ''}</span>
-          </div>
-          <div style="text-align:right;font-size:.75rem">
-            <div style="font-weight:700">${totalToday} case วันนี้</div>
-            <div style="opacity:.75">${totalOpen} ค้างอยู่</div>
-          </div>
-        </div>
-        <div style="padding:.6rem .85rem">
-          ${s.members.length === 0
-            ? '<div style="color:var(--muted);font-size:.8rem;padding:.25rem 0">ไม่มีคนในกะนี้</div>'
-            : s.members.map(m => {
-                const pct = Math.round((m.today_cases || 0) / maxToday * 100);
-                return `
-                  <div style="margin-bottom:.55rem">
-                    <div style="display:flex;justify-content:space-between;font-size:.8rem;margin-bottom:.2rem">
-                      <span style="font-weight:600;color:var(--hd)">${escHtml(m.name)}</span>
-                      <span style="color:var(--muted);font-size:.72rem">${m.today_cases} วันนี้ · <span style="color:#dc2626;font-weight:700">${m.open_cases} ค้าง</span></span>
-                    </div>
-                    <div style="background:#f1f5f9;border-radius:4px;height:6px;overflow:hidden">
-                      <div style="height:100%;width:${pct}%;background:${s.color_text};border-radius:4px;transition:width .4s"></div>
-                    </div>
-                  </div>`;
-              }).join('')}
-        </div>
-      </div>`;
-  }).join('');
-}
-
-function renderDutyHourly(hourly, shifts) {
-  const chartEl  = document.getElementById('duty-hourly-chart');
-  const labelEl  = document.getElementById('duty-hourly-labels');
-  if (!chartEl || !labelEl) return;
-
-  const nowH = new Date().getHours();
-  // Build 0-23 map
-  const map = {};
-  hourly.forEach(r => { map[r.hr] = r.cnt; });
-  const maxCnt = Math.max(...Object.values(map), 1);
-
-  // Show hours 6-23
-  const hours = Array.from({ length: 18 }, (_, i) => i + 6);
-  chartEl.innerHTML = hours.map(h => {
-    const cnt = map[h] || 0;
-    const pct = Math.round(cnt / maxCnt * 100);
-    const isNow = h === nowH;
-    const color = isNow ? '#2563eb' : '#93c5fd';
-    return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px" title="${h}:00 — ${cnt} case">
-      ${cnt > 0 ? `<div style="font-size:.6rem;color:#475569">${cnt}</div>` : '<div style="font-size:.6rem;color:transparent">0</div>'}
-      <div style="width:100%;background:${color};border-radius:3px 3px 0 0;height:${Math.max(pct, cnt > 0 ? 4 : 0)}%;min-height:${cnt > 0 ? '3px' : '0'}"
-           ${isNow ? 'title="ชั่วโมงนี้"' : ''}></div>
-    </div>`;
-  }).join('');
-
-  // Shift range markers on labels
-  const shiftColors = {};
-  shifts.forEach(s => { if (s.start_time) shiftColors[parseInt(s.start_time)] = { bg: s.color_bg, text: s.color_text, name: s.shift_name }; });
-
-  labelEl.innerHTML = hours.map(h => {
-    const isNow = h === nowH;
-    const marker = shiftColors[h];
-    return `<div style="flex:1;text-align:center;font-size:.6rem;color:${isNow ? '#2563eb' : '#94a3b8'};font-weight:${isNow ? '700' : '400'};position:relative">
-      ${h}
-      ${marker ? `<div style="position:absolute;top:-14px;left:50%;transform:translateX(-50%);background:${marker.bg};color:${marker.text};border-radius:3px;padding:0 2px;white-space:nowrap;font-size:.55rem;font-weight:700">▲${marker.name}</div>` : ''}
-    </div>`;
-  }).join('');
-}
-
-function renderDutySummary(shifts) {
-  const tbody = document.getElementById('duty-summary-tbody');
-  if (!tbody) return;
-  if (!shifts.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">ไม่มีข้อมูล</td></tr>'; return; }
-
-  // Flatten all members with shift info
-  const all = [];
-  shifts.forEach(s => {
-    const isActive = dutyNowActive(s.start_time, s.end_time);
-    const startH = s.start_time ? parseInt(s.start_time) : 0;
-    const nowH = new Date().getHours();
-    const hoursWorked = isActive ? Math.max(nowH - startH, 1) : (s.end_time ? parseInt(s.end_time) - startH : 8);
-    s.members.forEach(m => all.push({ ...m, shift_name: s.shift_name, color_bg: s.color_bg, color_text: s.color_text, hoursWorked: Math.max(hoursWorked, 1) }));
-  });
-  all.sort((a, b) => (b.open_cases - a.open_cases) || (b.today_cases - a.today_cases));
-
-  tbody.innerHTML = all.map(m => {
-    const avg = (m.today_cases / m.hoursWorked).toFixed(1);
-    const openColor = m.open_cases > 5 ? '#dc2626' : m.open_cases > 2 ? '#b45309' : '#16a34a';
-    return `<tr>
-      <td style="font-weight:600">${escHtml(m.name)}</td>
-      <td><span style="font-size:.72rem;color:#64748b">${escHtml(m.team || '—')}</span></td>
-      <td><span style="background:${m.color_bg};color:${m.color_text};padding:.1rem .45rem;border-radius:10px;font-size:.72rem;font-weight:700">${escHtml(m.shift_name)}</span></td>
-      <td style="text-align:right;font-weight:700">${m.today_cases}</td>
-      <td style="text-align:right;font-weight:700;color:${openColor}">${m.open_cases}</td>
-      <td style="text-align:right;color:var(--muted)">${avg}</td>
-    </tr>`;
-  }).join('');
 }
 
 async function loadKpi() {
@@ -5079,7 +4323,6 @@ function applyUserContext() {
 
   // Nav: Users tab — manager/admin only
   document.getElementById('nav-btn-users').style.display    = isManager ? '' : 'none';
-  document.getElementById('nav-btn-duty').style.display     = isManager ? '' : 'none';
   // Settings group visible to team_lead+
   document.getElementById('nav-settings-group').style.display = isLead ? '' : 'none';
   // Hide users sub-item for non-managers
@@ -5103,8 +4346,10 @@ function applyUserContext() {
 
   // Schedule: hide edit buttons for staff
   const addShiftBtn   = document.getElementById('btn-add-shift');
-  const clearShiftBtn = document.getElementById('btn-clear-shifts');
+  const aiShiftsBtn   = document.getElementById('btn-ai-shifts');
+  const clearShiftBtn = document.querySelector('button[onclick="clearWeekShifts()"]');
   if (addShiftBtn)   addShiftBtn.style.display   = isLead ? '' : 'none';
+  if (aiShiftsBtn)   aiShiftsBtn.style.display   = isLead ? '' : 'none';
   if (clearShiftBtn) clearShiftBtn.style.display  = isLead ? '' : 'none';
 
   // Staff: hide team filter dropdowns across all pages
@@ -5148,7 +4393,7 @@ async function tryAutoLogin() {
     currentUser = await res.json();
     hideLoginOverlay();
     applyUserContext();
-    await Promise.all([loadEmployees(), loadTeams(), refreshNameMap(), loadShiftTypes()]);
+    await Promise.all([loadEmployees(), loadTeams(), refreshNameMap()]);
     initKpiMonthFilter();
     initDateDefaults();
     loadTarget();
@@ -5185,7 +4430,7 @@ async function doLogin() {
     localStorage.setItem('cs_token', authToken);
     hideLoginOverlay();
     applyUserContext();
-    await Promise.all([loadEmployees(), loadTeams(), refreshNameMap(), loadShiftTypes()]);
+    await Promise.all([loadEmployees(), loadTeams(), refreshNameMap()]);
     initKpiMonthFilter();
     initDateDefaults();
     loadTarget();
@@ -5352,348 +4597,6 @@ let editPersonUserId = null;
 
 // loadUsers() is called by showPage('users') — redirect to loadPeople()
 async function loadUsers() { await loadPeople(); }
-
-// ══════════════════════════════════════════════════════════
-//  REQUIREMENTS
-// ══════════════════════════════════════════════════════════
-let allRequirements = [];
-let _reqSearchTimer = null;
-
-const REQ_PRIORITY_BADGE = {
-  critical: 'background:#fee2e2;color:#b91c1c',
-  high:     'background:#ffedd5;color:#c2410c',
-  medium:   'background:#fef9c3;color:#854d0e',
-  low:      'background:#dcfce7;color:#15803d',
-};
-const REQ_PRIORITY_LABEL = { critical:'🔴 Critical', high:'🟠 High', medium:'🟡 Medium', low:'🟢 Low' };
-
-// ── Progress auto-calculated from work_status ─────────────
-const REQ_STATUS_PROGRESS = {
-  'งานใหม่':            5,
-  'กำลังประเมินราคา':   15,
-  'กำลังดำเนินการ':     50,
-  'UAT':                75,
-  'รอส่งมอบ':           90,
-  'ส่งมอบแล้ว':         100,
-  'ยกเลิก':             0,
-};
-function reqAutoProgress(status) {
-  return REQ_STATUS_PROGRESS[status] ?? 0;
-}
-
-const REQ_STATUS_BADGE = {
-  'รับเรื่อง':         'background:#dbeafe;color:#1d4ed8',
-  'วิเคราะห์':          'background:#ede9fe;color:#5b21b6',
-  'กำลังดำเนินการ':     'background:#fef9c3;color:#854d0e',
-  'ทดสอบ':             'background:#ffedd5;color:#c2410c',
-  'รอส่งมอบ':          'background:#e0f2fe;color:#0369a1',
-  'เสร็จสิ้น':          'background:#dcfce7;color:#15803d',
-  'ยกเลิก':             'background:#f1f5f9;color:#64748b',
-};
-
-function reqPriBadge(p) {
-  const s = REQ_PRIORITY_BADGE[p] || REQ_PRIORITY_BADGE.medium;
-  return `<span style="${s};padding:.15rem .5rem;border-radius:20px;font-size:.7rem;font-weight:700">${REQ_PRIORITY_LABEL[p]||p}</span>`;
-}
-function reqStatusBadge(s) {
-  const style = REQ_STATUS_BADGE[s] || 'background:#f1f5f9;color:#475569';
-  return `<span style="${style};padding:.15rem .5rem;border-radius:20px;font-size:.7rem;font-weight:700">${escHtml(s||'—')}</span>`;
-}
-function reqProgressBar(pct) {
-  const p = Math.max(0, Math.min(100, pct||0));
-  const col = p>=100?'#16a34a':p>=60?'#2563eb':p>=30?'#d97706':'#e2e8f0';
-  return `<div style="display:flex;align-items:center;gap:.35rem;min-width:90px">
-    <div style="flex:1;height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden">
-      <div style="width:${p}%;height:100%;background:${col};border-radius:3px"></div>
-    </div>
-    <span style="font-size:.72rem;color:#64748b;flex-shrink:0">${p}%</span>
-  </div>`;
-}
-
-function reqFilterDebounce() {
-  clearTimeout(_reqSearchTimer);
-  _reqSearchTimer = setTimeout(loadRequirements, 350);
-}
-
-function updateReqProgress() {
-  const status = document.getElementById('req-work-status')?.value || '';
-  const pct = reqAutoProgress(status);
-  const col = pct >= 100 ? '#16a34a' : pct >= 60 ? '#2563eb' : pct >= 30 ? '#d97706' : '#94a3b8';
-  const val = document.getElementById('req-prog-val');
-  const bar = document.getElementById('req-prog-bar');
-  if (val) val.textContent = pct;
-  if (bar) { bar.style.width = pct + '%'; bar.style.background = col; }
-}
-
-function openUrlField(id) {
-  const url = document.getElementById(id)?.value?.trim();
-  if (url) window.open(url, '_blank');
-  else alert('ยังไม่ได้กรอก URL ครับ');
-}
-
-let _reqCustTimer = null;
-async function reqSearchCustomer(val) {
-  clearTimeout(_reqCustTimer);
-  const dd = document.getElementById('req-company-dropdown');
-  if (!val || val.length < 2) { dd.style.display = 'none'; return; }
-  _reqCustTimer = setTimeout(async () => {
-    try {
-      const list = await api(`/api/requirements/search-customer?q=${encodeURIComponent(val)}`);
-      if (!list.length) { dd.style.display = 'none'; return; }
-      dd.innerHTML = list.map(c =>
-        `<div onclick="reqSelectCustomer('${escHtml(c.name)}')"
-          style="padding:.45rem .75rem;cursor:pointer;font-size:.83rem;border-bottom:1px solid #f1f5f9"
-          onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background=''">${escHtml(c.name)}</div>`
-      ).join('');
-      dd.style.display = 'block';
-    } catch {}
-  }, 280);
-}
-
-function reqSelectCustomer(name) {
-  document.getElementById('req-company').value = name;
-  document.getElementById('req-company-dropdown').style.display = 'none';
-  // Auto-select matching portal link if not already set
-  const sel = document.getElementById('req-customer-link-token');
-  if (sel && !sel.value) {
-    const opts = Array.from(sel.options).slice(1); // skip placeholder
-    const links = opts.map(o => ({ token: o.value, company_name: o.text.replace(/^[👥🏢]\s*/,'') }));
-    reqAutoSelectPortalLink(name, links);
-  }
-}
-
-// Close dropdown when clicking outside
-document.addEventListener('click', e => {
-  if (!e.target.closest('#req-company') && !e.target.closest('#req-company-dropdown'))
-    document.getElementById('req-company-dropdown')?.style && (document.getElementById('req-company-dropdown').style.display = 'none');
-});
-
-async function loadRequirements() {
-  const company  = document.getElementById('req-f-company')?.value?.trim() || '';
-  const status   = document.getElementById('req-f-status')?.value   || '';
-  const priority = document.getElementById('req-f-priority')?.value || '';
-  const type     = document.getElementById('req-f-type')?.value     || '';
-  let url = '/api/requirements?';
-  if (company)  url += `company=${encodeURIComponent(company)}&`;
-  if (status)   url += `status=${encodeURIComponent(status)}&`;
-  if (priority) url += `priority=${encodeURIComponent(priority)}&`;
-  if (type)     url += `category=${encodeURIComponent(type)}&`;
-  allRequirements = await api(url);
-  renderRequirements();
-}
-
-function renderRequirements() {
-  const list = allRequirements;
-  const today = new Date(); today.setHours(0,0,0,0);
-  const inProg  = list.filter(r => ['กำลังดำเนินการ','UAT','รอส่งมอบ','กำลังประเมินราคา'].includes(r.work_status)).length;
-  const done    = list.filter(r => r.work_status === 'ส่งมอบแล้ว').length;
-  const overdue = list.filter(r => r.contract_end && r.work_status !== 'ส่งมอบแล้ว' && r.work_status !== 'ยกเลิก' && new Date(r.contract_end) < today).length;
-  const _s = (id, v) => { const e = document.getElementById(id); if(e) e.textContent = v; };
-  _s('req-stat-total',   list.length);
-  _s('req-stat-inprog',  inProg);
-  _s('req-stat-done',    done);
-  _s('req-stat-overdue', overdue);
-
-  const container = document.getElementById('req-list');
-  if (!container) return;
-
-  if (!list.length) {
-    container.innerHTML = `<div class="card" style="text-align:center;padding:2.5rem;color:var(--muted)">ยังไม่มี Requirement — กด ➕ สร้าง Requirement เพื่อเพิ่มรายการแรก</div>`;
-    return;
-  }
-
-  const fmtD = s => s ? new Date(String(s).split('T')[0]).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'}) : '—';
-
-  container.innerHTML = `
-    <div class="card" style="padding:0;overflow:hidden">
-      <div class="tbl-wrap">
-        <table style="min-width:900px">
-          <thead><tr>
-            <th style="width:100px">REQ No.</th>
-            <th style="min-width:150px">บริษัท</th>
-            <th>หัวข้องาน</th>
-            <th style="width:90px">ประเภท</th>
-            <th style="width:80px">Priority</th>
-            <th style="width:155px">สถานะงาน</th>
-            <th style="width:130px">สถานะเอกสาร</th>
-            <th style="width:90px">กำหนดส่ง</th>
-            <th style="width:85px;text-align:center">Action</th>
-          </tr></thead>
-          <tbody>
-          ${list.map(r => {
-            const contractEnd = r.contract_end ? new Date(String(r.contract_end).split('T')[0]) : null;
-            const isOverdue = contractEnd && r.work_status !== 'ส่งมอบแล้ว' && r.work_status !== 'ยกเลิก' && contractEnd < today;
-            const pct = reqAutoProgress(r.work_status);
-            const barCol = pct >= 100 ? '#16a34a' : pct >= 60 ? '#2563eb' : pct >= 30 ? '#d97706' : '#94a3b8';
-            const rJson = escHtml(JSON.stringify(r));
-            const links = [
-              r.estimate_time ? `<a href="${escHtml(r.estimate_time)}" target="_blank" title="Estimate" style="color:#2563eb;text-decoration:none;font-size:.75rem">📎Est</a>` : '',
-              r.spec_doc      ? `<a href="${escHtml(r.spec_doc)}" target="_blank" title="Spec" style="color:#2563eb;text-decoration:none;font-size:.75rem">📎Spec</a>` : '',
-              r.azure_id      ? `<a href="${escHtml(r.azure_id)}" target="_blank" title="Azure" style="color:#2563eb;text-decoration:none;font-size:.75rem">☁️AZ</a>` : '',
-            ].filter(Boolean);
-            return `<tr>
-              <td style="white-space:nowrap">
-                <span style="font-size:.75rem;font-weight:800;color:var(--muted)">${escHtml(r.req_no)}</span>
-                <div style="font-size:.7rem;color:var(--muted);margin-top:.1rem">${fmtD(r.reported_date)}</div>
-              </td>
-              <td>
-                <div style="font-weight:600;font-size:.81rem;max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escHtml(r.company_name)}">${escHtml(r.company_name)}</div>
-                ${r.sales_person ? `<div style="font-size:.7rem;color:var(--muted)">👤 ${escHtml(r.sales_person)}</div>` : ''}
-              </td>
-              <td>
-                <div style="font-size:.82rem;font-weight:600;color:var(--text);max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escHtml(r.title)}">${escHtml(r.title)}</div>
-                ${r.so_no ? `<div style="font-size:.7rem;color:var(--muted)">📄 SO: ${escHtml(r.so_no)}</div>` : ''}
-                ${links.length ? `<div style="display:flex;gap:.4rem;margin-top:.15rem">${links.join('')}</div>` : ''}
-              </td>
-              <td style="white-space:nowrap">
-                ${r.work_type ? `<span style="background:#f1f5f9;color:#475569;padding:.12rem .45rem;border-radius:20px;font-size:.68rem;white-space:nowrap">${escHtml(r.work_type)}</span>` : '—'}
-              </td>
-              <td>${reqPriBadge(r.priority)}</td>
-              <td>
-                ${reqStatusBadge(r.work_status)}
-                <div style="display:flex;align-items:center;gap:.3rem;margin-top:.3rem">
-                  <div style="flex:1;height:4px;background:#e2e8f0;border-radius:2px;overflow:hidden">
-                    <div style="width:${pct}%;height:100%;background:${barCol};border-radius:2px"></div>
-                  </div>
-                  <span style="font-size:.65rem;font-weight:700;color:${barCol};min-width:26px">${pct}%</span>
-                </div>
-              </td>
-              <td>
-                ${r.doc_status ? `<span style="background:#eff6ff;color:#1d4ed8;padding:.12rem .45rem;border-radius:20px;font-size:.66rem;white-space:nowrap;display:inline-block">${escHtml(r.doc_status)}</span>` : '<span style="color:var(--muted);font-size:.78rem">—</span>'}
-              </td>
-              <td style="white-space:nowrap;font-size:.78rem${isOverdue?';color:#dc2626;font-weight:700':''}">
-                ${contractEnd ? fmtD(r.contract_end) : '—'}${isOverdue ? ' ⚠️' : ''}
-              </td>
-              <td>
-                <div style="display:flex;gap:.2rem;justify-content:center">
-                  <button class="btn btn-sm" onclick='openReqModal(${rJson})' style="font-size:.7rem;padding:.18rem .42rem" title="แก้ไข">✏️</button>
-                  <button class="btn btn-sm" onclick="copyReqLink('${r.track_token}')" style="font-size:.7rem;padding:.18rem .42rem" title="Link ลูกค้า">🔗</button>
-                  <button class="btn btn-sm" onclick="deleteRequirement(${r.id},'${escHtml(r.req_no)}')" style="font-size:.7rem;padding:.18rem .42rem;background:#fee2e2;color:#dc2626;border-color:#fca5a5" title="ลบ">🗑</button>
-                </div>
-              </td>
-            </tr>`;
-          }).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>`;
-}
-
-function copyReqLink(token) {
-  const url = `${location.origin}/req-track.html?t=${token}`;
-  navigator.clipboard.writeText(url).then(() => alert(`✅ คัดลอก link แล้ว!\n${url}`));
-}
-
-function openReqModal(data) {
-  const d = data || {};
-  document.getElementById('req-edit-id').value        = d.id || '';
-  document.getElementById('req-modal-title').textContent = d.id ? `✏️ แก้ไข ${d.req_no||'งาน'}` : '➕ งาน Customize ใหม่';
-  const setV = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
-  setV('req-reported-date',  d.reported_date  ? String(d.reported_date).split('T')[0] : new Date().toISOString().split('T')[0]);
-  setV('req-work-type',      d.work_type      || 'Customize');
-  setV('req-ma-percent',     d.ma_percent     ?? 0);
-  setV('req-sales-person',   d.sales_person);
-  setV('req-work-status',    d.work_status    || 'งานใหม่');
-  setV('req-doc-status',     d.doc_status);
-  setV('req-company',        d.company_name);
-  setV('req-title',          d.title);
-  setV('req-description',    d.description);
-  setV('req-so-no',          d.so_no);
-  setV('req-estimate-time',  d.estimate_time);
-  setV('req-spec-doc',       d.spec_doc);
-  setV('req-azure-id',       d.azure_id);
-  setV('req-user-manual',    d.user_manual);
-  setV('req-update-version', d.update_version);
-  setV('req-delivery-doc',   d.delivery_doc);
-  setV('req-contract-start', d.contract_start ? String(d.contract_start).split('T')[0] : '');
-  setV('req-contract-end',   d.contract_end   ? String(d.contract_end).split('T')[0]   : '');
-  setV('req-priority',       d.priority       || 'medium');
-  setV('req-notes', d.notes);
-  // progress is auto-calculated from status — update display
-  setTimeout(updateReqProgress, 0);
-  // Load portal links dropdown
-  api('/api/requirements/portal-links').then(links => {
-    const sel = document.getElementById('req-customer-link-token');
-    if (!sel) return;
-    sel.innerHTML = '<option value="">-- เลือก Portal Link --</option>' +
-      links.map(l => {
-        const label = l.link_type === 'group' ? `👥 ${l.group_name||l.company_name}` : `🏢 ${l.company_name}`;
-        const selected = l.token === (d.customer_link_token || '') ? ' selected' : '';
-        return `<option value="${escHtml(l.token)}"${selected}>${escHtml(label)}</option>`;
-      }).join('');
-    // Auto-select if company name matches and no link was previously set
-    if (!d.customer_link_token && d.company_name) {
-      reqAutoSelectPortalLink(d.company_name, links);
-    }
-  }).catch(()=>{});
-  document.getElementById('modal-req').classList.add('open');
-}
-
-function reqAutoSelectPortalLink(companyName, links) {
-  if (!companyName || !links?.length) return;
-  const name = companyName.toLowerCase();
-  const match = links.find(l => {
-    const ln = (l.company_name || '').toLowerCase();
-    const gn = (l.group_name  || '').toLowerCase();
-    return ln === name || gn === name || ln.includes(name) || name.includes(ln) ||
-           gn.includes(name) || name.includes(gn);
-  });
-  if (match) {
-    const sel = document.getElementById('req-customer-link-token');
-    if (sel) sel.value = match.token;
-  }
-}
-
-function closeReqModal() {
-  document.getElementById('modal-req').classList.remove('open');
-}
-
-async function saveRequirement() {
-  const id      = document.getElementById('req-edit-id').value;
-  const company = document.getElementById('req-company').value.trim();
-  const title   = document.getElementById('req-title').value.trim();
-  if (!company || !title) return alert('กรุณากรอกชื่อลูกค้า/บริษัท และหัวข้องาน');
-  const gv = id => document.getElementById(id)?.value || '';
-  const body = {
-    company_name:    company,
-    title,
-    reported_date:   gv('req-reported-date')  || null,
-    work_type:       gv('req-work-type'),
-    ma_percent:      parseFloat(gv('req-ma-percent')) || 0,
-    sales_person:    gv('req-sales-person'),
-    work_status:     gv('req-work-status'),
-    doc_status:      gv('req-doc-status'),
-    description:     gv('req-description'),
-    so_no:           gv('req-so-no'),
-    estimate_time:   gv('req-estimate-time'),
-    spec_doc:        gv('req-spec-doc'),
-    azure_id:        gv('req-azure-id'),
-    user_manual:     gv('req-user-manual'),
-    update_version:  gv('req-update-version'),
-    delivery_doc:    gv('req-delivery-doc'),
-    contract_start:  gv('req-contract-start') || null,
-    contract_end:    gv('req-contract-end')   || null,
-    priority:             gv('req-priority'),
-    progress:             reqAutoProgress(gv('req-work-status')),
-    notes:                gv('req-notes'),
-    customer_link_token:  gv('req-customer-link-token') || null,
-  };
-  try {
-    if (id) {
-      await api(`/api/requirements/${id}`, { method:'PUT', body });
-    } else {
-      await api('/api/requirements', { method:'POST', body });
-    }
-    closeReqModal();
-    await loadRequirements();
-  } catch(e) { alert('เกิดข้อผิดพลาด: ' + e.message); }
-}
-
-async function deleteRequirement(id, req_no) {
-  if (!confirm(`ลบ ${req_no} ใช่ไหมครับ?`)) return;
-  await api(`/api/requirements/${id}`, { method:'DELETE' });
-  await loadRequirements();
-}
 
 // ══════════════════════════════════════════════════════════
 //  REPAIR
@@ -6371,7 +5274,7 @@ function navSettings(sub, btn) {
   if (sub === 'schedule') {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('page-schedule').classList.add('active');
-    _applyScheduleView();
+    loadSchedule();
   } else if (sub === 'users') {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('page-users').classList.add('active');
@@ -6380,12 +5283,7 @@ function navSettings(sub, btn) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('page-settings').classList.add('active');
     _settingTab = sub;
-    if (sub === 'shifts') {
-      document.getElementById('settings-page-title').textContent = '⏰ กำหนดกะ';
-      switchSettingTab('shifts', btn);
-    } else {
-      loadSettings();
-    }
+    loadSettings();
   }
 }
 
@@ -6408,30 +5306,26 @@ function switchSettingTab(tab, btn) {
     loadUsers();
     return;
   }
-  // subjects / ptypes / shifts — stay on settings page
+  // subjects / ptypes — stay on settings page
   document.querySelectorAll('#page-settings .tab').forEach(b => b.classList.remove('active'));
   btn?.classList.add('active');
   document.getElementById('stab-content-schedule').style.display = 'none';
-  document.getElementById('stab-content-shifts').style.display   = tab==='shifts'  ? '' : 'none';
-  document.getElementById('stab-content-subjects').style.display = tab==='subjects'? '' : 'none';
-  document.getElementById('stab-content-ptypes').style.display   = tab==='ptypes'  ? '' : 'none';
+  document.getElementById('stab-content-subjects').style.display = '';
+  document.getElementById('stab-content-ptypes').style.display   = tab==='ptypes' ? '' : 'none';
   document.getElementById('stab-content-users').style.display    = 'none';
   if (tab === 'subjects') loadSubjects();
-  else if (tab === 'ptypes') loadPTypes();
-  else if (tab === 'shifts') renderShiftTypesSettings();
+  else loadPTypes();
 }
 
 function loadSettings() {
   const tab = _settingTab || 'subjects';
   document.getElementById('stab-content-schedule').style.display = 'none';
   document.getElementById('stab-content-users').style.display    = 'none';
-  document.getElementById('stab-content-shifts').style.display   = tab==='shifts'  ? '' : 'none';
-  document.getElementById('stab-content-subjects').style.display = tab==='subjects' || !tab || tab==='ptypes' ? '' : 'none';
-  document.getElementById('stab-content-ptypes').style.display   = tab==='ptypes'  ? '' : 'none';
+  document.getElementById('stab-content-subjects').style.display = '';
+  document.getElementById('stab-content-ptypes').style.display   = tab==='ptypes' ? '' : 'none';
   const title = document.getElementById('settings-page-title');
-  if (title) title.textContent = tab==='shifts' ? '⚙️ กำหนดกะ' : '⚙️ หัวข้อ / ประเภทปัญหา';
-  if (tab === 'shifts') renderShiftTypesSettings();
-  else if (tab === 'ptypes') loadPTypes(); else loadSubjects();
+  if (title) title.textContent = '⚙️ หัวข้อ / ประเภทปัญหา';
+  if (tab === 'ptypes') loadPTypes(); else loadSubjects();
 }
 
 // ── Subjects ──────────────────────────────────────────────
@@ -6613,14 +5507,12 @@ async function openCreateCaseModal() {
 }
 
 async function initCreateCase() {
-  // Set default receive date = server time (avoids wrong client clock)
+  // Set default receive date = now
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const localDT = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
   const rd = document.getElementById('cc-receive-date');
-  if (rd && !rd.value) {
-    try {
-      const st = await api('/api/server-time');
-      rd.value = st.datetime;
-    } catch { /* fallback: leave blank */ }
-  }
+  if (rd && !rd.value) rd.value = localDT;
 
   // Load form data if not loaded
   if (!_ccFormData) {
@@ -6760,50 +5652,14 @@ async function saveCreateCase() {
   const r = await api('/api/cases', { method:'POST', body, silent:true });
   if (r?.error) { showToast('❌ ' + r.error, 'error'); return; }
 
-  // Auto-create specialist job if status is "Assign to Specialist"
-  const statusId   = document.getElementById('cc-status').value;
-  const statusName = _ccFormData?.statuses?.find(s => String(s.id) === String(statusId))?.name || '';
-  if (statusName.toLowerCase().includes('specialist')) {
-    const companyName = document.getElementById('cc-shop-search').value.trim();
-    const subjectSel  = document.getElementById('cc-subject');
-    const subjectName = subjectSel?.options[subjectSel.selectedIndex]?.text || '';
-    const ptSel       = document.getElementById('cc-problem-type');
-    const ptName      = ptSel?.options[ptSel.selectedIndex]?.text || '';
-    const spTeam      = allTeams.find(t => t.name.toLowerCase().includes('specialist') || t.display_name.toLowerCase().includes('specialist'));
-    const spBody = {
-      calllog_id:       r.id,
-      company_name:     companyName,
-      subject:          subjectName,
-      problem_type:     ptName,
-      contact_name:     document.getElementById('cc-inform-name').value.trim(),
-      contact_phone:    document.getElementById('cc-inform-tel').value.trim(),
-      line_id:          document.getElementById('cc-line').value.trim(),
-      line_group:       '',
-      customer_location: null,
-      assigned_to_team: spTeam?.name || 'specialist',
-      note:             '',
-      description:      document.getElementById('cc-description').value.trim(),
-      solution:         document.getElementById('cc-solution').value.trim(),
-    };
-    const sr = await api('/api/specialist', { method:'POST', body:spBody, silent:true });
-    if (sr?.duplicate_id) {
-      showToast(`✅ Case #${r.id} — มีงาน Specialist #${sr.duplicate_id} อยู่แล้ว`);
-    } else if (sr?.error) {
-      showToast(`✅ Case #${r.id} แต่สร้างงาน Specialist ไม่สำเร็จ: ${sr.error}`, 'error');
-    } else {
-      showToast(`✅ Case #${r.id} และสร้างงาน Specialist #${sr.id} อัตโนมัติ`);
-    }
-  } else {
-    showToast(`✅ บันทึก Case #${r.id} แล้ว`);
-  }
-
   document.getElementById('cc-saved-id').textContent = r.id;
   document.getElementById('cc-saved-msg').style.display = '';
+  showToast(`✅ บันทึก Case #${r.id} แล้ว`);
   resetCreateCase();
   setTimeout(() => { closeModal('modal-create-case'); loadTickets(); }, 1500);
 }
 
-async function resetCreateCase() {
+function resetCreateCase() {
   ['cc-shop-search','cc-registration-id','cc-description','cc-solution',
    'cc-inform-name','cc-inform-tel','cc-line','cc-close-date'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value='';
@@ -6814,9 +5670,10 @@ async function resetCreateCase() {
   document.getElementById('cc-project').value='';
   document.getElementById('cc-inform-type').value='Phone';
   document.getElementById('cc-saved-msg').style.display='none';
-  // Reset receive date = server time
+  // Reset receive date to now
+  const now=new Date(), pad=n=>String(n).padStart(2,'0');
   const el=document.getElementById('cc-receive-date');
-  if(el){ try{ const st=await api('/api/server-time'); el.value=st.datetime; }catch{} }
+  if(el) el.value=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
 }
 
 // ══════════════════════════════════════════════════════════
@@ -6838,11 +5695,20 @@ function spSearchDebounce() {
   _spSearchTimer = setTimeout(() => loadSpecialist(), 400);
 }
 
+function spRange(preset, btn) {
+  _applyRange(preset, btn, 'sp-date-from', 'sp-date-to', 'sp-drb', 'sp-custom-range', loadSpecialist);
+}
+
 async function loadSpecialist() {
   const status   = document.getElementById('sp-filter-status')?.value || '';
   const team     = document.getElementById('sp-filter-team')?.value   || '';
+  const priority = document.getElementById('sp-filter-priority')?.value || '';
   const search   = document.getElementById('sp-search')?.value?.trim() || '';
+  const dateFrom = document.getElementById('sp-date-from')?.value || '';
+  const dateTo   = document.getElementById('sp-date-to')?.value   || '';
   let url = '/api/specialist?';
+  if (dateFrom) url += `dateFrom=${dateFrom}&`;
+  if (dateTo)   url += `dateTo=${dateTo}&`;
   if (status)   url += `status=${status}&`;
   if (team)     url += `team=${encodeURIComponent(team)}&`;
   _allSpecialist = await api(url);
@@ -6863,9 +5729,10 @@ async function loadSpecialist() {
       allTeams.map(t=>`<option value="${escHtml(t.name)}">${escHtml(t.display_name)}</option>`).join('');
   }
 
-  // Filter locally
+  // Filter locally for priority/search
   let list = _allSpecialist;
-  if (search) list = list.filter(s=>(s.company_name||'').toLowerCase().includes(search.toLowerCase())||(s.subject||'').toLowerCase().includes(search.toLowerCase()));
+  if (priority) list = list.filter(s=>s.priority===priority);
+  if (search)   list = list.filter(s=>(s.company_name||'').toLowerCase().includes(search.toLowerCase())||(s.subject||'').toLowerCase().includes(search.toLowerCase()));
 
   renderSpecialistTable(list);
 }
@@ -6887,9 +5754,12 @@ function renderSpecialistTable(list) {
 
   const tbody = document.getElementById('specialist-tbody');
   if (!tbody) return;
-  if (!list.length) { tbody.innerHTML='<tr><td colspan="10" class="empty">ไม่พบข้อมูล</td></tr>'; return; }
+  if (!list.length) { tbody.innerHTML='<tr><td colspan="9" class="empty">ไม่พบข้อมูล</td></tr>'; return; }
 
-  tbody.innerHTML = list.map(s=>`
+  tbody.innerHTML = list.map(s=>{
+    const hasDesc = s.calllog_description || s.description || s.calllog_solution || s.solution || s.resolution_note;
+    const descPreview = (s.calllog_description || s.description || '').slice(0,60) || '';
+    return `
     <tr style="cursor:pointer;${s.status==='pending'?'background:#fffbeb':''}" onclick="openSpecialistDetail(${s.id})">
       <td style="font-size:.78rem;color:var(--muted)">${s.id}</td>
       <td>
@@ -6899,28 +5769,73 @@ function renderSpecialistTable(list) {
       <td style="max-width:180px">
         ${s.problem_type?`<span style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;font-size:.68rem;padding:.02rem .35rem">${escHtml(s.problem_type)}</span><br>`:''}
         <span style="font-size:.8rem">${escHtml(s.subject||'—')}</span>
+        ${descPreview?`<div style="font-size:.68rem;color:var(--muted);margin-top:.1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:175px">${escHtml(descPreview)}${s.calllog_description?.length>60||s.description?.length>60?'…':''}</div>`:''}
       </td>
       <td style="font-size:.78rem">
         <div>${escHtml(s.contact_name||'—')}</div>
         ${s.contact_phone?`<div style="color:var(--muted);font-size:.72rem">📞 ${escHtml(s.contact_phone)}</div>`:''}
         ${s.line_id?`<div style="color:var(--muted);font-size:.72rem">LINE: ${escHtml(s.line_id)}</div>`:''}
       </td>
-      <td style="font-size:.78rem;max-width:160px">
-        <div style="white-space:pre-wrap;word-break:break-word">${escHtml(s.description||'—')}</div>
-      </td>
-      <td style="font-size:.78rem;max-width:160px">
-        <div style="white-space:pre-wrap;word-break:break-word">${escHtml(s.solution||'—')}</div>
-      </td>
       <td style="font-size:.8rem">
         <div>${escHtml(s.assigned_to_team||'—')}</div>
         ${s.accepted_by_name ? `<div style="font-size:.72rem;color:#2563eb;font-weight:600">👤 ${escHtml(s.accepted_by_name)}</div>` : ''}
       </td>
-      <td>${spStatusBadge(s.status)}</td>
-      <td style="font-size:.75rem;white-space:nowrap">${fmtDate(s.assigned_at)}<br><span style="color:var(--muted)">${parseDbDate(s.assigned_at).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}</span></td>
-      <td onclick="event.stopPropagation()">
+      <td><span style="font-size:.78rem;font-weight:600">${SP_PRIORITY[s.priority]||s.priority||'—'}</span></td>
+      <td>${spStatusBadge(s.status)}
+        ${s.resolution_note?`<div style="font-size:.67rem;color:#16a34a;margin-top:.15rem">✅ มีการแก้ไข</div>`:''}
+      </td>
+      <td style="font-size:.75rem;white-space:nowrap">${fmtDate(s.assigned_at)}</td>
+      <td onclick="event.stopPropagation()" style="white-space:nowrap">
+        ${hasDesc?`<button class="btn btn-ghost btn-sm" title="ดูรายละเอียด" onclick="spToggleDetail(${s.id},this)">📄</button>`:''}
         <button class="btn btn-ghost btn-sm" onclick="openSpecialistDetail(${s.id})">📋</button>
       </td>
-    </tr>`).join('');
+    </tr>
+    <tr id="sp-detail-row-${s.id}" style="display:none;background:#f8fafc">
+      <td colspan="9" style="padding:.55rem 1rem .65rem 2.5rem">
+        ${(s.calllog_description||s.description)?`
+        <div style="margin-bottom:.4rem">
+          <span style="font-size:.7rem;font-weight:700;color:#475569;text-transform:uppercase">📋 รายละเอียดปัญหาจาก Helpdesk</span>
+          <div style="font-size:.8rem;color:var(--text);margin-top:.2rem;white-space:pre-wrap;line-height:1.5">${escHtml(s.calllog_description||s.description)}</div>
+        </div>`:''}
+        ${(s.calllog_solution||s.solution)?`
+        <div style="margin-bottom:.4rem">
+          <span style="font-size:.7rem;font-weight:700;color:#0369a1;text-transform:uppercase">💡 แนวทางแก้ไขเบื้องต้น (Helpdesk)</span>
+          <div style="font-size:.8rem;color:#0c4a6e;margin-top:.2rem;white-space:pre-wrap;line-height:1.5">${escHtml(s.calllog_solution||s.solution)}</div>
+        </div>`:''}
+        ${s.note?`
+        <div style="margin-bottom:.4rem">
+          <span style="font-size:.7rem;font-weight:700;color:#7c3aed;text-transform:uppercase">📝 Note จาก Helpdesk</span>
+          <div style="font-size:.8rem;color:#4c1d95;margin-top:.2rem;white-space:pre-wrap;line-height:1.5">${escHtml(s.note)}</div>
+        </div>`:''}
+        ${s.resolution_note?`
+        <div>
+          <span style="font-size:.7rem;font-weight:700;color:#15803d;text-transform:uppercase">✅ การแก้ไขของ Specialist</span>
+          <div style="font-size:.8rem;color:#14532d;margin-top:.2rem;white-space:pre-wrap;line-height:1.5">${escHtml(s.resolution_note)}</div>
+        </div>`:''}
+        ${!s.resolution_note&&s.status!=='resolved'&&isLeadRole()?`
+        <div style="margin-top:.4rem;display:flex;gap:.5rem;align-items:center">
+          <textarea id="sp-inline-note-${s.id}" rows="2" placeholder="บันทึกการแก้ไข..." style="flex:1;border:1px solid var(--border);border-radius:6px;padding:.3rem .5rem;font-size:.8rem;font-family:inherit;resize:vertical"></textarea>
+          <button class="btn btn-success btn-sm" onclick="saveSpResolveInline(${s.id})">✅ แก้ไขแล้ว</button>
+        </div>`:''}
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function spToggleDetail(id, btn) {
+  const row = document.getElementById(`sp-detail-row-${id}`);
+  if (!row) return;
+  const isOpen = row.style.display !== 'none';
+  row.style.display = isOpen ? 'none' : '';
+  if (btn) btn.textContent = isOpen ? '📄' : '📂';
+}
+
+async function saveSpResolveInline(id) {
+  const note = document.getElementById(`sp-inline-note-${id}`)?.value.trim();
+  const r = await api(`/api/specialist/${id}`, { method:'PUT', body:{status:'resolved', resolution_note:note||null}, silent:true });
+  if (r?.error) { showToast('❌ '+r.error,'error'); return; }
+  showToast('✅ ปิดงาน Specialist แล้ว');
+  loadSpecialist();
 }
 
 // Open Assign to Specialist from ticket page
@@ -7018,8 +5933,6 @@ function etfOnSubjectChange() {
 
 async function saveEditTicket() {
   if (!_editTicketId) return;
-  const statusId  = document.getElementById('etf-status').value || null;
-  const statusName = _ccFormData?.statuses?.find(s => String(s.id) === String(statusId))?.name || '';
   const body = {
     receive_date:     document.getElementById('etf-receive-date').value || null,
     close_date:       document.getElementById('etf-close-date').value   || null,
@@ -7028,7 +5941,7 @@ async function saveEditTicket() {
     subject:          document.getElementById('etf-subject').value             || null,
     problem_type_id:  document.getElementById('etf-problem-type').value        || null,
     project_id:       document.getElementById('etf-project').value             || null,
-    status_id:        statusId,
+    status_id:        document.getElementById('etf-status').value              || null,
     support_id:       document.getElementById('etf-support').value             || null,
     inform_name:      document.getElementById('etf-inform-name').value.trim()  || null,
     inform_tel:       document.getElementById('etf-inform-tel').value.trim()   || null,
@@ -7037,43 +5950,44 @@ async function saveEditTicket() {
   };
   const r = await api(`/api/tickets/${_editTicketId}`, { method:'PUT', body, silent:true });
   if (r?.error) { showToast('❌ ' + r.error, 'error'); return; }
-
-  // Auto-create specialist job when status is "Assign to Specialist"
-  if (statusName.toLowerCase().includes('specialist')) {
-    const ticket = allTickets.find(x => x.id === _editTicketId) || {};
-    const ptName = _ccFormData?.problemTypes?.find(p => String(p.id) === String(document.getElementById('etf-problem-type').value))?.name || ticket.problem_type_detail || ticket.problem_type || '';
-    const subjectSel = document.getElementById('etf-subject');
-    const subjectName = subjectSel?.options[subjectSel.selectedIndex]?.text || ticket.title || '';
-    const spTeam = allTeams.find(t => t.name.toLowerCase().includes('specialist') || t.display_name.toLowerCase().includes('specialist'));
-    const spBody = {
-      calllog_id:       _editTicketId,
-      company_name:     ticket.CompanyName || '',
-      subject:          subjectName,
-      problem_type:     ptName,
-      contact_name:     document.getElementById('etf-inform-name').value.trim(),
-      contact_phone:    document.getElementById('etf-inform-tel').value.trim(),
-      line_id:          document.getElementById('etf-line').value.trim(),
-      line_group:       '',
-      customer_location: null,
-      assigned_to_team: spTeam?.name || 'specialist',
-      note:             '',
-      description:      document.getElementById('etf-description').value.trim(),
-      solution:         document.getElementById('etf-solution').value.trim(),
-    };
-    const sr = await api('/api/specialist', { method:'POST', body:spBody, silent:true });
-    if (sr?.duplicate_id) {
-      showToast('ℹ️ บันทึกแล้ว — มีงาน Specialist #' + sr.duplicate_id + ' อยู่แล้ว');
-    } else if (sr?.error) {
-      showToast('⚠️ บันทึกแล้ว แต่สร้างงาน Specialist ไม่สำเร็จ: ' + sr.error, 'error');
-    } else {
-      showToast('✅ บันทึกแล้ว และสร้างงาน Specialist #' + sr.id + ' อัตโนมัติ');
-    }
-  } else {
-    showToast('✅ บันทึกแล้ว');
-  }
-
   closeModal('modal-edit-ticket-full');
+  showToast('✅ บันทึกแล้ว');
   loadTickets();
+}
+
+async function spAutoAssign(t) {
+  // Auto-send to specialist without modal — find specialist team first
+  const spTeam = allTeams.find(tm => tm.name.toLowerCase().includes('specialist') || tm.display_name.toLowerCase().includes('specialist'));
+  if (!spTeam) { showToast('❌ ไม่พบทีม Specialist ในระบบ', 'error'); return; }
+  const body = {
+    calllog_id:       t.id,
+    company_name:     t.CompanyName || '',
+    subject:          t.title || '',
+    problem_type:     t.problem_type_detail || t.category || '',
+    assigned_to_team: spTeam.name,
+    contact_name:     t.InformName || '',
+    contact_phone:    t.InformTel  || '',
+    description:      t.description || '',
+    solution:         t.solution    || '',
+    priority:         'normal',
+  };
+  const r = await api('/api/specialist', { method:'POST', body, silent:true });
+  if (r?.error) { showToast('❌ ' + r.error, 'error'); return; }
+  showToast('✅ ส่งงานให้ Specialist แล้ว');
+  loadTickets();
+  loadSpecialist();
+}
+
+async function spCloseTicket(calllogId) {
+  if (!confirm(`ปิดเคส #${calllogId} หลังจาก Specialist แก้ไขแล้ว?`)) return;
+  try {
+    const r = await api(`/api/tickets/${calllogId}/sp-close`, { method:'POST', body:{} });
+    const who = r.resolver_name ? ` (แก้ไขโดย ${r.resolver_name})` : '';
+    showToast(`🔒 ปิดเคส #${calllogId} เรียบร้อย${who}`, 'success');
+    loadTickets();
+  } catch(e) {
+    showToast(`❌ ${e.message}`, 'error');
+  }
 }
 
 async function openAssignSpecialist(ticket) {
@@ -7084,6 +5998,7 @@ async function openAssignSpecialist(ticket) {
   ['asp-contact-name','asp-contact-phone','asp-line-id','asp-line-group','asp-note'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value='';
   });
+  document.getElementById('asp-priority').value = 'normal';
   // Pre-fill contact from LicenseDB
   if (ticket.CompanyName) {
     try {
@@ -7119,6 +6034,7 @@ async function saveAssignSpecialist() {
     line_group:       document.getElementById('asp-line-group').value.trim(),
     customer_location: null,
     assigned_to_team: team,
+    priority:         document.getElementById('asp-priority').value,
     note:             document.getElementById('asp-note').value.trim(),
   };
   const r = await api('/api/specialist', { method:'POST', body, silent:true });
@@ -7143,7 +6059,7 @@ async function openSpecialistDetail(id) {
       <div>
         <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.35rem">ข้อมูลงาน</div>
         ${[['ร้านค้า',s.company_name],['หัวข้อ',s.subject],['ประเภท',s.problem_type],
-           ['ทีม',s.assigned_to_team],
+           ['ทีม',s.assigned_to_team],['Priority',SP_PRIORITY[s.priority]||s.priority],
            ['มอบหมายโดย',s.agent_name],['วันที่มอบหมาย',fmtDate(s.assigned_at)],
            ['👤 ผู้รับงาน', s.accepted_by_name ? `<b style="color:#2563eb">${escHtml(s.accepted_by_name)}</b>` : '<span style="color:#94a3b8">ยังไม่มีผู้รับ</span>'],
            ['⏰ เวลารับงาน', s.accepted_at ? fmtDate(s.accepted_at) : '—'],
@@ -7163,8 +6079,6 @@ async function openSpecialistDetail(id) {
       </div>
     </div>
 
-    ${s.description?`<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:.55rem .8rem;font-size:.82rem;margin-bottom:.5rem"><div style="font-weight:700;margin-bottom:.25rem">📋 รายละเอียดปัญหา</div><div style="white-space:pre-wrap">${escHtml(s.description)}</div></div>`:''}
-    ${s.solution?`<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:.55rem .8rem;font-size:.82rem;margin-bottom:.5rem"><div style="font-weight:700;margin-bottom:.25rem">✅ วิธีแก้ไข / ตรวจสอบเบื้องต้น</div><div style="white-space:pre-wrap">${escHtml(s.solution)}</div></div>`:''}
     ${s.note?`<div style="background:#f8fafc;border-radius:8px;padding:.55rem .8rem;font-size:.82rem;margin-bottom:.6rem"><b>📝 Note จาก Helpdesk:</b> ${escHtml(s.note)}</div>`:''}
 
     <!-- Ref CalllogId — click to view in tickets page -->
@@ -7530,6 +6444,7 @@ init();
 // ══════════════════════════════════════════════════════════
 let aiHistory = [];
 let aiPending = false;
+let aiSuggestedShifts = [];
 
 // ── Chatbot Panel ──────────────────────────────────────────
 function toggleAiPanel() {
@@ -7729,297 +6644,97 @@ function _aiRenderTags(text, el) {
     .map(t => `<span class="ai-tag ${t.cls}">${t.label}</span>`).join('');
 }
 
-// ── Drag-to-assign shift (month view) ─────────────────────
-let _dragEmpId = null, _dragEmpName = '';
-let _dragDates = [], _dragCells = [], _dragShiftIds = {};
-let _isDragging = false;
+// ── AI Shift Suggestion ────────────────────────────────────
+async function aiSuggestShifts() {
+  const box = document.getElementById('ai-suggest-box');
+  const status = document.getElementById('ai-suggest-status');
+  const preview = document.getElementById('ai-suggest-preview');
+  const actions = document.getElementById('ai-suggest-actions');
 
-document.addEventListener('mouseup',    e => { if (_isDragging) _shiftDragEnd(e); });
-document.addEventListener('mouseleave', e => { if (_isDragging) _shiftDragEnd(e); });
+  box.classList.add('open');
+  status.innerHTML = '<div style="display:flex;align-items:center;gap:.5rem"><div class="ai-spinner"></div> AI กำลังวางแผนตารางกะ...</div>';
+  preview.innerHTML = '';
+  actions.style.display = 'none';
 
-function shiftCellDown(empId, empName, dateStr, shiftId, el, event) {
-  event.preventDefault();
-  _dragEmpId = empId; _dragEmpName = empName;
-  _dragDates = [dateStr]; _dragCells = [el]; _dragShiftIds = {};
-  if (shiftId) _dragShiftIds[dateStr] = shiftId;
-  _isDragging = true;
-  el.classList.add('shift-drag-sel');
-}
+  const ws = fmtDateISO(currentWeekStart);
+  const team = shiftTeamFilter !== 'all' ? shiftTeamFilter : undefined;
 
-function shiftCellOver(empId, dateStr, shiftId, el) {
-  if (!_isDragging || empId !== _dragEmpId) return;
-  if (!_dragDates.includes(dateStr)) {
-    _dragDates.push(dateStr); _dragCells.push(el);
-    if (shiftId) _dragShiftIds[dateStr] = shiftId;
-    el.classList.add('shift-drag-sel');
-  }
-}
-
-function _shiftDragEnd(event) {
-  _isDragging = false;
-  if (!_dragDates.length) return;
-  const popup  = document.getElementById('shift-pick-popup');
-  const delBtn = document.getElementById('shift-pick-del');
-  document.getElementById('shift-pick-title').textContent =
-    `${_dragEmpName} — ${_dragDates.length} วัน`;
-  // render shift buttons from _shiftTypes (include dayoff)
-  const icons = { morning:'🌅', afternoon:'🌤', night:'🌙', dayoff:'🏖' };
-  document.getElementById('shift-pick-btns').innerHTML = _shiftTypes
-    .map(t => `<button class="btn btn-sm" style="background:${t.color_bg};color:${t.color_text};font-weight:700"
-        onclick="confirmDragShift('${t.shift_key}')">${icons[t.shift_key]||''} ${t.name}${t.start_time?` ${t.start_time}–${t.end_time||''}`:''}</button>`)
-    .join('');
-  delBtn.style.display = Object.keys(_dragShiftIds).length > 0 ? '' : 'none';
-  popup.style.display = 'block';
-  const x = Math.min(event.clientX + 8, window.innerWidth  - 260);
-  const y = Math.min(event.clientY + 8, window.innerHeight - 170);
-  popup.style.left = x + 'px';
-  popup.style.top  = y + 'px';
-}
-
-async function confirmDragShift(shiftType) {
-  _closeShiftPickPopup();
-  const dates = [..._dragDates], empId = _dragEmpId;
-  let ok = 0, lastErr = '';
-  for (const date of dates) {
-    const r = await api('/api/shifts', { method:'POST', silent:true, body:{ employee_id:empId, shift_type:shiftType, shift_date:date }});
-    if (r?.error) lastErr = r.error;
-    else ok++;
-  }
-  _clearDragState();
-  if (lastErr && ok === 0) showToast(`❌ ${lastErr}`, 'error');
-  else showToast(`✅ สร้างกะแล้ว ${ok}/${dates.length} วัน`, 'success');
-  _scheduleView === 'month' ? loadScheduleMonth() : loadSchedule();
-}
-
-async function deleteDragShift() {
-  _closeShiftPickPopup();
-  const ids = Object.values(_dragShiftIds);
-  let ok = 0;
-  for (const id of ids) {
-    try { await api(`/api/shifts/${id}`, { method:'DELETE', silent:true }); ok++; } catch {}
-  }
-  _clearDragState();
-  showToast(`🗑 ลบกะแล้ว ${ok} วัน`, 'success');
-  _scheduleView === 'month' ? loadScheduleMonth() : loadSchedule();
-}
-
-function cancelDragShift()    { _closeShiftPickPopup(); _clearDragState(); }
-function _closeShiftPickPopup() { document.getElementById('shift-pick-popup').style.display = 'none'; }
-function _clearDragState() {
-  _dragCells.forEach(el => el.classList.remove('shift-drag-sel'));
-  _dragEmpId = null; _dragEmpName = ''; _dragDates = []; _dragCells = []; _dragShiftIds = {};
-}
-
-// ── Monthly Schedule View ──────────────────────────────────
-let _scheduleView = 'month'; // 'week' | 'month'
-let _currentMonthYear = new Date().getFullYear();
-let _currentMonthMonth = new Date().getMonth() + 1;
-
-function _applyScheduleView() {
-  const label    = document.getElementById('schedule-view-label');
-  const weekWrap = document.getElementById('shift-week-wrap');
-  const monthWrap= document.getElementById('shift-month-wrap');
-  const weekNav  = document.getElementById('week-nav-bar');
-  const monthNav = document.getElementById('month-nav-bar');
-  const clearBtn = document.getElementById('btn-clear-shifts');
-  if (_scheduleView === 'month') {
-    if (label) label.textContent = 'มุมมองรายสัปดาห์';
-    weekWrap.style.display  = 'none';
-    monthWrap.style.display = '';
-    weekNav.style.display   = 'none';
-    monthNav.style.display  = '';
-    if (clearBtn) clearBtn.style.display = 'none';
-    loadScheduleMonth();
-  } else {
-    if (label) label.textContent = 'มุมมองรายเดือน';
-    weekWrap.style.display  = '';
-    monthWrap.style.display = 'none';
-    weekNav.style.display   = '';
-    monthNav.style.display  = 'none';
-    if (clearBtn) clearBtn.style.display = '';
-    loadSchedule();
-  }
-}
-function toggleScheduleView() {
-  _scheduleView = _scheduleView === 'week' ? 'month' : 'week';
-  _applyScheduleView();
-}
-
-function changeMonth(dir) {
-  _currentMonthMonth += dir;
-  if (_currentMonthMonth > 12) { _currentMonthMonth = 1;  _currentMonthYear++; }
-  if (_currentMonthMonth < 1)  { _currentMonthMonth = 12; _currentMonthYear--; }
-  loadScheduleMonth();
-}
-
-function resetMonth() {
-  _currentMonthYear  = new Date().getFullYear();
-  _currentMonthMonth = new Date().getMonth() + 1;
-  loadScheduleMonth();
-}
-
-async function loadScheduleMonth() {
-  const y = _currentMonthYear, m = _currentMonthMonth;
-  const thMonths = ['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
-  const lbl = document.getElementById('month-label');
-  if (lbl) lbl.textContent = `${thMonths[m]} ${y + 543}`;
-  // render legend from _shiftTypes
-  const legendEl = document.getElementById('shift-month-legend');
-  if (legendEl) {
-    legendEl.innerHTML = _shiftTypes.map(t =>
-      `<span style="background:${t.color_bg};color:${t.color_text};border-radius:5px;padding:.15rem .55rem;font-weight:600">
-        ${t.name}${t.start_time ? ` ${t.start_time}–${t.end_time||''}` : ''}
-      </span>`).join('');
-  }
-  const team = shiftTeamFilter !== 'all' ? `&team=${shiftTeamFilter}` : '';
   try {
-    const shifts = await api(`/api/shifts/month?year=${y}&month=${m}${team}`);
-    renderMonthTable(shifts, y, m);
-  } catch (e) {
-    document.getElementById('shift-month-tbody').innerHTML =
-      `<tr><td colspan="33" class="empty">โหลดข้อมูลไม่สำเร็จ</td></tr>`;
-  }
-}
-
-function renderMonthTable(shifts, year, month) {
-  const lastDay = new Date(year, month, 0).getDate();
-  const todayISO = fmtDateISO(new Date());
-  const thDays = ['อา','จ','อ','พ','พฤ','ศ','ส'];
-
-  const days = [];
-  for (let d = 1; d <= lastDay; d++) {
-    const iso = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const dow = new Date(iso + 'T12:00:00').getDay();
-    days.push({ d, iso, dow });
-  }
-
-  // Header
-  let hdr = '<tr><th style="min-width:110px;position:sticky;left:0;background:#1e293b;color:#fff;z-index:2;padding:.35rem .5rem">พนักงาน</th>';
-  days.forEach(({ d, iso, dow }) => {
-    const isWeekend = dow === 0 || dow === 6;
-    const isToday   = iso === todayISO;
-    const bg = isToday ? '#1d4ed8' : isWeekend ? '#334155' : '#1e293b';
-    hdr += `<th style="text-align:center;background:${bg};color:#fff;padding:.25rem .15rem;min-width:32px;font-weight:${isToday?'800':'500'}">
-      <div style="font-size:.65rem;opacity:.8">${thDays[dow]}</div>
-      <div style="font-size:.78rem">${d}</div>
-    </th>`;
-  });
-  hdr += '</tr>';
-  document.getElementById('shift-month-thead').innerHTML = hdr;
-
-  // Shift lookup
-  const shiftMap = {};
-  shifts.forEach(s => {
-    const dk = (s.shift_date || '').toString().split('T')[0];
-    if (!shiftMap[s.employee_id]) shiftMap[s.employee_id] = {};
-    shiftMap[s.employee_id][dk] = s;
-  });
-
-  let empsToShow = allEmployees.filter(e => e.active !== 0 && e.active !== false);
-  if (shiftTeamFilter !== 'all') empsToShow = empsToShow.filter(e => e.team === shiftTeamFilter);
-  const teamOrder = allTeams.map(t => t.name);
-  empsToShow.sort((a, b) => {
-    const ta = teamOrder.indexOf(a.team), tb = teamOrder.indexOf(b.team);
-    if (ta !== tb) return (ta === -1 ? 99 : ta) - (tb === -1 ? 99 : tb);
-    return (['team_lead','department_head','manager'].includes(a.role) ? 0 : 1) -
-           (['team_lead','department_head','manager'].includes(b.role) ? 0 : 1);
-  });
-
-  const canEdit = isLeadRole();
-  const MBGS = { morning:'#dcfce7', mid:'#e0f2fe', afternoon:'#ffedd5', night:'#e2e8f0', dayoff:'#fef2f2', leave:'#fef2f2', approved_leave:'#fef2f2', leave_personal:'#fef9c3', leave_sick:'#fee2e2', leave_annual:'#f3e8ff' };
-  const MCLR = { morning:'#166534', mid:'#0369a1', afternoon:'#c2410c', night:'#475569', dayoff:'#b91c1c', leave:'#b91c1c', approved_leave:'#b91c1c', leave_personal:'#854d0e', leave_sick:'#991b1b', leave_annual:'#6b21a8' };
-  const MLBL = { morning:'เช้า', mid:'กลาง', afternoon:'บ่าย', night:'ดึก', dayoff:'OFF', leave:'ลา', approved_leave:'ลา', leave_personal:'ลากิจ', leave_sick:'ลาป่วย', leave_annual:'ลาพักร้อน' };
-
-  const esc = s => s.replace(/'/g, "\\'");
-
-  let rows = '', prevTeam = '';
-  empsToShow.forEach(emp => {
-    if (currentUser?.role !== 'staff' && emp.team !== prevTeam) {
-      const color = teamColor(emp.team);
-      rows += `<tr><td colspan="${lastDay + 1}" style="background:${color}22;color:${color};font-weight:700;font-size:.75rem;padding:.3rem .6rem;position:sticky;left:0">${teamLabel(emp.team)}</td></tr>`;
-      prevTeam = emp.team;
-    }
-    rows += `<tr><td style="white-space:nowrap;font-size:.8rem;padding:.28rem .5rem;position:sticky;left:0;background:#fff;z-index:1;border-right:2px solid #e2e8f0">${emp.name}</td>`;
-    days.forEach(({ iso, dow }) => {
-      const s = shiftMap[emp.id]?.[iso];
-      const isWeekend = dow === 0 || dow === 6;
-      const cellBg = isWeekend ? '#f8fafc' : '#fff';
-      const shiftId = s ? s.id : 'null';
-      if (s) {
-        const st  = (s.status === 'leave' || s.status === 'approved_leave') ? s.status : s.shift_type;
-        const bg  = MBGS[st] || '#f1f5f9';
-        const col = MCLR[st] || '#334155';
-        const lbl = MLBL[st] || st;
-        if (canEdit) {
-          rows += `<td style="padding:.15rem .1rem;background:${cellBg};user-select:none;cursor:pointer"
-            onmousedown="shiftCellDown(${emp.id},'${esc(emp.name)}','${iso}',${shiftId},this,event)"
-            onmouseover="shiftCellOver(${emp.id},'${iso}',${shiftId},this)"
-            ondragstart="return false">
-            <div style="background:${bg};color:${col};border-radius:4px;padding:.12rem .2rem;font-weight:700;font-size:.68rem;text-align:center">${lbl}</div>
-          </td>`;
-        } else {
-          rows += `<td style="padding:.15rem .1rem;background:${cellBg}"><div style="background:${bg};color:${col};border-radius:4px;padding:.12rem .2rem;font-weight:700;font-size:.68rem;text-align:center">${lbl}</div></td>`;
-        }
-      } else {
-        if (canEdit) {
-          rows += `<td style="padding:.15rem .1rem;background:${cellBg};text-align:center;color:#d1d5db;cursor:pointer;user-select:none;font-size:.82rem"
-            onmousedown="shiftCellDown(${emp.id},'${esc(emp.name)}','${iso}',null,this,event)"
-            onmouseover="shiftCellOver(${emp.id},'${iso}',null,this)"
-            ondragstart="return false">·</td>`;
-        } else {
-          rows += `<td style="padding:.15rem .1rem;background:${cellBg}"></td>`;
-        }
-      }
+    const res = await fetch('/api/ai/suggest-shifts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ week_start: ws, team })
     });
-    rows += '</tr>';
-  });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
 
-  document.getElementById('shift-month-tbody').innerHTML = rows ||
-    `<tr><td colspan="${lastDay+1}" class="empty">ไม่มีข้อมูล</td></tr>`;
+    aiSuggestedShifts = data.suggestions;
+
+    // preview table
+    const byEmp = {};
+    data.suggestions.forEach(s => {
+      if (!byEmp[s.employee_id]) byEmp[s.employee_id] = [];
+      byEmp[s.employee_id].push(s);
+    });
+
+    let html = `<div style="margin-top:.6rem;font-size:.82rem;color:#166534">AI แนะนำ <b>${data.suggestions.length}</b> กะสำหรับสัปดาห์ ${ws}</div>`;
+    html += '<div style="display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.5rem">';
+    Object.entries(byEmp).forEach(([eid, shifts]) => {
+      const emp = allEmployees.find(e => e.id == eid);
+      if (!emp) return;
+      html += `<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:.35rem .65rem;font-size:.78rem">
+        <b>${emp.name}</b>: ${shifts.map(s => `${s.shift_date.slice(5)} ${shiftLabel(s.shift_type)}`).join(', ')}
+      </div>`;
+    });
+    html += '</div>';
+    preview.innerHTML = html;
+    status.innerHTML = '✅ วางแผนกะเรียบร้อย ตรวจสอบด้านล่างแล้วกด "นำไปใช้"';
+    actions.style.display = 'flex';
+  } catch (err) {
+    status.innerHTML = '❌ ' + err.message;
+  }
 }
 
-// ── Shift Type Settings UI ─────────────────────────────────
-function renderShiftTypesSettings() {
-  const wrap = document.getElementById('shift-types-list');
-  if (!wrap) return;
-  if (!_shiftTypes.length) { wrap.innerHTML = '<div class="empty">ไม่พบข้อมูล</div>'; return; }
-  const icons = { morning:'🌅', afternoon:'🌤', night:'🌙', dayoff:'🏖' };
-  wrap.innerHTML = _shiftTypes.map(t => `
-    <div class="card" style="margin-bottom:.65rem;padding:.9rem 1.1rem" id="stype-card-${t.id}">
-      <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
-        <div style="background:${t.color_bg};color:${t.color_text};border-radius:8px;padding:.35rem .8rem;font-weight:700;font-size:.92rem;min-width:80px;text-align:center">
-          ${icons[t.shift_key]||''} ${t.name}
-        </div>
-        <div style="display:flex;gap:.65rem;flex-wrap:wrap;align-items:flex-end;flex:1">
-          <div class="form-group" style="margin:0;min-width:130px">
-            <label style="font-size:.73rem">ชื่อกะ</label>
-            <input id="st-name-${t.id}" value="${escHtml(t.name)}" style="padding:.3rem .55rem;font-size:.82rem"/>
-          </div>
-          ${t.shift_key !== 'dayoff' ? `
-          <div class="form-group" style="margin:0;min-width:105px">
-            <label style="font-size:.73rem">เริ่ม</label>
-            <input type="time" id="st-start-${t.id}" value="${t.start_time||''}" style="padding:.3rem .55rem;font-size:.82rem"/>
-          </div>
-          <div class="form-group" style="margin:0;min-width:105px">
-            <label style="font-size:.73rem">สิ้นสุด</label>
-            <input type="time" id="st-end-${t.id}" value="${t.end_time||''}" style="padding:.3rem .55rem;font-size:.82rem"/>
-          </div>` : ''}
-          <button class="btn btn-primary btn-sm" style="align-self:flex-end" onclick="saveShiftType(${t.id})">บันทึก</button>
-        </div>
-      </div>
-    </div>`).join('');
+async function applyAiShifts() {
+  if (!aiSuggestedShifts.length) return;
+  const status = document.getElementById('ai-suggest-status');
+  status.innerHTML = '<div style="display:flex;align-items:center;gap:.5rem"><div class="ai-spinner"></div> กำลังบันทึกกะ...</div>';
+  document.getElementById('ai-suggest-actions').style.display = 'none';
+
+  let ok = 0;
+  for (const s of aiSuggestedShifts) {
+    try {
+      await api('/api/shifts', { method:'POST', body: s });
+      ok++;
+    } catch { /* skip */ }
+  }
+  status.innerHTML = `✅ บันทึกแล้ว ${ok}/${aiSuggestedShifts.length} กะ`;
+  aiSuggestedShifts = [];
+  setTimeout(() => { closeAiSuggest(); loadSchedule(); }, 1500);
 }
 
-async function saveShiftType(id) {
-  const name  = document.getElementById(`st-name-${id}`)?.value.trim();
-  const start = document.getElementById(`st-start-${id}`)?.value || null;
-  const end   = document.getElementById(`st-end-${id}`)?.value   || null;
-  if (!name) { showToast('❌ กรุณากรอกชื่อกะ', 'error'); return; }
-  const res = await api(`/api/shift-types/${id}`, { method:'PUT', body:{ name, start_time:start, end_time:end }});
-  if (res?.ok) {
-    showToast('✅ บันทึกแล้ว', 'success');
-    await loadShiftTypes();
-    renderShiftTypesSettings();
+function closeAiSuggest() {
+  document.getElementById('ai-suggest-box').classList.remove('open');
+  aiSuggestedShifts = [];
+}
+
+// ── KPI AI Forecast ────────────────────────────────────────
+async function loadAiForecast() {
+  const box = document.getElementById('ai-forecast-box');
+  const body = document.getElementById('ai-forecast-body');
+  box.classList.add('open');
+  body.innerHTML = '<div style="display:flex;align-items:center;gap:.5rem"><div class="ai-spinner"></div> AI กำลังวิเคราะห์ข้อมูล KPI...</div>';
+
+  const team = document.getElementById('kpi-filter-team').value;
+  let url = '/api/ai/forecast-kpi';
+  if (team) url += `?team=${team}`;
+
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    body.textContent = data.analysis || 'ไม่สามารถวิเคราะห์ได้';
+  } catch {
+    body.textContent = '❌ เกิดข้อผิดพลาด กรุณาลองใหม่';
   }
 }
 

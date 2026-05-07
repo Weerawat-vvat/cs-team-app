@@ -597,7 +597,30 @@ app.get('/api/tickets', authRequired, async (request, res) => {
       q += appendScopeClause(r, scope);
     }
     q += ' ORDER BY cl.ReceiveDate DESC';
-    res.json((await r.query(q)).recordset);
+    const tickets = (await r.query(q)).recordset;
+
+    // Enrich with specialist_log info (for "assign to specialist" tickets)
+    if (tickets.length) {
+      const spRows = (await req().query(`
+        SELECT sl.id AS sp_id, sl.calllog_id,
+               sl.assigned_at, sl.resolved_at,
+               e.name AS sp_assigned_by,
+               e2.name AS sp_resolved_by,
+               sl.status AS sp_status
+        FROM specialist_log sl
+        LEFT JOIN app_users au  ON au.id = sl.original_agent
+        LEFT JOIN employees e   ON e.id  = au.employee_id
+        LEFT JOIN app_users au2 ON au2.id = sl.resolved_by
+        LEFT JOIN employees e2  ON e2.id  = au2.employee_id
+        WHERE sl.calllog_id IN (${tickets.map(t => t.id).join(',')})
+          AND sl.status NOT IN ('cancelled')
+      `)).recordset;
+      const spMap = {};
+      spRows.forEach(s => { spMap[s.calllog_id] = s; });
+      tickets.forEach(t => { if (spMap[t.id]) t.specialist = spMap[t.id]; });
+    }
+
+    res.json(tickets);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -693,6 +716,49 @@ app.put('/api/tickets/:id', authRequired, async (request, res) => {
         UpdateDate   = GETDATE()
         WHERE CalllogId=@id`);
     res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Close calllog after specialist resolves it
+app.post('/api/tickets/:id/sp-close', authRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
+    const calllogId = parseInt(request.params.id);
+    const { solution } = request.body;
+
+    // Find the specialist job for this calllog
+    const spRow = (await req().input('cid', sql.Int, calllogId)
+      .query(`SELECT sl.id AS sp_id, sl.resolved_by, sl.resolution_note,
+                     e.name AS resolver_name
+              FROM specialist_log sl
+              LEFT JOIN app_users au ON au.id = sl.resolved_by
+              LEFT JOIN employees e  ON e.id  = au.employee_id
+              WHERE sl.calllog_id=@cid AND sl.status='resolved'`)).recordset[0];
+    if (!spRow) return res.status(400).json({ error: 'ยังไม่มีงาน Specialist ที่แก้ไขแล้วสำหรับเคสนี้' });
+
+    // Find a "close" status ID from LicenseDB
+    const closeStatus = (await extReq()
+      .query(`SELECT TOP 1 StatusId FROM CallStatus
+              WHERE StatusName LIKE '%close%' OR StatusName LIKE '%complete%'
+              ORDER BY StatusName`)).recordset[0];
+    if (!closeStatus) return res.status(500).json({ error: 'ไม่พบสถานะ Close ใน CallStatus' });
+
+    const resolverNote = spRow.resolver_name
+      ? `[แก้ไขโดย Specialist: ${spRow.resolver_name}]${solution ? ' ' + solution : ''}${spRow.resolution_note ? '\n' + spRow.resolution_note : ''}`
+      : solution || null;
+
+    // Update Calllog: close it, set CloseDate, record solution
+    await extReq()
+      .input('id',    sql.Int,      calllogId)
+      .input('stid',  sql.Int,      closeStatus.StatusId)
+      .input('cd',    sql.DateTime, new Date())
+      .input('sol',   sql.NVarChar, resolverNote)
+      .query(`UPDATE Calllog
+              SET StatusId=@stid, CloseDate=@cd, DueDate=@cd,
+                  Solution=ISNULL(@sol, Solution), UpdateDate=GETDATE()
+              WHERE CalllogId=@id`);
+
+    res.json({ ok: true, sp_id: spRow.sp_id, resolver_name: spRow.resolver_name });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -3599,10 +3665,10 @@ app.get('/api/specialist/badge', authRequired, async (request, res) => {
 // Get all specialist logs
 app.get('/api/specialist', authRequired, async (request, res) => {
   try {
-    const { status, team, my } = request.query;
+    const { status, team, my, dateFrom, dateTo } = request.query;
     const r = req();
     // Simplified query — store names at create/accept time, minimal JOINs
-    let q = `SELECT TOP 200 sl.*,
+    let q = `SELECT TOP 500 sl.*,
                e1.name AS agent_name, e1.team AS agent_team,
                e4.name AS accepted_by_name
              FROM specialist_log sl
@@ -3610,12 +3676,36 @@ app.get('/api/specialist', authRequired, async (request, res) => {
              LEFT JOIN employees  e1 ON e1.id  = au1.employee_id
              LEFT JOIN app_users au4 ON au4.id = sl.accepted_by
              LEFT JOIN employees  e4 ON e4.id  = au4.employee_id
-             WHERE sl.assigned_at >= DATEADD(day,-90,GETDATE())`;
+             WHERE 1=1`;
+    if (dateFrom) { q += ' AND sl.assigned_at >= @df'; r.input('df', sql.DateTime, new Date(dateFrom)); }
+    else if (!dateTo) { q += ' AND sl.assigned_at >= DATEADD(day,-90,GETDATE())'; }
+    if (dateTo)   { q += ' AND sl.assigned_at < DATEADD(day,1,@dt)'; r.input('dt', sql.DateTime, new Date(dateTo)); }
     if (status)  { q += ' AND sl.status=@st';    r.input('st', sql.NVarChar, status); }
     if (team)    { q += ' AND sl.assigned_to_team=@tm'; r.input('tm', sql.NVarChar, team); }
     if (my==='1'){ q += ' AND sl.assigned_to_user=@me'; r.input('me', sql.Int, request.user.id||0); }
     q += ' ORDER BY sl.assigned_at DESC';
-    res.json((await r.query(q)).recordset);
+    const rows = (await r.query(q)).recordset;
+
+    // Cross-query LicenseDB for live calllog description / initial solution from helpdesk
+    const calllogIds = rows.filter(s => s.calllog_id).map(s => s.calllog_id);
+    if (calllogIds.length && getExtPool()) {
+      try {
+        const clRows = (await extReq().query(
+          `SELECT CalllogId AS id, CalllogDesc AS calllog_description, Solution AS calllog_solution
+           FROM Calllog WHERE CalllogId IN (${calllogIds.join(',')})`
+        )).recordset;
+        const clMap = {};
+        clRows.forEach(c => { clMap[c.id] = c; });
+        rows.forEach(s => {
+          if (s.calllog_id && clMap[s.calllog_id]) {
+            s.calllog_description = clMap[s.calllog_id].calllog_description;
+            s.calllog_solution    = clMap[s.calllog_id].calllog_solution;
+          }
+        });
+      } catch(e2) { console.error('SP calllog cross-query:', e2.message); }
+    }
+
+    res.json(rows);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -3699,6 +3789,30 @@ app.put('/api/specialist/:id', authRequired, async (request, res) => {
       const statusLabel = {pending:'รอดำเนินการ',in_progress:'กำลังดำเนินการ',resolved:'แก้ไขแล้ว',rejected:'ปฏิเสธ',cancelled:'ยกเลิก'};
       const uname = request.user.name || request.user.username;
       await sendLineNotify(`\n🔧 [Specialist] ${cur.company_name||'—'}\nสถานะ: ${statusLabel[b.status]||b.status}\nโดย: ${uname}${b.resolution_note?'\n'+b.resolution_note:''}`);
+
+      // Auto-close calllog when specialist marks resolved
+      if (b.status === 'resolved' && cur.calllog_id && getExtPool()) {
+        try {
+          const resolverName = request.user.name || request.user.username || 'Specialist';
+          const closeStatus = (await extReq()
+            .query(`SELECT TOP 1 StatusId FROM CallStatus
+                    WHERE StatusName LIKE '%close%' OR StatusName LIKE '%complete%'
+                    ORDER BY StatusName`)).recordset[0];
+          if (closeStatus) {
+            const solNote = `[แก้ไขโดย Specialist: ${resolverName}]${b.resolution_note ? ' ' + b.resolution_note : ''}`;
+            await extReq()
+              .input('id',   sql.Int,      cur.calllog_id)
+              .input('stid', sql.Int,      closeStatus.StatusId)
+              .input('cd',   sql.DateTime, new Date())
+              .input('sol',  sql.NVarChar, solNote)
+              .query(`UPDATE Calllog
+                      SET StatusId=@stid, CloseDate=@cd, DueDate=@cd,
+                          Solution=ISNULL(NULLIF(Solution,''), @sol),
+                          UpdateDate=GETDATE()
+                      WHERE CalllogId=@id`);
+          }
+        } catch(e) { console.warn('auto-close calllog failed:', e.message); }
+      }
     }
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
