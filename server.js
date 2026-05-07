@@ -3508,6 +3508,58 @@ app.get('/api/public/track/:token/requirements', async (request, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── GET /api/public/track/:token/issues ──────────────────
+// Returns specialist_log rows that have an issue_id, for this customer/group
+app.get('/api/public/track/:token/issues', async (request, res) => {
+  try {
+    const tok  = request.params.token;
+    const link = (await req().input('tok', sql.NVarChar, tok)
+      .query('SELECT * FROM customer_links WHERE token=@tok')).recordset[0];
+    if (!link) return res.status(404).json({ error: 'Link ไม่พบ' });
+
+    const isGroup = link.link_type === 'group' && link.group_id;
+    const COLS = `sl.id, sl.calllog_id, sl.subject, sl.problem_type, sl.description,
+                  sl.issue_id, sl.status, sl.resolution_note,
+                  sl.assigned_at, sl.resolved_at, sl.accepted_at, sl.company_name,
+                  e4.name AS accepted_by_name`;
+
+    let rows;
+    if (isGroup) {
+      if (!getExtPool()) return res.json([]);
+      const names = (await extReq().input('gid', sql.Int, link.group_id)
+        .query(`SELECT DISTINCT CompanyName FROM CustomerRegistration WHERE GroupId=@gid`))
+        .recordset.map(r => r.CompanyName);
+      if (!names.length) return res.json([]);
+      const r = req();
+      names.forEach((cn, i) => r.input(`cn${i}`, sql.NVarChar, cn));
+      const inClause = names.map((_, i) => `@cn${i}`).join(',');
+      rows = (await r.query(
+        `SELECT ${COLS}
+         FROM specialist_log sl
+         LEFT JOIN app_users au4 ON au4.id = sl.accepted_by
+         LEFT JOIN employees e4  ON e4.id  = au4.employee_id
+         WHERE sl.company_name IN (${inClause})
+           AND sl.issue_id IS NOT NULL AND sl.issue_id <> ''
+         ORDER BY sl.assigned_at DESC`
+      )).recordset;
+    } else {
+      rows = (await req().input('cn', sql.NVarChar, link.company_name)
+        .query(
+          `SELECT ${COLS}
+           FROM specialist_log sl
+           LEFT JOIN app_users au4 ON au4.id = sl.accepted_by
+           LEFT JOIN employees e4  ON e4.id  = au4.employee_id
+           WHERE sl.company_name = @cn
+             AND sl.issue_id IS NOT NULL AND sl.issue_id <> ''
+           ORDER BY sl.assigned_at DESC`
+        )
+      ).recordset;
+    }
+
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── GET /api/public/requirements/:token ──────────────────
 app.get('/api/public/requirements/:token', async (request, res) => {
   try {

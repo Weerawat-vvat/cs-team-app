@@ -155,6 +155,7 @@ let _data = null, _statusTab = 'open', _branchFilter = '', _page = 1, _perPage =
 let _charts = {};
 let _dateFrom = '', _dateTo = '';
 let _requirements = null;
+let _issues = null;
 
 // ── Requirements helpers ──────────────────────────────────
 const REQ_STATUS_STYLE = {
@@ -262,6 +263,7 @@ async function loadData(){
     else if(tab==='list') renderList();
     else if(tab==='repair') renderRepair();
     else if(tab==='requirements') renderRequirements();
+    else if(tab==='issues') renderIssues();
   } catch(e){
     root.innerHTML=`<div class="error-box">❌ ${esc(e.message)}</div>`;
   }
@@ -307,6 +309,10 @@ async function init(){
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/><polyline points="9 11 12 14 16 10"/></svg>
         Requirements
       </button>
+      <button class="nav-tab" data-tab="issues" onclick="switchTab('issues',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        งานติดตาม Issue
+      </button>
     </div>
 
     <div id="tab-content"></div>`;
@@ -322,6 +328,7 @@ function switchTab(tab, btn){
   else if(tab==='list') renderList();
   else if(tab==='repair') renderRepair();
   else if(tab==='requirements') renderRequirements();
+  else if(tab==='issues') renderIssues();
 }
 
 function renderStats(){ /* stats now rendered inside each tab */ }
@@ -973,6 +980,125 @@ function toggleReqDetail(id, idx){
   const open = el.style.display==='none';
   el.style.display = open ? '' : 'none';
   if(arr) arr.textContent = open ? '▲' : '▼';
+}
+
+// ── Issues Tab ────────────────────────────────────────────
+const SP_STATUS_MAP = {
+  pending:     { label:'รอดำเนินการ',      bg:'#fef9c3', col:'#854d0e' },
+  in_progress: { label:'กำลังดำเนินการ',  bg:'#dbeafe', col:'#1d4ed8' },
+  resolved:    { label:'แก้ไขแล้ว',        bg:'#dcfce7', col:'#15803d' },
+  cancelled:   { label:'ยกเลิก',           bg:'#f1f5f9', col:'#64748b' },
+};
+
+function spStatusBadge(s){
+  const m = SP_STATUS_MAP[s] || { label: s||'—', bg:'#f1f5f9', col:'#475569' };
+  return `<span style="background:${m.bg};color:${m.col};padding:.15rem .5rem;border-radius:20px;font-size:.7rem;font-weight:700;white-space:nowrap">${esc(m.label)}</span>`;
+}
+
+let _issueSearch = '';
+function issueSearch(){
+  _issueSearch = (document.getElementById('iss-q')?.value||'').toLowerCase();
+  renderIssueCards();
+}
+
+function renderIssueCards(){
+  const all = _issues||[];
+  const filtered = all.filter(s=>
+    !_issueSearch ||
+    (s.subject||'').toLowerCase().includes(_issueSearch) ||
+    (s.issue_id||'').toLowerCase().includes(_issueSearch) ||
+    (s.problem_type||'').toLowerCase().includes(_issueSearch) ||
+    (s.resolution_note||'').toLowerCase().includes(_issueSearch)
+  );
+  const el = document.getElementById('iss-list');
+  if(!el) return;
+  if(!filtered.length){ el.innerHTML='<div class="empty">ไม่พบงานติดตาม Issue</div>'; return; }
+  el.innerHTML = filtered.map((s,i)=>{
+    const issUrl = (s.issue_id||'').startsWith('http') ? s.issue_id : null;
+    return `<div class="card" style="margin-bottom:.65rem;padding:0;overflow:hidden">
+      <div onclick="toggleIssueDetail('isd-${i}')"
+           style="padding:.85rem 1rem;cursor:pointer;display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;flex-wrap:wrap">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.3rem">
+            ${s.problem_type?`<span style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;font-size:.68rem;font-weight:700;padding:.1rem .4rem">${esc(s.problem_type)}</span>`:''}
+            <span style="font-size:.88rem;font-weight:700;color:#1e293b">${esc(s.subject||'—')}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+            ${spStatusBadge(s.status)}
+            ${issUrl
+              ? `<a href="${esc(issUrl)}" target="_blank" onclick="event.stopPropagation()"
+                   style="display:inline-flex;align-items:center;gap:.25rem;font-size:.77rem;color:#2563eb;text-decoration:none;background:#eff6ff;border:1px solid #bfdbfe;padding:.15rem .55rem;border-radius:6px">
+                   🔗 ${esc(s.issue_id.length>50?s.issue_id.slice(0,50)+'…':s.issue_id)}</a>`
+              : s.issue_id?`<span style="font-size:.75rem;color:#6d28d9;background:#ede9fe;border-radius:6px;padding:.15rem .5rem;font-family:monospace">${esc(s.issue_id)}</span>`:''
+            }
+          </div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:.7rem;color:#94a3b8;white-space:nowrap">📅 ${fmtDate(s.assigned_at)}</div>
+          ${s.accepted_by_name?`<div style="font-size:.72rem;color:#64748b;margin-top:.15rem">👤 ${esc(s.accepted_by_name)}</div>`:''}
+          <span id="isd-arr-${i}" style="font-size:.7rem;color:#94a3b8">▼</span>
+        </div>
+      </div>
+      <div id="isd-${i}" style="display:none;border-top:1px solid #f1f5f9;padding:.75rem 1rem .9rem;background:#fafbff">
+        ${s.description?`
+          <div style="font-size:.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.3rem">รายละเอียดปัญหา</div>
+          <div style="font-size:.82rem;color:#1e293b;white-space:pre-wrap;word-break:break-word;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:.55rem .75rem;margin-bottom:.55rem">${esc(s.description)}</div>`:''}
+        ${s.resolution_note?`
+          <div style="font-size:.72rem;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.3rem">✅ การแก้ไข</div>
+          <div style="font-size:.82rem;color:#1e293b;white-space:pre-wrap;word-break:break-word;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:.55rem .75rem;margin-bottom:.55rem">${esc(s.resolution_note)}</div>`:''}
+        <div style="display:flex;flex-wrap:wrap;gap:.75rem;font-size:.76rem;color:#64748b;margin-top:.25rem">
+          ${s.calllog_id?`<span>📋 Case #${esc(String(s.calllog_id))}</span>`:''}
+          ${s.resolved_at?`<span>✅ แก้ไขเมื่อ: ${fmtDate(s.resolved_at)}</span>`:''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleIssueDetail(id){
+  const el = document.getElementById(id);
+  const idx = id.replace('isd-','');
+  const arr = document.getElementById('isd-arr-'+idx);
+  if(!el) return;
+  const open = el.style.display==='none';
+  el.style.display = open?'':'none';
+  if(arr) arr.textContent = open?'▲':'▼';
+}
+
+async function renderIssues(){
+  const wrap = document.getElementById('tab-content');
+  wrap.innerHTML = '<div class="loading">⏳ กำลังโหลด...</div>';
+  try {
+    if(!_issues){
+      const r = await fetch(`/api/public/track/${token}/issues`);
+      _issues = await r.json();
+      if(!r.ok) throw new Error(_issues.error||'โหลดไม่สำเร็จ');
+    }
+    const total    = _issues.length;
+    const pending  = _issues.filter(s=>s.status==='pending').length;
+    const inProg   = _issues.filter(s=>s.status==='in_progress').length;
+    const resolved = _issues.filter(s=>s.status==='resolved').length;
+
+    wrap.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem;margin-bottom:.85rem">
+        <div class="stat-card"><div class="icon" style="background:#eff6ff">🔗</div><div><div class="label">Issue ทั้งหมด</div><div class="value" style="color:#2563eb">${total}</div></div></div>
+        <div class="stat-card"><div class="icon" style="background:#fef9c3">⏳</div><div><div class="label">รอดำเนินการ</div><div class="value" style="color:#854d0e">${pending}</div></div></div>
+        <div class="stat-card"><div class="icon" style="background:#dbeafe">⚙️</div><div><div class="label">กำลังดำเนินการ</div><div class="value" style="color:#1d4ed8">${inProg}</div></div></div>
+        <div class="stat-card"><div class="icon" style="background:#dcfce7">✅</div><div><div class="label">แก้ไขแล้ว</div><div class="value" style="color:#16a34a">${resolved}</div></div></div>
+      </div>
+      <div style="margin-bottom:.75rem">
+        <input id="iss-q" type="text" placeholder="🔍 ค้นหาหัวข้อ / Issue ID / รายละเอียด..."
+          oninput="issueSearch()"
+          style="width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:.52rem .85rem;font-size:.88rem;outline:none"
+          onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'"/>
+      </div>
+      <div id="iss-list"></div>`;
+
+    _issueSearch = '';
+    renderIssueCards();
+  } catch(e){
+    wrap.innerHTML=`<div class="error-box">❌ ${esc(e.message)}</div>`;
+  }
 }
 
 init();
