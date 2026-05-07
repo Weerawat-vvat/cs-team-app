@@ -90,6 +90,13 @@ async function notifyRepairStatus(repairId, jobNo, companyName, newStatus, chang
 
 app.use(cors());
 app.use(express.json());
+// Serve HTML files without caching so clients always get the latest version
+app.use((req, res, next) => {
+  if (req.path.endsWith('.html') || req.path === '/') {
+    res.setHeader('Cache-Control', 'no-store');
+  }
+  next();
+});
 app.use(express.static(path.join(__dirname, 'public')));
 // Serve uploaded files
 app.use('/uploads', express.static(UPLOAD_DIR));
