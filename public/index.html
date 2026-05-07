@@ -5783,8 +5783,8 @@ function renderSpecialistTable(list) {
         <span id="sp-ind-${s.id}">▶</span>
       </td>
       <td style="font-size:.78rem;color:var(--muted)">${s.id}</td>
-      <td>
-        <div style="font-weight:600;font-size:.83rem">${escHtml(s.company_name||'—')}</div>
+      <td style="max-width:130px">
+        <div style="font-weight:600;font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(s.company_name||'')}">${escHtml(s.company_name||'—')}</div>
         ${s.calllog_id?`<div style="font-size:.7rem;color:var(--hd)">#${s.calllog_id}</div>`:''}
       </td>
       <td style="max-width:180px">
