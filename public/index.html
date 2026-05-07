@@ -321,6 +321,8 @@ textarea{resize:vertical;min-height:80px}
 .tk-row-main .tk-toggle{cursor:pointer;user-select:none;color:var(--muted);font-size:.9rem;transition:.2s}
 .tk-row-main:hover td{background:#f8fafc}
 .tk-row-detail td{background:#f8fafc;border-bottom:2px solid var(--border)}
+.sp-row-detail td{border-bottom:2px solid #e9d5ff}
+.sp-row-main:hover{background:#faf5ff!important}
 .tk-detail-box{padding:.75rem 1rem;border-radius:8px;background:#fff;border:1px solid var(--border)}
 .tk-detail-label{font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:.25rem}
 .tk-detail-text{font-size:.84rem;line-height:1.7;color:var(--text);white-space:pre-wrap}
@@ -1205,7 +1207,7 @@ textarea{resize:vertical;min-height:80px}
     <div class="tbl-wrap">
       <table>
         <thead><tr>
-          <th>#</th><th>ร้านค้า</th><th>หัวข้อ / ประเภท</th>
+          <th style="width:20px"></th><th>#</th><th>ร้านค้า</th><th>หัวข้อ / ประเภท</th>
           <th>ผู้ติดต่อ</th><th>ทีม</th><th>Priority</th>
           <th>สถานะ</th><th>วันที่มอบหมาย</th><th></th>
         </tr></thead>
@@ -5684,6 +5686,7 @@ const SP_STATUS_COLOR = { pending:'#fef3c7|#92400e', in_progress:'#dbeafe|#1d4ed
 const SP_PRIORITY = { urgent:'🔴 Urgent', high:'🟠 High', normal:'🟡 Normal', low:'🟢 Low' };
 let _spSearchTimer = null;
 let _allSpecialist = [];
+const _spExpandedRows = new Set();
 
 function spStatusBadge(st) {
   const [bg,col] = (SP_STATUS_COLOR[st]||'#f1f5f9|#475569').split('|');
@@ -5756,20 +5759,27 @@ function renderSpecialistTable(list) {
   if (!tbody) return;
   if (!list.length) { tbody.innerHTML='<tr><td colspan="9" class="empty">ไม่พบข้อมูล</td></tr>'; return; }
 
+  const spLead = isLeadRole();
+  // Build all rows
   tbody.innerHTML = list.map(s=>{
-    const hasDesc = s.calllog_description || s.description || s.calllog_solution || s.solution || s.resolution_note;
-    const descPreview = (s.calllog_description || s.description || '').slice(0,60) || '';
+    const descText    = s.calllog_description || s.description || '';
+    const solText     = s.calllog_solution    || s.solution    || '';
+    const descPreview = descText.slice(0,55) + (descText.length>55?'…':'');
     return `
-    <tr style="cursor:pointer;${s.status==='pending'?'background:#fffbeb':''}" onclick="openSpecialistDetail(${s.id})">
+    <tr class="sp-row-main" id="sp-main-row-${s.id}" style="cursor:pointer;${s.status==='pending'?'background:#fffbeb':''}"
+        onclick="toggleSpDetail(${s.id})">
+      <td style="text-align:center;padding:.4rem .3rem;color:var(--muted);font-size:.75rem;width:20px">
+        <span id="sp-ind-${s.id}">▶</span>
+      </td>
       <td style="font-size:.78rem;color:var(--muted)">${s.id}</td>
       <td>
         <div style="font-weight:600;font-size:.83rem">${escHtml(s.company_name||'—')}</div>
         ${s.calllog_id?`<div style="font-size:.7rem;color:var(--hd)">#${s.calllog_id}</div>`:''}
       </td>
-      <td style="max-width:180px">
+      <td style="max-width:200px">
         ${s.problem_type?`<span style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;font-size:.68rem;padding:.02rem .35rem">${escHtml(s.problem_type)}</span><br>`:''}
         <span style="font-size:.8rem">${escHtml(s.subject||'—')}</span>
-        ${descPreview?`<div style="font-size:.68rem;color:var(--muted);margin-top:.1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:175px">${escHtml(descPreview)}${s.calllog_description?.length>60||s.description?.length>60?'…':''}</div>`:''}
+        ${descPreview?`<div style="font-size:.67rem;color:var(--muted);margin-top:.1rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:195px">${escHtml(descPreview)}</div>`:''}
       </td>
       <td style="font-size:.78rem">
         <div>${escHtml(s.contact_name||'—')}</div>
@@ -5778,56 +5788,111 @@ function renderSpecialistTable(list) {
       </td>
       <td style="font-size:.8rem">
         <div>${escHtml(s.assigned_to_team||'—')}</div>
-        ${s.accepted_by_name ? `<div style="font-size:.72rem;color:#2563eb;font-weight:600">👤 ${escHtml(s.accepted_by_name)}</div>` : ''}
+        ${s.accepted_by_name?`<div style="font-size:.72rem;color:#2563eb;font-weight:600">👤 ${escHtml(s.accepted_by_name)}</div>`:''}
       </td>
       <td><span style="font-size:.78rem;font-weight:600">${SP_PRIORITY[s.priority]||s.priority||'—'}</span></td>
       <td>${spStatusBadge(s.status)}
-        ${s.resolution_note?`<div style="font-size:.67rem;color:#16a34a;margin-top:.15rem">✅ มีการแก้ไข</div>`:''}
+        ${s.resolution_note?`<div style="font-size:.67rem;color:#16a34a;margin-top:.15rem">✅ แก้ไขแล้ว</div>`:''}
       </td>
       <td style="font-size:.75rem;white-space:nowrap">${fmtDate(s.assigned_at)}</td>
       <td onclick="event.stopPropagation()" style="white-space:nowrap">
-        ${hasDesc?`<button class="btn btn-ghost btn-sm" title="ดูรายละเอียด" onclick="spToggleDetail(${s.id},this)">📄</button>`:''}
-        <button class="btn btn-ghost btn-sm" onclick="openSpecialistDetail(${s.id})">📋</button>
+        <button class="btn btn-ghost btn-sm" title="แก้ไข / ดูรายละเอียดเต็ม" onclick="openSpecialistDetail(${s.id})">✏️</button>
       </td>
     </tr>
-    <tr id="sp-detail-row-${s.id}" style="display:none;background:#f8fafc">
-      <td colspan="9" style="padding:.55rem 1rem .65rem 2.5rem">
-        ${(s.calllog_description||s.description)?`
-        <div style="margin-bottom:.4rem">
-          <span style="font-size:.7rem;font-weight:700;color:#475569;text-transform:uppercase">📋 รายละเอียดปัญหาจาก Helpdesk</span>
-          <div style="font-size:.8rem;color:var(--text);margin-top:.2rem;white-space:pre-wrap;line-height:1.5">${escHtml(s.calllog_description||s.description)}</div>
-        </div>`:''}
-        ${(s.calllog_solution||s.solution)?`
-        <div style="margin-bottom:.4rem">
-          <span style="font-size:.7rem;font-weight:700;color:#0369a1;text-transform:uppercase">💡 แนวทางแก้ไขเบื้องต้น (Helpdesk)</span>
-          <div style="font-size:.8rem;color:#0c4a6e;margin-top:.2rem;white-space:pre-wrap;line-height:1.5">${escHtml(s.calllog_solution||s.solution)}</div>
-        </div>`:''}
-        ${s.note?`
-        <div style="margin-bottom:.4rem">
-          <span style="font-size:.7rem;font-weight:700;color:#7c3aed;text-transform:uppercase">📝 Note จาก Helpdesk</span>
-          <div style="font-size:.8rem;color:#4c1d95;margin-top:.2rem;white-space:pre-wrap;line-height:1.5">${escHtml(s.note)}</div>
-        </div>`:''}
-        ${s.resolution_note?`
-        <div>
-          <span style="font-size:.7rem;font-weight:700;color:#15803d;text-transform:uppercase">✅ การแก้ไขของ Specialist</span>
-          <div style="font-size:.8rem;color:#14532d;margin-top:.2rem;white-space:pre-wrap;line-height:1.5">${escHtml(s.resolution_note)}</div>
-        </div>`:''}
-        ${!s.resolution_note&&s.status!=='resolved'&&isLeadRole()?`
-        <div style="margin-top:.4rem;display:flex;gap:.5rem;align-items:center">
-          <textarea id="sp-inline-note-${s.id}" rows="2" placeholder="บันทึกการแก้ไข..." style="flex:1;border:1px solid var(--border);border-radius:6px;padding:.3rem .5rem;font-size:.8rem;font-family:inherit;resize:vertical"></textarea>
-          <button class="btn btn-success btn-sm" onclick="saveSpResolveInline(${s.id})">✅ แก้ไขแล้ว</button>
-        </div>`:''}
+    <tr id="sp-detail-row-${s.id}" class="sp-row-detail" style="display:none">
+      <td colspan="10" style="padding:0">
+        <div style="background:#f8fafc;border-left:3px solid #7c3aed;padding:.7rem 1rem .8rem 1.2rem;margin:.0rem 0">
+
+          <!-- Header bar -->
+          <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.6rem">
+            <span style="font-size:.85rem;font-weight:700;color:#1e293b">🏢 ${escHtml(s.company_name||'—')}</span>
+            ${s.problem_type?`<span style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;font-size:.7rem;padding:.03rem .4rem">${escHtml(s.problem_type)}</span>`:''}
+            <span style="font-size:.75rem;color:var(--muted)">มอบหมายโดย: ${escHtml(s.agent_name||'—')}</span>
+            ${s.calllog_id?`<button onclick="viewRefCase(${s.calllog_id})" style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:6px;padding:.15rem .55rem;font-size:.73rem;font-weight:600;cursor:pointer;margin-left:auto">🔗 ดูเคส #${s.calllog_id}</button>`:''}
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;margin-bottom:.6rem">
+            <!-- Left: problem detail -->
+            <div>
+              ${descText?`<div style="margin-bottom:.5rem">
+                <div style="font-size:.69rem;font-weight:700;color:#475569;text-transform:uppercase;margin-bottom:.2rem">📋 รายละเอียดปัญหา</div>
+                <div style="font-size:.8rem;line-height:1.55;white-space:pre-wrap;color:var(--text)">${escHtml(descText)}</div>
+              </div>`:''}
+              ${solText?`<div>
+                <div style="font-size:.69rem;font-weight:700;color:#0369a1;text-transform:uppercase;margin-bottom:.2rem">💡 แนวทางเบื้องต้น (Helpdesk)</div>
+                <div style="font-size:.8rem;line-height:1.55;white-space:pre-wrap;color:#0c4a6e">${escHtml(solText)}</div>
+              </div>`:''}
+              ${!descText&&!solText?`<div style="color:var(--muted);font-size:.78rem">— ไม่มีรายละเอียดจาก Helpdesk —</div>`:''}
+            </div>
+            <!-- Right: contact + note + status -->
+            <div>
+              <div style="font-size:.69rem;font-weight:700;color:#475569;text-transform:uppercase;margin-bottom:.3rem">📞 ข้อมูลติดต่อ</div>
+              ${[['ผู้ติดต่อ',s.contact_name],['เบอร์โทร',s.contact_phone],['Line ID',s.line_id],['Line Group',s.line_group]]
+                .filter(([,v])=>v)
+                .map(([k,v])=>`<div style="font-size:.78rem;margin-bottom:.18rem"><span style="color:var(--muted)">${k}:</span> ${escHtml(v)}</div>`)
+                .join('')||'<div style="font-size:.78rem;color:var(--muted)">—</div>'}
+              ${s.note?`<div style="margin-top:.45rem">
+                <div style="font-size:.69rem;font-weight:700;color:#7c3aed;text-transform:uppercase;margin-bottom:.2rem">📝 Note</div>
+                <div style="font-size:.78rem;color:#4c1d95;white-space:pre-wrap">${escHtml(s.note)}</div>
+              </div>`:''}
+              <div style="margin-top:.45rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+                <span style="font-size:.72rem;color:var(--muted);font-weight:600">สถานะ:</span>
+                ${spLead?`<select onchange="spUpdateStatusInline(${s.id},this.value)" style="border:1px solid var(--border);border-radius:7px;padding:.25rem .55rem;font-size:.8rem;background:#fff;outline:none;font-family:inherit">
+                  ${Object.entries(SP_STATUS).map(([v,l])=>`<option value="${v}" ${s.status===v?'selected':''}>${l}</option>`).join('')}
+                </select>`:spStatusBadge(s.status)}
+              </div>
+            </div>
+          </div>
+
+          <!-- Specialist resolution -->
+          ${s.resolution_note?`
+          <div style="background:#f0fdf4;border-radius:7px;padding:.45rem .75rem;margin-top:.1rem">
+            <div style="font-size:.69rem;font-weight:700;color:#15803d;text-transform:uppercase;margin-bottom:.2rem">✅ การแก้ไขของ Specialist</div>
+            <div style="font-size:.82rem;color:#14532d;white-space:pre-wrap;line-height:1.5">${escHtml(s.resolution_note)}</div>
+          </div>`:''}
+          ${!s.resolution_note&&s.status!=='resolved'&&spLead?`
+          <div style="display:flex;gap:.5rem;align-items:flex-start;margin-top:.3rem">
+            <textarea id="sp-inline-note-${s.id}" rows="2" placeholder="บันทึกการแก้ไขของ Specialist..." onclick="event.stopPropagation()"
+              style="flex:1;border:1px solid var(--border);border-radius:7px;padding:.35rem .6rem;font-size:.8rem;font-family:inherit;resize:vertical"></textarea>
+            <button class="btn btn-success btn-sm" onclick="event.stopPropagation();saveSpResolveInline(${s.id})">✅ แก้ไขแล้ว</button>
+          </div>`:''}
+        </div>
       </td>
     </tr>`;
   }).join('');
+  // Restore previously expanded rows
+  _spExpandedRows.forEach(id => {
+    const row = document.getElementById(`sp-detail-row-${id}`);
+    const ind = document.getElementById(`sp-ind-${id}`);
+    if (row) row.style.display = '';
+    if (ind) ind.textContent = '▼';
+  });
 }
 
-function spToggleDetail(id, btn) {
+function toggleSpDetail(id) {
+  if (_spExpandedRows.has(id)) {
+    _spExpandedRows.delete(id);
+  } else {
+    _spExpandedRows.add(id);
+  }
   const row = document.getElementById(`sp-detail-row-${id}`);
-  if (!row) return;
-  const isOpen = row.style.display !== 'none';
-  row.style.display = isOpen ? 'none' : '';
-  if (btn) btn.textContent = isOpen ? '📄' : '📂';
+  const ind = document.getElementById(`sp-ind-${id}`);
+  const isOpen = _spExpandedRows.has(id);
+  if (row) row.style.display = isOpen ? '' : 'none';
+  if (ind) ind.textContent = isOpen ? '▼' : '▶';
+}
+
+async function spUpdateStatusInline(id, status) {
+  const r = await api(`/api/specialist/${id}`, { method:'PUT', body:{status}, silent:true });
+  if (r?.error) { showToast('❌ '+r.error,'error'); return; }
+  showToast('✅ อัพเดทสถานะแล้ว');
+  // Update local cache, keep row expanded
+  const s = _allSpecialist.find(x=>x.id===id);
+  if (s) {
+    s.status = status;
+    _spExpandedRows.add(id); // keep open
+    loadSpecialist();
+  }
 }
 
 async function saveSpResolveInline(id) {
