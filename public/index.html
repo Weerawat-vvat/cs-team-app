@@ -5255,16 +5255,14 @@ let _spSubFilter = 'all'; // 'all' | 'issue'
 function toggleSpecialistMenu(btn) {
   const sub   = document.getElementById('specialist-sub');
   const arrow = document.getElementById('specialist-arrow');
-  const isOpen = sub.classList.contains('open');
-  if (!isOpen) {
-    // First open → go to page + open sub-menu
-    showPage('specialist', btn);
+  // Clicking the main Specialist button always resets to "all" and shows the page
+  _spSubFilter = 'all';
+  document.querySelectorAll('#specialist-sub .s-sub').forEach(b => b.classList.remove('active'));
+  if (!sub.classList.contains('open')) {
     sub.classList.add('open');
     arrow.textContent = '⌄';
-  } else {
-    sub.classList.remove('open');
-    arrow.textContent = '›';
   }
+  showPage('specialist', btn);
 }
 
 function navSpecialist(sub, el) {
