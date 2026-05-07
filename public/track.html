@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>ติดตามเคส — CS Team</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI',Tahoma,sans-serif;background:#f1f5f9;color:#1e293b;min-height:100vh}
@@ -572,6 +573,11 @@ function renderList(){
       <select class="filter-select" id="l-perpage" onchange="listFilter()">
         <option value="25">25/หน้า</option><option value="50">50/หน้า</option><option value="100">100/หน้า</option>
       </select>
+      <button onclick="exportListExcel()" id="btn-export-excel"
+        style="border:1px solid #16a34a;background:#f0fdf4;color:#16a34a;border-radius:8px;padding:.32rem .8rem;font-size:.8rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.3rem;white-space:nowrap;font-family:inherit;flex-shrink:0">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export Excel
+      </button>
     </div>
 
     <!-- Status tabs -->
@@ -613,16 +619,13 @@ function setStatusTab(tab, btn){
 
 function listFilter(){ _page=1; renderListTable(); }
 
-function renderListTable(){
-  if(!_data) return;
+function getFilteredList(){
+  if(!_data) return [];
   const branch  = document.getElementById('l-branch')?.value || '';
   const status  = document.getElementById('l-status')?.value || '';
   const type    = document.getElementById('l-type')?.value || '';
   const subject = document.getElementById('l-subject')?.value || '';
   const search  = (document.getElementById('l-search')?.value||'').toLowerCase();
-  const perPage = parseInt(document.getElementById('l-perpage')?.value||'25');
-  const isGrp   = _data.isGroup;
-
   let list = _data.tickets||[];
   if(branch)  list = list.filter(t=>t.CompanyName===branch);
   if(status)  list = list.filter(t=>t.status===status);
@@ -634,10 +637,83 @@ function renderListTable(){
     (t.CompanyName||'').toLowerCase().includes(search)||
     (t.title||'').toLowerCase().includes(search)||
     (t.problem_type||'').toLowerCase().includes(search));
+  return list;
+}
 
-  // Update tab counts
+function fmtDateStr(s){
+  const d = parseD(s); if(!d) return '';
+  return d.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'})
+    +' '+d.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+}
+
+function exportListExcel(){
+  if(!window.XLSX){ alert('กำลังโหลด XLSX library กรุณาลองใหม่'); return; }
+  const list = getFilteredList();
+  if(!list.length){ alert('ไม่มีข้อมูลสำหรับ Export'); return; }
+  const isGrp = _data?.isGroup;
+  const btn = document.getElementById('btn-export-excel');
+  if(btn){ btn.textContent='⏳ กำลัง Export...'; btn.disabled=true; }
+
+  try {
+    const rows = list.map((t, i) => {
+      const row = { 'ลำดับ': i+1 };
+      if(isGrp) row['สาขา'] = t.CompanyName||'';
+      row['ประเภทปัญหา']   = t.problem_type||'';
+      row['หัวข้อ']          = t.title||'';
+      row['รายละเอียดปัญหา'] = t.description||'';
+      row['แนวทางแก้ไข']    = t.Solution||'';
+      row['สถานะ']           = t.status||'';
+      row['วันที่แจ้ง']       = fmtDateStr(t.opened_at);
+      row['ใช้เวลา (นาที)']  = t.resolve_minutes ?? '';
+      row['วันที่ปิด']        = fmtDateStr(t.CloseDate);
+      return row;
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+
+    // Column widths
+    const colDefs = [
+      {wch:6},
+      ...(isGrp?[{wch:28}]:[]),
+      {wch:18},{wch:35},{wch:45},{wch:45},{wch:14},{wch:22},{wch:14},{wch:22}
+    ];
+    ws['!cols'] = colDefs;
+
+    // Header style (bold) — SheetJS CE supports cell metadata
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    for(let C = range.s.c; C <= range.e.c; C++){
+      const cell = ws[XLSX.utils.encode_cell({r:0,c:C})];
+      if(cell) cell.s = { font:{bold:true}, fill:{fgColor:{rgb:'D9E1F2'}} };
+    }
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Case List');
+
+    const company = (_data?.company||'export').replace(/[/\\?%*:|"<>]/g,'_');
+    const dateStr = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(wb, `CaseList_${company}_${dateStr}.xlsx`);
+  } finally {
+    if(btn){
+      btn.disabled=false;
+      btn.innerHTML=`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export Excel`;
+    }
+  }
+}
+
+function renderListTable(){
+  if(!_data) return;
+  const perPage = parseInt(document.getElementById('l-perpage')?.value||'25');
+  const isGrp   = _data.isGroup;
+
+  let list = getFilteredList();
+
+  // Update tab counts (based on current branch+status filter only, ignoring search/type/subject/statusTab)
+  const _branch2 = document.getElementById('l-branch')?.value || '';
+  const _status2 = document.getElementById('l-status')?.value || '';
   const all=_data.tickets||[];
-  const base = branch||status ? (branch?all.filter(t=>t.CompanyName===branch):all).filter(t=>!status||t.status===status) : all;
+  const base = (_branch2||_status2)
+    ? (_branch2 ? all.filter(t=>t.CompanyName===_branch2) : all).filter(t=>!_status2||t.status===_status2)
+    : all;
   const setC=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
   setC('cnt-open',  base.filter(t=>!isClosed(t.status)).length);
   setC('cnt-close', base.filter(t=>isClosed(t.status)).length);
