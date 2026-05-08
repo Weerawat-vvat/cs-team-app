@@ -4705,8 +4705,9 @@ function renderRepairTable() {
       <td>${rpFinanceBadge(j.finance_status)}</td>
       <td style="font-size:.78rem">${escHtml(j.reporter_name||'—')}</td>
       <td style="font-size:.75rem;white-space:nowrap">${fmtDate(j.reported_at)}</td>
-      <td onclick="event.stopPropagation()">
-        <button class="btn btn-ghost btn-sm" onclick="openRepairDetail(${j.id})">📋</button>
+      <td onclick="event.stopPropagation()" style="white-space:nowrap">
+        <button class="btn btn-ghost btn-sm" onclick="openRepairDetail(${j.id})" title="ดูรายละเอียด">📋</button>
+        <button class="btn btn-ghost btn-sm" onclick="genRepairLink(${j.id},'${j.public_token||''}')" title="Copy link ส่งลูกค้า" style="color:#2563eb">🔗</button>
       </td>
     </tr>`).join('');
 }
