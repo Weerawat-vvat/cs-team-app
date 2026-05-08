@@ -681,7 +681,6 @@ textarea{resize:vertical;min-height:80px}
   <div class="section-header">
     <div class="section-title">📅 ตารางกะ & วันหยุด</div>
     <div class="btn-group">
-      <button class="btn btn-warn btn-sm" onclick="openModal('modal-leave-req')">📩 ขอวันหยุด</button>
       <button id="btn-clear-shifts" class="btn btn-sm" style="background:#ef4444;color:#fff" onclick="clearWeekShifts()">🗑️ เครียตาราง</button>
       <button class="btn btn-sm" style="background:#0f172a;color:#fff" onclick="toggleScheduleView()">📅 <span id="schedule-view-label">มุมมองรายสัปดาห์</span></button>
     </div>
@@ -735,20 +734,6 @@ textarea{resize:vertical;min-height:80px}
     </div>
   </div>
 
-  <!-- Leave Requests -->
-  <div class="card" style="margin-top:1rem">
-    <div class="card-title">📩 คำขอวันหยุดทั้งหมด</div>
-    <div class="tbl-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>พนักงาน</th><th>ทีม</th><th>วันที่ขอหยุด</th><th>เหตุผล</th><th>สถานะ</th><th>ผู้อนุมัติ</th><th>จัดการ</th>
-          </tr>
-        </thead>
-        <tbody id="leave-tbody"></tbody>
-      </table>
-    </div>
-  </div>
 </div>
 
 <!-- ═══════════════════ PAGE: TICKETS ═══════════════════ -->
@@ -1722,27 +1707,6 @@ textarea{resize:vertical;min-height:80px}
 </div>
 
 <!-- Modal: Leave Request -->
-<div class="overlay" id="modal-leave-req">
-  <div class="modal">
-    <div class="modal-title">📩 ขอวันหยุด <button class="modal-close" onclick="closeModal('modal-leave-req')">×</button></div>
-    <div class="form-group">
-      <label>พนักงาน</label>
-      <select id="lr-emp" class="emp-select"></select>
-    </div>
-    <div class="form-group">
-      <label>วันที่ต้องการหยุด</label>
-      <input type="date" id="lr-date"/>
-    </div>
-    <div class="form-group">
-      <label>เหตุผล</label>
-      <textarea id="lr-reason" placeholder="ระบุเหตุผล..."></textarea>
-    </div>
-    <div class="btn-group">
-      <button class="btn btn-warn" onclick="saveLeaveReq()">ส่งคำขอ</button>
-      <button class="btn btn-ghost" onclick="closeModal('modal-leave-req')">ยกเลิก</button>
-    </div>
-  </div>
-</div>
 
 <!-- Modal: New Ticket -->
 <div class="overlay" id="modal-new-ticket">
