@@ -2051,6 +2051,23 @@ app.post('/api/public/complaint', async (request, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// PUBLIC — submit complaint direct (no token, no auth)
+app.post('/api/public/complaint/direct', async (request, res) => {
+  try {
+    const { company_name, email, message } = request.body;
+    if (!company_name?.trim()) return res.status(400).json({ error: 'กรุณาระบุชื่อร้าน / บริษัท' });
+    if (!message?.trim())      return res.status(400).json({ error: 'กรุณาระบุข้อความร้องเรียน' });
+    await req()
+      .input('cn',  sql.NVarChar, company_name.trim())
+      .input('em',  sql.NVarChar, email || null)
+      .input('msg', sql.NVarChar, message.trim())
+      .query(`INSERT INTO ticket_complaints (company_name, email, message)
+              VALUES (@cn, @em, @msg)`);
+    await sendLineNotify(`\n📣 [ร้องเรียนใหม่] ${company_name.trim()}\n"${message.trim().substring(0,100)}${message.trim().length>100?'…':''}"`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // PUBLIC — subscribe watcher (no auth)
 app.post('/api/public/watch', async (request, res) => {
   try {
@@ -2077,6 +2094,46 @@ app.get('/api/complaints', authRequired, async (request, res) => {
       LEFT JOIN employees au ON au.id = tc.resolved_by
       ORDER BY tc.created_at DESC`);
     res.json(result.recordset);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// INTERNAL — delete complaint (with reason)
+app.delete('/api/complaints/:id', authRequired, async (request, res) => {
+  try {
+    const id     = parseInt(request.params.id);
+    const reason = (request.body?.reason || '').trim();
+    if (!reason) return res.status(400).json({ error: 'กรุณาระบุหมายเหตุการลบ' });
+
+    const row = (await req().input('id', sql.Int, id)
+      .query('SELECT * FROM ticket_complaints WHERE id=@id')).recordset[0];
+    if (!row) return res.status(404).json({ error: 'ไม่พบข้อมูล' });
+
+    // Ensure audit log table exists
+    await req().query(`
+      IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='complaint_delete_log')
+      CREATE TABLE complaint_delete_log (
+        id           INT IDENTITY PRIMARY KEY,
+        complaint_id INT,
+        company_name NVARCHAR(255),
+        message      NVARCHAR(MAX),
+        reason       NVARCHAR(MAX),
+        deleted_by   INT,
+        deleted_at   DATETIME DEFAULT GETDATE()
+      )`);
+
+    await req()
+      .input('cid', sql.Int,      id)
+      .input('cn',  sql.NVarChar, row.company_name)
+      .input('msg', sql.NVarChar, row.message)
+      .input('rsn', sql.NVarChar, reason)
+      .input('by',  sql.Int,      request.user.id || null)
+      .query(`INSERT INTO complaint_delete_log (complaint_id,company_name,message,reason,deleted_by)
+              VALUES (@cid,@cn,@msg,@rsn,@by)`);
+
+    await req().input('id', sql.Int, id)
+      .query('DELETE FROM ticket_complaints WHERE id=@id');
+
+    res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -2177,6 +2234,10 @@ app.post('/api/repair/:id/reply', authRequired, async (request, res) => {
       .input('by',  sql.Int,      request.user.id || null)
       .query(`INSERT INTO repair_timeline (repair_id, field_changed, new_value, note, changed_by)
               VALUES (@rid, 'admin_reply', @msg, @nt, @by)`);
+
+    // Touch updated_at so customer polling detects new messages
+    await req().input('rid', sql.Int, repairId)
+      .query(`UPDATE repair_jobs SET updated_at=GETDATE() WHERE id=@rid`);
 
     // Mark specific message as replied
     if (timeline_id) {
@@ -2332,17 +2393,37 @@ app.get('/api/public/repairs-by-token/:token', async (request, res) => {
       const inClause = names.map((_, i) => `@cn${i}`).join(',');
       jobs = await r.query(
         `SELECT id, job_no, company_name, device_type, device_model, serial_no,
+                symptom, remark,
                 status, finance_status, reported_at, received_date,
                 sent_supplier_date, returned_from_supplier_date,
-                returned_to_customer_date, public_token, updated_at
+                returned_to_customer_date, public_token, updated_at,
+                CASE WHEN EXISTS (
+                  SELECT 1 FROM repair_timeline cm
+                  WHERE cm.repair_id = repair_jobs.id AND cm.field_changed='customer_message'
+                    AND NOT EXISTS (
+                      SELECT 1 FROM repair_timeline ar
+                      WHERE ar.repair_id = repair_jobs.id AND ar.field_changed='admin_reply'
+                        AND ar.changed_at > cm.changed_at
+                    )
+                ) THEN 1 ELSE 0 END AS pending_reply
          FROM repair_jobs WHERE company_name IN (${inClause})
          ORDER BY reported_at DESC`);
     } else {
       jobs = await req().input('cn', sql.NVarChar, companyName)
         .query(`SELECT id, job_no, company_name, device_type, device_model, serial_no,
+                       symptom, remark,
                        status, finance_status, reported_at, received_date,
                        sent_supplier_date, returned_from_supplier_date,
-                       returned_to_customer_date, public_token, updated_at
+                       returned_to_customer_date, public_token, updated_at,
+                       CASE WHEN EXISTS (
+                         SELECT 1 FROM repair_timeline cm
+                         WHERE cm.repair_id = repair_jobs.id AND cm.field_changed='customer_message'
+                           AND NOT EXISTS (
+                             SELECT 1 FROM repair_timeline ar
+                             WHERE ar.repair_id = repair_jobs.id AND ar.field_changed='admin_reply'
+                               AND ar.changed_at > cm.changed_at
+                           )
+                       ) THEN 1 ELSE 0 END AS pending_reply
                 FROM repair_jobs WHERE company_name=@cn
                 ORDER BY reported_at DESC`);
     }
@@ -2756,8 +2837,41 @@ app.put('/api/repair/:id/info', authRequired, async (request, res) => {
 // Delete repair job (manager only)
 app.delete('/api/repair/:id', authRequired, managerRequired, async (request, res) => {
   try {
-    const id = parseInt(request.params.id);
-    // Delete files on disk first
+    const id     = parseInt(request.params.id);
+    const reason = (request.body?.reason || '').trim();
+    if (!reason) return res.status(400).json({ error: 'กรุณาระบุหมายเหตุการลบ' });
+
+    // Fetch job info before deletion (for audit log)
+    const job = (await req().input('id', sql.Int, id)
+      .query('SELECT job_no, company_name, status FROM repair_jobs WHERE id=@id')).recordset[0];
+    if (!job) return res.status(404).json({ error: 'ไม่พบงานซ่อม' });
+
+    // Ensure audit log table exists
+    await req().query(`
+      IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='repair_delete_log')
+      CREATE TABLE repair_delete_log (
+        id          INT IDENTITY PRIMARY KEY,
+        repair_id   INT,
+        job_no      NVARCHAR(50),
+        company_name NVARCHAR(255),
+        status      NVARCHAR(50),
+        reason      NVARCHAR(MAX),
+        deleted_by  INT,
+        deleted_at  DATETIME DEFAULT GETDATE()
+      )`);
+
+    // Write audit log before deletion
+    await req()
+      .input('rid',  sql.Int,      id)
+      .input('jno',  sql.NVarChar, job.job_no)
+      .input('cn',   sql.NVarChar, job.company_name)
+      .input('st',   sql.NVarChar, job.status)
+      .input('rsn',  sql.NVarChar, reason)
+      .input('by',   sql.Int,      request.user.id || null)
+      .query(`INSERT INTO repair_delete_log (repair_id,job_no,company_name,status,reason,deleted_by)
+              VALUES (@rid,@jno,@cn,@st,@rsn,@by)`);
+
+    // Delete files on disk
     const files = (await req().input('id', sql.Int, id)
       .query('SELECT file_path FROM repair_attachments WHERE repair_id=@id')).recordset;
     for (const f of files) {
@@ -3876,39 +3990,50 @@ app.put('/api/specialist/:id', authRequired, async (request, res) => {
       .input('rnt', sql.NVarChar, b.resolution_note     ?? cur.resolution_note)
       .input('iid', sql.NVarChar, b.issue_id            ?? cur.issue_id)
       .input('rb',  sql.Int,      b.status==='resolved' ? (request.user.id||null) : cur.resolved_by)
-      .input('aby', sql.Int,      b.status==='in_progress' && !cur.accepted_by ? (request.user.id||null) : cur.accepted_by)
+      .input('aby', sql.Int,      b.hasOwnProperty('accepted_by') ? (b.accepted_by ?? null)
+                                  : (b.status==='in_progress' && !cur.accepted_by ? (request.user.id||null) : cur.accepted_by))
+      .input('isReassign', sql.Bit, (b.hasOwnProperty('accepted_by') && b.accepted_by === null) ? 1 : 0)
       .query(`UPDATE specialist_log SET
         status=@st, assigned_to_team=@att, assigned_to_user=@atu, priority=@pr, note=@nt,
         contact_name=@ctn, contact_phone=@ctp, line_id=@li, line_group=@lg,
         customer_location=@loc, resolution_note=@rnt, issue_id=@iid, resolved_by=@rb,
         accepted_by=@aby,
-        accepted_at=CASE WHEN @st='in_progress' AND accepted_at IS NULL THEN GETDATE() ELSE accepted_at END,
+        accepted_at=CASE WHEN @isReassign=1 THEN NULL
+                         WHEN @st='in_progress' AND accepted_at IS NULL THEN GETDATE()
+                         ELSE accepted_at END,
         resolved_at=CASE WHEN @st='resolved' AND resolved_at IS NULL THEN GETDATE() ELSE resolved_at END,
         updated_at=GETDATE()
         WHERE id=@id`);
+    // Notify on reassign
+    if (b.hasOwnProperty('accepted_by') && b.accepted_by === null && b.assigned_to_team && b.assigned_to_team !== cur.assigned_to_team) {
+      const uname = request.user.name || request.user.username;
+      await sendLineNotify(`\n🔄 [Specialist Reassign] ${cur.company_name||'—'}\nจาก: ${cur.assigned_to_team||'—'} → ใหม่: ${b.assigned_to_team}\nโดย: ${uname}${b.note?'\n'+b.note:''}`);
+    }
     // Notify on status change
     if (b.status && b.status !== cur.status) {
-      const statusLabel = {pending:'รอดำเนินการ',in_progress:'กำลังดำเนินการ',resolved:'แก้ไขแล้ว',rejected:'ปฏิเสธ',cancelled:'ยกเลิก'};
+      const statusLabel = {pending:'รอดำเนินการ',in_progress:'กำลังดำเนินการ',assigned_to_programmer:'Assign to Programmer',resolved:'แก้ไขแล้ว',rejected:'ปฏิเสธ',cancelled:'ยกเลิก'};
       const uname = request.user.name || request.user.username;
       await sendLineNotify(`\n🔧 [Specialist] ${cur.company_name||'—'}\nสถานะ: ${statusLabel[b.status]||b.status}\nโดย: ${uname}${b.resolution_note?'\n'+b.resolution_note:''}`);
 
-      // Auto-close calllog when specialist marks resolved
-      if (b.status === 'resolved' && cur.calllog_id && getExtPool()) {
+      // Auto-close calllog when specialist marks resolved OR assigned_to_programmer
+      if (['resolved','assigned_to_programmer'].includes(b.status) && cur.calllog_id && getExtPool()) {
         try {
-          const resolverName = request.user.name || request.user.username || 'Specialist';
+          const uname = request.user.name || request.user.username || 'Specialist';
           const closeStatus = (await extReq()
             .query(`SELECT TOP 1 StatusId FROM CallStatus
                     WHERE StatusName LIKE '%close%' OR StatusName LIKE '%complete%'
                     ORDER BY StatusName`)).recordset[0];
           if (closeStatus) {
-            const solNote = `[แก้ไขโดย Specialist: ${resolverName}]${b.resolution_note ? ' ' + b.resolution_note : ''}`;
+            const solNote = b.status === 'assigned_to_programmer'
+              ? `[ส่งต่อ Programmer: ${uname}]${b.resolution_note ? ' ' + b.resolution_note : ''}`
+              : `[แก้ไขโดย Specialist: ${uname}]${b.resolution_note ? ' ' + b.resolution_note : ''}`;
             await extReq()
               .input('id',   sql.Int,      cur.calllog_id)
               .input('stid', sql.Int,      closeStatus.StatusId)
-              .input('cd',   sql.DateTime, new Date())
               .input('sol',  sql.NVarChar, solNote)
               .query(`UPDATE Calllog
-                      SET StatusId=@stid, CloseDate=@cd, DueDate=@cd,
+                      SET StatusId=@stid,
+                          CloseDate=GETDATE(), DueDate=GETDATE(),
                           Solution=ISNULL(NULLIF(Solution,''), @sol),
                           UpdateDate=GETDATE()
                       WHERE CalllogId=@id`);
@@ -3920,10 +4045,42 @@ app.put('/api/specialist/:id', authRequired, async (request, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// Delete specialist log
+// Delete specialist log (with reason)
 app.delete('/api/specialist/:id', authRequired, managerRequired, async (request, res) => {
   try {
-    await req().input('id', sql.Int, parseInt(request.params.id))
+    const id     = parseInt(request.params.id);
+    const reason = (request.body?.reason || '').trim();
+    if (!reason) return res.status(400).json({ error: 'กรุณาระบุหมายเหตุการลบ' });
+
+    const row = (await req().input('id', sql.Int, id)
+      .query('SELECT * FROM specialist_log WHERE id=@id')).recordset[0];
+    if (!row) return res.status(404).json({ error: 'ไม่พบข้อมูล' });
+
+    // Ensure audit log table exists
+    await req().query(`
+      IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='specialist_delete_log')
+      CREATE TABLE specialist_delete_log (
+        id           INT IDENTITY PRIMARY KEY,
+        specialist_id INT,
+        company_name NVARCHAR(255),
+        subject      NVARCHAR(255),
+        status       NVARCHAR(50),
+        reason       NVARCHAR(MAX),
+        deleted_by   INT,
+        deleted_at   DATETIME DEFAULT GETDATE()
+      )`);
+
+    await req()
+      .input('sid', sql.Int,      id)
+      .input('cn',  sql.NVarChar, row.company_name)
+      .input('sub', sql.NVarChar, row.subject)
+      .input('st',  sql.NVarChar, row.status)
+      .input('rsn', sql.NVarChar, reason)
+      .input('by',  sql.Int,      request.user.id || null)
+      .query(`INSERT INTO specialist_delete_log (specialist_id,company_name,subject,status,reason,deleted_by)
+              VALUES (@sid,@cn,@sub,@st,@rsn,@by)`);
+
+    await req().input('id', sql.Int, id)
       .query('DELETE FROM specialist_log WHERE id=@id');
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }

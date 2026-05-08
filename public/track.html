@@ -119,9 +119,18 @@ tr:hover td{background:#f8fafc}
 .bubble .bfrom{font-size:.68rem;font-weight:700;color:#64748b;margin-bottom:.1rem}
 .bubble.admin .bfrom{color:#1d4ed8}
 .bubble .btime{font-size:.65rem;color:#94a3b8;margin-top:.15rem}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+@keyframes slideIn{from{transform:translateX(110%);opacity:0}to{transform:translateX(0);opacity:1}}
+#repair-update-badge{display:none!important}
+#repair-update-badge.show{display:inline-flex!important}
+#track-toast-wrap{position:fixed;top:1rem;right:1rem;z-index:9999;display:flex;flex-direction:column;gap:.5rem;pointer-events:none}
+.track-toast{background:#1e293b;color:#fff;padding:.65rem 1rem;border-radius:10px;font-size:.82rem;font-weight:500;box-shadow:0 4px 16px #0003;animation:slideIn .3s ease;pointer-events:auto;display:flex;align-items:flex-start;gap:.5rem;max-width:300px}
+.track-toast.red{background:#dc2626}
+.track-toast.green{background:#16a34a}
 </style>
 </head>
 <body>
+<div id="track-toast-wrap"></div>
 <div class="top-bar">
   <div>
     <div class="logo" id="page-title">📋 CS Team — ติดตามเคส</div>
@@ -305,6 +314,7 @@ async function init(){
       <button class="nav-tab" data-tab="repair" onclick="switchTab('repair',this)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
         งานซ่อม
+        <span id="repair-update-badge" style="display:none;background:#ef4444;color:#fff;border-radius:50%;width:16px;height:16px;font-size:.65rem;font-weight:800;display:none;align-items:center;justify-content:center;animation:pulse 1s infinite">!</span>
       </button>
       <button class="nav-tab" data-tab="requirements" onclick="switchTab('requirements',this)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/><polyline points="9 11 12 14 16 10"/></svg>
@@ -327,7 +337,7 @@ function switchTab(tab, btn){
   btn.id='active-tab'; btn.dataset.tab=tab;
   if(tab==='overview') renderOverview();
   else if(tab==='list') renderList();
-  else if(tab==='repair') renderRepair();
+  else if(tab==='repair'){ renderRepair(); }
   else if(tab==='requirements') renderRequirements();
   else if(tab==='issues') renderIssues();
 }
@@ -801,17 +811,41 @@ async function submitComplain(){
 
 // ── Repair Tab ────────────────────────────────────────────
 const REPAIR_STATUS = {
-  received:'รับเรื่อง', assessing:'กำลังประเมิน', quoted:'เสนอราคาแล้ว',
-  waiting_approval:'รอลูกค้าอนุมัติ', device_received:'รับเครื่องแล้ว',
-  sent_supplier:'ส่ง Supplier', returned_from_supplier:'ได้เครื่องคืน',
-  returned_to_customer:'ส่งคืนลูกค้าแล้ว', closed:'ปิดงาน', cancelled:'ยกเลิก'
+  // ── สถานะใหม่ ──
+  received:         'รับเรื่อง',
+  spared:           'สแปร์แล้ว',
+  assessing:        'ประเมินงานซ่อม',
+  quoted:           'ทำเสนอราคางานซ่อม',
+  waiting_approval: 'รออนุมัติ',
+  repairing:        'อยู่ระหว่างซ่อมแซม',
+  waiting_return:   'รอส่งคืน',
+  returned:         'ส่งคืนเครื่องเรียบร้อย',
+  cancelled:        'ยกเลิก',
+  // ── legacy (ข้อมูลเก่า) ──
+  device_received:          'รับเครื่องแล้ว',
+  sent_supplier:            'ส่ง Supplier',
+  returned_from_supplier:   'ได้เครื่องคืน',
+  returned_to_customer:     'ส่งคืนลูกค้าแล้ว',
+  closed:                   'ปิดงาน',
 };
 const REPAIR_COLOR = {
-  received:'#dbeafe|#1d4ed8', assessing:'#fef3c7|#92400e', quoted:'#ede9fe|#6d28d9',
-  waiting_approval:'#fef9c3|#854d0e', device_received:'#dcfce7|#166534',
-  sent_supplier:'#e0f2fe|#0369a1', returned_from_supplier:'#d1fae5|#15803d',
-  returned_to_customer:'#bbf7d0|#15803d', closed:'#f0fdf4|#166534', cancelled:'#fee2e2|#b91c1c'
+  received:         '#dbeafe|#1d4ed8',
+  spared:           '#e0f2fe|#0369a1',
+  assessing:        '#fef3c7|#92400e',
+  quoted:           '#ede9fe|#6d28d9',
+  waiting_approval: '#fef9c3|#854d0e',
+  repairing:        '#fff7ed|#c2410c',
+  waiting_return:   '#dcfce7|#15803d',
+  returned:         '#bbf7d0|#15803d',
+  cancelled:        '#fee2e2|#b91c1c',
+  // legacy
+  device_received:          '#dcfce7|#166534',
+  sent_supplier:            '#e0f2fe|#0369a1',
+  returned_from_supplier:   '#d1fae5|#15803d',
+  returned_to_customer:     '#bbf7d0|#15803d',
+  closed:                   '#f0fdf4|#166534',
 };
+const DONE_ST = ['returned','cancelled','closed','returned_to_customer'];
 
 function repairBadge(st){
   const [bg,col]=(REPAIR_COLOR[st]||'#f1f5f9|#475569').split('|');
@@ -831,8 +865,8 @@ async function renderRepair(){
     }
     const jobs = _repairs;
     const total  = jobs.length;
-    const active = jobs.filter(j=>!['closed','cancelled','returned_to_customer'].includes(j.status)).length;
-    const done   = jobs.filter(j=>['closed','returned_to_customer'].includes(j.status)).length;
+    const active = jobs.filter(j=>!DONE_ST.includes(j.status)).length;
+    const done   = jobs.filter(j=>DONE_ST.filter(s=>s!=='cancelled').includes(j.status)).length;
 
     wrap.innerHTML = `
       <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:.85rem">
@@ -862,7 +896,7 @@ function repairJobsHtml(jobs){
   return jobs.map(j=>`
     <div class="card" style="margin-bottom:.6rem;padding:0;overflow:hidden">
       <div onclick="toggleRepairDetail('rd-${j.id}')" style="padding:.85rem 1rem;cursor:pointer;display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem;flex-wrap:wrap">
-        <div>
+        <div style="flex:1;min-width:0">
           <div style="font-size:.88rem;font-weight:700;color:#2563eb">${esc(j.job_no)}</div>
           <div style="font-size:.78rem;color:#475569;margin-top:.15rem">
             ${j.device_type?`📦 ${esc(j.device_type)}`:''}
@@ -870,6 +904,8 @@ function repairJobsHtml(jobs){
             ${j.serial_no?` · <span style="font-family:monospace">S/N: ${esc(j.serial_no)}</span>`:''}
           </div>
           ${_data?.isGroup?`<div style="font-size:.73rem;color:#64748b;margin-top:.1rem">🏢 ${esc(j.company_name||'')}</div>`:''}
+          ${j.symptom?`<div style="font-size:.75rem;color:#64748b;margin-top:.2rem">🔍 <b>อาการ:</b> ${esc(j.symptom)}</div>`:''}
+          ${j.remark?`<div style="font-size:.75rem;color:#b45309;margin-top:.1rem;background:#fffbeb;border-radius:5px;padding:.1rem .4rem;display:inline-block">📝 ${esc(j.remark)}</div>`:''}
         </div>
         <div style="text-align:right">
           ${repairBadge(j.status)}
@@ -878,15 +914,15 @@ function repairJobsHtml(jobs){
       </div>
       <div id="rd-${j.id}" onclick="event.stopPropagation()" style="display:none;border-top:1px solid #f1f5f9;padding:.75rem 1rem .9rem">
         ${renderRepairTimeline(j)}
-        ${j.public_token && !['returned_to_customer','closed','cancelled'].includes(j.status) ? `
+        ${j.public_token && !DONE_ST.includes(j.status) ? `
         <div style="margin-top:.65rem;background:#f8fafc;border-radius:8px;padding:.65rem .8rem">
           <div style="font-size:.75rem;font-weight:700;color:#64748b;margin-bottom:.4rem">📩 ส่งข้อความถึงทีม CS</div>
           <input class="msg-name" id="rn-${j.id}" placeholder="ชื่อของคุณ (ไม่บังคับ)" style="margin-bottom:.3rem"/>
           <textarea class="msg-input" id="rm-${j.id}" rows="2" placeholder="พิมพ์ข้อความ..." style="min-height:55px;margin-bottom:.35rem"></textarea>
           <button class="send-btn" onclick="sendRepairMsg('${j.public_token}',${j.id})">📤 ส่ง</button>
-        </div>` : j.public_token && ['returned_to_customer','closed','cancelled'].includes(j.status) ? `
-        <div style="text-align:center;color:#16a34a;font-size:.82rem;font-weight:600;margin-top:.5rem;background:#f0fdf4;border-radius:8px;padding:.5rem">
-          ✅ งานนี้เสร็จสิ้นแล้ว — ขอบคุณที่ใช้บริการครับ
+        </div>` : j.public_token && DONE_ST.includes(j.status) ? `
+        <div style="text-align:center;color:${j.status==='cancelled'?'#b91c1c':'#16a34a'};font-size:.82rem;font-weight:600;margin-top:.5rem;background:${j.status==='cancelled'?'#fef2f2':'#f0fdf4'};border-radius:8px;padding:.5rem">
+          ${j.status==='cancelled'?'❌ งานนี้ถูกยกเลิก':'✅ งานนี้เสร็จสิ้นแล้ว — ขอบคุณที่ใช้บริการครับ'}
         </div>` : ''}
       </div>
     </div>`).join('');
@@ -905,15 +941,27 @@ function rpSearch(){
 }
 
 function renderRepairTimeline(j){
-  const steps=[
+  // ใช้ steps ตาม workflow ใหม่ (หรือ legacy ถ้าสถานะยังเป็นแบบเก่า)
+  const legacySt = ['device_received','sent_supplier','returned_from_supplier','returned_to_customer','closed'];
+  const isLegacy = legacySt.includes(j.status);
+  const steps = isLegacy ? [
     {key:'received',              label:'รับเรื่อง',        date:j.reported_at},
-    {key:'assessing',             label:'กำลังประเมิน',     date:null},
-    {key:'quoted',                label:'เสนอราคาแล้ว',    date:null},
-    {key:'waiting_approval',      label:'รอลูกค้าอนุมัติ', date:null},
-    {key:'device_received',       label:'รับเครื่องแล้ว',  date:j.received_date},
-    {key:'sent_supplier',         label:'ส่ง Supplier',    date:j.sent_supplier_date},
-    {key:'returned_from_supplier',label:'ได้เครื่องคืน',  date:j.returned_from_supplier_date},
-    {key:'returned_to_customer',  label:'ส่งคืนลูกค้า',   date:j.returned_to_customer_date},
+    {key:'assessing',             label:'ประเมิน',          date:null},
+    {key:'quoted',                label:'เสนอราคา',         date:null},
+    {key:'waiting_approval',      label:'รออนุมัติ',        date:null},
+    {key:'device_received',       label:'รับเครื่อง',       date:j.received_date},
+    {key:'sent_supplier',         label:'ส่ง Supplier',     date:j.sent_supplier_date},
+    {key:'returned_from_supplier',label:'ได้คืน',           date:j.returned_from_supplier_date},
+    {key:'returned_to_customer',  label:'ส่งคืนลูกค้า',    date:j.returned_to_customer_date},
+  ] : [
+    {key:'received',          label:'รับเรื่อง',          date:j.reported_at},
+    {key:'spared',            label:'สแปร์แล้ว',          date:null},
+    {key:'assessing',         label:'ประเมินงาน',         date:null},
+    {key:'quoted',            label:'เสนอราคา',           date:null},
+    {key:'waiting_approval',  label:'รออนุมัติ',          date:null},
+    {key:'repairing',         label:'ซ่อมแซม',            date:null},
+    {key:'waiting_return',    label:'รอส่งคืน',           date:null},
+    {key:'returned',          label:'ส่งคืนแล้ว',         date:null},
   ];
   const ORDER=steps.map(s=>s.key);
   const curIdx=ORDER.indexOf(j.status);
@@ -1178,6 +1226,78 @@ async function renderIssues(){
 }
 
 init();
+
+// ── Repair Update Polling ─────────────────────────────────
+// badge ! ขึ้นเมื่อลูกค้าส่งข้อความรอ CS ตอบ (pending_reply=1)
+// badge หายเมื่อ CS ตอบจริงๆ (pending_reply=0) — ไม่หายแค่เพราะกด tab
+
+let _repairSnapshot = null; // Map: job.id → { status, updated_at }
+let _badgeActive    = false;
+
+function showTrackToast(msg, type='red', duration=6000){
+  const wrap = document.getElementById('track-toast-wrap');
+  if(!wrap) return;
+  const d = document.createElement('div');
+  d.className = `track-toast ${type}`;
+  d.innerHTML = msg;
+  wrap.appendChild(d);
+  setTimeout(()=>{ d.style.opacity='0'; d.style.transition='opacity .4s'; setTimeout(()=>d.remove(),400); }, duration);
+}
+
+function setRepairBadge(show){
+  _badgeActive = show;
+  const b = document.getElementById('repair-update-badge');
+  if(!b) return;
+  if(show){ b.classList.add('show'); } else { b.classList.remove('show'); }
+}
+
+async function pollRepairUpdates(){
+  if(!token) return;
+  try {
+    const r = await fetch(`/api/public/repairs-by-token/${token}`);
+    if(!r.ok) return;
+    const jobs = await r.json();
+    if(!Array.isArray(jobs)) return;
+
+    // ── 1. badge ขึ้น/ลงตาม pending_reply จาก server ──────────
+    const hasPending = jobs.some(j => j.pending_reply === 1 || j.pending_reply === true);
+    setRepairBadge(hasPending);
+
+    // ── 2. ตรวจ status/updated_at เพื่อ toast ─────────────────
+    if(_repairSnapshot){
+      jobs.forEach(j => {
+        const snap = _repairSnapshot[j.id];
+        if(!snap){
+          showTrackToast(`🔧 งานซ่อมใหม่! ${esc(j.job_no)}`, 'red');
+          return;
+        }
+        if(snap.status !== j.status){
+          showTrackToast(`🔔 <b>${esc(j.job_no)}</b><br>สถานะ: ${REPAIR_STATUS[j.status]||j.status}`, 'red');
+        } else if(snap.updated_at !== j.updated_at){
+          // CS ตอบแล้ว (updated_at เปลี่ยน)
+          showTrackToast(`💬 <b>${esc(j.job_no)}</b><br>ทีม CS ตอบข้อความแล้ว!`, 'green');
+        }
+      });
+    }
+
+    // ── 3. update snapshot & cache ────────────────────────────
+    _repairSnapshot = {};
+    jobs.forEach(j => { _repairSnapshot[j.id] = { status: j.status, updated_at: j.updated_at }; });
+    _repairs = jobs;
+
+    // ถ้าอยู่ใน repair tab อยู่แล้ว → re-render ให้ข้อมูลล่าสุด
+    const activeTab = document.getElementById('active-tab');
+    if(activeTab && activeTab.dataset.tab === 'repair'){
+      renderRepair();
+    }
+  } catch(e){ /* silent */ }
+}
+
+// เริ่ม poll ทันทีตอน load แล้วทุก 30 วินาที
+setTimeout(()=>{
+  pollRepairUpdates();
+  setInterval(pollRepairUpdates, 30000);
+}, 3000);
 </script>
 </body>
 </html>

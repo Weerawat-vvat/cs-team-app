@@ -1530,7 +1530,10 @@ textarea{resize:vertical;min-height:80px}
 <div id="page-complaints" class="page">
   <div class="section-header" style="margin-bottom:.75rem">
     <div class="section-title">📣 ร้องเรียนจากลูกค้า</div>
-    <button class="btn btn-sm btn-ghost" onclick="loadComplaints()">🔄 รีเฟรช</button>
+    <div class="btn-group">
+      <button class="btn btn-sm" style="background:#dc2626;color:#fff" onclick="copyComplaintLink()">🔗 คัดลอกลิงค์ร้องเรียน</button>
+      <button class="btn btn-sm btn-ghost" onclick="loadComplaints()">🔄 รีเฟรช</button>
+    </div>
   </div>
   <div class="card" style="padding:.5rem 0">
     <div class="tbl-wrap">
@@ -1686,6 +1689,131 @@ textarea{resize:vertical;min-height:80px}
   <div class="modal" style="max-width:700px;max-height:92vh;overflow-y:auto">
     <div class="modal-title" id="rd-title">รายละเอียดงานซ่อม <button class="modal-close" onclick="closeModal('modal-repair-detail')">×</button></div>
     <div id="rd-body">กำลังโหลด...</div>
+  </div>
+</div>
+
+<!-- Modal: สร้างลิงค์ร้องเรียน -->
+<div class="overlay" id="modal-complaint-link">
+  <div class="modal" style="max-width:560px;max-height:88vh;overflow-y:auto;padding:1.1rem 1.25rem">
+    <div class="modal-title" style="margin-bottom:.75rem;color:#dc2626">🔗 ลิงค์ร้องเรียนสำหรับลูกค้า <button class="modal-close" onclick="closeModal('modal-complaint-link')">×</button></div>
+
+    <!-- สร้างลิงค์ใหม่ -->
+    <div style="background:#fff5f5;border:1px solid #fecaca;border-radius:8px;padding:.85rem;margin-bottom:1rem">
+      <div style="font-size:.8rem;font-weight:700;color:#991b1b;margin-bottom:.6rem">➕ สร้างลิงค์ใหม่ (กลุ่มลูกค้า)</div>
+      <div style="position:relative;margin-bottom:.5rem">
+        <input id="cl-search" type="text" placeholder="🔍 ค้นหาชื่อกลุ่ม / GroupCode..." oninput="clSearchDebounce()" autocomplete="off" style="width:100%"/>
+        <div id="cl-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 12px #0002;z-index:999;max-height:220px;overflow-y:auto"></div>
+      </div>
+      <div id="cl-selected-box" style="display:none;background:#fee2e2;border-radius:6px;padding:.45rem .75rem;margin-bottom:.5rem;font-size:.82rem;align-items:center;justify-content:space-between">
+        <span id="cl-selected-label" style="font-weight:600;color:#991b1b"></span>
+        <button onclick="clClearSelected()" style="background:none;border:none;cursor:pointer;color:#64748b;font-size:1.1rem;padding:0;line-height:1">×</button>
+      </div>
+      <button class="btn btn-sm" style="background:#dc2626;color:#fff;width:100%" onclick="clCreateLink()" id="cl-create-btn" disabled>🔗 สร้าง / คัดลอกลิงค์</button>
+    </div>
+
+    <!-- รายการที่มีอยู่ -->
+    <div style="font-size:.8rem;font-weight:700;color:#334155;margin-bottom:.5rem">📋 ลิงค์ทั้งหมด</div>
+    <div id="cl-list-wrap">
+      <div style="color:var(--muted);font-size:.82rem;text-align:center;padding:1rem">กำลังโหลด...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: ลบงาน Specialist -->
+<div class="overlay" id="modal-delete-sp">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-title" style="color:#dc2626">🗑 ลบงาน Specialist <button class="modal-close" onclick="closeModal('modal-delete-sp')">×</button></div>
+    <div style="padding:.75rem 0">
+      <div id="delete-sp-info" style="font-weight:600;font-size:.88rem;margin-bottom:.75rem;color:#1e293b"></div>
+      <div style="font-size:.82rem;color:#dc2626;background:#fef2f2;border-radius:8px;padding:.6rem .85rem;margin-bottom:1rem">
+        ⚠️ การลบจะลบข้อมูลถาวร — ไม่สามารถกู้คืนได้
+      </div>
+      <label style="font-size:.82rem;font-weight:600;color:#374151;display:block;margin-bottom:.35rem">
+        หมายเหตุการลบ <span style="color:#dc2626">*</span>
+      </label>
+      <textarea id="delete-sp-reason" rows="3" placeholder="ระบุเหตุผลที่ลบ เช่น งานซ้ำ, เปิดผิด..."
+        style="width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:.55rem .75rem;font-size:.83rem;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box"
+        onfocus="this.style.borderColor='#dc2626'" onblur="this.style.borderColor='#e2e8f0'"></textarea>
+      <div style="display:flex;gap:.5rem;margin-top:.85rem;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="closeModal('modal-delete-sp')">ยกเลิก</button>
+        <button class="btn" style="background:#dc2626;color:#fff" onclick="confirmDeleteSpJob()">🗑 ยืนยันลบ</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Reassign Specialist -->
+<div class="overlay" id="modal-reassign-sp">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-title">🔄 Reassign งาน Specialist <button class="modal-close" onclick="closeModal('modal-reassign-sp')">×</button></div>
+    <input type="hidden" id="rsp-id"/>
+    <div id="rsp-job-info" style="background:#f8fafc;border-radius:8px;padding:.6rem .85rem;font-size:.82rem;margin-bottom:.85rem;color:#334155"></div>
+    <div class="form-group">
+      <label>ทีมใหม่ <span style="color:#dc2626">*</span></label>
+      <select id="rsp-team" onchange="onRspTeamChange()">
+        <option value="">เลือกทีม</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>มอบหมายให้คน <span style="color:#94a3b8;font-weight:400">(ไม่บังคับ)</span></label>
+      <select id="rsp-member">
+        <option value="">— ไม่ระบุ (ทีมรับงานเอง) —</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>หมายเหตุ / เหตุผลที่ Reassign <span style="color:#94a3b8;font-weight:400">(ไม่บังคับ)</span></label>
+      <textarea id="rsp-note" rows="2" placeholder="เช่น สลับทีม, ผู้รับงานเดิมลา..." style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.45rem .65rem;font-size:.83rem;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box"></textarea>
+    </div>
+    <div class="btn-group" style="margin-top:.75rem">
+      <button class="btn btn-primary" onclick="saveReassignSp()">🔄 ยืนยัน Reassign</button>
+      <button class="btn btn-ghost" onclick="closeModal('modal-reassign-sp')">ยกเลิก</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: ยืนยันลบร้องเรียน -->
+<div class="overlay" id="modal-delete-complaint">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-title" style="color:#dc2626">🗑 ลบร้องเรียน <button class="modal-close" onclick="closeModal('modal-delete-complaint')">×</button></div>
+    <div style="padding:.75rem 0">
+      <div id="delete-complaint-info" style="font-size:.82rem;font-weight:600;margin-bottom:.75rem;color:#1e293b"></div>
+      <div style="font-size:.82rem;color:#dc2626;background:#fef2f2;border-radius:8px;padding:.6rem .85rem;margin-bottom:1rem">
+        ⚠️ การลบจะลบข้อมูลถาวร — ไม่สามารถกู้คืนได้
+      </div>
+      <label style="font-size:.82rem;font-weight:600;color:#374151;display:block;margin-bottom:.35rem">
+        หมายเหตุการลบ <span style="color:#dc2626">*</span>
+      </label>
+      <textarea id="delete-complaint-reason" rows="3" placeholder="ระบุเหตุผลที่ลบ เช่น ร้องเรียนซ้ำ, ข้อมูลผิดพลาด..."
+        style="width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:.55rem .75rem;font-size:.83rem;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box"
+        onfocus="this.style.borderColor='#dc2626'" onblur="this.style.borderColor='#e2e8f0'"></textarea>
+      <div style="display:flex;gap:.5rem;margin-top:.85rem;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="closeModal('modal-delete-complaint')">ยกเลิก</button>
+        <button class="btn" style="background:#dc2626;color:#fff" onclick="confirmDeleteComplaint()">🗑 ยืนยันลบ</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: ยืนยันลบงานซ่อม -->
+<div class="overlay" id="modal-delete-repair">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-title" style="color:#dc2626">🗑 ลบงานซ่อม <button class="modal-close" onclick="closeModal('modal-delete-repair')">×</button></div>
+    <div style="padding:.75rem 0">
+      <div id="delete-repair-jobno" style="font-weight:700;font-size:.95rem;margin-bottom:.75rem;color:#1e293b"></div>
+      <div style="font-size:.82rem;color:#dc2626;background:#fef2f2;border-radius:8px;padding:.6rem .85rem;margin-bottom:1rem">
+        ⚠️ การลบจะลบข้อมูลและไฟล์แนบทั้งหมดถาวร — ไม่สามารถกู้คืนได้
+      </div>
+      <label style="font-size:.82rem;font-weight:600;color:#374151;display:block;margin-bottom:.35rem">
+        หมายเหตุการลบ <span style="color:#dc2626">*</span>
+      </label>
+      <textarea id="delete-repair-reason" rows="3" placeholder="ระบุเหตุผลที่ลบ เช่น แจ้งซ่อมซ้ำ, ข้อมูลผิดพลาด..."
+        style="width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:.55rem .75rem;font-size:.83rem;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box"
+        onfocus="this.style.borderColor='#dc2626'" onblur="this.style.borderColor='#e2e8f0'"></textarea>
+      <div style="display:flex;gap:.5rem;margin-top:.85rem;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="closeModal('modal-delete-repair')">ยกเลิก</button>
+        <button class="btn" style="background:#dc2626;color:#fff" onclick="confirmDeleteRepair()">🗑 ยืนยันลบ</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -5213,12 +5341,29 @@ async function saveEditRepairInfo(id) {
   loadRepair();
 }
 
-async function deleteRepairJob(id, jobNo) {
-  if (!confirm(`ลบงานซ่อม ${jobNo} ?\n\nจะลบข้อมูลและไฟล์แนบทั้งหมด — ไม่สามารถกู้คืนได้`)) return;
-  const r = await api(`/api/repair/${id}`, { method:'DELETE', silent:true });
+let _deleteRepairId = null, _deleteRepairJobNo = null;
+function deleteRepairJob(id, jobNo) {
+  _deleteRepairId    = id;
+  _deleteRepairJobNo = jobNo;
+  document.getElementById('delete-repair-jobno').textContent = `งานซ่อม: ${jobNo}`;
+  document.getElementById('delete-repair-reason').value = '';
+  openModal('modal-delete-repair');
+}
+async function confirmDeleteRepair() {
+  const reason = document.getElementById('delete-repair-reason').value.trim();
+  if (!reason) {
+    document.getElementById('delete-repair-reason').style.borderColor = '#dc2626';
+    document.getElementById('delete-repair-reason').focus();
+    showToast('❌ กรุณาระบุหมายเหตุการลบ', 'error');
+    return;
+  }
+  const r = await api(`/api/repair/${_deleteRepairId}`, {
+    method:'DELETE', silent:true, body:{ reason }
+  });
   if (r?.error) { showToast('❌ ' + r.error, 'error'); return; }
+  closeModal('modal-delete-repair');
   closeModal('modal-repair-detail');
-  showToast(`🗑 ลบ ${jobNo} แล้ว`);
+  showToast(`🗑 ลบ ${_deleteRepairJobNo} แล้ว`);
   loadRepair();
 }
 
@@ -5854,8 +5999,8 @@ function resetCreateCase() {
 // ══════════════════════════════════════════════════════════
 //  SPECIALIST
 // ══════════════════════════════════════════════════════════
-const SP_STATUS = { pending:'⏳ รอดำเนินการ', in_progress:'🔄 กำลังดำเนินการ', resolved:'✅ แก้ไขแล้ว', rejected:'❌ ปฏิเสธ', cancelled:'🚫 ยกเลิก' };
-const SP_STATUS_COLOR = { pending:'#fef3c7|#92400e', in_progress:'#dbeafe|#1d4ed8', resolved:'#dcfce7|#15803d', rejected:'#fee2e2|#b91c1c', cancelled:'#f1f5f9|#475569' };
+const SP_STATUS = { pending:'⏳ รอดำเนินการ', in_progress:'🔄 กำลังดำเนินการ', assigned_to_programmer:'💻 Assign to Programmer', resolved:'✅ แก้ไขแล้ว', rejected:'❌ ปฏิเสธ', cancelled:'🚫 ยกเลิก' };
+const SP_STATUS_COLOR = { pending:'#fef3c7|#92400e', in_progress:'#dbeafe|#1d4ed8', assigned_to_programmer:'#f0f9ff|#0369a1', resolved:'#dcfce7|#15803d', rejected:'#fee2e2|#b91c1c', cancelled:'#f1f5f9|#475569' };
 const SP_PRIORITY = { urgent:'🔴 Urgent', high:'🟠 High', normal:'🟡 Normal', low:'🟢 Low' };
 let _spSearchTimer = null;
 let _allSpecialist = [];
@@ -6078,6 +6223,14 @@ function renderSpecialistTable(list) {
               style="flex:1;border:1px solid var(--border);border-radius:7px;padding:.35rem .6rem;font-size:.8rem;font-family:inherit;resize:vertical;${!spLead?'background:#f8fafc;color:var(--muted)':''}"></textarea>
             ${spLead?`<button class="btn btn-success btn-sm" onclick="event.stopPropagation();saveSpResolveInline(${s.id})">✅ แก้ไขแล้ว</button>`:''}
           </div>`:'')}
+
+          ${spLead?`
+          <div style="display:flex;justify-content:flex-end;margin-top:.55rem;padding-top:.5rem;border-top:1px solid #f1f5f9">
+            <button onclick="event.stopPropagation();deleteSpJob(${s.id},'${escHtml(s.company_name||'')}','${escHtml((s.subject||'').substring(0,40))}')"
+              style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:7px;padding:.28rem .75rem;font-size:.75rem;font-weight:600;cursor:pointer">
+              🗑 ลบงานนี้
+            </button>
+          </div>`:''}
         </div>
       </td>
     </tr>`;
@@ -6397,7 +6550,15 @@ async function openSpecialistDetail(id) {
       ${isLead ? `
       <select onchange="updateSpStatus(${s.id},this.value)" style="border:1px solid var(--border);border-radius:8px;padding:.3rem .65rem;font-size:.82rem;background:#fff;color:var(--text);outline:none;font-family:inherit">
         ${Object.entries(SP_STATUS).map(([v,l])=>`<option value="${v}" ${s.status===v?'selected':''}>${l}</option>`).join('')}
-      </select>` : spStatusBadge(s.status)}
+      </select>
+      <button onclick="openReassignSp(${s.id},'${escHtml(s.assigned_to_team||'')}',${s.assigned_to_user||'null'},'${escHtml(s.company_name||'')}','${escHtml(s.subject||'')}')"
+        style="background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;border-radius:8px;padding:.3rem .75rem;font-size:.78rem;font-weight:600;cursor:pointer;white-space:nowrap">
+        🔄 Reassign
+      </button>
+      <button onclick="deleteSpJob(${s.id},'${escHtml(s.company_name||'')}','${escHtml((s.subject||'').substring(0,40))}')"
+        style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:8px;padding:.3rem .75rem;font-size:.78rem;font-weight:600;cursor:pointer;white-space:nowrap">
+        🗑 ลบ
+      </button>` : spStatusBadge(s.status)}
     </div>
     ${s.resolution_note?`<div style="background:#f0fdf4;border-radius:8px;padding:.55rem .8rem;font-size:.82rem"><b>Resolution:</b> ${escHtml(s.resolution_note)}</div>`:''}
     <div id="sp-resolve-form" style="display:none;margin-top:.6rem">
@@ -6405,6 +6566,198 @@ async function openSpecialistDetail(id) {
       <button class="btn btn-success btn-sm" style="margin-top:.35rem;width:100%" onclick="saveSpResolve(${s.id})">✅ ยืนยันแก้ไขแล้ว</button>
     </div>`;
   // No Calllog fetch — user clicks ref link to view
+}
+
+// ── Complaint Link ────────────────────────────────────
+function copyComplaintLink() {
+  const link = `${location.origin}/complaint-submit.html`;
+  navigator.clipboard.writeText(link)
+    .then(() => showToast('✅ คัดลอกลิงค์ร้องเรียนแล้ว!'))
+    .catch(() => prompt('คัดลอกลิงค์นี้:', link));
+}
+
+// (legacy modal kept for reference)
+let _clSelected = null, _clSearchTimer = null;
+
+function openComplaintLinkModal() {
+  clClearSelected();
+  document.getElementById('cl-search').value = '';
+  document.getElementById('cl-dropdown').style.display = 'none';
+  clLoadList();
+  openModal('modal-complaint-link');
+}
+
+function clSearchDebounce() {
+  clearTimeout(_clSearchTimer);
+  _clSearchTimer = setTimeout(clSearch, 280);
+}
+
+async function clSearch() {
+  const q = document.getElementById('cl-search').value.trim();
+  const dd = document.getElementById('cl-dropdown');
+  if (q.length < 1) { dd.style.display = 'none'; return; }
+  try {
+    const data = await api(`/api/customer-groups?search=${encodeURIComponent(q)}`, { silent: true });
+    if (!data?.length) { dd.style.display = 'none'; return; }
+    dd.innerHTML = data.map(g => `
+      <div onclick="clSelectGroup(${JSON.stringify(g).replace(/"/g,'&quot;')})"
+        style="padding:.5rem .75rem;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:.83rem"
+        onmouseover="this.style.background='#fff5f5'" onmouseout="this.style.background=''">
+        <div style="font-weight:600;color:#1e293b">👥 ${escHtml(g.group_name||'')}</div>
+        <div style="font-size:.72rem;color:#64748b">${escHtml(g.group_code||'')} · ${g.branch_count||0} สาขา</div>
+      </div>`).join('');
+    dd.style.display = '';
+  } catch {}
+}
+
+function clSelectGroup(g) {
+  document.getElementById('cl-dropdown').style.display = 'none';
+  document.getElementById('cl-search').value = '';
+  _clSelected = g;
+  document.getElementById('cl-selected-label').textContent =
+    `👥 ${g.group_name}${g.group_code ? '  (' + g.group_code + ')' : ''}  · ${g.branch_count || 0} สาขา`;
+  document.getElementById('cl-selected-box').style.display = 'flex';
+  document.getElementById('cl-create-btn').disabled = false;
+}
+
+function clClearSelected() {
+  _clSelected = null;
+  document.getElementById('cl-selected-box').style.display = 'none';
+  document.getElementById('cl-create-btn').disabled = true;
+}
+
+async function clCreateLink() {
+  if (!_clSelected) return;
+  const btn = document.getElementById('cl-create-btn');
+  btn.textContent = '⏳ กำลังสร้าง...'; btn.disabled = true;
+  try {
+    const body = { group_id: _clSelected.group_id, group_name: _clSelected.group_name };
+    const data = await api('/api/customer-links', { method:'POST', silent:true, body });
+    if (!data || data.error) { showToast('❌ '+(data?.error||'เกิดข้อผิดพลาด'),'error'); return; }
+    const link = `${location.origin}/complaint-submit.html?token=${data.token}`;
+    try { await navigator.clipboard.writeText(link); showToast('✅ คัดลอกลิงค์ร้องเรียนแล้ว!'); }
+    catch { prompt('คัดลอกลิงค์นี้:', link); }
+    clClearSelected();
+    await clLoadList();
+  } finally {
+    btn.textContent = '🔗 สร้าง / คัดลอกลิงค์';
+    btn.disabled = !_clSelected;
+  }
+}
+
+async function clLoadList() {
+  const wrap = document.getElementById('cl-list-wrap');
+  const links = await api('/api/customer-links', { silent:true }).catch(()=>[]);
+  const groups = (links||[]).filter(lk => lk.link_type==='group');
+  if (!groups.length) {
+    wrap.innerHTML = '<div style="color:var(--muted);font-size:.82rem;text-align:center;padding:1rem">ยังไม่มีลิงค์กลุ่มลูกค้า<br><span style="font-size:.75rem">— ใช้ร่วมกับลิงค์แจ้งซ่อมได้เลย —</span></div>';
+    return;
+  }
+  wrap.innerHTML = groups.map(lk => {
+    const url  = `${location.origin}/complaint-submit.html?token=${lk.token}`;
+    const name = lk.group_name || lk.company_name || '—';
+    return `<div style="display:flex;align-items:center;gap:.5rem;padding:.5rem .5rem;border-bottom:1px solid #f1f5f9;font-size:.8rem">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;color:#1e293b">${escHtml(name)}</div>
+        <div style="color:var(--muted);font-size:.7rem;margin-top:.1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(url)}</div>
+      </div>
+      <button onclick="clCopyUrl('${escHtml(url)}')" style="background:none;border:1px solid #fecaca;border-radius:5px;padding:.2rem .5rem;cursor:pointer;font-size:.75rem;color:#dc2626;white-space:nowrap">📋 Copy</button>
+    </div>`;
+  }).join('');
+}
+
+function clCopyUrl(url) {
+  navigator.clipboard.writeText(url).then(()=>showToast('✅ คัดลอกแล้ว!')).catch(()=>prompt('คัดลอก:',url));
+}
+
+// ── Delete Specialist ───────────────────────────────────────
+let _deleteSpId = null;
+function deleteSpJob(id, company, subjectPreview) {
+  _deleteSpId = id;
+  document.getElementById('delete-sp-info').textContent =
+    `#${id} — ${company}${subjectPreview ? ` · "${subjectPreview}${subjectPreview.length>=40?'…':''}"` : ''}`;
+  document.getElementById('delete-sp-reason').value = '';
+  document.getElementById('delete-sp-reason').style.borderColor = '#e2e8f0';
+  openModal('modal-delete-sp');
+}
+async function confirmDeleteSpJob() {
+  const reason = document.getElementById('delete-sp-reason').value.trim();
+  if (!reason) {
+    document.getElementById('delete-sp-reason').style.borderColor = '#dc2626';
+    document.getElementById('delete-sp-reason').focus();
+    showToast('❌ กรุณาระบุหมายเหตุการลบ', 'error');
+    return;
+  }
+  const r = await api(`/api/specialist/${_deleteSpId}`, {
+    method:'DELETE', silent:true, body:{ reason }
+  });
+  if (r?.error) { showToast('❌ '+r.error, 'error'); return; }
+  closeModal('modal-delete-sp');
+  closeModal('modal-specialist-detail');
+  showToast('🗑 ลบงาน Specialist แล้ว');
+  loadSpecialist();
+}
+
+// ── Reassign Specialist ─────────────────────────────────────
+function openReassignSp(id, currentTeam, currentUserId, company, subject) {
+  document.getElementById('rsp-id').value = id;
+  document.getElementById('rsp-job-info').innerHTML =
+    `<b>#${id}</b> &nbsp;${escHtml(company||'—')}<br><span style="color:#64748b">${escHtml(subject||'')}</span>` +
+    `<div style="margin-top:.35rem;font-size:.75rem;color:#2563eb">ทีมปัจจุบัน: <b>${escHtml(currentTeam||'—')}</b></div>`;
+  document.getElementById('rsp-note').value = '';
+
+  // Populate teams
+  const teamSel = document.getElementById('rsp-team');
+  teamSel.innerHTML = '<option value="">เลือกทีม</option>' +
+    allTeams.map(t=>`<option value="${escHtml(t.name)}" ${t.name===currentTeam?'selected':''}>${escHtml(t.display_name)}</option>`).join('');
+
+  // Populate members for current team
+  _populateRspMembers(currentTeam, currentUserId);
+  openModal('modal-reassign-sp');
+}
+
+function _populateRspMembers(team, selectedUserId) {
+  const sel = document.getElementById('rsp-member');
+  const members = team
+    ? allEmployees.filter(e => e.active !== 0 && e.team === team)
+    : allEmployees.filter(e => e.active !== 0);
+  sel.innerHTML = '<option value="">— ไม่ระบุ (ทีมรับงานเอง) —</option>' +
+    members.map(e => {
+      // match by employee_id stored in app_users or by name
+      return `<option value="${e.id}" ${e.id===selectedUserId?'selected':''}>${escHtml(e.name||e.username||'')}</option>`;
+    }).join('');
+}
+
+function onRspTeamChange() {
+  const team = document.getElementById('rsp-team').value;
+  _populateRspMembers(team, null);
+}
+
+async function saveReassignSp() {
+  const id   = parseInt(document.getElementById('rsp-id').value);
+  const team = document.getElementById('rsp-team').value;
+  if (!team) { showToast('❌ กรุณาเลือกทีม', 'error'); return; }
+  const memberId = parseInt(document.getElementById('rsp-member').value) || null;
+  const note     = document.getElementById('rsp-note').value.trim();
+
+  // Get matching user id from employee id (app_users.employee_id)
+  // For now pass employee id — backend maps or stores as assigned_to_user
+  const r = await api(`/api/specialist/${id}`, {
+    method: 'PUT', silent: true,
+    body: {
+      assigned_to_team: team,
+      assigned_to_user: memberId,
+      accepted_by: null,        // reset accepted_by so new person can accept
+      accepted_at: null,
+      status: 'pending',        // reset to pending when reassigned
+      note: note || undefined,
+    }
+  });
+  if (r?.error) { showToast('❌ '+r.error, 'error'); return; }
+  closeModal('modal-reassign-sp');
+  closeModal('modal-specialist-detail');
+  showToast('🔄 Reassign แล้ว — สถานะรีเซ็ตเป็น รอดำเนินการ');
+  loadSpecialist();
 }
 
 function viewRefCase(calllogId) {
@@ -6486,8 +6839,10 @@ async function loadComplaints() {
             ${c.status==='pending' ? `
               <button class="btn btn-sm btn-success" onclick="resolveComplaint(${c.id},this)" title="ปิดร้องเรียน">✓ แก้แล้ว</button>
               <button class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="convertToRepair(${JSON.stringify(c).replace(/"/g,'&quot;')})" title="เปิดงานซ่อมจากร้องเรียนนี้">🔧 งานซ่อม</button>
+              <button class="btn btn-sm" style="background:#0ea5e9;color:#fff" onclick="openSpFromComplaint(${JSON.stringify(c).replace(/"/g,'&quot;')})" title="เปิดเคส Specialist">🎯 เปิดเคส SP</button>
               <button class="btn btn-sm" style="background:#2563eb;color:#fff" onclick="viewComplaintTickets('${escHtml(c.company_name||'')}')" title="ดูเคสของร้านนี้">🎫 ดูเคส</button>
             ` : `<span style="font-size:.72rem;color:var(--muted)">${c.resolved_by_name||'—'}</span>`}
+            <button class="btn btn-sm" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca" onclick="deleteComplaint(${c.id},'${escHtml(c.company_name||'')}','${escHtml((c.message||'').substring(0,40))}')" title="ลบร้องเรียน">🗑</button>
           </div>
         </td>
       </tr>`).join('');
@@ -6520,6 +6875,63 @@ function convertToRepair(c) {
     if (email && c.email) email.value = c.email;
     showToast(`🔧 เปิดฟอร์มงานซ่อม — ${c.company_name||''}`);
   }, 300);
+}
+
+// เปิดเคส SP จากร้องเรียน
+async function openSpFromComplaint(c) {
+  // Reset modal fields
+  document.getElementById('asp-calllog-id').value = '';
+  document.getElementById('asp-ticket-info').textContent = `📣 ร้องเรียน #${c.id} — ${c.company_name||'—'}`;
+  document.getElementById('asp-ticket-sub').textContent  = `จากการร้องเรียน | ${c.company_name||'—'}`;
+  ['asp-contact-name','asp-contact-phone','asp-line-id','asp-line-group'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  // Pre-fill note with complaint message
+  const noteEl = document.getElementById('asp-note');
+  if (noteEl) noteEl.value = `[ร้องเรียน] ${c.message||''}${c.email?`\nEmail: ${c.email}`:''}`;
+  document.getElementById('asp-priority').value = 'high';
+  // Auto-select team
+  const aspTeam = document.getElementById('asp-team');
+  aspTeam.innerHTML = '<option value="">เลือกทีม</option>' +
+    allTeams.map(t=>`<option value="${escHtml(t.name)}">${escHtml(t.display_name)}</option>`).join('');
+  const spTeam = allTeams.find(t => t.name.toLowerCase().includes('specialist') || t.display_name.toLowerCase().includes('specialist'));
+  if (spTeam) aspTeam.value = spTeam.name;
+  // Try pre-fill contact from LicenseDB
+  if (c.company_name) {
+    try {
+      const info = await api(`/api/specialist/contact-info?company=${encodeURIComponent(c.company_name)}`);
+      if (info.ContactName) document.getElementById('asp-contact-name').value = info.ContactName;
+      if (info.Phone||info.MobilePhone) document.getElementById('asp-contact-phone').value = info.Phone||info.MobilePhone||'';
+    } catch {}
+  }
+  openModal('modal-assign-specialist');
+}
+
+// ลบร้องเรียน
+let _deleteComplaintId = null;
+function deleteComplaint(id, company, msgPreview) {
+  _deleteComplaintId = id;
+  document.getElementById('delete-complaint-info').textContent = `${company}${msgPreview?` — "${msgPreview}${msgPreview.length>=40?'…':''}"`:''}`;
+  document.getElementById('delete-complaint-reason').value = '';
+  document.getElementById('delete-complaint-reason').style.borderColor = '#e2e8f0';
+  openModal('modal-delete-complaint');
+}
+async function confirmDeleteComplaint() {
+  const reason = document.getElementById('delete-complaint-reason').value.trim();
+  if (!reason) {
+    document.getElementById('delete-complaint-reason').style.borderColor = '#dc2626';
+    document.getElementById('delete-complaint-reason').focus();
+    showToast('❌ กรุณาระบุหมายเหตุการลบ', 'error');
+    return;
+  }
+  const r = await api(`/api/complaints/${_deleteComplaintId}`, {
+    method:'DELETE', silent:true, body:{ reason }
+  });
+  if (r?.error) { showToast('❌ '+r.error, 'error'); return; }
+  closeModal('modal-delete-complaint');
+  showToast('🗑 ลบร้องเรียนแล้ว');
+  loadComplaints();
+  loadComplaintsBadge();
 }
 
 function viewComplaintTickets(companyName) {
