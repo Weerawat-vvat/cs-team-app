@@ -2183,13 +2183,13 @@ function teamBadgeHtml(t) {
   return `<span class="badge ${cls}" ${style}>${teamLabel(t)}</span>`;
 }
 const SHIFT_META = {
-  morning:        { label:'เช้า',      time:'08:30–17:30', bg:'#dbeafe', col:'#1e40af' },
-  afternoon:      { label:'บ่าย',      time:'12:00–21:00', bg:'#fef3c7', col:'#92400e' },
-  midday:         { label:'กลางวัน',   time:'10:00–19:00', bg:'#dcfce7', col:'#166534' },
-  mid:            { label:'กลางวัน',   time:'10:00–19:00', bg:'#dcfce7', col:'#166534' },
+  morning:        { label:'เช้า',      time:'08:30–17:30', bg:'#dcfce7', col:'#166534' },
+  afternoon:      { label:'บ่าย',      time:'12:00–21:00', bg:'#ffedd5', col:'#c2410c' },
+  midday:         { label:'กลางวัน',   time:'10:00–19:00', bg:'#dbeafe', col:'#1e40af' },
+  mid:            { label:'กลางวัน',   time:'10:00–19:00', bg:'#dbeafe', col:'#1e40af' },
   night:          { label:'ดึก',       time:'15:00–00:00', bg:'#ede9fe', col:'#5b21b6' },
-  dayoff:         { label:'DayOFF',    time:'',             bg:'#f1f5f9', col:'#64748b' },
-  off:            { label:'DayOFF',    time:'',             bg:'#f1f5f9', col:'#64748b' },
+  dayoff:         { label:'หยุด',      time:'',             bg:'#fee2e2', col:'#b91c1c' },
+  off:            { label:'หยุด',      time:'',             bg:'#fee2e2', col:'#b91c1c' },
   leave_sick:     { label:'ลา', time:'', bg:'#fee2e2', col:'#b91c1c' },
   leave_personal: { label:'ลา', time:'', bg:'#fee2e2', col:'#b91c1c' },
   leave_annual:   { label:'ลา', time:'', bg:'#fee2e2', col:'#b91c1c' },
@@ -7098,10 +7098,10 @@ async function loadScheduleMonth() {
   if (legendEl) {
     const legendItems = [
       { label:'เช้า',    bg:'#dcfce7', col:'#166534' },
+      { label:'กลางวัน', bg:'#dbeafe', col:'#1e40af' },
       { label:'บ่าย',    bg:'#ffedd5', col:'#c2410c' },
-      { label:'กลางวัน', bg:'#dcfce7', col:'#166534' },
-      { label:'ดึก',     bg:'#e2e8f0', col:'#475569' },
-      { label:'DayOFF', bg:'#f1f5f9', col:'#64748b' },
+      { label:'ดึก',     bg:'#ede9fe', col:'#5b21b6' },
+      { label:'หยุด',    bg:'#fee2e2', col:'#b91c1c' },
       { label:'ลา',      bg:'#fee2e2', col:'#b91c1c' },
     ];
     legendEl.innerHTML = legendItems.map(t =>
