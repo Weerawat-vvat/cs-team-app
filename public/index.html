@@ -682,7 +682,8 @@ textarea{resize:vertical;min-height:80px}
       <button id="btn-add-shift" class="btn btn-primary btn-sm" onclick="openModal('modal-add-shift')">+ กำหนดกะ</button>
       <button class="btn btn-warn btn-sm" onclick="openModal('modal-leave-req')">📩 ขอวันหยุด</button>
       <button id="btn-ai-shifts" class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="aiSuggestShifts()">✨ AI แนะนำกะ</button>
-      <button class="btn btn-sm" style="background:#ef4444;color:#fff" onclick="clearWeekShifts()">🗑️ เครียตาราง</button>
+      <button id="btn-clear-shifts" class="btn btn-sm" style="background:#ef4444;color:#fff" onclick="clearWeekShifts()">🗑️ เครียตาราง</button>
+      <button class="btn btn-sm" style="background:#0f172a;color:#fff" onclick="toggleScheduleView()">📅 <span id="schedule-view-label">มุมมองรายเดือน</span></button>
     </div>
   </div>
 
@@ -698,11 +699,19 @@ textarea{resize:vertical;min-height:80px}
   </div>
 
   <!-- Week Nav -->
-  <div class="week-nav">
+  <div id="week-nav-bar" class="week-nav">
     <button class="btn btn-ghost btn-sm" onclick="changeWeek(-1)">◀ สัปดาห์ก่อน</button>
     <span id="week-label">—</span>
     <button class="btn btn-ghost btn-sm" onclick="changeWeek(1)">สัปดาห์หน้า ▶</button>
     <button class="btn btn-ghost btn-sm" onclick="resetWeek()">วันนี้</button>
+  </div>
+
+  <!-- Month Nav -->
+  <div id="month-nav-bar" class="week-nav" style="display:none">
+    <button class="btn btn-ghost btn-sm" onclick="changeMonth(-1)">◀ เดือนก่อน</button>
+    <span id="month-label" style="font-weight:700;font-size:.92rem">—</span>
+    <button class="btn btn-ghost btn-sm" onclick="changeMonth(1)">เดือนหน้า ▶</button>
+    <button class="btn btn-ghost btn-sm" onclick="resetMonth()">เดือนนี้</button>
   </div>
 
   <!-- Coverage warning -->
@@ -711,12 +720,26 @@ textarea{resize:vertical;min-height:80px}
   <!-- Team filter tabs (filled dynamically) -->
   <div class="tabs" id="schedule-tabs"></div>
 
-  <div class="card">
+  <!-- Week view -->
+  <div id="shift-week-wrap" class="card">
     <div class="tbl-wrap">
       <table class="shift-table" id="shift-table-head">
         <thead id="shift-thead"></thead>
         <tbody id="shift-tbody"></tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- Month view -->
+  <div id="shift-month-wrap" style="display:none">
+    <div class="card" style="overflow:hidden">
+      <div id="shift-month-legend" style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:center;padding:.5rem .25rem .75rem;font-size:.75rem"></div>
+      <div class="tbl-wrap">
+        <table id="shift-month-table" style="min-width:900px;border-collapse:collapse;font-size:.72rem">
+          <thead id="shift-month-thead"></thead>
+          <tbody id="shift-month-tbody"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -2236,7 +2259,7 @@ function showPage(name, btn) {
   document.getElementById('page-' + name).classList.add('active');
   if (btn) btn.classList.add('active');
   if (name === 'dashboard') { loadDashboard(); loadDashboardCharts(); }
-  if (name === 'schedule')  loadSchedule();
+  if (name === 'schedule')  _applyScheduleView();
   if (name === 'tickets')   loadTickets();
   if (name === 'kpi')       loadKpi();
   if (name === 'users')      loadUsers();
@@ -3056,7 +3079,7 @@ function setShiftTeam(t, btn) {
   shiftTeamFilter = t;
   document.querySelectorAll('#schedule-tabs .tab').forEach(b => b.classList.remove('active'));
   if (btn) { btn.classList.add('active'); }
-  loadSchedule();
+  _scheduleView === 'month' ? loadScheduleMonth() : loadSchedule();
 }
 
 async function loadSchedule() {
@@ -7014,6 +7037,180 @@ function closeAiSuggest() {
   document.getElementById('ai-suggest-box').classList.remove('open');
   aiSuggestedShifts = [];
 }
+
+// ─── Schedule: Month View ────────────────────────────────────────────────────
+let _scheduleView = 'month'; // 'week' | 'month'
+let _currentMonthYear  = new Date().getFullYear();
+let _currentMonthMonth = new Date().getMonth() + 1;
+
+function _applyScheduleView() {
+  const label     = document.getElementById('schedule-view-label');
+  const weekWrap  = document.getElementById('shift-week-wrap');
+  const monthWrap = document.getElementById('shift-month-wrap');
+  const weekNav   = document.getElementById('week-nav-bar');
+  const monthNav  = document.getElementById('month-nav-bar');
+  const clearBtn  = document.getElementById('btn-clear-shifts');
+  if (_scheduleView === 'month') {
+    if (label)    label.textContent  = 'มุมมองรายสัปดาห์';
+    weekWrap.style.display  = 'none';
+    monthWrap.style.display = '';
+    weekNav.style.display   = 'none';
+    monthNav.style.display  = '';
+    if (clearBtn) clearBtn.style.display = 'none';
+    loadScheduleMonth();
+  } else {
+    if (label)    label.textContent  = 'มุมมองรายเดือน';
+    weekWrap.style.display  = '';
+    monthWrap.style.display = 'none';
+    weekNav.style.display   = '';
+    monthNav.style.display  = 'none';
+    if (clearBtn) clearBtn.style.display = '';
+    loadSchedule();
+  }
+}
+
+function toggleScheduleView() {
+  _scheduleView = _scheduleView === 'week' ? 'month' : 'week';
+  _applyScheduleView();
+}
+
+function changeMonth(dir) {
+  _currentMonthMonth += dir;
+  if (_currentMonthMonth > 12) { _currentMonthMonth = 1;  _currentMonthYear++; }
+  if (_currentMonthMonth < 1)  { _currentMonthMonth = 12; _currentMonthYear--; }
+  loadScheduleMonth();
+}
+
+function resetMonth() {
+  _currentMonthYear  = new Date().getFullYear();
+  _currentMonthMonth = new Date().getMonth() + 1;
+  loadScheduleMonth();
+}
+
+async function loadScheduleMonth() {
+  const y = _currentMonthYear, m = _currentMonthMonth;
+  const thMonths = ['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  const lbl = document.getElementById('month-label');
+  if (lbl) lbl.textContent = `${thMonths[m]} ${y + 543}`;
+
+  // Legend from SHIFT_META
+  const legendEl = document.getElementById('shift-month-legend');
+  if (legendEl) {
+    const legendItems = [
+      { label:'เช้า',    bg:'#dcfce7', col:'#166534' },
+      { label:'บ่าย',    bg:'#ffedd5', col:'#c2410c' },
+      { label:'กลางวัน', bg:'#dcfce7', col:'#166534' },
+      { label:'ดึก',     bg:'#e2e8f0', col:'#475569' },
+      { label:'DayOFF', bg:'#f1f5f9', col:'#64748b' },
+      { label:'ลา',      bg:'#fee2e2', col:'#b91c1c' },
+    ];
+    legendEl.innerHTML = legendItems.map(t =>
+      `<span style="background:${t.bg};color:${t.col};border-radius:5px;padding:.15rem .55rem;font-weight:600">${t.label}</span>`
+    ).join('');
+  }
+
+  const team = shiftTeamFilter !== 'all' ? `&team=${shiftTeamFilter}` : '';
+  try {
+    const shifts = await api(`/api/shifts/month?year=${y}&month=${m}${team}`);
+    renderMonthTable(shifts, y, m);
+  } catch (e) {
+    document.getElementById('shift-month-tbody').innerHTML =
+      `<tr><td colspan="33" class="empty">โหลดข้อมูลไม่สำเร็จ</td></tr>`;
+  }
+}
+
+function renderMonthTable(shifts, year, month) {
+  const lastDay  = new Date(year, month, 0).getDate();
+  const todayISO = fmtDateISO(new Date());
+  const thDays   = ['อา','จ','อ','พ','พฤ','ศ','ส'];
+
+  const days = [];
+  for (let d = 1; d <= lastDay; d++) {
+    const iso = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dow = new Date(iso + 'T12:00:00').getDay();
+    days.push({ d, iso, dow });
+  }
+
+  // Header
+  let hdr = '<tr><th style="min-width:110px;position:sticky;left:0;background:#1e293b;color:#fff;z-index:2;padding:.35rem .5rem">พนักงาน</th>';
+  days.forEach(({ d, iso, dow }) => {
+    const isWeekend = dow === 0 || dow === 6;
+    const isToday   = iso === todayISO;
+    const bg = isToday ? '#1d4ed8' : isWeekend ? '#334155' : '#1e293b';
+    hdr += `<th style="text-align:center;background:${bg};color:#fff;padding:.25rem .15rem;min-width:32px;font-weight:${isToday?'800':'500'}">
+      <div style="font-size:.65rem;opacity:.8">${thDays[dow]}</div>
+      <div style="font-size:.78rem">${d}</div>
+    </th>`;
+  });
+  hdr += '</tr>';
+  document.getElementById('shift-month-thead').innerHTML = hdr;
+
+  // Shift lookup: employee_id → date → shift
+  const shiftMap = {};
+  (shifts || []).forEach(s => {
+    const dk = (s.shift_date || '').toString().split('T')[0];
+    if (!shiftMap[s.employee_id]) shiftMap[s.employee_id] = {};
+    shiftMap[s.employee_id][dk] = s;
+  });
+
+  let empsToShow = allEmployees.filter(e => e.active !== 0 && e.active !== false);
+  if (shiftTeamFilter !== 'all') empsToShow = empsToShow.filter(e => e.team === shiftTeamFilter);
+  const teamOrder = allTeams.map(t => t.name);
+  empsToShow.sort((a, b) => {
+    const ta = teamOrder.indexOf(a.team), tb = teamOrder.indexOf(b.team);
+    if (ta !== tb) return (ta === -1 ? 99 : ta) - (tb === -1 ? 99 : tb);
+    return (['team_lead','department_head','manager'].includes(a.role) ? 0 : 1) -
+           (['team_lead','department_head','manager'].includes(b.role) ? 0 : 1);
+  });
+
+  const canEdit = isLeadRole();
+  const esc = s => (s||'').replace(/'/g, "\\'");
+
+  let rows = '', prevTeam = '';
+  empsToShow.forEach(emp => {
+    if (currentUser?.role !== 'staff' && emp.team !== prevTeam) {
+      const color = teamColor(emp.team);
+      rows += `<tr><td colspan="${lastDay + 1}" style="background:${color}22;color:${color};font-weight:700;font-size:.75rem;padding:.3rem .6rem;position:sticky;left:0">${teamLabel(emp.team)}</td></tr>`;
+      prevTeam = emp.team;
+    }
+    rows += `<tr><td style="white-space:nowrap;font-size:.8rem;padding:.28rem .5rem;position:sticky;left:0;background:#fff;z-index:1;border-right:2px solid #e2e8f0">${emp.name}</td>`;
+    days.forEach(({ iso, dow }) => {
+      const s = shiftMap[emp.id]?.[iso];
+      const isWeekend = dow === 0 || dow === 6;
+      const cellBg = isWeekend ? '#f8fafc' : '#fff';
+      const shiftId = s ? s.id : 'null';
+      if (s) {
+        const bg  = shiftBg(s.shift_type);
+        const col = shiftColor(s.shift_type);
+        const lbl = shiftLabel(s.shift_type);
+        if (canEdit) {
+          rows += `<td style="padding:.15rem .1rem;background:${cellBg};cursor:pointer"
+            onmousedown="shiftCellDown(${emp.id},'${esc(emp.name)}','${iso}',${shiftId},this,event)"
+            onmouseover="shiftCellOver(${emp.id},'${iso}',${shiftId},this)"
+            ondragstart="return false">
+            <div style="background:${bg};color:${col};border-radius:4px;padding:.12rem .2rem;font-weight:700;font-size:.68rem;text-align:center">${lbl}</div>
+          </td>`;
+        } else {
+          rows += `<td style="padding:.15rem .1rem;background:${cellBg}"><div style="background:${bg};color:${col};border-radius:4px;padding:.12rem .2rem;font-weight:700;font-size:.68rem;text-align:center">${lbl}</div></td>`;
+        }
+      } else {
+        if (canEdit) {
+          rows += `<td style="padding:.15rem .1rem;background:${cellBg};text-align:center;color:#d1d5db;cursor:pointer;font-size:.82rem"
+            onmousedown="shiftCellDown(${emp.id},'${esc(emp.name)}','${iso}',null,this,event)"
+            onmouseover="shiftCellOver(${emp.id},'${iso}',null,this)"
+            ondragstart="return false">·</td>`;
+        } else {
+          rows += `<td style="padding:.15rem .1rem;background:${cellBg}"></td>`;
+        }
+      }
+    });
+    rows += '</tr>';
+  });
+
+  document.getElementById('shift-month-tbody').innerHTML = rows ||
+    `<tr><td colspan="${lastDay+1}" class="empty">ไม่มีข้อมูล</td></tr>`;
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 // ── KPI AI Forecast ────────────────────────────────────────
 async function loadAiForecast() {
