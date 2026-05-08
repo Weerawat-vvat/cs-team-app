@@ -429,7 +429,8 @@ textarea{resize:vertical;min-height:80px}
     <button class="s-tab" id="nav-btn-repair" onclick="showPage('repair',this)">
       <svg class="s-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
       งานซ่อม
-      <span id="repair-msg-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.62rem;padding:.02rem .38rem;margin-left:auto;font-weight:700"></span>
+      <span id="repair-new-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.62rem;padding:.1rem .42rem;margin-left:auto;font-weight:800;animation:pulse 1s infinite">ใหม่!</span>
+      <span id="repair-msg-badge" style="display:none;background:#f97316;color:#fff;border-radius:20px;font-size:.62rem;padding:.02rem .38rem;font-weight:700"></span>
     </button>
     <!-- 5. เครื่องมือ Support -->
     <div>
@@ -1376,6 +1377,9 @@ textarea{resize:vertical;min-height:80px}
 
   <!-- Filter -->
   <div class="page-datebar" style="margin-bottom:.75rem;gap:.5rem;flex-wrap:wrap">
+    <select id="rp-filter-group" onchange="loadRepair()" style="min-width:130px">
+      <option value="">ทุก Group</option>
+    </select>
     <select id="rp-filter-status" onchange="loadRepair()">
       <option value="">ทุกสถานะ</option>
       <option value="received">รับเรื่อง</option>
@@ -1389,7 +1393,16 @@ textarea{resize:vertical;min-height:80px}
       <option value="closed">ปิดงาน</option>
       <option value="cancelled">ยกเลิก</option>
     </select>
-    <input id="rp-search" type="text" placeholder="🔍 ค้นหา Job No / ร้าน / S/N..." oninput="rpSearchDebounce()" style="min-width:200px;flex:1"/>
+    <select id="rp-filter-finance" onchange="loadRepair()">
+      <option value="">ทุกการเงิน</option>
+      <option value="pending">รอดำเนินการ</option>
+      <option value="quoted">เสนอราคาแล้ว</option>
+      <option value="approved">อนุมัติแล้ว</option>
+      <option value="invoiced">ออกใบแจ้งหนี้</option>
+      <option value="paid">ชำระแล้ว</option>
+      <option value="free">ฟรี / ไม่คิดเงิน</option>
+    </select>
+    <input id="rp-search" type="text" placeholder="🔍 ค้นหา Job No / ร้าน / S/N..." oninput="rpSearchDebounce()" style="min-width:180px;flex:1"/>
     <button class="btn btn-ghost btn-sm" onclick="loadRepair()">🔄</button>
   </div>
 
@@ -2221,7 +2234,12 @@ function showPage(name, btn) {
   if (name === 'users')      loadUsers();
   if (name === 'complaints') loadComplaints();
   if (name === 'settings')   loadSettings();
-  if (name === 'repair')       { loadRepair(); pollRepairMessages(); }
+  if (name === 'repair')       {
+    _newRepairCount = 0;
+    const nb = document.getElementById('repair-new-badge');
+    if (nb) nb.style.display = 'none';
+    loadRepairGroups(); loadRepair(); pollRepairMessages();
+  }
   // create-case is now a modal
   if (name === 'specialist') {
     if (!document.getElementById('sp-date-from')?.value) {
@@ -4297,7 +4315,7 @@ function applyUserContext() {
     });
     // Poll every 60s for new customer messages
     clearInterval(_repairPollTimer);
-    _repairPollTimer = setInterval(pollRepairMessages, 60000);
+    _repairPollTimer = setInterval(pollRepairMessages, 30000);
   }
 
   // Schedule: hide clear-week button for staff
@@ -4596,13 +4614,31 @@ function rpSearchDebounce() {
   _rpSearchTimer = setTimeout(() => loadRepair(), 400);
 }
 
+async function loadRepairGroups() {
+  const groups = await api('/api/repair/groups', { silent: true }).catch(() => []);
+  const sel = document.getElementById('rp-filter-group');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">ทุก Group</option>' +
+    (groups || []).map(g => `<option value="${escHtml(g)}"${g===cur?' selected':''}>${escHtml(g)}</option>`).join('');
+}
+
 async function loadRepair() {
-  const status = document.getElementById('rp-filter-status')?.value || '';
-  const search = document.getElementById('rp-search')?.value?.trim() || '';
+  const status  = document.getElementById('rp-filter-status')?.value  || '';
+  const finance = document.getElementById('rp-filter-finance')?.value || '';
+  const group   = document.getElementById('rp-filter-group')?.value   || '';
+  const search  = document.getElementById('rp-search')?.value?.trim() || '';
   let url = '/api/repair?';
-  if (status) url += `status=${status}&`;
-  if (search) url += `search=${encodeURIComponent(search)}&`;
+  if (status)  url += `status=${encodeURIComponent(status)}&`;
+  if (finance) url += `finance_status=${encodeURIComponent(finance)}&`;
+  if (group)   url += `group_name=${encodeURIComponent(group)}&`;
+  if (search)  url += `search=${encodeURIComponent(search)}&`;
   allRepairJobs = await api(url);
+  // Track max id for new-job notification
+  if (allRepairJobs?.length) {
+    const maxId = Math.max(...allRepairJobs.map(j => j.id));
+    if (!_lastSeenRepairId) _lastSeenRepairId = maxId;
+  }
   renderRepairTable();
 }
 
@@ -5006,6 +5042,8 @@ function renderRepairDetail(j) {
 // ── Repair unread badge ───────────────────────────────────
 let _repairUnread = [];
 let _repairPollTimer = null;
+let _lastSeenRepairId = 0;
+let _newRepairCount   = 0;
 
 async function pollRepairMessages() {
   try {
@@ -5014,7 +5052,36 @@ async function pollRepairMessages() {
     const repairCount    = data.repairCount    ?? _repairUnread.reduce((s,r)=>s+r.msg_count,0);
     const complaintCount = data.complaintCount ?? 0;
 
-    // Repair badge
+    // Initialize baseline on first poll (no notification, just set watermark)
+    if (_lastSeenRepairId === 0) {
+      const init = await api('/api/repair/new-since?id=0', { silent: true }).catch(() => null);
+      if (init?.jobs?.length) _lastSeenRepairId = Math.max(...init.jobs.map(j => j.id));
+    } else {
+      // Check for new repair jobs since last seen
+      const newData = await api(`/api/repair/new-since?id=${_lastSeenRepairId}`, { silent: true }).catch(() => null);
+      if (newData?.count > 0) {
+        _newRepairCount += newData.count;
+        newData.jobs.forEach(j => {
+          const src = j.group_name ? ` [${j.group_name}]` : '';
+          showToast(`🔴 งานซ่อมใหม่! ${j.job_no}${src} — ${j.company_name || ''}`, 'error');
+        });
+        _lastSeenRepairId = Math.max(...newData.jobs.map(j => j.id));
+        // Reload repair table if on repair page
+        if (document.getElementById('page-repair')?.classList.contains('active')) {
+          loadRepair();
+          _newRepairCount = 0;
+        }
+      }
+    }
+
+    // New-job badge on nav
+    const newBadge = document.getElementById('repair-new-badge');
+    if (newBadge) {
+      if (_newRepairCount > 0) { newBadge.textContent = `ใหม่ ${_newRepairCount}`; newBadge.style.display = ''; }
+      else newBadge.style.display = 'none';
+    }
+
+    // Message badge
     const badge = document.getElementById('repair-msg-badge');
     if (badge) {
       if (repairCount > 0) { badge.textContent = repairCount; badge.style.display = ''; }

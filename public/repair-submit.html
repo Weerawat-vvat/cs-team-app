@@ -481,6 +481,7 @@ async function submitForm() {
   fd.append('contact_name',    document.getElementById('f-contact-name').value.trim());
   fd.append('contact_phone',   document.getElementById('f-contact-phone').value.trim());
   if (_linkToken) fd.append('link_token', _linkToken);
+  if (_linkToken) fd.append('source_token', _linkToken);
   selectedFiles.forEach(f => fd.append('attachments', f));
 
   try {

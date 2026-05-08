@@ -2377,9 +2377,18 @@ app.post('/api/public/repair/submit', publicUpload.array('attachments', 5), asyn
     const token = crypto.randomBytes(18).toString('hex');
     const reportedAt = b.reported_date ? new Date(b.reported_date) : new Date();
 
+    // Resolve group_name from source token
+    let groupName = null;
+    if (b.source_token) {
+      const lk = (await req().input('tk', sql.NVarChar, b.source_token)
+        .query(`SELECT group_name, company_name, link_type FROM customer_links WHERE token=@tk`)).recordset[0];
+      if (lk) groupName = lk.link_type === 'group' ? lk.group_name : lk.company_name;
+    }
+
     const result = await req()
       .input('jn',  sql.NVarChar, jobNo)
       .input('cn',  sql.NVarChar, b.company_name.trim())
+      .input('gn',  sql.NVarChar, groupName)
       .input('dt',  sql.NVarChar, b.device_type    || null)
       .input('dm',  sql.NVarChar, b.device_model   || null)
       .input('sn',  sql.NVarChar, b.serial_no      || null)
@@ -2390,10 +2399,10 @@ app.post('/api/public/repair/submit', publicUpload.array('attachments', 5), asyn
       .input('ra',  sql.DateTime, reportedAt)
       .input('pt',  sql.NVarChar, token)
       .query(`INSERT INTO repair_jobs
-        (job_no,company_name,device_type,device_model,serial_no,symptom,
+        (job_no,company_name,group_name,device_type,device_model,serial_no,symptom,
          device_location,contact_name,contact_phone,reported_at,public_token,status)
         OUTPUT INSERTED.id, INSERTED.job_no, INSERTED.public_token
-        VALUES (@jn,@cn,@dt,@dm,@sn,@sy,@dl,@ct,@cp,@ra,@pt,'received')`);
+        VALUES (@jn,@cn,@gn,@dt,@dm,@sn,@sy,@dl,@ct,@cp,@ra,@pt,'received')`);
 
     const newId    = result.recordset[0].id;
     const newJob   = result.recordset[0].job_no;
@@ -2514,7 +2523,7 @@ app.get('/api/repair/search-shop', authRequired, async (request, res) => {
 // List repair jobs
 app.get('/api/repair', authRequired, async (request, res) => {
   try {
-    const { status, dateFrom, dateTo, search } = request.query;
+    const { status, finance_status, group_name, dateFrom, dateTo, search } = request.query;
     let q = `SELECT rj.*, e.name AS reporter_name, e2.name AS updater_name
              FROM repair_jobs rj
              LEFT JOIN app_users au  ON au.id = rj.reported_by
@@ -2523,13 +2532,36 @@ app.get('/api/repair', authRequired, async (request, res) => {
              LEFT JOIN employees e2  ON e2.id  = au2.employee_id
              WHERE 1=1`;
     const r = req();
-    if (status)   { q += ' AND rj.status=@st';          r.input('st', sql.NVarChar, status); }
-    if (dateFrom) { q += ' AND rj.reported_at>=@df';    r.input('df', sql.DateTime, new Date(dateFrom)); }
-    if (dateTo)   { q += ' AND rj.reported_at<@dt';     r.input('dt', sql.DateTime, new Date(new Date(dateTo).getTime()+86400000)); }
-    if (search)   { q += ' AND (rj.job_no LIKE @s OR rj.company_name LIKE @s OR rj.serial_no LIKE @s OR rj.contact_name LIKE @s)';
-                                                         r.input('s', sql.NVarChar, `%${search}%`); }
+    if (status)         { q += ' AND rj.status=@st';             r.input('st', sql.NVarChar, status); }
+    if (finance_status) { q += ' AND rj.finance_status=@fs';     r.input('fs', sql.NVarChar, finance_status); }
+    if (group_name)     { q += ' AND rj.group_name=@gn';         r.input('gn', sql.NVarChar, group_name); }
+    if (dateFrom)       { q += ' AND rj.reported_at>=@df';       r.input('df', sql.DateTime, new Date(dateFrom)); }
+    if (dateTo)         { q += ' AND rj.reported_at<@dt';        r.input('dt', sql.DateTime, new Date(new Date(dateTo).getTime()+86400000)); }
+    if (search)         { q += ' AND (rj.job_no LIKE @s OR rj.company_name LIKE @s OR rj.serial_no LIKE @s OR rj.contact_name LIKE @s OR rj.group_name LIKE @s)';
+                                                                  r.input('s', sql.NVarChar, `%${search}%`); }
     q += ' ORDER BY rj.reported_at DESC';
     res.json((await r.query(q)).recordset);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// New repair jobs since last seen ID (for notification polling)
+app.get('/api/repair/new-since', authRequired, async (request, res) => {
+  try {
+    const since = parseInt(request.query.id) || 0;
+    const rows = (await req().input('id', sql.Int, since)
+      .query(`SELECT id, job_no, company_name, group_name, reported_at
+              FROM repair_jobs WHERE id > @id ORDER BY id DESC`)).recordset;
+    res.json({ count: rows.length, jobs: rows });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Distinct group names for filter dropdown
+app.get('/api/repair/groups', authRequired, async (request, res) => {
+  try {
+    const rows = (await req().query(
+      `SELECT DISTINCT group_name FROM repair_jobs WHERE group_name IS NOT NULL AND group_name <> '' ORDER BY group_name`
+    )).recordset;
+    res.json(rows.map(r => r.group_name));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -3609,6 +3641,10 @@ async function ensureRepairTables() {
     await req().query(`
       IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('repair_jobs') AND name='public_token')
         ALTER TABLE repair_jobs ADD public_token NVARCHAR(48) NULL`);
+    // Add group_name column for customer group tracking
+    await req().query(`
+      IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('repair_jobs') AND name='group_name')
+        ALTER TABLE repair_jobs ADD group_name NVARCHAR(255) NULL`);
     // Generate tokens for existing jobs that don't have one
     const noToken = (await req().query(
       `SELECT id FROM repair_jobs WHERE public_token IS NULL`)).recordset;
