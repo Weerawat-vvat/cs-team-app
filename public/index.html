@@ -5365,7 +5365,7 @@ function navSettings(sub, btn) {
   if (sub === 'schedule') {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('page-schedule').classList.add('active');
-    loadSchedule();
+    _applyScheduleView();
   } else if (sub === 'users') {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('page-users').classList.add('active');
@@ -5386,7 +5386,7 @@ function switchSettingTab(tab, btn) {
     document.getElementById('page-schedule').classList.add('active');
     document.querySelectorAll('.s-tab').forEach(b => b.classList.remove('active'));
     document.getElementById('nav-btn-settings').classList.add('active');
-    loadSchedule();
+    _applyScheduleView();
     return;
   }
   if (tab === 'users') {
