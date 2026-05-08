@@ -69,12 +69,19 @@ async function sendEmail(to, subject, html) {
 
 async function notifyRepairStatus(repairId, jobNo, companyName, newStatus, changedByName) {
   const statusLabel = {
-    received: 'รับเรื่องแล้ว', assessing: 'กำลังประเมิน',
-    quoted: 'เสนอราคาแล้ว', waiting_approval: 'รอลูกค้าอนุมัติ',
-    device_received: 'รับเครื่องแล้ว', sent_supplier: 'ส่ง Supplier แล้ว',
-    returned_from_supplier: 'ได้เครื่องคืนจาก Supplier',
-    returned_to_customer: 'ส่งคืนลูกค้าแล้ว',
-    closed: 'ปิดงาน', cancelled: 'ยกเลิก'
+    received:         'รับเรื่อง',
+    spared:           'สแปร์แล้ว',
+    assessing:        'ประเมินงานซ่อม',
+    quoted:           'ทำเสนอราคางานซ่อม',
+    waiting_approval: 'รออนุมัติ',
+    repairing:        'อยู่ระหว่างซ่อมแซม',
+    waiting_return:   'รอส่งคืน',
+    returned:         'ส่งคืนเครื่องเรียบร้อย',
+    cancelled:        'ยกเลิก',
+    // legacy
+    device_received:'รับเครื่องแล้ว', sent_supplier:'ส่ง Supplier',
+    returned_from_supplier:'ได้เครื่องคืน', returned_to_customer:'ส่งคืนลูกค้า',
+    closed:'ปิดงาน'
   };
   const label = statusLabel[newStatus] || newStatus;
   const msg   = `\n🔧 [${jobNo}] ${companyName}\nสถานะ: ${label}\nอัพเดทโดย: ${changedByName}\n${new Date().toLocaleString('th-TH')}`;

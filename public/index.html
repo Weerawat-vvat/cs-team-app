@@ -1366,7 +1366,7 @@ textarea{resize:vertical;min-height:80px}
       <span style="font-size:1.1rem;font-weight:800;color:#b45309" id="rp-stat-active">—</span>
     </div>
     <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">✅ ปิดงาน</span>
+      <span style="font-size:.72rem;color:var(--muted)">✅ ส่งคืนแล้ว</span>
       <span style="font-size:1.1rem;font-weight:800;color:#16a34a" id="rp-stat-closed">—</span>
     </div>
     <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
@@ -1383,14 +1383,13 @@ textarea{resize:vertical;min-height:80px}
     <select id="rp-filter-status" onchange="loadRepair()">
       <option value="">ทุกสถานะ</option>
       <option value="received">รับเรื่อง</option>
-      <option value="assessing">กำลังประเมิน</option>
-      <option value="quoted">เสนอราคาแล้ว</option>
-      <option value="waiting_approval">รอลูกค้าอนุมัติ</option>
-      <option value="device_received">รับเครื่องแล้ว</option>
-      <option value="sent_supplier">ส่ง Supplier</option>
-      <option value="returned_from_supplier">ได้เครื่องคืน</option>
-      <option value="returned_to_customer">ส่งคืนลูกค้า</option>
-      <option value="closed">ปิดงาน</option>
+      <option value="spared">สแปร์แล้ว</option>
+      <option value="assessing">ประเมินงานซ่อม</option>
+      <option value="quoted">ทำเสนอราคางานซ่อม</option>
+      <option value="waiting_approval">รออนุมัติ</option>
+      <option value="repairing">อยู่ระหว่างซ่อมแซม</option>
+      <option value="waiting_return">รอส่งคืน</option>
+      <option value="returned">ส่งคืนเครื่องเรียบร้อย</option>
       <option value="cancelled">ยกเลิก</option>
     </select>
     <select id="rp-filter-finance" onchange="loadRepair()">
@@ -4575,22 +4574,39 @@ let allRepairJobs = [];
 let _rpSearchTimer = null;
 
 const REPAIR_STATUS = {
-  received:'รับเรื่อง', assessing:'กำลังประเมิน', quoted:'เสนอราคาแล้ว',
-  waiting_approval:'รอลูกค้าอนุมัติ', device_received:'รับเครื่องแล้ว',
-  sent_supplier:'ส่ง Supplier', returned_from_supplier:'ได้เครื่องคืน',
-  returned_to_customer:'ส่งคืนลูกค้า', closed:'ปิดงาน', cancelled:'ยกเลิก'
+  received:         'รับเรื่อง',
+  spared:           'สแปร์แล้ว',
+  assessing:        'ประเมินงานซ่อม',
+  quoted:           'ทำเสนอราคางานซ่อม',
+  waiting_approval: 'รออนุมัติ',
+  repairing:        'อยู่ระหว่างซ่อมแซม',
+  waiting_return:   'รอส่งคืน',
+  returned:         'ส่งคืนเครื่องเรียบร้อย',
+  cancelled:        'ยกเลิก',
+  // legacy keys (old data)
+  device_received:'รับเครื่องแล้ว', sent_supplier:'ส่ง Supplier',
+  returned_from_supplier:'ได้เครื่องคืน', returned_to_customer:'ส่งคืนลูกค้า',
+  closed:'ปิดงาน'
 };
 const REPAIR_STATUS_COLOR = {
-  received:'#dbeafe', assessing:'#fef3c7', quoted:'#ede9fe',
-  waiting_approval:'#fef9c3', device_received:'#dcfce7',
-  sent_supplier:'#e0f2fe', returned_from_supplier:'#d1fae5',
-  returned_to_customer:'#bbf7d0', closed:'#f0fdf4', cancelled:'#fee2e2'
+  received:'#dbeafe',         spared:'#e0f2fe',
+  assessing:'#fef3c7',        quoted:'#ede9fe',
+  waiting_approval:'#fef9c3', repairing:'#dcfce7',
+  waiting_return:'#d1fae5',   returned:'#bbf7d0',
+  cancelled:'#fee2e2',
+  // legacy
+  device_received:'#dcfce7', sent_supplier:'#e0f2fe',
+  returned_from_supplier:'#d1fae5', returned_to_customer:'#bbf7d0', closed:'#f0fdf4'
 };
 const REPAIR_STATUS_TEXT = {
-  received:'#1d4ed8', assessing:'#92400e', quoted:'#6d28d9',
-  waiting_approval:'#854d0e', device_received:'#166534',
-  sent_supplier:'#0369a1', returned_from_supplier:'#15803d',
-  returned_to_customer:'#15803d', closed:'#166534', cancelled:'#b91c1c'
+  received:'#1d4ed8',         spared:'#0369a1',
+  assessing:'#92400e',        quoted:'#6d28d9',
+  waiting_approval:'#854d0e', repairing:'#166534',
+  waiting_return:'#15803d',   returned:'#15803d',
+  cancelled:'#b91c1c',
+  // legacy
+  device_received:'#166534', sent_supplier:'#0369a1',
+  returned_from_supplier:'#15803d', returned_to_customer:'#15803d', closed:'#166534'
 };
 const FINANCE_STATUS = {
   pending:'รอเสนอราคา', quoted:'เสนอราคาแล้ว', approved:'อนุมัติแล้ว',
@@ -4647,10 +4663,11 @@ function renderRepairTable() {
   if (!tbody) return;
 
   // Stats
+  const DONE_ST = ['returned','cancelled','closed','returned_to_customer'];
   const total   = allRepairJobs.length;
-  const active  = allRepairJobs.filter(j => !['closed','cancelled'].includes(j.status)).length;
-  const closed  = allRepairJobs.filter(j => j.status === 'closed').length;
-  const unpaid  = allRepairJobs.filter(j => !['paid','cancelled'].includes(j.finance_status) && j.status !== 'cancelled').length;
+  const active  = allRepairJobs.filter(j => !DONE_ST.includes(j.status)).length;
+  const closed  = allRepairJobs.filter(j => DONE_ST.includes(j.status)).length;
+  const unpaid  = allRepairJobs.filter(j => !['paid','free','cancelled'].includes(j.finance_status) && !['cancelled'].includes(j.status)).length;
   const _s = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
   _s('rp-stat-total',  total);
   _s('rp-stat-active', active);
