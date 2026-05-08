@@ -3845,12 +3845,21 @@ async function ensureSpecialistTable() {
         note             NVARCHAR(MAX),
         assigned_at      DATETIME DEFAULT GETDATE(),
         -- Resolution
-        status           NVARCHAR(20) DEFAULT 'pending',
+        status           NVARCHAR(50) DEFAULT 'pending',
         resolved_by      INT,
         resolved_at      DATETIME,
         resolution_note  NVARCHAR(MAX),
         updated_at       DATETIME DEFAULT GETDATE()
       )`);
+    // Widen status column if still NVARCHAR(20)
+    try {
+      await req().query(`
+        IF EXISTS (
+          SELECT 1 FROM sys.columns
+          WHERE object_id=OBJECT_ID('specialist_log') AND name='status' AND max_length < 100
+        )
+          ALTER TABLE specialist_log ALTER COLUMN status NVARCHAR(50) DEFAULT 'pending'`);
+    } catch {}
     // Add columns if missing
     for (const [col, def] of [
       ['issue_id',     'NVARCHAR(100) NULL'],
