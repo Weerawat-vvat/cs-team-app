@@ -3999,9 +3999,10 @@ app.put('/api/specialist/:id', authRequired, async (request, res) => {
       .input('rnt', sql.NVarChar, b.resolution_note     ?? cur.resolution_note)
       .input('iid', sql.NVarChar, b.issue_id            ?? cur.issue_id)
       .input('rb',  sql.Int,      b.status==='resolved' ? (request.user.id||null) : cur.resolved_by)
-      .input('aby', sql.Int,      b.hasOwnProperty('accepted_by') ? (b.accepted_by ?? null)
+      .input('aby', sql.Int,      b.status==='pending' ? null
+                                  : b.hasOwnProperty('accepted_by') ? (b.accepted_by ?? null)
                                   : (b.status==='in_progress' && !cur.accepted_by ? (request.user.id||null) : cur.accepted_by))
-      .input('isReassign', sql.Bit, (b.hasOwnProperty('accepted_by') && b.accepted_by === null) ? 1 : 0)
+      .input('isReassign', sql.Bit, (b.status==='pending') || (b.hasOwnProperty('accepted_by') && b.accepted_by === null) ? 1 : 0)
       .query(`UPDATE specialist_log SET
         status=@st, assigned_to_team=@att, assigned_to_user=@atu, priority=@pr, note=@nt,
         contact_name=@ctn, contact_phone=@ctp, line_id=@li, line_group=@lg,
