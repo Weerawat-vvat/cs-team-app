@@ -7200,11 +7200,12 @@ function _shiftDragEnd(event) {
     `${_dragEmpName} — ${_dragDates.length} วัน`;
   // Render shift type buttons from SHIFT_META
   const shiftOptions = [
-    { key:'morning',  label:'เช้า',      time:'08:00–17:00' },
-    { key:'midday',   label:'กลางวัน',   time:'10:00–19:00' },
-    { key:'afternoon',label:'บ่าย',      time:'12:00–21:00' },
-    { key:'night',    label:'ดึก',       time:'15:00–00:00' },
-    { key:'dayoff',   label:'หยุด',      time:'' },
+    { key:'morning',       label:'เช้า',     time:'08:00–17:00' },
+    { key:'midday',        label:'กลางวัน',  time:'10:00–19:00' },
+    { key:'afternoon',     label:'บ่าย',     time:'12:00–21:00' },
+    { key:'night',         label:'ดึก',      time:'15:00–00:00' },
+    { key:'dayoff',        label:'หยุด',     time:'' },
+    { key:'leave_sick',    label:'ลา',       time:'' },
   ];
   document.getElementById('shift-pick-btns').innerHTML = shiftOptions.map(t =>
     `<button class="btn btn-sm" style="background:${shiftBg(t.key)};color:${shiftColor(t.key)};font-weight:700"
