@@ -128,6 +128,8 @@ tr:hover td{background:#f8fafc}
 /* ── SHIFT TABLE ── */
 .shift-table{min-width:800px}
 .shift-table th:first-child{min-width:130px}
+.shift-drag-sel{outline:2px solid #2563eb!important;background:#bfdbfe!important;border-radius:4px}
+#shift-pick-popup{position:fixed;background:#fff;border-radius:12px;padding:.75rem 1rem;box-shadow:0 8px 32px rgba(0,0,0,.18);z-index:9999;min-width:230px;display:none;user-select:none}
 .shift-cell{display:flex;flex-direction:column;gap:2px}
 .shift-pill{border-radius:6px;padding:.15rem .45rem;font-size:.72rem;font-weight:600;display:flex;align-items:center;gap:4px;cursor:pointer;transition:.15s}
 .shift-pill:hover{opacity:.8}
@@ -2183,16 +2185,16 @@ function teamBadgeHtml(t) {
   return `<span class="badge ${cls}" ${style}>${teamLabel(t)}</span>`;
 }
 const SHIFT_META = {
-  morning:        { label:'เช้า',      time:'08:30–17:30', bg:'#dcfce7', col:'#166534' },
+  morning:        { label:'เช้า',      time:'08:00–17:00', bg:'#dcfce7', col:'#166534' },
   afternoon:      { label:'บ่าย',      time:'12:00–21:00', bg:'#ffedd5', col:'#c2410c' },
   midday:         { label:'กลางวัน',   time:'10:00–19:00', bg:'#dbeafe', col:'#1e40af' },
   mid:            { label:'กลางวัน',   time:'10:00–19:00', bg:'#dbeafe', col:'#1e40af' },
   night:          { label:'ดึก',       time:'15:00–00:00', bg:'#ede9fe', col:'#5b21b6' },
   dayoff:         { label:'หยุด',      time:'',             bg:'#fee2e2', col:'#b91c1c' },
   off:            { label:'หยุด',      time:'',             bg:'#fee2e2', col:'#b91c1c' },
-  leave_sick:     { label:'ลา', time:'', bg:'#fee2e2', col:'#b91c1c' },
-  leave_personal: { label:'ลา', time:'', bg:'#fee2e2', col:'#b91c1c' },
-  leave_annual:   { label:'ลา', time:'', bg:'#fee2e2', col:'#b91c1c' },
+  leave_sick:     { label:'ลา', time:'', bg:'#1e293b', col:'#f1f5f9' },
+  leave_personal: { label:'ลา', time:'', bg:'#1e293b', col:'#f1f5f9' },
+  leave_annual:   { label:'ลา', time:'', bg:'#1e293b', col:'#f1f5f9' },
 };
 const LEAVE_SHIFT_TYPES = new Set(['leave_sick','leave_personal','leave_annual']);
 
@@ -3180,6 +3182,7 @@ function renderShiftTable(shifts, ws) {
       prevTeam = emp.team;
     }
     const isLead  = !['staff'].includes(emp.role);
+    const escN    = (emp.name||'').replace(/'/g,"\\'");
     const wc      = workCount[emp.id];
     const wcColor = wc > 5 ? '#ef4444' : wc === 5 ? '#16a34a' : '#64748b';
     const wcTitle = wc > 5 ? `⚠️ เกิน! ${wc} วัน (สูงสุด 5)` : `ทำงาน ${wc}/5 วันสัปดาห์นี้`;
@@ -3193,26 +3196,31 @@ function renderShiftTable(shifts, ws) {
       if (s) {
         const isLeave = s.status === 'leave' || s.status === 'approved_leave'
           || LEAVE_SHIFT_TYPES.has(s.shift_type);
-        // Lead+ can click to edit; staff sees read-only badge
-        const clickAttr = canEdit
-          ? `onclick="editShiftModal(${s.id},'${s.shift_type}','${s.status}')" style="cursor:pointer"`
-          : `style="cursor:default"`;
-        rows += `<td style="padding:.3rem .25rem">
-          <div style="background:${shiftBg(s.shift_type)};color:${shiftColor(s.shift_type)};
-               border-radius:6px;padding:.18rem .4rem;font-size:.72rem;font-weight:600;text-align:center"
-               title="${shiftLabel(s.shift_type,true)}" ${clickAttr}>
-            ${shiftLabel(s.shift_type)}
-          </div></td>`;
+        if (canEdit) {
+          rows += `<td style="padding:.3rem .25rem;cursor:pointer;user-select:none"
+            onmousedown="shiftCellDown(${emp.id},'${escN}','${iso}',${s.id},this,event)"
+            onmouseover="shiftCellOver(${emp.id},'${iso}',${s.id},this)"
+            ondragstart="return false">
+            <div style="background:${shiftBg(s.shift_type)};color:${shiftColor(s.shift_type)};
+                 border-radius:6px;padding:.18rem .4rem;font-size:.72rem;font-weight:600;text-align:center"
+                 title="${shiftLabel(s.shift_type,true)}">
+              ${shiftLabel(s.shift_type)}
+            </div></td>`;
+        } else {
+          rows += `<td style="padding:.3rem .25rem">
+            <div style="background:${shiftBg(s.shift_type)};color:${shiftColor(s.shift_type)};
+                 border-radius:6px;padding:.18rem .4rem;font-size:.72rem;font-weight:600;text-align:center">
+              ${shiftLabel(s.shift_type)}
+            </div></td>`;
+        }
       } else {
         if (canEdit) {
-          rows += `<td style="padding:.3rem .25rem">
-            <div style="color:#cbd5e1;font-size:.78rem;text-align:center;cursor:pointer;border-radius:6px;padding:.18rem .4rem;transition:.15s"
-                 onmouseover="this.style.background='#f1f5f9';this.style.color='#2563eb'"
-                 onmouseout="this.style.background='';this.style.color='#cbd5e1'"
-                 onclick="quickAddShift(${emp.id},'${iso}')" title="เพิ่มกะ">+</div>
-          </td>`;
+          rows += `<td style="padding:.3rem .25rem;cursor:pointer;user-select:none;text-align:center;color:#cbd5e1;font-size:.78rem"
+            onmousedown="shiftCellDown(${emp.id},'${escN}','${iso}',null,this,event)"
+            onmouseover="shiftCellOver(${emp.id},'${iso}',null,this)"
+            ondragstart="return false">·</td>`;
         } else {
-          rows += `<td style="padding:.3rem .25rem"></td>`; // staff: empty, no "+"
+          rows += `<td style="padding:.3rem .25rem"></td>`;
         }
       }
     });
@@ -3222,85 +3230,9 @@ function renderShiftTable(shifts, ws) {
   document.getElementById('shift-tbody').innerHTML = rows;
 }
 
-function renderCoverageWarn(coverage, ws) {
-  // Build lookup: date → team → shift_type → cnt
-  const covMap = {};
-  coverage.forEach(r => {
-    const dk = (r.shift_date || '').toString().split('T')[0];
-    if (!covMap[dk]) covMap[dk] = {};
-    if (!covMap[dk][r.team]) covMap[dk][r.team] = {};
-    covMap[dk][r.team][r.shift_type] = r.cnt;
-  });
-
-  const role = currentUser?.role;
-
-  // staff: no coverage warning (single person, not meaningful)
+function renderCoverageWarn() {
   const warnEl = document.getElementById('coverage-warn');
-  if (role === 'staff') { if (warnEl) warnEl.innerHTML = ''; return; }
-
-  // Minimum staffing rules — built dynamically from allTeams (1 person/shift/day minimum)
-  const allRules = allTeams.map(t => ({
-    team: t.name,
-    shifts: ['morning', 'afternoon', 'night'],
-    min: 1,
-    days: 'all'
-  }));
-  const minRules = role === 'team_lead'
-    ? allRules.filter(r => r.team === currentUser?.team)
-    : allRules;
-
-  const issues = [];
-
-  // Generate 7 days (company open every day)
-  const days = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(ws); d.setDate(d.getDate() + i); days.push(d);
-  }
-
-  days.forEach(d => {
-    const iso     = fmtDateISO(d);
-    const dow     = d.getDay(); // 0=Sun, 6=Sat
-    const isWkday = dow >= 1 && dow <= 5;
-
-    minRules.forEach(rule => {
-      if (rule.days === 'weekday' && !isWkday) return;
-      rule.shifts.forEach(st => {
-        const cnt = covMap[iso]?.[rule.team]?.[st] || 0;
-        if (cnt < rule.min) {
-          const dayLabel = ['อา','จ','อ','พ','พฤ','ศ','ส'][dow];
-          issues.push({ day: dayLabel, date: iso, team: rule.team, shift: st, cnt, min: rule.min });
-        }
-      });
-    });
-  });
-
-  if (!warnEl) return;
-
-  if (issues.length === 0) {
-    warnEl.innerHTML = `<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:.5rem .9rem;font-size:.8rem;color:#166534">
-      ✅ ครอบคลุมทุกกะตามเกณฑ์ขั้นต่ำ (ทุกทีม ≥1 คน/กะ)
-    </div>`;
-    return;
-  }
-
-  // Group issues by team for cleaner display
-  const byTeam = {};
-  issues.forEach(i => {
-    if (!byTeam[i.team]) byTeam[i.team] = [];
-    byTeam[i.team].push(i);
-  });
-
-  const lines = Object.entries(byTeam).map(([team, rows]) => {
-    const detail = rows.map(r =>
-      `<span style="background:#fef2f2;border:1px solid #fecaca;border-radius:4px;padding:.05rem .35rem;font-size:.72rem;margin:.1rem">${r.day} ${r.date.slice(5)} ${shiftLabel(r.shift)} ${r.cnt}/${r.min}</span>`
-    ).join(' ');
-    return `<div style="margin:.2rem 0"><b style="color:#b91c1c">${teamLabel(team)}</b> ${detail}</div>`;
-  }).join('');
-
-  warnEl.innerHTML = `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.6rem .9rem;font-size:.8rem">
-    <div style="font-weight:700;color:#b91c1c;margin-bottom:.35rem">⚠️ กะที่ยังขาดคน (${issues.length} รายการ)</div>
-    ${lines}
-  </div>`;
+  if (warnEl) warnEl.innerHTML = '';
 }
 
 function quickAddShift(empId, dateStr) {
@@ -7102,7 +7034,7 @@ async function loadScheduleMonth() {
       { label:'บ่าย',    bg:'#ffedd5', col:'#c2410c' },
       { label:'ดึก',     bg:'#ede9fe', col:'#5b21b6' },
       { label:'หยุด',    bg:'#fee2e2', col:'#b91c1c' },
-      { label:'ลา',      bg:'#fee2e2', col:'#b91c1c' },
+      { label:'ลา',      bg:'#1e293b', col:'#f1f5f9' },
     ];
     legendEl.innerHTML = legendItems.map(t =>
       `<span style="background:${t.bg};color:${t.col};border-radius:5px;padding:.15rem .55rem;font-weight:600">${t.label}</span>`
@@ -7232,6 +7164,103 @@ async function loadAiForecast() {
   }
 }
 
+// ─── Drag-to-assign shift ────────────────────────────────────────────────────
+let _dragEmpId = null, _dragEmpName = '';
+let _dragDates = [], _dragCells = [], _dragShiftIds = {};
+let _isDragging = false;
+
+document.addEventListener('mouseup',    e => { if (_isDragging) _shiftDragEnd(e); });
+document.addEventListener('mouseleave', e => { if (_isDragging) _shiftDragEnd(e); });
+
+function shiftCellDown(empId, empName, dateStr, shiftId, el, event) {
+  event.preventDefault();
+  _dragEmpId = empId; _dragEmpName = empName;
+  _dragDates = [dateStr]; _dragCells = [el]; _dragShiftIds = {};
+  if (shiftId) _dragShiftIds[dateStr] = shiftId;
+  _isDragging = true;
+  el.classList.add('shift-drag-sel');
+}
+
+function shiftCellOver(empId, dateStr, shiftId, el) {
+  if (!_isDragging || empId !== _dragEmpId) return;
+  if (!_dragDates.includes(dateStr)) {
+    _dragDates.push(dateStr); _dragCells.push(el);
+    if (shiftId) _dragShiftIds[dateStr] = shiftId;
+    el.classList.add('shift-drag-sel');
+  }
+}
+
+function _shiftDragEnd(event) {
+  _isDragging = false;
+  if (!_dragDates.length) return;
+  const popup  = document.getElementById('shift-pick-popup');
+  const delBtn = document.getElementById('shift-pick-del');
+  document.getElementById('shift-pick-title').textContent =
+    `${_dragEmpName} — ${_dragDates.length} วัน`;
+  // Render shift type buttons from SHIFT_META
+  const shiftOptions = [
+    { key:'morning',  label:'เช้า',      time:'08:00–17:00' },
+    { key:'midday',   label:'กลางวัน',   time:'10:00–19:00' },
+    { key:'afternoon',label:'บ่าย',      time:'12:00–21:00' },
+    { key:'night',    label:'ดึก',       time:'15:00–00:00' },
+    { key:'dayoff',   label:'หยุด',      time:'' },
+  ];
+  document.getElementById('shift-pick-btns').innerHTML = shiftOptions.map(t =>
+    `<button class="btn btn-sm" style="background:${shiftBg(t.key)};color:${shiftColor(t.key)};font-weight:700"
+      onclick="confirmDragShift('${t.key}')">${t.label}${t.time ? ' ' + t.time : ''}</button>`
+  ).join('');
+  delBtn.style.display = Object.keys(_dragShiftIds).length > 0 ? '' : 'none';
+  popup.style.display = 'block';
+  const x = Math.min(event.clientX + 8, window.innerWidth  - 260);
+  const y = Math.min(event.clientY + 8, window.innerHeight - 200);
+  popup.style.left = x + 'px';
+  popup.style.top  = y + 'px';
+}
+
+async function confirmDragShift(shiftType) {
+  _closeShiftPickPopup();
+  const dates = [..._dragDates], empId = _dragEmpId;
+  let ok = 0;
+  for (const date of dates) {
+    try { await api('/api/shifts', { method:'POST', silent:true, body:{ employee_id:empId, shift_type:shiftType, shift_date:date }}); ok++; }
+    catch {}
+  }
+  _clearDragState();
+  showToast(`✅ บันทึกกะแล้ว ${ok}/${dates.length} วัน`, 'success');
+  _scheduleView === 'month' ? loadScheduleMonth() : loadSchedule();
+}
+
+async function deleteDragShift() {
+  _closeShiftPickPopup();
+  const ids = Object.values(_dragShiftIds);
+  let ok = 0;
+  for (const id of ids) {
+    try { await api(`/api/shifts/${id}`, { method:'DELETE', silent:true }); ok++; } catch {}
+  }
+  _clearDragState();
+  showToast(`🗑 ลบกะแล้ว ${ok} วัน`, 'success');
+  _scheduleView === 'month' ? loadScheduleMonth() : loadSchedule();
+}
+
+function cancelDragShift()      { _closeShiftPickPopup(); _clearDragState(); }
+function _closeShiftPickPopup() { document.getElementById('shift-pick-popup').style.display = 'none'; }
+function _clearDragState() {
+  _dragCells.forEach(el => el.classList.remove('shift-drag-sel'));
+  _dragEmpId = null; _dragEmpName = ''; _dragDates = []; _dragCells = []; _dragShiftIds = {};
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 </script>
+
+<!-- Drag-to-assign shift popup -->
+<div id="shift-pick-popup">
+  <div id="shift-pick-title" style="font-size:.82rem;font-weight:700;color:#334155;margin-bottom:.6rem">—</div>
+  <div id="shift-pick-btns" style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.45rem"></div>
+  <div style="display:flex;gap:.4rem;margin-top:.4rem">
+    <button id="shift-pick-del" class="btn btn-sm" style="background:#fef2f2;color:#b91c1c;font-weight:700" onclick="deleteDragShift()">🗑 ลบ</button>
+    <button class="btn btn-ghost btn-sm" onclick="cancelDragShift()">ยกเลิก</button>
+  </div>
+</div>
+
 </body>
 </html>
