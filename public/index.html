@@ -681,24 +681,14 @@ textarea{resize:vertical;min-height:80px}
   <div class="section-header">
     <div class="section-title">📅 ตารางกะ & วันหยุด</div>
     <div class="btn-group">
-      <button id="btn-add-shift" class="btn btn-primary btn-sm" onclick="openModal('modal-add-shift')">+ กำหนดกะ</button>
       <button class="btn btn-warn btn-sm" onclick="openModal('modal-leave-req')">📩 ขอวันหยุด</button>
-      <button id="btn-ai-shifts" class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="aiSuggestShifts()">✨ AI แนะนำกะ</button>
       <button id="btn-clear-shifts" class="btn btn-sm" style="background:#ef4444;color:#fff" onclick="clearWeekShifts()">🗑️ เครียตาราง</button>
-      <button class="btn btn-sm" style="background:#0f172a;color:#fff" onclick="toggleScheduleView()">📅 <span id="schedule-view-label">มุมมองรายเดือน</span></button>
+      <button class="btn btn-sm" style="background:#0f172a;color:#fff" onclick="toggleScheduleView()">📅 <span id="schedule-view-label">มุมมองรายสัปดาห์</span></button>
     </div>
   </div>
 
-  <!-- AI Shift Suggestion Box -->
-  <div class="ai-suggest-box" id="ai-suggest-box">
-    <div style="font-weight:700;color:#166534;margin-bottom:.5rem">✨ AI แนะนำตารางกะสัปดาห์นี้</div>
-    <div id="ai-suggest-status" style="font-size:.85rem;color:#64748b"></div>
-    <div id="ai-suggest-preview"></div>
-    <div class="ai-suggest-actions" id="ai-suggest-actions" style="display:none">
-      <button class="btn btn-success btn-sm" onclick="applyAiShifts()">✅ นำไปใช้ทั้งหมด</button>
-      <button class="btn btn-ghost btn-sm" onclick="closeAiSuggest()">ยกเลิก</button>
-    </div>
-  </div>
+  <!-- Today Summary -->
+  <div id="schedule-today-summary" style="margin-bottom:.75rem"></div>
 
   <!-- Week Nav -->
   <div id="week-nav-bar" class="week-nav">
@@ -3105,7 +3095,8 @@ async function loadSchedule() {
   ]);
 
   renderShiftTable(shifts, ws);
-  renderCoverageWarn(coverage, ws);
+  renderCoverageWarn();
+  renderTodaySummary(shifts);
   loadLeaveRequests();
 }
 
@@ -4345,13 +4336,9 @@ function applyUserContext() {
     _repairPollTimer = setInterval(pollRepairMessages, 60000);
   }
 
-  // Schedule: hide edit buttons for staff
-  const addShiftBtn   = document.getElementById('btn-add-shift');
-  const aiShiftsBtn   = document.getElementById('btn-ai-shifts');
-  const clearShiftBtn = document.querySelector('button[onclick="clearWeekShifts()"]');
-  if (addShiftBtn)   addShiftBtn.style.display   = isLead ? '' : 'none';
-  if (aiShiftsBtn)   aiShiftsBtn.style.display   = isLead ? '' : 'none';
-  if (clearShiftBtn) clearShiftBtn.style.display  = isLead ? '' : 'none';
+  // Schedule: hide clear-week button for staff
+  const clearShiftBtn = document.getElementById('btn-clear-shifts');
+  if (clearShiftBtn) clearShiftBtn.style.display = isLead ? '' : 'none';
 
   // Staff: hide team filter dropdowns across all pages
   if (role === 'staff') {
@@ -6970,6 +6957,55 @@ function closeAiSuggest() {
   aiSuggestedShifts = [];
 }
 
+// ─── Today's Shift Summary ───────────────────────────────────────────────────
+function renderTodaySummary(shifts) {
+  const el = document.getElementById('schedule-today-summary');
+  if (!el) return;
+
+  const todayISO = fmtDateISO(new Date());
+  const todayShifts = (shifts || []).filter(s => {
+    const dk = (s.shift_date || '').toString().split('T')[0];
+    return dk === todayISO;
+  });
+
+  if (!todayShifts.length) {
+    el.innerHTML = `<div style="background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:.55rem 1rem;font-size:.8rem;color:var(--muted)">
+      📅 วันนี้ยังไม่มีกำหนดกะ
+    </div>`;
+    return;
+  }
+
+  // Group by shift_type
+  const groups = {};
+  const shiftOrder = ['morning','midday','mid','afternoon','night','dayoff','off','leave_sick','leave_personal','leave_annual'];
+  todayShifts.forEach(s => {
+    const key = s.shift_type || 'unknown';
+    if (!groups[key]) groups[key] = [];
+    const emp = allEmployees.find(e => e.id == s.employee_id);
+    groups[key].push(emp?.name || `#${s.employee_id}`);
+  });
+
+  const cards = shiftOrder
+    .filter(k => groups[k])
+    .map(k => {
+      const names = groups[k];
+      const bg  = shiftBg(k);
+      const col = shiftColor(k);
+      const lbl = shiftLabel(k);
+      return `<div style="background:${bg};border-radius:8px;padding:.45rem .75rem;min-width:120px;flex:1">
+        <div style="font-size:.72rem;font-weight:700;color:${col};margin-bottom:.3rem">${lbl} · ${names.length} คน</div>
+        <div style="font-size:.75rem;color:${col};line-height:1.5">${names.join(', ')}</div>
+      </div>`;
+    }).join('');
+
+  const thDate = new Date(todayISO + 'T12:00:00').toLocaleDateString('th-TH', { weekday:'long', day:'numeric', month:'long' });
+  el.innerHTML = `<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:.65rem 1rem;box-shadow:0 1px 4px #0001">
+    <div style="font-size:.78rem;font-weight:700;color:#334155;margin-bottom:.5rem">📅 วันนี้ — ${thDate}</div>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap">${cards}</div>
+  </div>`;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 // ─── Schedule: Month View ────────────────────────────────────────────────────
 let _scheduleView = 'month'; // 'week' | 'month'
 let _currentMonthYear  = new Date().getFullYear();
@@ -7045,6 +7081,7 @@ async function loadScheduleMonth() {
   try {
     const shifts = await api(`/api/shifts/month?year=${y}&month=${m}${team}`);
     renderMonthTable(shifts, y, m);
+    renderTodaySummary(shifts);
   } catch (e) {
     document.getElementById('shift-month-tbody').innerHTML =
       `<tr><td colspan="33" class="empty">โหลดข้อมูลไม่สำเร็จ</td></tr>`;
