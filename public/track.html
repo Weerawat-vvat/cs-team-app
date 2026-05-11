@@ -272,7 +272,6 @@ async function loadData(){
     if(tab==='overview') renderOverview();
     else if(tab==='list') renderList();
     else if(tab==='repair') renderRepair();
-    else if(tab==='requirements') renderRequirements();
     else if(tab==='issues') renderIssues();
   } catch(e){
     root.innerHTML=`<div class="error-box">❌ ${esc(e.message)}</div>`;
@@ -316,10 +315,6 @@ async function init(){
         งานซ่อม
         <span id="repair-update-badge" style="display:none;background:#ef4444;color:#fff;border-radius:50%;width:16px;height:16px;font-size:.65rem;font-weight:800;display:none;align-items:center;justify-content:center;animation:pulse 1s infinite">!</span>
       </button>
-      <button class="nav-tab" data-tab="requirements" onclick="switchTab('requirements',this)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/><polyline points="9 11 12 14 16 10"/></svg>
-        Requirements
-      </button>
       <button class="nav-tab" data-tab="issues" onclick="switchTab('issues',this)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         งานติดตาม Issue
@@ -338,7 +333,7 @@ function switchTab(tab, btn){
   if(tab==='overview') renderOverview();
   else if(tab==='list') renderList();
   else if(tab==='repair'){ renderRepair(); }
-  else if(tab==='requirements') renderRequirements();
+
   else if(tab==='issues') renderIssues();
 }
 
@@ -1137,15 +1132,21 @@ function issueSearch(){
 }
 
 function renderIssueCards(){
-  const all = _issues||[];
+  const all      = _issues||[];
+  const statusF  = document.getElementById('iss-status')?.value || '';
+  const priF     = document.getElementById('iss-pri')?.value    || '';
+  const folderF  = document.getElementById('iss-folder')?.value || '';
   const filtered = all.filter(s=>
-    !_issueSearch ||
-    (s.detail||'').toLowerCase().includes(_issueSearch) ||
-    String(s.id||'').includes(_issueSearch) ||
-    (s.category||'').toLowerCase().includes(_issueSearch) ||
-    (s.note||'').toLowerCase().includes(_issueSearch) ||
-    (s.board_name||'').toLowerCase().includes(_issueSearch) ||
-    (s.folder_name||'').toLowerCase().includes(_issueSearch)
+    (!statusF  || s.status      === statusF)  &&
+    (!priF     || s.priority    === priF)     &&
+    (!folderF  || s.folder_name === folderF)  &&
+    (!_issueSearch ||
+      (s.detail||'').toLowerCase().includes(_issueSearch) ||
+      String(s.id||'').includes(_issueSearch) ||
+      (s.category||'').toLowerCase().includes(_issueSearch) ||
+      (s.note||'').toLowerCase().includes(_issueSearch) ||
+      (s.board_name||'').toLowerCase().includes(_issueSearch) ||
+      (s.folder_name||'').toLowerCase().includes(_issueSearch))
   );
   const el = document.getElementById('iss-list');
   if(!el) return;
@@ -1198,6 +1199,58 @@ function toggleIssueDetail(id){
   if(arr) arr.textContent = open?'▲':'▼';
 }
 
+function exportIssuesExcel(){
+  if(!window.XLSX){ alert('กำลังโหลด XLSX library กรุณาลองใหม่'); return; }
+  const statusF = document.getElementById('iss-status')?.value || '';
+  const priF    = document.getElementById('iss-pri')?.value    || '';
+  const folderF = document.getElementById('iss-folder')?.value || '';
+  const list    = (_issues||[]).filter(s=>
+    (!statusF  || s.status      === statusF)  &&
+    (!priF     || s.priority    === priF)     &&
+    (!folderF  || s.folder_name === folderF)  &&
+    (!_issueSearch ||
+      (s.detail||'').toLowerCase().includes(_issueSearch) ||
+      String(s.id||'').includes(_issueSearch) ||
+      (s.category||'').toLowerCase().includes(_issueSearch) ||
+      (s.note||'').toLowerCase().includes(_issueSearch) ||
+      (s.board_name||'').toLowerCase().includes(_issueSearch) ||
+      (s.folder_name||'').toLowerCase().includes(_issueSearch))
+  );
+  if(!list.length){ alert('ไม่มีข้อมูลสำหรับ Export'); return; }
+  const btn = document.getElementById('btn-iss-export');
+  if(btn){ btn.textContent='⏳ กำลัง Export...'; btn.disabled=true; }
+  try {
+    const PRI_LABEL  = { urgent:'เร่งด่วน', high:'สูง', normal:'ปกติ', low:'ต่ำ' };
+    const STAT_LABEL = { pending:'รอดำเนินการ', in_progress:'กำลังตรวจสอบ', waiting:'รอข้อมูล', resolved:'แก้ไขแล้ว', cancelled:'ยกเลิก' };
+    const rows = list.map((s,i)=>({
+      'ลำดับ':           i+1,
+      'Issue #':         s.id,
+      'Folder':          s.folder_name||'',
+      'Board':           s.board_name||'',
+      'หมวดหมู่':        s.category||'',
+      'ความสำคัญ':       PRI_LABEL[s.priority]||s.priority||'',
+      'หัวข้อปัญหา':     s.detail||'',
+      'รายละเอียด':      s.note||'',
+      'สถานะ':           STAT_LABEL[s.status]||s.status||'',
+      'ผู้รับผิดชอบ':    s.assigned_to_name||'',
+      'กำหนด':           s.due_date ? new Date(s.due_date).toLocaleDateString('th-TH') : '',
+      'วันที่สร้าง':     fmtDateStr(s.created_at),
+      'อัปเดตล่าสุด':    fmtDateStr(s.updated_at),
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [{wch:6},{wch:8},{wch:18},{wch:18},{wch:14},{wch:12},{wch:40},{wch:40},{wch:16},{wch:18},{wch:14},{wch:20},{wch:20}];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Issues');
+    const company = (_data?.company||'export').replace(/[/\\?%*:|"<>]/g,'_');
+    XLSX.writeFile(wb, `Issues_${company}_${new Date().toISOString().split('T')[0]}.xlsx`);
+  } finally {
+    if(btn){
+      btn.disabled=false;
+      btn.innerHTML=`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export Excel`;
+    }
+  }
+}
+
 async function renderIssues(){
   const wrap = document.getElementById('tab-content');
   wrap.innerHTML = '<div class="loading">⏳ กำลังโหลด...</div>';
@@ -1207,23 +1260,36 @@ async function renderIssues(){
       _issues = await r.json();
       if(!r.ok) throw new Error(_issues.error||'โหลดไม่สำเร็จ');
     }
-    const active   = _issues.filter(s=>!['resolved','cancelled'].includes(s.status));
-    const pending  = _issues.filter(s=>s.status==='pending').length;
-    const inProg   = _issues.filter(s=>s.status==='in_progress'||s.status==='waiting').length;
-    const resolved = _issues.filter(s=>s.status==='resolved').length;
+    const folders = [...new Set((_issues||[]).map(s=>s.folder_name).filter(Boolean))].sort();
 
     wrap.innerHTML = `
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem;margin-bottom:.85rem">
-        <div class="stat-card"><div class="icon" style="background:#eff6ff">📋</div><div><div class="label">Issue ทั้งหมด</div><div class="value" style="color:#2563eb">${_issues.length}</div></div></div>
-        <div class="stat-card"><div class="icon" style="background:#fef9c3">⏳</div><div><div class="label">รอดำเนินการ</div><div class="value" style="color:#854d0e">${pending}</div></div></div>
-        <div class="stat-card"><div class="icon" style="background:#dbeafe">⚙️</div><div><div class="label">กำลังดำเนินการ</div><div class="value" style="color:#1d4ed8">${inProg}</div></div></div>
-        <div class="stat-card"><div class="icon" style="background:#dcfce7">✅</div><div><div class="label">แก้ไขแล้ว</div><div class="value" style="color:#16a34a">${resolved}</div></div></div>
-      </div>
-      <div style="margin-bottom:.75rem">
-        <input id="iss-q" type="text" placeholder="🔍 ค้นหาหัวข้อ / ID / Category / Board..."
-          oninput="issueSearch()"
-          style="width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:.52rem .85rem;font-size:.88rem;outline:none;font-family:inherit"
-          onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'"/>
+      <!-- Filter bar -->
+      <div class="filter-bar">
+        <select class="filter-select" id="iss-status" onchange="renderIssueCards()">
+          <option value="">ทุกสถานะ</option>
+          <option value="pending">⏳ รอดำเนินการ</option>
+          <option value="in_progress">🔵 กำลังตรวจสอบ</option>
+          <option value="waiting">🟠 รอข้อมูล</option>
+          <option value="resolved">✅ แก้ไขแล้ว</option>
+          <option value="cancelled">❌ ยกเลิก</option>
+        </select>
+        <select class="filter-select" id="iss-pri" onchange="renderIssueCards()">
+          <option value="">ทุกความสำคัญ</option>
+          <option value="urgent">🔴 เร่งด่วน</option>
+          <option value="high">🟠 สูง</option>
+          <option value="normal">🟡 ปกติ</option>
+          <option value="low">🔵 ต่ำ</option>
+        </select>
+        ${folders.length>1?`<select class="filter-select" id="iss-folder" onchange="renderIssueCards()">
+          <option value="">ทุก Folder</option>
+          ${folders.map(f=>`<option value="${esc(f)}">${esc(f)}</option>`).join('')}
+        </select>`:'<select id="iss-folder" style="display:none"></select>'}
+        <input class="filter-input" id="iss-q" placeholder="🔍 ค้นหาหัวข้อ / ID / Category / Board..." oninput="issueSearch()"/>
+        <button id="btn-iss-export" onclick="exportIssuesExcel()"
+          style="border:1px solid #16a34a;background:#f0fdf4;color:#16a34a;border-radius:8px;padding:.32rem .8rem;font-size:.8rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.3rem;white-space:nowrap;font-family:inherit;flex-shrink:0">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export Excel
+        </button>
       </div>
       <div id="iss-list"></div>`;
 
