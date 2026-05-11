@@ -1412,8 +1412,12 @@ textarea{resize:vertical;min-height:80px}
 
     <!-- ── Slide Panel ── -->
     <div id="fu-panel" style="width:0;min-width:0;background:#fff;border-left:1px solid #e2e8f0;display:flex;flex-direction:column;overflow:hidden;transition:width .22s ease">
-      <div style="padding:.65rem .9rem;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:.5rem">
-        <span style="font-weight:700;font-size:.85rem;color:#1e293b;flex:1" id="fu-panel-title">รายละเอียด</span>
+      <div style="padding:.55rem .9rem;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:.5rem">
+        <input id="fu-panel-title" type="text" placeholder="ชื่อ / รายละเอียด"
+          style="font-weight:700;font-size:.85rem;color:#1e293b;flex:1;border:none;outline:none;background:transparent;padding:.1rem .2rem;border-radius:5px;transition:background .15s"
+          onfocus="this.style.background='#f1f5f9'"
+          onblur="this.style.background='transparent';fuPanelSaveTitle(this.value)"
+          onkeydown="if(event.key==='Enter')this.blur()"/>
         <button onclick="fuClosePanel()" style="background:none;border:none;font-size:1.1rem;cursor:pointer;color:#94a3b8;padding:.1rem .3rem">×</button>
       </div>
       <div id="fu-panel-body" style="flex:1;overflow-y:auto;padding:.75rem .9rem;display:flex;flex-direction:column;gap:.65rem"></div>
@@ -7398,16 +7402,17 @@ async function fuRenderPanel() {
   if (!issue) return;
   const body  = document.getElementById('fu-panel-body');
   const title = document.getElementById('fu-panel-title');
-  if (title) title.textContent = `#${id} · ${issue.detail?.substring(0,30)||'Issue'}`;
+  if (title) title.value = issue.detail || '';
 
   const timeline = await api(`/api/fu/issues/${id}/timeline`) || [];
 
   body.innerHTML = `
     <div>
-      <div style="font-size:.72rem;font-weight:700;color:#94a3b8;margin-bottom:.3rem">รายละเอียดปัญหา</div>
-      <textarea rows="4" style="width:100%;border:1px solid #e2e8f0;border-radius:7px;padding:.45rem .6rem;font-size:.82rem;font-family:inherit;resize:vertical;outline:none;transition:border .15s"
-        onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0';fuPanelSave(${id},'detail',this.value)"
-      >${esc(issue.detail||'')}</textarea>
+      <div style="font-size:.72rem;font-weight:700;color:#94a3b8;margin-bottom:.3rem">Note / รายละเอียดเพิ่มเติม</div>
+      <textarea rows="3" style="width:100%;border:1px solid #e2e8f0;border-radius:7px;padding:.45rem .6rem;font-size:.82rem;font-family:inherit;resize:vertical;outline:none;transition:border .15s"
+        onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0';fuPanelSave(${id},'note',this.value)"
+        placeholder="Note เพิ่มเติม..."
+      >${esc(issue.note||'')}</textarea>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
       <div>
@@ -7496,6 +7501,11 @@ async function fuPanelSave(id, field, val) {
   const issue = _fuIssues.find(i=>i.id===id);
   if (!issue || String(val??'') === String(issue[field]??'')) return;
   await fuSaveField(id, field, val);
+}
+
+async function fuPanelSaveTitle(val) {
+  if (!_fuPanelId) return;
+  await fuPanelSave(_fuPanelId, 'detail', val.trim() || null);
 }
 
 // ── Comment + @mention ────────────────────────────────────
