@@ -7239,7 +7239,7 @@ async function fuSaveField(id, field, val) {
     issue[field] = val;
     if (field === 'assigned_to') issue.assigned_to_name = allEmployees.find(e=>e.id==val)?.name || null;
     if (field === 'category' && val && !_fuCategories.includes(val)) { _fuCategories.push(val); _fuCategories.sort(); }
-    fuRenderTable();
+    fuRender();
     if (_fuPanelId === id) fuRenderPanel();
   }
 }
