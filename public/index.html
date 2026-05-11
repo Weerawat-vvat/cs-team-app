@@ -325,6 +325,9 @@ textarea{resize:vertical;min-height:80px}
 .tk-row-detail td{background:#f8fafc;border-bottom:2px solid var(--border)}
 .sp-row-detail td{border-bottom:2px solid #e9d5ff}
 .sp-row-main:hover{background:#faf5ff!important}
+.fu-kanban-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.12)!important;transform:translateY(-1px)}
+.fu-kanban-card{transition:box-shadow .15s,transform .15s,opacity .15s}
+.fu-kanban-col.drag-over{outline:2px dashed #3b82f6}
 .tk-detail-box{padding:.75rem 1rem;border-radius:8px;background:#fff;border:1px solid var(--border)}
 .tk-detail-label{font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:.25rem}
 .tk-detail-text{font-size:.84rem;line-height:1.7;color:var(--text);white-space:pre-wrap}
@@ -1370,9 +1373,14 @@ textarea{resize:vertical;min-height:80px}
       <div id="fu-board-header" style="background:#fff;border-bottom:1px solid #e2e8f0;padding:.65rem 1rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;min-height:52px">
         <span id="fu-board-title" style="font-weight:700;font-size:.95rem;color:#1e293b">เลือก Board จาก Sidebar</span>
         <div style="flex:1"></div>
-        <div id="fu-board-actions" style="display:none;gap:.4rem;display:flex;align-items:center">
-          <!-- Status filter -->
-          <select id="fu-status-filter" onchange="fuRenderTable()" style="font-size:.75rem;padding:.3rem .5rem;border:1px solid #cbd5e1;border-radius:6px;background:#fff">
+        <div id="fu-board-actions" style="display:none;gap:.4rem;align-items:center">
+          <!-- View toggle -->
+          <div style="display:flex;border:1px solid #e2e8f0;border-radius:7px;overflow:hidden;background:#f8fafc">
+            <button id="fu-view-table" onclick="fuSetView('table')" style="padding:.3rem .65rem;font-size:.78rem;border:none;cursor:pointer;background:#1d4ed8;color:#fff;font-weight:700">📋 Table</button>
+            <button id="fu-view-board" onclick="fuSetView('board')" style="padding:.3rem .65rem;font-size:.78rem;border:none;cursor:pointer;background:transparent;color:#64748b">🟦 Board</button>
+          </div>
+          <!-- Status filter (table only) -->
+          <select id="fu-status-filter" onchange="fuRender()" style="font-size:.75rem;padding:.3rem .5rem;border:1px solid #cbd5e1;border-radius:6px;background:#fff">
             <option value="">ทุกสถานะ</option>
             <option value="pending">⏳ รอดำเนินการ</option>
             <option value="in_progress">🔄 กำลังตรวจสอบ</option>
@@ -1383,8 +1391,8 @@ textarea{resize:vertical;min-height:80px}
           <button onclick="fuAddIssue()" style="background:#1d4ed8;color:#fff;border:none;border-radius:7px;padding:.35rem .85rem;font-size:.8rem;font-weight:700;cursor:pointer">+ Issue</button>
         </div>
       </div>
-      <!-- Table area -->
-      <div style="flex:1;overflow:auto;padding:.75rem 1rem">
+      <!-- Content area (table or kanban) -->
+      <div id="fu-content-area" style="flex:1;overflow:auto;padding:.75rem 1rem">
         <div id="fu-table-wrap">
           <div style="text-align:center;padding:4rem 1rem;color:#94a3b8">
             <div style="font-size:2.5rem;margin-bottom:.5rem">📁</div>
@@ -6743,6 +6751,8 @@ let _fuIssues     = [];   // current board issues
 let _fuBoardId    = null;
 let _fuBoardName  = '';
 let _fuPanelId    = null;
+let _fuView       = 'table'; // 'table' | 'board'
+let _fuDragId     = null;
 let _fuCategories = [];
 let _fuExpanded   = new Set();
 
@@ -6810,6 +6820,9 @@ async function fuSelectBoard(bid, name, fid) {
   document.getElementById('fu-board-title').textContent = '📋 ' + name;
   document.getElementById('fu-board-actions').style.display = 'flex';
   fuClosePanel();
+  // Reset to table view when switching boards
+  _fuView = 'table';
+  fuSetView('table');
   await fuLoadIssues();
   fuRenderSidebar();
 }
@@ -6853,11 +6866,31 @@ async function fuOpenCreateBoard(fid) {
   fuRenderSidebar();
 }
 
+// ── View Toggle ──────────────────────────────────────────
+function fuSetView(v) {
+  _fuView = v;
+  const tb = document.getElementById('fu-view-table');
+  const bb = document.getElementById('fu-view-board');
+  const sf = document.getElementById('fu-status-filter');
+  if (tb) { tb.style.background = v==='table' ? '#1d4ed8' : 'transparent'; tb.style.color = v==='table' ? '#fff' : '#64748b'; }
+  if (bb) { bb.style.background = v==='board' ? '#1d4ed8' : 'transparent'; bb.style.color = v==='board' ? '#fff' : '#64748b'; }
+  if (sf) sf.style.display = v==='table' ? '' : 'none';
+  // Board view is full-width — close panel
+  if (v==='board') { fuClosePanel(); document.getElementById('fu-content-area').style.padding = '0'; }
+  else { document.getElementById('fu-content-area').style.padding = '.75rem 1rem'; }
+  fuRender();
+}
+
+function fuRender() {
+  if (_fuView === 'board') fuRenderKanban();
+  else fuRenderTable();
+}
+
 // ── Issues Table ──────────────────────────────────────────
 async function fuLoadIssues() {
   if (!_fuBoardId) return;
   _fuIssues = await api(`/api/fu/boards/${_fuBoardId}/issues`) || [];
-  fuRenderTable();
+  fuRender();
 }
 
 function fuRenderTable() {
@@ -6939,6 +6972,128 @@ function fuRenderTable() {
         </tr>
       </tbody>
     </table>`;
+}
+
+// ── Kanban Board View ─────────────────────────────────────
+function fuRenderKanban() {
+  const wrap = document.getElementById('fu-table-wrap');
+  if (!wrap) return;
+
+  const cols = Object.entries(FU_STATUS);
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  wrap.innerHTML = `
+    <div style="display:flex;gap:0;height:100%;min-height:calc(100vh - 120px);overflow-x:auto">
+      ${cols.map(([status, st]) => {
+        const cards = _fuIssues.filter(i => i.status === status);
+        return `
+          <div class="fu-kanban-col" data-status="${status}"
+            style="min-width:220px;flex:1;border-right:1px solid #e2e8f0;display:flex;flex-direction:column;background:${st.bg}08"
+            ondragover="fuDragOver(event)" ondrop="fuDrop(event,'${status}')" ondragleave="fuDragLeave(event)">
+            <!-- Column header -->
+            <div style="padding:.6rem .75rem;background:#fff;border-bottom:2px solid ${st.color}33;position:sticky;top:0;z-index:1">
+              <div style="display:flex;align-items:center;gap:.4rem">
+                <span style="font-size:.78rem;font-weight:700;color:${st.color}">${st.label}</span>
+                <span style="background:${st.color}22;color:${st.color};border-radius:20px;font-size:.68rem;padding:.05rem .4rem;font-weight:700">${cards.length}</span>
+              </div>
+            </div>
+            <!-- Cards -->
+            <div style="flex:1;padding:.5rem .45rem;overflow-y:auto;display:flex;flex-direction:column;gap:.4rem">
+              ${cards.map(issue => {
+                const pri = FU_PRIORITY[issue.priority] || FU_PRIORITY.normal;
+                const due = issue.due_date ? new Date(issue.due_date) : null;
+                const overdue = due && due < today && !['resolved','cancelled'].includes(issue.status);
+                return `
+                  <div class="fu-kanban-card" data-id="${issue.id}" draggable="true"
+                    ondragstart="fuDragStart(event,${issue.id})"
+                    ondragend="fuDragEnd(event)"
+                    onclick="fuOpenPanel(${issue.id})"
+                    style="background:#fff;border-radius:8px;padding:.6rem .7rem;box-shadow:0 1px 3px rgba(0,0,0,.07);cursor:pointer;border-left:3px solid ${pri.color};transition:box-shadow .15s;user-select:none${_fuPanelId===issue.id?';box-shadow:0 0 0 2px #3b82f6':''}">
+                    <!-- Priority dot + category -->
+                    <div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.3rem">
+                      <span style="font-size:.65rem;color:${pri.color}">${pri.label.split(' ')[0]}</span>
+                      ${issue.category ? `<span style="background:#f0f9ff;color:#0369a1;border-radius:4px;padding:.05rem .35rem;font-size:.65rem">${esc(issue.category)}</span>` : ''}
+                      ${issue.branch   ? `<span style="background:#f8fafc;color:#64748b;border-radius:4px;padding:.05rem .35rem;font-size:.65rem">📍${esc(issue.branch)}</span>` : ''}
+                    </div>
+                    <!-- Detail -->
+                    <div style="font-size:.8rem;font-weight:600;color:#1e293b;line-height:1.4;margin-bottom:.35rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">
+                      ${issue.detail ? esc(issue.detail) : '<span style="color:#cbd5e1">ไม่มีรายละเอียด</span>'}
+                    </div>
+                    <!-- Footer -->
+                    <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">
+                      ${issue.assigned_to_name ? `<span style="font-size:.7rem;color:#475569;background:#f1f5f9;border-radius:20px;padding:.05rem .4rem">👤 ${esc(issue.assigned_to_name)}</span>` : ''}
+                      ${due ? `<span style="font-size:.7rem;color:${overdue?'#ef4444':'#94a3b8'};font-weight:${overdue?'700':'400'}">${overdue?'🔴 ':'📅 '}${due.toLocaleDateString('th-TH',{day:'2-digit',month:'short'})}</span>` : ''}
+                      ${issue.comment_count>0 ? `<span style="font-size:.7rem;color:#94a3b8;margin-left:auto">💬 ${issue.comment_count}</span>` : ''}
+                    </div>
+                  </div>`;
+              }).join('')}
+              <!-- Drop zone placeholder -->
+              <div class="fu-drop-placeholder" style="display:none;height:60px;border:2px dashed ${st.color}66;border-radius:8px;background:${st.bg}"></div>
+              <!-- Add button -->
+              <button onclick="fuAddIssueToStatus('${status}')"
+                style="background:none;border:1px dashed #e2e8f0;border-radius:8px;padding:.4rem;font-size:.75rem;color:#94a3b8;cursor:pointer;text-align:center;margin-top:.1rem"
+                onmouseover="this.style.borderColor='${st.color}';this.style.color='${st.color}'" onmouseout="this.style.borderColor='#e2e8f0';this.style.color='#94a3b8'">
+                + Issue
+              </button>
+            </div>
+          </div>`;
+      }).join('')}
+    </div>`;
+}
+
+// ── Drag & Drop ───────────────────────────────────────────
+function fuDragStart(e, id) {
+  _fuDragId = id;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', id);
+  setTimeout(() => { e.target.style.opacity = '.45'; }, 0);
+}
+
+function fuDragEnd(e) {
+  e.target.style.opacity = '';
+  document.querySelectorAll('.fu-kanban-col').forEach(col => {
+    col.style.background = '';
+    col.querySelector('.fu-drop-placeholder').style.display = 'none';
+  });
+  _fuDragId = null;
+}
+
+function fuDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const col = e.currentTarget;
+  const status = col.dataset.status;
+  const st = FU_STATUS[status];
+  col.style.background = (st?.bg || '#f8fafc');
+  col.querySelector('.fu-drop-placeholder').style.display = '';
+}
+
+function fuDragLeave(e) {
+  const col = e.currentTarget;
+  if (!col.contains(e.relatedTarget)) {
+    col.style.background = '';
+    col.querySelector('.fu-drop-placeholder').style.display = 'none';
+  }
+}
+
+async function fuDrop(e, newStatus) {
+  e.preventDefault();
+  const col = e.currentTarget;
+  col.style.background = '';
+  col.querySelector('.fu-drop-placeholder').style.display = 'none';
+  const id = _fuDragId || parseInt(e.dataTransfer.getData('text/plain'));
+  if (!id) return;
+  const issue = _fuIssues.find(i => i.id === id);
+  if (!issue || issue.status === newStatus) return;
+  await fuSaveField(id, 'status', newStatus);
+}
+
+async function fuAddIssueToStatus(status) {
+  if (!_fuBoardId) return;
+  const r = await api('/api/fu/issues', { method:'POST', body:{ board_id:_fuBoardId, status }, silent:true });
+  if (r?.error) { showToast('❌ '+r.error,'error'); return; }
+  await fuLoadIssues();
+  fuOpenPanel(r.id);
 }
 
 // ── Inline Editing ────────────────────────────────────────
