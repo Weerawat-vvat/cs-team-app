@@ -3965,6 +3965,10 @@ function tkStatusBadge(status) {
 function escHtml(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+// esc() — escape HTML entities for safe rendering (used across Follow Up components)
+function esc(s) {
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
 
 function toggleTicketDetail(id) {
   if (tkExpandedRows.has(id)) {
@@ -6767,9 +6771,16 @@ let _fuGroupBy    = ''; // '' | 'category' | 'assigned_to_name' | 'priority' | '
 
 // ── Sidebar ──────────────────────────────────────────────
 async function fuLoadSidebar() {
-  _fuFolders = await api('/api/fu/folders') || [];
-  _fuCategories = await api('/api/fu/categories') || [];
-  fuRenderSidebar();
+  try {
+    const folders = await api('/api/fu/folders');
+    _fuFolders = Array.isArray(folders) ? folders : [];
+    const cats = await api('/api/fu/categories');
+    _fuCategories = Array.isArray(cats) ? cats : [];
+    fuRenderSidebar();
+  } catch(e) {
+    console.error('[fuLoadSidebar] error:', e);
+    showToast('❌ โหลด Sidebar ล้มเหลว: ' + e.message, 'error');
+  }
 }
 
 function fuRenderSidebar() {
@@ -6841,12 +6852,16 @@ async function fuOpenCreateFolder() {
   const name = prompt('ชื่อ Folder ใหม่:');
   if (!name?.trim()) return;
   const color = '#3b82f6';
-  const r = await api('/api/fu/folders', { method:'POST', body:{ name:name.trim(), color }, silent:true });
-  if (r?.error) { showToast('❌ '+r.error,'error'); return; }
-  showToast('✅ สร้าง Folder แล้ว');
-  await fuLoadSidebar();
-  _fuExpanded.add(r.id);
-  fuRenderSidebar();
+  try {
+    const r = await api('/api/fu/folders', { method:'POST', body:{ name:name.trim(), color }, silent:true });
+    if (r?.error) { showToast('❌ '+r.error,'error'); return; }
+    showToast('✅ สร้าง Folder แล้ว');
+    await fuLoadSidebar();
+    if (r?.id) { _fuExpanded.add(r.id); fuRenderSidebar(); }
+  } catch(e) {
+    console.error('[fuOpenCreateFolder] error:', e);
+    showToast('❌ สร้าง Folder ไม่สำเร็จ: ' + e.message, 'error');
+  }
 }
 
 async function fuFolderMenu(fid, name, color) {
