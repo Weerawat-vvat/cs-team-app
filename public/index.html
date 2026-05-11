@@ -6812,6 +6812,7 @@ function fuRenderSidebar() {
               <span>📋</span>
               <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(b.name)}</span>
               <span style="font-size:.65rem;color:#94a3b8">${b.issue_count||0}</span>
+              <span onclick="event.stopPropagation();fuBoardMenu(${b.id},'${esc(b.name).replace(/'/g,"\\'")}',${f.id})" style="padding:.1rem .2rem;color:#94a3b8;border-radius:4px;opacity:0" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0'" title="จัดการ Board">⋯</span>
             </div>`).join('')}
           <div onclick="fuOpenCreateBoard(${f.id})" style="padding:.25rem .5rem;border-radius:6px;cursor:pointer;font-size:.75rem;color:#94a3b8;display:flex;align-items:center;gap:.3rem"
             onmouseover="this.style.color='#1d4ed8'" onmouseout="this.style.color='#94a3b8'">
@@ -6877,6 +6878,35 @@ async function fuFolderMenu(fid, name, color) {
     await api(`/api/fu/folders/${fid}`, { method:'PUT', body:{ name:action.trim(), color }, silent:true });
     showToast('✅ เปลี่ยนชื่อแล้ว');
     await fuLoadSidebar();
+  }
+}
+
+async function fuBoardMenu(bid, name, fid) {
+  const action = prompt(`Board: "${name}"\n\nพิมพ์ "ลบ" เพื่อลบ หรือชื่อใหม่เพื่อเปลี่ยนชื่อ:`);
+  if (!action) return;
+  if (action.trim() === 'ลบ') {
+    if (!confirm(`ลบ Board "${name}" และ Issues ทั้งหมดภายใน?`)) return;
+    await api(`/api/fu/boards/${bid}`, { method:'DELETE', silent:true });
+    showToast('🗑 ลบ Board แล้ว');
+    if (_fuBoardId === bid) {
+      _fuBoardId = null; _fuBoardName = '';
+      document.getElementById('fu-board-title').textContent = 'เลือก Board จาก Sidebar';
+      document.getElementById('fu-board-actions').style.display = 'none';
+      document.getElementById('fu-table-wrap').innerHTML = '';
+      fuClosePanel();
+    }
+    _fuBoards[fid] = await api(`/api/fu/folders/${fid}/boards`) || [];
+    fuRenderSidebar();
+  } else {
+    const newName = action.trim();
+    await api(`/api/fu/boards/${bid}`, { method:'PUT', body:{ name: newName }, silent:true });
+    showToast('✅ เปลี่ยนชื่อ Board แล้ว');
+    if (_fuBoardId === bid) {
+      _fuBoardName = newName;
+      document.getElementById('fu-board-title').textContent = '📋 ' + newName;
+    }
+    _fuBoards[fid] = await api(`/api/fu/folders/${fid}/boards`) || [];
+    fuRenderSidebar();
   }
 }
 
@@ -7271,7 +7301,7 @@ async function fuOpenPanel(id) {
   const panel = document.getElementById('fu-panel');
   if (panel) panel.style.width = '380px';
   await fuRenderPanel();
-  fuRenderTable(); // highlight selected row
+  fuRender(); // refresh current view (highlights selected row in table / panel glow in board)
   // Mark mentions seen
   api('/api/fu/mentions/seen', { method:'POST', body:{}, silent:true });
 }
@@ -7365,7 +7395,9 @@ async function fuRenderPanel() {
         <div style="font-size:.72rem;font-weight:700;color:#94a3b8;margin-bottom:.25rem">Category</div>
         <input id="fup-cat-inp" type="text" autocomplete="off" value="${esc(issue.category||'')}" placeholder="พิมพ์เพื่อค้นหา..."
           style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:.35rem .5rem;font-size:.8rem;font-family:inherit;outline:none;transition:border .15s"
-          onfocus="this.style.borderColor='#3b82f6';fuShowCatDrop(this,${id})" onblur="this.style.borderColor='#e2e8f0'" oninput="fuFilterCatDrop(this,${id})"/>
+          onfocus="this.style.borderColor='#3b82f6';fuShowCatDrop(this,${id})"
+          onblur="this.style.borderColor='#e2e8f0';fuPanelSave(${id},'category',this.value.trim()||null)"
+          oninput="fuFilterCatDrop(this,${id})"/>
         <div id="fup-cat-drop" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e2e8f0;border-radius:7px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:999;max-height:160px;overflow-y:auto"></div>
       </div>
       <div>
@@ -7420,10 +7452,10 @@ function fuFilterCatDrop(inp, id) {
   drop.style.display = '';
   drop.innerHTML = matches.slice(0,10).map(c =>
     `<div style="padding:.35rem .6rem;font-size:.8rem;cursor:pointer;border-radius:5px;color:#334155"
-      onmousedown="event.preventDefault();inp.value='${c.replace(/'/g,"\\'")}';fuPanelSave(${id},'category','${c.replace(/'/g,"\\'")}');document.getElementById('fup-cat-drop').style.display='none'"
+      onmousedown="event.preventDefault();document.getElementById('fup-cat-inp').value='${c.replace(/'/g,"\\'")}';fuPanelSave(${id},'category','${c.replace(/'/g,"\\'")}');document.getElementById('fup-cat-drop').style.display='none'"
       onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background=''">${esc(c)}</div>`
   ).join('') + (q && !matches.some(c=>c.toLowerCase()===q) ? `<div style="padding:.35rem .6rem;font-size:.78rem;color:#1d4ed8;cursor:pointer;border-top:1px solid #f1f5f9"
-    onmousedown="event.preventDefault();fuPanelSave(${id},'category',inp.value.trim());document.getElementById('fup-cat-drop').style.display='none'">+ เพิ่ม "${esc(inp.value.trim())}"</div>` : '');
+    onmousedown="event.preventDefault();fuPanelSave(${id},'category',document.getElementById('fup-cat-inp').value.trim());document.getElementById('fup-cat-drop').style.display='none'">+ เพิ่ม "${esc(inp.value.trim())}"</div>` : '');
   // Close on outside click
   setTimeout(()=>{ document.addEventListener('click', e=>{ if(!drop.contains(e.target)&&e.target!==inp) drop.style.display='none'; }, {once:true}); },10);
 }
