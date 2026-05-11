@@ -3742,6 +3742,36 @@ app.get('/api/public/track/:token/issues', async (request, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── GET /api/public/track/:token/fu-issues ───────────────
+// Returns fu_issues from folders linked to this customer group
+app.get('/api/public/track/:token/fu-issues', async (request, res) => {
+  try {
+    const tok  = request.params.token;
+    const link = (await req().input('tok',sql.NVarChar,tok)
+      .query('SELECT * FROM customer_links WHERE token=@tok')).recordset[0];
+    if (!link) return res.status(404).json({ error: 'Link ไม่พบ' });
+    if (!link.group_id) return res.json([]);
+
+    const rows = (await req().input('gid',sql.Int,link.group_id).query(`
+      SELECT i.id, i.detail, i.category, i.priority, i.status,
+             i.due_date, i.note, i.created_at, i.updated_at,
+             ea.name AS assigned_to_name,
+             b.name AS board_name, f.name AS folder_name
+      FROM fu_issues i
+      JOIN fu_boards b ON b.id = i.board_id
+      JOIN fu_folders f ON f.id = b.folder_id
+      LEFT JOIN app_users ua ON ua.id = i.assigned_to
+      LEFT JOIN employees ea ON ea.id = ua.employee_id
+      WHERE f.group_id = @gid
+      ORDER BY
+        CASE i.status WHEN 'pending' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END,
+        CASE i.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
+        i.created_at DESC
+    `)).recordset;
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── GET /api/public/requirements/:token ──────────────────
 app.get('/api/public/requirements/:token', async (request, res) => {
   try {
@@ -4087,6 +4117,8 @@ async function ensureFollowupV2Tables() {
     await req().query(`IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='fu_attachments' AND xtype='U')
       CREATE TABLE fu_attachments (id INT PRIMARY KEY IDENTITY, issue_id INT NOT NULL, filename NVARCHAR(300) NOT NULL, original_name NVARCHAR(300) NOT NULL, file_size INT, mime_type NVARCHAR(100), created_by INT, created_at DATETIME DEFAULT GETDATE())`);
 
+    try { await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('fu_folders') AND name='group_id') ALTER TABLE fu_folders ADD group_id INT NULL`); } catch(e2) {}
+    try { await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('fu_folders') AND name='group_name') ALTER TABLE fu_folders ADD group_name NVARCHAR(255) NULL`); } catch(e2) {}
     console.log('✅ Follow Up v2 tables ready');
   } catch(e) { console.error('❌ Follow Up v2 tables error:', e.message); }
 }
@@ -4117,10 +4149,18 @@ app.post('/api/fu/folders', authRequired, async (request, res) => {
 
 app.put('/api/fu/folders/:id', authRequired, async (request, res) => {
   try {
-    const { name, color } = request.body;
-    await req().input('id',sql.Int,parseInt(request.params.id)).input('n',sql.NVarChar,name).input('c',sql.NVarChar,color||null)
-      .query(`UPDATE fu_folders SET name=@n,color=ISNULL(@c,color) WHERE id=@id`);
-    res.json({ ok: true });
+    const b = request.body;
+    let r = req().input('id',sql.Int,parseInt(request.params.id));
+    const updates = [];
+    if (b.name  !== undefined) { r=r.input('n',sql.NVarChar,b.name);              updates.push('name=@n'); }
+    if (b.color !== undefined) { r=r.input('c',sql.NVarChar,b.color||null);        updates.push('color=ISNULL(@c,color)'); }
+    if (b.hasOwnProperty('group_id')) {
+      r=r.input('gid',sql.Int,b.group_id||null).input('gn',sql.NVarChar,b.group_name||null);
+      updates.push('group_id=@gid','group_name=@gn');
+    }
+    if (!updates.length) return res.json({ ok:true });
+    await r.query(`UPDATE fu_folders SET ${updates.join(',')} WHERE id=@id`);
+    res.json({ ok:true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

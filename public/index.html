@@ -1779,6 +1779,36 @@ textarea{resize:vertical;min-height:80px}
   </div>
 </div>
 
+<!-- Modal: Link FU Folder to Customer Group -->
+<div class="overlay" id="modal-fu-link-group">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-title">🔗 ผูก Folder กับ Customer Group
+      <button class="modal-close" onclick="closeModal('modal-fu-link-group')">×</button>
+    </div>
+    <p style="font-size:.8rem;color:#64748b;margin-bottom:.9rem">Issues ทั้งหมดใน Folder นี้จะแสดงในหน้า ลิงค์ติดตามงาน ของลูกค้ากลุ่มนี้</p>
+    <div style="position:relative;margin-bottom:.6rem">
+      <input id="fu-lg-search" type="text" placeholder="🔍 ค้นหาชื่อกลุ่ม / GroupCode..."
+        oninput="fuLgSearchDebounce()" autocomplete="off"
+        style="width:100%;padding:.5rem .7rem;border:1px solid #e2e8f0;border-radius:7px;font-size:.85rem;outline:none;font-family:inherit"/>
+      <div id="fu-lg-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e2e8f0;border-radius:7px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:999;max-height:200px;overflow-y:auto"></div>
+    </div>
+    <div id="fu-lg-selected-box" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;border-radius:7px;padding:.45rem .75rem;margin-bottom:.6rem;align-items:center;gap:.5rem">
+      <span id="fu-lg-selected-label" style="flex:1;font-size:.83rem;font-weight:600;color:#1d4ed8"></span>
+      <button onclick="_fuLinkGroupSelected=null;document.getElementById('fu-lg-selected-box').style.display='none';document.getElementById('fu-lg-unlink-btn').style.display='none'"
+        style="background:none;border:none;cursor:pointer;color:#64748b;font-size:1rem;line-height:1">×</button>
+    </div>
+    <div style="display:flex;gap:.5rem;justify-content:space-between;align-items:center;margin-top:.5rem">
+      <button id="fu-lg-unlink-btn" onclick="fuLgUnlink()" style="display:none;background:#fee2e2;color:#dc2626;border:1px solid #fecaca;border-radius:7px;padding:.4rem .85rem;font-size:.82rem;cursor:pointer;font-weight:600">
+        🔗 ยกเลิกการผูก
+      </button>
+      <div style="display:flex;gap:.5rem;margin-left:auto">
+        <button class="btn btn-ghost" onclick="closeModal('modal-fu-link-group')">ยกเลิก</button>
+        <button class="btn btn-primary" onclick="fuLgSave()">💾 บันทึก</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: Create Follow Up -->
 <div class="overlay" id="modal-create-followup">
   <div class="modal" style="max-width:540px;max-height:90vh;overflow-y:auto;padding:1.1rem 1.25rem">
@@ -6804,8 +6834,11 @@ function fuRenderSidebar() {
           <span style="color:${f.color||'#3b82f6'}">📁</span>
           <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</span>
           <span style="font-size:.65rem;color:#94a3b8">${f.board_count||0}</span>
+          <span onclick="event.stopPropagation();fuFolderLinkGroup(${f.id})" title="${f.group_name?'แก้ไข/ยกเลิก Customer Group':'ผูก Customer Group'}"
+            style="padding:.1rem .2rem;border-radius:4px;color:${f.group_id?'#3b82f6':'#cbd5e1'};font-size:.75rem">🔗</span>
           <span onclick="event.stopPropagation();fuFolderMenu(${f.id},'${esc(f.name).replace(/'/g,"\\'")}','${f.color||'#3b82f6'}')" style="padding:.1rem .2rem;color:#94a3b8;border-radius:4px" title="จัดการ">⋯</span>
         </div>
+        ${f.group_name ? `<div style="font-size:.62rem;color:#3b82f6;padding:0 .45rem .12rem 1.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">🔗 ${esc(f.group_name)}</div>` : ''}
         ${isOpen ? `
         <div style="padding-left:.9rem">
           ${boards.map(b=>`
@@ -6880,6 +6913,94 @@ async function fuFolderMenu(fid, name, color) {
     showToast('✅ เปลี่ยนชื่อแล้ว');
     await fuLoadSidebar();
   }
+}
+
+// ── Folder ↔ Customer Group Linking ──────────────────────
+let _fuLinkGroupFid = null;
+let _fuLinkGroupSelected = null;
+let _fuLinkGroupTimer = null;
+
+function fuFolderLinkGroup(fid) {
+  _fuLinkGroupFid = fid;
+  _fuLinkGroupSelected = null;
+  const folder = _fuFolders.find(f=>f.id===fid);
+  // Pre-fill if already linked
+  const inp = document.getElementById('fu-lg-search');
+  const box = document.getElementById('fu-lg-selected-box');
+  const lbl = document.getElementById('fu-lg-selected-label');
+  const unlinkBtn = document.getElementById('fu-lg-unlink-btn');
+  if (inp) inp.value = '';
+  if (document.getElementById('fu-lg-dropdown')) document.getElementById('fu-lg-dropdown').style.display='none';
+  if (folder?.group_id) {
+    _fuLinkGroupSelected = { group_id: folder.group_id, group_name: folder.group_name };
+    if (lbl) lbl.textContent = `👥 ${folder.group_name}`;
+    if (box) box.style.display = 'flex';
+    if (unlinkBtn) unlinkBtn.style.display = '';
+  } else {
+    if (box) box.style.display = 'none';
+    if (unlinkBtn) unlinkBtn.style.display = 'none';
+  }
+  openModal('modal-fu-link-group');
+}
+
+function fuLgSearchDebounce() {
+  clearTimeout(_fuLinkGroupTimer);
+  _fuLinkGroupTimer = setTimeout(fuLgSearch, 280);
+}
+
+async function fuLgSearch() {
+  const q = document.getElementById('fu-lg-search').value.trim();
+  const dd = document.getElementById('fu-lg-dropdown');
+  if (!dd) return;
+  if (q.length < 1) { dd.style.display='none'; return; }
+  try {
+    const data = await api(`/api/customer-groups?search=${encodeURIComponent(q)}`, { silent:true });
+    if (!data?.length) { dd.style.display='none'; return; }
+    dd.innerHTML = data.map(g=>`
+      <div onclick="fuLgSelectGroup(${g.group_id},${JSON.stringify(g.group_name).replace(/"/g,'&quot;')})"
+        style="padding:.45rem .7rem;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:.82rem"
+        onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background=''">
+        <div style="font-weight:600;color:#1e293b">👥 ${esc(g.group_name||'')}</div>
+        <div style="font-size:.7rem;color:#64748b">${esc(g.group_code||'')} · ${g.branch_count||0} สาขา</div>
+      </div>`).join('');
+    dd.style.display='';
+  } catch {}
+}
+
+function fuLgSelectGroup(gid, gname) {
+  _fuLinkGroupSelected = { group_id: gid, group_name: gname };
+  document.getElementById('fu-lg-dropdown').style.display='none';
+  document.getElementById('fu-lg-search').value='';
+  document.getElementById('fu-lg-selected-label').textContent = `👥 ${gname}`;
+  document.getElementById('fu-lg-selected-box').style.display='flex';
+  document.getElementById('fu-lg-unlink-btn').style.display='';
+}
+
+async function fuLgSave() {
+  if (!_fuLinkGroupFid || !_fuLinkGroupSelected) return;
+  const r = await api(`/api/fu/folders/${_fuLinkGroupFid}`, {
+    method:'PUT',
+    body:{ group_id: _fuLinkGroupSelected.group_id, group_name: _fuLinkGroupSelected.group_name },
+    silent:true
+  });
+  if (r?.error) { showToast('❌ '+r.error,'error'); return; }
+  showToast('✅ ผูก Customer Group แล้ว');
+  closeModal('modal-fu-link-group');
+  await fuLoadSidebar();
+}
+
+async function fuLgUnlink() {
+  if (!_fuLinkGroupFid) return;
+  if (!confirm('ยกเลิกการผูก Customer Group?')) return;
+  const r = await api(`/api/fu/folders/${_fuLinkGroupFid}`, {
+    method:'PUT',
+    body:{ group_id: null, group_name: null },
+    silent:true
+  });
+  if (r?.error) { showToast('❌ '+r.error,'error'); return; }
+  showToast('✅ ยกเลิกการผูกแล้ว');
+  closeModal('modal-fu-link-group');
+  await fuLoadSidebar();
 }
 
 async function fuBoardMenu(bid, name, fid) {
@@ -7262,6 +7383,7 @@ async function fuPickSelect(id, field, val) {
 }
 
 async function fuSaveField(id, field, val) {
+  if (field === 'assigned_to') { console.trace(`[FU] assigned_to changed → issueId=${id} val=${val}`); }
   const r = await api(`/api/fu/issues/${id}`, { method:'PUT', body:{ [field]: val }, silent:true });
   if (r?.error) { showToast('❌ '+r.error,'error'); return; }
   const issue = _fuIssues.find(i=>i.id===id);
