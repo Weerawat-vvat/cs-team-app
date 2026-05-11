@@ -6763,7 +6763,7 @@ let _fuIssues     = [];   // current board issues
 let _fuBoardId    = null;
 let _fuBoardName  = '';
 let _fuPanelId    = null;
-let _fuView       = 'table'; // 'table' | 'board'
+let _fuView       = localStorage.getItem('fu_view') || 'table'; // persisted per-browser
 let _fuDragId     = null;
 let _fuCategories = [];
 let _fuExpanded   = new Set();
@@ -6841,9 +6841,7 @@ async function fuSelectBoard(bid, name, fid) {
   document.getElementById('fu-board-title').textContent = '📋 ' + name;
   document.getElementById('fu-board-actions').style.display = 'flex';
   fuClosePanel();
-  // Reset to table view when switching boards
-  _fuView = 'table';
-  fuSetView('table');
+  fuSetView(_fuView); // keep saved view preference
   await fuLoadIssues();
   fuRenderSidebar();
 }
@@ -6923,6 +6921,7 @@ async function fuOpenCreateBoard(fid) {
 // ── View Toggle ──────────────────────────────────────────
 function fuSetView(v) {
   _fuView = v;
+  localStorage.setItem('fu_view', v);
   const tb = document.getElementById('fu-view-table');
   const bb = document.getElementById('fu-view-board');
   const sf = document.getElementById('fu-status-filter');
