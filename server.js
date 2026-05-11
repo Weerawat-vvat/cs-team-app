@@ -4033,6 +4033,269 @@ app.delete('/api/followup/:id', authRequired, async (request, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+async function ensureFollowupV2Tables() {
+  try {
+    await req().query(`IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='fu_folders' AND xtype='U')
+      CREATE TABLE fu_folders (id INT PRIMARY KEY IDENTITY, name NVARCHAR(200) NOT NULL, color NVARCHAR(20) DEFAULT '#3b82f6', created_by INT, created_at DATETIME DEFAULT GETDATE())`);
+
+    await req().query(`IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='fu_boards' AND xtype='U')
+      CREATE TABLE fu_boards (id INT PRIMARY KEY IDENTITY, folder_id INT NOT NULL, name NVARCHAR(200) NOT NULL, created_by INT, created_at DATETIME DEFAULT GETDATE())`);
+
+    await req().query(`IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='fu_issues' AND xtype='U')
+      CREATE TABLE fu_issues (
+        id INT PRIMARY KEY IDENTITY, board_id INT NOT NULL, position INT DEFAULT 0,
+        branch NVARCHAR(200), detail NVARCHAR(MAX), category NVARCHAR(100),
+        priority NVARCHAR(20) DEFAULT 'normal', assigned_to INT NULL,
+        status NVARCHAR(50) DEFAULT 'pending', due_date DATE NULL, fix_date DATE NULL,
+        note NVARCHAR(MAX), created_by INT,
+        created_at DATETIME DEFAULT GETDATE(), updated_at DATETIME DEFAULT GETDATE())`);
+
+    await req().query(`IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='fu_comments' AND xtype='U')
+      CREATE TABLE fu_comments (id INT PRIMARY KEY IDENTITY, issue_id INT NOT NULL, user_id INT NOT NULL, body NVARCHAR(MAX) NOT NULL, created_at DATETIME DEFAULT GETDATE())`);
+
+    await req().query(`IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='fu_activity' AND xtype='U')
+      CREATE TABLE fu_activity (id INT PRIMARY KEY IDENTITY, issue_id INT NOT NULL, user_id INT NOT NULL, action NVARCHAR(200), old_val NVARCHAR(MAX), new_val NVARCHAR(MAX), created_at DATETIME DEFAULT GETDATE())`);
+
+    await req().query(`IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='fu_mentions' AND xtype='U')
+      CREATE TABLE fu_mentions (id INT PRIMARY KEY IDENTITY, issue_id INT NOT NULL, comment_id INT NOT NULL, target_user_id INT NOT NULL, seen BIT DEFAULT 0, created_at DATETIME DEFAULT GETDATE())`);
+
+    await req().query(`IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='fu_categories' AND xtype='U')
+      CREATE TABLE fu_categories (id INT PRIMARY KEY IDENTITY, name NVARCHAR(100) NOT NULL UNIQUE)`);
+
+    console.log('✅ Follow Up v2 tables ready');
+  } catch(e) { console.error('❌ Follow Up v2 tables error:', e.message); }
+}
+
+// ══ FOLLOW UP v2 — FOLDERS ══
+app.get('/api/fu/folders', authRequired, async (request, res) => {
+  try {
+    const rows = (await req().query(`
+      SELECT f.*, e.name AS created_by_name,
+        (SELECT COUNT(*) FROM fu_boards b WHERE b.folder_id=f.id) AS board_count
+      FROM fu_folders f
+      LEFT JOIN app_users au ON au.id=f.created_by
+      LEFT JOIN employees e ON e.id=au.employee_id
+      ORDER BY f.created_at`)).recordset;
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/fu/folders', authRequired, async (request, res) => {
+  try {
+    const { name, color } = request.body;
+    if (!name?.trim()) return res.status(400).json({ error: 'กรุณาระบุชื่อโฟลเดอร์' });
+    const r = await req().input('n',sql.NVarChar,name.trim()).input('c',sql.NVarChar,color||'#3b82f6').input('cb',sql.Int,request.user.id)
+      .query(`INSERT INTO fu_folders(name,color,created_by) OUTPUT INSERTED.id VALUES(@n,@c,@cb)`);
+    res.json({ id: r.recordset[0].id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/fu/folders/:id', authRequired, async (request, res) => {
+  try {
+    const { name, color } = request.body;
+    await req().input('id',sql.Int,parseInt(request.params.id)).input('n',sql.NVarChar,name).input('c',sql.NVarChar,color||null)
+      .query(`UPDATE fu_folders SET name=@n,color=ISNULL(@c,color) WHERE id=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/fu/folders/:id', authRequired, async (request, res) => {
+  try {
+    await req().input('id',sql.Int,parseInt(request.params.id)).query(`DELETE FROM fu_folders WHERE id=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══ FOLLOW UP v2 — BOARDS ══
+app.get('/api/fu/folders/:fid/boards', authRequired, async (request, res) => {
+  try {
+    const rows = (await req().input('fid',sql.Int,parseInt(request.params.fid)).query(`
+      SELECT b.*,e.name AS created_by_name,
+        (SELECT COUNT(*) FROM fu_issues i WHERE i.board_id=b.id) AS issue_count
+      FROM fu_boards b
+      LEFT JOIN app_users au ON au.id=b.created_by
+      LEFT JOIN employees e ON e.id=au.employee_id
+      WHERE b.folder_id=@fid ORDER BY b.created_at`)).recordset;
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/fu/boards', authRequired, async (request, res) => {
+  try {
+    const { folder_id, name } = request.body;
+    if (!folder_id || !name?.trim()) return res.status(400).json({ error: 'ข้อมูลไม่ครบ' });
+    const r = await req().input('fid',sql.Int,folder_id).input('n',sql.NVarChar,name.trim()).input('cb',sql.Int,request.user.id)
+      .query(`INSERT INTO fu_boards(folder_id,name,created_by) OUTPUT INSERTED.id VALUES(@fid,@n,@cb)`);
+    res.json({ id: r.recordset[0].id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/fu/boards/:id', authRequired, async (request, res) => {
+  try {
+    await req().input('id',sql.Int,parseInt(request.params.id)).input('n',sql.NVarChar,request.body.name)
+      .query(`UPDATE fu_boards SET name=@n WHERE id=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/fu/boards/:id', authRequired, async (request, res) => {
+  try {
+    await req().input('id',sql.Int,parseInt(request.params.id)).query(`DELETE FROM fu_boards WHERE id=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══ FOLLOW UP v2 — ISSUES ══
+app.get('/api/fu/boards/:bid/issues', authRequired, async (request, res) => {
+  try {
+    const rows = (await req().input('bid',sql.Int,parseInt(request.params.bid)).query(`
+      SELECT i.*,
+        ea.name AS assigned_to_name,
+        ec.name AS created_by_name,
+        (SELECT COUNT(*) FROM fu_comments c WHERE c.issue_id=i.id) AS comment_count
+      FROM fu_issues i
+      LEFT JOIN app_users ua ON ua.id=i.assigned_to
+      LEFT JOIN employees ea ON ea.id=ua.employee_id
+      LEFT JOIN app_users uc ON uc.id=i.created_by
+      LEFT JOIN employees ec ON ec.id=uc.employee_id
+      WHERE i.board_id=@bid ORDER BY i.position,i.created_at`)).recordset;
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/fu/issues', authRequired, async (request, res) => {
+  try {
+    const b = request.body;
+    if (!b.board_id) return res.status(400).json({ error: 'กรุณาระบุ board' });
+    const r = await req()
+      .input('bid',sql.Int,b.board_id).input('br',sql.NVarChar,b.branch||null)
+      .input('det',sql.NVarChar,b.detail||null).input('cat',sql.NVarChar,b.category||null)
+      .input('pri',sql.NVarChar,b.priority||'normal').input('at',sql.Int,b.assigned_to||null)
+      .input('dd',sql.Date,b.due_date||null).input('nt',sql.NVarChar,b.note||null)
+      .input('cb',sql.Int,request.user.id)
+      .query(`INSERT INTO fu_issues(board_id,branch,detail,category,priority,assigned_to,due_date,note,created_by) OUTPUT INSERTED.id VALUES(@bid,@br,@det,@cat,@pri,@at,@dd,@nt,@cb)`);
+    const newId = r.recordset[0].id;
+    if (b.category?.trim()) {
+      try { await req().input('c',sql.NVarChar,b.category.trim())
+        .query(`IF NOT EXISTS(SELECT 1 FROM fu_categories WHERE name=@c) INSERT INTO fu_categories(name) VALUES(@c)`); } catch {}
+    }
+    // Log creation activity
+    try { await req().input('iid',sql.Int,newId).input('uid',sql.Int,request.user.id)
+      .input('act',sql.NVarChar,'สร้าง Issue').input('ov',sql.NVarChar,'').input('nv',sql.NVarChar,b.detail||'')
+      .query(`INSERT INTO fu_activity(issue_id,user_id,action,old_val,new_val) VALUES(@iid,@uid,@act,@ov,@nv)`); } catch {}
+    res.json({ id: newId });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/fu/issues/:id', authRequired, async (request, res) => {
+  try {
+    const id  = parseInt(request.params.id);
+    const b   = request.body;
+    const uid = request.user.id;
+    const cur = (await req().input('id',sql.Int,id).query('SELECT * FROM fu_issues WHERE id=@id')).recordset[0];
+    if (!cur) return res.status(404).json({ error: 'not found' });
+
+    let r = req().input('id',sql.Int,id);
+    const updates = ['updated_at=GETDATE()'];
+    if (b.hasOwnProperty('branch'))      { r=r.input('branch',sql.NVarChar,b.branch??null);      updates.push('branch=@branch'); }
+    if (b.hasOwnProperty('detail'))      { r=r.input('detail',sql.NVarChar,b.detail??null);      updates.push('detail=@detail'); }
+    if (b.hasOwnProperty('category'))    { r=r.input('cat',sql.NVarChar,b.category??null);       updates.push('category=@cat'); }
+    if (b.hasOwnProperty('priority'))    { r=r.input('pri',sql.NVarChar,b.priority);             updates.push('priority=@pri'); }
+    if (b.hasOwnProperty('assigned_to')) { r=r.input('at',sql.Int,b.assigned_to??null);          updates.push('assigned_to=@at'); }
+    if (b.hasOwnProperty('status'))      { r=r.input('st',sql.NVarChar,b.status);                updates.push('status=@st'); }
+    if (b.hasOwnProperty('due_date'))    { r=r.input('dd',sql.Date,b.due_date||null);            updates.push('due_date=@dd'); }
+    if (b.hasOwnProperty('fix_date'))    { r=r.input('fd',sql.Date,b.fix_date||null);            updates.push('fix_date=@fd'); }
+    if (b.hasOwnProperty('note'))        { r=r.input('nt',sql.NVarChar,b.note??null);            updates.push('note=@nt'); }
+    await r.query(`UPDATE fu_issues SET ${updates.join(',')} WHERE id=@id`);
+
+    // Activity log for status/assignee changes
+    const logFields = {status:'สถานะ',priority:'ความสำคัญ',assigned_to:'ผู้รับผิดชอบ',category:'Category'};
+    for (const [field,label] of Object.entries(logFields)) {
+      if (b.hasOwnProperty(field) && String(b[field]??'')!==String(cur[field]??'')) {
+        try { await req().input('iid',sql.Int,id).input('uid',sql.Int,uid)
+          .input('act',sql.NVarChar,`เปลี่ยน${label}`).input('ov',sql.NVarChar,String(cur[field]??'')).input('nv',sql.NVarChar,String(b[field]??''))
+          .query(`INSERT INTO fu_activity(issue_id,user_id,action,old_val,new_val) VALUES(@iid,@uid,@act,@ov,@nv)`); } catch {}
+      }
+    }
+    if (b.category?.trim()) {
+      try { await req().input('c',sql.NVarChar,b.category.trim())
+        .query(`IF NOT EXISTS(SELECT 1 FROM fu_categories WHERE name=@c) INSERT INTO fu_categories(name) VALUES(@c)`); } catch {}
+    }
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/fu/issues/:id', authRequired, async (request, res) => {
+  try {
+    await req().input('id',sql.Int,parseInt(request.params.id)).query('DELETE FROM fu_issues WHERE id=@id');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══ FOLLOW UP v2 — TIMELINE (comments + activity) ══
+app.get('/api/fu/issues/:id/timeline', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const comments = (await req().input('id',sql.Int,id).query(`
+      SELECT 'comment' AS type,c.id,c.body AS content,c.created_at,e.name AS user_name
+      FROM fu_comments c LEFT JOIN app_users au ON au.id=c.user_id LEFT JOIN employees e ON e.id=au.employee_id
+      WHERE c.issue_id=@id`)).recordset;
+    const activity = (await req().input('id',sql.Int,id).query(`
+      SELECT 'activity' AS type,a.id,a.action AS content,a.old_val,a.new_val,a.created_at,e.name AS user_name
+      FROM fu_activity a LEFT JOIN app_users au ON au.id=a.user_id LEFT JOIN employees e ON e.id=au.employee_id
+      WHERE a.issue_id=@id`)).recordset;
+    res.json([...comments,...activity].sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/fu/issues/:id/comments', authRequired, async (request, res) => {
+  try {
+    const id   = parseInt(request.params.id);
+    const body = request.body.body?.trim();
+    if (!body) return res.status(400).json({ error: 'กรุณาระบุข้อความ' });
+    const r = await req().input('iid',sql.Int,id).input('uid',sql.Int,request.user.id).input('b',sql.NVarChar,body)
+      .query(`INSERT INTO fu_comments(issue_id,user_id,body) OUTPUT INSERTED.id VALUES(@iid,@uid,@b)`);
+    const cid = r.recordset[0].id;
+    // @mention parsing
+    const mentions = [...body.matchAll(/@([^\s@]+)/g)].map(m=>m[1]);
+    if (mentions.length) {
+      const users = (await req().query(`SELECT au.id,e.name FROM app_users au JOIN employees e ON e.id=au.employee_id WHERE au.active=1`)).recordset;
+      for (const m of mentions) {
+        const matched = users.find(u=>u.name.replace(/\s/g,'').toLowerCase().includes(m.toLowerCase()));
+        if (matched) {
+          try { await req().input('iid',sql.Int,id).input('cid',sql.Int,cid).input('tuid',sql.Int,matched.id)
+            .query(`INSERT INTO fu_mentions(issue_id,comment_id,target_user_id) VALUES(@iid,@cid,@tuid)`); } catch {}
+        }
+      }
+    }
+    res.json({ id: cid });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══ FOLLOW UP v2 — CATEGORIES + BADGE ══
+app.get('/api/fu/categories', authRequired, async (req_, res) => {
+  try {
+    const rows = (await req().query(`SELECT name FROM fu_categories ORDER BY name`)).recordset;
+    res.json(rows.map(r=>r.name));
+  } catch(e) { res.json([]); }
+});
+
+app.get('/api/fu/badge', authRequired, async (request, res) => {
+  try {
+    const r = await req().input('uid',sql.Int,request.user.id)
+      .query(`SELECT COUNT(*) AS cnt FROM fu_mentions WHERE target_user_id=@uid AND seen=0`);
+    res.json({ mentions: r.recordset[0]?.cnt||0 });
+  } catch(e) { res.json({ mentions:0 }); }
+});
+
+app.post('/api/fu/mentions/seen', authRequired, async (request, res) => {
+  try {
+    await req().input('uid',sql.Int,request.user.id)
+      .query(`UPDATE fu_mentions SET seen=1 WHERE target_user_id=@uid AND seen=0`);
+    res.json({ ok:true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // Lightweight badge count only
 app.get('/api/specialist/badge', authRequired, async (request, res) => {
   try {
@@ -4304,6 +4567,7 @@ init().then(async () => {
   await ensureSpecialistTable();
   await ensureRequirementsTables();
   await ensureFollowupTable();
+  await ensureFollowupV2Tables();
 
   // Drop CHECK constraint on shifts.shift_type so 'dayoff' can be inserted
   try {
