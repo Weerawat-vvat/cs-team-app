@@ -6959,8 +6959,8 @@ function fuIssueRow(issue, today) {
     onmouseover="if(${_fuPanelId}!==${issue.id})this.style.background='#f8fafc'" onmouseout="if(${_fuPanelId}!==${issue.id})this.style.background=''">
     <td style="padding:.45rem .6rem;color:#94a3b8;font-size:.72rem;vertical-align:top" onclick="fuOpenPanel(${issue.id})">${issue.id}</td>
     <td style="padding:.45rem .4rem;vertical-align:top;max-width:260px" onclick="fuOpenPanel(${issue.id})">
-      ${issue.branch ? `<div style="font-size:.68rem;color:#64748b;margin-bottom:.15rem">📍 ${esc(issue.branch)}</div>` : ''}
       <div style="font-weight:600;color:#1e293b;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${issue.detail ? esc(issue.detail) : '<span style="color:#cbd5e1;font-weight:400">ยังไม่มีหัวข้อ...</span>'}</div>
+      ${issue.note ? `<div style="font-size:.67rem;color:#94a3b8;margin-top:.12rem;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden">${esc(issue.note)}</div>` : ''}
     </td>
     <td style="padding:.45rem .4rem;vertical-align:top" onclick="fuInlineEdit(event,${issue.id},'category')" title="คลิกเพื่อแก้ไข">
       ${issue.category ? `<span style="background:#f0f9ff;color:#0369a1;border-radius:5px;padding:.1rem .4rem;font-size:.72rem;white-space:nowrap">${esc(issue.category)}</span>` : '<span style="color:#cbd5e1">--</span>'}
@@ -7095,7 +7095,6 @@ function fuRenderKanban() {
                     <div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.3rem">
                       <span style="font-size:.65rem;color:${pri.color}">${pri.label.split(' ')[0]}</span>
                       ${issue.category ? `<span style="background:#f0f9ff;color:#0369a1;border-radius:4px;padding:.05rem .35rem;font-size:.65rem">${esc(issue.category)}</span>` : ''}
-                      ${issue.branch   ? `<span style="background:#f8fafc;color:#64748b;border-radius:4px;padding:.05rem .35rem;font-size:.65rem">📍${esc(issue.branch)}</span>` : ''}
                     </div>
                     <!-- Detail -->
                     <div style="font-size:.8rem;font-weight:600;color:#1e293b;line-height:1.4;margin-bottom:.35rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">
@@ -7247,7 +7246,7 @@ async function fuInlineEditSelect(e, id, field) {
   }
 
   popup.innerHTML = options.map(o=>`
-    <div onclick="fuPickSelect(${id},'${field}',${JSON.stringify(o.val)})"
+    <div onclick="fuPickSelect(${id},'${field}','${o.val}')"
       style="padding:.35rem .6rem;border-radius:5px;cursor:pointer;font-size:.8rem;color:${o.color};font-weight:${(field!=='assigned_to')?'600':'400'}"
       onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background=''">
       ${esc(String(o.label))}
@@ -7416,15 +7415,15 @@ async function fuRenderPanel() {
         onkeydown="if(event.key==='Enter')this.blur()"/>
     </div>
     <div>
-      <div style="font-size:.72rem;font-weight:700;color:#94a3b8;margin-bottom:.3rem">Note / รายละเอียดเพิ่มเติม</div>
+      <div style="font-size:.72rem;font-weight:700;color:#94a3b8;margin-bottom:.3rem">รายละเอียดปัญหา</div>
       <textarea rows="3" style="width:100%;border:1px solid #e2e8f0;border-radius:7px;padding:.45rem .6rem;font-size:.82rem;font-family:inherit;resize:vertical;outline:none;transition:border .15s"
         onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0';fuPanelSave(${id},'note',this.value)"
-        placeholder="Note เพิ่มเติม..."
+        placeholder="อธิบายรายละเอียดปัญหา..."
       >${esc(issue.note||'')}</textarea>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
       <div>
-        <div style="font-size:.72rem;font-weight:700;color:#94a3b8;margin-bottom:.25rem">สาขา</div>
+        <div style="font-size:.72rem;font-weight:700;color:#94a3b8;margin-bottom:.25rem">Note / รายละเอียดเพิ่มเติม</div>
         <input type="text" value="${esc(issue.branch||'')}" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:.35rem .5rem;font-size:.8rem;font-family:inherit;outline:none;transition:border .15s"
           onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0';fuPanelSave(${id},'branch',this.value||null)" placeholder="--"/>
       </div>
