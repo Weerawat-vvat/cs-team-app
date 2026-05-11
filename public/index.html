@@ -7290,7 +7290,7 @@ async function fuDeleteIssue(id) {
   if (r?.error) { showToast('❌ '+r.error,'error'); return; }
   _fuIssues = _fuIssues.filter(i=>i.id!==id);
   if (_fuPanelId===id) fuClosePanel();
-  fuRenderTable();
+  else fuRender();
   showToast('🗑 ลบแล้ว');
 }
 
