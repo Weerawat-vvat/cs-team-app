@@ -4177,7 +4177,9 @@ app.get('/api/fu/boards/:bid/issues', authRequired, async (request, res) => {
       SELECT i.*,
         ea.name AS assigned_to_name,
         ec.name AS created_by_name,
-        (SELECT COUNT(*) FROM fu_comments c WHERE c.issue_id=i.id) AS comment_count
+        (SELECT COUNT(*) FROM fu_comments c WHERE c.issue_id=i.id) AS comment_count,
+        (SELECT TOP 1 c.created_at FROM fu_comments c WHERE c.issue_id=i.id ORDER BY c.created_at DESC) AS last_comment_at,
+        (SELECT TOP 1 c.body     FROM fu_comments c WHERE c.issue_id=i.id ORDER BY c.created_at DESC) AS last_comment_body
       FROM fu_issues i
       LEFT JOIN app_users ua ON ua.id=i.assigned_to
       LEFT JOIN employees ea ON ea.id=ua.employee_id

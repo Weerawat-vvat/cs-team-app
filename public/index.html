@@ -6958,11 +6958,9 @@ function fuIssueRow(issue, today) {
   return `<tr data-id="${issue.id}" style="border-bottom:1px solid #f1f5f9;cursor:pointer${_fuPanelId===issue.id?';background:#eff6ff':''}"
     onmouseover="if(${_fuPanelId}!==${issue.id})this.style.background='#f8fafc'" onmouseout="if(${_fuPanelId}!==${issue.id})this.style.background=''">
     <td style="padding:.45rem .6rem;color:#94a3b8;font-size:.72rem;vertical-align:top" onclick="fuOpenPanel(${issue.id})">${issue.id}</td>
-    <td style="padding:.45rem .4rem;vertical-align:top" onclick="fuInlineEdit(event,${issue.id},'branch')" title="คลิกเพื่อแก้ไข">
-      <span class="fu-cell" data-id="${issue.id}" data-field="branch">${issue.branch ? esc(issue.branch) : '<span style="color:#cbd5e1">--</span>'}</span>
-    </td>
-    <td style="padding:.45rem .4rem;vertical-align:top;max-width:250px" onclick="fuInlineEdit(event,${issue.id},'detail')" title="คลิกเพื่อแก้ไข">
-      <span class="fu-cell" data-id="${issue.id}" data-field="detail" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.45">${issue.detail ? esc(issue.detail) : '<span style="color:#cbd5e1">คลิกเพื่อเพิ่มรายละเอียด...</span>'}</span>
+    <td style="padding:.45rem .4rem;vertical-align:top;max-width:260px" onclick="fuOpenPanel(${issue.id})">
+      ${issue.branch ? `<div style="font-size:.68rem;color:#64748b;margin-bottom:.15rem">📍 ${esc(issue.branch)}</div>` : ''}
+      <div style="font-weight:600;color:#1e293b;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${issue.detail ? esc(issue.detail) : '<span style="color:#cbd5e1;font-weight:400">ยังไม่มีหัวข้อ...</span>'}</div>
     </td>
     <td style="padding:.45rem .4rem;vertical-align:top" onclick="fuInlineEdit(event,${issue.id},'category')" title="คลิกเพื่อแก้ไข">
       ${issue.category ? `<span style="background:#f0f9ff;color:#0369a1;border-radius:5px;padding:.1rem .4rem;font-size:.72rem;white-space:nowrap">${esc(issue.category)}</span>` : '<span style="color:#cbd5e1">--</span>'}
@@ -6980,9 +6978,14 @@ function fuIssueRow(issue, today) {
       ${due ? `<span style="font-size:.75rem;color:${overdue?'#ef4444':'#475569'};font-weight:${overdue?'700':'400'}">${overdue?'🔴 ':''}${due.toLocaleDateString('th-TH',{day:'2-digit',month:'short'})}</span>`
             : '<span style="color:#cbd5e1;font-size:.75rem">--</span>'}
     </td>
+    <td style="padding:.45rem .4rem;vertical-align:top;max-width:160px" onclick="fuOpenPanel(${issue.id})">
+      ${issue.last_comment_at ? `
+        <div style="font-size:.72rem;color:#64748b;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.4;margin-bottom:.15rem">${esc(issue.last_comment_body||'')}</div>
+        <div style="font-size:.65rem;color:#94a3b8">${fuDateLabel(issue.last_comment_at)}</div>
+      ` : '<span style="color:#cbd5e1;font-size:.72rem">--</span>'}
+    </td>
     <td style="padding:.45rem .3rem;vertical-align:top;text-align:center">
-      ${issue.comment_count>0 ? `<span onclick="fuOpenPanel(${issue.id})" style="cursor:pointer;font-size:.72rem;color:#64748b">💬${issue.comment_count}</span>` : ''}
-      <span onclick="if(confirm('ลบ Issue นี้?'))fuDeleteIssue(${issue.id})" style="cursor:pointer;font-size:.75rem;color:#cbd5e1;margin-left:.2rem" title="ลบ">🗑</span>
+      <span onclick="if(confirm('ลบ Issue นี้?'))fuDeleteIssue(${issue.id})" style="cursor:pointer;font-size:.75rem;color:#cbd5e1" title="ลบ">🗑</span>
     </td>
   </tr>`;
 }
@@ -7018,13 +7021,13 @@ function fuRenderTable() {
   const today = new Date(); today.setHours(0,0,0,0);
   const thead = `<thead><tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0">
     <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;width:28px">#</th>
-    <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;min-width:80px">สาขา</th>
-    <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;min-width:200px">รายละเอียดปัญหา</th>
+    <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;min-width:220px">หัวข้อ / รายละเอียดปัญหา</th>
     <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;min-width:100px">Category</th>
     <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;width:90px">ความสำคัญ</th>
     <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;min-width:110px">ผู้รับผิดชอบ</th>
     <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;width:120px">สถานะ</th>
     <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;width:90px">Due Date</th>
+    <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;min-width:140px">Last Comment</th>
     <th style="padding:.5rem .6rem;width:40px"></th>
   </tr></thead>`;
   const addBtn = `<tr><td colspan="10" style="padding:.4rem .6rem"><button onclick="fuAddIssue()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:.78rem;padding:.2rem .4rem;border-radius:5px" onmouseover="this.style.color='#1d4ed8'" onmouseout="this.style.color='#94a3b8'">+ เพิ่ม Issue</button></td></tr>`;
