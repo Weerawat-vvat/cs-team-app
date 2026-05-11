@@ -425,6 +425,12 @@ textarea{resize:vertical;min-height:80px}
         <span id="specialist-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.62rem;padding:.02rem .38rem;font-weight:700"></span>
       </button>
     </div>
+    <!-- 3b. Follow Up -->
+    <button class="s-tab" id="nav-btn-followup" onclick="showPage('followup',this)">
+      <svg class="s-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><path d="M17 2H7a2 2 0 0 0-2 2v16l7-3 7 3V4a2 2 0 0 0-2-2z"/></svg>
+      Follow Up
+      <span id="followup-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.62rem;padding:.02rem .38rem;margin-left:auto;font-weight:700"></span>
+    </button>
     <!-- 4. งานซ่อม -->
     <button class="s-tab" id="nav-btn-repair" onclick="showPage('repair',this)">
       <svg class="s-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
@@ -1345,6 +1351,58 @@ textarea{resize:vertical;min-height:80px}
   </div>
 </div>
 
+<!-- ═══════════════════ PAGE: FOLLOW UP ═══════════════════ -->
+<div id="page-followup" class="page">
+  <div class="section-header" style="margin-bottom:.75rem">
+    <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+      <div class="section-title">🔁 Issue Follow Up</div>
+      <!-- Filters -->
+      <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-left:.5rem">
+        <select id="fu-filter-status" onchange="loadFollowup()" style="font-size:.78rem;padding:.3rem .5rem;border:1px solid #cbd5e1;border-radius:6px">
+          <option value="">ทุกสถานะ</option>
+          <option value="pending">⏳ รอดำเนินการ</option>
+          <option value="accepted">✋ รับงานแล้ว</option>
+          <option value="case_opened">📂 เปิดเคสแล้ว</option>
+          <option value="resolved">✅ เสร็จสิ้น</option>
+          <option value="cancelled">🚫 ยกเลิก</option>
+        </select>
+        <select id="fu-filter-team" onchange="loadFollowup()" style="font-size:.78rem;padding:.3rem .5rem;border:1px solid #cbd5e1;border-radius:6px">
+          <option value="">ทุกทีม</option>
+        </select>
+      </div>
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-sm btn-primary" onclick="openCreateFollowup()">➕ สร้าง Follow Up</button>
+      <button class="btn btn-sm btn-ghost" onclick="loadFollowup()">🔄 รีเฟรช</button>
+    </div>
+  </div>
+
+  <!-- Summary badges -->
+  <div id="fu-summary" style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem"></div>
+
+  <!-- Table -->
+  <div class="card" style="padding:.5rem 0">
+    <div class="tbl-wrap">
+      <table class="tbl" id="fu-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>หัวข้อ / บริษัท</th>
+            <th>ทีมที่รับ</th>
+            <th>ผู้รับผิดชอบ</th>
+            <th>สร้างโดย</th>
+            <th>ความสำคัญ</th>
+            <th>สถานะ</th>
+            <th>อัปเดต</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="fu-tbody"><tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:2rem">กำลังโหลด...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════════ PAGE: REPAIR ═══════════════════ -->
 <div id="page-repair" class="page">
   <div class="section-header" style="margin-bottom:.75rem">
@@ -1689,6 +1747,83 @@ textarea{resize:vertical;min-height:80px}
   <div class="modal" style="max-width:700px;max-height:92vh;overflow-y:auto">
     <div class="modal-title" id="rd-title">รายละเอียดงานซ่อม <button class="modal-close" onclick="closeModal('modal-repair-detail')">×</button></div>
     <div id="rd-body">กำลังโหลด...</div>
+  </div>
+</div>
+
+<!-- Modal: Create Follow Up -->
+<div class="overlay" id="modal-create-followup">
+  <div class="modal" style="max-width:540px;max-height:90vh;overflow-y:auto;padding:1.1rem 1.25rem">
+    <div class="modal-title" style="margin-bottom:.85rem;color:#0369a1">🔁 สร้าง Issue Follow Up <button class="modal-close" onclick="closeModal('modal-create-followup')">×</button></div>
+    <input type="hidden" id="fu-create-sp-id"/>
+    <div class="form-group" style="margin-bottom:.7rem">
+      <label style="font-size:.78rem;font-weight:600;color:#475569;display:block;margin-bottom:.25rem">หัวข้อ <span style="color:#ef4444">*</span></label>
+      <input type="text" id="fu-create-subject" placeholder="หัวข้อปัญหา / งานที่ต้องติดตาม" style="width:100%;padding:.5rem .7rem;border:1px solid #cbd5e1;border-radius:7px;font-size:.85rem"/>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.7rem">
+      <div>
+        <label style="font-size:.78rem;font-weight:600;color:#475569;display:block;margin-bottom:.25rem">บริษัท / ร้าน</label>
+        <input type="text" id="fu-create-company" placeholder="ชื่อบริษัท" style="width:100%;padding:.5rem .7rem;border:1px solid #cbd5e1;border-radius:7px;font-size:.85rem"/>
+      </div>
+      <div>
+        <label style="font-size:.78rem;font-weight:600;color:#475569;display:block;margin-bottom:.25rem">ความสำคัญ</label>
+        <select id="fu-create-priority" style="width:100%;padding:.5rem .7rem;border:1px solid #cbd5e1;border-radius:7px;font-size:.85rem">
+          <option value="normal">🟡 ปกติ</option>
+          <option value="high">🟠 สูง</option>
+          <option value="urgent">🔴 เร่งด่วน</option>
+          <option value="low">🔵 ต่ำ</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.7rem">
+      <div>
+        <label style="font-size:.78rem;font-weight:600;color:#475569;display:block;margin-bottom:.25rem">ผู้ติดต่อ</label>
+        <input type="text" id="fu-create-contact-name" placeholder="ชื่อผู้ติดต่อ" style="width:100%;padding:.5rem .7rem;border:1px solid #cbd5e1;border-radius:7px;font-size:.85rem"/>
+      </div>
+      <div>
+        <label style="font-size:.78rem;font-weight:600;color:#475569;display:block;margin-bottom:.25rem">เบอร์โทร</label>
+        <input type="text" id="fu-create-contact-phone" placeholder="08X-XXXXXXX" style="width:100%;padding:.5rem .7rem;border:1px solid #cbd5e1;border-radius:7px;font-size:.85rem"/>
+      </div>
+    </div>
+    <div style="margin-bottom:.7rem">
+      <label style="font-size:.78rem;font-weight:600;color:#475569;display:block;margin-bottom:.25rem">ทีมที่รับงาน <span style="color:#ef4444">*</span></label>
+      <select id="fu-create-team" onchange="fuFillMemberSelect()" style="width:100%;padding:.5rem .7rem;border:1px solid #cbd5e1;border-radius:7px;font-size:.85rem">
+        <option value="">— เลือกทีม —</option>
+      </select>
+    </div>
+    <div style="margin-bottom:.7rem">
+      <label style="font-size:.78rem;font-weight:600;color:#475569;display:block;margin-bottom:.25rem">มอบหมายให้ (ไม่บังคับ)</label>
+      <select id="fu-create-user" style="width:100%;padding:.5rem .7rem;border:1px solid #cbd5e1;border-radius:7px;font-size:.85rem">
+        <option value="">— ไม่ระบุ (ทีมรับเอง) —</option>
+      </select>
+    </div>
+    <div style="margin-bottom:.9rem">
+      <label style="font-size:.78rem;font-weight:600;color:#475569;display:block;margin-bottom:.25rem">รายละเอียด</label>
+      <textarea id="fu-create-desc" rows="3" placeholder="อธิบายรายละเอียดงานที่ต้องติดตาม..." style="width:100%;padding:.5rem .7rem;border:1px solid #cbd5e1;border-radius:7px;font-size:.85rem;resize:vertical"></textarea>
+    </div>
+    <div style="display:flex;gap:.5rem;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeModal('modal-create-followup')">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="saveCreateFollowup()">📤 สร้าง Follow Up</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Follow Up Detail / Action -->
+<div class="overlay" id="modal-followup-detail">
+  <div class="modal" style="max-width:520px;max-height:90vh;overflow-y:auto;padding:1.1rem 1.25rem">
+    <div class="modal-title" style="margin-bottom:.85rem;color:#0369a1">📋 รายละเอียด Follow Up <button class="modal-close" onclick="closeModal('modal-followup-detail')">×</button></div>
+    <div id="fu-detail-body" style="font-size:.85rem;color:#334155;margin-bottom:1rem"></div>
+    <!-- Action buttons for helpdesk -->
+    <div id="fu-action-area" style="border-top:1px solid #e2e8f0;padding-top:.85rem;display:flex;flex-direction:column;gap:.6rem">
+      <div id="fu-case-note-area" style="display:none">
+        <label style="font-size:.78rem;font-weight:600;color:#475569;display:block;margin-bottom:.25rem">หมายเหตุการเปิดเคส</label>
+        <textarea id="fu-case-note-input" rows="3" placeholder="บันทึกรายละเอียดการเปิดเคส..." style="width:100%;padding:.5rem .7rem;border:1px solid #cbd5e1;border-radius:7px;font-size:.85rem;resize:vertical"></textarea>
+      </div>
+      <div id="fu-resolve-note-area" style="display:none">
+        <label style="font-size:.78rem;font-weight:600;color:#475569;display:block;margin-bottom:.25rem">สรุปการแก้ไข</label>
+        <textarea id="fu-resolve-note-input" rows="3" placeholder="สรุปวิธีแก้ไข / ผลลัพธ์..." style="width:100%;padding:.5rem .7rem;border:1px solid #cbd5e1;border-radius:7px;font-size:.85rem;resize:vertical"></textarea>
+      </div>
+      <div id="fu-action-btns" style="display:flex;gap:.5rem;flex-wrap:wrap;justify-content:flex-end"></div>
+    </div>
   </div>
 </div>
 
@@ -2376,6 +2511,7 @@ function showPage(name, btn) {
       loadSpecialist();
     }
   }
+  if (name === 'followup') { loadFollowup(); }
 }
 
 // ══════════════════════════════════════════════════════════
@@ -4443,6 +4579,9 @@ function applyUserContext() {
     // Poll every 60s for new customer messages
     clearInterval(_repairPollTimer);
     _repairPollTimer = setInterval(pollRepairMessages, 30000);
+    // Follow Up badge
+    pollFollowupBadge();
+    setInterval(pollFollowupBadge, 60000);
   }
 
   // Schedule: hide clear-week button for staff
@@ -6224,13 +6363,16 @@ function renderSpecialistTable(list) {
             ${spLead?`<button class="btn btn-success btn-sm" onclick="event.stopPropagation();saveSpResolveInline(${s.id})">✅ แก้ไขแล้ว</button>`:''}
           </div>`:'')}
 
-          ${spLead?`
-          <div style="display:flex;justify-content:flex-end;margin-top:.55rem;padding-top:.5rem;border-top:1px solid #f1f5f9">
-            <button onclick="event.stopPropagation();deleteSpJob(${s.id},'${escHtml(s.company_name||'')}','${escHtml((s.subject||'').substring(0,40))}')"
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:.55rem;padding-top:.5rem;border-top:1px solid #f1f5f9">
+            <button onclick="event.stopPropagation();openCreateFollowup(${JSON.stringify({id:s.id,subject:s.subject,company_name:s.company_name,contact_name:s.contact_name,contact_phone:s.contact_phone,priority:s.priority})})"
+              style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:7px;padding:.28rem .75rem;font-size:.75rem;font-weight:600;cursor:pointer">
+              🔁 สร้าง Follow Up
+            </button>
+            ${spLead?`<button onclick="event.stopPropagation();deleteSpJob(${s.id},'${escHtml(s.company_name||'')}','${escHtml((s.subject||'').substring(0,40))}')"
               style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:7px;padding:.28rem .75rem;font-size:.75rem;font-weight:600;cursor:pointer">
               🗑 ลบงานนี้
-            </button>
-          </div>`:''}
+            </button>`:''}
+          </div>
         </div>
       </td>
     </tr>`;
@@ -6566,6 +6708,230 @@ async function openSpecialistDetail(id) {
       <button class="btn btn-success btn-sm" style="margin-top:.35rem;width:100%" onclick="saveSpResolve(${s.id})">✅ ยืนยันแก้ไขแล้ว</button>
     </div>`;
   // No Calllog fetch — user clicks ref link to view
+}
+
+// ══════════════════════════════════════════════════════════
+//  ISSUE FOLLOW UP
+// ══════════════════════════════════════════════════════════
+const FU_STATUS = {
+  pending:     '⏳ รอดำเนินการ',
+  accepted:    '✋ รับงานแล้ว',
+  case_opened: '📂 เปิดเคสแล้ว',
+  resolved:    '✅ เสร็จสิ้น',
+  cancelled:   '🚫 ยกเลิก',
+};
+const FU_STATUS_COLOR = {
+  pending:     '#f59e0b',
+  accepted:    '#3b82f6',
+  case_opened: '#8b5cf6',
+  resolved:    '#22c55e',
+  cancelled:   '#94a3b8',
+};
+const FU_PRIORITY_LABEL = { normal:'🟡 ปกติ', high:'🟠 สูง', urgent:'🔴 เร่งด่วน', low:'🔵 ต่ำ' };
+
+async function loadFollowup() {
+  const status = document.getElementById('fu-filter-status')?.value || '';
+  const team   = document.getElementById('fu-filter-team')?.value   || '';
+  const params = new URLSearchParams();
+  if (status) params.set('status', status);
+  if (team)   params.set('team', team);
+
+  // Populate team filter
+  const teamSel = document.getElementById('fu-filter-team');
+  if (teamSel && allTeams.length && teamSel.options.length === 1) {
+    allTeams.forEach(t => {
+      const o = document.createElement('option');
+      o.value = t.name; o.textContent = t.display_name;
+      teamSel.appendChild(o);
+    });
+    teamSel.value = team;
+  }
+
+  const tbody = document.getElementById('fu-tbody');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:2rem">กำลังโหลด...</td></tr>';
+
+  const rows = await api(`/api/followup?${params}`);
+  if (!Array.isArray(rows)) { if (tbody) tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#ef4444">โหลดข้อมูลไม่สำเร็จ</td></tr>'; return; }
+
+  // Summary badges
+  const counts = {};
+  rows.forEach(r => { counts[r.status] = (counts[r.status]||0)+1; });
+  const sumEl = document.getElementById('fu-summary');
+  if (sumEl) {
+    sumEl.innerHTML = Object.entries(FU_STATUS).map(([k,v]) =>
+      `<span style="background:#fff;border:1px solid ${FU_STATUS_COLOR[k]||'#cbd5e1'};color:${FU_STATUS_COLOR[k]||'#475569'};border-radius:20px;padding:.2rem .7rem;font-size:.75rem;font-weight:700;cursor:pointer"
+        onclick="document.getElementById('fu-filter-status').value='${k}';loadFollowup()">${v} <b>${counts[k]||0}</b></span>`
+    ).join('');
+  }
+
+  // Badge in nav
+  const pending = rows.filter(r => ['pending','accepted'].includes(r.status)).length;
+  const badge = document.getElementById('followup-badge');
+  if (badge) { badge.textContent = pending; badge.style.display = pending ? '' : 'none'; }
+
+  if (!rows.length) {
+    if (tbody) tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:2rem">ไม่มีข้อมูล</td></tr>';
+    return;
+  }
+
+  if (tbody) tbody.innerHTML = rows.map(r => {
+    const statusColor = FU_STATUS_COLOR[r.status] || '#94a3b8';
+    const priorityBg  = {urgent:'#fef2f2',high:'#fff7ed',normal:'#f8fafc',low:'#f0f9ff'}[r.priority]||'#f8fafc';
+    return `<tr style="background:${priorityBg}">
+      <td style="font-size:.75rem;color:#94a3b8">#${r.id}</td>
+      <td>
+        <div style="font-weight:600;font-size:.85rem">${esc(r.subject)}</div>
+        ${r.company_name?`<div style="font-size:.72rem;color:#64748b">${esc(r.company_name)}</div>`:''}
+        ${r.contact_name?`<div style="font-size:.72rem;color:#94a3b8">👤 ${esc(r.contact_name)}${r.contact_phone?' · '+esc(r.contact_phone):''}</div>`:''}
+        ${r.specialist_log_id?`<div style="font-size:.7rem;color:#7c3aed">🔗 SP #${r.specialist_log_id}</div>`:''}
+      </td>
+      <td><span style="background:#eff6ff;color:#1d4ed8;border-radius:5px;padding:.1rem .45rem;font-size:.75rem;font-weight:600">${esc(r.assigned_to_team||'—')}</span></td>
+      <td style="font-size:.78rem">${r.assigned_to_user_name ? esc(r.assigned_to_user_name) : (r.accepted_by_name ? `<span style="color:#3b82f6">✋ ${esc(r.accepted_by_name)}</span>` : '<span style="color:#94a3b8">ยังไม่มี</span>')}</td>
+      <td style="font-size:.75rem;color:#64748b">${esc(r.created_by_name||'—')}</td>
+      <td style="font-size:.75rem">${FU_PRIORITY_LABEL[r.priority]||r.priority}</td>
+      <td><span style="background:${statusColor}22;color:${statusColor};border-radius:20px;padding:.15rem .6rem;font-size:.75rem;font-weight:700;white-space:nowrap">${FU_STATUS[r.status]||r.status}</span></td>
+      <td style="font-size:.72rem;color:#94a3b8;white-space:nowrap">${fmtDt(r.updated_at)}</td>
+      <td>
+        <button class="btn btn-xs btn-ghost" onclick='openFollowupDetail(${JSON.stringify(r)})' title="ดูรายละเอียด / ดำเนินการ">📋</button>
+        <button class="btn btn-xs btn-ghost" style="color:#ef4444" onclick="deleteFollowup(${r.id})" title="ลบ">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function pollFollowupBadge() {
+  try {
+    const d = await api('/api/followup/badge', {}, true);
+    const badge = document.getElementById('followup-badge');
+    if (badge) { badge.textContent = d.pending; badge.style.display = d.pending ? '' : 'none'; }
+  } catch {}
+}
+
+// ── Create Follow Up Modal ─────────────────────────────────
+function openCreateFollowup(spJob) {
+  document.getElementById('fu-create-sp-id').value = spJob?.id || '';
+  document.getElementById('fu-create-subject').value     = spJob?.subject || '';
+  document.getElementById('fu-create-company').value     = spJob?.company_name || '';
+  document.getElementById('fu-create-contact-name').value  = spJob?.contact_name || '';
+  document.getElementById('fu-create-contact-phone').value = spJob?.contact_phone || '';
+  document.getElementById('fu-create-priority').value    = spJob?.priority || 'normal';
+  document.getElementById('fu-create-desc').value        = '';
+
+  // Fill team dropdown
+  const teamSel = document.getElementById('fu-create-team');
+  teamSel.innerHTML = '<option value="">— เลือกทีม —</option>' +
+    allTeams.map(t => `<option value="${t.name}">${t.display_name}</option>`).join('');
+  teamSel.value = '';
+  fuFillMemberSelect();
+  openModal('modal-create-followup');
+}
+
+function fuFillMemberSelect() {
+  const team = document.getElementById('fu-create-team').value;
+  const sel  = document.getElementById('fu-create-user');
+  const members = allEmployees.filter(e => e.active && (!team || e.team === team));
+  sel.innerHTML = '<option value="">— ไม่ระบุ (ทีมรับเอง) —</option>' +
+    members.map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('');
+}
+
+async function saveCreateFollowup() {
+  const subject = document.getElementById('fu-create-subject').value.trim();
+  const team    = document.getElementById('fu-create-team').value.trim();
+  if (!subject) { showToast('❌ กรุณาระบุหัวข้อ', 'error'); return; }
+  if (!team)    { showToast('❌ กรุณาเลือกทีมที่รับงาน', 'error'); return; }
+
+  // Find assigned_to_user (employee id → need user id from app_users)
+  const empId = parseInt(document.getElementById('fu-create-user').value) || null;
+  // We pass employee id for now — backend can handle or we skip user assignment
+  const body = {
+    specialist_log_id: parseInt(document.getElementById('fu-create-sp-id').value) || null,
+    company_name:  document.getElementById('fu-create-company').value.trim()      || null,
+    subject,
+    description:   document.getElementById('fu-create-desc').value.trim()         || null,
+    contact_name:  document.getElementById('fu-create-contact-name').value.trim() || null,
+    contact_phone: document.getElementById('fu-create-contact-phone').value.trim()|| null,
+    priority:      document.getElementById('fu-create-priority').value,
+    assigned_to_team: team,
+    assigned_to_user: null,  // simplified — team-level for now
+  };
+  const r = await api('/api/followup', { method:'POST', body, silent:true });
+  if (r?.error) { showToast('❌ '+r.error, 'error'); return; }
+  closeModal('modal-create-followup');
+  showToast('✅ สร้าง Follow Up แล้ว!');
+  loadFollowup();
+}
+
+// ── Detail / Action Modal ─────────────────────────────────
+function openFollowupDetail(row) {
+  const el = document.getElementById('fu-detail-body');
+  const dt = (v) => v ? fmtDt(v) : '—';
+  el.innerHTML = `
+    <div style="display:grid;gap:.45rem">
+      <div style="font-size:1rem;font-weight:700;color:#1e293b">${esc(row.subject)}</div>
+      ${row.company_name?`<div style="color:#64748b;font-size:.82rem">🏢 ${esc(row.company_name)}</div>`:''}
+      ${row.description?`<div style="background:#f8fafc;border-radius:6px;padding:.5rem .7rem;font-size:.82rem;color:#334155;white-space:pre-wrap">${esc(row.description)}</div>`:''}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;font-size:.8rem;margin-top:.3rem">
+        <div>👥 ทีม: <b>${esc(row.assigned_to_team||'—')}</b></div>
+        <div>${FU_PRIORITY_LABEL[row.priority]||row.priority}</div>
+        <div>👤 ผู้ติดต่อ: ${row.contact_name?esc(row.contact_name):'—'}${row.contact_phone?' · '+esc(row.contact_phone):''}</div>
+        <div>📅 สร้าง: ${dt(row.created_at)}</div>
+        ${row.accepted_by_name?`<div>✋ รับงาน: <b>${esc(row.accepted_by_name)}</b> (${dt(row.accepted_at)})</div>`:''}
+        ${row.case_opened_by_name?`<div>📂 เปิดเคส: <b>${esc(row.case_opened_by_name)}</b> (${dt(row.case_opened_at)})</div>`:''}
+        ${row.case_note?`<div style="grid-column:span 2;background:#eff6ff;border-radius:5px;padding:.35rem .6rem;color:#1d4ed8">📝 ${esc(row.case_note)}</div>`:''}
+        ${row.resolved_by_name?`<div>✅ เสร็จสิ้น: <b>${esc(row.resolved_by_name)}</b> (${dt(row.resolved_at)})</div>`:''}
+        ${row.resolution_note?`<div style="grid-column:span 2;background:#f0fdf4;border-radius:5px;padding:.35rem .6rem;color:#166534">📝 ${esc(row.resolution_note)}</div>`:''}
+        ${row.specialist_log_id?`<div>🔗 SP Job #${row.specialist_log_id}</div>`:''}
+      </div>
+    </div>`;
+
+  // Action buttons based on status
+  const caseNoteArea    = document.getElementById('fu-case-note-area');
+  const resolveNoteArea = document.getElementById('fu-resolve-note-area');
+  const actionBtns      = document.getElementById('fu-action-btns');
+  caseNoteArea.style.display    = 'none';
+  resolveNoteArea.style.display = 'none';
+  document.getElementById('fu-case-note-input').value    = '';
+  document.getElementById('fu-resolve-note-input').value = '';
+
+  let btns = '';
+  if (row.status === 'pending') {
+    btns += `<button class="btn btn-primary btn-sm" onclick="fuAction(${row.id},'accepted')">✋ รับงาน</button>`;
+  }
+  if (['pending','accepted'].includes(row.status)) {
+    caseNoteArea.style.display = '';
+    btns += `<button class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="fuAction(${row.id},'case_opened')">📂 เปิดเคส</button>`;
+  }
+  if (['accepted','case_opened'].includes(row.status)) {
+    resolveNoteArea.style.display = '';
+    btns += `<button class="btn btn-sm" style="background:#16a34a;color:#fff" onclick="fuAction(${row.id},'resolved')">✅ เสร็จสิ้น</button>`;
+  }
+  if (!['resolved','cancelled'].includes(row.status)) {
+    btns += `<button class="btn btn-sm btn-ghost" style="color:#ef4444" onclick="fuAction(${row.id},'cancelled')">🚫 ยกเลิก</button>`;
+  }
+  actionBtns.innerHTML = btns || '<span style="color:#94a3b8;font-size:.8rem">ไม่มีการดำเนินการเพิ่มเติม</span>';
+  openModal('modal-followup-detail');
+}
+
+async function fuAction(id, status) {
+  const caseNote    = document.getElementById('fu-case-note-input').value.trim();
+  const resolveNote = document.getElementById('fu-resolve-note-input').value.trim();
+  const body = { status };
+  if (status === 'case_opened' && caseNote) body.case_note = caseNote;
+  if (status === 'resolved' && resolveNote) body.resolution_note = resolveNote;
+  const r = await api(`/api/followup/${id}`, { method:'PUT', body, silent:true });
+  if (r?.error) { showToast('❌ '+r.error, 'error'); return; }
+  const labels = { accepted:'รับงานแล้ว', case_opened:'เปิดเคสแล้ว', resolved:'เสร็จสิ้น', cancelled:'ยกเลิกแล้ว' };
+  showToast(`✅ ${labels[status]||status}`);
+  closeModal('modal-followup-detail');
+  loadFollowup();
+}
+
+async function deleteFollowup(id) {
+  if (!confirm('ลบ Follow Up นี้ออกจากระบบ?')) return;
+  const r = await api(`/api/followup/${id}`, { method:'DELETE', silent:true });
+  if (r?.error) { showToast('❌ '+r.error, 'error'); return; }
+  showToast('🗑 ลบแล้ว');
+  loadFollowup();
 }
 
 // ── Complaint Link ────────────────────────────────────

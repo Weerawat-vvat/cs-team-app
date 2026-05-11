@@ -3878,6 +3878,161 @@ async function ensureSpecialistTable() {
   } catch(e) { console.error('❌ specialist_log error:', e.message); }
 }
 
+// ══════════════════════════════════════════════════════════
+//  ISSUE FOLLOW UP TABLE
+// ══════════════════════════════════════════════════════════
+async function ensureFollowupTable() {
+  try {
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='issue_followup' AND xtype='U')
+      CREATE TABLE issue_followup (
+        id                 INT PRIMARY KEY IDENTITY,
+        specialist_log_id  INT NULL,
+        calllog_id         INT NULL,
+        company_name       NVARCHAR(255),
+        subject            NVARCHAR(500),
+        description        NVARCHAR(MAX),
+        contact_name       NVARCHAR(100),
+        contact_phone      NVARCHAR(50),
+        priority           NVARCHAR(20) DEFAULT 'normal',
+        created_by         INT,
+        assigned_to_team   NVARCHAR(50),
+        assigned_to_user   INT NULL,
+        status             NVARCHAR(50) DEFAULT 'pending',
+        accepted_by        INT NULL,
+        accepted_at        DATETIME NULL,
+        case_opened_by     INT NULL,
+        case_opened_at     DATETIME NULL,
+        case_note          NVARCHAR(MAX) NULL,
+        resolved_by        INT NULL,
+        resolved_at        DATETIME NULL,
+        resolution_note    NVARCHAR(MAX) NULL,
+        created_at         DATETIME DEFAULT GETDATE(),
+        updated_at         DATETIME DEFAULT GETDATE()
+      )`);
+    console.log('✅ issue_followup table ready');
+  } catch(e) { console.error('❌ issue_followup error:', e.message); }
+}
+
+// ── GET /api/followup ──────────────────────────────────────
+app.get('/api/followup', authRequired, async (request, res) => {
+  try {
+    const u    = request.user;
+    const stat = request.query.status || '';
+    const team = request.query.team   || '';
+    let where  = '1=1';
+    const binds = [];
+    if (stat) { where += ` AND fu.status=@stat`; binds.push(['stat', sql.NVarChar, stat]); }
+    if (team) { where += ` AND fu.assigned_to_team=@team`; binds.push(['team', sql.NVarChar, team]); }
+    let r = req();
+    binds.forEach(([k,t,v]) => r = r.input(k, t, v));
+    const rows = (await r.query(`
+      SELECT fu.*,
+             ec.name  AS created_by_name,
+             ea.name  AS accepted_by_name,
+             eo.name  AS case_opened_by_name,
+             er.name  AS resolved_by_name,
+             eu.name  AS assigned_to_user_name
+      FROM issue_followup fu
+      LEFT JOIN app_users  uc ON uc.id = fu.created_by
+      LEFT JOIN employees  ec ON ec.id = uc.employee_id
+      LEFT JOIN app_users  ua ON ua.id = fu.accepted_by
+      LEFT JOIN employees  ea ON ea.id = ua.employee_id
+      LEFT JOIN app_users  uo ON uo.id = fu.case_opened_by
+      LEFT JOIN employees  eo ON eo.id = uo.employee_id
+      LEFT JOIN app_users  ur ON ur.id = fu.resolved_by
+      LEFT JOIN employees  er ON er.id = ur.employee_id
+      LEFT JOIN app_users  uu ON uu.id = fu.assigned_to_user
+      LEFT JOIN employees  eu ON eu.id = uu.employee_id
+      WHERE ${where}
+      ORDER BY fu.created_at DESC`)).recordset;
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /api/followup/badge ────────────────────────────────
+app.get('/api/followup/badge', authRequired, async (request, res) => {
+  try {
+    const r = await req().query(
+      `SELECT COUNT(*) AS cnt FROM issue_followup WHERE status IN ('pending','accepted')`);
+    res.json({ pending: r.recordset[0]?.cnt || 0 });
+  } catch(e) { res.json({ pending: 0 }); }
+});
+
+// ── POST /api/followup ─────────────────────────────────────
+app.post('/api/followup', authRequired, async (request, res) => {
+  try {
+    const b = request.body;
+    if (!b.subject?.trim())           return res.status(400).json({ error: 'กรุณาระบุหัวข้อ' });
+    if (!b.assigned_to_team?.trim())  return res.status(400).json({ error: 'กรุณาเลือกทีมที่รับงาน' });
+    const result = await req()
+      .input('slid', sql.Int,      b.specialist_log_id || null)
+      .input('cid',  sql.Int,      b.calllog_id        || null)
+      .input('cn',   sql.NVarChar, b.company_name      || null)
+      .input('sub',  sql.NVarChar, b.subject.trim())
+      .input('desc', sql.NVarChar, b.description       || null)
+      .input('ctn',  sql.NVarChar, b.contact_name      || null)
+      .input('ctp',  sql.NVarChar, b.contact_phone     || null)
+      .input('pri',  sql.NVarChar, b.priority          || 'normal')
+      .input('cb',   sql.Int,      request.user.id)
+      .input('att',  sql.NVarChar, b.assigned_to_team.trim())
+      .input('atu',  sql.Int,      b.assigned_to_user  || null)
+      .query(`INSERT INTO issue_followup
+        (specialist_log_id,calllog_id,company_name,subject,description,contact_name,contact_phone,
+         priority,created_by,assigned_to_team,assigned_to_user)
+        OUTPUT INSERTED.id
+        VALUES(@slid,@cid,@cn,@sub,@desc,@ctn,@ctp,@pri,@cb,@att,@atu)`);
+    const newId = result.recordset[0].id;
+    const uname = request.user.name || request.user.username;
+    await sendLineNotify(`\n🔁 [Follow Up ใหม่] ${b.company_name||'—'}\n📋 ${b.subject}\nทีมที่รับ: ${b.assigned_to_team}\nสร้างโดย: ${uname}`);
+    res.json({ id: newId });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── PUT /api/followup/:id ──────────────────────────────────
+app.put('/api/followup/:id', authRequired, async (request, res) => {
+  try {
+    const id  = parseInt(request.params.id);
+    const b   = request.body;
+    const uid = request.user.id;
+    const cur = (await req().input('id', sql.Int, id)
+      .query('SELECT * FROM issue_followup WHERE id=@id')).recordset[0];
+    if (!cur) return res.status(404).json({ error: 'not found' });
+
+    const newStatus = b.status ?? cur.status;
+    await req()
+      .input('id',   sql.Int,      id)
+      .input('st',   sql.NVarChar, newStatus)
+      .input('pr',   sql.NVarChar, b.priority         ?? cur.priority)
+      .input('nt',   sql.NVarChar, b.description      ?? cur.description)
+      .input('cn',   sql.NVarChar, b.case_note        ?? cur.case_note)
+      .input('rn',   sql.NVarChar, b.resolution_note  ?? cur.resolution_note)
+      .input('aby',  sql.Int,      newStatus==='accepted'    && !cur.accepted_by    ? uid : cur.accepted_by)
+      .input('coby', sql.Int,      newStatus==='case_opened' && !cur.case_opened_by ? uid : cur.case_opened_by)
+      .input('rby',  sql.Int,      newStatus==='resolved'    && !cur.resolved_by    ? uid : cur.resolved_by)
+      .query(`UPDATE issue_followup SET
+        status=@st, priority=@pr, description=@nt, case_note=@cn, resolution_note=@rn,
+        accepted_by=@aby,
+        accepted_at=CASE WHEN @st='accepted'    AND accepted_at    IS NULL THEN GETDATE() ELSE accepted_at    END,
+        case_opened_by=@coby,
+        case_opened_at=CASE WHEN @st='case_opened' AND case_opened_at IS NULL THEN GETDATE() ELSE case_opened_at END,
+        resolved_by=@rby,
+        resolved_at=CASE WHEN @st='resolved'    AND resolved_at    IS NULL THEN GETDATE() ELSE resolved_at    END,
+        updated_at=GETDATE()
+        WHERE id=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── DELETE /api/followup/:id ───────────────────────────────
+app.delete('/api/followup/:id', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    await req().input('id', sql.Int, id).query('DELETE FROM issue_followup WHERE id=@id');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // Lightweight badge count only
 app.get('/api/specialist/badge', authRequired, async (request, res) => {
   try {
@@ -4148,6 +4303,7 @@ init().then(async () => {
   await ensureRepairTables();
   await ensureSpecialistTable();
   await ensureRequirementsTables();
+  await ensureFollowupTable();
 
   // Drop CHECK constraint on shifts.shift_type so 'dayoff' can be inserted
   try {
