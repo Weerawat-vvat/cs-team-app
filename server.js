@@ -43,6 +43,28 @@ const upload = multer({
   }
 });
 
+// ── Follow Up attachment upload config ───────────────────
+const fuStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(UPLOAD_DIR, 'fu', String(req.params.id || 'tmp'));
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const ext  = path.extname(file.originalname);
+    const base = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9ก-๙_-]/g, '_');
+    cb(null, `${Date.now()}_${base}${ext}`);
+  }
+});
+const fuUpload = multer({
+  storage: fuStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB per file
+  fileFilter: (req, file, cb) => {
+    const allowed = /jpeg|jpg|png|gif|webp|pdf/;
+    cb(null, allowed.test(path.extname(file.originalname).toLowerCase()));
+  }
+});
+
 // ── Notification helpers ──────────────────────────────────
 async function sendLineNotify(message) {
   const token = process.env.LINE_NOTIFY_TOKEN;
@@ -4062,6 +4084,9 @@ async function ensureFollowupV2Tables() {
     await req().query(`IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='fu_categories' AND xtype='U')
       CREATE TABLE fu_categories (id INT PRIMARY KEY IDENTITY, name NVARCHAR(100) NOT NULL UNIQUE)`);
 
+    await req().query(`IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='fu_attachments' AND xtype='U')
+      CREATE TABLE fu_attachments (id INT PRIMARY KEY IDENTITY, issue_id INT NOT NULL, filename NVARCHAR(300) NOT NULL, original_name NVARCHAR(300) NOT NULL, file_size INT, mime_type NVARCHAR(100), created_by INT, created_at DATETIME DEFAULT GETDATE())`);
+
     console.log('✅ Follow Up v2 tables ready');
   } catch(e) { console.error('❌ Follow Up v2 tables error:', e.message); }
 }
@@ -4278,6 +4303,52 @@ app.get('/api/fu/categories', authRequired, async (req_, res) => {
     const rows = (await req().query(`SELECT name FROM fu_categories ORDER BY name`)).recordset;
     res.json(rows.map(r=>r.name));
   } catch(e) { res.json([]); }
+});
+
+// ══ FOLLOW UP v2 — ATTACHMENTS ══
+app.get('/api/fu/issues/:id/attachments', authRequired, async (request, res) => {
+  try {
+    const rows = (await req().input('id',sql.Int,parseInt(request.params.id))
+      .query(`SELECT a.*, e.name AS uploaded_by_name FROM fu_attachments a
+              LEFT JOIN app_users au ON au.id=a.created_by
+              LEFT JOIN employees e ON e.id=au.employee_id
+              WHERE a.issue_id=@id ORDER BY a.created_at`)).recordset;
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/fu/issues/:id/attachments', authRequired, fuUpload.array('files', 10), async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const files = request.files || [];
+    if (!files.length) return res.status(400).json({ error: 'ไม่พบไฟล์' });
+    const inserted = [];
+    for (const f of files) {
+      const r = await req()
+        .input('iid', sql.Int, id)
+        .input('fn',  sql.NVarChar, f.filename)
+        .input('on',  sql.NVarChar, f.originalname)
+        .input('fs',  sql.Int, f.size)
+        .input('mt',  sql.NVarChar, f.mimetype)
+        .input('cb',  sql.Int, request.user.id)
+        .query(`INSERT INTO fu_attachments(issue_id,filename,original_name,file_size,mime_type,created_by) OUTPUT INSERTED.id VALUES(@iid,@fn,@on,@fs,@mt,@cb)`);
+      inserted.push({ id: r.recordset[0].id, filename: f.filename, original_name: f.originalname, file_size: f.size, mime_type: f.mimetype });
+    }
+    res.json({ ok: true, files: inserted });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/fu/attachments/:id', authRequired, async (request, res) => {
+  try {
+    const row = (await req().input('id',sql.Int,parseInt(request.params.id))
+      .query(`SELECT a.*, a.issue_id FROM fu_attachments a WHERE a.id=@id`)).recordset[0];
+    if (!row) return res.status(404).json({ error: 'not found' });
+    // Delete file from disk
+    const filePath = path.join(UPLOAD_DIR, 'fu', String(row.issue_id), row.filename);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    await req().input('id',sql.Int,parseInt(request.params.id)).query(`DELETE FROM fu_attachments WHERE id=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.get('/api/fu/badge', authRequired, async (request, res) => {
