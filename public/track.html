@@ -1151,48 +1151,72 @@ function renderIssueCards(){
   const el = document.getElementById('iss-list');
   if(!el) return;
   if(!filtered.length){ el.innerHTML='<div class="empty">ไม่พบงานติดตาม Issue</div>'; return; }
-  el.innerHTML = filtered.map((s,i)=>{
-    const due = s.due_date ? new Date(s.due_date) : null;
-    const today = new Date(); today.setHours(0,0,0,0);
-    const overdue = due && due < today && !['resolved','cancelled'].includes(s.status);
-    return `<div class="card" style="margin-bottom:.65rem;padding:0;overflow:hidden;border-left:3px solid ${FU_PRI_MAP[s.priority]?.col||'#e2e8f0'}">
-      <div onclick="toggleIssueDetail('isd-${i}')"
-           style="padding:.8rem 1rem;cursor:pointer;display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;flex-wrap:wrap">
-        <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;margin-bottom:.3rem">
-            ${s.category?`<span style="background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;border-radius:4px;font-size:.68rem;font-weight:700;padding:.1rem .4rem">${esc(s.category)}</span>`:''}
-            ${fuPriBadge(s.priority)}
+
+  // Group by folder_name
+  const groups = {};
+  const folderOrder = [];
+  filtered.forEach(s => {
+    const key = s.folder_name || '—';
+    if(!groups[key]){ groups[key] = []; folderOrder.push(key); }
+    groups[key].push(s);
+  });
+  const multiFolder = folderOrder.length > 1;
+
+  el.innerHTML = folderOrder.map(folder => {
+    const items = groups[folder];
+    const cardsHtml = items.map(s => {
+      const due = s.due_date ? new Date(s.due_date) : null;
+      const todayD = new Date(); todayD.setHours(0,0,0,0);
+      const overdue = due && due < todayD && !['resolved','cancelled'].includes(s.status);
+      return `<div class="card" style="margin-bottom:.55rem;padding:0;overflow:hidden;border-left:3px solid ${FU_PRI_MAP[s.priority]?.col||'#e2e8f0'}">
+        <div onclick="toggleIssueDetail('isd-${s.id}')"
+             style="padding:.75rem 1rem;cursor:pointer;display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;flex-wrap:wrap">
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-bottom:.25rem">
+              <span style="font-size:.68rem;font-weight:700;color:#94a3b8;background:#f1f5f9;border-radius:4px;padding:.1rem .35rem">#${s.id}</span>
+              ${s.category?`<span style="background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;border-radius:4px;font-size:.68rem;font-weight:700;padding:.1rem .4rem">${esc(s.category)}</span>`:''}
+              ${fuPriBadge(s.priority)}
+            </div>
+            <div style="font-size:.88rem;font-weight:700;color:#1e293b;margin-bottom:.28rem;line-height:1.4">${esc(s.detail||'—')}</div>
+            <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">
+              ${fuStatusBadge(s.status)}
+              <span style="font-size:.7rem;color:#94a3b8">🗂 ${esc(s.board_name||'')}</span>
+            </div>
           </div>
-          <div style="font-size:.88rem;font-weight:700;color:#1e293b;margin-bottom:.3rem;line-height:1.4">${esc(s.detail||'—')}</div>
-          <div style="display:flex;align-items:center;gap:.45rem;flex-wrap:wrap">
-            ${fuStatusBadge(s.status)}
-            <span style="font-size:.72rem;color:#94a3b8">📁 ${esc(s.folder_name||'')} / ${esc(s.board_name||'')}</span>
+          <div style="text-align:right;flex-shrink:0">
+            ${due?`<div style="font-size:.7rem;font-weight:${overdue?'700':'400'};color:${overdue?'#ef4444':'#94a3b8'};white-space:nowrap">${overdue?'🔴 ':'📅 '}${due.toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'})}</div>`:''}
+            ${s.assigned_to_name?`<div style="font-size:.7rem;color:#64748b;margin-top:.12rem">👤 ${esc(s.assigned_to_name)}</div>`:''}
+            <span id="isd-arr-${s.id}" style="font-size:.68rem;color:#cbd5e1">▼</span>
           </div>
         </div>
-        <div style="text-align:right;flex-shrink:0">
-          ${due?`<div style="font-size:.72rem;font-weight:${overdue?'700':'400'};color:${overdue?'#ef4444':'#94a3b8'};white-space:nowrap">${overdue?'🔴 ':'📅 '}${due.toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'})}</div>`:''}
-          ${s.assigned_to_name?`<div style="font-size:.72rem;color:#64748b;margin-top:.15rem">👤 ${esc(s.assigned_to_name)}</div>`:''}
-          <span id="isd-arr-${i}" style="font-size:.7rem;color:#94a3b8">▼</span>
+        <div id="isd-${s.id}" style="display:none;border-top:1px solid #f1f5f9;padding:.65rem 1rem .8rem;background:#fafbff">
+          ${s.note?`
+            <div style="font-size:.7rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.28rem">รายละเอียดปัญหา</div>
+            <div style="font-size:.82rem;color:#1e293b;white-space:pre-wrap;word-break:break-word;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:.5rem .7rem;margin-bottom:.4rem">${esc(s.note)}</div>`:''}
+          <div style="display:flex;flex-wrap:wrap;gap:.65rem;font-size:.72rem;color:#94a3b8">
+            ${s.created_at?`<span>📅 สร้างเมื่อ: ${fmtDate(s.created_at)}</span>`:''}
+            ${s.updated_at?`<span>🔄 อัปเดต: ${fmtDate(s.updated_at)}</span>`:''}
+          </div>
         </div>
-      </div>
-      <div id="isd-${i}" style="display:none;border-top:1px solid #f1f5f9;padding:.7rem 1rem .85rem;background:#fafbff">
-        ${s.note?`
-          <div style="font-size:.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.3rem">รายละเอียดปัญหา</div>
-          <div style="font-size:.82rem;color:#1e293b;white-space:pre-wrap;word-break:break-word;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:.55rem .75rem;margin-bottom:.45rem">${esc(s.note)}</div>`:''}
-        <div style="display:flex;flex-wrap:wrap;gap:.75rem;font-size:.75rem;color:#94a3b8">
-          <span>🆔 Issue #${s.id}</span>
-          ${s.created_at?`<span>📅 สร้างเมื่อ: ${fmtDate(s.created_at)}</span>`:''}
-          ${s.updated_at?`<span>🔄 อัปเดต: ${fmtDate(s.updated_at)}</span>`:''}
+      </div>`;
+    }).join('');
+
+    if(multiFolder){
+      return `<div style="margin-bottom:1.1rem">
+        <div style="display:flex;align-items:center;gap:.4rem;font-size:.78rem;font-weight:700;color:#475569;background:#f1f5f9;border-radius:8px;padding:.38rem .7rem;margin-bottom:.45rem">
+          📁 ${esc(folder)}
+          <span style="background:#e2e8f0;color:#64748b;border-radius:20px;padding:.03rem .45rem;font-size:.7rem;font-weight:700">${items.length}</span>
         </div>
-      </div>
-    </div>`;
+        ${cardsHtml}
+      </div>`;
+    }
+    return cardsHtml;
   }).join('');
 }
 
 function toggleIssueDetail(id){
-  const el = document.getElementById(id);
-  const idx = id.replace('isd-','');
-  const arr = document.getElementById('isd-arr-'+idx);
+  const el  = document.getElementById('isd-'+id);
+  const arr = document.getElementById('isd-arr-'+id);
   if(!el) return;
   const open = el.style.display==='none';
   el.style.display = open?'':'none';
