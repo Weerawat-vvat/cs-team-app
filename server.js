@@ -4152,8 +4152,8 @@ app.put('/api/fu/folders/:id', authRequired, async (request, res) => {
     const b = request.body;
     let r = req().input('id',sql.Int,parseInt(request.params.id));
     const updates = [];
-    if (b.name  !== undefined) { r=r.input('n',sql.NVarChar,b.name);              updates.push('name=@n'); }
-    if (b.color !== undefined) { r=r.input('c',sql.NVarChar,b.color||null);        updates.push('color=ISNULL(@c,color)'); }
+    if (b.name  != null) { r=r.input('n',sql.NVarChar,b.name);        updates.push('name=@n'); }
+    if (b.color != null) { r=r.input('c',sql.NVarChar,b.color||null); updates.push('color=ISNULL(@c,color)'); }
     if (b.hasOwnProperty('group_id')) {
       r=r.input('gid',sql.Int,b.group_id||null).input('gn',sql.NVarChar,b.group_name||null);
       updates.push('group_id=@gid','group_name=@gn');
