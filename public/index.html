@@ -7334,37 +7334,62 @@ function fuDateLabel(dateStr) {
   return d.toLocaleDateString('th-TH', { day:'numeric', month:'short', year:'2-digit' });
 }
 
-function fuRenderTimeline(timeline) {
-  if (!timeline.length) return '<div style="color:#94a3b8;font-size:.78rem;text-align:center;padding:.75rem">ยังไม่มี activity</div>';
+function fuRenderComments(timeline) {
+  const list = timeline.filter(t => t.type === 'comment');
+  if (!list.length) return '<div style="color:#94a3b8;font-size:.78rem;text-align:center;padding:.75rem">ยังไม่มี comment</div>';
   let lastDateLabel = '', html = '';
-  timeline.forEach(t => {
+  list.forEach(t => {
     const dateLabel = fuDateLabel(t.created_at);
     if (dateLabel !== lastDateLabel) {
       html += `<div style="text-align:center;margin:.3rem 0"><span style="font-size:.68rem;color:#94a3b8;background:#f1f5f9;border-radius:20px;padding:.1rem .6rem">${dateLabel}</span></div>`;
       lastDateLabel = dateLabel;
     }
-    if (t.type === 'activity') {
-      const arrow = (t.old_val || t.new_val) ? `${fuActivityBadge(t.content, t.old_val)} → ${fuActivityBadge(t.content, t.new_val)}` : '';
-      html += `<div style="display:flex;align-items:flex-start;gap:.4rem;padding:.2rem 0">
-        <div style="width:22px;height:22px;background:#f1f5f9;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.6rem;flex-shrink:0;margin-top:.1rem">🔧</div>
-        <div style="font-size:.74rem;color:#64748b;flex:1;line-height:1.5">
-          <b style="color:#334155">${esc(t.user_name||'ระบบ')}</b> ${esc(t.content)}
-          ${arrow ? `<div style="margin-top:.15rem">${arrow}</div>` : ''}
-          <span style="color:#cbd5e1;font-size:.66rem;margin-left:.3rem">${new Date(t.created_at).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}</span>
-        </div>
-      </div>`;
-    } else {
-      const highlighted = (t.content||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/@([^\s@]+)/g,'<span style="background:#dbeafe;color:#1d4ed8;border-radius:4px;padding:.05rem .25rem;font-weight:700">@$1</span>');
-      html += `<div style="display:flex;align-items:flex-start;gap:.4rem;padding:.2rem 0">
-        <div style="width:22px;height:22px;background:#1d4ed8;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.65rem;flex-shrink:0;color:#fff;font-weight:700;margin-top:.1rem">${(t.user_name||'?')[0].toUpperCase()}</div>
-        <div style="flex:1">
-          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.4rem .65rem;font-size:.8rem;color:#334155;line-height:1.55">${highlighted}</div>
-          <div style="font-size:.68rem;color:#94a3b8;margin-top:.15rem">${esc(t.user_name||'—')} · ${new Date(t.created_at).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}</div>
-        </div>
-      </div>`;
-    }
+    const highlighted = (t.content||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/@([^\s@]+)/g,'<span style="background:#dbeafe;color:#1d4ed8;border-radius:4px;padding:.05rem .25rem;font-weight:700">@$1</span>');
+    html += `<div style="display:flex;align-items:flex-start;gap:.4rem;padding:.2rem 0">
+      <div style="width:22px;height:22px;background:#1d4ed8;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.65rem;flex-shrink:0;color:#fff;font-weight:700;margin-top:.1rem">${(t.user_name||'?')[0].toUpperCase()}</div>
+      <div style="flex:1">
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.4rem .65rem;font-size:.8rem;color:#334155;line-height:1.55">${highlighted}</div>
+        <div style="font-size:.68rem;color:#94a3b8;margin-top:.15rem">${esc(t.user_name||'—')} · ${new Date(t.created_at).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}</div>
+      </div>
+    </div>`;
   });
   return html;
+}
+
+function fuRenderActivity(timeline) {
+  const list = timeline.filter(t => t.type === 'activity');
+  if (!list.length) return '<div style="color:#94a3b8;font-size:.78rem;text-align:center;padding:.5rem">ยังไม่มี activity</div>';
+  let lastDateLabel = '', html = '';
+  list.forEach(t => {
+    const dateLabel = fuDateLabel(t.created_at);
+    if (dateLabel !== lastDateLabel) {
+      html += `<div style="text-align:center;margin:.3rem 0"><span style="font-size:.68rem;color:#94a3b8;background:#f1f5f9;border-radius:20px;padding:.1rem .6rem">${dateLabel}</span></div>`;
+      lastDateLabel = dateLabel;
+    }
+    const arrow = (t.old_val || t.new_val) ? `${fuActivityBadge(t.content, t.old_val)} → ${fuActivityBadge(t.content, t.new_val)}` : '';
+    html += `<div style="display:flex;align-items:flex-start;gap:.4rem;padding:.2rem 0">
+      <div style="width:22px;height:22px;background:#f1f5f9;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.6rem;flex-shrink:0;margin-top:.1rem">🔧</div>
+      <div style="font-size:.74rem;color:#64748b;flex:1;line-height:1.5">
+        <b style="color:#334155">${esc(t.user_name||'ระบบ')}</b> ${esc(t.content)}
+        ${arrow ? `<div style="margin-top:.15rem">${arrow}</div>` : ''}
+        <span style="color:#cbd5e1;font-size:.66rem;margin-left:.3rem">${new Date(t.created_at).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}</span>
+      </div>
+    </div>`;
+  });
+  return html;
+}
+
+function fuToggleActivity() {
+  const wrap = document.getElementById('fu-activity-wrap');
+  const btn  = document.getElementById('fu-act-toggle-btn');
+  if (!wrap) return;
+  const show = wrap.style.display === 'none';
+  wrap.style.display = show ? '' : 'none';
+  if (btn) {
+    btn.style.background = show ? '#dbeafe' : '#f1f5f9';
+    btn.style.color = show ? '#1d4ed8' : '#64748b';
+    btn.textContent = show ? '🔧 ซ่อน Activity' : '🔧 Activity';
+  }
 }
 
 async function fuRenderPanel() {
@@ -7431,10 +7456,18 @@ async function fuRenderPanel() {
         onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0';fuPanelSave(${id},'note',this.value||null)"
         placeholder="บันทึกแนวทาง...">${esc(issue.note||'')}</textarea>
     </div>
-    <!-- Timeline -->
+    <!-- Comments -->
     <div style="border-top:1px solid #f1f5f9;padding-top:.65rem">
-      <div style="font-size:.72rem;font-weight:700;color:#94a3b8;margin-bottom:.35rem">💬 Activity & Comments</div>
-      <div id="fu-timeline-wrap">${fuRenderTimeline(timeline)}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.35rem">
+        <div style="font-size:.72rem;font-weight:700;color:#94a3b8">💬 Comments</div>
+        <button id="fu-act-toggle-btn" onclick="fuToggleActivity()"
+          style="font-size:.7rem;color:#64748b;background:#f1f5f9;border:none;border-radius:6px;padding:.18rem .5rem;cursor:pointer;font-weight:600;transition:all .15s">🔧 Activity</button>
+      </div>
+      <div id="fu-comments-wrap">${fuRenderComments(timeline)}</div>
+      <!-- Activity (hidden by default) -->
+      <div id="fu-activity-wrap" style="display:none;border-top:1px dashed #e2e8f0;margin-top:.5rem;padding-top:.5rem">
+        <div id="fu-activity-inner">${fuRenderActivity(timeline)}</div>
+      </div>
     </div>`;
 }
 
@@ -7474,10 +7507,12 @@ async function fuPostComment() {
   const r = await api(`/api/fu/issues/${_fuPanelId}/comments`, { method:'POST', body:{ body }, silent:true });
   if (r?.error) { showToast('❌ '+r.error,'error'); return; }
   inp.value = '';
-  // Refresh timeline only (don't reload all issues)
+  // Refresh comments & activity (don't reload all issues)
   const timeline = await api(`/api/fu/issues/${_fuPanelId}/timeline`) || [];
-  const tw = document.getElementById('fu-timeline-wrap');
-  if (tw) tw.innerHTML = fuRenderTimeline(timeline);
+  const cw = document.getElementById('fu-comments-wrap');
+  if (cw) cw.innerHTML = fuRenderComments(timeline);
+  const ai = document.getElementById('fu-activity-inner');
+  if (ai) ai.innerHTML = fuRenderActivity(timeline);
   // Update comment count in local cache
   const issue = _fuIssues.find(i=>i.id===_fuPanelId);
   if (issue) { issue.comment_count = (issue.comment_count||0)+1; fuRender(); }
