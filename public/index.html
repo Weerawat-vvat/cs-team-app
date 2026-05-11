@@ -1379,6 +1379,14 @@ textarea{resize:vertical;min-height:80px}
             <button id="fu-view-table" onclick="fuSetView('table')" style="padding:.3rem .65rem;font-size:.78rem;border:none;cursor:pointer;background:#1d4ed8;color:#fff;font-weight:700">📋 Table</button>
             <button id="fu-view-board" onclick="fuSetView('board')" style="padding:.3rem .65rem;font-size:.78rem;border:none;cursor:pointer;background:transparent;color:#64748b">🟦 Board</button>
           </div>
+          <!-- Group by (table only) -->
+          <select id="fu-groupby" onchange="_fuGroupBy=this.value;fuRender()" style="font-size:.75rem;padding:.3rem .5rem;border:1px solid #cbd5e1;border-radius:6px;background:#fff">
+            <option value="">จัดกลุ่ม: ไม่มี</option>
+            <option value="status">จัดกลุ่มตาม สถานะ</option>
+            <option value="category">จัดกลุ่มตาม Category</option>
+            <option value="assigned_to_name">จัดกลุ่มตาม ผู้รับผิดชอบ</option>
+            <option value="priority">จัดกลุ่มตาม ความสำคัญ</option>
+          </select>
           <!-- Status filter (table only) -->
           <select id="fu-status-filter" onchange="fuRender()" style="font-size:.75rem;padding:.3rem .5rem;border:1px solid #cbd5e1;border-radius:6px;background:#fff">
             <option value="">ทุกสถานะ</option>
@@ -6755,6 +6763,7 @@ let _fuView       = 'table'; // 'table' | 'board'
 let _fuDragId     = null;
 let _fuCategories = [];
 let _fuExpanded   = new Set();
+let _fuGroupBy    = ''; // '' | 'category' | 'assigned_to_name' | 'priority' | 'status'
 
 // ── Sidebar ──────────────────────────────────────────────
 async function fuLoadSidebar() {
@@ -6875,6 +6884,7 @@ function fuSetView(v) {
   if (tb) { tb.style.background = v==='table' ? '#1d4ed8' : 'transparent'; tb.style.color = v==='table' ? '#fff' : '#64748b'; }
   if (bb) { bb.style.background = v==='board' ? '#1d4ed8' : 'transparent'; bb.style.color = v==='board' ? '#fff' : '#64748b'; }
   if (sf) sf.style.display = v==='table' ? '' : 'none';
+  const gb = document.getElementById('fu-groupby'); if (gb) gb.style.display = v==='table' ? '' : 'none';
   // Board view is full-width — close panel
   if (v==='board') { fuClosePanel(); document.getElementById('fu-content-area').style.padding = '0'; }
   else { document.getElementById('fu-content-area').style.padding = '.75rem 1rem'; }
@@ -6893,6 +6903,59 @@ async function fuLoadIssues() {
   fuRender();
 }
 
+function fuIssueRow(issue, today) {
+  const st  = FU_STATUS[issue.status]  || FU_STATUS.pending;
+  const pri = FU_PRIORITY[issue.priority] || FU_PRIORITY.normal;
+  const due = issue.due_date ? new Date(issue.due_date) : null;
+  const overdue = due && due < today && !['resolved','cancelled'].includes(issue.status);
+  return `<tr data-id="${issue.id}" style="border-bottom:1px solid #f1f5f9;cursor:pointer${_fuPanelId===issue.id?';background:#eff6ff':''}"
+    onmouseover="if(${_fuPanelId}!==${issue.id})this.style.background='#f8fafc'" onmouseout="if(${_fuPanelId}!==${issue.id})this.style.background=''">
+    <td style="padding:.45rem .6rem;color:#94a3b8;font-size:.72rem;vertical-align:top" onclick="fuOpenPanel(${issue.id})">${issue.id}</td>
+    <td style="padding:.45rem .4rem;vertical-align:top" onclick="fuInlineEdit(event,${issue.id},'branch')" title="คลิกเพื่อแก้ไข">
+      <span class="fu-cell" data-id="${issue.id}" data-field="branch">${issue.branch ? esc(issue.branch) : '<span style="color:#cbd5e1">--</span>'}</span>
+    </td>
+    <td style="padding:.45rem .4rem;vertical-align:top;max-width:250px" onclick="fuInlineEdit(event,${issue.id},'detail')" title="คลิกเพื่อแก้ไข">
+      <span class="fu-cell" data-id="${issue.id}" data-field="detail" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.45">${issue.detail ? esc(issue.detail) : '<span style="color:#cbd5e1">คลิกเพื่อเพิ่มรายละเอียด...</span>'}</span>
+    </td>
+    <td style="padding:.45rem .4rem;vertical-align:top" onclick="fuInlineEdit(event,${issue.id},'category')" title="คลิกเพื่อแก้ไข">
+      ${issue.category ? `<span style="background:#f0f9ff;color:#0369a1;border-radius:5px;padding:.1rem .4rem;font-size:.72rem;white-space:nowrap">${esc(issue.category)}</span>` : '<span style="color:#cbd5e1">--</span>'}
+    </td>
+    <td style="padding:.45rem .4rem;vertical-align:top" onclick="fuInlineEditSelect(event,${issue.id},'priority')" title="คลิกเพื่อแก้ไข">
+      <span style="color:${pri.color};font-size:.75rem;cursor:pointer">${pri.label}</span>
+    </td>
+    <td style="padding:.45rem .4rem;vertical-align:top" onclick="fuInlineEditSelect(event,${issue.id},'assigned_to')" title="คลิกเพื่อแก้ไข">
+      ${issue.assigned_to_name ? `<span style="font-size:.78rem">👤 ${esc(issue.assigned_to_name)}</span>` : '<span style="color:#cbd5e1;font-size:.75rem">ไม่ระบุ</span>'}
+    </td>
+    <td style="padding:.45rem .4rem;vertical-align:top" onclick="fuInlineEditSelect(event,${issue.id},'status')" title="คลิกเพื่อแก้ไข">
+      <span style="background:${st.bg};color:${st.color};border-radius:20px;padding:.15rem .55rem;font-size:.72rem;font-weight:700;white-space:nowrap;cursor:pointer">${st.label}</span>
+    </td>
+    <td style="padding:.45rem .4rem;vertical-align:top" onclick="fuInlineEdit(event,${issue.id},'due_date')" title="คลิกเพื่อแก้ไข">
+      ${due ? `<span style="font-size:.75rem;color:${overdue?'#ef4444':'#475569'};font-weight:${overdue?'700':'400'}">${overdue?'🔴 ':''}${due.toLocaleDateString('th-TH',{day:'2-digit',month:'short'})}</span>`
+            : '<span style="color:#cbd5e1;font-size:.75rem">--</span>'}
+    </td>
+    <td style="padding:.45rem .4rem;vertical-align:top;max-width:200px" onclick="fuInlineEdit(event,${issue.id},'note')" title="คลิกเพื่อแก้ไข">
+      <span class="fu-cell" data-id="${issue.id}" data-field="note" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.45;color:#475569">${issue.note ? esc(issue.note) : '<span style="color:#cbd5e1">--</span>'}</span>
+    </td>
+    <td style="padding:.45rem .3rem;vertical-align:top;text-align:center">
+      ${issue.comment_count>0 ? `<span onclick="fuOpenPanel(${issue.id})" style="cursor:pointer;font-size:.72rem;color:#64748b">💬${issue.comment_count}</span>` : ''}
+      <span onclick="if(confirm('ลบ Issue นี้?'))fuDeleteIssue(${issue.id})" style="cursor:pointer;font-size:.75rem;color:#cbd5e1;margin-left:.2rem" title="ลบ">🗑</span>
+    </td>
+  </tr>`;
+}
+
+function fuGroupLabel(field, val) {
+  if (!val) return '— ไม่ระบุ —';
+  if (field === 'status')   return FU_STATUS[val]?.label   || val;
+  if (field === 'priority') return FU_PRIORITY[val]?.label || val;
+  return val;
+}
+function fuGroupColor(field, val) {
+  if (!val) return '#94a3b8';
+  if (field === 'status')   return FU_STATUS[val]?.color   || '#64748b';
+  if (field === 'priority') return FU_PRIORITY[val]?.color || '#64748b';
+  return '#1d4ed8';
+}
+
 function fuRenderTable() {
   const filter = document.getElementById('fu-status-filter')?.value || '';
   let list = filter ? _fuIssues.filter(i => i.status === filter) : _fuIssues;
@@ -6909,69 +6972,42 @@ function fuRenderTable() {
   }
 
   const today = new Date(); today.setHours(0,0,0,0);
-  wrap.innerHTML = `
-    <table style="width:100%;border-collapse:collapse;font-size:.8rem;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06)">
-      <thead>
-        <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0">
-          <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;width:28px">#</th>
-          <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;min-width:80px">สาขา</th>
-          <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;min-width:200px">รายละเอียดปัญหา</th>
-          <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;min-width:100px">Category</th>
-          <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;width:90px">ความสำคัญ</th>
-          <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;min-width:110px">ผู้รับผิดชอบ</th>
-          <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;width:120px">สถานะ</th>
-          <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;width:90px">Due Date</th>
-          <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;min-width:160px">แนวทางการตรวจสอบ</th>
-          <th style="padding:.5rem .6rem;width:40px"></th>
-        </tr>
-      </thead>
-      <tbody>
-        ${list.map((issue,idx) => {
-          const st  = FU_STATUS[issue.status]  || FU_STATUS.pending;
-          const pri = FU_PRIORITY[issue.priority] || FU_PRIORITY.normal;
-          const due = issue.due_date ? new Date(issue.due_date) : null;
-          const overdue = due && due < today && !['resolved','cancelled'].includes(issue.status);
-          return `<tr data-id="${issue.id}" style="border-bottom:1px solid #f1f5f9;cursor:pointer${_fuPanelId===issue.id?';background:#eff6ff':''}"
-            onmouseover="if(${_fuPanelId}!==${issue.id})this.style.background='#f8fafc'" onmouseout="if(${_fuPanelId}!==${issue.id})this.style.background=''">
-            <td style="padding:.45rem .6rem;color:#94a3b8;font-size:.72rem;vertical-align:top" onclick="fuOpenPanel(${issue.id})">${issue.id}</td>
-            <td style="padding:.45rem .4rem;vertical-align:top" onclick="fuInlineEdit(event,${issue.id},'branch')" title="คลิกเพื่อแก้ไข">
-              <span class="fu-cell" data-id="${issue.id}" data-field="branch">${issue.branch ? esc(issue.branch) : '<span style="color:#cbd5e1">--</span>'}</span>
-            </td>
-            <td style="padding:.45rem .4rem;vertical-align:top;max-width:250px" onclick="fuInlineEdit(event,${issue.id},'detail')" title="คลิกเพื่อแก้ไข">
-              <span class="fu-cell" data-id="${issue.id}" data-field="detail" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.45">${issue.detail ? esc(issue.detail) : '<span style="color:#cbd5e1">คลิกเพื่อเพิ่มรายละเอียด...</span>'}</span>
-            </td>
-            <td style="padding:.45rem .4rem;vertical-align:top" onclick="fuInlineEdit(event,${issue.id},'category')" title="คลิกเพื่อแก้ไข">
-              ${issue.category ? `<span style="background:#f0f9ff;color:#0369a1;border-radius:5px;padding:.1rem .4rem;font-size:.72rem;white-space:nowrap">${esc(issue.category)}</span>` : '<span style="color:#cbd5e1">--</span>'}
-            </td>
-            <td style="padding:.45rem .4rem;vertical-align:top" onclick="fuInlineEditSelect(event,${issue.id},'priority')" title="คลิกเพื่อแก้ไข">
-              <span style="color:${pri.color};font-size:.75rem;cursor:pointer">${pri.label}</span>
-            </td>
-            <td style="padding:.45rem .4rem;vertical-align:top" onclick="fuInlineEditSelect(event,${issue.id},'assigned_to')" title="คลิกเพื่อแก้ไข">
-              ${issue.assigned_to_name ? `<span style="font-size:.78rem">👤 ${esc(issue.assigned_to_name)}</span>` : '<span style="color:#cbd5e1;font-size:.75rem">ไม่ระบุ</span>'}
-            </td>
-            <td style="padding:.45rem .4rem;vertical-align:top" onclick="fuInlineEditSelect(event,${issue.id},'status')" title="คลิกเพื่อแก้ไข">
-              <span style="background:${st.bg};color:${st.color};border-radius:20px;padding:.15rem .55rem;font-size:.72rem;font-weight:700;white-space:nowrap;cursor:pointer">${st.label}</span>
-            </td>
-            <td style="padding:.45rem .4rem;vertical-align:top" onclick="fuInlineEdit(event,${issue.id},'due_date')" title="คลิกเพื่อแก้ไข">
-              ${due ? `<span style="font-size:.75rem;color:${overdue?'#ef4444':'#475569'};font-weight:${overdue?'700':'400'}">${overdue?'🔴 ':''}${due.toLocaleDateString('th-TH',{day:'2-digit',month:'short'})}</span>`
-                    : '<span style="color:#cbd5e1;font-size:.75rem">--</span>'}
-            </td>
-            <td style="padding:.45rem .4rem;vertical-align:top;max-width:200px" onclick="fuInlineEdit(event,${issue.id},'note')" title="คลิกเพื่อแก้ไข">
-              <span class="fu-cell" data-id="${issue.id}" data-field="note" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.45;color:#475569">${issue.note ? esc(issue.note) : '<span style="color:#cbd5e1">--</span>'}</span>
-            </td>
-            <td style="padding:.45rem .3rem;vertical-align:top;text-align:center">
-              ${issue.comment_count>0 ? `<span onclick="fuOpenPanel(${issue.id})" style="cursor:pointer;font-size:.72rem;color:#64748b">💬${issue.comment_count}</span>` : ''}
-              <span onclick="if(confirm('ลบ Issue นี้?'))fuDeleteIssue(${issue.id})" style="cursor:pointer;font-size:.75rem;color:#cbd5e1;margin-left:.2rem" title="ลบ">🗑</span>
-            </td>
-          </tr>`;
-        }).join('')}
-        <tr>
-          <td colspan="10" style="padding:.4rem .6rem">
-            <button onclick="fuAddIssue()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:.78rem;padding:.2rem .4rem;border-radius:5px" onmouseover="this.style.color='#1d4ed8'" onmouseout="this.style.color='#94a3b8'">+ เพิ่ม Issue</button>
-          </td>
-        </tr>
-      </tbody>
-    </table>`;
+  const thead = `<thead><tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0">
+    <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;width:28px">#</th>
+    <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;min-width:80px">สาขา</th>
+    <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;min-width:200px">รายละเอียดปัญหา</th>
+    <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;min-width:100px">Category</th>
+    <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;width:90px">ความสำคัญ</th>
+    <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;min-width:110px">ผู้รับผิดชอบ</th>
+    <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;width:120px">สถานะ</th>
+    <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;width:90px">Due Date</th>
+    <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;min-width:160px">แนวทางการตรวจสอบ</th>
+    <th style="padding:.5rem .6rem;width:40px"></th>
+  </tr></thead>`;
+  const addBtn = `<tr><td colspan="10" style="padding:.4rem .6rem"><button onclick="fuAddIssue()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:.78rem;padding:.2rem .4rem;border-radius:5px" onmouseover="this.style.color='#1d4ed8'" onmouseout="this.style.color='#94a3b8'">+ เพิ่ม Issue</button></td></tr>`;
+
+  let bodyHTML = '';
+  if (_fuGroupBy) {
+    // Group rows
+    const groups = {};
+    list.forEach(i => {
+      const key = i[_fuGroupBy] || '';
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(i);
+    });
+    Object.entries(groups).sort(([a],[b])=>String(a).localeCompare(String(b),'th')).forEach(([key, items]) => {
+      const color = fuGroupColor(_fuGroupBy, key);
+      bodyHTML += `<tr><td colspan="10" style="padding:.4rem .75rem;background:#f8fafc;border-top:2px solid ${color}33;border-bottom:1px solid #e2e8f0">
+        <span style="font-size:.75rem;font-weight:700;color:${color}">${fuGroupLabel(_fuGroupBy, key)}</span>
+        <span style="font-size:.68rem;color:#94a3b8;margin-left:.4rem">(${items.length})</span>
+      </td></tr>`;
+      items.forEach(i => { bodyHTML += fuIssueRow(i, today); });
+    });
+  } else {
+    list.forEach(i => { bodyHTML += fuIssueRow(i, today); });
+  }
+
+  wrap.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:.8rem;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06)">${thead}<tbody>${bodyHTML}${addBtn}</tbody></table>`;
 }
 
 // ── Kanban Board View ─────────────────────────────────────
@@ -7232,40 +7268,90 @@ function fuClosePanel() {
   fuRenderTable();
 }
 
+// ── Activity log helpers ──────────────────────────────────
+function fuActivityBadge(field, val) {
+  if (!val) return `<span style="color:#94a3b8">ไม่ระบุ</span>`;
+  if (field === 'เปลี่ยนสถานะ') {
+    const s = FU_STATUS[val]; return s ? `<span style="background:${s.bg};color:${s.color};border-radius:20px;padding:.05rem .45rem;font-size:.7rem;font-weight:700">${s.label}</span>` : esc(val);
+  }
+  if (field === 'เปลี่ยนความสำคัญ') {
+    const p = FU_PRIORITY[val]; return p ? `<span style="color:${p.color};font-weight:700">${p.label}</span>` : esc(val);
+  }
+  return `<span style="background:#f1f5f9;border-radius:4px;padding:.05rem .35rem;font-size:.72rem">${esc(val)}</span>`;
+}
+
+function fuDateLabel(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr), now = new Date();
+  const diff = Math.floor((now - d) / 86400000);
+  if (diff === 0) return 'วันนี้';
+  if (diff === 1) return 'เมื่อวาน';
+  if (diff < 7)  return `${diff} วันที่แล้ว`;
+  return d.toLocaleDateString('th-TH', { day:'numeric', month:'short', year:'2-digit' });
+}
+
+function fuRenderTimeline(timeline) {
+  if (!timeline.length) return '<div style="color:#94a3b8;font-size:.78rem;text-align:center;padding:.75rem">ยังไม่มี activity</div>';
+  let lastDateLabel = '', html = '';
+  timeline.forEach(t => {
+    const dateLabel = fuDateLabel(t.created_at);
+    if (dateLabel !== lastDateLabel) {
+      html += `<div style="text-align:center;margin:.3rem 0"><span style="font-size:.68rem;color:#94a3b8;background:#f1f5f9;border-radius:20px;padding:.1rem .6rem">${dateLabel}</span></div>`;
+      lastDateLabel = dateLabel;
+    }
+    if (t.type === 'activity') {
+      const arrow = (t.old_val || t.new_val) ? `${fuActivityBadge(t.content, t.old_val)} → ${fuActivityBadge(t.content, t.new_val)}` : '';
+      html += `<div style="display:flex;align-items:flex-start;gap:.4rem;padding:.2rem 0">
+        <div style="width:22px;height:22px;background:#f1f5f9;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.6rem;flex-shrink:0;margin-top:.1rem">🔧</div>
+        <div style="font-size:.74rem;color:#64748b;flex:1;line-height:1.5">
+          <b style="color:#334155">${esc(t.user_name||'ระบบ')}</b> ${esc(t.content)}
+          ${arrow ? `<div style="margin-top:.15rem">${arrow}</div>` : ''}
+          <span style="color:#cbd5e1;font-size:.66rem;margin-left:.3rem">${new Date(t.created_at).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}</span>
+        </div>
+      </div>`;
+    } else {
+      const highlighted = (t.content||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/@([^\s@]+)/g,'<span style="background:#dbeafe;color:#1d4ed8;border-radius:4px;padding:.05rem .25rem;font-weight:700">@$1</span>');
+      html += `<div style="display:flex;align-items:flex-start;gap:.4rem;padding:.2rem 0">
+        <div style="width:22px;height:22px;background:#1d4ed8;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.65rem;flex-shrink:0;color:#fff;font-weight:700;margin-top:.1rem">${(t.user_name||'?')[0].toUpperCase()}</div>
+        <div style="flex:1">
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.4rem .65rem;font-size:.8rem;color:#334155;line-height:1.55">${highlighted}</div>
+          <div style="font-size:.68rem;color:#94a3b8;margin-top:.15rem">${esc(t.user_name||'—')} · ${new Date(t.created_at).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}</div>
+        </div>
+      </div>`;
+    }
+  });
+  return html;
+}
+
 async function fuRenderPanel() {
   const id    = _fuPanelId;
   const issue = _fuIssues.find(i=>i.id===id);
   if (!issue) return;
   const body  = document.getElementById('fu-panel-body');
   const title = document.getElementById('fu-panel-title');
-  if (title) title.textContent = `#${id}`;
+  if (title) title.textContent = `#${id} · ${issue.detail?.substring(0,30)||'Issue'}`;
 
-  const st  = FU_STATUS[issue.status]  || FU_STATUS.pending;
-  const pri = FU_PRIORITY[issue.priority] || FU_PRIORITY.normal;
-
-  // Load timeline
   const timeline = await api(`/api/fu/issues/${id}/timeline`) || [];
 
   body.innerHTML = `
-    <!-- Detail fields -->
     <div>
       <div style="font-size:.72rem;font-weight:700;color:#94a3b8;margin-bottom:.3rem">รายละเอียดปัญหา</div>
-      <textarea id="fup-detail" rows="4" style="width:100%;border:1px solid #e2e8f0;border-radius:7px;padding:.45rem .6rem;font-size:.82rem;font-family:inherit;resize:vertical;outline:none"
-        onblur="fuPanelSave(${id},'detail',this.value)"
-        onfocus="this.style.borderColor='#3b82f6'" onblur2="this.style.borderColor='#e2e8f0'"
+      <textarea rows="4" style="width:100%;border:1px solid #e2e8f0;border-radius:7px;padding:.45rem .6rem;font-size:.82rem;font-family:inherit;resize:vertical;outline:none;transition:border .15s"
+        onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0';fuPanelSave(${id},'detail',this.value)"
       >${esc(issue.detail||'')}</textarea>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
       <div>
         <div style="font-size:.72rem;font-weight:700;color:#94a3b8;margin-bottom:.25rem">สาขา</div>
-        <input type="text" value="${esc(issue.branch||'')}" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:.35rem .5rem;font-size:.8rem;font-family:inherit;outline:none"
-          onblur="fuPanelSave(${id},'branch',this.value||null)" placeholder="--"/>
+        <input type="text" value="${esc(issue.branch||'')}" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:.35rem .5rem;font-size:.8rem;font-family:inherit;outline:none;transition:border .15s"
+          onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0';fuPanelSave(${id},'branch',this.value||null)" placeholder="--"/>
       </div>
-      <div>
+      <div style="position:relative">
         <div style="font-size:.72rem;font-weight:700;color:#94a3b8;margin-bottom:.25rem">Category</div>
-        <input type="text" list="fup-cat-list" value="${esc(issue.category||'')}" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:.35rem .5rem;font-size:.8rem;font-family:inherit;outline:none"
-          onblur="fuPanelSave(${id},'category',this.value||null)" placeholder="--"/>
-        <datalist id="fup-cat-list">${_fuCategories.map(c=>`<option value="${esc(c)}">`).join('')}</datalist>
+        <input id="fup-cat-inp" type="text" autocomplete="off" value="${esc(issue.category||'')}" placeholder="พิมพ์เพื่อค้นหา..."
+          style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:.35rem .5rem;font-size:.8rem;font-family:inherit;outline:none;transition:border .15s"
+          onfocus="this.style.borderColor='#3b82f6';fuShowCatDrop(this,${id})" onblur="this.style.borderColor='#e2e8f0'" oninput="fuFilterCatDrop(this,${id})"/>
+        <div id="fup-cat-drop" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e2e8f0;border-radius:7px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:999;max-height:160px;overflow-y:auto"></div>
       </div>
       <div>
         <div style="font-size:.72rem;font-weight:700;color:#94a3b8;margin-bottom:.25rem">ความสำคัญ</div>
@@ -7288,43 +7374,43 @@ async function fuRenderPanel() {
       </div>
       <div>
         <div style="font-size:.72rem;font-weight:700;color:#94a3b8;margin-bottom:.25rem">Due Date</div>
-        <input type="date" value="${issue.due_date?issue.due_date.split('T')[0]:''}" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:.35rem .5rem;font-size:.8rem;font-family:inherit;outline:none"
+        <input type="date" value="${issue.due_date?issue.due_date.split('T')[0]:''}"
+          style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:.35rem .5rem;font-size:.8rem;font-family:inherit;outline:none"
           onchange="fuPanelSave(${id},'due_date',this.value||null)"/>
       </div>
     </div>
     <div>
       <div style="font-size:.72rem;font-weight:700;color:#94a3b8;margin-bottom:.25rem">แนวทางการตรวจสอบ</div>
-      <textarea rows="3" style="width:100%;border:1px solid #e2e8f0;border-radius:7px;padding:.45rem .6rem;font-size:.82rem;font-family:inherit;resize:vertical;outline:none"
-        onblur="fuPanelSave(${id},'note',this.value||null)" placeholder="บันทึกแนวทาง...">${esc(issue.note||'')}</textarea>
+      <textarea rows="3" style="width:100%;border:1px solid #e2e8f0;border-radius:7px;padding:.45rem .6rem;font-size:.82rem;font-family:inherit;resize:vertical;outline:none;transition:border .15s"
+        onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0';fuPanelSave(${id},'note',this.value||null)"
+        placeholder="บันทึกแนวทาง...">${esc(issue.note||'')}</textarea>
     </div>
-
     <!-- Timeline -->
-    <div style="border-top:1px solid #f1f5f9;padding-top:.6rem">
-      <div style="font-size:.72rem;font-weight:700;color:#94a3b8;margin-bottom:.4rem">💬 Activity & Comments</div>
-      <div style="display:flex;flex-direction:column;gap:.4rem">
-        ${timeline.length ? timeline.map(t => {
-          if (t.type === 'activity') {
-            return `<div style="display:flex;align-items:flex-start;gap:.4rem">
-              <div style="width:24px;height:24px;background:#f1f5f9;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.65rem;flex-shrink:0">🔧</div>
-              <div style="font-size:.75rem;color:#64748b;flex:1">
-                <b>${esc(t.user_name||'ระบบ')}</b> ${esc(t.content)}
-                ${t.old_val&&t.new_val?`<span style="color:#94a3b8"> (${esc(t.old_val)} → ${esc(t.new_val)})</span>`:''}
-                <span style="color:#cbd5e1;font-size:.68rem;margin-left:.3rem">${fmtDt(t.created_at)}</span>
-              </div>
-            </div>`;
-          } else {
-            const highlighted = t.content?.replace(/@([^\s@]+)/g,'<span style="color:#1d4ed8;font-weight:700">@$1</span>') || '';
-            return `<div style="display:flex;align-items:flex-start;gap:.4rem">
-              <div style="width:24px;height:24px;background:#dbeafe;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.65rem;flex-shrink:0;color:#1d4ed8;font-weight:700">${(t.user_name||'?')[0]}</div>
-              <div style="flex:1">
-                <div style="background:#f8fafc;border-radius:7px;padding:.4rem .6rem;font-size:.8rem;color:#334155;line-height:1.5">${highlighted}</div>
-                <div style="font-size:.7rem;color:#94a3b8;margin-top:.1rem">${esc(t.user_name||'—')} · ${fmtDt(t.created_at)}</div>
-              </div>
-            </div>`;
-          }
-        }).join('') : '<div style="color:#94a3b8;font-size:.78rem;text-align:center;padding:.5rem">ยังไม่มี activity</div>'}
-      </div>
+    <div style="border-top:1px solid #f1f5f9;padding-top:.65rem">
+      <div style="font-size:.72rem;font-weight:700;color:#94a3b8;margin-bottom:.35rem">💬 Activity & Comments</div>
+      <div id="fu-timeline-wrap">${fuRenderTimeline(timeline)}</div>
     </div>`;
+}
+
+// ── Category Custom Dropdown ──────────────────────────────
+function fuShowCatDrop(inp, id) {
+  fuFilterCatDrop(inp, id);
+}
+function fuFilterCatDrop(inp, id) {
+  const drop = document.getElementById('fup-cat-drop');
+  if (!drop) return;
+  const q = inp.value.trim().toLowerCase();
+  const matches = _fuCategories.filter(c => !q || c.toLowerCase().includes(q));
+  if (!matches.length && !q) { drop.style.display='none'; return; }
+  drop.style.display = '';
+  drop.innerHTML = matches.slice(0,10).map(c =>
+    `<div style="padding:.35rem .6rem;font-size:.8rem;cursor:pointer;border-radius:5px;color:#334155"
+      onmousedown="event.preventDefault();inp.value='${c.replace(/'/g,"\\'")}';fuPanelSave(${id},'category','${c.replace(/'/g,"\\'")}');document.getElementById('fup-cat-drop').style.display='none'"
+      onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background=''">${esc(c)}</div>`
+  ).join('') + (q && !matches.some(c=>c.toLowerCase()===q) ? `<div style="padding:.35rem .6rem;font-size:.78rem;color:#1d4ed8;cursor:pointer;border-top:1px solid #f1f5f9"
+    onmousedown="event.preventDefault();fuPanelSave(${id},'category',inp.value.trim());document.getElementById('fup-cat-drop').style.display='none'">+ เพิ่ม "${esc(inp.value.trim())}"</div>` : '');
+  // Close on outside click
+  setTimeout(()=>{ document.addEventListener('click', e=>{ if(!drop.contains(e.target)&&e.target!==inp) drop.style.display='none'; }, {once:true}); },10);
 }
 
 async function fuPanelSave(id, field, val) {
@@ -7333,15 +7419,63 @@ async function fuPanelSave(id, field, val) {
   await fuSaveField(id, field, val);
 }
 
+// ── Comment + @mention ────────────────────────────────────
 async function fuPostComment() {
   const inp = document.getElementById('fu-comment-input');
   const body = inp?.value.trim();
   if (!body || !_fuPanelId) return;
+  document.querySelectorAll('.fu-mention-popup').forEach(p=>p.remove());
   const r = await api(`/api/fu/issues/${_fuPanelId}/comments`, { method:'POST', body:{ body }, silent:true });
   if (r?.error) { showToast('❌ '+r.error,'error'); return; }
   inp.value = '';
-  await fuLoadIssues();
-  await fuRenderPanel();
+  // Refresh timeline only (don't reload all issues)
+  const timeline = await api(`/api/fu/issues/${_fuPanelId}/timeline`) || [];
+  const tw = document.getElementById('fu-timeline-wrap');
+  if (tw) tw.innerHTML = fuRenderTimeline(timeline);
+  // Update comment count in local cache
+  const issue = _fuIssues.find(i=>i.id===_fuPanelId);
+  if (issue) { issue.comment_count = (issue.comment_count||0)+1; fuRender(); }
+}
+
+// @mention dropdown as user types in comment textarea
+document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('input', e => {
+    if (e.target.id !== 'fu-comment-input') return;
+    const inp = e.target;
+    const val = inp.value;
+    const pos = inp.selectionStart;
+    const before = val.substring(0, pos);
+    const match = before.match(/@(\S*)$/);
+    document.querySelectorAll('.fu-mention-popup').forEach(p=>p.remove());
+    if (!match) return;
+    const q = match[1].toLowerCase();
+    const people = allEmployees.filter(em => em.active && em.name.toLowerCase().includes(q)).slice(0,6);
+    if (!people.length) return;
+    const rect = inp.getBoundingClientRect();
+    const popup = document.createElement('div');
+    popup.className = 'fu-mention-popup';
+    popup.style.cssText = `position:fixed;z-index:9999;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);padding:.3rem;min-width:160px;bottom:${window.innerHeight-rect.top+4}px;left:${rect.left}px`;
+    popup.innerHTML = people.map(em =>
+      `<div style="padding:.35rem .6rem;border-radius:5px;cursor:pointer;font-size:.82rem;display:flex;align-items:center;gap:.4rem"
+        onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background=''"
+        onmousedown="event.preventDefault();fuInsertMention('${em.name.replace(/'/g,"\\'")}')">
+        <span style="width:22px;height:22px;background:#dbeafe;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;color:#1d4ed8;flex-shrink:0">${em.name[0]}</span>
+        ${esc(em.name)}
+      </div>`).join('');
+    document.body.appendChild(popup);
+    setTimeout(()=>{ document.addEventListener('click',()=>popup.remove(),{once:true}); },10);
+  });
+});
+
+function fuInsertMention(name) {
+  document.querySelectorAll('.fu-mention-popup').forEach(p=>p.remove());
+  const inp = document.getElementById('fu-comment-input');
+  if (!inp) return;
+  const pos = inp.selectionStart, val = inp.value;
+  const before = val.substring(0, pos).replace(/@\S*$/, `@${name} `);
+  inp.value = before + val.substring(pos);
+  inp.focus();
+  inp.selectionStart = inp.selectionEnd = before.length;
 }
 
 async function fuPollBadge() {
