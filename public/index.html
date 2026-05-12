@@ -6352,11 +6352,10 @@ function renderSpecialistTable(list) {
         ${s.line_id?`<div style="color:var(--muted);font-size:.72rem">LINE: ${escHtml(s.line_id)}</div>`:''}
       </td>
       <td style="font-size:.8rem">
-        <div>${escHtml(s.assigned_to_team||'—')}</div>
-        ${s.accepted_by_name?`<div style="font-size:.72rem;color:#2563eb;font-weight:600">👤 ${escHtml(s.accepted_by_name)}</div>`:`<div style="font-size:.7rem;color:#94a3b8">ยังไม่มีผู้รับ</div>`}
+        ${s.accepted_by_name?`<div style="color:#2563eb;font-weight:600">👤 ${escHtml(s.accepted_by_name)}</div>`:`<div style="font-size:.75rem;color:#94a3b8">ยังไม่มีผู้รับ</div>`}
       </td>
       <td>${spStatusBadge(s.status)}
-        ${s.resolution_note?`<div style="font-size:.67rem;color:#16a34a;margin-top:.15rem">✅ แก้ไขแล้ว</div>`:''}
+        ${s.resolution_note?`<div style="font-size:.7rem;color:#16a34a;margin-top:.2rem;white-space:normal;max-width:140px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical" title="${escHtml(s.resolution_note)}">${escHtml(s.resolution_note)}</div>`:''}
       </td>
       <td style="font-size:.75rem;white-space:nowrap">${fmtDate(s.assigned_at)}</td>
     </tr>
