@@ -6174,11 +6174,37 @@ async function saveCreateCase() {
   const r = await api('/api/cases', { method:'POST', body, silent:true });
   if (r?.error) { showToast('❌ ' + r.error, 'error'); return; }
 
+  // Auto-send to Specialist Q if selected status contains "specialist"
+  const selectedStatus = (_ccFormData?.statuses||[]).find(s => String(s.id) === String(body.status_id));
+  if (selectedStatus && selectedStatus.name.toLowerCase().includes('specialist')) {
+    const spTeam = allTeams.find(tm =>
+      tm.name.toLowerCase().includes('specialist') ||
+      tm.display_name.toLowerCase().includes('specialist')
+    );
+    if (spTeam) {
+      const ptName = (_ccFormData?.problemTypes||[]).find(p => String(p.id) === String(body.problem_type_id))?.name || '';
+      const shopName = document.getElementById('cc-shop-search').value || '';
+      const spR = await api('/api/specialist', { method:'POST', silent:true, body: {
+        calllog_id:       r.id,
+        company_name:     shopName,
+        subject:          body.subject || '',
+        problem_type:     ptName,
+        contact_name:     body.inform_name || '',
+        contact_phone:    body.inform_tel  || '',
+        assigned_to_team: spTeam.name,
+        priority:         'normal',
+        description:      body.description || '',
+        solution:         body.solution    || '',
+      }});
+      if (!spR?.error) showToast('🎯 ส่งงาน Specialist แล้ว');
+    }
+  }
+
   document.getElementById('cc-saved-id').textContent = r.id;
   document.getElementById('cc-saved-msg').style.display = '';
   showToast(`✅ บันทึก Case #${r.id} แล้ว`);
   resetCreateCase();
-  setTimeout(() => { closeModal('modal-create-case'); loadTickets(); }, 1500);
+  setTimeout(() => { closeModal('modal-create-case'); loadTickets(); loadSpecialist(); }, 1500);
 }
 
 function resetCreateCase() {
