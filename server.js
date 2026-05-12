@@ -3760,8 +3760,7 @@ app.get('/api/public/track/:token/fu-issues', async (request, res) => {
       FROM fu_issues i
       JOIN fu_boards b ON b.id = i.board_id
       JOIN fu_folders f ON f.id = b.folder_id
-      LEFT JOIN app_users ua ON ua.id = i.assigned_to
-      LEFT JOIN employees ea ON ea.id = ua.employee_id
+      LEFT JOIN employees ea ON ea.id = i.assigned_to
       WHERE f.group_id = @gid
       ORDER BY
         CASE i.status WHEN 'pending' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END,
@@ -4221,8 +4220,7 @@ app.get('/api/fu/boards/:bid/issues', authRequired, async (request, res) => {
         (SELECT TOP 1 c.created_at FROM fu_comments c WHERE c.issue_id=i.id ORDER BY c.created_at DESC) AS last_comment_at,
         (SELECT TOP 1 c.body     FROM fu_comments c WHERE c.issue_id=i.id ORDER BY c.created_at DESC) AS last_comment_body
       FROM fu_issues i
-      LEFT JOIN app_users ua ON ua.id=i.assigned_to
-      LEFT JOIN employees ea ON ea.id=ua.employee_id
+      LEFT JOIN employees ea ON ea.id=i.assigned_to
       LEFT JOIN app_users uc ON uc.id=i.created_by
       LEFT JOIN employees ec ON ec.id=uc.employee_id
       WHERE i.board_id=@bid ORDER BY i.position,i.created_at`)).recordset;

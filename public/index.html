@@ -7383,7 +7383,6 @@ async function fuPickSelect(id, field, val) {
 }
 
 async function fuSaveField(id, field, val) {
-  if (field === 'assigned_to') { console.trace(`[FU] assigned_to changed → issueId=${id} val=${val}`); }
   const r = await api(`/api/fu/issues/${id}`, { method:'PUT', body:{ [field]: val }, silent:true });
   if (r?.error) { showToast('❌ '+r.error,'error'); return; }
   const issue = _fuIssues.find(i=>i.id===id);
