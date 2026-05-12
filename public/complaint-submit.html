@@ -151,14 +151,18 @@ async function submitComplaint() {
   btn.disabled = true; btn.textContent = '⏳ กำลังส่ง...';
 
   try {
-    const fullMsg = (type ? `[${typeLabel(type)}] ` : '') + msg
-      + (name  ? `\n— ผู้แจ้ง: ${name}` : '')
-      + (phone ? `\n📞 ${phone}` : '');
+    const fullMsg = (type ? `[${typeLabel(type)}] ` : '') + msg;
 
     const r = await fetch('/api/public/complaint/direct', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ company_name: company, email: email||null, message: fullMsg })
+      body: JSON.stringify({
+        company_name:  company,
+        contact_name:  name  || null,
+        contact_phone: phone || null,
+        email:         email || null,
+        message:       fullMsg
+      })
     });
     const d = await r.json();
     if (!r.ok) { showErr(d.error || 'ส่งไม่สำเร็จ กรุณาลองใหม่'); return; }

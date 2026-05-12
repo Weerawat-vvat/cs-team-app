@@ -1626,7 +1626,7 @@ textarea{resize:vertical;min-height:80px}
     <div class="tbl-wrap">
       <table>
         <thead><tr>
-          <th>#</th><th>ร้านค้า</th><th>เคส</th><th>ข้อความ</th><th>วันที่</th><th>สถานะ</th><th>ดำเนินการ</th>
+          <th>#</th><th>ร้านค้า</th><th>ผู้ติดต่อ</th><th>เคส</th><th>ข้อความ</th><th>วันที่</th><th>สถานะการดำเนินการ</th>
         </tr></thead>
         <tbody id="complaints-tbody">
           <tr><td colspan="8" class="empty">กำลังโหลด...</td></tr>
@@ -7917,9 +7917,26 @@ async function saveCreateFollowup() {
 // ── Complaint Link ────────────────────────────────────
 function copyComplaintLink() {
   const link = `${location.origin}/complaint-submit.html`;
-  navigator.clipboard.writeText(link)
-    .then(() => showToast('✅ คัดลอกลิงค์ร้องเรียนแล้ว!'))
-    .catch(() => prompt('คัดลอกลิงค์นี้:', link));
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(link)
+      .then(() => showToast('✅ คัดลอกลิงค์ร้องเรียนแล้ว!'))
+      .catch(() => _fallbackCopy(link));
+  } else {
+    _fallbackCopy(link);
+  }
+}
+function _fallbackCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
+  document.body.appendChild(ta);
+  ta.focus(); ta.select();
+  try {
+    const ok = document.execCommand('copy');
+    showToast(ok ? '✅ คัดลอกลิงค์ร้องเรียนแล้ว!' : '❌ คัดลอกไม่สำเร็จ กรุณาคัดลอกเอง', ok ? '' : 'error');
+    if (!ok) prompt('คัดลอกลิงค์นี้:', text);
+  } catch { prompt('คัดลอกลิงค์นี้:', text); }
+  document.body.removeChild(ta);
 }
 
 // (legacy modal kept for reference)
@@ -8147,13 +8164,21 @@ async function saveSpResolve(id) {
   loadSpecialist();
 }
 
+const COMPLAINT_STATUS = {
+  pending:     { label: '⏳ รอดำเนินการ',    bg: '#fff5f5', color: '#dc2626', border: '#fecaca' },
+  in_progress: { label: '🔄 กำลังดำเนินการ', bg: '#eff6ff', color: '#2563eb', border: '#bfdbfe' },
+  resolved:    { label: '✅ แก้ไขแล้ว',       bg: '#f0fdf4', color: '#16a34a', border: '#bbf7d0' },
+  rejected:    { label: '🚫 ปฏิเสธ',          bg: '#fafafa', color: '#6b7280', border: '#e5e7eb' },
+  cancelled:   { label: '❌ ยกเลิก',           bg: '#fafafa', color: '#9ca3af', border: '#e5e7eb' },
+};
+
 async function loadComplaintsBadge() {
   try {
     const data = await api('/api/complaints');
-    const pending = (data || []).filter(c => c.status === 'pending').length;
+    const active = (data || []).filter(c => c.status === 'pending' || c.status === 'in_progress').length;
     const badge = document.getElementById('complaint-badge');
     if (badge) {
-      if (pending > 0) { badge.textContent = pending; badge.style.display = ''; }
+      if (active > 0) { badge.textContent = active; badge.style.display = ''; }
       else badge.style.display = 'none';
     }
   } catch(e) {}
@@ -8168,31 +8193,60 @@ async function loadComplaints() {
       tbody.innerHTML = '<tr><td colspan="8" class="empty">ยังไม่มีร้องเรียน</td></tr>';
       return;
     }
-    tbody.innerHTML = data.map(c => `
-      <tr style="${c.status==='pending'?'background:#fff5f5':''}">
+    tbody.innerHTML = data.map(c => {
+      const st = COMPLAINT_STATUS[c.status] || COMPLAINT_STATUS.pending;
+      const opts = Object.entries(COMPLAINT_STATUS).map(([k,v]) =>
+        `<option value="${k}" ${c.status===k?'selected':''}>${v.label}</option>`).join('');
+      return `
+      <tr style="background:${st.bg}">
         <td style="font-size:.8rem"><b>${c.id}</b></td>
         <td>
           <div style="font-size:.83rem;font-weight:600;color:var(--text)">${escHtml(c.company_name||'—')}</div>
           ${c.email?`<div style="font-size:.7rem;color:var(--muted)">${escHtml(c.email)}</div>`:''}
-          ${c.ticket_id?`<div style="font-size:.7rem;color:var(--hd)">เคส #${c.ticket_id}</div>`:''}
+        </td>
+        <td>
+          <div style="font-size:.82rem;font-weight:600">${escHtml(c.contact_name||'—')}</div>
+          ${c.contact_phone?`<div style="font-size:.72rem;color:var(--muted)">📞 ${escHtml(c.contact_phone)}</div>`:''}
         </td>
         <td style="font-size:.8rem">${c.ticket_id ? `<b style="color:var(--hd)">#${c.ticket_id}</b>` : '<span style="color:var(--muted)">—</span>'}</td>
-        <td style="font-size:.8rem;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(c.message)}">${escHtml(c.message)}</td>
+        <td style="font-size:.8rem;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(c.message)}">${escHtml(c.message)}</td>
         <td style="font-size:.75rem;white-space:nowrap">${fmtDate(c.created_at)}</td>
-        <td><span class="badge ${c.status==='resolved'?'badge-closed':'badge-open'}">${c.status==='resolved'?'✅ แก้ไขแล้ว':'⏳ รอดำเนินการ'}</span></td>
-        <td>
-          <div class="btn-group" style="flex-wrap:wrap;gap:.25rem">
-            ${c.status==='pending' ? `
-              <button class="btn btn-sm btn-success" onclick="resolveComplaint(${c.id},this)" title="ปิดร้องเรียน">✓ แก้แล้ว</button>
-              <button class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="convertToRepair(${JSON.stringify(c).replace(/"/g,'&quot;')})" title="เปิดงานซ่อมจากร้องเรียนนี้">🔧 งานซ่อม</button>
-              <button class="btn btn-sm" style="background:#0ea5e9;color:#fff" onclick="openSpFromComplaint(${JSON.stringify(c).replace(/"/g,'&quot;')})" title="เปิดเคส Specialist">🎯 เปิดเคส SP</button>
-              <button class="btn btn-sm" style="background:#2563eb;color:#fff" onclick="viewComplaintTickets('${escHtml(c.company_name||'')}')" title="ดูเคสของร้านนี้">🎫 ดูเคส</button>
-            ` : `<span style="font-size:.72rem;color:var(--muted)">${c.resolved_by_name||'—'}</span>`}
-            <button class="btn btn-sm" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca" onclick="deleteComplaint(${c.id},'${escHtml(c.company_name||'')}','${escHtml((c.message||'').substring(0,40))}')" title="ลบร้องเรียน">🗑</button>
+        <td style="white-space:nowrap">
+          <div style="display:flex;align-items:center;gap:.4rem">
+            <select onchange="updateComplaintStatus(${c.id},this.value,this)"
+              style="border:1px solid ${st.border};border-radius:7px;padding:.28rem .5rem;font-size:.78rem;
+                     color:${st.color};background:${st.bg};font-weight:600;cursor:pointer;outline:none;max-width:160px">
+              ${opts}
+            </select>
+            <button class="btn btn-sm" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:.22rem .45rem"
+              onclick="deleteComplaint(this)"
+              data-id="${c.id}"
+              data-company="${escHtml(c.company_name||'')}"
+              data-msg="${escHtml((c.message||'').substring(0,40))}"
+              title="ลบร้องเรียน">🗑</button>
           </div>
+          ${c.resolved_by_name&&['resolved','rejected','cancelled'].includes(c.status)?`<div style="font-size:.7rem;color:var(--muted);margin-top:.15rem">โดย ${escHtml(c.resolved_by_name)}</div>`:''}
         </td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
   } catch(e) {}
+}
+
+async function updateComplaintStatus(id, status, el) {
+  const prev = el.dataset.prev || el.value;
+  el.disabled = true;
+  const r = await api(`/api/complaints/${id}/status`, { method:'PUT', body:{ status }, silent:true });
+  el.disabled = false;
+  if (r?.error) { showToast('❌ '+r.error, 'error'); el.value = prev; return; }
+  const st = COMPLAINT_STATUS[status] || COMPLAINT_STATUS.pending;
+  el.style.color      = st.color;
+  el.style.background = st.bg;
+  el.style.borderColor= st.border;
+  el.dataset.prev = status;
+  loadComplaintsBadge();
+  // Refresh row background
+  const row = el.closest('tr');
+  if (row) row.style.background = st.bg;
 }
 
 async function resolveComplaint(id, btn) {
@@ -8216,7 +8270,11 @@ function convertToRepair(c) {
     // Pre-fill symptom from complaint message
     const symptom = document.getElementById('rf-symptom');
     if (symptom) symptom.value = c.message || '';
-    // Pre-fill contact from email
+    // Pre-fill contact info from complaint
+    const rfContact = document.getElementById('rf-contact-name');
+    if (rfContact && c.contact_name) rfContact.value = c.contact_name;
+    const rfPhone = document.getElementById('rf-contact-phone');
+    if (rfPhone && c.contact_phone) rfPhone.value = c.contact_phone;
     const email = document.getElementById('rf-line-id');
     if (email && c.email) email.value = c.email;
     showToast(`🔧 เปิดฟอร์มงานซ่อม — ${c.company_name||''}`);
@@ -8229,7 +8287,12 @@ async function openSpFromComplaint(c) {
   document.getElementById('asp-calllog-id').value = '';
   document.getElementById('asp-ticket-info').textContent = `📣 ร้องเรียน #${c.id} — ${c.company_name||'—'}`;
   document.getElementById('asp-ticket-sub').textContent  = `จากการร้องเรียน | ${c.company_name||'—'}`;
-  ['asp-contact-name','asp-contact-phone','asp-line-id','asp-line-group'].forEach(id=>{
+  // Pre-fill contact info from complaint
+  const aspCName = document.getElementById('asp-contact-name');
+  const aspCPhone = document.getElementById('asp-contact-phone');
+  if (aspCName) aspCName.value = c.contact_name || '';
+  if (aspCPhone) aspCPhone.value = c.contact_phone || '';
+  ['asp-line-id','asp-line-group'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value='';
   });
   // Pre-fill note with complaint message
@@ -8255,9 +8318,15 @@ async function openSpFromComplaint(c) {
 
 // ลบร้องเรียน
 let _deleteComplaintId = null;
-function deleteComplaint(id, company, msgPreview) {
+function deleteComplaint(el) {
+  // el = button element with data-id, data-company, data-msg attributes
+  const id         = el.dataset.id;
+  const company    = el.dataset.company || '';
+  const msgPreview = el.dataset.msg     || '';
   _deleteComplaintId = id;
-  document.getElementById('delete-complaint-info').textContent = `${company}${msgPreview?` — "${msgPreview}${msgPreview.length>=40?'…':''}"`:''}`;
+  const infoEl = document.getElementById('delete-complaint-info');
+  infoEl.innerHTML = `<span style="font-weight:700">${escHtml(company)}</span>`
+    + (msgPreview ? `<div style="font-size:.78rem;color:#64748b;margin-top:.2rem">"${escHtml(msgPreview)}${msgPreview.length>=40?'…':''}"</div>` : '');
   document.getElementById('delete-complaint-reason').value = '';
   document.getElementById('delete-complaint-reason').style.borderColor = '#e2e8f0';
   openModal('modal-delete-complaint');
@@ -8265,14 +8334,19 @@ function deleteComplaint(id, company, msgPreview) {
 async function confirmDeleteComplaint() {
   const reason = document.getElementById('delete-complaint-reason').value.trim();
   if (!reason) {
-    document.getElementById('delete-complaint-reason').style.borderColor = '#dc2626';
-    document.getElementById('delete-complaint-reason').focus();
+    const ta = document.getElementById('delete-complaint-reason');
+    ta.style.borderColor = '#dc2626';
+    ta.focus();
+    ta.placeholder = '⚠️ กรุณาระบุหมายเหตุก่อนลบ';
     showToast('❌ กรุณาระบุหมายเหตุการลบ', 'error');
     return;
   }
+  const btn = document.querySelector('#modal-delete-complaint .btn[onclick="confirmDeleteComplaint()"]');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ กำลังลบ...'; }
   const r = await api(`/api/complaints/${_deleteComplaintId}`, {
     method:'DELETE', silent:true, body:{ reason }
   });
+  if (btn) { btn.disabled = false; btn.textContent = '🗑 ยืนยันลบ'; }
   if (r?.error) { showToast('❌ '+r.error, 'error'); return; }
   closeModal('modal-delete-complaint');
   showToast('🗑 ลบร้องเรียนแล้ว');

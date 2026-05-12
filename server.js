@@ -2056,19 +2056,29 @@ app.get('/api/public/track/:token', async (request, res) => {
 // PUBLIC — submit complaint (no auth)
 app.post('/api/public/complaint', async (request, res) => {
   try {
-    const { token, ticket_id, email, message } = request.body;
+    const { token, ticket_id, contact_name, contact_phone, email, message } = request.body;
     if (!token || !message) return res.status(400).json({ error: 'token และ message จำเป็น' });
+    if (!contact_name?.trim()) return res.status(400).json({ error: 'กรุณาระบุชื่อผู้ติดต่อ' });
     const link = await req().input('tok', sql.NVarChar, token)
       .query('SELECT company_name FROM customer_links WHERE token=@tok');
     if (!link.recordset.length) return res.status(404).json({ error: 'link ไม่พบ' });
     const company_name = link.recordset[0].company_name;
+    // Ensure columns exist (idempotent)
+    await req().query(`
+      IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='ticket_complaints' AND COLUMN_NAME='contact_name')
+        ALTER TABLE ticket_complaints ADD contact_name NVARCHAR(200) NULL;
+      IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='ticket_complaints' AND COLUMN_NAME='contact_phone')
+        ALTER TABLE ticket_complaints ADD contact_phone NVARCHAR(50) NULL;
+    `);
     await req()
-      .input('tid', sql.Int,      ticket_id || null)
-      .input('cn',  sql.NVarChar, company_name)
-      .input('em',  sql.NVarChar, email || null)
-      .input('msg', sql.NVarChar, message)
-      .query(`INSERT INTO ticket_complaints (ticket_id, company_name, email, message)
-              VALUES (@tid, @cn, @em, @msg)`);
+      .input('tid',  sql.Int,      ticket_id || null)
+      .input('cn',   sql.NVarChar, company_name)
+      .input('cname',sql.NVarChar, contact_name.trim())
+      .input('ctel', sql.NVarChar, contact_phone || null)
+      .input('em',   sql.NVarChar, email || null)
+      .input('msg',  sql.NVarChar, message)
+      .query(`INSERT INTO ticket_complaints (ticket_id, company_name, contact_name, contact_phone, email, message)
+              VALUES (@tid, @cn, @cname, @ctel, @em, @msg)`);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -2076,16 +2086,18 @@ app.post('/api/public/complaint', async (request, res) => {
 // PUBLIC — submit complaint direct (no token, no auth)
 app.post('/api/public/complaint/direct', async (request, res) => {
   try {
-    const { company_name, email, message } = request.body;
+    const { company_name, contact_name, contact_phone, email, message } = request.body;
     if (!company_name?.trim()) return res.status(400).json({ error: 'กรุณาระบุชื่อร้าน / บริษัท' });
     if (!message?.trim())      return res.status(400).json({ error: 'กรุณาระบุข้อความร้องเรียน' });
     await req()
-      .input('cn',  sql.NVarChar, company_name.trim())
-      .input('em',  sql.NVarChar, email || null)
-      .input('msg', sql.NVarChar, message.trim())
-      .query(`INSERT INTO ticket_complaints (company_name, email, message)
-              VALUES (@cn, @em, @msg)`);
-    await sendLineNotify(`\n📣 [ร้องเรียนใหม่] ${company_name.trim()}\n"${message.trim().substring(0,100)}${message.trim().length>100?'…':''}"`);
+      .input('cn',   sql.NVarChar, company_name.trim())
+      .input('cname',sql.NVarChar, contact_name?.trim() || null)
+      .input('ctel', sql.NVarChar, contact_phone || null)
+      .input('em',   sql.NVarChar, email || null)
+      .input('msg',  sql.NVarChar, message.trim())
+      .query(`INSERT INTO ticket_complaints (company_name, contact_name, contact_phone, email, message)
+              VALUES (@cn, @cname, @ctel, @em, @msg)`);
+    await sendLineNotify(`\n📣 [ร้องเรียนใหม่] ${company_name.trim()}${contact_name?` | ${contact_name.trim()}`:''}${contact_phone?` | ${contact_phone}`:''}\n"${message.trim().substring(0,100)}${message.trim().length>100?'…':''}"`);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -2159,7 +2171,27 @@ app.delete('/api/complaints/:id', authRequired, async (request, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// INTERNAL — resolve complaint
+// INTERNAL — update complaint status (general)
+app.put('/api/complaints/:id/status', authRequired, async (request, res) => {
+  try {
+    const VALID = ['pending','in_progress','resolved','rejected','cancelled'];
+    const status = request.body?.status;
+    if (!VALID.includes(status)) return res.status(400).json({ error: 'status ไม่ถูกต้อง' });
+    const isClosed = ['resolved','rejected','cancelled'].includes(status);
+    await req()
+      .input('id',  sql.Int,      parseInt(request.params.id))
+      .input('st',  sql.NVarChar, status)
+      .input('by',  sql.Int,      request.user.employee_id || null)
+      .query(`UPDATE ticket_complaints
+              SET status=@st,
+                  resolved_at = CASE WHEN @st IN ('resolved','rejected','cancelled') THEN GETDATE() ELSE NULL END,
+                  resolved_by = CASE WHEN @st IN ('resolved','rejected','cancelled') THEN @by  ELSE NULL END
+              WHERE id=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// INTERNAL — resolve complaint (legacy, kept for compat)
 app.put('/api/complaints/:id/resolve', authRequired, async (request, res) => {
   try {
     await req()
@@ -2208,7 +2240,7 @@ app.get('/api/repair/unread-messages', authRequired, async (request, res) => {
 
     // Also include pending complaints count
     const complaints = await req().query(
-      `SELECT COUNT(*) AS cnt FROM ticket_complaints WHERE status='pending'`);
+      `SELECT COUNT(*) AS cnt FROM ticket_complaints WHERE status IN ('pending','in_progress')`);
 
     res.json({
       repairs:    result.recordset,

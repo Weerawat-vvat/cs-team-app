@@ -148,8 +148,14 @@ tr:hover td{background:#f8fafc}
   <div style="background:#fff;border-radius:14px;padding:1.4rem;width:min(440px,95vw)">
     <div style="font-size:.95rem;font-weight:800;margin-bottom:.9rem">📣 แจ้งปัญหา / ร้องเรียน</div>
     <input type="hidden" id="c-ticket-id"/>
-    <div style="margin-bottom:.5rem"><label style="font-size:.75rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">Email (ไม่บังคับ)</label>
-      <input type="email" id="c-email" placeholder="your@email.com" style="width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:.38rem .65rem;font-size:.82rem;outline:none"/></div>
+    <div style="margin-bottom:.5rem"><label style="font-size:.75rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">ชื่อผู้ติดต่อ *</label>
+      <input type="text" id="c-name" placeholder="ชื่อ-นามสกุล" style="width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:.38rem .65rem;font-size:.82rem;outline:none"/></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.5rem">
+      <div><label style="font-size:.75rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">เบอร์โทร</label>
+        <input type="tel" id="c-tel" placeholder="0812345678" style="width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:.38rem .65rem;font-size:.82rem;outline:none"/></div>
+      <div><label style="font-size:.75rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">Email</label>
+        <input type="email" id="c-email" placeholder="your@email.com" style="width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:.38rem .65rem;font-size:.82rem;outline:none"/></div>
+    </div>
     <div style="margin-bottom:.75rem"><label style="font-size:.75rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">รายละเอียด *</label>
       <textarea id="c-msg" rows="3" placeholder="อธิบายปัญหา..." style="width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:.38rem .65rem;font-size:.82rem;font-family:inherit;resize:vertical;outline:none"></textarea></div>
     <div style="display:flex;gap:.5rem;justify-content:flex-end">
@@ -773,6 +779,8 @@ function goPage(p){ _page=p; renderListTable(); document.getElementById('tab-con
 // ── Complaint ─────────────────────────────────────────────
 function openComplain(tid){
   document.getElementById('c-ticket-id').value=tid||'';
+  document.getElementById('c-name').value='';
+  document.getElementById('c-tel').value='';
   document.getElementById('c-email').value='';
   document.getElementById('c-msg').value='';
   const btn=document.getElementById('complain-submit-btn');
@@ -784,7 +792,9 @@ function closeComplain(){ document.getElementById('modal-complain').style.displa
 let _complainSubmitting = false;
 async function submitComplain(){
   if(_complainSubmitting) return;
+  const contactName = document.getElementById('c-name').value.trim();
   const msg = document.getElementById('c-msg').value.trim();
+  if(!contactName){ alert('กรุณาระบุชื่อผู้ติดต่อ'); return; }
   if(!msg){ alert('กรุณาระบุรายละเอียด'); return; }
   const btn = document.getElementById('complain-submit-btn');
   _complainSubmitting = true;
@@ -792,6 +802,8 @@ async function submitComplain(){
   try {
     const r = await fetch('/api/public/complaint',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({token,ticket_id:document.getElementById('c-ticket-id').value||null,
+        contact_name:contactName,
+        contact_phone:document.getElementById('c-tel').value||null,
         email:document.getElementById('c-email').value||null,message:msg})});
     const d = await r.json();
     closeComplain();
