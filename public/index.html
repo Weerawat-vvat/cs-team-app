@@ -9786,7 +9786,7 @@ function renderSiRow(e) {
     <td>${escHtml(e.terminal_name||'-')}</td>
     <td style="white-space:nowrap">${e.anydesk_id?`${escHtml(e.anydesk_id)}<button class="si-copy-btn" onclick="siCopy('${escHtml(e.anydesk_id).replace(/'/g,"\\'")}',this)">copy</button>`:'-'}</td>
     <td style="white-space:nowrap">${e.teamviewer_id?`${escHtml(e.teamviewer_id)}<button class="si-copy-btn" onclick="siCopy('${escHtml(e.teamviewer_id).replace(/'/g,"\\'")}',this)">copy</button>`:'-'}</td>
-    <td style="white-space:nowrap">${e.remote_password?`••••••<button class="si-copy-btn" onclick="siCopy('${escHtml(e.remote_password).replace(/'/g,"\\'")}',this)">copy</button>`:'-'}</td>
+    <td style="white-space:nowrap">${e.remote_password?`${escHtml(e.remote_password)}<button class="si-copy-btn" onclick="siCopy('${escHtml(e.remote_password).replace(/'/g,"\\'")}',this)">copy</button>`:'-'}</td>
     <td style="white-space:nowrap">${e.ip_address?`${escHtml(e.ip_address)}<button class="si-copy-btn" onclick="siCopy('${escHtml(e.ip_address).replace(/'/g,"\\'")}',this)">copy</button>`:'-'}</td>
     <td>${svcHtml||'-'}</td>
     <td style="color:var(--muted);font-size:.75rem" title="${escHtml(e.note||'')}">${escHtml(note)}</td>
