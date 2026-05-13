@@ -1902,7 +1902,7 @@ textarea{resize:vertical;min-height:80px}
       <input id="si-search" type="text" placeholder="🔍 ค้นหา แบรนด์ สาขา ผู้ติดต่อ ชื่อเครื่อง Anydesk IP..."
              oninput="siSearchDebounce()"
              style="border:1px solid var(--border);border-radius:8px;padding:.38rem .75rem;font-size:.83rem;min-width:280px;outline:none"/>
-      <button class="btn btn-primary btn-sm" onclick="openSiEntryModal(null)">+ เพิ่มรายการ</button>
+      <button class="btn btn-primary btn-sm" onclick="openCreateFolderModal()">📁 สร้างโฟลเดอร์</button>
       <button class="btn btn-ghost btn-sm" onclick="siExportCSV()" title="Export เป็น CSV">📥 Export</button>
       <label class="btn btn-ghost btn-sm" style="cursor:pointer;margin:0" title="Import จาก CSV">
         📤 Import<input type="file" id="si-import-file" accept=".csv" style="display:none" onchange="siImportPreview(this)"/>
@@ -9689,6 +9689,7 @@ function _clearDragState() {
 // ══════════════════════════════════════════════════════════
 let _siData = [];
 let _siExpandedBrands = new Set();
+let _siLocalFolders = new Set(); // empty folders created locally (before first entry is added)
 let _siSearchTimer = null;
 
 function siSearchDebounce() {
@@ -9711,26 +9712,31 @@ async function loadShopInfo() {
 
 function renderShopInfo(data) {
   const el = document.getElementById('shopinfo-list');
-  if (!data.length) { el.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--muted)">ยังไม่มีข้อมูล กด + เพิ่มรายการ</div>'; return; }
 
-  el.innerHTML = data.map(group => {
+  // Merge real data with locally-created empty folders
+  const realBrands = new Set(data.map(g => g.brand_name));
+  const allGroups = [...data];
+  for (const bn of _siLocalFolders) {
+    if (!realBrands.has(bn)) allGroups.push({ brand_name: bn, entries: [] });
+  }
+
+  if (!allGroups.length) {
+    el.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--muted);font-size:.9rem">ยังไม่มีโฟลเดอร์ กด 📁 สร้างโฟลเดอร์ เพื่อเริ่มต้น</div>';
+    return;
+  }
+
+  el.innerHTML = allGroups.map(group => {
     const brandKey = 'brand-' + btoa(encodeURIComponent(group.brand_name || '-')).replace(/=/g,'');
     const isOpen = _siExpandedBrands.has(brandKey) || _siExpandedBrands.size === 0;
     if (_siExpandedBrands.size === 0) _siExpandedBrands.add(brandKey);
 
     const rows = group.entries.map(e => renderSiRow(e)).join('');
+    const bn     = group.brand_name || '';
+    const bnEsc  = escHtml(bn);
+    const bnJs   = bn.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
 
-    return `
-      <div class="si-brand-header" onclick="siToggleBrand('${brandKey}')">
-        <span>📂</span>
-        <span style="flex:1">${escHtml(group.brand_name || '(ไม่ระบุแบรนด์)')}</span>
-        <span style="font-size:.75rem;color:var(--muted);font-weight:400">${group.entries.length} รายการ</span>
-        <button onclick="event.stopPropagation();openSiEntryModal(null,'${escHtml(group.brand_name||'')}')"
-          style="background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:6px;padding:.2rem .6rem;font-size:.75rem;cursor:pointer;font-weight:600">+ เพิ่ม</button>
-        <span id="${brandKey}-arrow" style="color:var(--muted);font-size:.8rem">${isOpen?'▼':'▶'}</span>
-      </div>
-      <div id="${brandKey}" class="si-brand-body" style="${isOpen?'':'display:none'}">
-        <div style="background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:.5rem">
+    const tableHtml = group.entries.length
+      ? `<div style="background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:.5rem">
           <table class="si-table">
             <thead><tr>
               <th>สาขา</th><th>ผู้ติดต่อ</th><th>เบอร์</th>
@@ -9741,7 +9747,25 @@ function renderShopInfo(data) {
             </tr></thead>
             <tbody>${rows}</tbody>
           </table>
-        </div>
+        </div>`
+      : `<div style="padding:.65rem 1rem 1rem;color:var(--muted);font-size:.82rem">
+           📭 ยังไม่มีรายการ — กด <b style="color:#2563eb">+ สร้างรายการ</b> ในหัวโฟลเดอร์เพื่อเพิ่ม
+         </div>`;
+
+    return `
+      <div class="si-brand-header" id="${brandKey}-header" onclick="siToggleBrand('${brandKey}')">
+        <span style="font-size:1rem">${isOpen?'📂':'📁'}</span>
+        <span id="${brandKey}-name" style="flex:1;font-weight:700;font-size:.88rem">${bnEsc || '(ไม่ระบุแบรนด์)'}</span>
+        <span style="font-size:.72rem;color:var(--muted);font-weight:400;margin-right:.25rem">${group.entries.length} รายการ</span>
+        <button onclick="event.stopPropagation();siStartRename('${bnJs}','${brandKey}')"
+          title="แก้ไขชื่อโฟลเดอร์"
+          style="background:transparent;border:none;cursor:pointer;font-size:.8rem;padding:.15rem .35rem;border-radius:4px;color:var(--muted);line-height:1">✏️</button>
+        <button onclick="event.stopPropagation();openSiEntryModal(null,'${bnJs}')"
+          style="background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:6px;padding:.18rem .6rem;font-size:.75rem;cursor:pointer;font-weight:600;white-space:nowrap">+ สร้างรายการ</button>
+        <span id="${brandKey}-arrow" style="color:var(--muted);font-size:.78rem;margin-left:.15rem">${isOpen?'▼':'▶'}</span>
+      </div>
+      <div id="${brandKey}" class="si-brand-body" style="${isOpen?'':'display:none'}">
+        ${tableHtml}
       </div>`;
   }).join('');
 }
@@ -9776,12 +9800,79 @@ function renderSiRow(e) {
 function siToggleBrand(key) {
   const el = document.getElementById(key);
   const arrow = document.getElementById(key+'-arrow');
+  const header = document.getElementById(key+'-header');
   if (!el) return;
   const isOpen = el.style.display !== 'none';
   el.style.display = isOpen ? 'none' : '';
   if (arrow) arrow.textContent = isOpen ? '▶' : '▼';
+  // update folder icon (first span inside header)
+  if (header) { const icon = header.querySelector('span:first-child'); if (icon) icon.textContent = isOpen ? '📁' : '📂'; }
   if (isOpen) _siExpandedBrands.delete(key);
   else _siExpandedBrands.add(key);
+}
+
+/* ── สร้างโฟลเดอร์ ── */
+function openCreateFolderModal() {
+  document.getElementById('si-folder-name').value = '';
+  openModal('modal-si-folder');
+  setTimeout(() => document.getElementById('si-folder-name')?.focus(), 120);
+}
+
+function createSiFolder() {
+  const name = document.getElementById('si-folder-name').value.trim();
+  if (!name) { showToast('กรุณาใส่ชื่อโฟลเดอร์','error'); return; }
+  // Check for duplicate
+  const exists = _siData.some(g => g.brand_name === name) || _siLocalFolders.has(name);
+  if (exists) { showToast('มีโฟลเดอร์ชื่อนี้แล้ว','error'); return; }
+  _siLocalFolders.add(name);
+  closeModal('modal-si-folder');
+  renderShopInfo(_siData);
+  showToast(`สร้างโฟลเดอร์ "${name}" แล้ว`);
+}
+
+/* ── แก้ไขชื่อโฟลเดอร์ (inline) ── */
+function siStartRename(brandName, brandKey) {
+  const nameSpan = document.getElementById(brandKey + '-name');
+  if (!nameSpan || nameSpan.tagName === 'INPUT') return; // already editing
+
+  const input = document.createElement('input');
+  input.value = brandName;
+  input.id = brandKey + '-name';
+  input.style.cssText = 'flex:1;border:1.5px solid #2563eb;border-radius:6px;padding:.15rem .5rem;font-size:.88rem;font-weight:700;outline:none;background:#eff6ff;min-width:0;width:100%';
+  input.onclick = e => e.stopPropagation();
+
+  let saved = false;
+  const doSave = () => {
+    if (saved) return; saved = true;
+    const newName = input.value.trim();
+    siSaveFolderRename(brandName, newName, brandKey);
+  };
+  const doCancel = () => { if (saved) return; saved = true; loadShopInfo(); };
+
+  input.onkeydown = e => {
+    if (e.key === 'Enter') { e.preventDefault(); doSave(); }
+    if (e.key === 'Escape') { e.preventDefault(); doCancel(); }
+  };
+  input.onblur = doSave;
+
+  nameSpan.replaceWith(input);
+  input.focus();
+  input.select();
+}
+
+async function siSaveFolderRename(oldName, newName, brandKey) {
+  if (!newName) { loadShopInfo(); return; }
+  if (newName === oldName) { loadShopInfo(); return; }
+
+  const isLocalOnly = _siLocalFolders.has(oldName) && !_siData.some(g => g.brand_name === oldName && g.entries.length > 0);
+  try {
+    if (!isLocalOnly) {
+      await api('/api/shopinfo/entry-brand', { method:'PUT', body: { old_name: oldName, new_name: newName } });
+    }
+    if (_siLocalFolders.has(oldName)) { _siLocalFolders.delete(oldName); _siLocalFolders.add(newName); }
+    showToast(`เปลี่ยนชื่อเป็น "${newName}" แล้ว`);
+    loadShopInfo();
+  } catch { showToast('เปลี่ยนชื่อไม่สำเร็จ','error'); loadShopInfo(); }
 }
 
 function siCopy(text, btn) {
@@ -9965,6 +10056,25 @@ async function siImportConfirm() {
 </script>
 
 <!-- ══════════ SHOP INFO MODAL ══════════ -->
+
+<!-- ═══ MODAL: SHOP INFO CREATE FOLDER ═══ -->
+<div class="overlay" id="modal-si-folder">
+  <div class="modal" style="max-width:420px;padding:1.25rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
+      <div style="font-size:1rem;font-weight:800">📁 สร้างโฟลเดอร์ใหม่</div>
+      <button class="modal-close" onclick="closeModal('modal-si-folder')">×</button>
+    </div>
+    <div class="form-group">
+      <label>ชื่อโฟลเดอร์ (แบรนด์ / กลุ่มร้าน)</label>
+      <input id="si-folder-name" placeholder="เช่น Coffee Hero, BigC, Tops..."
+             onkeydown="if(event.key==='Enter')createSiFolder()"/>
+    </div>
+    <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:.85rem">
+      <button class="btn btn-ghost" onclick="closeModal('modal-si-folder')">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="createSiFolder()">✅ สร้างโฟลเดอร์</button>
+    </div>
+  </div>
+</div>
 
 <!-- ═══ MODAL: SHOP INFO IMPORT PREVIEW ═══ -->
 <div class="overlay" id="modal-si-import">

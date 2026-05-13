@@ -5340,6 +5340,19 @@ app.delete('/api/shopinfo/entry/:id', authRequired, async (request, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// PUT /api/shopinfo/entry-brand — rename a brand across all entries
+app.put('/api/shopinfo/entry-brand', authRequired, async (request, res) => {
+  const { old_name, new_name } = request.body || {};
+  if (!old_name || !new_name) return res.status(400).json({ error: 'old_name and new_name required' });
+  try {
+    await req()
+      .input('old', sql.NVarChar, old_name)
+      .input('new', sql.NVarChar, new_name)
+      .query('UPDATE shop_entries SET brand_name=@new WHERE brand_name=@old');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // POST /api/shopinfo/entries/import — batch insert entries from CSV import
 app.post('/api/shopinfo/entries/import', authRequired, async (request, res) => {
   try {
