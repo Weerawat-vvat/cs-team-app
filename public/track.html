@@ -197,6 +197,7 @@ let _dateFrom = '', _dateTo = '';
 let _requirements = null;
 let _issues = null;
 let _fuBoardsList = []; // flat list: [{folder_id, folder_name, board_id, board_name}]
+let _editIssueId  = null; // null = create mode, number = edit mode
 
 // ── Requirements helpers ──────────────────────────────────
 const REQ_STATUS_STYLE = {
@@ -1218,13 +1219,14 @@ function renderIssueTable(){
     <th style="width:110px">สถานะ</th>
     <th style="width:90px">Due Date</th>
     <th style="min-width:110px">ผู้รับผิดชอบ</th>
+    <th style="width:36px"></th>
   </tr></thead>`;
 
   let tbody = '';
   groupOrder.forEach(key => {
     const items = groups[key];
     tbody += `<tr class="iss-board-head">
-      <td colspan="7">📋 ${esc(key)} <span style="background:#e2e8f0;color:#64748b;border-radius:20px;padding:.02rem .45rem;font-size:.68rem;font-weight:700;margin-left:.3rem">${items.length}</span></td>
+      <td colspan="8">📋 ${esc(key)} <span style="background:#e2e8f0;color:#64748b;border-radius:20px;padding:.02rem .45rem;font-size:.68rem;font-weight:700;margin-left:.3rem">${items.length}</span></td>
     </tr>`;
     items.forEach(s => {
       const due = s.due_date ? new Date(s.due_date) : null;
@@ -1242,13 +1244,15 @@ function renderIssueTable(){
         <td><span style="background:${st.bg};color:${st.col};border-radius:20px;padding:.15rem .55rem;font-size:.7rem;font-weight:700;white-space:nowrap">${esc(st.label)}</span></td>
         <td>${due?`<span style="font-size:.75rem;font-weight:${overdue?700:400};color:${overdue?'#ef4444':'#475569'}">${overdue?'🔴 ':''}${due.toLocaleDateString('th-TH',{day:'2-digit',month:'short'})}</span>`:'<span style="color:#cbd5e1;font-size:.75rem">—</span>'}</td>
         <td>${s.assigned_to_name?`<span style="font-size:.75rem">👤 ${esc(s.assigned_to_name)}</span>`:'<span style="color:#cbd5e1;font-size:.72rem">—</span>'}</td>
+        <td onclick="event.stopPropagation();openEditIssue(${s.id})" title="แก้ไข" style="text-align:center;cursor:pointer;color:#94a3b8;font-size:.85rem" onmouseover="this.style.color='#2563eb'" onmouseout="this.style.color='#94a3b8'">✏️</td>
       </tr>
       <tr id="isd-${s.id}" style="display:none">
-        <td colspan="7" class="iss-expand-row">
+        <td colspan="8" class="iss-expand-row">
           ${s.note?`<div style="font-size:.8rem;color:#1e293b;white-space:pre-wrap;word-break:break-word;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:.5rem .75rem;margin-bottom:.5rem">${esc(s.note)}</div>`:''}
-          <div style="display:flex;flex-wrap:wrap;gap:.75rem;font-size:.72rem;color:#94a3b8">
+          <div style="display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;font-size:.72rem;color:#94a3b8">
             ${s.created_at?`<span>📅 สร้างเมื่อ: ${fmtDate(s.created_at)}</span>`:''}
             ${s.updated_at?`<span>🔄 อัปเดต: ${fmtDate(s.updated_at)}</span>`:''}
+            <button onclick="event.stopPropagation();openEditIssue(${s.id})" style="margin-left:auto;background:#2563eb;color:#fff;border:none;border-radius:7px;padding:.3rem .8rem;font-size:.75rem;font-weight:600;cursor:pointer;font-family:inherit">✏️ แก้ไข Issue</button>
           </div>
         </td>
       </tr>`;
@@ -1500,6 +1504,24 @@ function _populateBoardsFromIssues(){
   });
 }
 
+async function openEditIssue(id){
+  _populateBoardsFromIssues();
+  const s = (_issues||[]).find(x=>x.id===id);
+  if(!s){ showTrackToast('❌ ไม่พบข้อมูล Issue','red'); return; }
+  _editIssueId = id;
+  document.getElementById('ti-modal-title').textContent = '✏️ แก้ไข Issue #'+id;
+  // ซ่อน board selector ในโหมดแก้ไข (ไม่ย้าย board)
+  document.getElementById('ti-board-group').style.display = 'none';
+  document.getElementById('ti-detail').value   = s.detail   || '';
+  document.getElementById('ti-category').value = s.category || '';
+  document.getElementById('ti-priority').value = s.priority || 'normal';
+  document.getElementById('ti-note').value     = s.note     || '';
+  document.getElementById('ti-due').value      = s.due_date ? s.due_date.substring(0,10) : '';
+  document.getElementById('ti-submit-btn').textContent = '💾 บันทึกการแก้ไข';
+  document.getElementById('ti-err').style.display = 'none';
+  document.getElementById('modal-track-issue').classList.add('open');
+}
+
 async function openAddIssue(){
   // Fetch boards on-demand if not yet loaded
   if(!_fuBoardsList.length){
@@ -1512,19 +1534,21 @@ async function openAddIssue(){
       showTrackToast('❌ ยังไม่มี Board กรุณาสร้าง Board ก่อน','red'); return;
     }
   }
-  const el = document.getElementById('modal-track-issue');
+  _editIssueId = null;
+  document.getElementById('ti-modal-title').textContent = '➕ เพิ่ม Issue ใหม่';
+  document.getElementById('ti-board-group').style.display = '';
   document.getElementById('ti-board').innerHTML = _boardOptions(null);
-  document.getElementById('ti-detail').value = '';
+  document.getElementById('ti-detail').value   = '';
   document.getElementById('ti-category').value = '';
   document.getElementById('ti-priority').value = 'normal';
-  document.getElementById('ti-note').value = '';
-  document.getElementById('ti-due').value = '';
+  document.getElementById('ti-note').value     = '';
+  document.getElementById('ti-due').value      = '';
+  document.getElementById('ti-submit-btn').textContent = '💾 บันทึก';
   document.getElementById('ti-err').style.display = 'none';
-  el.classList.add('open');
+  document.getElementById('modal-track-issue').classList.add('open');
 }
 
 async function submitTrackIssue(){
-  const boardId  = parseInt(document.getElementById('ti-board').value);
   const detail   = document.getElementById('ti-detail').value.trim();
   const category = document.getElementById('ti-category').value.trim();
   const priority = document.getElementById('ti-priority').value;
@@ -1532,25 +1556,36 @@ async function submitTrackIssue(){
   const due      = document.getElementById('ti-due').value;
   const errEl    = document.getElementById('ti-err');
   const btn      = document.getElementById('ti-submit-btn');
+  const isEdit   = !!_editIssueId;
 
   const showTiErr = m=>{ errEl.textContent='❌ '+m; errEl.style.display='block'; };
-  if(!boardId)  { showTiErr('กรุณาเลือก Board'); return; }
-  if(!detail)   { showTiErr('กรุณาระบุหัวข้อปัญหา'); return; }
+  if(!detail){ showTiErr('กรุณาระบุหัวข้อปัญหา'); return; }
 
+  const prevText = btn.textContent;
   btn.disabled = true; btn.textContent = '⏳ กำลังบันทึก...';
   try {
-    const r = await fetch(`/api/public/track/${token}/fu-issue`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ board_id:boardId, detail, category:category||null, priority, note:note||null, due_date:due||null })
-    });
+    let r;
+    if(isEdit){
+      r = await fetch(`/api/public/track/${token}/fu-issue/${_editIssueId}`, {
+        method:'PUT', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ detail, category:category||null, priority, note:note||null, due_date:due||null })
+      });
+    } else {
+      const boardId = parseInt(document.getElementById('ti-board').value);
+      if(!boardId){ showTiErr('กรุณาเลือก Board'); btn.disabled=false; btn.textContent=prevText; return; }
+      r = await fetch(`/api/public/track/${token}/fu-issue`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ board_id:boardId, detail, category:category||null, priority, note:note||null, due_date:due||null })
+      });
+    }
     const d = await r.json();
     if(!r.ok){ showTiErr(d.error||'บันทึกไม่สำเร็จ'); return; }
     closeTrackModal('modal-track-issue');
-    _issues = null; // invalidate cache
-    showTrackToast('✅ เพิ่ม Issue เรียบร้อยแล้ว','green');
+    _issues = null;
+    showTrackToast(isEdit ? '✅ แก้ไข Issue เรียบร้อยแล้ว' : '✅ เพิ่ม Issue เรียบร้อยแล้ว','green');
     renderIssues();
   } catch { showTiErr('เกิดข้อผิดพลาด กรุณาลองใหม่'); }
-  finally { btn.disabled=false; btn.textContent='💾 บันทึก'; }
+  finally { btn.disabled=false; btn.textContent=prevText; }
 }
 
 async function openCreateBoard(){
@@ -1599,11 +1634,14 @@ async function submitTrackBoard(){
 }
 </script>
 
-<!-- Modal: เพิ่ม Issue -->
-<div id="modal-track-issue" class="track-modal-overlay" onclick="if(event.target===this)closeTrackModal('modal-track-issue')">
+<!-- Modal: เพิ่ม / แก้ไข Issue -->
+<div id="modal-track-issue" class="track-modal-overlay">
   <div class="track-modal-box">
-    <div class="track-modal-title">➕ เพิ่ม Issue ใหม่</div>
-    <div class="track-form-group">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+      <div id="ti-modal-title" class="track-modal-title" style="margin-bottom:0">➕ เพิ่ม Issue ใหม่</div>
+      <button onclick="closeTrackModal('modal-track-issue')" style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:#94a3b8;line-height:1;padding:.1rem .3rem" title="ปิด">✕</button>
+    </div>
+    <div id="ti-board-group" class="track-form-group">
       <label class="track-modal-label">Board <span style="color:#ef4444">*</span></label>
       <select id="ti-board" class="track-modal-input"></select>
     </div>
@@ -1643,9 +1681,12 @@ async function submitTrackBoard(){
 </div>
 
 <!-- Modal: สร้าง Board -->
-<div id="modal-track-board" class="track-modal-overlay" onclick="if(event.target===this)closeTrackModal('modal-track-board')">
+<div id="modal-track-board" class="track-modal-overlay">
   <div class="track-modal-box">
-    <div class="track-modal-title">📋 สร้าง Board ใหม่</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+      <div class="track-modal-title" style="margin-bottom:0">📋 สร้าง Board ใหม่</div>
+      <button onclick="closeTrackModal('modal-track-board')" style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:#94a3b8;line-height:1;padding:.1rem .3rem" title="ปิด">✕</button>
+    </div>
     <div class="track-form-group">
       <label class="track-modal-label">Folder <span style="color:#ef4444">*</span></label>
       <select id="tb-folder" class="track-modal-input"></select>

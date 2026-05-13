@@ -3889,6 +3889,40 @@ app.post('/api/public/track/:token/fu-issue', async (request, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── PUT /api/public/track/:token/fu-issue/:id ────────────
+// Customer edits their own issue (detail, category, priority, due_date, note)
+app.put('/api/public/track/:token/fu-issue/:id', async (request, res) => {
+  try {
+    const tok = request.params.token;
+    const id  = parseInt(request.params.id);
+    const { detail, category, priority, note, due_date } = request.body;
+    if (!detail?.trim()) return res.status(400).json({ error: 'กรุณาระบุหัวข้อปัญหา' });
+
+    const link = (await req().input('tok',sql.NVarChar,tok)
+      .query('SELECT * FROM customer_links WHERE token=@tok')).recordset[0];
+    if (!link) return res.status(404).json({ error: 'Link ไม่พบ' });
+    if (!link.group_id) return res.status(403).json({ error: 'ไม่มีสิทธิ์' });
+
+    // Verify issue belongs to a board in this group
+    const issue = (await req().input('id',sql.Int,id).input('gid',sql.Int,link.group_id)
+      .query(`SELECT i.id FROM fu_issues i
+              JOIN fu_boards b ON b.id=i.board_id
+              JOIN fu_folders f ON f.id=b.folder_id
+              WHERE i.id=@id AND f.group_id=@gid`)).recordset[0];
+    if (!issue) return res.status(403).json({ error: 'Issue ไม่พบหรือไม่มีสิทธิ์' });
+
+    await req()
+      .input('id',  sql.Int,     id)
+      .input('det', sql.NVarChar, detail.trim())
+      .input('cat', sql.NVarChar, category||null)
+      .input('pri', sql.NVarChar, priority||'normal')
+      .input('dd',  sql.Date,    due_date||null)
+      .input('nt',  sql.NVarChar, note||null)
+      .query(`UPDATE fu_issues SET detail=@det,category=@cat,priority=@pri,due_date=@dd,note=@nt,updated_at=GETDATE() WHERE id=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── GET /api/public/requirements/:token ──────────────────
 app.get('/api/public/requirements/:token', async (request, res) => {
   try {
