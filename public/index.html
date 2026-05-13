@@ -9729,24 +9729,20 @@ function renderShopInfo(data) {
     const brandKey = 'brand-' + btoa(encodeURIComponent(group.brand_name || '-')).replace(/=/g,'');
     const isOpen = _siExpandedBrands.has(brandKey);
 
-    const rows = group.entries.map(e => renderSiRow(e)).join('');
-    const bn     = group.brand_name || '';
-    const bnEsc  = escHtml(bn);
-    const bnJs   = bn.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    const bn    = group.brand_name || '';
+    const bnEsc = escHtml(bn);
+    const bnJs  = bn.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
 
-    const tableHtml = group.entries.length
-      ? `<div style="background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:.5rem">
-          <table class="si-table">
-            <thead><tr>
-              <th>สาขา</th><th>ผู้ติดต่อ</th><th>เบอร์</th>
-              <th>ประเภท</th><th>ชื่อเครื่อง</th>
-              <th>Anydesk</th><th>TeamViewer</th>
-              <th>Password</th><th>IP</th>
-              <th>Services</th><th>หมายเหตุ</th><th></th>
-            </tr></thead>
-            <tbody>${rows}</tbody>
-          </table>
-        </div>`
+    // Group entries by branch name
+    const branchMap = new Map();
+    for (const e of group.entries) {
+      const bk = e.branch_name || ' '; // use null-char as key for "no branch"
+      if (!branchMap.has(bk)) branchMap.set(bk, []);
+      branchMap.get(bk).push(e);
+    }
+
+    const branchesHtml = branchMap.size
+      ? [...branchMap.entries()].map(([, terminals]) => renderSiBranchCard(terminals, bnJs)).join('')
       : `<div style="padding:.65rem 1rem 1rem;color:var(--muted);font-size:.82rem">
            📭 ยังไม่มีรายการ — กด <b style="color:#2563eb">+ สร้างรายการ</b> ในหัวโฟลเดอร์เพื่อเพิ่ม
          </div>`;
@@ -9755,7 +9751,7 @@ function renderShopInfo(data) {
       <div class="si-brand-header" id="${brandKey}-header" onclick="siToggleBrand('${brandKey}')">
         <span style="font-size:1rem">${isOpen?'📂':'📁'}</span>
         <span id="${brandKey}-name" style="flex:1;font-weight:700;font-size:.88rem">${bnEsc || '(ไม่ระบุแบรนด์)'}</span>
-        <span style="font-size:.72rem;color:var(--muted);font-weight:400;margin-right:.25rem">${group.entries.length} รายการ</span>
+        <span style="font-size:.72rem;color:var(--muted);font-weight:400;margin-right:.25rem">${group.entries.length} เครื่อง / ${branchMap.size} สาขา</span>
         <button onclick="event.stopPropagation();siStartRename('${bnJs}','${brandKey}')"
           title="แก้ไขชื่อโฟลเดอร์"
           style="background:transparent;border:none;cursor:pointer;font-size:.8rem;padding:.15rem .35rem;border-radius:4px;color:var(--muted);line-height:1">✏️</button>
@@ -9764,36 +9760,75 @@ function renderShopInfo(data) {
         <span id="${brandKey}-arrow" style="color:var(--muted);font-size:.78rem;margin-left:.15rem">${isOpen?'▼':'▶'}</span>
       </div>
       <div id="${brandKey}" class="si-brand-body" style="${isOpen?'':'display:none'}">
-        ${tableHtml}
+        ${branchesHtml}
       </div>`;
   }).join('');
 }
 
-function renderSiRow(e) {
-  const svcHtml = (e.services||'').split(',').filter(Boolean).map(s => {
+/* ── Render one branch card — terminals as columns ── */
+function renderSiBranchCard(terminals, bnJs) {
+  const first = terminals[0];
+  const branchName = escHtml(first.branch_name || '(ไม่ระบุสาขา)');
+  const contact    = first.contact_name ? `<span style="font-size:.78rem;color:#475569">👤 ${escHtml(first.contact_name)}</span>` : '';
+  const tel        = first.telephone    ? `<span style="font-size:.78rem;color:#475569">📞 ${escHtml(first.telephone)}</span>` : '';
+
+  const cpBtn = (val) => val
+    ? `${escHtml(val)}<button class="si-copy-btn" onclick="siCopy('${String(val).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}',this)">copy</button>`
+    : '<span style="color:#cbd5e1">—</span>';
+
+  const svcHtml = (t) => (t.services||'').split(',').filter(Boolean).map(s => {
     const cls = s.trim()==='posprint'?'si-svc-posprint':s.trim()==='mqtt'?'si-svc-mqtt':'si-svc-sync';
     return `<span class="si-svc ${cls}">${escHtml(s.trim())}</span>`;
+  }).join('') || '<span style="color:#cbd5e1">—</span>';
+
+  const noteHtml = (t) => t.note
+    ? `<span style="color:var(--muted);font-size:.75rem" title="${escHtml(t.note)}">${escHtml(t.note.length>40?t.note.substring(0,40)+'…':t.note)}</span>`
+    : '<span style="color:#cbd5e1">—</span>';
+
+  const labelCell = (txt) =>
+    `<td style="font-size:.75rem;font-weight:600;color:var(--muted);white-space:nowrap;background:#f8fafc;border-right:1px solid var(--border);padding:.45rem .75rem">${txt}</td>`;
+
+  // Header row: one th per terminal
+  const termHeaders = terminals.map(t => {
+    const badge = t.terminal_type ? `<span class="si-badge" style="font-size:.68rem">${escHtml(t.terminal_type)}</span>` : '';
+    const name  = escHtml(t.terminal_name || '(ไม่ระบุ)');
+    const delLabel = escHtml((t.branch_name||'')+(t.terminal_name?' – '+t.terminal_name:'')).replace(/'/g,"\\'");
+    return `<th style="text-align:center;min-width:160px;padding:.55rem .6rem;font-weight:600">
+      <div style="margin-bottom:.25rem">${badge}</div>
+      <div style="font-size:.85rem">${name}</div>
+      <div style="margin-top:.35rem;display:flex;justify-content:center;gap:.25rem">
+        <button class="si-action-btn" onclick="openSiEntryModal(${t.id})" title="แก้ไข">✏️</button>
+        <button class="si-action-btn" onclick="deleteSiEntry(${t.id},'${delLabel}')">🗑️</button>
+      </div>
+    </th>`;
   }).join('');
 
-  const note = e.note ? (e.note.length>30 ? e.note.substring(0,30)+'…' : e.note) : '-';
+  const makeRow = (label, fn) =>
+    `<tr>${labelCell(label)}${terminals.map(t=>`<td style="text-align:center;white-space:nowrap;padding:.4rem .6rem">${fn(t)}</td>`).join('')}</tr>`;
 
-  return `<tr>
-    <td>${escHtml(e.branch_name||'-')}</td>
-    <td>${escHtml(e.contact_name||'-')}</td>
-    <td style="white-space:nowrap">${escHtml(e.telephone||'-')}</td>
-    <td>${e.terminal_type?`<span class="si-badge">${escHtml(e.terminal_type)}</span>`:'-'}</td>
-    <td>${escHtml(e.terminal_name||'-')}</td>
-    <td style="white-space:nowrap">${e.anydesk_id?`${escHtml(e.anydesk_id)}<button class="si-copy-btn" onclick="siCopy('${escHtml(e.anydesk_id).replace(/'/g,"\\'")}',this)">copy</button>`:'-'}</td>
-    <td style="white-space:nowrap">${e.teamviewer_id?`${escHtml(e.teamviewer_id)}<button class="si-copy-btn" onclick="siCopy('${escHtml(e.teamviewer_id).replace(/'/g,"\\'")}',this)">copy</button>`:'-'}</td>
-    <td style="white-space:nowrap">${e.remote_password?`${escHtml(e.remote_password)}<button class="si-copy-btn" onclick="siCopy('${escHtml(e.remote_password).replace(/'/g,"\\'")}',this)">copy</button>`:'-'}</td>
-    <td style="white-space:nowrap">${e.ip_address?`${escHtml(e.ip_address)}<button class="si-copy-btn" onclick="siCopy('${escHtml(e.ip_address).replace(/'/g,"\\'")}',this)">copy</button>`:'-'}</td>
-    <td>${svcHtml||'-'}</td>
-    <td style="color:var(--muted);font-size:.75rem" title="${escHtml(e.note||'')}">${escHtml(note)}</td>
-    <td style="white-space:nowrap">
-      <button class="si-action-btn" onclick="openSiEntryModal(${e.id})" title="แก้ไข">✏️</button>
-      <button class="si-action-btn" onclick="deleteSiEntry(${e.id},'${escHtml((e.branch_name||'')+(e.terminal_name?' - '+e.terminal_name:'')).replace(/'/g,"\\'")}')">🗑️</button>
-    </td>
-  </tr>`;
+  return `
+    <div style="background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:.6rem">
+      <div style="padding:.5rem .9rem;background:#f1f5f9;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.65rem;flex-wrap:wrap">
+        <span style="font-weight:700;font-size:.88rem">🏪 ${branchName}</span>
+        ${contact}${tel}
+      </div>
+      <div style="overflow-x:auto">
+        <table class="si-table" style="width:auto;min-width:100%;border-collapse:collapse">
+          <thead><tr>
+            <th style="background:#f8fafc;border-right:1px solid var(--border);min-width:80px;font-size:.75rem;color:var(--muted)">รายการ</th>
+            ${termHeaders}
+          </tr></thead>
+          <tbody>
+            ${makeRow('Anydesk',     t => cpBtn(t.anydesk_id))}
+            ${makeRow('TeamViewer',  t => cpBtn(t.teamviewer_id))}
+            ${makeRow('Password',    t => cpBtn(t.remote_password))}
+            ${makeRow('IP Address',  t => cpBtn(t.ip_address))}
+            ${makeRow('Services',    t => svcHtml(t))}
+            ${makeRow('หมายเหตุ',   t => noteHtml(t))}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
 }
 
 function siToggleBrand(key) {
