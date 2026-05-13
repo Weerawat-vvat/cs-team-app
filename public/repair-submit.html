@@ -308,8 +308,8 @@ async function init() {
 
 function getCompanyValue() {
   if (_linkType === 'company') return _companyName;
-  if (_linkType === 'group')   return _acGroupSelected;
-  return _acSelected || document.getElementById('f-company-search').value;
+  if (_linkType === 'group')   return _acGroupSelected || document.getElementById('f-company-group').value.trim();
+  return _acSelected || document.getElementById('f-company-search').value.trim();
 }
 
 // ── Group branch autocomplete ─────────────────────────────
@@ -319,11 +319,14 @@ let _acGroupSelected = '';
 let _acGroupIdx      = -1;
 
 function acGroupOpen() {
-  acGroupFilter(document.getElementById('f-company-group').value);
+  // Show all branches when focused (empty query = show all)
+  const q = document.getElementById('f-company-group').value;
+  acGroupFilter(q);  // q may be empty → shows full list
 }
 
 function acGroupFilter(q) {
-  _acGroupSelected = '';
+  // Don't clear selection if user is just re-focusing without typing
+  if (q !== document.getElementById('f-company-group').value) _acGroupSelected = '';
   const dd = document.getElementById('ac-group-dropdown');
   _acGroupFiltered = q.trim()
     ? _groupBranches.filter(b => b.name.toLowerCase().includes(q.toLowerCase()))
@@ -447,16 +450,44 @@ function removeFile(i) { selectedFiles.splice(i, 1); renderPreviews(); }
 // ── Validate ──────────────────────────────────────────────
 function validate() {
   let ok = true;
+  let firstErrEl = null;
   // Company
   const company = getCompanyValue();
   const errCo = document.getElementById('err-company');
-  if (!company.trim()) { errCo.style.display = ''; ok = false; } else errCo.style.display = 'none';
+  if (!company.trim()) {
+    errCo.style.display = '';
+    // Highlight the visible company input
+    const grp = document.getElementById('f-company-group');
+    const srch = document.getElementById('f-company-search');
+    if (grp && document.getElementById('f-company-group-wrap').style.display !== 'none') {
+      grp.style.borderColor = '#ef4444';
+      setTimeout(() => { grp.style.borderColor = ''; }, 2000);
+      if (!firstErrEl) firstErrEl = grp;
+    } else if (srch) {
+      srch.style.borderColor = '#ef4444';
+      setTimeout(() => { srch.style.borderColor = ''; }, 2000);
+      if (!firstErrEl) firstErrEl = srch;
+    }
+    ok = false;
+  } else {
+    errCo.style.display = 'none';
+  }
   // Other fields
   [['f-contact-name','err-contact'],['f-contact-phone','err-phone'],['f-symptom','err-symptom']].forEach(([fid,eid]) => {
     const el = document.getElementById(fid);
     const err = document.getElementById(eid);
-    if (!el.value.trim()) { err.style.display = ''; if(ok) el.focus(); ok = false; } else err.style.display = 'none';
+    if (!el.value.trim()) {
+      err.style.display = '';
+      if (!firstErrEl) firstErrEl = el;
+      ok = false;
+    } else {
+      err.style.display = 'none';
+    }
   });
+  if (!ok && firstErrEl) {
+    firstErrEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    firstErrEl.focus();
+  }
   return ok;
 }
 
