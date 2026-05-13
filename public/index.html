@@ -4785,8 +4785,8 @@ function initKpiMonthFilter() {
 // set today's date defaults
 function initDateDefaults() {
   const today = fmtDateISO(new Date());
-  document.getElementById('s-date').value  = today;
-  document.getElementById('lr-date').value = today;
+  const sDate  = document.getElementById('s-date');  if (sDate)  sDate.value  = today;
+  const lrDate = document.getElementById('lr-date'); if (lrDate) lrDate.value = today;
   const now = new Date();
   // Default to today for Dashboard and Tickets
   const dashFrom = document.getElementById('dash-date-from');
