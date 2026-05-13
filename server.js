@@ -4732,8 +4732,10 @@ app.put('/api/specialist/:id', authRequired, async (request, res) => {
                             Solution=ISNULL(NULLIF(Solution,''), @sol),
                             UpdateDate=GETDATE()
                         WHERE CalllogId=@id`);
-            } else if (b.status === 'resolved') {
-              // ── ไม่มี calllog → สร้างใหม่ใน Call Log ─────────────────
+            }
+
+            // ── ทุกกรณีที่ resolved → สร้าง Calllog ใหม่เสมอ ──────────
+            if (b.status === 'resolved') {
               const supportId = request.user.calluserid || null;
               // หา RegistrationId จาก company_name (best-effort)
               let regId = null;
@@ -4770,8 +4772,8 @@ app.put('/api/specialist/:id', authRequired, async (request, res) => {
                           @sid, @stid, @subj, @sol, 'Remote',
                           @uid, @cbid, 1, GETDATE(), GETDATE())`);
               const newCalllogId = newLog.recordset[0]?.id;
-              // Link specialist_log → calllog ที่สร้างใหม่
-              if (newCalllogId) {
+              // ถ้าไม่มี calllog_id เดิม → link specialist_log กับ calllog ใหม่
+              if (newCalllogId && !cur.calllog_id) {
                 await req().input('id', sql.Int, id).input('cid', sql.Int, newCalllogId)
                   .query('UPDATE specialist_log SET calllog_id=@cid WHERE id=@id');
               }
