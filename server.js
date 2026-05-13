@@ -4938,7 +4938,35 @@ function faceValueDate(s) {
 }
 
 // ══════════════════════════════════════════════════════════
-//  SHOP INFO — Migration
+//  SHOP INFO — Migration (new flat table)
+// ══════════════════════════════════════════════════════════
+async function ensureShopEntriesTable() {
+  try {
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='shop_entries' AND xtype='U')
+      CREATE TABLE shop_entries (
+        id              INT IDENTITY PRIMARY KEY,
+        brand_name      NVARCHAR(255)  NULL,
+        branch_name     NVARCHAR(255)  NULL,
+        contact_name    NVARCHAR(255)  NULL,
+        telephone       NVARCHAR(100)  NULL,
+        terminal_type   NVARCHAR(100)  NULL,
+        terminal_name   NVARCHAR(255)  NULL,
+        anydesk_id      NVARCHAR(255)  NULL,
+        teamviewer_id   NVARCHAR(255)  NULL,
+        remote_password NVARCHAR(255)  NULL,
+        ip_address      NVARCHAR(100)  NULL,
+        services        NVARCHAR(500)  NULL,
+        note            NVARCHAR(MAX)  NULL,
+        created_at      DATETIME DEFAULT GETDATE(),
+        updated_at      DATETIME DEFAULT GETDATE()
+      )`);
+    console.log('✅ shop_entries table ready');
+  } catch(e) { console.error('❌ shop_entries table error:', e.message); }
+}
+
+// ══════════════════════════════════════════════════════════
+//  SHOP INFO — Migration (legacy 4-table schema)
 // ══════════════════════════════════════════════════════════
 async function ensureShopInfoTables() {
   try {
@@ -5196,6 +5224,122 @@ app.delete('/api/shopinfo/terminal/:id', authRequired, async (request, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ══════════════════════════════════════════════════════════
+//  SHOP INFO — New flat entries API
+// ══════════════════════════════════════════════════════════
+
+// GET /api/shopinfo/entries?q=  — search & return grouped by brand
+app.get('/api/shopinfo/entries', authRequired, async (request, res) => {
+  try {
+    const q = (request.query.q || '').trim();
+    let rows;
+    if (q) {
+      const like = `%${q}%`;
+      rows = (await req()
+        .input('like', sql.NVarChar, like)
+        .query(`SELECT * FROM shop_entries
+                WHERE brand_name LIKE @like OR branch_name LIKE @like
+                   OR contact_name LIKE @like OR terminal_name LIKE @like
+                   OR anydesk_id LIKE @like OR teamviewer_id LIKE @like
+                   OR ip_address LIKE @like
+                ORDER BY brand_name, branch_name, terminal_type, terminal_name`)).recordset;
+    } else {
+      rows = (await req().query(
+        `SELECT * FROM shop_entries ORDER BY brand_name, branch_name, terminal_type, terminal_name`
+      )).recordset;
+    }
+
+    // Group by brand_name
+    const map = new Map();
+    for (const row of rows) {
+      const brand = row.brand_name || '';
+      if (!map.has(brand)) map.set(brand, []);
+      map.get(brand).push(row);
+    }
+    const result = [];
+    for (const [brand_name, entries] of map) {
+      result.push({ brand_name, entries });
+    }
+    res.json(result);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/shopinfo/entry-brands — distinct brand names
+app.get('/api/shopinfo/entry-brands', authRequired, async (request, res) => {
+  try {
+    const rows = (await req().query(`
+      SELECT DISTINCT brand_name FROM shop_entries
+      WHERE brand_name IS NOT NULL AND brand_name <> ''
+      ORDER BY brand_name`)).recordset;
+    res.json(rows.map(r => r.brand_name));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/shopinfo/entry
+app.post('/api/shopinfo/entry', authRequired, async (request, res) => {
+  try {
+    const { brand_name, branch_name, contact_name, telephone, terminal_type, terminal_name,
+            anydesk_id, teamviewer_id, remote_password, ip_address, services, note } = request.body;
+    const result = await req()
+      .input('brand_name',      sql.NVarChar, brand_name      || null)
+      .input('branch_name',     sql.NVarChar, branch_name     || null)
+      .input('contact_name',    sql.NVarChar, contact_name    || null)
+      .input('telephone',       sql.NVarChar, telephone       || null)
+      .input('terminal_type',   sql.NVarChar, terminal_type   || null)
+      .input('terminal_name',   sql.NVarChar, terminal_name   || null)
+      .input('anydesk_id',      sql.NVarChar, anydesk_id      || null)
+      .input('teamviewer_id',   sql.NVarChar, teamviewer_id   || null)
+      .input('remote_password', sql.NVarChar, remote_password || null)
+      .input('ip_address',      sql.NVarChar, ip_address      || null)
+      .input('services',        sql.NVarChar, services        || null)
+      .input('note',            sql.NVarChar, note            || null)
+      .query(`INSERT INTO shop_entries
+                (brand_name,branch_name,contact_name,telephone,terminal_type,terminal_name,
+                 anydesk_id,teamviewer_id,remote_password,ip_address,services,note)
+              OUTPUT INSERTED.id
+              VALUES (@brand_name,@branch_name,@contact_name,@telephone,@terminal_type,@terminal_name,
+                      @anydesk_id,@teamviewer_id,@remote_password,@ip_address,@services,@note)`);
+    res.json({ id: result.recordset[0].id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT /api/shopinfo/entry/:id
+app.put('/api/shopinfo/entry/:id', authRequired, async (request, res) => {
+  try {
+    const { brand_name, branch_name, contact_name, telephone, terminal_type, terminal_name,
+            anydesk_id, teamviewer_id, remote_password, ip_address, services, note } = request.body;
+    await req()
+      .input('id',              sql.Int,      +request.params.id)
+      .input('brand_name',      sql.NVarChar, brand_name      || null)
+      .input('branch_name',     sql.NVarChar, branch_name     || null)
+      .input('contact_name',    sql.NVarChar, contact_name    || null)
+      .input('telephone',       sql.NVarChar, telephone       || null)
+      .input('terminal_type',   sql.NVarChar, terminal_type   || null)
+      .input('terminal_name',   sql.NVarChar, terminal_name   || null)
+      .input('anydesk_id',      sql.NVarChar, anydesk_id      || null)
+      .input('teamviewer_id',   sql.NVarChar, teamviewer_id   || null)
+      .input('remote_password', sql.NVarChar, remote_password || null)
+      .input('ip_address',      sql.NVarChar, ip_address      || null)
+      .input('services',        sql.NVarChar, services        || null)
+      .input('note',            sql.NVarChar, note            || null)
+      .query(`UPDATE shop_entries
+              SET brand_name=@brand_name, branch_name=@branch_name, contact_name=@contact_name,
+                  telephone=@telephone, terminal_type=@terminal_type, terminal_name=@terminal_name,
+                  anydesk_id=@anydesk_id, teamviewer_id=@teamviewer_id, remote_password=@remote_password,
+                  ip_address=@ip_address, services=@services, note=@note, updated_at=GETDATE()
+              WHERE id=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE /api/shopinfo/entry/:id
+app.delete('/api/shopinfo/entry/:id', authRequired, async (request, res) => {
+  try {
+    await req().input('id', sql.Int, +request.params.id).query('DELETE FROM shop_entries WHERE id=@id');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 init().then(async () => {
   // Drop hardcoded team CHECK constraint so dynamic teams work
   try {
@@ -5219,6 +5363,7 @@ init().then(async () => {
   await ensureFollowupTable();
   await ensureFollowupV2Tables();
   await ensureShopInfoTables();
+  await ensureShopEntriesTable();
 
   // Drop CHECK constraint on shifts.shift_type so 'dayoff' can be inserted
   try {

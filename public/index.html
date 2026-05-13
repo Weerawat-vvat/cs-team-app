@@ -381,6 +381,24 @@ textarea{resize:vertical;min-height:80px}
 .tt-fill{height:8px;border-radius:20px;transition:width .5s,background .5s;width:0%}
 .target-input{width:64px;text-align:center;border:1px solid var(--border);border-radius:6px;padding:.2rem .35rem;font-size:.85rem;background:var(--card2);color:var(--text)}
 .target-input:focus{outline:2px solid var(--accent);border-color:var(--accent)}
+
+/* ── SHOP INFO (new flat layout) ── */
+.si-brand-header{display:flex;align-items:center;gap:.5rem;padding:.55rem .85rem;background:#fff;border:1px solid var(--border);border-radius:10px;cursor:pointer;margin-bottom:.35rem;font-weight:700;font-size:.88rem;user-select:none}
+.si-brand-header:hover{background:#f8fafc}
+.si-brand-body{margin-bottom:.75rem}
+.si-table{width:100%;border-collapse:collapse;font-size:.78rem}
+.si-table th{background:#f8fafc;padding:.4rem .6rem;text-align:left;font-weight:600;color:var(--muted);border-bottom:2px solid var(--border);white-space:nowrap}
+.si-table td{padding:.38rem .6rem;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+.si-table tr:hover td{background:#fafbff}
+.si-badge{display:inline-block;padding:.1rem .45rem;border-radius:20px;font-size:.7rem;font-weight:600;background:#e0e7ff;color:#3730a3}
+.si-copy-btn{background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:4px;padding:.05rem .35rem;font-size:.7rem;cursor:pointer;white-space:nowrap;margin-left:.25rem}
+.si-copy-btn:hover{background:#dbeafe}
+.si-action-btn{background:none;border:none;cursor:pointer;padding:.15rem .3rem;border-radius:4px;font-size:.8rem;opacity:.5}
+.si-action-btn:hover{opacity:1;background:#f1f5f9}
+.si-svc{display:inline-block;padding:.08rem .38rem;border-radius:20px;font-size:.68rem;font-weight:600;margin-right:.2rem}
+.si-svc-posprint{background:#dbeafe;color:#1d4ed8}
+.si-svc-mqtt{background:#fef9c3;color:#854d0e}
+.si-svc-sync{background:#dcfce7;color:#166534}
 </style>
 </head>
 <body>
@@ -1881,10 +1899,10 @@ textarea{resize:vertical;min-height:80px}
   <div class="section-header" style="margin-bottom:.75rem">
     <div class="section-title">📋 ข้อมูลร้าน</div>
     <div class="btn-group" style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
-      <input id="si-search-input" type="text" placeholder="🔍 ค้นหา ชื่อสาขา แบรนด์ ชื่อเครื่อง IP Remote ID..."
+      <input id="si-search" type="text" placeholder="🔍 ค้นหา แบรนด์ สาขา ผู้ติดต่อ ชื่อเครื่อง Anydesk IP..."
              oninput="siSearchDebounce()"
              style="border:1px solid var(--border);border-radius:8px;padding:.38rem .75rem;font-size:.83rem;min-width:280px;outline:none"/>
-      <button class="btn btn-primary btn-sm" onclick="openSiBranchModal()">+ เพิ่มสาขา</button>
+      <button class="btn btn-primary btn-sm" onclick="openSiEntryModal(null)">+ เพิ่มรายการ</button>
       <button class="btn btn-ghost btn-sm" onclick="loadShopInfo()">🔄 รีเฟรช</button>
     </div>
   </div>
@@ -2789,7 +2807,7 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 
 // click outside to close
 // Modals ที่ห้ามปิดเมื่อกด outside (ข้อมูลอาจหาย)
-const NO_BACKDROP_CLOSE = new Set(['modal-repair-link','modal-repair-form','modal-repair-detail','modal-person','modal-create-case','modal-edit-ticket-full','modal-specialist-detail','modal-assign-specialist','modal-add-sp','modal-edit-sp','modal-si-branch','modal-si-terminal','modal-si-contact']);
+const NO_BACKDROP_CLOSE = new Set(['modal-repair-link','modal-repair-form','modal-repair-detail','modal-person','modal-create-case','modal-edit-ticket-full','modal-specialist-detail','modal-assign-specialist','modal-add-sp','modal-edit-sp','modal-si-entry']);
 
 document.querySelectorAll('.overlay').forEach(el => {
   el.addEventListener('click', e => {
@@ -9663,23 +9681,23 @@ function _clearDragState() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ══════════════════════════════════════════════════════════
-//  SHOP INFO
+//  SHOP INFO (new flat layout)
 // ══════════════════════════════════════════════════════════
+let _siData = [];
+let _siExpandedBrands = new Set();
 let _siSearchTimer = null;
-let _siQuery = '';
 
 function siSearchDebounce() {
   clearTimeout(_siSearchTimer);
-  _siSearchTimer = setTimeout(() => {
-    _siQuery = document.getElementById('si-search-input').value.trim();
-    loadShopInfo();
-  }, 300);
+  _siSearchTimer = setTimeout(loadShopInfo, 300);
 }
 
 async function loadShopInfo() {
-  const q = _siQuery;
+  const q = document.getElementById('si-search')?.value?.trim() || '';
   try {
-    const data = await api('/api/shopinfo?q=' + encodeURIComponent(q));
+    const data = await api(`/api/shopinfo/entries${q ? '?q=' + encodeURIComponent(q) : ''}`);
+    if (!Array.isArray(data)) return;
+    _siData = data;
     renderShopInfo(data);
   } catch(e) {
     document.getElementById('shopinfo-list').innerHTML =
@@ -9689,485 +9707,256 @@ async function loadShopInfo() {
 
 function renderShopInfo(data) {
   const el = document.getElementById('shopinfo-list');
-  if (!data.length) {
-    el.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2.5rem;font-size:.9rem">ไม่พบข้อมูล</div>';
-    return;
-  }
+  if (!data.length) { el.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--muted)">ยังไม่มีข้อมูล กด + เพิ่มรายการ</div>'; return; }
 
-  // Group by brand_name
-  const grouped = {};
-  for (const b of data) {
-    const brand = b.brand_name || '— ไม่ระบุแบรนด์ —';
-    (grouped[brand] ||= []).push(b);
-  }
+  el.innerHTML = data.map(group => {
+    const brandKey = 'brand-' + btoa(encodeURIComponent(group.brand_name || '-')).replace(/=/g,'');
+    const isOpen = _siExpandedBrands.has(brandKey) || _siExpandedBrands.size === 0;
+    if (_siExpandedBrands.size === 0) _siExpandedBrands.add(brandKey);
 
-  let html = '';
-  for (const [brand, branches] of Object.entries(grouped)) {
-    html += `<div style="margin-bottom:1.5rem">
-      <div style="font-size:.82rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.5rem;display:flex;align-items:center;gap:.4rem">
-        📂 ${escHtml(brand)}
+    const rows = group.entries.map(e => renderSiRow(e)).join('');
+
+    return `
+      <div class="si-brand-header" onclick="siToggleBrand('${brandKey}')">
+        <span>📂</span>
+        <span style="flex:1">${escHtml(group.brand_name || '(ไม่ระบุแบรนด์)')}</span>
+        <span style="font-size:.75rem;color:var(--muted);font-weight:400">${group.entries.length} รายการ</span>
+        <button onclick="event.stopPropagation();openSiEntryModal(null,'${escHtml(group.brand_name||'')}')"
+          style="background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:6px;padding:.2rem .6rem;font-size:.75rem;cursor:pointer;font-weight:600">+ เพิ่ม</button>
+        <span id="${brandKey}-arrow" style="color:var(--muted);font-size:.8rem">${isOpen?'▼':'▶'}</span>
+      </div>
+      <div id="${brandKey}" class="si-brand-body" style="${isOpen?'':'display:none'}">
+        <div style="background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:.5rem">
+          <table class="si-table">
+            <thead><tr>
+              <th>สาขา</th><th>ผู้ติดต่อ</th><th>เบอร์</th>
+              <th>ประเภท</th><th>ชื่อเครื่อง</th>
+              <th>Anydesk</th><th>TeamViewer</th>
+              <th>Password</th><th>IP</th>
+              <th>Services</th><th>หมายเหตุ</th><th></th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
       </div>`;
-    for (const b of branches) {
-      html += renderSiBranchCard(b);
-    }
-    html += '</div>';
-  }
-  el.innerHTML = html;
+  }).join('');
 }
 
-function renderSiBranchCard(b) {
-  const contactsHtml = b.contacts.map(c => `
-    <span style="display:inline-flex;align-items:center;gap:.3rem;background:#f1f5f9;border-radius:6px;padding:.2rem .55rem;font-size:.78rem;margin:.15rem .2rem .15rem 0">
-      <span>${escHtml(c.contact_name || '')}${c.telephone ? ' · ' + escHtml(c.telephone) : ''}</span>
-      <button onclick="openSiContactModal(${b.id}, ${c.id})" title="แก้ไข"
-              style="background:none;border:none;cursor:pointer;color:#64748b;font-size:.8rem;padding:0;line-height:1">✏️</button>
-      <button onclick="deleteSiContact(${c.id})" title="ลบ"
-              style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:.8rem;padding:0;line-height:1">×</button>
-    </span>`).join('');
+function renderSiRow(e) {
+  const svcHtml = (e.services||'').split(',').filter(Boolean).map(s => {
+    const cls = s.trim()==='posprint'?'si-svc-posprint':s.trim()==='mqtt'?'si-svc-mqtt':'si-svc-sync';
+    return `<span class="si-svc ${cls}">${escHtml(s.trim())}</span>`;
+  }).join('');
 
-  const terminalsHtml = b.terminals.length ? `
-    <div style="overflow-x:auto;margin-top:.6rem">
-      <table style="width:100%;border-collapse:collapse;font-size:.78rem">
-        <thead>
-          <tr style="background:#f8fafc;color:#64748b">
-            <th style="padding:.3rem .5rem;text-align:left;font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap">ประเภท</th>
-            <th style="padding:.3rem .5rem;text-align:left;font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap">ชื่อเครื่อง</th>
-            <th style="padding:.3rem .5rem;text-align:left;font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap">Remote</th>
-            <th style="padding:.3rem .5rem;text-align:left;font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap">ID</th>
-            <th style="padding:.3rem .5rem;text-align:left;font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap">Password</th>
-            <th style="padding:.3rem .5rem;text-align:left;font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap">IP</th>
-            <th style="padding:.3rem .5rem;text-align:left;font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap">Services</th>
-            <th style="padding:.3rem .5rem;border-bottom:1px solid var(--border)"></th>
-          </tr>
-        </thead>
-        <tbody>
-          ${b.terminals.map(t => renderSiTerminalRow(t, b.id)).join('')}
-        </tbody>
-      </table>
-    </div>` : '';
+  const note = e.note ? (e.note.length>30 ? e.note.substring(0,30)+'…' : e.note) : '-';
 
-  return `
-  <div class="card" style="margin-bottom:.65rem;padding:.85rem 1rem">
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem;margin-bottom:.4rem">
-      <div>
-        <span style="font-size:.92rem;font-weight:700;color:var(--text)">🏪 ${escHtml(b.branch_name)}</span>
-        ${b.note ? `<div style="font-size:.78rem;color:var(--muted);margin-top:.15rem">${escHtml(b.note)}</div>` : ''}
-      </div>
-      <div style="display:flex;gap:.3rem;flex-shrink:0">
-        <button class="btn btn-ghost btn-sm" style="padding:.2rem .55rem;font-size:.75rem" onclick="openSiBranchModal(${b.id})">✏️ แก้ไข</button>
-        <button class="btn btn-sm" style="padding:.2rem .55rem;font-size:.75rem;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca" onclick="deleteSiBranch(${b.id}, '${escHtml(b.branch_name).replace(/'/g,"\\'")}')">🗑 ลบ</button>
-      </div>
-    </div>
-
-    <div style="margin-bottom:.5rem">
-      <span style="font-size:.75rem;font-weight:600;color:#475569">📞 ผู้ติดต่อ:</span>
-      ${contactsHtml || '<span style="font-size:.78rem;color:var(--muted)"> — ยังไม่มี</span>'}
-      <button onclick="openSiContactModal(${b.id})"
-              style="background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:20px;font-size:.72rem;padding:.1rem .45rem;cursor:pointer;margin-left:.25rem">+ เพิ่ม</button>
-    </div>
-
-    ${terminalsHtml}
-
-    <div style="margin-top:.55rem">
-      <button onclick="openSiTerminalModal(${b.id})"
-              style="background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:20px;font-size:.75rem;padding:.18rem .6rem;cursor:pointer">+ เพิ่มเครื่อง</button>
-    </div>
-  </div>`;
-}
-
-function renderSiTerminalRow(t, branchId) {
-  const remoteLabel = t.remote_type
-    ? `<span style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:4px;padding:.05rem .35rem;font-size:.72rem">${escHtml(t.remote_type)}</span>`
-    : '<span style="color:var(--muted)">—</span>';
-
-  const idCell = t.remote_id
-    ? `<span style="font-family:monospace">${escHtml(t.remote_id)}</span>
-       <button onclick="siCopy('${escHtml(t.remote_id).replace(/'/g,"\\'")}',this)" title="คัดลอก"
-               style="background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:20px;font-size:.68rem;padding:.05rem .35rem;cursor:pointer;margin-left:.2rem">copy</button>`
-    : '<span style="color:var(--muted)">—</span>';
-
-  const pwCell = t.remote_password
-    ? `<span style="font-family:monospace" id="si-pw-${t.id}">••••••</span>
-       <button onclick="siTogglePw(${t.id},'${escHtml(t.remote_password).replace(/'/g,"\\'")}',this)" title="แสดง/ซ่อน"
-               style="background:none;border:none;cursor:pointer;font-size:.78rem;padding:0 .2rem">👁</button>
-       <button onclick="siCopy('${escHtml(t.remote_password).replace(/'/g,"\\'")}',this)" title="คัดลอก"
-               style="background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:20px;font-size:.68rem;padding:.05rem .35rem;cursor:pointer">copy</button>`
-    : '<span style="color:var(--muted)">—</span>';
-
-  const ipCell = t.ip_address
-    ? `<span style="font-family:monospace">${escHtml(t.ip_address)}</span>
-       <button onclick="siCopy('${escHtml(t.ip_address).replace(/'/g,"\\'")}',this)" title="คัดลอก"
-               style="background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:20px;font-size:.68rem;padding:.05rem .35rem;cursor:pointer;margin-left:.2rem">copy</button>`
-    : '<span style="color:var(--muted)">—</span>';
-
-  const svcTags = t.services
-    ? t.services.split(',').map(s => `<span style="background:#fef9c3;color:#854d0e;border-radius:4px;padding:.05rem .3rem;font-size:.68rem;margin-right:.15rem">${escHtml(s.trim())}</span>`).join('')
-    : '<span style="color:var(--muted)">—</span>';
-
-  return `<tr style="border-bottom:1px solid #f1f5f9">
-    <td style="padding:.3rem .5rem;white-space:nowrap">${t.terminal_type ? `<span style="background:#e0f2fe;color:#0369a1;border-radius:4px;padding:.08rem .35rem;font-size:.72rem">${escHtml(t.terminal_type)}</span>` : '—'}</td>
-    <td style="padding:.3rem .5rem">${escHtml(t.terminal_name || '—')}</td>
-    <td style="padding:.3rem .5rem">${remoteLabel}</td>
-    <td style="padding:.3rem .5rem;white-space:nowrap">${idCell}</td>
-    <td style="padding:.3rem .5rem;white-space:nowrap">${pwCell}</td>
-    <td style="padding:.3rem .5rem;white-space:nowrap">${ipCell}</td>
-    <td style="padding:.3rem .5rem">${svcTags}</td>
-    <td style="padding:.3rem .5rem;white-space:nowrap">
-      <button onclick="openSiTerminalModal(${branchId},${t.id})" title="แก้ไข"
-              style="background:none;border:none;cursor:pointer;font-size:.85rem;padding:.1rem .25rem">✏️</button>
-      <button onclick="deleteSiTerminal(${t.id})" title="ลบ"
-              style="background:none;border:none;cursor:pointer;font-size:.85rem;padding:.1rem .25rem;color:#ef4444">🗑</button>
+  return `<tr>
+    <td>${escHtml(e.branch_name||'-')}</td>
+    <td>${escHtml(e.contact_name||'-')}</td>
+    <td style="white-space:nowrap">${escHtml(e.telephone||'-')}</td>
+    <td>${e.terminal_type?`<span class="si-badge">${escHtml(e.terminal_type)}</span>`:'-'}</td>
+    <td>${escHtml(e.terminal_name||'-')}</td>
+    <td style="white-space:nowrap">${e.anydesk_id?`${escHtml(e.anydesk_id)}<button class="si-copy-btn" onclick="siCopy('${escHtml(e.anydesk_id).replace(/'/g,"\\'")}',this)">copy</button>`:'-'}</td>
+    <td style="white-space:nowrap">${e.teamviewer_id?`${escHtml(e.teamviewer_id)}<button class="si-copy-btn" onclick="siCopy('${escHtml(e.teamviewer_id).replace(/'/g,"\\'")}',this)">copy</button>`:'-'}</td>
+    <td style="white-space:nowrap">${e.remote_password?`••••••<button class="si-copy-btn" onclick="siCopy('${escHtml(e.remote_password).replace(/'/g,"\\'")}',this)">copy</button>`:'-'}</td>
+    <td style="white-space:nowrap">${e.ip_address?`${escHtml(e.ip_address)}<button class="si-copy-btn" onclick="siCopy('${escHtml(e.ip_address).replace(/'/g,"\\'")}',this)">copy</button>`:'-'}</td>
+    <td>${svcHtml||'-'}</td>
+    <td style="color:var(--muted);font-size:.75rem" title="${escHtml(e.note||'')}">${escHtml(note)}</td>
+    <td style="white-space:nowrap">
+      <button class="si-action-btn" onclick="openSiEntryModal(${e.id})" title="แก้ไข">✏️</button>
+      <button class="si-action-btn" onclick="deleteSiEntry(${e.id},'${escHtml((e.branch_name||'')+(e.terminal_name?' - '+e.terminal_name:'')).replace(/'/g,"\\'")}')">🗑️</button>
     </td>
   </tr>`;
 }
 
-// ─── Branch modal ───────────────────────────────────────
-async function openSiBranchModal(id = null) {
-  document.getElementById('si-branch-id').value   = id || '';
-  document.getElementById('si-brand-name').value  = '';
-  document.getElementById('si-branch-name').value = '';
-  document.getElementById('si-branch-note').value = '';
-  document.getElementById('si-branch-modal-title').textContent = id ? '✏️ แก้ไขสาขา' : '🏪 เพิ่มสาขา';
-
-  // Populate brand datalist
-  try {
-    const brands = await api('/api/shopinfo/brands');
-    const dl = document.getElementById('si-brand-datalist');
-    dl.innerHTML = brands.map(b => `<option value="${escHtml(b)}">`).join('');
-  } catch {}
-
-  if (id) {
-    try {
-      const d = await api(`/api/shopinfo/branch/${id}`);
-      document.getElementById('si-brand-name').value  = d.brand_name  || '';
-      document.getElementById('si-branch-name').value = d.branch_name || '';
-      document.getElementById('si-branch-note').value = d.note        || '';
-    } catch(e) { showToast('โหลดข้อมูลไม่สำเร็จ', 'error'); return; }
-  }
-  openModal('modal-si-branch');
+function siToggleBrand(key) {
+  const el = document.getElementById(key);
+  const arrow = document.getElementById(key+'-arrow');
+  if (!el) return;
+  const isOpen = el.style.display !== 'none';
+  el.style.display = isOpen ? 'none' : '';
+  if (arrow) arrow.textContent = isOpen ? '▶' : '▼';
+  if (isOpen) _siExpandedBrands.delete(key);
+  else _siExpandedBrands.add(key);
 }
 
-async function saveSiBranch() {
-  const id          = document.getElementById('si-branch-id').value;
-  const brand_name  = document.getElementById('si-brand-name').value.trim();
-  const branch_name = document.getElementById('si-branch-name').value.trim();
-  const note        = document.getElementById('si-branch-note').value.trim();
-
-  if (!branch_name) { showToast('กรุณาระบุชื่อสาขา', 'error'); return; }
-
-  try {
-    if (id) {
-      await api(`/api/shopinfo/branch/${id}`, { method:'PUT', body: { brand_name, branch_name, note } });
-      showToast('อัปเดตสาขาแล้ว');
-    } else {
-      await api('/api/shopinfo/branch', { method:'POST', body: { brand_name, branch_name, note } });
-      showToast('เพิ่มสาขาแล้ว');
-    }
-    closeModal('modal-si-branch');
-    loadShopInfo();
-  } catch(e) { showToast('บันทึกไม่สำเร็จ: ' + e.message, 'error'); }
-}
-
-async function deleteSiBranch(id, name) {
-  if (!confirm(`ลบสาขา "${name}" พร้อมข้อมูลเครื่องและผู้ติดต่อทั้งหมด?`)) return;
-  try {
-    await api(`/api/shopinfo/branch/${id}`, { method:'DELETE' });
-    showToast('ลบสาขาแล้ว');
-    loadShopInfo();
-  } catch(e) { showToast('ลบไม่สำเร็จ: ' + e.message, 'error'); }
-}
-
-// ─── Terminal modal ──────────────────────────────────────
-async function openSiTerminalModal(branchId, terminalId = null) {
-  document.getElementById('si-terminal-id').value        = terminalId || '';
-  document.getElementById('si-terminal-branch-id').value = branchId;
-  document.getElementById('si-terminal-type').value      = '';
-  document.getElementById('si-terminal-name').value      = '';
-  document.getElementById('si-remote-type').value        = '';
-  document.getElementById('si-remote-id').value          = '';
-  document.getElementById('si-remote-password').value    = '';
-  document.getElementById('si-ip-address').value         = '';
-  document.getElementById('si-terminal-note').value      = '';
-  document.getElementById('si-svc-posprint').checked     = false;
-  document.getElementById('si-svc-mqtt').checked         = false;
-  document.getElementById('si-svc-sync').checked         = false;
-  document.getElementById('si-terminal-modal-title').textContent = terminalId ? '✏️ แก้ไขเครื่อง' : '🖥 เพิ่มเครื่อง';
-
-  if (terminalId) {
-    try {
-      // Fetch terminal data from branch detail
-      const branch = await api(`/api/shopinfo/branch/${branchId}`);
-      const t = branch.terminals.find(x => x.id === terminalId);
-      if (t) {
-        document.getElementById('si-terminal-type').value   = t.terminal_type   || '';
-        document.getElementById('si-terminal-name').value   = t.terminal_name   || '';
-        document.getElementById('si-remote-type').value     = t.remote_type     || '';
-        document.getElementById('si-remote-id').value       = t.remote_id       || '';
-        document.getElementById('si-remote-password').value = t.remote_password || '';
-        document.getElementById('si-ip-address').value      = t.ip_address      || '';
-        document.getElementById('si-terminal-note').value   = t.note            || '';
-        const svcs = (t.services || '').split(',').map(s => s.trim());
-        document.getElementById('si-svc-posprint').checked = svcs.includes('posprint');
-        document.getElementById('si-svc-mqtt').checked     = svcs.includes('mqtt');
-        document.getElementById('si-svc-sync').checked     = svcs.includes('sync');
-      }
-    } catch(e) { showToast('โหลดข้อมูลไม่สำเร็จ', 'error'); return; }
-  }
-  openModal('modal-si-terminal');
-}
-
-async function saveSiTerminal() {
-  const id        = document.getElementById('si-terminal-id').value;
-  const branch_id = document.getElementById('si-terminal-branch-id').value;
-  const svcs      = ['posprint','mqtt','sync'].filter(s => document.getElementById(`si-svc-${s}`).checked);
-  const body = {
-    branch_id,
-    terminal_type:   document.getElementById('si-terminal-type').value   || null,
-    terminal_name:   document.getElementById('si-terminal-name').value.trim()   || null,
-    remote_type:     document.getElementById('si-remote-type').value      || null,
-    remote_id:       document.getElementById('si-remote-id').value.trim()       || null,
-    remote_password: document.getElementById('si-remote-password').value.trim() || null,
-    ip_address:      document.getElementById('si-ip-address').value.trim()      || null,
-    services:        svcs.join(',') || null,
-    note:            document.getElementById('si-terminal-note').value.trim()   || null,
-  };
-
-  try {
-    if (id) {
-      await api(`/api/shopinfo/terminal/${id}`, { method:'PUT', body });
-      showToast('อัปเดตเครื่องแล้ว');
-    } else {
-      await api('/api/shopinfo/terminal', { method:'POST', body });
-      showToast('เพิ่มเครื่องแล้ว');
-    }
-    closeModal('modal-si-terminal');
-    loadShopInfo();
-  } catch(e) { showToast('บันทึกไม่สำเร็จ: ' + e.message, 'error'); }
-}
-
-async function deleteSiTerminal(id) {
-  if (!confirm('ลบข้อมูลเครื่องนี้?')) return;
-  try {
-    await api(`/api/shopinfo/terminal/${id}`, { method:'DELETE' });
-    showToast('ลบเครื่องแล้ว');
-    loadShopInfo();
-  } catch(e) { showToast('ลบไม่สำเร็จ: ' + e.message, 'error'); }
-}
-
-// ─── Contact modal ───────────────────────────────────────
-async function openSiContactModal(branchId, contactId = null) {
-  document.getElementById('si-contact-id').value        = contactId || '';
-  document.getElementById('si-contact-branch-id').value = branchId;
-  document.getElementById('si-contact-name').value      = '';
-  document.getElementById('si-contact-tel').value       = '';
-  document.getElementById('si-contact-modal-title').textContent = contactId ? '✏️ แก้ไขผู้ติดต่อ' : '📞 เพิ่มผู้ติดต่อ';
-
-  if (contactId) {
-    try {
-      const branch = await api(`/api/shopinfo/branch/${branchId}`);
-      const c = branch.contacts.find(x => x.id === contactId);
-      if (c) {
-        document.getElementById('si-contact-name').value = c.contact_name || '';
-        document.getElementById('si-contact-tel').value  = c.telephone    || '';
-      }
-    } catch(e) { showToast('โหลดข้อมูลไม่สำเร็จ', 'error'); return; }
-  }
-  openModal('modal-si-contact');
-}
-
-async function saveSiContact() {
-  const id        = document.getElementById('si-contact-id').value;
-  const branch_id = document.getElementById('si-contact-branch-id').value;
-  const body = {
-    branch_id,
-    contact_name: document.getElementById('si-contact-name').value.trim() || null,
-    telephone:    document.getElementById('si-contact-tel').value.trim()  || null,
-  };
-
-  try {
-    if (id) {
-      await api(`/api/shopinfo/contact/${id}`, { method:'PUT', body });
-      showToast('อัปเดตผู้ติดต่อแล้ว');
-    } else {
-      await api('/api/shopinfo/contact', { method:'POST', body });
-      showToast('เพิ่มผู้ติดต่อแล้ว');
-    }
-    closeModal('modal-si-contact');
-    loadShopInfo();
-  } catch(e) { showToast('บันทึกไม่สำเร็จ: ' + e.message, 'error'); }
-}
-
-async function deleteSiContact(id) {
-  if (!confirm('ลบผู้ติดต่อนี้?')) return;
-  try {
-    await api(`/api/shopinfo/contact/${id}`, { method:'DELETE' });
-    showToast('ลบผู้ติดต่อแล้ว');
-    loadShopInfo();
-  } catch(e) { showToast('ลบไม่สำเร็จ: ' + e.message, 'error'); }
-}
-
-// ─── Utility ─────────────────────────────────────────────
 function siCopy(text, btn) {
   navigator.clipboard.writeText(text).then(() => {
     const orig = btn.textContent;
     btn.textContent = '✅';
-    setTimeout(() => { btn.textContent = orig; }, 1500);
-  }).catch(() => showToast('คัดลอกไม่สำเร็จ', 'error'));
+    btn.style.background = '#dcfce7';
+    setTimeout(() => { btn.textContent = orig; btn.style.background = ''; }, 1500);
+  }).catch(() => showToast('คัดลอกไม่สำเร็จ','error'));
 }
 
-function siTogglePw(id, pw, btn) {
-  const el = document.getElementById(`si-pw-${id}`);
-  if (!el) return;
-  if (el.textContent === '••••••') {
-    el.textContent = pw;
-    btn.textContent = '🙈';
-  } else {
-    el.textContent = '••••••';
-    btn.textContent = '👁';
+async function openSiEntryModal(id, prefillBrand='') {
+  document.getElementById('si-entry-id').value = id || '';
+  document.getElementById('si-entry-modal-title').textContent = id ? '✏️ แก้ไขรายการ' : '➕ เพิ่มรายการ';
+
+  // Load brand datalist
+  try {
+    const brands = await api('/api/shopinfo/entry-brands');
+    const dl = document.getElementById('si-entry-brand-datalist');
+    if (dl && Array.isArray(brands)) dl.innerHTML = brands.map(b=>`<option value="${escHtml(b)}">`).join('');
+  } catch {}
+
+  // Reset
+  ['si-entry-brand','si-entry-branch','si-entry-contact','si-entry-tel',
+   'si-entry-terminal-name','si-entry-anydesk','si-entry-tv','si-entry-pw','si-entry-ip','si-entry-note']
+    .forEach(fid => { const fel=document.getElementById(fid); if(fel) fel.value=''; });
+  document.getElementById('si-entry-terminal-type').value = '';
+  ['posprint','mqtt','sync'].forEach(s => { const fel=document.getElementById('sie-svc-'+s); if(fel) fel.checked=false; });
+
+  if (id) {
+    let entry = null;
+    for (const g of _siData) { entry = g.entries.find(e=>e.id===id); if (entry) break; }
+    if (entry) {
+      document.getElementById('si-entry-brand').value         = entry.brand_name    || '';
+      document.getElementById('si-entry-branch').value        = entry.branch_name   || '';
+      document.getElementById('si-entry-contact').value       = entry.contact_name  || '';
+      document.getElementById('si-entry-tel').value           = entry.telephone     || '';
+      document.getElementById('si-entry-terminal-type').value = entry.terminal_type || '';
+      document.getElementById('si-entry-terminal-name').value = entry.terminal_name || '';
+      document.getElementById('si-entry-anydesk').value       = entry.anydesk_id    || '';
+      document.getElementById('si-entry-tv').value            = entry.teamviewer_id || '';
+      document.getElementById('si-entry-pw').value            = entry.remote_password || '';
+      document.getElementById('si-entry-ip').value            = entry.ip_address    || '';
+      document.getElementById('si-entry-note').value          = entry.note          || '';
+      const svcs = (entry.services||'').split(',').map(s=>s.trim());
+      ['posprint','mqtt','sync'].forEach(s => { const fel=document.getElementById('sie-svc-'+s); if(fel) fel.checked=svcs.includes(s); });
+    }
+  } else if (prefillBrand) {
+    document.getElementById('si-entry-brand').value = prefillBrand;
   }
+  openModal('modal-si-entry');
+}
+
+async function saveSiEntry() {
+  const id = document.getElementById('si-entry-id').value;
+  const svcs = ['posprint','mqtt','sync'].filter(s => document.getElementById('sie-svc-'+s)?.checked);
+  const body = {
+    brand_name:      document.getElementById('si-entry-brand').value.trim()         || null,
+    branch_name:     document.getElementById('si-entry-branch').value.trim()        || null,
+    contact_name:    document.getElementById('si-entry-contact').value.trim()       || null,
+    telephone:       document.getElementById('si-entry-tel').value.trim()           || null,
+    terminal_type:   document.getElementById('si-entry-terminal-type').value        || null,
+    terminal_name:   document.getElementById('si-entry-terminal-name').value.trim() || null,
+    anydesk_id:      document.getElementById('si-entry-anydesk').value.trim()       || null,
+    teamviewer_id:   document.getElementById('si-entry-tv').value.trim()            || null,
+    remote_password: document.getElementById('si-entry-pw').value.trim()            || null,
+    ip_address:      document.getElementById('si-entry-ip').value.trim()            || null,
+    services:        svcs.join(',') || null,
+    note:            document.getElementById('si-entry-note').value.trim()          || null,
+  };
+
+  try {
+    if (id) {
+      await api(`/api/shopinfo/entry/${id}`, { method:'PUT', body });
+      showToast('อัปเดตแล้ว');
+    } else {
+      await api('/api/shopinfo/entry', { method:'POST', body });
+      showToast('เพิ่มรายการแล้ว');
+    }
+    closeModal('modal-si-entry');
+    loadShopInfo();
+  } catch(e) { showToast('บันทึกไม่สำเร็จ','error'); }
+}
+
+async function deleteSiEntry(id, label) {
+  if (!confirm(`ลบรายการ "${label}"?`)) return;
+  try {
+    await api(`/api/shopinfo/entry/${id}`, { method:'DELETE' });
+    showToast('ลบแล้ว');
+    loadShopInfo();
+  } catch { showToast('ลบไม่สำเร็จ','error'); }
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
 </script>
 
-<!-- ══════════ SHOP INFO MODALS ══════════ -->
+<!-- ══════════ SHOP INFO MODAL ══════════ -->
 
-<!-- Branch Add/Edit Modal -->
-<div class="overlay" id="modal-si-branch">
-  <div class="modal" style="max-width:500px;padding:1.1rem 1.25rem">
-    <div class="modal-title" style="margin-bottom:.85rem">
-      <span id="si-branch-modal-title">🏪 เพิ่มสาขา</span>
-      <button class="modal-close" onclick="closeModal('modal-si-branch')">×</button>
+<div class="overlay" id="modal-si-entry">
+  <div class="modal" style="max-width:780px;max-height:92vh;overflow-y:auto;padding:1.25rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
+      <div id="si-entry-modal-title" style="font-size:1rem;font-weight:800">➕ เพิ่มรายการ</div>
+      <button class="modal-close" onclick="closeModal('modal-si-entry')">×</button>
     </div>
-    <input type="hidden" id="si-branch-id"/>
-    <div style="margin-bottom:.6rem">
-      <label style="font-size:.75rem;font-weight:600;color:#475569;display:block;margin-bottom:.25rem">แบรนด์ / กลุ่มร้าน</label>
-      <input id="si-brand-name" type="text" list="si-brand-datalist" placeholder="ชื่อแบรนด์หรือกลุ่มร้าน"
-             style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.38rem .65rem;font-size:.83rem;outline:none"/>
-      <datalist id="si-brand-datalist"></datalist>
-    </div>
-    <div style="margin-bottom:.6rem">
-      <label style="font-size:.75rem;font-weight:600;color:#475569;display:block;margin-bottom:.25rem">ชื่อสาขา <span style="color:#ef4444">*</span></label>
-      <input id="si-branch-name" type="text" placeholder="เช่น สาขาลาดพร้าว"
-             style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.38rem .65rem;font-size:.83rem;outline:none"/>
-    </div>
-    <div style="margin-bottom:.9rem">
-      <label style="font-size:.75rem;font-weight:600;color:#475569;display:block;margin-bottom:.25rem">หมายเหตุ</label>
-      <textarea id="si-branch-note" rows="3" placeholder="ข้อมูลเพิ่มเติม..."
-                style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.38rem .65rem;font-size:.83rem;resize:vertical;font-family:inherit;outline:none"></textarea>
-    </div>
-    <div style="display:flex;gap:.5rem;justify-content:flex-end">
-      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-si-branch')">ยกเลิก</button>
-      <button class="btn btn-primary btn-sm" onclick="saveSiBranch()">💾 บันทึก</button>
-    </div>
-  </div>
-</div>
-
-<!-- Terminal Add/Edit Modal -->
-<div class="overlay" id="modal-si-terminal">
-  <div class="modal" style="max-width:560px;max-height:88vh;overflow-y:auto;padding:1.1rem 1.25rem">
-    <div class="modal-title" style="margin-bottom:.85rem">
-      <span id="si-terminal-modal-title">🖥 เพิ่มเครื่อง</span>
-      <button class="modal-close" onclick="closeModal('modal-si-terminal')">×</button>
-    </div>
-    <input type="hidden" id="si-terminal-id"/>
-    <input type="hidden" id="si-terminal-branch-id"/>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.55rem">
+    <input type="hidden" id="si-entry-id"/>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem">
+      <!-- Left -->
       <div>
-        <label style="font-size:.75rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">ประเภทเครื่อง</label>
-        <select id="si-terminal-type" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.38rem .6rem;font-size:.83rem;outline:none">
-          <option value="">— เลือก —</option>
-          <option>Server</option>
-          <option>Server+Cashier</option>
-          <option>Cashier</option>
-          <option>Take Order</option>
-          <option>Manager</option>
-          <option>Mobile</option>
-          <option>Printer</option>
-          <option>KDS</option>
-        </select>
+        <div class="card" style="padding:.85rem 1rem;margin-bottom:.65rem">
+          <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">🏢 ข้อมูลสาขา</div>
+          <div class="form-group">
+            <label>แบรนด์</label>
+            <input id="si-entry-brand" list="si-entry-brand-datalist" placeholder="ชื่อแบรนด์"/>
+            <datalist id="si-entry-brand-datalist"></datalist>
+          </div>
+          <div class="form-group">
+            <label>ชื่อสาขา</label>
+            <input id="si-entry-branch" placeholder="เช่น สาขาพระราม 9"/>
+          </div>
+          <div class="form-group">
+            <label>ผู้ติดต่อ</label>
+            <input id="si-entry-contact" placeholder="ชื่อผู้ติดต่อ"/>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label>เบอร์โทร</label>
+            <input id="si-entry-tel" placeholder="08X-XXXXXXX"/>
+          </div>
+        </div>
+        <div class="card" style="padding:.85rem 1rem">
+          <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">📝 หมายเหตุ</div>
+          <textarea id="si-entry-note" rows="3" placeholder="หมายเหตุเพิ่มเติม..."></textarea>
+        </div>
       </div>
+      <!-- Right -->
       <div>
-        <label style="font-size:.75rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">ชื่อเครื่อง</label>
-        <input id="si-terminal-name" type="text" placeholder="เช่น POS-01"
-               style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.38rem .6rem;font-size:.83rem;outline:none"/>
+        <div class="card" style="padding:.85rem 1rem;margin-bottom:.65rem">
+          <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">🖥️ เครื่อง Terminal</div>
+          <div class="form-group">
+            <label>ประเภทเครื่อง</label>
+            <select id="si-entry-terminal-type">
+              <option value="">— เลือกประเภท —</option>
+              <option>Server</option><option>Server+Cashier</option>
+              <option>Cashier</option><option>Take Order</option>
+              <option>Manager</option><option>Mobile</option>
+              <option>Printer</option><option>KDS</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>ชื่อเครื่อง</label>
+            <input id="si-entry-terminal-name" placeholder="เช่น SVR-01"/>
+          </div>
+          <div class="form-group">
+            <label>Anydesk ID</label>
+            <input id="si-entry-anydesk" placeholder="123 456 789"/>
+          </div>
+          <div class="form-group">
+            <label>TeamViewer ID</label>
+            <input id="si-entry-tv" placeholder="123 456 789"/>
+          </div>
+          <div class="form-group">
+            <label>Password (Remote)</label>
+            <input id="si-entry-pw" placeholder="รหัสผ่าน Remote"/>
+          </div>
+          <div class="form-group">
+            <label>IP Address</label>
+            <input id="si-entry-ip" placeholder="192.168.1.x"/>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label>Services</label>
+            <div style="display:flex;gap:1rem;margin-top:.3rem">
+              <label style="display:flex;align-items:center;gap:.3rem;font-weight:400"><input type="checkbox" id="sie-svc-posprint"> posprint</label>
+              <label style="display:flex;align-items:center;gap:.3rem;font-weight:400"><input type="checkbox" id="sie-svc-mqtt"> mqtt</label>
+              <label style="display:flex;align-items:center;gap:.3rem;font-weight:400"><input type="checkbox" id="sie-svc-sync"> sync</label>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary" style="width:100%;padding:.65rem" onclick="saveSiEntry()">💾 บันทึก</button>
+        <button class="btn btn-ghost" style="width:100%;margin-top:.4rem" onclick="closeModal('modal-si-entry')">ยกเลิก</button>
       </div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.55rem">
-      <div>
-        <label style="font-size:.75rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">Remote Tool</label>
-        <select id="si-remote-type" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.38rem .6rem;font-size:.83rem;outline:none">
-          <option value="">— ไม่มี —</option>
-          <option>Anydesk</option>
-          <option>Teamviewer</option>
-        </select>
-      </div>
-      <div>
-        <label style="font-size:.75rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">Remote ID</label>
-        <input id="si-remote-id" type="text" placeholder="ID"
-               style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.38rem .6rem;font-size:.83rem;font-family:monospace;outline:none"/>
-      </div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.55rem">
-      <div>
-        <label style="font-size:.75rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">Remote Password</label>
-        <input id="si-remote-password" type="text" placeholder="รหัสผ่าน"
-               style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.38rem .6rem;font-size:.83rem;font-family:monospace;outline:none"/>
-      </div>
-      <div>
-        <label style="font-size:.75rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">IP Address</label>
-        <input id="si-ip-address" type="text" placeholder="192.168.x.x"
-               style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.38rem .6rem;font-size:.83rem;font-family:monospace;outline:none"/>
-      </div>
-    </div>
-    <div style="margin-bottom:.55rem">
-      <label style="font-size:.75rem;font-weight:600;color:#475569;display:block;margin-bottom:.35rem">Services</label>
-      <div style="display:flex;gap:1rem">
-        <label style="font-size:.82rem;display:flex;align-items:center;gap:.3rem;cursor:pointer">
-          <input type="checkbox" id="si-svc-posprint" value="posprint"> posprint
-        </label>
-        <label style="font-size:.82rem;display:flex;align-items:center;gap:.3rem;cursor:pointer">
-          <input type="checkbox" id="si-svc-mqtt" value="mqtt"> mqtt
-        </label>
-        <label style="font-size:.82rem;display:flex;align-items:center;gap:.3rem;cursor:pointer">
-          <input type="checkbox" id="si-svc-sync" value="sync"> sync
-        </label>
-      </div>
-    </div>
-    <div style="margin-bottom:.9rem">
-      <label style="font-size:.75rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">หมายเหตุ</label>
-      <textarea id="si-terminal-note" rows="2" placeholder="ข้อมูลเพิ่มเติม..."
-                style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.38rem .65rem;font-size:.83rem;resize:vertical;font-family:inherit;outline:none"></textarea>
-    </div>
-    <div style="display:flex;gap:.5rem;justify-content:flex-end">
-      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-si-terminal')">ยกเลิก</button>
-      <button class="btn btn-primary btn-sm" onclick="saveSiTerminal()">💾 บันทึก</button>
-    </div>
-  </div>
-</div>
-
-<!-- Contact Add/Edit Modal -->
-<div class="overlay" id="modal-si-contact">
-  <div class="modal" style="max-width:420px;padding:1.1rem 1.25rem">
-    <div class="modal-title" style="margin-bottom:.85rem">
-      <span id="si-contact-modal-title">📞 เพิ่มผู้ติดต่อ</span>
-      <button class="modal-close" onclick="closeModal('modal-si-contact')">×</button>
-    </div>
-    <input type="hidden" id="si-contact-id"/>
-    <input type="hidden" id="si-contact-branch-id"/>
-    <div style="margin-bottom:.6rem">
-      <label style="font-size:.75rem;font-weight:600;color:#475569;display:block;margin-bottom:.25rem">ชื่อผู้ติดต่อ</label>
-      <input id="si-contact-name" type="text" placeholder="ชื่อ-นามสกุล"
-             style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.38rem .65rem;font-size:.83rem;outline:none"/>
-    </div>
-    <div style="margin-bottom:.9rem">
-      <label style="font-size:.75rem;font-weight:600;color:#475569;display:block;margin-bottom:.25rem">เบอร์โทร</label>
-      <input id="si-contact-tel" type="text" placeholder="08X-XXXXXXX"
-             style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.38rem .65rem;font-size:.83rem;outline:none"/>
-    </div>
-    <div style="display:flex;gap:.5rem;justify-content:flex-end">
-      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-si-contact')">ยกเลิก</button>
-      <button class="btn btn-primary btn-sm" onclick="saveSiContact()">💾 บันทึก</button>
     </div>
   </div>
 </div>
