@@ -2750,8 +2750,8 @@ async function api(path, opts = {}) {
     ...opts,
     body: opts.body ? JSON.stringify(opts.body) : undefined
   });
-  // แสดง login overlay แต่ไม่ลบ token — ให้ tryAutoLogin() เป็นผู้ตัดสินเท่านั้น
-  if (res.status === 401) { console.warn('[auth] 401 from api():', path); showLoginOverlay(); return {}; }
+  // 401 จาก background call → ไม่ทำอะไรทั้งนั้น, tryAutoLogin() เป็นผู้จัดการ session เท่านั้น
+  if (res.status === 401) { console.warn('[auth] 401 from api():', path, '(ignored — session managed by tryAutoLogin)'); return {}; }
   const data = await res.json();
   if (!res.ok) {
     const msg = data?.error || `Error ${res.status}`;
