@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>ติดตามเคส — CS Team</title>
+<title>Call log — CS Team</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
@@ -157,7 +157,7 @@ tr:hover td{background:#f8fafc}
 <div id="track-toast-wrap"></div>
 <div class="top-bar">
   <div>
-    <div class="logo" id="page-title">📋 CS Team — ติดตามเคส</div>
+    <div class="logo" id="page-title">📋 CS Team — Call log</div>
     <div class="sub" id="page-sub">Customer Ticket Tracking</div>
   </div>
   <button class="btn btn-red" onclick="openComplain(null)" style="font-size:.78rem;padding:.32rem .8rem">📣 แจ้งปัญหา</button>
@@ -294,7 +294,7 @@ async function loadData(){
     const res = await fetch(`/api/public/track/${token}${qs}`);
     _data = await res.json();
     if(!res.ok){ root.innerHTML=`<div class="error-box">❌ ${esc(_data.error||'ไม่พบข้อมูล')}</div>`; return; }
-    document.title = `ติดตามเคส — ${_data.company}`;
+    document.title = `Call log — ${_data.company}`;
     document.getElementById('page-title').textContent = `📋 ${_data.company}`;
     // Update date label
     const lbl = document.getElementById('date-label');
