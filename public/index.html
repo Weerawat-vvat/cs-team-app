@@ -9857,10 +9857,10 @@ async function saveSiBranch() {
 
   try {
     if (id) {
-      await api(`/api/shopinfo/branch/${id}`, { method:'PUT', body: JSON.stringify({ brand_name, branch_name, note }) });
+      await api(`/api/shopinfo/branch/${id}`, { method:'PUT', body: { brand_name, branch_name, note } });
       showToast('อัปเดตสาขาแล้ว');
     } else {
-      await api('/api/shopinfo/branch', { method:'POST', body: JSON.stringify({ brand_name, branch_name, note }) });
+      await api('/api/shopinfo/branch', { method:'POST', body: { brand_name, branch_name, note } });
       showToast('เพิ่มสาขาแล้ว');
     }
     closeModal('modal-si-branch');
@@ -9934,10 +9934,10 @@ async function saveSiTerminal() {
 
   try {
     if (id) {
-      await api(`/api/shopinfo/terminal/${id}`, { method:'PUT', body: JSON.stringify(body) });
+      await api(`/api/shopinfo/terminal/${id}`, { method:'PUT', body });
       showToast('อัปเดตเครื่องแล้ว');
     } else {
-      await api('/api/shopinfo/terminal', { method:'POST', body: JSON.stringify(body) });
+      await api('/api/shopinfo/terminal', { method:'POST', body });
       showToast('เพิ่มเครื่องแล้ว');
     }
     closeModal('modal-si-terminal');
@@ -9986,10 +9986,10 @@ async function saveSiContact() {
 
   try {
     if (id) {
-      await api(`/api/shopinfo/contact/${id}`, { method:'PUT', body: JSON.stringify(body) });
+      await api(`/api/shopinfo/contact/${id}`, { method:'PUT', body });
       showToast('อัปเดตผู้ติดต่อแล้ว');
     } else {
-      await api('/api/shopinfo/contact', { method:'POST', body: JSON.stringify(body) });
+      await api('/api/shopinfo/contact', { method:'POST', body });
       showToast('เพิ่มผู้ติดต่อแล้ว');
     }
     closeModal('modal-si-contact');
