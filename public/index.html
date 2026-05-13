@@ -1159,6 +1159,7 @@ textarea{resize:vertical;min-height:80px}
   <div class="section-header" style="margin-bottom:.75rem">
     <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
       <div class="section-title">🎯 Specialist Queue</div>
+      <button onclick="openAddSpecialist()" class="btn btn-primary" style="font-size:.78rem;padding:.3rem .85rem">➕ เพิ่มงาน SP</button>
     </div>
   </div>
 
@@ -1299,10 +1300,22 @@ textarea{resize:vertical;min-height:80px}
     <div class="modal-title">🎯 มอบหมายงาน Specialist <button class="modal-close" onclick="closeModal('modal-assign-specialist')">×</button></div>
     <input type="hidden" id="asp-calllog-id"/>
 
-    <!-- Ticket info (readonly) -->
-    <div style="background:#f8fafc;border-radius:8px;padding:.65rem .85rem;margin-bottom:.75rem;font-size:.82rem">
+    <!-- Ticket info (readonly) — แสดงเมื่อมาจาก Helpdesk -->
+    <div id="asp-ticket-box" style="background:#f8fafc;border-radius:8px;padding:.65rem .85rem;margin-bottom:.75rem;font-size:.82rem">
       <div style="font-weight:700;color:var(--text)" id="asp-ticket-info">—</div>
       <div style="color:var(--muted);font-size:.78rem;margin-top:.15rem" id="asp-ticket-sub">—</div>
+    </div>
+
+    <!-- Standalone fields — แสดงเมื่อเพิ่มงาน SP โดยตรง -->
+    <div id="asp-standalone-fields" style="display:none">
+      <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">🏢 ข้อมูลงาน</div>
+      <div class="form-group"><label>ร้านค้า / บริษัท <span style="color:#ef4444">*</span></label><input id="asp-company" placeholder="ชื่อร้านค้าหรือบริษัท"/></div>
+      <div class="grid-2">
+        <div class="form-group"><label>หัวข้อ <span style="color:#ef4444">*</span></label><input id="asp-subject" placeholder="หัวข้อปัญหา"/></div>
+        <div class="form-group"><label>ประเภทปัญหา</label><input id="asp-problem-type" placeholder="เช่น Software, Hardware"/></div>
+      </div>
+      <div class="form-group"><label>รายละเอียดปัญหา</label><textarea id="asp-description" rows="2" placeholder="อธิบายปัญหาเพิ่มเติม..."></textarea></div>
+      <hr style="border:none;border-top:1px solid var(--border);margin:.5rem 0 .75rem"/>
     </div>
 
     <!-- Contact info -->
@@ -6685,21 +6698,61 @@ async function openAssignSpecialist(ticket) {
     allTeams.map(t=>`<option value="${escHtml(t.name)}">${escHtml(t.display_name)}</option>`).join('');
   const spTeam = allTeams.find(t => t.name.toLowerCase().includes('specialist') || t.display_name.toLowerCase().includes('specialist'));
   if (spTeam) aspTeam.value = spTeam.name;
+  // แสดง ticket box, ซ่อน standalone fields
+  document.getElementById('asp-standalone-fields').style.display = 'none';
+  document.getElementById('asp-ticket-box').style.display = '';
+  openModal('modal-assign-specialist');
+}
+
+function openAddSpecialist() {
+  // Reset ทุก field
+  document.getElementById('asp-calllog-id').value = '';
+  document.getElementById('asp-ticket-info').textContent = '—';
+  document.getElementById('asp-ticket-sub').textContent  = '—';
+  document.getElementById('asp-company').value      = '';
+  document.getElementById('asp-subject').value      = '';
+  document.getElementById('asp-problem-type').value = '';
+  document.getElementById('asp-description').value  = '';
+  document.getElementById('asp-contact-name').value  = '';
+  document.getElementById('asp-contact-phone').value = '';
+  document.getElementById('asp-line-id').value    = '';
+  document.getElementById('asp-line-group').value = '';
+  document.getElementById('asp-team').value     = '';
+  document.getElementById('asp-priority').value = 'normal';
+  document.getElementById('asp-note').value     = '';
+  // แสดง standalone fields, ซ่อน ticket box
+  document.getElementById('asp-standalone-fields').style.display = '';
+  document.getElementById('asp-ticket-box').style.display = 'none';
   openModal('modal-assign-specialist');
 }
 
 async function saveAssignSpecialist() {
   const team = document.getElementById('asp-team').value;
   if (!team) { showToast('❌ กรุณาเลือกทีม', 'error'); return; }
-  const ticketInfo = document.getElementById('asp-ticket-info').textContent;
-  const sub        = document.getElementById('asp-ticket-sub').textContent;
-  // asp-ticket-info = "#ID — Subject/หัวข้อ"
-  // asp-ticket-sub  = "ProblemType | CompanyName"
+
+  const isStandalone = document.getElementById('asp-standalone-fields').style.display !== 'none';
+  let company_name, subject, problem_type;
+
+  if (isStandalone) {
+    company_name = document.getElementById('asp-company').value.trim();
+    subject      = document.getElementById('asp-subject').value.trim();
+    problem_type = document.getElementById('asp-problem-type').value.trim();
+    if (!company_name) { showToast('❌ กรุณาระบุร้านค้า / บริษัท', 'error'); return; }
+    if (!subject)      { showToast('❌ กรุณาระบุหัวข้อ', 'error'); return; }
+  } else {
+    const ticketInfo = document.getElementById('asp-ticket-info').textContent;
+    const sub        = document.getElementById('asp-ticket-sub').textContent;
+    company_name = sub.split('|')[1]?.trim()        || '';
+    subject      = ticketInfo.split('—')[1]?.trim() || '';
+    problem_type = sub.split('|')[0]?.trim()        || '';
+  }
+
   const body = {
     calllog_id:       parseInt(document.getElementById('asp-calllog-id').value) || null,
-    company_name:     sub.split('|')[1]?.trim() || '',        // ชื่อร้าน (หลัง |)
-    subject:          ticketInfo.split('—')[1]?.trim() || '', // หัวข้อ (หลัง —)
-    problem_type:     sub.split('|')[0]?.trim() || '',
+    company_name,
+    subject,
+    problem_type,
+    description:      isStandalone ? (document.getElementById('asp-description').value.trim() || null) : null,
     contact_name:     document.getElementById('asp-contact-name').value.trim(),
     contact_phone:    document.getElementById('asp-contact-phone').value.trim(),
     line_id:          document.getElementById('asp-line-id').value.trim(),
@@ -8298,6 +8351,9 @@ function convertToRepair(c) {
 async function openSpFromComplaint(c) {
   // Reset modal fields
   document.getElementById('asp-calllog-id').value = '';
+  // ซ่อน standalone fields, แสดง ticket box
+  document.getElementById('asp-standalone-fields').style.display = 'none';
+  document.getElementById('asp-ticket-box').style.display = '';
   document.getElementById('asp-ticket-info').textContent = `📣 ร้องเรียน #${c.id} — ${c.company_name||'—'}`;
   document.getElementById('asp-ticket-sub').textContent  = `จากการร้องเรียน | ${c.company_name||'—'}`;
   // Pre-fill contact info from complaint
