@@ -787,10 +787,9 @@ app.post('/api/tickets/:id/sp-close', authRequired, async (request, res) => {
     await extReq()
       .input('id',    sql.Int,      calllogId)
       .input('stid',  sql.Int,      closeStatus.StatusId)
-      .input('cd',    sql.DateTime, new Date())
       .input('sol',   sql.NVarChar, resolverNote)
       .query(`UPDATE Calllog
-              SET StatusId=@stid, CloseDate=@cd, DueDate=@cd,
+              SET StatusId=@stid, CloseDate=GETDATE(), DueDate=GETDATE(),
                   Solution=ISNULL(@sol, Solution), UpdateDate=GETDATE()
               WHERE CalllogId=@id`);
 
@@ -3225,19 +3224,19 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
       r9.query(`SELECT COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
         INNER JOIN CallStatus cs ON cs.StatusId = cl.StatusId
-        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me
           AND (cs.StatusName LIKE '%close%' OR cs.StatusName LIKE '%ปิด%' OR cs.StatusName LIKE '%complete%')${sc9}`),
       // Hour × Agent heatmap
       r10.query(`SELECT DATEPART(hour, cl.ReceiveDate) AS hr, u.UserName, COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
-        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc10}
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc10}
         GROUP BY DATEPART(hour, cl.ReceiveDate), u.UserName
         ORDER BY hr, u.UserName`),
       // Closed count previous period
       r11.query(`SELECT COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
         INNER JOIN CallStatus cs ON cs.StatusId = cl.StatusId
-        WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me
           AND (cs.StatusName LIKE '%close%' OR cs.StatusName LIKE '%ปิด%' OR cs.StatusName LIKE '%complete%')${sc11}`),
     ]);
 
@@ -4065,11 +4064,15 @@ async function ensureSpecialistTable() {
     } catch {}
     // Add columns if missing
     for (const [col, def] of [
-      ['issue_id',     'NVARCHAR(100) NULL'],
-      ['accepted_by',  'INT NULL'],
-      ['accepted_at',  'DATETIME NULL'],
-      ['description',  'NVARCHAR(MAX) NULL'],
-      ['solution',     'NVARCHAR(MAX) NULL'],
+      ['issue_id',        'NVARCHAR(100) NULL'],
+      ['accepted_by',     'INT NULL'],
+      ['accepted_at',     'DATETIME NULL'],
+      ['description',     'NVARCHAR(MAX) NULL'],
+      ['solution',        'NVARCHAR(MAX) NULL'],
+      ['registration_id',  'INT NULL'],
+      ['inform_type',      'NVARCHAR(50) NULL'],
+      ['problem_type_id',  'INT NULL'],
+      ['subject_id',       'INT NULL'],
     ]) {
       try {
         await req().query(`
@@ -4629,7 +4632,8 @@ app.post('/api/specialist', authRequired, async (request, res) => {
       }
     }
     const result = await req()
-      .input('cid',  sql.Int,      b.calllog_id       || null)
+      .input('cid',  sql.Int,      b.calllog_id        || null)
+      .input('rid',  sql.Int,      b.registration_id   || null)
       .input('cn',   sql.NVarChar, b.company_name      || null)
       .input('subj', sql.NVarChar, b.subject           || null)
       .input('pt',   sql.NVarChar, b.problem_type      || null)
@@ -4637,6 +4641,9 @@ app.post('/api/specialist', authRequired, async (request, res) => {
       .input('ctp',  sql.NVarChar, b.contact_phone     || null)
       .input('li',   sql.NVarChar, b.line_id           || null)
       .input('lg',   sql.NVarChar, b.line_group        || null)
+      .input('it',   sql.NVarChar, b.inform_type       || null)
+      .input('ptid', sql.Int,      b.problem_type_id   || null)
+      .input('siid', sql.Int,      b.subject_id        || null)
       .input('loc',  sql.NVarChar, b.customer_location || null)
       .input('oa',   sql.Int,      request.user.id     || null)
       .input('att',  sql.NVarChar, b.assigned_to_team  || null)
@@ -4645,11 +4652,11 @@ app.post('/api/specialist', authRequired, async (request, res) => {
       .input('desc', sql.NVarChar, b.description       || null)
       .input('sol',  sql.NVarChar, b.solution          || null)
       .query(`INSERT INTO specialist_log
-        (calllog_id,company_name,subject,problem_type,
-         contact_name,contact_phone,line_id,line_group,customer_location,
+        (calllog_id,registration_id,company_name,subject,problem_type,problem_type_id,subject_id,
+         contact_name,contact_phone,line_id,line_group,inform_type,customer_location,
          original_agent,assigned_to_team,assigned_to_user,note,description,solution)
         OUTPUT INSERTED.id VALUES
-        (@cid,@cn,@subj,@pt,@ctn,@ctp,@li,@lg,@loc,@oa,@att,@atu,@nt,@desc,@sol)`);
+        (@cid,@rid,@cn,@subj,@pt,@ptid,@siid,@ctn,@ctp,@li,@lg,@it,@loc,@oa,@att,@atu,@nt,@desc,@sol)`);
     // Line notify
     const uname = request.user.name || request.user.username;
     await sendLineNotify(`\n🔧 [Specialist] ${b.company_name||'—'}\nมอบหมายโดย: ${uname}\nทีม: ${b.assigned_to_team||'—'}\n${b.note||''}`);
@@ -4682,13 +4689,23 @@ app.put('/api/specialist/:id', authRequired, async (request, res) => {
       .input('rb',  sql.Int,      b.status==='resolved' ? (request.user.id||null) : cur.resolved_by)
       .input('aby', sql.Int,      b.status==='pending' ? null
                                   : b.hasOwnProperty('accepted_by') ? (b.accepted_by ?? null)
-                                  : (b.status==='in_progress' && !cur.accepted_by ? (request.user.id||null) : cur.accepted_by))
+                                  : (b.status && b.status !== cur.status) ? (request.user.id || null)
+                                  : cur.accepted_by)
       .input('isReassign', sql.Bit, (b.status==='pending') || (b.hasOwnProperty('accepted_by') && b.accepted_by === null) ? 1 : 0)
+      .input('cn',  sql.NVarChar, b.hasOwnProperty('company_name')  ? b.company_name  : cur.company_name)
+      .input('desc',sql.NVarChar, b.hasOwnProperty('description')   ? b.description   : cur.description)
+      .input('subj',sql.NVarChar, b.hasOwnProperty('subject')       ? b.subject       : cur.subject)
+      .input('sjid',sql.Int,      b.hasOwnProperty('subject_id')    ? (b.subject_id ?? null) : cur.subject_id)
+      .input('pt',  sql.NVarChar, b.hasOwnProperty('problem_type')  ? b.problem_type  : cur.problem_type)
+      .input('ptid',sql.Int,      b.hasOwnProperty('problem_type_id')? (b.problem_type_id ?? null) : cur.problem_type_id)
+      .input('itype',sql.NVarChar,b.hasOwnProperty('inform_type')   ? b.inform_type   : cur.inform_type)
       .query(`UPDATE specialist_log SET
         status=@st, assigned_to_team=@att, assigned_to_user=@atu, priority=@pr, note=@nt,
         contact_name=@ctn, contact_phone=@ctp, line_id=@li, line_group=@lg,
         customer_location=@loc, resolution_note=@rnt, issue_id=@iid, resolved_by=@rb,
         accepted_by=@aby,
+        company_name=@cn, description=@desc, subject=@subj, subject_id=@sjid,
+        problem_type=@pt, problem_type_id=@ptid, inform_type=@itype,
         accepted_at=CASE WHEN @isReassign=1 THEN NULL
                          WHEN @st='in_progress' AND accepted_at IS NULL THEN GETDATE()
                          ELSE accepted_at END,
@@ -4737,9 +4754,10 @@ app.put('/api/specialist/:id', authRequired, async (request, res) => {
             // ── ทุกกรณีที่ resolved → สร้าง Calllog ใหม่เสมอ ──────────
             if (b.status === 'resolved') {
               const supportId = request.user.calluserid || null;
-              // หา RegistrationId จาก company_name (best-effort)
-              let regId = null;
-              if (cur.company_name) {
+
+              // 1) RegistrationId — ใช้จาก specialist_log ก่อน ถ้าไม่มีค่อยค้น
+              let regId = cur.registration_id || null;
+              if (!regId && cur.company_name) {
                 try {
                   const regRow = (await extReq().input('cn', sql.NVarChar, cur.company_name)
                     .query(`SELECT TOP 1 RegistrationId FROM CustomerRegistration
@@ -4747,29 +4765,70 @@ app.put('/api/specialist/:id', authRequired, async (request, res) => {
                   if (regRow) regId = regRow.RegistrationId;
                 } catch {}
               }
+
+              // 2) Sanitize "-" → null สำหรับ contact fields
+              const sanitize = v => (!v || v.trim() === '-' || v.trim() === '') ? null : v.trim();
+              const informName  = sanitize(cur.contact_name);
+              const informTel   = sanitize(cur.contact_phone);
+              const informLine  = sanitize(cur.line_id);
+
+              // 3) InformType / SolveType — ใช้จาก specialist_log ถ้ามี ไม่งั้น Remote
+              const rawInformType = cur.inform_type || 'Remote';
+              const solveType = ['Walk-in','Onsite'].includes(rawInformType) ? 'Walk-in' : 'Remote';
+
+              // 4) ProblemTypeId + IssueCategoryId (SubjectId) — ใช้จาก stored ID ก่อน fallback text lookup
+              let problemTypeId = cur.problem_type_id || null;
+              if (!problemTypeId && cur.problem_type) {
+                try {
+                  const ptRow = (await extReq().input('pt', sql.NVarChar, cur.problem_type)
+                    .query(`SELECT TOP 1 ProblemTypeId FROM ProblemType
+                            WHERE ProblemTypeDetail=@pt`)).recordset[0];
+                  if (ptRow) problemTypeId = ptRow.ProblemTypeId;
+                } catch {}
+              }
+              let issueCategoryId = cur.subject_id || null;
+              if (!issueCategoryId && cur.subject) {
+                try {
+                  const subjRow = (await extReq().input('sn', sql.NVarChar, cur.subject)
+                    .query(`SELECT TOP 1 SubjectId FROM Subject
+                            WHERE SubjectName=@sn AND Active=1`)).recordset[0];
+                  if (subjRow) issueCategoryId = subjRow.SubjectId;
+                } catch {}
+              }
+
+              // 5) Solution — รวม resolution_note + description ถ้ามี
+              const descDetail  = sanitize(cur.description);
+              const fullSolNote = solNote + (descDetail ? `\n${descDetail}` : '');
+
               const newLog = await extReq()
-                .input('rid',  sql.Int,      regId)
-                .input('rd',   sql.DateTime, cur.assigned_at || new Date())
-                .input('cd',   sql.DateTime, new Date())
-                .input('desc', sql.NVarChar, cur.subject || cur.description || null)
-                .input('iname',sql.NVarChar, cur.contact_name  || null)
-                .input('itel', sql.NVarChar, cur.contact_phone || null)
-                .input('line', sql.NVarChar, cur.line_id || null)
-                .input('sid',  sql.Int,      supportId)
-                .input('stid', sql.Int,      closeStatus.StatusId)
-                .input('subj', sql.NVarChar, cur.subject  || null)
-                .input('sol',  sql.NVarChar, solNote)
-                .input('uid',  sql.Int,      supportId)
-                .input('cbid', sql.Int,      supportId)
+                .input('rid',   sql.Int,      regId)
+                .input('rd',    sql.DateTime, cur.assigned_at || new Date())
+                .input('desc',  sql.NVarChar, cur.description || cur.subject || null)
+                .input('iname', sql.NVarChar, informName)
+                .input('itel',  sql.NVarChar, informTel)
+                .input('itype', sql.NVarChar, rawInformType)
+                .input('line',  sql.NVarChar, informLine)
+                .input('ptid',  sql.Int,      problemTypeId)
+                .input('icid',  sql.Int,      issueCategoryId)
+                .input('pid',   sql.Int,      12)
+                .input('sid',   sql.Int,      supportId)
+                .input('stid',  sql.Int,      closeStatus.StatusId)
+                .input('subj',  sql.NVarChar, cur.subject || null)
+                .input('sol',   sql.NVarChar, fullSolNote)
+                .input('solvt', sql.NVarChar, solveType)
+                .input('uid',   sql.Int,      supportId)
+                .input('cbid',  sql.Int,      supportId)
                 .query(`INSERT INTO Calllog
                   (RegistrationId, ReceiveDate, CloseDate, DueDate, CalllogDesc,
                    InformName, InformTel, InformType, OnsiteRemark,
-                   SupportId, StatusId, Subject, Solution, SolveType,
+                   IssueCategoryId, ProblemTypeId, ProjectId, SupportId, StatusId,
+                   Subject, Solution, SolveType,
                    UserId, CloseById, Active, InsertDate, UpdateDate)
                   OUTPUT INSERTED.CalllogId AS id
-                  VALUES (@rid, @rd, @cd, @cd, @desc,
-                          @iname, @itel, 'Remote', @line,
-                          @sid, @stid, @subj, @sol, 'Remote',
+                  VALUES (@rid, @rd, GETDATE(), GETDATE(), @desc,
+                          @iname, @itel, @itype, @line,
+                          @icid, @ptid, @pid, @sid, @stid,
+                          @subj, @sol, @solvt,
                           @uid, @cbid, 1, GETDATE(), GETDATE())`);
               const newCalllogId = newLog.recordset[0]?.id;
               // ถ้าไม่มี calllog_id เดิม → link specialist_log กับ calllog ใหม่
@@ -4780,6 +4839,24 @@ app.put('/api/specialist/:id', authRequired, async (request, res) => {
             }
           }
         } catch(e) { console.warn('auto-close/create calllog failed:', e.message); }
+      }
+
+      // ── ถ้าเคย resolved แล้วเปลี่ยนกลับ → reopen Calllog ─────────────
+      if (cur.status === 'resolved' && !['resolved','assigned_to_programmer'].includes(b.status) && cur.calllog_id && getExtPool()) {
+        try {
+          const openStatus = (await extReq()
+            .query(`SELECT TOP 1 StatusId FROM CallStatus
+                    WHERE StatusName NOT LIKE '%close%' AND StatusName NOT LIKE '%complete%'
+                    ORDER BY StatusId ASC`)).recordset[0];
+          if (openStatus) {
+            await extReq()
+              .input('id',   sql.Int, cur.calllog_id)
+              .input('stid', sql.Int, openStatus.StatusId)
+              .query(`UPDATE Calllog
+                      SET StatusId=@stid, CloseDate=NULL, DueDate=NULL, UpdateDate=GETDATE()
+                      WHERE CalllogId=@id`);
+          }
+        } catch(e) { console.warn('reopen calllog failed:', e.message); }
       }
     }
     res.json({ ok: true });

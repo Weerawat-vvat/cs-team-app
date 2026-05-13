@@ -1306,18 +1306,6 @@ textarea{resize:vertical;min-height:80px}
       <div style="color:var(--muted);font-size:.78rem;margin-top:.15rem" id="asp-ticket-sub">—</div>
     </div>
 
-    <!-- Standalone fields — แสดงเมื่อเพิ่มงาน SP โดยตรง -->
-    <div id="asp-standalone-fields" style="display:none">
-      <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">🏢 ข้อมูลงาน</div>
-      <div class="form-group"><label>ร้านค้า / บริษัท <span style="color:#ef4444">*</span></label><input id="asp-company" placeholder="ชื่อร้านค้าหรือบริษัท"/></div>
-      <div class="grid-2">
-        <div class="form-group"><label>หัวข้อ <span style="color:#ef4444">*</span></label><input id="asp-subject" placeholder="หัวข้อปัญหา"/></div>
-        <div class="form-group"><label>ประเภทปัญหา</label><input id="asp-problem-type" placeholder="เช่น Software, Hardware"/></div>
-      </div>
-      <div class="form-group"><label>รายละเอียดปัญหา</label><textarea id="asp-description" rows="2" placeholder="อธิบายปัญหาเพิ่มเติม..."></textarea></div>
-      <hr style="border:none;border-top:1px solid var(--border);margin:.5rem 0 .75rem"/>
-    </div>
-
     <!-- Contact info -->
     <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">📞 ข้อมูลติดต่อ</div>
     <div class="grid-2">
@@ -1355,6 +1343,235 @@ textarea{resize:vertical;min-height:80px}
     <div class="btn-group">
       <button class="btn btn-primary" onclick="saveAssignSpecialist()">📤 มอบหมายงาน</button>
       <button class="btn btn-ghost" onclick="closeModal('modal-assign-specialist')">ยกเลิก</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ MODAL: ADD SP STANDALONE ═══════════════════ -->
+<div class="overlay" id="modal-add-sp">
+  <div class="modal" style="max-width:820px;max-height:92vh;overflow-y:auto;padding:1.25rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
+      <div style="font-size:1rem;font-weight:800">🎯 เปิดงาน Specialist</div>
+      <button class="modal-close" onclick="closeModal('modal-add-sp')">×</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:.85rem">
+
+    <!-- Left column -->
+    <div>
+      <!-- ร้านค้า -->
+      <div class="card" style="padding:.85rem 1rem;margin-bottom:.65rem">
+        <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">🏢 ร้านค้า</div>
+        <div style="position:relative">
+          <input id="sps-company" type="text" placeholder="พิมพ์ชื่อร้านเพื่อค้นหา..." oninput="spsShopSearch()" autocomplete="off"
+            style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.4rem .65rem;font-size:.83rem;outline:none"/>
+          <input type="hidden" id="sps-registration-id"/>
+          <div id="sps-shop-results" style="position:absolute;z-index:200;background:#fff;border:1px solid var(--border);border-radius:8px;max-height:180px;overflow-y:auto;width:100%;display:none;box-shadow:0 4px 12px #0002"></div>
+          <div id="sps-shop-selected" style="font-size:.75rem;color:#16a34a;margin-top:.2rem"></div>
+        </div>
+      </div>
+
+      <!-- ประเภท / หัวข้อ -->
+      <div class="card" style="padding:.85rem 1rem;margin-bottom:.65rem">
+        <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">🏷️ ประเภท / หัวข้อ</div>
+        <div class="form-group">
+          <label>ประเภทปัญหา</label>
+          <select id="sps-problem-type" onchange="spsFilterSubjects()">
+            <option value="">— เลือกประเภทปัญหา —</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label>หัวข้อ <span style="color:#ef4444">*</span></label>
+          <select id="sps-subject">
+            <option value="">— เลือกหัวข้อ —</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- รายละเอียด -->
+      <div class="card" style="padding:.85rem 1rem;margin-bottom:.65rem">
+        <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">📋 รายละเอียด</div>
+        <div class="form-group" style="margin-bottom:0">
+          <label>รายละเอียดปัญหา</label>
+          <textarea id="sps-description" rows="5" placeholder="อธิบายปัญหาเพิ่มเติม..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right column -->
+    <div>
+      <!-- ผู้ติดต่อ -->
+      <div class="card" style="padding:.85rem 1rem;margin-bottom:.65rem">
+        <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">📞 ผู้ติดต่อ</div>
+        <div class="form-group">
+          <label>ชื่อผู้ติดต่อ</label>
+          <input id="sps-contact-name" placeholder="ชื่อผู้ติดต่อ"/>
+        </div>
+        <div class="grid-2">
+          <div class="form-group"><label>เบอร์โทร</label><input id="sps-contact-phone" placeholder="08X-XXXXXXX"/></div>
+          <div class="form-group"><label>Line ID</label><input id="sps-line-id" placeholder="@line หรือ ID"/></div>
+        </div>
+        <div class="form-group">
+          <label>Line Group</label>
+          <input id="sps-line-group" placeholder="ชื่อกลุ่ม Line"/>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label>ช่องทางที่รับ</label>
+          <select id="sps-inform-type">
+            <option value="Phone">📞 Phone</option>
+            <option value="Line">💬 Line</option>
+            <option value="Email">📧 Email</option>
+            <option value="Walk-in">🚶 Walk-in</option>
+            <option value="Remote">🖥️ Remote</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- มอบหมาย -->
+      <div class="card" style="padding:.85rem 1rem;margin-bottom:.65rem">
+        <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">🎯 มอบหมาย</div>
+        <div class="form-group">
+          <label>ทีม Specialist <span style="color:#ef4444">*</span></label>
+          <select id="sps-team">
+            <option value="">เลือกทีม</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Priority</label>
+          <select id="sps-priority">
+            <option value="normal">🟡 Normal</option>
+            <option value="high">🟠 High</option>
+            <option value="urgent">🔴 Urgent</option>
+            <option value="low">🟢 Low</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label>Note</label>
+          <textarea id="sps-note" rows="2" placeholder="หมายเหตุ..."></textarea>
+        </div>
+      </div>
+
+      <!-- Buttons -->
+      <button class="btn btn-primary" style="width:100%;padding:.65rem;font-size:.9rem" onclick="saveAddSpStandalone()">
+        💾 บันทึกงาน SP
+      </button>
+      <button class="btn btn-ghost" style="width:100%;margin-top:.4rem" onclick="closeModal('modal-add-sp')">
+        ยกเลิก
+      </button>
+    </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ MODAL: EDIT SP STANDALONE ═══════════════════ -->
+<div class="overlay" id="modal-edit-sp">
+  <div class="modal" style="max-width:820px;max-height:92vh;overflow-y:auto;padding:1.25rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
+      <div style="font-size:1rem;font-weight:800">✏️ แก้ไขงาน Specialist</div>
+      <button class="modal-close" onclick="closeModal('modal-edit-sp')">×</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:.85rem">
+
+    <!-- Left column -->
+    <div>
+      <!-- ร้านค้า -->
+      <div class="card" style="padding:.85rem 1rem;margin-bottom:.65rem">
+        <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">🏢 ร้านค้า</div>
+        <div class="form-group" style="margin-bottom:0">
+          <label>ชื่อร้าน / บริษัท</label>
+          <input id="spe-company" type="text" placeholder="ชื่อร้านหรือบริษัท"/>
+        </div>
+      </div>
+
+      <!-- ประเภท / หัวข้อ -->
+      <div class="card" style="padding:.85rem 1rem;margin-bottom:.65rem">
+        <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">🏷️ ประเภท / หัวข้อ</div>
+        <div class="form-group">
+          <label>ประเภทปัญหา</label>
+          <select id="spe-problem-type" onchange="speFilterSubjects()">
+            <option value="">— เลือกประเภทปัญหา —</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label>หัวข้อ</label>
+          <select id="spe-subject">
+            <option value="">— เลือกหัวข้อ —</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- รายละเอียด -->
+      <div class="card" style="padding:.85rem 1rem;margin-bottom:.65rem">
+        <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">📋 รายละเอียด</div>
+        <div class="form-group" style="margin-bottom:0">
+          <label>รายละเอียดปัญหา</label>
+          <textarea id="spe-description" rows="5" placeholder="อธิบายปัญหาเพิ่มเติม..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right column -->
+    <div>
+      <!-- ผู้ติดต่อ -->
+      <div class="card" style="padding:.85rem 1rem;margin-bottom:.65rem">
+        <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">📞 ผู้ติดต่อ</div>
+        <div class="form-group">
+          <label>ชื่อผู้ติดต่อ</label>
+          <input id="spe-contact-name" placeholder="ชื่อผู้ติดต่อ"/>
+        </div>
+        <div class="grid-2">
+          <div class="form-group"><label>เบอร์โทร</label><input id="spe-contact-phone" placeholder="08X-XXXXXXX"/></div>
+          <div class="form-group"><label>Line ID</label><input id="spe-line-id" placeholder="@line หรือ ID"/></div>
+        </div>
+        <div class="form-group">
+          <label>Line Group</label>
+          <input id="spe-line-group" placeholder="ชื่อกลุ่ม Line"/>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label>ช่องทางที่รับ</label>
+          <select id="spe-inform-type">
+            <option value="Phone">📞 Phone</option>
+            <option value="Line">💬 Line</option>
+            <option value="Email">📧 Email</option>
+            <option value="Walk-in">🚶 Walk-in</option>
+            <option value="Remote">🖥️ Remote</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- มอบหมาย -->
+      <div class="card" style="padding:.85rem 1rem;margin-bottom:.65rem">
+        <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">🎯 มอบหมาย</div>
+        <div class="form-group">
+          <label>ทีม Specialist</label>
+          <select id="spe-team">
+            <option value="">เลือกทีม</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Priority</label>
+          <select id="spe-priority">
+            <option value="normal">🟡 Normal</option>
+            <option value="high">🟠 High</option>
+            <option value="urgent">🔴 Urgent</option>
+            <option value="low">🟢 Low</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label>Note</label>
+          <textarea id="spe-note" rows="2" placeholder="หมายเหตุ..."></textarea>
+        </div>
+      </div>
+
+      <!-- Buttons -->
+      <button class="btn btn-primary" style="width:100%;padding:.65rem;font-size:.9rem" onclick="saveEditSp()">
+        💾 บันทึกการแก้ไข
+      </button>
+      <button class="btn btn-ghost" style="width:100%;margin-top:.4rem" onclick="closeModal('modal-edit-sp')">
+        ยกเลิก
+      </button>
+    </div>
+
     </div>
   </div>
 </div>
@@ -2548,7 +2765,7 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 
 // click outside to close
 // Modals ที่ห้ามปิดเมื่อกด outside (ข้อมูลอาจหาย)
-const NO_BACKDROP_CLOSE = new Set(['modal-repair-link','modal-repair-form','modal-repair-detail','modal-person','modal-create-case','modal-edit-ticket-full','modal-specialist-detail','modal-assign-specialist']);
+const NO_BACKDROP_CLOSE = new Set(['modal-repair-link','modal-repair-form','modal-repair-detail','modal-person','modal-create-case','modal-edit-ticket-full','modal-specialist-detail','modal-assign-specialist','modal-add-sp','modal-edit-sp']);
 
 document.querySelectorAll('.overlay').forEach(el => {
   el.addEventListener('click', e => {
@@ -5049,6 +5266,97 @@ function renderRepairTable() {
     </tr>`).join('');
 }
 
+// ── Add SP Standalone ──────────────────────────────────────
+let _spsShopTimer = null;
+
+function spsShopSearch() {
+  clearTimeout(_spsShopTimer);
+  _spsShopTimer = setTimeout(async () => {
+    const q = document.getElementById('sps-company')?.value?.trim() || '';
+    const res = document.getElementById('sps-shop-results');
+    if (!res) return;
+    if (q.length < 2) { res.style.display = 'none'; return; }
+    document.getElementById('sps-registration-id').value = '';
+    document.getElementById('sps-shop-selected').textContent = '';
+    const data = await api(`/api/repair/search-shop?q=${encodeURIComponent(q)}`);
+    if (!data || !data.length) { res.style.display = 'none'; return; }
+    res.style.display = '';
+    res.innerHTML = data.map(s => `
+      <div class="rp-shop-item"
+           data-id="${s.RegistrationId}"
+           data-name="${escHtml(s.CompanyName)}"
+           data-contact="${escHtml(s.ContactName||'')}"
+           data-phone="${escHtml(s.Phone||s.MobilePhone||'')}"
+           style="padding:.42rem .75rem;cursor:pointer;font-size:.82rem;border-bottom:1px solid #f1f5f9"
+           onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+        <div style="font-weight:600">${escHtml(s.CompanyName)}</div>
+        <div style="font-size:.72rem;color:var(--muted);display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.1rem">
+          ${s.ProductName     ? `<span>📦 ${escHtml(s.ProductName)}</span>` : ''}
+          ${s.LicenseTypeName ? `<span>🔑 ${escHtml(s.LicenseTypeName)}</span>` : ''}
+          ${s.ContactName     ? `<span>👤 ${escHtml(s.ContactName)}</span>` : ''}
+          ${(s.Phone||s.MobilePhone) ? `<span>📞 ${escHtml(s.Phone||s.MobilePhone)}</span>` : ''}
+        </div>
+      </div>`).join('');
+    res.querySelectorAll('.rp-shop-item').forEach(el => {
+      el.addEventListener('click', () => {
+        document.getElementById('sps-registration-id').value = el.dataset.id;
+        document.getElementById('sps-company').value = el.dataset.name;
+        document.getElementById('sps-shop-selected').textContent = `✅ เลือกแล้ว: ${el.dataset.name}`;
+        if (el.dataset.contact) document.getElementById('sps-contact-name').value  = el.dataset.contact;
+        if (el.dataset.phone)   document.getElementById('sps-contact-phone').value = el.dataset.phone;
+        res.style.display = 'none';
+      });
+    });
+  }, 300);
+}
+
+async function saveAddSpStandalone() {
+  const company = document.getElementById('sps-company').value.trim();
+  const subject = document.getElementById('sps-subject').value; // will be integer ID as string
+  const team    = document.getElementById('sps-team').value;
+  if (!company) { showToast('❌ กรุณาระบุร้านค้า / บริษัท', 'error'); return; }
+  if (!subject) { showToast('❌ กรุณาระบุหัวข้อ', 'error'); return; }
+  if (!team)    { showToast('❌ กรุณาเลือกทีม', 'error'); return; }
+
+  const ptSel  = document.getElementById('sps-problem-type');
+  const subSel = document.getElementById('sps-subject');
+  const problem_type    = ptSel.value  ? (ptSel.options[ptSel.selectedIndex]?.text  || null) : null;
+  const subject_text    = subSel.value ? (subSel.options[subSel.selectedIndex]?.text || null) : null;
+
+  const body = {
+    registration_id:  parseInt(document.getElementById('sps-registration-id').value) || null,
+    company_name:     company,
+    subject:          subject_text,
+    problem_type,
+    problem_type_id:  parseInt(ptSel.value)  || null,
+    subject_id:       parseInt(subSel.value) || null,
+    description:     document.getElementById('sps-description').value.trim() || null,
+    contact_name:    document.getElementById('sps-contact-name').value.trim() || null,
+    contact_phone:   document.getElementById('sps-contact-phone').value.trim() || null,
+    line_id:         document.getElementById('sps-line-id').value.trim() || null,
+    line_group:      document.getElementById('sps-line-group').value.trim() || null,
+    inform_type:     document.getElementById('sps-inform-type').value || 'Phone',
+    assigned_to_team: team,
+    priority:        document.getElementById('sps-priority').value,
+    note:            document.getElementById('sps-note').value.trim() || null,
+  };
+  const r = await api('/api/specialist', { method: 'POST', body, silent: true });
+  if (r?.error) { showToast('❌ ' + r.error, 'error'); return; }
+  closeModal('modal-add-sp');
+  showToast('✅ เปิดงาน Specialist แล้ว');
+  loadSpecialist();
+}
+
+function spsFilterSubjects() {
+  if (!_ccFormData) return;
+  const ptId   = document.getElementById('sps-problem-type')?.value;
+  const subSel = document.getElementById('sps-subject');
+  if (!subSel) return;
+  const filtered = (_ccFormData.subjects||[]).filter(s => !ptId || String(s.problem_type_id) === String(ptId));
+  subSel.innerHTML = '<option value="">— เลือกหัวข้อ —</option>' +
+    filtered.map(s=>`<option value="${s.id}">${escHtml(s.name)}</option>`).join('');
+}
+
 // ── Repair Form ────────────────────────────────────────────
 let _rfShopTimer = null;
 
@@ -6452,30 +6760,29 @@ function renderSpecialistTable(list) {
 
           <!-- Specialist resolution -->
           ${s.resolution_note?`
-          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:.5rem .85rem">
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:.5rem .85rem;margin-bottom:.55rem">
             <div style="font-size:.68rem;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.22rem">✅ การแก้ไขของ Specialist</div>
             <div style="font-size:.82rem;color:#14532d;white-space:pre-wrap;line-height:1.55">${escHtml(s.resolution_note)}</div>
-          </div>`:
-          (s.status!=='resolved'?`
-          <div style="display:flex;gap:.55rem;align-items:flex-start">
+          </div>`:''}
+          ${s.status!=='resolved'&&spLead?`
+          <div style="margin-bottom:.55rem">
             <textarea id="sp-inline-note-${s.id}" rows="2"
-              placeholder="${spLead?'บันทึกการแก้ไขของ Specialist...':'รอการแก้ไขจาก Specialist'}"
-              ?disabled="${!spLead}"
+              placeholder="บันทึกการแก้ไข (จะส่งพร้อมกันเมื่อเปลี่ยนสถานะเป็น แก้ไขแล้ว)"
               onclick="event.stopPropagation()"
-              style="flex:1;border:1px solid var(--border);border-radius:7px;padding:.35rem .6rem;font-size:.8rem;font-family:inherit;resize:vertical;${!spLead?'background:#f8fafc;color:var(--muted)':''}"></textarea>
-            ${spLead?`<button class="btn btn-success btn-sm" onclick="event.stopPropagation();saveSpResolveInline(${s.id})">✅ แก้ไขแล้ว</button>`:''}
-          </div>`:'')}
+              style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.35rem .6rem;font-size:.8rem;font-family:inherit;resize:vertical"></textarea>
+          </div>`:''}
 
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:.55rem;padding-top:.5rem;border-top:1px solid #f1f5f9">
-            <button onclick="event.stopPropagation();openCreateFollowup(${JSON.stringify({id:s.id,subject:s.subject,company_name:s.company_name,contact_name:s.contact_name,contact_phone:s.contact_phone,priority:s.priority})})"
+          ${spLead?`<div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:.55rem;padding-top:.5rem;border-top:1px solid #f1f5f9">
+            <button onclick="event.stopPropagation();openEditSp(${s.id})"
               style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:7px;padding:.28rem .75rem;font-size:.75rem;font-weight:600;cursor:pointer">
-              🔁 สร้าง Follow Up
+              ✏️ แก้ไข
             </button>
-            ${spLead?`<button onclick="event.stopPropagation();deleteSpJob(${s.id},'${escHtml(s.company_name||'')}','${escHtml((s.subject||'').substring(0,40))}')"
+            <button onclick="event.stopPropagation();deleteSpJob(${s.id},'${escHtml(s.company_name||'')}','${escHtml((s.subject||'').substring(0,40))}')"
               style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:7px;padding:.28rem .75rem;font-size:.75rem;font-weight:600;cursor:pointer">
               🗑 ลบงานนี้
-            </button>`:''}
-          </div>
+            </button>
+          </div>`:''}
+
         </div>
       </td>
     </tr>`;
@@ -6503,14 +6810,19 @@ function toggleSpDetail(id) {
 }
 
 async function spUpdateStatusInline(id, status) {
-  const r = await api(`/api/specialist/${id}`, { method:'PUT', body:{status}, silent:true });
+  const body = { status };
+  if (status === 'resolved') {
+    // อ่าน resolution note จาก textarea ถ้ามี
+    const note = document.getElementById(`sp-inline-note-${id}`)?.value?.trim();
+    if (note) body.resolution_note = note;
+  }
+  const r = await api(`/api/specialist/${id}`, { method:'PUT', body, silent:true });
   if (r?.error) { showToast('❌ '+r.error,'error'); return; }
   showToast('✅ อัพเดทสถานะแล้ว');
-  // Update local cache, keep row expanded
   const s = _allSpecialist.find(x=>x.id===id);
   if (s) {
     s.status = status;
-    _spExpandedRows.add(id); // keep open
+    _spExpandedRows.add(id);
     loadSpecialist();
   }
 }
@@ -6698,61 +7010,140 @@ async function openAssignSpecialist(ticket) {
     allTeams.map(t=>`<option value="${escHtml(t.name)}">${escHtml(t.display_name)}</option>`).join('');
   const spTeam = allTeams.find(t => t.name.toLowerCase().includes('specialist') || t.display_name.toLowerCase().includes('specialist'));
   if (spTeam) aspTeam.value = spTeam.name;
-  // แสดง ticket box, ซ่อน standalone fields
-  document.getElementById('asp-standalone-fields').style.display = 'none';
   document.getElementById('asp-ticket-box').style.display = '';
   openModal('modal-assign-specialist');
 }
 
-function openAddSpecialist() {
-  // Reset ทุก field
-  document.getElementById('asp-calllog-id').value = '';
-  document.getElementById('asp-ticket-info').textContent = '—';
-  document.getElementById('asp-ticket-sub').textContent  = '—';
-  document.getElementById('asp-company').value      = '';
-  document.getElementById('asp-subject').value      = '';
-  document.getElementById('asp-problem-type').value = '';
-  document.getElementById('asp-description').value  = '';
-  document.getElementById('asp-contact-name').value  = '';
-  document.getElementById('asp-contact-phone').value = '';
-  document.getElementById('asp-line-id').value    = '';
-  document.getElementById('asp-line-group').value = '';
-  document.getElementById('asp-team').value     = '';
-  document.getElementById('asp-priority').value = 'normal';
-  document.getElementById('asp-note').value     = '';
-  // แสดง standalone fields, ซ่อน ticket box
-  document.getElementById('asp-standalone-fields').style.display = '';
-  document.getElementById('asp-ticket-box').style.display = 'none';
-  openModal('modal-assign-specialist');
+async function openAddSpecialist() {
+  // Reset all fields
+  ['sps-company','sps-description',
+   'sps-contact-name','sps-contact-phone','sps-line-id','sps-line-group','sps-note'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  document.getElementById('sps-registration-id').value = '';
+  document.getElementById('sps-shop-selected').textContent = '';
+  document.getElementById('sps-shop-results').style.display = 'none';
+  document.getElementById('sps-inform-type').value = 'Phone';
+  document.getElementById('sps-priority').value = 'normal';
+
+  // Populate problem types from CC form data
+  if (!_ccFormData) _ccFormData = await api('/api/cases/form-data');
+  const ptSel = document.getElementById('sps-problem-type');
+  ptSel.innerHTML = '<option value="">— เลือกประเภทปัญหา —</option>' +
+    (_ccFormData?.problemTypes||[]).map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('');
+  spsFilterSubjects();
+
+  // Populate teams, auto-select Specialist team
+  if (!allTeams.length) await loadTeams();
+  const spTeamSel = document.getElementById('sps-team');
+  spTeamSel.innerHTML = '<option value="">เลือกทีม</option>' +
+    allTeams.map(t=>`<option value="${escHtml(t.name)}">${escHtml(t.display_name)}</option>`).join('');
+  const spTeam = allTeams.find(t => t.name.toLowerCase().includes('specialist') || t.display_name.toLowerCase().includes('specialist'));
+  if (spTeam) spTeamSel.value = spTeam.name;
+
+  openModal('modal-add-sp');
+}
+
+// ── Edit SP Job ────────────────────────────────────────────────────────────
+let _editSpId = null;
+
+async function openEditSp(id) {
+  const s = (_allSpecialist||[]).find(x => x.id === id);
+  if (!s) { showToast('❌ ไม่พบข้อมูล', 'error'); return; }
+  _editSpId = id;
+
+  // Load form data for dropdowns
+  if (!_ccFormData) _ccFormData = await api('/api/cases/form-data');
+  if (!allTeams.length) await loadTeams();
+
+  // Populate problem-type dropdown
+  const ptSel = document.getElementById('spe-problem-type');
+  ptSel.innerHTML = '<option value="">— เลือกประเภทปัญหา —</option>' +
+    (_ccFormData?.problemTypes||[]).map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('');
+  ptSel.value = s.problem_type_id || '';
+
+  // Populate team dropdown
+  const teamSel = document.getElementById('spe-team');
+  teamSel.innerHTML = '<option value="">เลือกทีม</option>' +
+    allTeams.map(t=>`<option value="${escHtml(t.name)}">${escHtml(t.display_name)}</option>`).join('');
+
+  // Filter subjects based on selected problem type then set value
+  speFilterSubjects();
+  document.getElementById('spe-subject').value = s.subject_id || '';
+
+  // Fill fields
+  document.getElementById('spe-company').value       = s.company_name || '';
+  document.getElementById('spe-description').value   = s.description  || '';
+  document.getElementById('spe-contact-name').value  = s.contact_name || '';
+  document.getElementById('spe-contact-phone').value = s.contact_phone|| '';
+  document.getElementById('spe-line-id').value        = s.line_id      || '';
+  document.getElementById('spe-line-group').value    = s.line_group   || '';
+  document.getElementById('spe-inform-type').value   = s.inform_type  || 'Phone';
+  teamSel.value                                       = s.assigned_to_team || '';
+  document.getElementById('spe-priority').value      = s.priority     || 'normal';
+  document.getElementById('spe-note').value          = s.note         || '';
+
+  openModal('modal-edit-sp');
+}
+
+function speFilterSubjects() {
+  if (!_ccFormData) return;
+  const ptId  = document.getElementById('spe-problem-type')?.value;
+  const subSel = document.getElementById('spe-subject');
+  if (!subSel) return;
+  const filtered = (_ccFormData.subjects||[]).filter(s => !ptId || String(s.problem_type_id) === String(ptId));
+  subSel.innerHTML = '<option value="">— เลือกหัวข้อ —</option>' +
+    filtered.map(s=>`<option value="${s.id}">${escHtml(s.name)}</option>`).join('');
+}
+
+async function saveEditSp() {
+  if (!_editSpId) return;
+  const ptId   = document.getElementById('spe-problem-type').value;
+  const subjEl = document.getElementById('spe-subject');
+  const subjId = subjEl.value;
+  const subjText = subjEl.options[subjEl.selectedIndex]?.text || '';
+  const ptEl   = document.getElementById('spe-problem-type');
+  const ptText = ptEl.options[ptEl.selectedIndex]?.text || '';
+
+  const body = {
+    company_name:    document.getElementById('spe-company').value.trim()       || null,
+    description:     document.getElementById('spe-description').value.trim()   || null,
+    contact_name:    document.getElementById('spe-contact-name').value.trim()  || null,
+    contact_phone:   document.getElementById('spe-contact-phone').value.trim() || null,
+    line_id:         document.getElementById('spe-line-id').value.trim()       || null,
+    line_group:      document.getElementById('spe-line-group').value.trim()    || null,
+    inform_type:     document.getElementById('spe-inform-type').value          || null,
+    assigned_to_team:document.getElementById('spe-team').value                 || null,
+    priority:        document.getElementById('spe-priority').value             || 'normal',
+    note:            document.getElementById('spe-note').value.trim()          || null,
+    problem_type_id: ptId   ? parseInt(ptId)   : null,
+    subject_id:      subjId ? parseInt(subjId) : null,
+    subject:         subjText !== '— เลือกหัวข้อ —' ? subjText : null,
+    problem_type:    ptText  !== '— เลือกประเภทปัญหา —' ? ptText : null,
+  };
+
+  const r = await api(`/api/specialist/${_editSpId}`, { method:'PUT', body, silent:true });
+  if (r?.error) { showToast('❌ ' + r.error, 'error'); return; }
+  closeModal('modal-edit-sp');
+  showToast('✅ บันทึกการแก้ไขแล้ว');
+  loadSpecialist();
 }
 
 async function saveAssignSpecialist() {
   const team = document.getElementById('asp-team').value;
   if (!team) { showToast('❌ กรุณาเลือกทีม', 'error'); return; }
 
-  const isStandalone = document.getElementById('asp-standalone-fields').style.display !== 'none';
-  let company_name, subject, problem_type;
-
-  if (isStandalone) {
-    company_name = document.getElementById('asp-company').value.trim();
-    subject      = document.getElementById('asp-subject').value.trim();
-    problem_type = document.getElementById('asp-problem-type').value.trim();
-    if (!company_name) { showToast('❌ กรุณาระบุร้านค้า / บริษัท', 'error'); return; }
-    if (!subject)      { showToast('❌ กรุณาระบุหัวข้อ', 'error'); return; }
-  } else {
-    const ticketInfo = document.getElementById('asp-ticket-info').textContent;
-    const sub        = document.getElementById('asp-ticket-sub').textContent;
-    company_name = sub.split('|')[1]?.trim()        || '';
-    subject      = ticketInfo.split('—')[1]?.trim() || '';
-    problem_type = sub.split('|')[0]?.trim()        || '';
-  }
+  const ticketInfo = document.getElementById('asp-ticket-info').textContent;
+  const sub        = document.getElementById('asp-ticket-sub').textContent;
+  const company_name = sub.split('|')[1]?.trim()        || '';
+  const subject      = ticketInfo.split('—')[1]?.trim() || '';
+  const problem_type = sub.split('|')[0]?.trim()        || '';
 
   const body = {
     calllog_id:       parseInt(document.getElementById('asp-calllog-id').value) || null,
     company_name,
     subject,
     problem_type,
-    description:      isStandalone ? (document.getElementById('asp-description').value.trim() || null) : null,
     contact_name:     document.getElementById('asp-contact-name').value.trim(),
     contact_phone:    document.getElementById('asp-contact-phone').value.trim(),
     line_id:          document.getElementById('asp-line-id').value.trim(),
@@ -8351,8 +8742,6 @@ function convertToRepair(c) {
 async function openSpFromComplaint(c) {
   // Reset modal fields
   document.getElementById('asp-calllog-id').value = '';
-  // ซ่อน standalone fields, แสดง ticket box
-  document.getElementById('asp-standalone-fields').style.display = 'none';
   document.getElementById('asp-ticket-box').style.display = '';
   document.getElementById('asp-ticket-info').textContent = `📣 ร้องเรียน #${c.id} — ${c.company_name||'—'}`;
   document.getElementById('asp-ticket-sub').textContent  = `จากการร้องเรียน | ${c.company_name||'—'}`;
