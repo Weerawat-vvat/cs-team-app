@@ -1396,6 +1396,10 @@ textarea{resize:vertical;min-height:80px}
             <option value="resolved">✅ แก้แล้ว</option>
             <option value="cancelled">🚫 ยกเลิก</option>
           </select>
+          <!-- Search (table only) -->
+          <input id="fu-search" type="text" placeholder="🔍 ค้นหาหัวข้อ / Category / ผู้รับผิดชอบ..."
+            oninput="_fuSearchQ=this.value.toLowerCase();fuRenderTable()"
+            style="font-size:.75rem;padding:.3rem .6rem;border:1px solid #cbd5e1;border-radius:6px;width:220px;outline:none;font-family:inherit"/>
           <button onclick="fuAddIssue()" style="background:#1d4ed8;color:#fff;border:none;border-radius:7px;padding:.35rem .85rem;font-size:.8rem;font-weight:700;cursor:pointer">+ Issue</button>
         </div>
       </div>
@@ -6818,6 +6822,7 @@ let _fuBoards     = {};   // folder_id → boards[]
 let _fuIssues     = [];   // current board issues
 let _fuBoardId    = null;
 let _fuBoardName  = '';
+let _fuSearchQ    = '';   // search query for table view
 let _fuPanelId    = null;
 let _fuView       = localStorage.getItem('fu_view') || 'table'; // persisted per-browser
 let _fuDragId     = null;
@@ -6896,6 +6901,8 @@ async function fuToggleFolder(fid) {
 async function fuSelectBoard(bid, name, fid) {
   _fuBoardId   = bid;
   _fuBoardName = name;
+  _fuSearchQ   = '';
+  const sq = document.getElementById('fu-search'); if (sq) sq.value = '';
   if (!_fuBoards[fid]) _fuBoards[fid] = await api(`/api/fu/folders/${fid}/boards`) || [];
   document.getElementById('fu-board-title').textContent = '📋 ' + name;
   document.getElementById('fu-board-actions').style.display = 'flex';
@@ -7076,6 +7083,7 @@ function fuSetView(v) {
   if (bb) { bb.style.background = v==='board' ? '#1d4ed8' : 'transparent'; bb.style.color = v==='board' ? '#fff' : '#64748b'; }
   if (sf) sf.style.display = v==='table' ? '' : 'none';
   const gb = document.getElementById('fu-groupby'); if (gb) gb.style.display = v==='table' ? '' : 'none';
+  const sq = document.getElementById('fu-search');  if (sq) sq.style.display = v==='table' ? '' : 'none';
   // Board view is full-width — close panel
   if (v==='board') { fuClosePanel(); document.getElementById('fu-content-area').style.padding = '0'; }
   else { document.getElementById('fu-content-area').style.padding = '.75rem 1rem'; }
@@ -7149,7 +7157,15 @@ function fuGroupColor(field, val) {
 
 function fuRenderTable() {
   const filter = document.getElementById('fu-status-filter')?.value || '';
-  let list = filter ? _fuIssues.filter(i => i.status === filter) : _fuIssues;
+  const q = _fuSearchQ || '';
+  let list = _fuIssues.filter(i =>
+    (!filter || i.status === filter) &&
+    (!q || (i.detail||'').toLowerCase().includes(q) ||
+           (i.category||'').toLowerCase().includes(q) ||
+           (i.assigned_to_name||'').toLowerCase().includes(q) ||
+           (i.note||'').toLowerCase().includes(q) ||
+           String(i.id||'').includes(q))
+  );
   const wrap = document.getElementById('fu-table-wrap');
   if (!wrap) return;
 
