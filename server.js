@@ -3791,7 +3791,8 @@ app.get('/api/public/track/:token/fu-issues', async (request, res) => {
       SELECT i.id, i.detail, i.category, i.priority, i.status,
              i.due_date, i.note, i.created_at, i.updated_at,
              ea.name AS assigned_to_name,
-             b.name AS board_name, f.name AS folder_name
+             b.id AS board_id, b.name AS board_name,
+             f.id AS folder_id, f.name AS folder_name
       FROM fu_issues i
       JOIN fu_boards b ON b.id = i.board_id
       JOIN fu_folders f ON f.id = b.folder_id

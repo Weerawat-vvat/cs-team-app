@@ -1319,6 +1319,21 @@ async function renderIssues(){
     if(bdRes){
       _fuBoardsList = bdRes.ok ? await bdRes.json() : [];
     }
+    // Fallback: derive board list from issues (uses board_id/folder_id now included in fu-issues)
+    if(!_fuBoardsList.length && (_issues||[]).length){
+      const seen = new Set();
+      _fuBoardsList = [];
+      (_issues||[]).forEach(s=>{
+        if(s.board_id && !seen.has(s.board_id)){
+          seen.add(s.board_id);
+          _fuBoardsList.push({
+            folder_id: s.folder_id, folder_name: s.folder_name||'—',
+            board_id:  s.board_id,  board_name:  s.board_name||'—',
+            issue_count: 0
+          });
+        }
+      });
+    }
 
     const folders = [...new Set((_issues||[]).map(s=>s.folder_name).filter(Boolean))].sort();
     wrap.innerHTML = `
@@ -1474,6 +1489,17 @@ function _folderOptions(){
   return rows.map(r=>`<option value="${r.folder_id}">${esc(r.folder_name)}</option>`).join('');
 }
 
+function _populateBoardsFromIssues(){
+  if(_fuBoardsList.length) return;
+  const seen = new Set();
+  (_issues||[]).forEach(s=>{
+    if(s.board_id && !seen.has(s.board_id)){
+      seen.add(s.board_id);
+      _fuBoardsList.push({ folder_id:s.folder_id, folder_name:s.folder_name||'—', board_id:s.board_id, board_name:s.board_name||'—', issue_count:0 });
+    }
+  });
+}
+
 async function openAddIssue(){
   // Fetch boards on-demand if not yet loaded
   if(!_fuBoardsList.length){
@@ -1481,6 +1507,7 @@ async function openAddIssue(){
       const r = await fetch(`/api/public/track/${token}/fu-boards`);
       if(r.ok) _fuBoardsList = await r.json();
     } catch {}
+    _populateBoardsFromIssues(); // fallback from loaded issues
     if(!_fuBoardsList.length){
       showTrackToast('❌ ยังไม่มี Board กรุณาสร้าง Board ก่อน','red'); return;
     }
@@ -1533,6 +1560,7 @@ async function openCreateBoard(){
       const r = await fetch(`/api/public/track/${token}/fu-boards`);
       if(r.ok) _fuBoardsList = await r.json();
     } catch {}
+    _populateBoardsFromIssues(); // fallback from loaded issues
   }
   const el = document.getElementById('modal-track-board');
   document.getElementById('tb-folder').innerHTML = _folderOptions();
