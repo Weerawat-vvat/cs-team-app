@@ -1578,13 +1578,14 @@ async function submitTrackIssue(){
         body: JSON.stringify({ board_id:boardId, detail, category:category||null, priority, note:note||null, due_date:due||null })
       });
     }
-    const d = await r.json();
-    if(!r.ok){ showTiErr(d.error||'บันทึกไม่สำเร็จ'); return; }
+    let d;
+    try { d = await r.json(); } catch { d = {}; }
+    if(!r.ok){ showTiErr(d.error || `เซิร์ฟเวอร์ตอบ ${r.status} — กรุณา Restart Server แล้วลองใหม่`); return; }
     closeTrackModal('modal-track-issue');
     _issues = null;
     showTrackToast(isEdit ? '✅ แก้ไข Issue เรียบร้อยแล้ว' : '✅ เพิ่ม Issue เรียบร้อยแล้ว','green');
     renderIssues();
-  } catch { showTiErr('เกิดข้อผิดพลาด กรุณาลองใหม่'); }
+  } catch(e) { showTiErr('เกิดข้อผิดพลาด: ' + (e?.message||'กรุณาลองใหม่')); }
   finally { btn.disabled=false; btn.textContent=prevText; }
 }
 
@@ -1620,8 +1621,9 @@ async function submitTrackBoard(){
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ folder_id:folderId, name })
     });
-    const d = await r.json();
-    if(!r.ok){ showTbErr(d.error||'สร้างไม่สำเร็จ'); return; }
+    let d;
+    try { d = await r.json(); } catch { d = {}; }
+    if(!r.ok){ showTbErr(d.error || `เซิร์ฟเวอร์ตอบ ${r.status} — กรุณา Restart Server แล้วลองใหม่`); return; }
     closeTrackModal('modal-track-board');
     // Refresh boards list and re-render
     const br = await fetch(`/api/public/track/${token}/fu-boards`);
