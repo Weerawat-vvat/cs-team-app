@@ -4937,6 +4937,265 @@ function faceValueDate(s) {
   return isNaN(d) ? null : d;
 }
 
+// ══════════════════════════════════════════════════════════
+//  SHOP INFO — Migration
+// ══════════════════════════════════════════════════════════
+async function ensureShopInfoTables() {
+  try {
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='shop_brands' AND xtype='U')
+      CREATE TABLE shop_brands (
+        id         INT PRIMARY KEY IDENTITY,
+        name       NVARCHAR(255) NOT NULL,
+        created_at DATETIME DEFAULT GETDATE()
+      )`);
+
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='shop_branches' AND xtype='U')
+      CREATE TABLE shop_branches (
+        id          INT PRIMARY KEY IDENTITY,
+        brand_id    INT NULL REFERENCES shop_brands(id),
+        brand_name  NVARCHAR(255) NULL,
+        branch_name NVARCHAR(255) NOT NULL,
+        note        NVARCHAR(MAX) NULL,
+        created_at  DATETIME DEFAULT GETDATE(),
+        updated_at  DATETIME DEFAULT GETDATE()
+      )`);
+
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='shop_contacts' AND xtype='U')
+      CREATE TABLE shop_contacts (
+        id           INT PRIMARY KEY IDENTITY,
+        branch_id    INT NOT NULL REFERENCES shop_branches(id),
+        contact_name NVARCHAR(255) NULL,
+        telephone    NVARCHAR(100) NULL,
+        created_at   DATETIME DEFAULT GETDATE()
+      )`);
+
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='shop_terminals' AND xtype='U')
+      CREATE TABLE shop_terminals (
+        id              INT PRIMARY KEY IDENTITY,
+        branch_id       INT NOT NULL REFERENCES shop_branches(id),
+        terminal_type   NVARCHAR(100) NULL,
+        terminal_name   NVARCHAR(255) NULL,
+        remote_type     NVARCHAR(50)  NULL,
+        remote_id       NVARCHAR(255) NULL,
+        remote_password NVARCHAR(255) NULL,
+        ip_address      NVARCHAR(100) NULL,
+        services        NVARCHAR(500) NULL,
+        note            NVARCHAR(MAX) NULL,
+        created_at      DATETIME DEFAULT GETDATE(),
+        updated_at      DATETIME DEFAULT GETDATE()
+      )`);
+
+    console.log('✅ shop_info tables ready');
+  } catch(e) { console.error('❌ shop_info tables error:', e.message); }
+}
+
+// ══════════════════════════════════════════════════════════
+//  SHOP INFO — APIs
+// ══════════════════════════════════════════════════════════
+
+// GET /api/shopinfo?q=  — search + list all branches with contacts & terminals
+app.get('/api/shopinfo', authRequired, async (request, res) => {
+  try {
+    const q = (request.query.q || '').trim();
+    const like = `%${q}%`;
+
+    // 1. Fetch matching branches
+    const branchQ = q
+      ? `SELECT b.* FROM shop_branches b
+         LEFT JOIN shop_terminals t ON t.branch_id = b.id
+         WHERE b.branch_name LIKE @like OR b.brand_name LIKE @like
+            OR t.terminal_name LIKE @like OR t.ip_address LIKE @like OR t.remote_id LIKE @like
+         GROUP BY b.id, b.brand_id, b.brand_name, b.branch_name, b.note, b.created_at, b.updated_at
+         ORDER BY b.brand_name, b.branch_name`
+      : `SELECT * FROM shop_branches ORDER BY brand_name, branch_name`;
+
+    const r = q ? req().input('like', sql.NVarChar, like) : req();
+    const branches = (await r.query(branchQ)).recordset;
+
+    if (!branches.length) return res.json([]);
+
+    const ids = branches.map(b => b.id);
+    const idList = ids.join(',');
+
+    const contacts  = (await req().query(`SELECT * FROM shop_contacts  WHERE branch_id IN (${idList})`)).recordset;
+    const terminals = (await req().query(`SELECT * FROM shop_terminals WHERE branch_id IN (${idList}) ORDER BY terminal_type, terminal_name`)).recordset;
+
+    const contactMap  = {};
+    const terminalMap = {};
+    for (const c of contacts)  { (contactMap[c.branch_id]  ||= []).push(c); }
+    for (const t of terminals) { (terminalMap[t.branch_id] ||= []).push(t); }
+
+    const result = branches.map(b => ({
+      ...b,
+      contacts:  contactMap[b.id]  || [],
+      terminals: terminalMap[b.id] || [],
+    }));
+    res.json(result);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/shopinfo/brands — list all brand names
+app.get('/api/shopinfo/brands', authRequired, async (request, res) => {
+  try {
+    const rows = (await req().query(`
+      SELECT DISTINCT brand_name AS name
+      FROM shop_branches
+      WHERE brand_name IS NOT NULL AND brand_name <> ''
+      ORDER BY brand_name`)).recordset;
+    res.json(rows.map(r => r.name));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/shopinfo/branch/:id
+app.get('/api/shopinfo/branch/:id', authRequired, async (request, res) => {
+  try {
+    const id = +request.params.id;
+    const branch = (await req().input('id', sql.Int, id)
+      .query('SELECT * FROM shop_branches WHERE id=@id')).recordset[0];
+    if (!branch) return res.status(404).json({ error: 'Not found' });
+    const contacts  = (await req().input('id', sql.Int, id).query('SELECT * FROM shop_contacts  WHERE branch_id=@id')).recordset;
+    const terminals = (await req().input('id', sql.Int, id).query('SELECT * FROM shop_terminals WHERE branch_id=@id ORDER BY terminal_type, terminal_name')).recordset;
+    res.json({ ...branch, contacts, terminals });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/shopinfo/branch
+app.post('/api/shopinfo/branch', authRequired, async (request, res) => {
+  try {
+    const { brand_name, branch_name, note } = request.body;
+    if (!branch_name) return res.status(400).json({ error: 'branch_name required' });
+    const result = await req()
+      .input('brand_name',  sql.NVarChar, brand_name  || null)
+      .input('branch_name', sql.NVarChar, branch_name)
+      .input('note',        sql.NVarChar, note        || null)
+      .query(`INSERT INTO shop_branches (brand_name, branch_name, note)
+              OUTPUT INSERTED.id VALUES (@brand_name, @branch_name, @note)`);
+    res.json({ id: result.recordset[0].id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT /api/shopinfo/branch/:id
+app.put('/api/shopinfo/branch/:id', authRequired, async (request, res) => {
+  try {
+    const { brand_name, branch_name, note } = request.body;
+    if (!branch_name) return res.status(400).json({ error: 'branch_name required' });
+    await req()
+      .input('id',          sql.Int,      +request.params.id)
+      .input('brand_name',  sql.NVarChar, brand_name  || null)
+      .input('branch_name', sql.NVarChar, branch_name)
+      .input('note',        sql.NVarChar, note        || null)
+      .query(`UPDATE shop_branches
+              SET brand_name=@brand_name, branch_name=@branch_name, note=@note, updated_at=GETDATE()
+              WHERE id=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE /api/shopinfo/branch/:id — cascade delete contacts + terminals
+app.delete('/api/shopinfo/branch/:id', authRequired, async (request, res) => {
+  try {
+    const id = +request.params.id;
+    await req().input('id', sql.Int, id).query('DELETE FROM shop_contacts  WHERE branch_id=@id');
+    await req().input('id', sql.Int, id).query('DELETE FROM shop_terminals WHERE branch_id=@id');
+    await req().input('id', sql.Int, id).query('DELETE FROM shop_branches  WHERE id=@id');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/shopinfo/contact
+app.post('/api/shopinfo/contact', authRequired, async (request, res) => {
+  try {
+    const { branch_id, contact_name, telephone } = request.body;
+    if (!branch_id) return res.status(400).json({ error: 'branch_id required' });
+    const result = await req()
+      .input('branch_id',    sql.Int,      +branch_id)
+      .input('contact_name', sql.NVarChar, contact_name || null)
+      .input('telephone',    sql.NVarChar, telephone    || null)
+      .query(`INSERT INTO shop_contacts (branch_id, contact_name, telephone)
+              OUTPUT INSERTED.id VALUES (@branch_id, @contact_name, @telephone)`);
+    res.json({ id: result.recordset[0].id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT /api/shopinfo/contact/:id
+app.put('/api/shopinfo/contact/:id', authRequired, async (request, res) => {
+  try {
+    const { contact_name, telephone } = request.body;
+    await req()
+      .input('id',           sql.Int,      +request.params.id)
+      .input('contact_name', sql.NVarChar, contact_name || null)
+      .input('telephone',    sql.NVarChar, telephone    || null)
+      .query('UPDATE shop_contacts SET contact_name=@contact_name, telephone=@telephone WHERE id=@id');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE /api/shopinfo/contact/:id
+app.delete('/api/shopinfo/contact/:id', authRequired, async (request, res) => {
+  try {
+    await req().input('id', sql.Int, +request.params.id).query('DELETE FROM shop_contacts WHERE id=@id');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/shopinfo/terminal
+app.post('/api/shopinfo/terminal', authRequired, async (request, res) => {
+  try {
+    const { branch_id, terminal_type, terminal_name, remote_type, remote_id, remote_password, ip_address, services, note } = request.body;
+    if (!branch_id) return res.status(400).json({ error: 'branch_id required' });
+    const result = await req()
+      .input('branch_id',       sql.Int,      +branch_id)
+      .input('terminal_type',   sql.NVarChar, terminal_type   || null)
+      .input('terminal_name',   sql.NVarChar, terminal_name   || null)
+      .input('remote_type',     sql.NVarChar, remote_type     || null)
+      .input('remote_id',       sql.NVarChar, remote_id       || null)
+      .input('remote_password', sql.NVarChar, remote_password || null)
+      .input('ip_address',      sql.NVarChar, ip_address      || null)
+      .input('services',        sql.NVarChar, services        || null)
+      .input('note',            sql.NVarChar, note            || null)
+      .query(`INSERT INTO shop_terminals
+                (branch_id,terminal_type,terminal_name,remote_type,remote_id,remote_password,ip_address,services,note)
+              OUTPUT INSERTED.id
+              VALUES (@branch_id,@terminal_type,@terminal_name,@remote_type,@remote_id,@remote_password,@ip_address,@services,@note)`);
+    res.json({ id: result.recordset[0].id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT /api/shopinfo/terminal/:id
+app.put('/api/shopinfo/terminal/:id', authRequired, async (request, res) => {
+  try {
+    const { terminal_type, terminal_name, remote_type, remote_id, remote_password, ip_address, services, note } = request.body;
+    await req()
+      .input('id',              sql.Int,      +request.params.id)
+      .input('terminal_type',   sql.NVarChar, terminal_type   || null)
+      .input('terminal_name',   sql.NVarChar, terminal_name   || null)
+      .input('remote_type',     sql.NVarChar, remote_type     || null)
+      .input('remote_id',       sql.NVarChar, remote_id       || null)
+      .input('remote_password', sql.NVarChar, remote_password || null)
+      .input('ip_address',      sql.NVarChar, ip_address      || null)
+      .input('services',        sql.NVarChar, services        || null)
+      .input('note',            sql.NVarChar, note            || null)
+      .query(`UPDATE shop_terminals
+              SET terminal_type=@terminal_type, terminal_name=@terminal_name,
+                  remote_type=@remote_type, remote_id=@remote_id, remote_password=@remote_password,
+                  ip_address=@ip_address, services=@services, note=@note, updated_at=GETDATE()
+              WHERE id=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE /api/shopinfo/terminal/:id
+app.delete('/api/shopinfo/terminal/:id', authRequired, async (request, res) => {
+  try {
+    await req().input('id', sql.Int, +request.params.id).query('DELETE FROM shop_terminals WHERE id=@id');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 init().then(async () => {
   // Drop hardcoded team CHECK constraint so dynamic teams work
   try {
@@ -4959,6 +5218,7 @@ init().then(async () => {
   await ensureRequirementsTables();
   await ensureFollowupTable();
   await ensureFollowupV2Tables();
+  await ensureShopInfoTables();
 
   // Drop CHECK constraint on shifts.shift_type so 'dayoff' can be inserted
   try {
