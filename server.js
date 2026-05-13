@@ -2208,14 +2208,16 @@ app.put('/api/complaints/:id/resolve', authRequired, async (request, res) => {
 //  REPAIR JOBS
 // ══════════════════════════════════════════════════════════
 
-// Generate job number RJ-YYYYMM-XXXX
+// Generate job number RJ-YYYYMM-XXXX (uses MAX to handle gaps from deleted records)
 async function genJobNo() {
   const ym = new Date().toISOString().substring(0,7).replace('-','');
+  const prefix = `RJ-${ym}-`;
   const row = await req()
-    .query(`SELECT COUNT(*)+1 AS n FROM repair_jobs
-            WHERE job_no LIKE 'RJ-${ym}-%'`);
-  const seq = String(row.recordset[0].n).padStart(4,'0');
-  return `RJ-${ym}-${seq}`;
+    .query(`SELECT ISNULL(MAX(CAST(SUBSTRING(job_no, ${prefix.length + 1}, 4) AS INT)), 0) + 1 AS n
+            FROM repair_jobs
+            WHERE job_no LIKE '${prefix}%'`);
+  const seq = String(row.recordset[0].n).padStart(4, '0');
+  return `${prefix}${seq}`;
 }
 
 // Count unread customer messages (for badge)
@@ -2575,7 +2577,8 @@ app.post('/api/public/repair/submit', publicUpload.array('attachments', 5), asyn
               VALUES (@rid,'status','received','ลูกค้าแจ้งซ่อมผ่านระบบออนไลน์')`);
 
     const fileNote = request.files?.length ? ` (แนบรูป ${request.files.length} ไฟล์)` : '';
-    await sendLineNotify(`\n🔧 [แจ้งซ่อมใหม่] ${b.company_name}\nJob: ${newJob}\nอุปกรณ์: ${b.device_type||'—'} ${b.device_model||''}\nS/N: ${b.serial_no||'—'}\nอาการ: ${b.symptom}\nผู้แจ้ง: ${b.contact_name} ${b.contact_phone}${fileNote}`);
+    // LINE notify is best-effort — don't fail the request if it errors
+    sendLineNotify(`\n🔧 [แจ้งซ่อมใหม่] ${b.company_name}\nJob: ${newJob}\nอุปกรณ์: ${b.device_type||'—'} ${b.device_model||''}\nS/N: ${b.serial_no||'—'}\nอาการ: ${b.symptom}\nผู้แจ้ง: ${b.contact_name} ${b.contact_phone}${fileNote}`).catch(()=>{});
 
     res.json({ id: newId, job_no: newJob, token: newToken });
   } catch(e) { res.status(500).json({ error: e.message }); }
