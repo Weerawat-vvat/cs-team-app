@@ -5340,6 +5340,38 @@ app.delete('/api/shopinfo/entry/:id', authRequired, async (request, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// POST /api/shopinfo/entries/import — batch insert entries from CSV import
+app.post('/api/shopinfo/entries/import', authRequired, async (request, res) => {
+  try {
+    const rows = request.body?.entries;
+    if (!Array.isArray(rows) || !rows.length) return res.status(400).json({ error: 'no entries' });
+    let inserted = 0;
+    for (const r of rows) {
+      try {
+        await req()
+          .input('bn',  sql.NVarChar, r.brand_name      || null)
+          .input('brn', sql.NVarChar, r.branch_name     || null)
+          .input('cn',  sql.NVarChar, r.contact_name    || null)
+          .input('tel', sql.NVarChar, r.telephone       || null)
+          .input('tt',  sql.NVarChar, r.terminal_type   || null)
+          .input('tn',  sql.NVarChar, r.terminal_name   || null)
+          .input('ad',  sql.NVarChar, r.anydesk_id      || null)
+          .input('tv',  sql.NVarChar, r.teamviewer_id   || null)
+          .input('pw',  sql.NVarChar, r.remote_password || null)
+          .input('ip',  sql.NVarChar, r.ip_address      || null)
+          .input('sv',  sql.NVarChar, r.services        || null)
+          .input('nt',  sql.NVarChar, r.note            || null)
+          .query(`INSERT INTO shop_entries
+            (brand_name,branch_name,contact_name,telephone,terminal_type,terminal_name,
+             anydesk_id,teamviewer_id,remote_password,ip_address,services,note)
+            VALUES(@bn,@brn,@cn,@tel,@tt,@tn,@ad,@tv,@pw,@ip,@sv,@nt)`);
+        inserted++;
+      } catch {}
+    }
+    res.json({ ok: true, inserted });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 init().then(async () => {
   // Drop hardcoded team CHECK constraint so dynamic teams work
   try {

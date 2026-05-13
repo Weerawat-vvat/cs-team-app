@@ -1903,6 +1903,10 @@ textarea{resize:vertical;min-height:80px}
              oninput="siSearchDebounce()"
              style="border:1px solid var(--border);border-radius:8px;padding:.38rem .75rem;font-size:.83rem;min-width:280px;outline:none"/>
       <button class="btn btn-primary btn-sm" onclick="openSiEntryModal(null)">+ เพิ่มรายการ</button>
+      <button class="btn btn-ghost btn-sm" onclick="siExportCSV()" title="Export เป็น CSV">📥 Export</button>
+      <label class="btn btn-ghost btn-sm" style="cursor:pointer;margin:0" title="Import จาก CSV">
+        📤 Import<input type="file" id="si-import-file" accept=".csv" style="display:none" onchange="siImportPreview(this)"/>
+      </label>
       <button class="btn btn-ghost btn-sm" onclick="loadShopInfo()">🔄 รีเฟรช</button>
     </div>
   </div>
@@ -2807,7 +2811,7 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 
 // click outside to close
 // Modals ที่ห้ามปิดเมื่อกด outside (ข้อมูลอาจหาย)
-const NO_BACKDROP_CLOSE = new Set(['modal-repair-link','modal-repair-form','modal-repair-detail','modal-person','modal-create-case','modal-edit-ticket-full','modal-specialist-detail','modal-assign-specialist','modal-add-sp','modal-edit-sp','modal-si-entry']);
+const NO_BACKDROP_CLOSE = new Set(['modal-repair-link','modal-repair-form','modal-repair-detail','modal-person','modal-create-case','modal-edit-ticket-full','modal-specialist-detail','modal-assign-specialist','modal-add-sp','modal-edit-sp','modal-si-entry','modal-si-import']);
 
 document.querySelectorAll('.overlay').forEach(el => {
   el.addEventListener('click', e => {
@@ -9872,9 +9876,122 @@ async function deleteSiEntry(id, label) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
+/* ── Shop Info: Export CSV ── */
+function siExportCSV() {
+  if (!_siData || !_siData.length) { showToast('ไม่มีข้อมูลให้ export','error'); return; }
+  const headers = ['brand_name','branch_name','contact_name','telephone','terminal_type','terminal_name','anydesk_id','teamviewer_id','remote_password','ip_address','services','note'];
+  const rows = [];
+  for (const g of _siData) {
+    for (const e of (g.entries||[])) {
+      rows.push(headers.map(h => {
+        const v = e[h] ?? '';
+        return '"' + String(v).replace(/"/g, '""') + '"';
+      }).join(','));
+    }
+  }
+  const csv = headers.join(',') + '\n' + rows.join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'shopinfo_export.csv'; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+let _siParsedRows = [];
+
+/* ── Shop Info: Parse a CSV line (handles quoted fields) ── */
+function siParseCSVRow(line) {
+  const result = []; let cur = ''; let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQ) {
+      if (ch === '"' && line[i+1] === '"') { cur += '"'; i++; }
+      else if (ch === '"') { inQ = false; }
+      else { cur += ch; }
+    } else {
+      if (ch === '"') { inQ = true; }
+      else if (ch === ',') { result.push(cur.trim()); cur = ''; }
+      else { cur += ch; }
+    }
+  }
+  result.push(cur.trim());
+  return result;
+}
+
+/* ── Shop Info: Preview imported CSV ── */
+function siImportPreview(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const text = e.target.result.replace(/^﻿/, ''); // strip BOM
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    if (lines.length < 2) { showToast('ไฟล์ CSV ว่างเปล่าหรือไม่มีข้อมูล','error'); return; }
+    const headerCols = siParseCSVRow(lines[0]).map(h => h.toLowerCase().trim());
+    const fields = ['brand_name','branch_name','contact_name','telephone','terminal_type','terminal_name','anydesk_id','teamviewer_id','remote_password','ip_address','services','note'];
+    const idxMap = fields.map(f => headerCols.indexOf(f));
+    _siParsedRows = [];
+    const tbody = document.getElementById('si-import-rows');
+    tbody.innerHTML = '';
+    for (let i = 1; i < lines.length; i++) {
+      const cols = siParseCSVRow(lines[i]);
+      const obj = {};
+      fields.forEach((f, fi) => { obj[f] = idxMap[fi] >= 0 ? (cols[idxMap[fi]] || null) : null; });
+      _siParsedRows.push(obj);
+      const tr = document.createElement('tr');
+      tr.innerHTML = fields.map(f => `<td style="white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis" title="${obj[f]||''}">${obj[f]||''}</td>`).join('');
+      tbody.appendChild(tr);
+    }
+    document.getElementById('si-import-summary').textContent = `พบ ${_siParsedRows.length} รายการ`;
+    document.getElementById('si-import-confirm-btn').disabled = !_siParsedRows.length;
+    openModal('modal-si-import');
+    input.value = '';
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+/* ── Shop Info: Confirm import ── */
+async function siImportConfirm() {
+  if (!_siParsedRows.length) return;
+  document.getElementById('si-import-confirm-btn').disabled = true;
+  try {
+    const res = await api('/api/shopinfo/entries/import', { method:'POST', body: { entries: _siParsedRows } });
+    showToast(`นำเข้าสำเร็จ ${res.inserted} รายการ`);
+    closeModal('modal-si-import');
+    _siParsedRows = [];
+    loadShopInfo();
+  } catch(e) { showToast('นำเข้าไม่สำเร็จ','error'); document.getElementById('si-import-confirm-btn').disabled = false; }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 </script>
 
 <!-- ══════════ SHOP INFO MODAL ══════════ -->
+
+<!-- ═══ MODAL: SHOP INFO IMPORT PREVIEW ═══ -->
+<div class="overlay" id="modal-si-import">
+  <div class="modal" style="max-width:920px;max-height:92vh;overflow-y:auto;padding:1.25rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
+      <div style="font-size:1rem;font-weight:800">📤 Import ข้อมูลร้าน</div>
+      <button class="modal-close" onclick="closeModal('modal-si-import')">×</button>
+    </div>
+    <div id="si-import-summary" style="font-size:.83rem;color:var(--muted);margin-bottom:.75rem"></div>
+    <div style="overflow-x:auto;max-height:55vh;border:1px solid var(--border);border-radius:8px">
+      <table class="si-table" id="si-import-preview-table" style="min-width:900px">
+        <thead><tr>
+          <th>แบรนด์</th><th>สาขา</th><th>ผู้ติดต่อ</th><th>เบอร์</th>
+          <th>ประเภทเครื่อง</th><th>ชื่อเครื่อง</th><th>Anydesk</th><th>TeamViewer</th>
+          <th>Password</th><th>IP</th><th>Services</th><th>หมายเหตุ</th>
+        </tr></thead>
+        <tbody id="si-import-rows"></tbody>
+      </table>
+    </div>
+    <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:.85rem">
+      <button class="btn btn-ghost" onclick="closeModal('modal-si-import')">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="siImportConfirm()" id="si-import-confirm-btn">
+        ✅ นำเข้าข้อมูล
+      </button>
+    </div>
+  </div>
+</div>
 
 <div class="overlay" id="modal-si-entry">
   <div class="modal" style="max-width:780px;max-height:92vh;overflow-y:auto;padding:1.25rem">
