@@ -9756,6 +9756,9 @@ function renderShopInfo(data) {
         <button onclick="event.stopPropagation();siStartRename('${bnJs}','${brandKey}')"
           title="แก้ไขชื่อโฟลเดอร์"
           style="background:transparent;border:none;cursor:pointer;font-size:.8rem;padding:.15rem .35rem;border-radius:4px;color:var(--muted);line-height:1">✏️</button>
+        <button onclick="event.stopPropagation();siDeleteFolder('${bnJs}')"
+          title="ลบโฟลเดอร์"
+          style="background:transparent;border:none;cursor:pointer;font-size:.8rem;padding:.15rem .35rem;border-radius:4px;color:#ef4444;line-height:1">🗑️</button>
         <button onclick="event.stopPropagation();openSiEntryModal(null,'${bnJs}')"
           style="background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:6px;padding:.18rem .6rem;font-size:.75rem;cursor:pointer;font-weight:600;white-space:nowrap">+ สร้างรายการ</button>
         <span id="${brandKey}-arrow" style="color:var(--muted);font-size:.78rem;margin-left:.15rem">${isOpen?'▼':'▶'}</span>
@@ -9864,6 +9867,24 @@ function siToggleBrand(key) {
   if (header) { const icon = header.querySelector('span:first-child'); if (icon) icon.textContent = isOpen ? '📁' : '📂'; }
   if (isOpen) _siExpandedBrands.delete(key);
   else _siExpandedBrands.add(key);
+}
+
+/* ── ลบโฟลเดอร์ ── */
+async function siDeleteFolder(brandName) {
+  const group = _siData.find(g => g.brand_name === brandName);
+  const count = group ? group.entries.length : 0;
+  const msg = count
+    ? `ลบโฟลเดอร์ "${brandName}" และรายการทั้งหมด ${count} เครื่องด้วย?\n\nไม่สามารถกู้คืนได้`
+    : `ลบโฟลเดอร์ "${brandName}"?`;
+  if (!confirm(msg)) return;
+  try {
+    if (count > 0) {
+      await api('/api/shopinfo/entry-brand', { method:'DELETE', body: { brand_name: brandName } });
+    }
+    _siLocalFolders.delete(brandName);
+    showToast(`ลบโฟลเดอร์ "${brandName}" แล้ว`);
+    loadShopInfo();
+  } catch { showToast('ลบไม่สำเร็จ','error'); }
 }
 
 /* ── สร้างโฟลเดอร์ ── */

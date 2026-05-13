@@ -5348,6 +5348,18 @@ app.delete('/api/shopinfo/entry/:id', authRequired, async (request, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// DELETE /api/shopinfo/entry-brand — delete all entries of a brand
+app.delete('/api/shopinfo/entry-brand', authRequired, async (request, res) => {
+  const { brand_name } = request.body || {};
+  if (!brand_name) return res.status(400).json({ error: 'brand_name required' });
+  try {
+    await req()
+      .input('bn', sql.NVarChar, brand_name)
+      .query('DELETE FROM shop_entries WHERE brand_name=@bn');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // PUT /api/shopinfo/entry-brand — rename a brand across all entries
 app.put('/api/shopinfo/entry-brand', authRequired, async (request, res) => {
   const { old_name, new_name } = request.body || {};
