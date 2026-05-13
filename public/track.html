@@ -127,6 +127,30 @@ tr:hover td{background:#f8fafc}
 .track-toast{background:#1e293b;color:#fff;padding:.65rem 1rem;border-radius:10px;font-size:.82rem;font-weight:500;box-shadow:0 4px 16px #0003;animation:slideIn .3s ease;pointer-events:auto;display:flex;align-items:flex-start;gap:.5rem;max-width:300px}
 .track-toast.red{background:#dc2626}
 .track-toast.green{background:#16a34a}
+
+/* Issue table (public track) */
+.iss-tbl{width:100%;border-collapse:collapse;font-size:.8rem;background:#fff}
+.iss-tbl th{background:#f8fafc;padding:.45rem .6rem;text-align:left;font-size:.72rem;font-weight:700;color:#64748b;white-space:nowrap;border-bottom:2px solid #e2e8f0}
+.iss-tbl td{padding:.42rem .6rem;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+.iss-tbl tr:hover td{background:#f8fafc}
+.iss-board-head td{background:#f1f5f9;font-size:.75rem;font-weight:700;color:#475569;padding:.35rem .7rem;border-top:2px solid #e2e8f0}
+.iss-expand-row td{background:#fafbff;padding:.6rem 1rem .8rem;border-bottom:1px solid #e2e8f0}
+
+/* Track modals */
+.track-modal-overlay{display:none;position:fixed;inset:0;background:#0007;z-index:1000;align-items:center;justify-content:center}
+.track-modal-overlay.open{display:flex}
+.track-modal-box{background:#fff;border-radius:14px;padding:1.4rem;width:min(460px,95vw);max-height:90vh;overflow-y:auto}
+.track-modal-title{font-size:.95rem;font-weight:800;margin-bottom:1rem;color:#1e293b}
+.track-modal-label{display:block;font-size:.75rem;font-weight:600;color:#475569;margin-bottom:.22rem}
+.track-modal-input{width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:.38rem .65rem;font-size:.82rem;font-family:inherit;outline:none;color:#1e293b;background:#fff;transition:border .15s}
+.track-modal-input:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.track-modal-footer{display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem}
+.btn-primary{background:#2563eb;color:#fff;border:none;border-radius:8px;padding:.42rem 1rem;font-size:.82rem;font-weight:700;cursor:pointer;font-family:inherit}
+.btn-primary:hover{background:#1d4ed8}
+.btn-primary:disabled{background:#93c5fd;cursor:not-allowed}
+.btn-cancel{border:1px solid #e2e8f0;background:#fff;color:#475569;border-radius:8px;padding:.42rem .9rem;font-size:.82rem;cursor:pointer;font-family:inherit}
+.btn-cancel:hover{background:#f1f5f9}
+.track-form-group{margin-bottom:.75rem}
 </style>
 </head>
 <body>
@@ -172,6 +196,7 @@ let _charts = {};
 let _dateFrom = '', _dateTo = '';
 let _requirements = null;
 let _issues = null;
+let _fuBoardsList = []; // flat list: [{folder_id, folder_name, board_id, board_name}]
 
 // ── Requirements helpers ──────────────────────────────────
 const REQ_STATUS_STYLE = {
@@ -1140,15 +1165,15 @@ function fuPriBadge(p){
 let _issueSearch = '';
 function issueSearch(){
   _issueSearch = (document.getElementById('iss-q')?.value||'').toLowerCase();
-  renderIssueCards();
+  renderIssueTable();
 }
 
-function renderIssueCards(){
-  const all      = _issues||[];
-  const statusF  = document.getElementById('iss-status')?.value || '';
-  const priF     = document.getElementById('iss-pri')?.value    || '';
-  const folderF  = document.getElementById('iss-folder')?.value || '';
-  const filtered = all.filter(s=>
+function _issueFiltered(){
+  const all     = _issues||[];
+  const statusF = document.getElementById('iss-status')?.value || '';
+  const priF    = document.getElementById('iss-pri')?.value    || '';
+  const folderF = document.getElementById('iss-folder')?.value || '';
+  return all.filter(s=>
     (!statusF  || s.status      === statusF)  &&
     (!priF     || s.priority    === priF)     &&
     (!folderF  || s.folder_name === folderF)  &&
@@ -1160,98 +1185,88 @@ function renderIssueCards(){
       (s.board_name||'').toLowerCase().includes(_issueSearch) ||
       (s.folder_name||'').toLowerCase().includes(_issueSearch))
   );
+}
+
+function renderIssueTable(){
+  const filtered = _issueFiltered();
   const el = document.getElementById('iss-list');
   if(!el) return;
-  if(!filtered.length){ el.innerHTML='<div class="empty">ไม่พบงานติดตาม Issue</div>'; return; }
 
-  // Group by folder_name
+  if(!filtered.length){
+    el.innerHTML=`<div class="empty">ไม่พบงานติดตาม Issue
+      <br><button onclick="openAddIssue()" style="margin-top:.75rem;background:#2563eb;color:#fff;border:none;border-radius:8px;padding:.42rem 1rem;font-size:.8rem;font-weight:700;cursor:pointer">➕ เพิ่ม Issue แรก</button>
+    </div>`;
+    return;
+  }
+
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  // Group by board_name (with folder prefix)
   const groups = {};
-  const folderOrder = [];
+  const groupOrder = [];
   filtered.forEach(s => {
-    const key = s.folder_name || '—';
-    if(!groups[key]){ groups[key] = []; folderOrder.push(key); }
+    const key = (s.folder_name ? s.folder_name+' › ' : '') + (s.board_name||'—');
+    if(!groups[key]){ groups[key]=[]; groupOrder.push(key); }
     groups[key].push(s);
   });
-  const multiFolder = folderOrder.length > 1;
 
-  el.innerHTML = folderOrder.map(folder => {
-    const items = groups[folder];
-    const cardsHtml = items.map(s => {
+  const thead = `<thead><tr>
+    <th style="width:28px">#</th>
+    <th style="min-width:200px">หัวข้อปัญหา</th>
+    <th style="min-width:100px">Category</th>
+    <th style="width:85px">ความสำคัญ</th>
+    <th style="width:110px">สถานะ</th>
+    <th style="width:90px">Due Date</th>
+    <th style="min-width:110px">ผู้รับผิดชอบ</th>
+  </tr></thead>`;
+
+  let tbody = '';
+  groupOrder.forEach(key => {
+    const items = groups[key];
+    tbody += `<tr class="iss-board-head">
+      <td colspan="7">📋 ${esc(key)} <span style="background:#e2e8f0;color:#64748b;border-radius:20px;padding:.02rem .45rem;font-size:.68rem;font-weight:700;margin-left:.3rem">${items.length}</span></td>
+    </tr>`;
+    items.forEach(s => {
       const due = s.due_date ? new Date(s.due_date) : null;
-      const todayD = new Date(); todayD.setHours(0,0,0,0);
-      const overdue = due && due < todayD && !['resolved','cancelled'].includes(s.status);
-      return `<div class="card" style="margin-bottom:.55rem;padding:0;overflow:hidden;border-left:3px solid ${FU_PRI_MAP[s.priority]?.col||'#e2e8f0'}">
-        <div onclick="toggleIssueDetail('isd-${s.id}')"
-             style="padding:.75rem 1rem;cursor:pointer;display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;flex-wrap:wrap">
-          <div style="flex:1;min-width:0">
-            <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-bottom:.25rem">
-              <span style="font-size:.68rem;font-weight:700;color:#94a3b8;background:#f1f5f9;border-radius:4px;padding:.1rem .35rem">#${s.id}</span>
-              ${s.category?`<span style="background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;border-radius:4px;font-size:.68rem;font-weight:700;padding:.1rem .4rem">${esc(s.category)}</span>`:''}
-              ${fuPriBadge(s.priority)}
-            </div>
-            <div style="font-size:.88rem;font-weight:700;color:#1e293b;margin-bottom:.28rem;line-height:1.4">${esc(s.detail||'—')}</div>
-            <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">
-              ${fuStatusBadge(s.status)}
-              <span style="font-size:.7rem;color:#94a3b8">🗂 ${esc(s.board_name||'')}</span>
-            </div>
-          </div>
-          <div style="text-align:right;flex-shrink:0">
-            ${due?`<div style="font-size:.7rem;font-weight:${overdue?'700':'400'};color:${overdue?'#ef4444':'#94a3b8'};white-space:nowrap">${overdue?'🔴 ':'📅 '}${due.toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'})}</div>`:''}
-            ${s.assigned_to_name?`<div style="font-size:.7rem;color:#64748b;margin-top:.12rem">👤 ${esc(s.assigned_to_name)}</div>`:''}
-            <span id="isd-arr-${s.id}" style="font-size:.68rem;color:#cbd5e1">▼</span>
-          </div>
-        </div>
-        <div id="isd-${s.id}" style="display:none;border-top:1px solid #f1f5f9;padding:.65rem 1rem .8rem;background:#fafbff">
-          ${s.note?`
-            <div style="font-size:.7rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.28rem">รายละเอียดปัญหา</div>
-            <div style="font-size:.82rem;color:#1e293b;white-space:pre-wrap;word-break:break-word;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:.5rem .7rem;margin-bottom:.4rem">${esc(s.note)}</div>`:''}
-          <div style="display:flex;flex-wrap:wrap;gap:.65rem;font-size:.72rem;color:#94a3b8">
+      const overdue = due && due < today && !['resolved','cancelled'].includes(s.status);
+      const st  = FU_STATUS_MAP[s.status] || {label:s.status,bg:'#f1f5f9',col:'#475569'};
+      const pri = FU_PRI_MAP[s.priority]  || FU_PRI_MAP.normal;
+      tbody += `<tr data-iid="${s.id}" onclick="toggleIssueDetail(${s.id})" style="cursor:pointer">
+        <td style="color:#94a3b8;font-size:.72rem">${s.id}</td>
+        <td>
+          <div style="font-weight:600;color:#1e293b;line-height:1.4">${esc(s.detail||'—')}</div>
+          ${s.note?`<div style="font-size:.68rem;color:#94a3b8;margin-top:.08rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px">${esc(s.note)}</div>`:''}
+        </td>
+        <td>${s.category?`<span style="background:#f0f9ff;color:#0369a1;border-radius:5px;padding:.1rem .4rem;font-size:.72rem;white-space:nowrap">${esc(s.category)}</span>`:'<span style="color:#cbd5e1">—</span>'}</td>
+        <td><span style="color:${pri.col};font-size:.75rem;font-weight:600">${pri.label}</span></td>
+        <td><span style="background:${st.bg};color:${st.col};border-radius:20px;padding:.15rem .55rem;font-size:.7rem;font-weight:700;white-space:nowrap">${esc(st.label)}</span></td>
+        <td>${due?`<span style="font-size:.75rem;font-weight:${overdue?700:400};color:${overdue?'#ef4444':'#475569'}">${overdue?'🔴 ':''}${due.toLocaleDateString('th-TH',{day:'2-digit',month:'short'})}</span>`:'<span style="color:#cbd5e1;font-size:.75rem">—</span>'}</td>
+        <td>${s.assigned_to_name?`<span style="font-size:.75rem">👤 ${esc(s.assigned_to_name)}</span>`:'<span style="color:#cbd5e1;font-size:.72rem">—</span>'}</td>
+      </tr>
+      <tr id="isd-${s.id}" style="display:none">
+        <td colspan="7" class="iss-expand-row">
+          ${s.note?`<div style="font-size:.8rem;color:#1e293b;white-space:pre-wrap;word-break:break-word;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:.5rem .75rem;margin-bottom:.5rem">${esc(s.note)}</div>`:''}
+          <div style="display:flex;flex-wrap:wrap;gap:.75rem;font-size:.72rem;color:#94a3b8">
             ${s.created_at?`<span>📅 สร้างเมื่อ: ${fmtDate(s.created_at)}</span>`:''}
             ${s.updated_at?`<span>🔄 อัปเดต: ${fmtDate(s.updated_at)}</span>`:''}
           </div>
-        </div>
-      </div>`;
-    }).join('');
+        </td>
+      </tr>`;
+    });
+  });
 
-    if(multiFolder){
-      return `<div style="margin-bottom:1.1rem">
-        <div style="display:flex;align-items:center;gap:.4rem;font-size:.78rem;font-weight:700;color:#475569;background:#f1f5f9;border-radius:8px;padding:.38rem .7rem;margin-bottom:.45rem">
-          📁 ${esc(folder)}
-          <span style="background:#e2e8f0;color:#64748b;border-radius:20px;padding:.03rem .45rem;font-size:.7rem;font-weight:700">${items.length}</span>
-        </div>
-        ${cardsHtml}
-      </div>`;
-    }
-    return cardsHtml;
-  }).join('');
+  el.innerHTML = `<div class="tbl-wrap"><table class="iss-tbl">${thead}<tbody>${tbody}</tbody></table></div>`;
 }
 
 function toggleIssueDetail(id){
-  const el  = document.getElementById('isd-'+id);
-  const arr = document.getElementById('isd-arr-'+id);
+  const el = document.getElementById('isd-'+id);
   if(!el) return;
-  const open = el.style.display==='none';
-  el.style.display = open?'':'none';
-  if(arr) arr.textContent = open?'▲':'▼';
+  el.style.display = el.style.display==='none' ? '' : 'none';
 }
 
 function exportIssuesExcel(){
   if(!window.XLSX){ alert('กำลังโหลด XLSX library กรุณาลองใหม่'); return; }
-  const statusF = document.getElementById('iss-status')?.value || '';
-  const priF    = document.getElementById('iss-pri')?.value    || '';
-  const folderF = document.getElementById('iss-folder')?.value || '';
-  const list    = (_issues||[]).filter(s=>
-    (!statusF  || s.status      === statusF)  &&
-    (!priF     || s.priority    === priF)     &&
-    (!folderF  || s.folder_name === folderF)  &&
-    (!_issueSearch ||
-      (s.detail||'').toLowerCase().includes(_issueSearch) ||
-      String(s.id||'').includes(_issueSearch) ||
-      (s.category||'').toLowerCase().includes(_issueSearch) ||
-      (s.note||'').toLowerCase().includes(_issueSearch) ||
-      (s.board_name||'').toLowerCase().includes(_issueSearch) ||
-      (s.folder_name||'').toLowerCase().includes(_issueSearch))
-  );
+  const list = _issueFiltered();
   if(!list.length){ alert('ไม่มีข้อมูลสำหรับ Export'); return; }
   const btn = document.getElementById('btn-iss-export');
   if(btn){ btn.textContent='⏳ กำลัง Export...'; btn.disabled=true; }
@@ -1291,17 +1306,46 @@ async function renderIssues(){
   const wrap = document.getElementById('tab-content');
   wrap.innerHTML = '<div class="loading">⏳ กำลังโหลด...</div>';
   try {
-    if(!_issues){
-      const r = await fetch(`/api/public/track/${token}/fu-issues`);
-      _issues = await r.json();
-      if(!r.ok) throw new Error(_issues.error||'โหลดไม่สำเร็จ');
+    // Fetch issues and boards in parallel
+    const [issRes, bdRes] = await Promise.all([
+      _issues ? null : fetch(`/api/public/track/${token}/fu-issues`),
+      _fuBoardsList.length ? null : fetch(`/api/public/track/${token}/fu-boards`),
+    ]);
+    if(issRes){
+      const d = await issRes.json();
+      if(!issRes.ok) throw new Error(d.error||'โหลด Issues ไม่สำเร็จ');
+      _issues = d;
     }
+    if(bdRes){
+      _fuBoardsList = bdRes.ok ? await bdRes.json() : [];
+    }
+
     const folders = [...new Set((_issues||[]).map(s=>s.folder_name).filter(Boolean))].sort();
+    const hasFolders = _fuBoardsList.length > 0;
 
     wrap.innerHTML = `
+      <!-- Action bar -->
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem;flex-wrap:wrap">
+        <div style="font-size:.82rem;font-weight:700;color:#1e293b;flex:1">
+          📌 Issues
+          <span style="background:#e2e8f0;color:#475569;border-radius:20px;padding:.05rem .5rem;font-size:.72rem;font-weight:700;margin-left:.3rem">${(_issues||[]).length}</span>
+        </div>
+        ${hasFolders?`
+        <button onclick="openAddIssue()" style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:.38rem .9rem;font-size:.8rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:.3rem;font-family:inherit">
+          ➕ เพิ่ม Issue
+        </button>
+        <button onclick="openCreateBoard()" style="background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:8px;padding:.38rem .9rem;font-size:.8rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.3rem;font-family:inherit">
+          📋 สร้าง Board
+        </button>`:''}
+        <button id="btn-iss-export" onclick="exportIssuesExcel()"
+          style="border:1px solid #16a34a;background:#f0fdf4;color:#16a34a;border-radius:8px;padding:.38rem .8rem;font-size:.8rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.3rem;white-space:nowrap;font-family:inherit;flex-shrink:0">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export
+        </button>
+      </div>
       <!-- Filter bar -->
-      <div class="filter-bar">
-        <select class="filter-select" id="iss-status" onchange="renderIssueCards()">
+      <div class="filter-bar" style="margin-bottom:.75rem">
+        <select class="filter-select" id="iss-status" onchange="renderIssueTable()">
           <option value="">ทุกสถานะ</option>
           <option value="pending">⏳ รอดำเนินการ</option>
           <option value="in_progress">🔵 กำลังตรวจสอบ</option>
@@ -1309,28 +1353,23 @@ async function renderIssues(){
           <option value="resolved">✅ แก้ไขแล้ว</option>
           <option value="cancelled">❌ ยกเลิก</option>
         </select>
-        <select class="filter-select" id="iss-pri" onchange="renderIssueCards()">
+        <select class="filter-select" id="iss-pri" onchange="renderIssueTable()">
           <option value="">ทุกความสำคัญ</option>
           <option value="urgent">🔴 เร่งด่วน</option>
           <option value="high">🟠 สูง</option>
           <option value="normal">🟡 ปกติ</option>
           <option value="low">🔵 ต่ำ</option>
         </select>
-        ${folders.length>1?`<select class="filter-select" id="iss-folder" onchange="renderIssueCards()">
+        ${folders.length>1?`<select class="filter-select" id="iss-folder" onchange="renderIssueTable()">
           <option value="">ทุก Folder</option>
           ${folders.map(f=>`<option value="${esc(f)}">${esc(f)}</option>`).join('')}
         </select>`:'<select id="iss-folder" style="display:none"></select>'}
         <input class="filter-input" id="iss-q" placeholder="🔍 ค้นหาหัวข้อ / ID / Category / Board..." oninput="issueSearch()"/>
-        <button id="btn-iss-export" onclick="exportIssuesExcel()"
-          style="border:1px solid #16a34a;background:#f0fdf4;color:#16a34a;border-radius:8px;padding:.32rem .8rem;font-size:.8rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.3rem;white-space:nowrap;font-family:inherit;flex-shrink:0">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Export Excel
-        </button>
       </div>
       <div id="iss-list"></div>`;
 
     _issueSearch = '';
-    renderIssueCards();
+    renderIssueTable();
   } catch(e){
     wrap.innerHTML=`<div class="error-box">❌ ${esc(e.message)}</div>`;
   }
@@ -1409,6 +1448,179 @@ setTimeout(()=>{
   pollRepairUpdates();
   setInterval(pollRepairUpdates, 30000);
 }, 3000);
+
+// ── Track Issue/Board Modals ──────────────────────────────
+function closeTrackModal(id){
+  const el = document.getElementById(id);
+  if(el){ el.classList.remove('open'); }
+}
+
+function _boardOptions(selectedId){
+  if(!_fuBoardsList.length) return '<option value="">— ไม่มี Board —</option>';
+  const folders = {};
+  const folderOrder = [];
+  _fuBoardsList.forEach(r=>{
+    if(!folders[r.folder_id]){ folders[r.folder_id]={name:r.folder_name,boards:[]}; folderOrder.push(r.folder_id); }
+    folders[r.folder_id].boards.push(r);
+  });
+  return folderOrder.map(fid=>{
+    const f = folders[fid];
+    const opts = f.boards.map(b=>`<option value="${b.board_id}"${b.board_id===selectedId?' selected':''}>${esc(b.board_name)}</option>`).join('');
+    return `<optgroup label="📁 ${esc(f.name)}">${opts}</optgroup>`;
+  }).join('');
+}
+
+function _folderOptions(){
+  const seen = new Set();
+  const rows = _fuBoardsList.filter(r=>{ if(seen.has(r.folder_id)) return false; seen.add(r.folder_id); return true; });
+  if(!rows.length) return '<option value="">— ไม่มี Folder —</option>';
+  return rows.map(r=>`<option value="${r.folder_id}">${esc(r.folder_name)}</option>`).join('');
+}
+
+async function openAddIssue(){
+  if(!_fuBoardsList.length){
+    showTrackToast('❌ ยังไม่มี Board กรุณาสร้าง Board ก่อน','red'); return;
+  }
+  const el = document.getElementById('modal-track-issue');
+  document.getElementById('ti-board').innerHTML = _boardOptions(null);
+  document.getElementById('ti-detail').value = '';
+  document.getElementById('ti-category').value = '';
+  document.getElementById('ti-priority').value = 'normal';
+  document.getElementById('ti-note').value = '';
+  document.getElementById('ti-due').value = '';
+  document.getElementById('ti-err').style.display = 'none';
+  el.classList.add('open');
+}
+
+async function submitTrackIssue(){
+  const boardId  = parseInt(document.getElementById('ti-board').value);
+  const detail   = document.getElementById('ti-detail').value.trim();
+  const category = document.getElementById('ti-category').value.trim();
+  const priority = document.getElementById('ti-priority').value;
+  const note     = document.getElementById('ti-note').value.trim();
+  const due      = document.getElementById('ti-due').value;
+  const errEl    = document.getElementById('ti-err');
+  const btn      = document.getElementById('ti-submit-btn');
+
+  const showTiErr = m=>{ errEl.textContent='❌ '+m; errEl.style.display='block'; };
+  if(!boardId)  { showTiErr('กรุณาเลือก Board'); return; }
+  if(!detail)   { showTiErr('กรุณาระบุหัวข้อปัญหา'); return; }
+
+  btn.disabled = true; btn.textContent = '⏳ กำลังบันทึก...';
+  try {
+    const r = await fetch(`/api/public/track/${token}/fu-issue`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ board_id:boardId, detail, category:category||null, priority, note:note||null, due_date:due||null })
+    });
+    const d = await r.json();
+    if(!r.ok){ showTiErr(d.error||'บันทึกไม่สำเร็จ'); return; }
+    closeTrackModal('modal-track-issue');
+    _issues = null; // invalidate cache
+    showTrackToast('✅ เพิ่ม Issue เรียบร้อยแล้ว','green');
+    renderIssues();
+  } catch { showTiErr('เกิดข้อผิดพลาด กรุณาลองใหม่'); }
+  finally { btn.disabled=false; btn.textContent='💾 บันทึก'; }
+}
+
+async function openCreateBoard(){
+  const el = document.getElementById('modal-track-board');
+  document.getElementById('tb-folder').innerHTML = _folderOptions();
+  document.getElementById('tb-name').value = '';
+  document.getElementById('tb-err').style.display = 'none';
+  el.classList.add('open');
+}
+
+async function submitTrackBoard(){
+  const folderId = parseInt(document.getElementById('tb-folder').value);
+  const name     = document.getElementById('tb-name').value.trim();
+  const errEl    = document.getElementById('tb-err');
+  const btn      = document.getElementById('tb-submit-btn');
+
+  const showTbErr = m=>{ errEl.textContent='❌ '+m; errEl.style.display='block'; };
+  if(!folderId){ showTbErr('กรุณาเลือก Folder'); return; }
+  if(!name)    { showTbErr('กรุณาระบุชื่อ Board'); return; }
+
+  btn.disabled = true; btn.textContent = '⏳ กำลังสร้าง...';
+  try {
+    const r = await fetch(`/api/public/track/${token}/fu-board`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ folder_id:folderId, name })
+    });
+    const d = await r.json();
+    if(!r.ok){ showTbErr(d.error||'สร้างไม่สำเร็จ'); return; }
+    closeTrackModal('modal-track-board');
+    // Refresh boards list and re-render
+    const br = await fetch(`/api/public/track/${token}/fu-boards`);
+    _fuBoardsList = br.ok ? await br.json() : [];
+    _issues = null;
+    showTrackToast('✅ สร้าง Board เรียบร้อยแล้ว','green');
+    renderIssues();
+  } catch { showTbErr('เกิดข้อผิดพลาด กรุณาลองใหม่'); }
+  finally { btn.disabled=false; btn.textContent='✅ สร้าง Board'; }
+}
 </script>
+
+<!-- Modal: เพิ่ม Issue -->
+<div id="modal-track-issue" class="track-modal-overlay" onclick="if(event.target===this)closeTrackModal('modal-track-issue')">
+  <div class="track-modal-box">
+    <div class="track-modal-title">➕ เพิ่ม Issue ใหม่</div>
+    <div class="track-form-group">
+      <label class="track-modal-label">Board <span style="color:#ef4444">*</span></label>
+      <select id="ti-board" class="track-modal-input"></select>
+    </div>
+    <div class="track-form-group">
+      <label class="track-modal-label">หัวข้อปัญหา <span style="color:#ef4444">*</span></label>
+      <input type="text" id="ti-detail" class="track-modal-input" placeholder="อธิบายปัญหาสั้นๆ..."/>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.65rem">
+      <div class="track-form-group">
+        <label class="track-modal-label">Category</label>
+        <input type="text" id="ti-category" class="track-modal-input" placeholder="เช่น Software, Hardware"/>
+      </div>
+      <div class="track-form-group">
+        <label class="track-modal-label">ความสำคัญ</label>
+        <select id="ti-priority" class="track-modal-input">
+          <option value="urgent">🔴 เร่งด่วน</option>
+          <option value="high">🟠 สูง</option>
+          <option value="normal" selected>🟡 ปกติ</option>
+          <option value="low">🔵 ต่ำ</option>
+        </select>
+      </div>
+    </div>
+    <div class="track-form-group">
+      <label class="track-modal-label">กำหนดเสร็จ</label>
+      <input type="date" id="ti-due" class="track-modal-input"/>
+    </div>
+    <div class="track-form-group">
+      <label class="track-modal-label">รายละเอียดเพิ่มเติม</label>
+      <textarea id="ti-note" class="track-modal-input" rows="3" placeholder="อธิบายรายละเอียดเพิ่มเติม..." style="resize:vertical;min-height:70px"></textarea>
+    </div>
+    <div id="ti-err" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:7px;padding:.5rem .8rem;font-size:.78rem;color:#dc2626;margin-bottom:.5rem"></div>
+    <div class="track-modal-footer">
+      <button class="btn-cancel" onclick="closeTrackModal('modal-track-issue')">ยกเลิก</button>
+      <button id="ti-submit-btn" class="btn-primary" onclick="submitTrackIssue()">💾 บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: สร้าง Board -->
+<div id="modal-track-board" class="track-modal-overlay" onclick="if(event.target===this)closeTrackModal('modal-track-board')">
+  <div class="track-modal-box">
+    <div class="track-modal-title">📋 สร้าง Board ใหม่</div>
+    <div class="track-form-group">
+      <label class="track-modal-label">Folder <span style="color:#ef4444">*</span></label>
+      <select id="tb-folder" class="track-modal-input"></select>
+    </div>
+    <div class="track-form-group">
+      <label class="track-modal-label">ชื่อ Board <span style="color:#ef4444">*</span></label>
+      <input type="text" id="tb-name" class="track-modal-input" placeholder="ชื่อ Board ใหม่..."/>
+    </div>
+    <div id="tb-err" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:7px;padding:.5rem .8rem;font-size:.78rem;color:#dc2626;margin-bottom:.5rem"></div>
+    <div class="track-modal-footer">
+      <button class="btn-cancel" onclick="closeTrackModal('modal-track-board')">ยกเลิก</button>
+      <button id="tb-submit-btn" class="btn-primary" onclick="submitTrackBoard()">✅ สร้าง Board</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>

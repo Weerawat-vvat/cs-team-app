@@ -3806,6 +3806,88 @@ app.get('/api/public/track/:token/fu-issues', async (request, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── GET /api/public/track/:token/fu-boards ───────────────
+// Returns folders + boards for this customer group (for issue/board creation UI)
+app.get('/api/public/track/:token/fu-boards', async (request, res) => {
+  try {
+    const tok  = request.params.token;
+    const link = (await req().input('tok',sql.NVarChar,tok)
+      .query('SELECT * FROM customer_links WHERE token=@tok')).recordset[0];
+    if (!link) return res.status(404).json({ error: 'Link ไม่พบ' });
+    if (!link.group_id) return res.json([]);
+
+    const rows = (await req().input('gid',sql.Int,link.group_id).query(`
+      SELECT f.id AS folder_id, f.name AS folder_name, f.color AS folder_color,
+             b.id AS board_id, b.name AS board_name,
+             (SELECT COUNT(*) FROM fu_issues i WHERE i.board_id=b.id) AS issue_count
+      FROM fu_folders f
+      JOIN fu_boards b ON b.folder_id=f.id
+      WHERE f.group_id = @gid
+      ORDER BY f.name, b.name
+    `)).recordset;
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── POST /api/public/track/:token/fu-board ───────────────
+// Create a new board in a folder belonging to this group
+app.post('/api/public/track/:token/fu-board', async (request, res) => {
+  try {
+    const tok  = request.params.token;
+    const { folder_id, name } = request.body;
+    if (!name?.trim())   return res.status(400).json({ error: 'กรุณาระบุชื่อ Board' });
+    if (!folder_id)      return res.status(400).json({ error: 'กรุณาระบุ Folder' });
+
+    const link = (await req().input('tok',sql.NVarChar,tok)
+      .query('SELECT * FROM customer_links WHERE token=@tok')).recordset[0];
+    if (!link) return res.status(404).json({ error: 'Link ไม่พบ' });
+    if (!link.group_id) return res.status(403).json({ error: 'ไม่มีสิทธิ์' });
+
+    // Verify folder belongs to this group
+    const folder = (await req().input('fid',sql.Int,parseInt(folder_id)).input('gid',sql.Int,link.group_id)
+      .query('SELECT id FROM fu_folders WHERE id=@fid AND group_id=@gid')).recordset[0];
+    if (!folder) return res.status(403).json({ error: 'Folder ไม่พบหรือไม่มีสิทธิ์' });
+
+    const r = await req().input('fid',sql.Int,parseInt(folder_id)).input('n',sql.NVarChar,name.trim())
+      .query(`INSERT INTO fu_boards(folder_id,name) OUTPUT INSERTED.id VALUES(@fid,@n)`);
+    res.json({ id: r.recordset[0].id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── POST /api/public/track/:token/fu-issue ───────────────
+// Create a new issue in a board belonging to this group
+app.post('/api/public/track/:token/fu-issue', async (request, res) => {
+  try {
+    const tok  = request.params.token;
+    const { board_id, detail, category, priority, note, due_date } = request.body;
+    if (!board_id)       return res.status(400).json({ error: 'กรุณาระบุ Board' });
+    if (!detail?.trim()) return res.status(400).json({ error: 'กรุณาระบุหัวข้อปัญหา' });
+
+    const link = (await req().input('tok',sql.NVarChar,tok)
+      .query('SELECT * FROM customer_links WHERE token=@tok')).recordset[0];
+    if (!link) return res.status(404).json({ error: 'Link ไม่พบ' });
+    if (!link.group_id) return res.status(403).json({ error: 'ไม่มีสิทธิ์' });
+
+    // Verify board belongs to a folder in this group
+    const board = (await req().input('bid',sql.Int,parseInt(board_id)).input('gid',sql.Int,link.group_id)
+      .query(`SELECT b.id FROM fu_boards b
+              JOIN fu_folders f ON f.id=b.folder_id
+              WHERE b.id=@bid AND f.group_id=@gid`)).recordset[0];
+    if (!board) return res.status(403).json({ error: 'Board ไม่พบหรือไม่มีสิทธิ์' });
+
+    const r = await req()
+      .input('bid',sql.Int,parseInt(board_id))
+      .input('det',sql.NVarChar,detail.trim())
+      .input('cat',sql.NVarChar,category||null)
+      .input('pri',sql.NVarChar,priority||'normal')
+      .input('dd', sql.Date,    due_date||null)
+      .input('nt', sql.NVarChar,note||null)
+      .query(`INSERT INTO fu_issues(board_id,detail,category,priority,due_date,note)
+              OUTPUT INSERTED.id VALUES(@bid,@det,@cat,@pri,@dd,@nt)`);
+    res.json({ id: r.recordset[0].id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── GET /api/public/requirements/:token ──────────────────
 app.get('/api/public/requirements/:token', async (request, res) => {
   try {
