@@ -4918,13 +4918,14 @@ function applyUserContext() {
 
 async function tryAutoLogin() {
   if (!authToken) { showLoginOverlay(); return; }
+  // ซ่อน login overlay ทันที (optimistic) เพื่อไม่ให้ flash หน้า login ทุก refresh
+  hideLoginOverlay();
   try {
     const res = await fetch('/api/auth/me', {
       headers: { Authorization: 'Bearer ' + authToken }
     });
     if (!res.ok) { doLogout(); return; }
     currentUser = await res.json();
-    hideLoginOverlay();
     applyUserContext();
     await Promise.all([loadEmployees(), loadTeams(), refreshNameMap()]);
     initKpiMonthFilter();
