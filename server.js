@@ -4707,29 +4707,77 @@ app.put('/api/specialist/:id', authRequired, async (request, res) => {
       await sendLineNotify(`\n🔧 [Specialist] ${cur.company_name||'—'}\nสถานะ: ${statusLabel[b.status]||b.status}\nโดย: ${uname}${b.resolution_note?'\n'+b.resolution_note:''}`);
 
       // Auto-close calllog when specialist marks resolved OR assigned_to_programmer
-      if (['resolved','assigned_to_programmer'].includes(b.status) && cur.calllog_id && getExtPool()) {
+      if (['resolved','assigned_to_programmer'].includes(b.status) && getExtPool()) {
         try {
           const uname = request.user.name || request.user.username || 'Specialist';
+          const resNote = b.resolution_note ?? cur.resolution_note;
           const closeStatus = (await extReq()
             .query(`SELECT TOP 1 StatusId FROM CallStatus
                     WHERE StatusName LIKE '%close%' OR StatusName LIKE '%complete%'
                     ORDER BY StatusName`)).recordset[0];
           if (closeStatus) {
             const solNote = b.status === 'assigned_to_programmer'
-              ? `[ส่งต่อ Programmer: ${uname}]${b.resolution_note ? ' ' + b.resolution_note : ''}`
-              : `[แก้ไขโดย Specialist: ${uname}]${b.resolution_note ? ' ' + b.resolution_note : ''}`;
-            await extReq()
-              .input('id',   sql.Int,      cur.calllog_id)
-              .input('stid', sql.Int,      closeStatus.StatusId)
-              .input('sol',  sql.NVarChar, solNote)
-              .query(`UPDATE Calllog
-                      SET StatusId=@stid,
-                          CloseDate=GETDATE(), DueDate=GETDATE(),
-                          Solution=ISNULL(NULLIF(Solution,''), @sol),
-                          UpdateDate=GETDATE()
-                      WHERE CalllogId=@id`);
+              ? `[ส่งต่อ Programmer: ${uname}]${resNote ? ' ' + resNote : ''}`
+              : `[แก้ไขโดย Specialist: ${uname}]${resNote ? ' ' + resNote : ''}`;
+
+            if (cur.calllog_id) {
+              // ── มี calllog อยู่แล้ว → update ──────────────────────────
+              await extReq()
+                .input('id',   sql.Int,      cur.calllog_id)
+                .input('stid', sql.Int,      closeStatus.StatusId)
+                .input('sol',  sql.NVarChar, solNote)
+                .query(`UPDATE Calllog
+                        SET StatusId=@stid,
+                            CloseDate=GETDATE(), DueDate=GETDATE(),
+                            Solution=ISNULL(NULLIF(Solution,''), @sol),
+                            UpdateDate=GETDATE()
+                        WHERE CalllogId=@id`);
+            } else if (b.status === 'resolved') {
+              // ── ไม่มี calllog → สร้างใหม่ใน Call Log ─────────────────
+              const supportId = request.user.calluserid || null;
+              // หา RegistrationId จาก company_name (best-effort)
+              let regId = null;
+              if (cur.company_name) {
+                try {
+                  const regRow = (await extReq().input('cn', sql.NVarChar, cur.company_name)
+                    .query(`SELECT TOP 1 RegistrationId FROM CustomerRegistration
+                            WHERE CompanyName=@cn AND Active=1`)).recordset[0];
+                  if (regRow) regId = regRow.RegistrationId;
+                } catch {}
+              }
+              const newLog = await extReq()
+                .input('rid',  sql.Int,      regId)
+                .input('rd',   sql.DateTime, cur.assigned_at || new Date())
+                .input('cd',   sql.DateTime, new Date())
+                .input('desc', sql.NVarChar, cur.subject || cur.description || null)
+                .input('iname',sql.NVarChar, cur.contact_name  || null)
+                .input('itel', sql.NVarChar, cur.contact_phone || null)
+                .input('line', sql.NVarChar, cur.line_id || null)
+                .input('sid',  sql.Int,      supportId)
+                .input('stid', sql.Int,      closeStatus.StatusId)
+                .input('subj', sql.NVarChar, cur.subject  || null)
+                .input('sol',  sql.NVarChar, solNote)
+                .input('uid',  sql.Int,      supportId)
+                .input('cbid', sql.Int,      supportId)
+                .query(`INSERT INTO Calllog
+                  (RegistrationId, ReceiveDate, CloseDate, DueDate, CalllogDesc,
+                   InformName, InformTel, InformType, OnsiteRemark,
+                   SupportId, StatusId, Subject, Solution, SolveType,
+                   UserId, CloseById, Active, InsertDate, UpdateDate)
+                  OUTPUT INSERTED.CalllogId AS id
+                  VALUES (@rid, @rd, @cd, @cd, @desc,
+                          @iname, @itel, 'Remote', @line,
+                          @sid, @stid, @subj, @sol, 'Remote',
+                          @uid, @cbid, 1, GETDATE(), GETDATE())`);
+              const newCalllogId = newLog.recordset[0]?.id;
+              // Link specialist_log → calllog ที่สร้างใหม่
+              if (newCalllogId) {
+                await req().input('id', sql.Int, id).input('cid', sql.Int, newCalllogId)
+                  .query('UPDATE specialist_log SET calllog_id=@cid WHERE id=@id');
+              }
+            }
           }
-        } catch(e) { console.warn('auto-close calllog failed:', e.message); }
+        } catch(e) { console.warn('auto-close/create calllog failed:', e.message); }
       }
     }
     res.json({ ok: true });
