@@ -1464,7 +1464,7 @@ app.get('/api/dashboard', authRequired, async (_, res) => {
         .query(`SELECT cs.StatusName AS status, COUNT(*) AS cnt
                 FROM Calllog cl
                 INNER JOIN CallStatus cs ON cs.StatusId=cl.StatusId
-                WHERE CAST(cl.ReceiveDate AS DATE)=@today
+                WHERE cl.Active=1 AND CAST(cl.ReceiveDate AS DATE)=@today
                 GROUP BY cs.StatusName`)).recordset;
       todayTotal = ticketsToday.reduce((s,r) => s + r.cnt, 0);
 
@@ -1473,7 +1473,7 @@ app.get('/api/dashboard', authRequired, async (_, res) => {
       weekTotal = (await extReq()
         .input('ws', sql.Date, weekStart).input('we', sql.Date, today)
         .query(`SELECT COUNT(*) AS cnt FROM Calllog cl
-                WHERE CAST(cl.ReceiveDate AS DATE) BETWEEN @ws AND @we`)).recordset[0]?.cnt || 0;
+                WHERE cl.Active=1 AND CAST(cl.ReceiveDate AS DATE) BETWEEN @ws AND @we`)).recordset[0]?.cnt || 0;
 
       overdueTickets = (await extReq()
         .query(`SELECT TOP 20
@@ -1486,7 +1486,8 @@ app.get('/api/dashboard', authRequired, async (_, res) => {
                 INNER JOIN Users u ON u.UserId=cl.SupportId
                 INNER JOIN Project p ON p.ProjectId=cl.ProjectId
                 INNER JOIN ProblemType pt ON pt.ProblemTypeId=cl.ProblemTypeId
-                WHERE cl.ReceiveDate >= '2026-01-01'
+                WHERE cl.Active=1
+                  AND cl.ReceiveDate >= '2026-01-01'
                   AND cl.ReceiveDate <= DATEADD(hour,-24,GETDATE())
                   AND cs.StatusName NOT LIKE '%close%'
                   AND cs.StatusName NOT LIKE '%ปิด%'
@@ -1496,7 +1497,7 @@ app.get('/api/dashboard', authRequired, async (_, res) => {
         .query(`SELECT cs.StatusName AS status, COUNT(*) AS cnt
                 FROM Calllog cl
                 INNER JOIN CallStatus cs ON cs.StatusId=cl.StatusId
-                WHERE cl.ReceiveDate >= '2026-01-01'
+                WHERE cl.Active=1 AND cl.ReceiveDate >= '2026-01-01'
                 GROUP BY cs.StatusName`)).recordset;
       const ms = today.substring(0,7) + '-01';
       const me = new Date(new Date(ms).setMonth(new Date(ms).getMonth()+1));
@@ -1504,29 +1505,29 @@ app.get('/api/dashboard', authRequired, async (_, res) => {
         .input('s', sql.DateTime, new Date(ms)).input('e', sql.DateTime, me)
         .query(`SELECT TOP 10 u.UserName, COUNT(cl.CalllogId) AS total_cases
                 FROM Calllog cl INNER JOIN Users u ON u.UserId=cl.SupportId
-                WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e
+                WHERE cl.Active=1 AND cl.ReceiveDate >= @s AND cl.ReceiveDate < @e
                 GROUP BY u.UserName ORDER BY total_cases DESC`)).recordset;
       dailyTrend = (await extReq()
         .query(`SELECT CAST(cl.ReceiveDate AS DATE) AS day, COUNT(*) AS cnt
                 FROM Calllog cl
-                WHERE cl.ReceiveDate >= DATEADD(day,-30,GETDATE())
+                WHERE cl.Active=1 AND cl.ReceiveDate >= DATEADD(day,-30,GETDATE())
                 GROUP BY CAST(cl.ReceiveDate AS DATE)
                 ORDER BY day`)).recordset;
       const lastMonthStart = new Date(new Date(ms).setMonth(new Date(ms).getMonth()-1)).toISOString().split('T')[0].substring(0,7)+'-01';
       const lastMonthEnd   = new Date(ms);
       monthTotal = (await extReq()
         .input('ms', sql.DateTime, new Date(ms)).input('me', sql.DateTime, me)
-        .query(`SELECT COUNT(*) AS cnt FROM Calllog cl WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me`)).recordset[0]?.cnt || 0;
+        .query(`SELECT COUNT(*) AS cnt FROM Calllog cl WHERE cl.Active=1 AND cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me`)).recordset[0]?.cnt || 0;
       lastMonthTotal = (await extReq()
         .input('lms', sql.DateTime, new Date(lastMonthStart)).input('lme', sql.DateTime, lastMonthEnd)
-        .query(`SELECT COUNT(*) AS cnt FROM Calllog cl WHERE cl.ReceiveDate >= @lms AND cl.ReceiveDate < @lme`)).recordset[0]?.cnt || 0;
+        .query(`SELECT COUNT(*) AS cnt FROM Calllog cl WHERE cl.Active=1 AND cl.ReceiveDate >= @lms AND cl.ReceiveDate < @lme`)).recordset[0]?.cnt || 0;
       totalYear = (await extReq()
-        .query(`SELECT COUNT(*) AS cnt FROM Calllog cl WHERE cl.ReceiveDate >= '2026-01-01'`)).recordset[0]?.cnt || 0;
+        .query(`SELECT COUNT(*) AS cnt FROM Calllog cl WHERE cl.Active=1 AND cl.ReceiveDate >= '2026-01-01'`)).recordset[0]?.cnt || 0;
       closedThisMonth = (await extReq()
         .input('ms', sql.DateTime, new Date(ms)).input('me', sql.DateTime, me)
         .query(`SELECT COUNT(*) AS cnt FROM Calllog cl
                 INNER JOIN CallStatus cs ON cs.StatusId=cl.StatusId
-                WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me
+                WHERE cl.Active=1 AND cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me
                   AND (cs.StatusName LIKE '%close%' OR cs.StatusName LIKE '%ปิด%' OR cs.StatusName LIKE '%complete%')`)).recordset[0]?.cnt || 0;
     }
     const shiftIn  = currentShifts.map((_,i) => `@st${i}`).join(',');
