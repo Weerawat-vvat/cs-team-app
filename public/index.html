@@ -9784,6 +9784,7 @@ function renderSiBranchCard(terminals, bnJs) {
   const branchName = escHtml(branchRaw);
   const branchKey  = 'branch-' + btoa(encodeURIComponent(branchRaw)).replace(/=/g,'');
   const isOpen     = _siExpandedBranches.has(branchKey);
+  const branchCode = first.branch_code  ? `<span style="font-size:.72rem;color:#94a3b8;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:.1rem .4rem;font-family:monospace">${escHtml(first.branch_code)}</span>` : '';
   const contact    = first.contact_name ? `<span style="font-size:.78rem;color:#475569">👤 ${escHtml(first.contact_name)}</span>` : '';
   const tel        = first.telephone    ? `<span style="font-size:.78rem;color:#475569">📞 ${escHtml(first.telephone)}</span>` : '';
 
@@ -9826,7 +9827,7 @@ function renderSiBranchCard(terminals, bnJs) {
            style="padding:.48rem .9rem;background:#f1f5f9;display:flex;align-items:center;gap:.65rem;flex-wrap:wrap;cursor:pointer;user-select:none"
            onmouseenter="this.style.background='#e2e8f0'" onmouseleave="this.style.background='#f1f5f9'">
         <span style="font-weight:700;font-size:.88rem">🏪 ${branchName}</span>
-        ${contact}${tel}
+        ${branchCode}${contact}${tel}
         <span style="font-size:.72rem;color:var(--muted);margin-left:auto">${terminals.length} เครื่อง</span>
         <span id="${branchKey}-arrow" style="color:var(--muted);font-size:.75rem">${isOpen?'▼':'▶'}</span>
       </div>
@@ -9950,7 +9951,7 @@ async function openSiEntryModal(id, prefillBrand='') {
   } catch {}
 
   // Reset
-  ['si-entry-brand','si-entry-branch','si-entry-contact','si-entry-tel',
+  ['si-entry-brand','si-entry-branch','si-entry-branch-code','si-entry-contact','si-entry-tel',
    'si-entry-terminal-name','si-entry-anydesk','si-entry-tv','si-entry-pw','si-entry-ip','si-entry-note']
     .forEach(fid => { const fel=document.getElementById(fid); if(fel) fel.value=''; });
   document.getElementById('si-entry-terminal-type').value = '';
@@ -9962,6 +9963,7 @@ async function openSiEntryModal(id, prefillBrand='') {
     if (entry) {
       document.getElementById('si-entry-brand').value         = entry.brand_name    || '';
       document.getElementById('si-entry-branch').value        = entry.branch_name   || '';
+      document.getElementById('si-entry-branch-code').value   = entry.branch_code   || '';
       document.getElementById('si-entry-contact').value       = entry.contact_name  || '';
       document.getElementById('si-entry-tel').value           = entry.telephone     || '';
       document.getElementById('si-entry-terminal-type').value = entry.terminal_type || '';
@@ -9984,9 +9986,10 @@ async function saveSiEntry() {
   const id = document.getElementById('si-entry-id').value;
   const svcs = ['posprint','mqtt','sync'].filter(s => document.getElementById('sie-svc-'+s)?.checked);
   const body = {
-    brand_name:      document.getElementById('si-entry-brand').value.trim()         || null,
-    branch_name:     document.getElementById('si-entry-branch').value.trim()        || null,
-    contact_name:    document.getElementById('si-entry-contact').value.trim()       || null,
+    brand_name:      document.getElementById('si-entry-brand').value.trim()            || null,
+    branch_name:     document.getElementById('si-entry-branch').value.trim()         || null,
+    branch_code:     document.getElementById('si-entry-branch-code').value.trim()    || null,
+    contact_name:    document.getElementById('si-entry-contact').value.trim()        || null,
     telephone:       document.getElementById('si-entry-tel').value.trim()           || null,
     terminal_type:   document.getElementById('si-entry-terminal-type').value        || null,
     terminal_name:   document.getElementById('si-entry-terminal-name').value.trim() || null,
@@ -10024,7 +10027,7 @@ async function deleteSiEntry(id, label) {
 /* ── Shop Info: Export CSV ── */
 function siExportCSV() {
   if (!_siData || !_siData.length) { showToast('ไม่มีข้อมูลให้ export','error'); return; }
-  const headers = ['brand_name','branch_name','contact_name','telephone','terminal_type','terminal_name','anydesk_id','teamviewer_id','remote_password','ip_address','services','note'];
+  const headers = ['brand_name','branch_name','branch_code','contact_name','telephone','terminal_type','terminal_name','anydesk_id','teamviewer_id','remote_password','ip_address','services','note'];
   const rows = [];
   for (const g of _siData) {
     for (const e of (g.entries||[])) {
@@ -10071,7 +10074,7 @@ function siImportPreview(input) {
     const lines = text.split(/\r?\n/).filter(l => l.trim());
     if (lines.length < 2) { showToast('ไฟล์ CSV ว่างเปล่าหรือไม่มีข้อมูล','error'); return; }
     const headerCols = siParseCSVRow(lines[0]).map(h => h.toLowerCase().trim());
-    const fields = ['brand_name','branch_name','contact_name','telephone','terminal_type','terminal_name','anydesk_id','teamviewer_id','remote_password','ip_address','services','note'];
+    const fields = ['brand_name','branch_name','branch_code','contact_name','telephone','terminal_type','terminal_name','anydesk_id','teamviewer_id','remote_password','ip_address','services','note'];
     const idxMap = fields.map(f => headerCols.indexOf(f));
     _siParsedRows = [];
     const tbody = document.getElementById('si-import-rows');
@@ -10141,7 +10144,7 @@ async function siImportConfirm() {
     <div style="overflow-x:auto;max-height:55vh;border:1px solid var(--border);border-radius:8px">
       <table class="si-table" id="si-import-preview-table" style="min-width:900px">
         <thead><tr>
-          <th>แบรนด์</th><th>สาขา</th><th>ผู้ติดต่อ</th><th>เบอร์</th>
+          <th>แบรนด์</th><th>สาขา</th><th>รหัสสาขา</th><th>ผู้ติดต่อ</th><th>เบอร์</th>
           <th>ประเภทเครื่อง</th><th>ชื่อเครื่อง</th><th>Anydesk</th><th>TeamViewer</th>
           <th>Password</th><th>IP</th><th>Services</th><th>หมายเหตุ</th>
         </tr></thead>
@@ -10176,6 +10179,10 @@ async function siImportConfirm() {
         <div class="form-group">
           <label>ชื่อสาขา</label>
           <input id="si-entry-branch" placeholder="เช่น สาขาพระราม 9"/>
+        </div>
+        <div class="form-group">
+          <label>รหัสสาขา <span style="font-weight:400;color:var(--muted);font-size:.8rem">(Branch Code)</span></label>
+          <input id="si-entry-branch-code" placeholder="เช่น BKK001"/>
         </div>
         <div class="form-group">
           <label>ผู้ติดต่อ</label>

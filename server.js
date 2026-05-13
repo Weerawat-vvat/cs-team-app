@@ -4948,6 +4948,7 @@ async function ensureShopEntriesTable() {
         id              INT IDENTITY PRIMARY KEY,
         brand_name      NVARCHAR(255)  NULL,
         branch_name     NVARCHAR(255)  NULL,
+        branch_code     NVARCHAR(100)  NULL,
         contact_name    NVARCHAR(255)  NULL,
         telephone       NVARCHAR(100)  NULL,
         terminal_type   NVARCHAR(100)  NULL,
@@ -4961,6 +4962,10 @@ async function ensureShopEntriesTable() {
         created_at      DATETIME DEFAULT GETDATE(),
         updated_at      DATETIME DEFAULT GETDATE()
       )`);
+    // Add branch_code column if not exists (migration for existing tables)
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id=OBJECT_ID('shop_entries') AND name='branch_code')
+      ALTER TABLE shop_entries ADD branch_code NVARCHAR(100) NULL`);
     console.log('✅ shop_entries table ready');
   } catch(e) { console.error('❌ shop_entries table error:', e.message); }
 }
@@ -5278,11 +5283,12 @@ app.get('/api/shopinfo/entry-brands', authRequired, async (request, res) => {
 // POST /api/shopinfo/entry
 app.post('/api/shopinfo/entry', authRequired, async (request, res) => {
   try {
-    const { brand_name, branch_name, contact_name, telephone, terminal_type, terminal_name,
+    const { brand_name, branch_name, branch_code, contact_name, telephone, terminal_type, terminal_name,
             anydesk_id, teamviewer_id, remote_password, ip_address, services, note } = request.body;
     const result = await req()
       .input('brand_name',      sql.NVarChar, brand_name      || null)
       .input('branch_name',     sql.NVarChar, branch_name     || null)
+      .input('branch_code',     sql.NVarChar, branch_code     || null)
       .input('contact_name',    sql.NVarChar, contact_name    || null)
       .input('telephone',       sql.NVarChar, telephone       || null)
       .input('terminal_type',   sql.NVarChar, terminal_type   || null)
@@ -5294,10 +5300,10 @@ app.post('/api/shopinfo/entry', authRequired, async (request, res) => {
       .input('services',        sql.NVarChar, services        || null)
       .input('note',            sql.NVarChar, note            || null)
       .query(`INSERT INTO shop_entries
-                (brand_name,branch_name,contact_name,telephone,terminal_type,terminal_name,
+                (brand_name,branch_name,branch_code,contact_name,telephone,terminal_type,terminal_name,
                  anydesk_id,teamviewer_id,remote_password,ip_address,services,note)
               OUTPUT INSERTED.id
-              VALUES (@brand_name,@branch_name,@contact_name,@telephone,@terminal_type,@terminal_name,
+              VALUES (@brand_name,@branch_name,@branch_code,@contact_name,@telephone,@terminal_type,@terminal_name,
                       @anydesk_id,@teamviewer_id,@remote_password,@ip_address,@services,@note)`);
     res.json({ id: result.recordset[0].id });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -5306,12 +5312,13 @@ app.post('/api/shopinfo/entry', authRequired, async (request, res) => {
 // PUT /api/shopinfo/entry/:id
 app.put('/api/shopinfo/entry/:id', authRequired, async (request, res) => {
   try {
-    const { brand_name, branch_name, contact_name, telephone, terminal_type, terminal_name,
+    const { brand_name, branch_name, branch_code, contact_name, telephone, terminal_type, terminal_name,
             anydesk_id, teamviewer_id, remote_password, ip_address, services, note } = request.body;
     await req()
       .input('id',              sql.Int,      +request.params.id)
       .input('brand_name',      sql.NVarChar, brand_name      || null)
       .input('branch_name',     sql.NVarChar, branch_name     || null)
+      .input('branch_code',     sql.NVarChar, branch_code     || null)
       .input('contact_name',    sql.NVarChar, contact_name    || null)
       .input('telephone',       sql.NVarChar, telephone       || null)
       .input('terminal_type',   sql.NVarChar, terminal_type   || null)
@@ -5323,8 +5330,9 @@ app.put('/api/shopinfo/entry/:id', authRequired, async (request, res) => {
       .input('services',        sql.NVarChar, services        || null)
       .input('note',            sql.NVarChar, note            || null)
       .query(`UPDATE shop_entries
-              SET brand_name=@brand_name, branch_name=@branch_name, contact_name=@contact_name,
-                  telephone=@telephone, terminal_type=@terminal_type, terminal_name=@terminal_name,
+              SET brand_name=@brand_name, branch_name=@branch_name, branch_code=@branch_code,
+                  contact_name=@contact_name, telephone=@telephone,
+                  terminal_type=@terminal_type, terminal_name=@terminal_name,
                   anydesk_id=@anydesk_id, teamviewer_id=@teamviewer_id, remote_password=@remote_password,
                   ip_address=@ip_address, services=@services, note=@note, updated_at=GETDATE()
               WHERE id=@id`);
@@ -5364,6 +5372,7 @@ app.post('/api/shopinfo/entries/import', authRequired, async (request, res) => {
         await req()
           .input('bn',  sql.NVarChar, r.brand_name      || null)
           .input('brn', sql.NVarChar, r.branch_name     || null)
+          .input('brc', sql.NVarChar, r.branch_code     || null)
           .input('cn',  sql.NVarChar, r.contact_name    || null)
           .input('tel', sql.NVarChar, r.telephone       || null)
           .input('tt',  sql.NVarChar, r.terminal_type   || null)
@@ -5375,9 +5384,9 @@ app.post('/api/shopinfo/entries/import', authRequired, async (request, res) => {
           .input('sv',  sql.NVarChar, r.services        || null)
           .input('nt',  sql.NVarChar, r.note            || null)
           .query(`INSERT INTO shop_entries
-            (brand_name,branch_name,contact_name,telephone,terminal_type,terminal_name,
+            (brand_name,branch_name,branch_code,contact_name,telephone,terminal_type,terminal_name,
              anydesk_id,teamviewer_id,remote_password,ip_address,services,note)
-            VALUES(@bn,@brn,@cn,@tel,@tt,@tn,@ad,@tv,@pw,@ip,@sv,@nt)`);
+            VALUES(@bn,@brn,@brc,@cn,@tel,@tt,@tn,@ad,@tv,@pw,@ip,@sv,@nt)`);
         inserted++;
       } catch {}
     }
