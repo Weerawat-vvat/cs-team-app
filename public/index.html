@@ -9727,8 +9727,7 @@ function renderShopInfo(data) {
 
   el.innerHTML = allGroups.map(group => {
     const brandKey = 'brand-' + btoa(encodeURIComponent(group.brand_name || '-')).replace(/=/g,'');
-    const isOpen = _siExpandedBrands.has(brandKey) || _siExpandedBrands.size === 0;
-    if (_siExpandedBrands.size === 0) _siExpandedBrands.add(brandKey);
+    const isOpen = _siExpandedBrands.has(brandKey);
 
     const rows = group.entries.map(e => renderSiRow(e)).join('');
     const bn     = group.brand_name || '';
