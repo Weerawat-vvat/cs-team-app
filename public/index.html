@@ -4919,23 +4919,26 @@ function applyUserContext() {
 }
 
 async function tryAutoLogin() {
-  const storedToken = localStorage.getItem('cs_token');
-  console.log('[auth] tryAutoLogin — authToken:', !!authToken, '| localStorage token:', !!storedToken);
   if (!authToken) { showLoginOverlay(); return; }
   hideLoginOverlay();
+
+  // ── ขั้นที่ 1: verify token ──────────────────────────────
+  let res;
   try {
-    const res = await fetch('/api/auth/me', {
-      headers: { Authorization: 'Bearer ' + authToken }
-    });
-    console.log('[auth] /api/auth/me status:', res.status);
-    if (!res.ok) {
-      if (res.status === 401 || res.status === 403) { console.warn('[auth] token invalid → doLogout'); doLogout(); }
-      else { console.warn('[auth] server error', res.status, '→ keep token'); showLoginOverlay(); }
-      return;
-    }
-    currentUser = await res.json();
-    console.log('[auth] login OK:', currentUser.username);
-    applyUserContext();
+    res = await fetch('/api/auth/me', { headers: { Authorization: 'Bearer ' + authToken } });
+  } catch { showLoginOverlay(); return; } // network error
+
+  if (!res.ok) {
+    if (res.status === 401 || res.status === 403) doLogout(); // token หมดอายุ/ไม่ valid
+    else showLoginOverlay(); // server error — เก็บ token ไว้ refresh ใหม่ได้
+    return;
+  }
+
+  currentUser = await res.json();
+  applyUserContext();
+
+  // ── ขั้นที่ 2: load data — auth สำเร็จแล้ว ห้าม showLoginOverlay อีก ──
+  try {
     await Promise.all([loadEmployees(), loadTeams(), refreshNameMap()]);
     initKpiMonthFilter();
     initDateDefaults();
@@ -4943,7 +4946,7 @@ async function tryAutoLogin() {
     loadDashboard();
     loadDashboardCharts();
     setInterval(updateClock, 1000);
-  } catch { showLoginOverlay(); }
+  } catch(e) { console.error('[init] data load error (auth OK):', e); }
 }
 
 async function doLogin() {
