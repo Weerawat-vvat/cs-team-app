@@ -3031,7 +3031,7 @@ app.post('/api/auth/login', async (request, res) => {
       calluserid: user.calluserid || null,
       name: user.name, team: user.team
     };
-    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '10h' });
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '30d' });
     res.json({ token, user: payload });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
