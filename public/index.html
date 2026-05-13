@@ -2751,7 +2751,7 @@ async function api(path, opts = {}) {
     body: opts.body ? JSON.stringify(opts.body) : undefined
   });
   // แสดง login overlay แต่ไม่ลบ token — ให้ tryAutoLogin() เป็นผู้ตัดสินเท่านั้น
-  if (res.status === 401) { showLoginOverlay(); return {}; }
+  if (res.status === 401) { console.warn('[auth] 401 from api():', path); showLoginOverlay(); return {}; }
   const data = await res.json();
   if (!res.ok) {
     const msg = data?.error || `Error ${res.status}`;
@@ -4919,21 +4919,22 @@ function applyUserContext() {
 }
 
 async function tryAutoLogin() {
+  const storedToken = localStorage.getItem('cs_token');
+  console.log('[auth] tryAutoLogin — authToken:', !!authToken, '| localStorage token:', !!storedToken);
   if (!authToken) { showLoginOverlay(); return; }
-  // ซ่อน login overlay ทันที (optimistic) เพื่อไม่ให้ flash หน้า login ทุก refresh
   hideLoginOverlay();
   try {
     const res = await fetch('/api/auth/me', {
       headers: { Authorization: 'Bearer ' + authToken }
     });
+    console.log('[auth] /api/auth/me status:', res.status);
     if (!res.ok) {
-      // 401 = token หมดอายุ/ไม่ valid → ลบ token ออก
-      // error อื่น (500/503) = server ปัญหา → เก็บ token ไว้ ให้ refresh ใหม่ได้
-      if (res.status === 401 || res.status === 403) doLogout();
-      else showLoginOverlay();
+      if (res.status === 401 || res.status === 403) { console.warn('[auth] token invalid → doLogout'); doLogout(); }
+      else { console.warn('[auth] server error', res.status, '→ keep token'); showLoginOverlay(); }
       return;
     }
     currentUser = await res.json();
+    console.log('[auth] login OK:', currentUser.username);
     applyUserContext();
     await Promise.all([loadEmployees(), loadTeams(), refreshNameMap()]);
     initKpiMonthFilter();
