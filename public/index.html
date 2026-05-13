@@ -10109,80 +10109,79 @@ async function siImportConfirm() {
       <button class="modal-close" onclick="closeModal('modal-si-entry')">×</button>
     </div>
     <input type="hidden" id="si-entry-id"/>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem">
-      <!-- Left -->
-      <div>
-        <div class="card" style="padding:.85rem 1rem;margin-bottom:.65rem">
-          <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">🏢 ข้อมูลสาขา</div>
-          <div class="form-group">
-            <label>แบรนด์</label>
-            <input id="si-entry-brand" list="si-entry-brand-datalist" placeholder="ชื่อแบรนด์"/>
-            <datalist id="si-entry-brand-datalist"></datalist>
-          </div>
-          <div class="form-group">
-            <label>ชื่อสาขา</label>
-            <input id="si-entry-branch" placeholder="เช่น สาขาพระราม 9"/>
-          </div>
-          <div class="form-group">
-            <label>ผู้ติดต่อ</label>
-            <input id="si-entry-contact" placeholder="ชื่อผู้ติดต่อ"/>
-          </div>
-          <div class="form-group" style="margin-bottom:0">
-            <label>เบอร์โทร</label>
-            <input id="si-entry-tel" placeholder="08X-XXXXXXX"/>
-          </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;margin-bottom:.65rem">
+      <!-- Left: ข้อมูลสาขา -->
+      <div class="card" style="padding:.85rem 1rem">
+        <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">🏢 ข้อมูลสาขา</div>
+        <div class="form-group">
+          <label>แบรนด์</label>
+          <input id="si-entry-brand" list="si-entry-brand-datalist" placeholder="ชื่อแบรนด์"/>
+          <datalist id="si-entry-brand-datalist"></datalist>
         </div>
-        <div class="card" style="padding:.85rem 1rem">
-          <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">📝 หมายเหตุ</div>
-          <textarea id="si-entry-note" rows="3" placeholder="หมายเหตุเพิ่มเติม..."></textarea>
+        <div class="form-group">
+          <label>ชื่อสาขา</label>
+          <input id="si-entry-branch" placeholder="เช่น สาขาพระราม 9"/>
+        </div>
+        <div class="form-group">
+          <label>ผู้ติดต่อ</label>
+          <input id="si-entry-contact" placeholder="ชื่อผู้ติดต่อ"/>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label>เบอร์โทร</label>
+          <input id="si-entry-tel" placeholder="08X-XXXXXXX"/>
         </div>
       </div>
-      <!-- Right -->
-      <div>
-        <div class="card" style="padding:.85rem 1rem;margin-bottom:.65rem">
-          <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">🖥️ เครื่อง Terminal</div>
-          <div class="form-group">
-            <label>ประเภทเครื่อง</label>
-            <select id="si-entry-terminal-type">
-              <option value="">— เลือกประเภท —</option>
-              <option>Server</option><option>Server+Cashier</option>
-              <option>Cashier</option><option>Take Order</option>
-              <option>Manager</option><option>Mobile</option>
-              <option>Printer</option><option>KDS</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>ชื่อเครื่อง</label>
-            <input id="si-entry-terminal-name" placeholder="เช่น SVR-01"/>
-          </div>
-          <div class="form-group">
-            <label>Anydesk ID</label>
-            <input id="si-entry-anydesk" placeholder="123 456 789"/>
-          </div>
-          <div class="form-group">
-            <label>TeamViewer ID</label>
-            <input id="si-entry-tv" placeholder="123 456 789"/>
-          </div>
-          <div class="form-group">
-            <label>Password (Remote)</label>
-            <input id="si-entry-pw" placeholder="รหัสผ่าน Remote"/>
-          </div>
-          <div class="form-group">
-            <label>IP Address</label>
-            <input id="si-entry-ip" placeholder="192.168.1.x"/>
-          </div>
-          <div class="form-group" style="margin-bottom:0">
-            <label>Services</label>
-            <div style="display:flex;gap:1rem;margin-top:.3rem">
-              <label style="display:flex;align-items:center;gap:.3rem;font-weight:400"><input type="checkbox" id="sie-svc-posprint"> posprint</label>
-              <label style="display:flex;align-items:center;gap:.3rem;font-weight:400"><input type="checkbox" id="sie-svc-mqtt"> mqtt</label>
-              <label style="display:flex;align-items:center;gap:.3rem;font-weight:400"><input type="checkbox" id="sie-svc-sync"> sync</label>
-            </div>
+      <!-- Right: เครื่อง Terminal -->
+      <div class="card" style="padding:.85rem 1rem">
+        <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">🖥️ เครื่อง Terminal</div>
+        <div class="form-group">
+          <label>ประเภทเครื่อง</label>
+          <select id="si-entry-terminal-type">
+            <option value="">— เลือกประเภท —</option>
+            <option>Server</option><option>Server+Cashier</option>
+            <option>Cashier</option><option>Take Order</option>
+            <option>Manager</option><option>Mobile</option>
+            <option>Printer</option><option>KDS</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>ชื่อเครื่อง</label>
+          <input id="si-entry-terminal-name" placeholder="เช่น SVR-01"/>
+        </div>
+        <div class="form-group">
+          <label>Anydesk ID</label>
+          <input id="si-entry-anydesk" placeholder="123 456 789"/>
+        </div>
+        <div class="form-group">
+          <label>TeamViewer ID</label>
+          <input id="si-entry-tv" placeholder="123 456 789"/>
+        </div>
+        <div class="form-group">
+          <label>Password (Remote)</label>
+          <input id="si-entry-pw" placeholder="รหัสผ่าน Remote"/>
+        </div>
+        <div class="form-group">
+          <label>IP Address</label>
+          <input id="si-entry-ip" placeholder="192.168.1.x"/>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label>Services</label>
+          <div style="display:flex;gap:1rem;margin-top:.3rem">
+            <label style="display:flex;align-items:center;gap:.3rem;font-weight:400"><input type="checkbox" id="sie-svc-posprint"> posprint</label>
+            <label style="display:flex;align-items:center;gap:.3rem;font-weight:400"><input type="checkbox" id="sie-svc-mqtt"> mqtt</label>
+            <label style="display:flex;align-items:center;gap:.3rem;font-weight:400"><input type="checkbox" id="sie-svc-sync"> sync</label>
           </div>
         </div>
-        <button class="btn btn-primary" style="width:100%;padding:.65rem" onclick="saveSiEntry()">💾 บันทึก</button>
-        <button class="btn btn-ghost" style="width:100%;margin-top:.4rem" onclick="closeModal('modal-si-entry')">ยกเลิก</button>
       </div>
+    </div>
+    <!-- Full-width: หมายเหตุ + buttons -->
+    <div class="card" style="padding:.75rem 1rem;margin-bottom:.65rem">
+      <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.4rem">📝 หมายเหตุ</div>
+      <textarea id="si-entry-note" rows="2" placeholder="หมายเหตุเพิ่มเติม..." style="margin-bottom:0"></textarea>
+    </div>
+    <div style="display:flex;gap:.5rem">
+      <button class="btn btn-ghost" style="flex:1" onclick="closeModal('modal-si-entry')">ยกเลิก</button>
+      <button class="btn btn-primary" style="flex:2;padding:.6rem" onclick="saveSiEntry()">💾 บันทึก</button>
     </div>
   </div>
 </div>
