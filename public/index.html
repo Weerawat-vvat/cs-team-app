@@ -3056,38 +3056,60 @@ async function loadDashboard() {
   }
 
   // ── On Shift ─────────────────────────────────────────────
-  const onShiftByTeam = {};
-  (d.onShift || []).forEach(e => {
-    if (!onShiftByTeam[e.team]) onShiftByTeam[e.team] = [];
-    onShiftByTeam[e.team].push(e);
-  });
-  // Only show these 3 teams in the on-shift card
   const ONSHIFT_TEAMS = ['helpdesk', 'specialist', 'war_room'];
-  // Summary badge: count only those 3 teams + current time
-  const _onShiftTotal = (d.onShift || []).filter(e => ONSHIFT_TEAMS.includes(e.team)).length;
+  const SHIFT_ORDER   = ['morning', 'midday', 'mid', 'afternoon', 'night'];
+
+  // Build team color lookup
+  const _teamCol = {};
+  allTeams.forEach(tm => { _teamCol[tm.name] = tm.color || '#475569'; });
+
+  // Filter to 3 teams only
+  const _onShiftFiltered = (d.onShift || []).filter(e => ONSHIFT_TEAMS.includes(e.team));
+
+  // Summary badge
+  const _onShiftTotal = _onShiftFiltered.length;
   const _nowStr = new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
   const _sumEl = document.getElementById('dash-onshift-summary');
   if (_sumEl) _sumEl.textContent = `${_onShiftTotal} คน ณ ${_nowStr} น.`;
-  // Filter allTeams to only the 3 target teams, preserving order
-  const teamsToShow = (allTeams.length ? allTeams : Object.keys(onShiftByTeam).map(n => ({ name: n, display_name: n, color: '#475569' })))
-    .filter(tm => ONSHIFT_TEAMS.includes(tm.name))
-    .sort((a,b) => ONSHIFT_TEAMS.indexOf(a.name) - ONSHIFT_TEAMS.indexOf(b.name));
-  document.getElementById('dash-onshift').innerHTML = teamsToShow.map(tm => {
-    const emps = onShiftByTeam[tm.name] || [];
-    const col  = tm.color || '#475569';
-    return `<div style="margin-bottom:.75rem">
-      <div style="font-size:.72rem;font-weight:700;color:${col};margin-bottom:.35rem;text-transform:uppercase;letter-spacing:.06em;display:flex;align-items:center;gap:.4rem">
-        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${col}"></span>${tm.display_name}
-      </div>
-      ${emps.length === 0
-        ? `<div style="font-size:.78rem;color:#92400e;background:#fef3c7;padding:.25rem .55rem;border-radius:6px;border:1px solid #fde68a">⚠️ ไม่มีพนักงานออนกะ</div>`
-        : `<div style="display:flex;flex-wrap:wrap;gap:.35rem">${emps.map(e =>
-            `<div style="background:#f8fafc;border:1.5px solid ${col};border-radius:8px;padding:.3rem .7rem;font-size:.78rem">
-               <b style="color:var(--text)">${e.nickname || e.name}</b>
-               <span style="color:${col};font-size:.68rem;font-weight:600;margin-left:.3rem">${shiftLabel(e.shift_type)}</span>
-             </div>`).join('')}</div>`}
-    </div>`;
-  }).join('');
+
+  // Group by shift_type
+  const onShiftByShift = {};
+  _onShiftFiltered.forEach(e => {
+    if (!onShiftByShift[e.shift_type]) onShiftByShift[e.shift_type] = [];
+    onShiftByShift[e.shift_type].push(e);
+  });
+
+  // Render grouped by shift, employees colored by team
+  const shiftsPresent = [...new Set([
+    ...SHIFT_ORDER.filter(s => onShiftByShift[s]),
+    ...Object.keys(onShiftByShift).filter(s => !SHIFT_ORDER.includes(s))
+  ])];
+
+  document.getElementById('dash-onshift').innerHTML = shiftsPresent.length === 0
+    ? `<div style="font-size:.8rem;color:var(--muted);padding:.5rem">ไม่มีพนักงานออนกะ</div>`
+    : shiftsPresent.map(shiftKey => {
+        const emps    = onShiftByShift[shiftKey] || [];
+        const sBg     = shiftBg(shiftKey);
+        const sCol    = shiftColor(shiftKey);
+        const sLabel  = shiftLabel(shiftKey, true);
+        return `<div style="margin-bottom:.65rem">
+          <div style="display:inline-flex;align-items:center;gap:.35rem;background:${sBg};color:${sCol};
+                      font-size:.7rem;font-weight:700;padding:.18rem .6rem;border-radius:20px;margin-bottom:.4rem">
+            ${sLabel}
+            <span style="font-weight:400;opacity:.8">(${emps.length} คน)</span>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:.3rem">
+            ${emps.map(e => {
+              const tCol = _teamCol[e.team] || '#475569';
+              return `<div style="background:#f8fafc;border:1.5px solid ${tCol};border-radius:8px;
+                                  padding:.28rem .65rem;font-size:.78rem;display:flex;align-items:center;gap:.3rem">
+                <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${tCol};flex-shrink:0"></span>
+                <b style="color:var(--text)">${e.nickname || e.name}</b>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+      }).join('');
 
   // ── Pending Leaves ────────────────────────────────────────
   const lvEl = document.getElementById('dash-leaves');
