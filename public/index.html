@@ -739,7 +739,7 @@ textarea{resize:vertical;min-height:80px}
     <!-- Charts row -->
     <div class="grid-2" style="grid-template-columns:1fr 2fr;margin-bottom:.75rem">
       <div class="card">
-        <div class="card-title">🍩 สัดส่วนหมวดปัญหา Top 10</div>
+        <div class="card-title">🍩 ประเภทปัญหา (ProblemType)</div>
         <div style="position:relative;height:260px"><canvas id="chart-iss-donut"></canvas></div>
       </div>
       <div class="card">
@@ -10178,10 +10178,10 @@ function renderIssueKPI() {
 }
 
 function renderIssueDonut() {
-  const { subjects, total } = _issData;
-  const top10    = subjects.slice(0,10);
-  const otherCnt = subjects.slice(10).reduce((s,x)=>s+x.cnt,0);
-  const labels   = top10.map(s => s.subject.length>20 ? s.subject.substring(0,20)+'…' : s.subject);
+  const { categories, total } = _issData;
+  const top10    = categories.slice(0,10);
+  const otherCnt = categories.slice(10).reduce((s,x)=>s+x.cnt,0);
+  const labels   = top10.map(s => s.category.length>22 ? s.category.substring(0,22)+'…' : s.category);
   const data     = top10.map(s => s.cnt);
   if (otherCnt > 0) { labels.push('อื่นๆ'); data.push(otherCnt); }
   const palette  = ['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#06b6d4','#ec4899','#84cc16','#f97316','#6366f1','#94a3b8'];

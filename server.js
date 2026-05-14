@@ -5355,7 +5355,7 @@ app.get('/api/dashboard/issues', authRequired, async (request, res) => {
     const s = dateFrom ? new Date(dateFrom) : new Date(new Date().setHours(0,0,0,0));
     const e = dateTo   ? new Date(new Date(dateTo).setHours(23,59,59,999)) : new Date(new Date().setHours(23,59,59,999));
 
-    const [subjectR, heatmapR, totalR] = await Promise.all([
+    const [subjectR, categoryR, heatmapR, totalR] = await Promise.all([
       extReq()
         .input('s', sql.DateTime, s).input('e', sql.DateTime, e)
         .query(`SELECT cl.Subject AS subject, COUNT(*) AS cnt
@@ -5363,6 +5363,13 @@ app.get('/api/dashboard/issues', authRequired, async (request, res) => {
                 WHERE cl.Active=1 AND cl.ReceiveDate>=@s AND cl.ReceiveDate<=@e
                   AND cl.Subject IS NOT NULL AND LEN(LTRIM(cl.Subject))>0
                 GROUP BY cl.Subject ORDER BY cnt DESC`),
+      extReq()
+        .input('s', sql.DateTime, s).input('e', sql.DateTime, e)
+        .query(`SELECT ISNULL(pt.ProblemTypeDetail,'(ไม่ระบุ)') AS category, COUNT(*) AS cnt
+                FROM Calllog cl
+                LEFT JOIN ProblemType pt ON pt.ProblemTypeId=cl.ProblemTypeId
+                WHERE cl.Active=1 AND cl.ReceiveDate>=@s AND cl.ReceiveDate<=@e
+                GROUP BY pt.ProblemTypeDetail ORDER BY cnt DESC`),
       extReq()
         .input('s', sql.DateTime, s).input('e', sql.DateTime, e)
         .query(`SELECT DATEPART(weekday,cl.ReceiveDate) AS dow,
@@ -5378,9 +5385,10 @@ app.get('/api/dashboard/issues', authRequired, async (request, res) => {
     ]);
 
     res.json({
-      subjects: subjectR.recordset,
-      heatmap:  heatmapR.recordset,
-      total:    totalR.recordset[0]?.cnt || 0
+      subjects:   subjectR.recordset,
+      categories: categoryR.recordset,
+      heatmap:    heatmapR.recordset,
+      total:      totalR.recordset[0]?.cnt || 0
     });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
