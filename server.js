@@ -16,7 +16,7 @@ const app        = express();
 const PORT       = process.env.PORT || 3010;
 const AI_MODEL   = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
 const JWT_SECRET = process.env.JWT_SECRET || 'cs-team-jwt-secret-change-in-prod';
-const genAI      = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const genAI      = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '', { apiVersion: 'v1' });
 
 // ── File upload config ────────────────────────────────────
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
