@@ -4274,6 +4274,7 @@ async function ensureFollowupV2Tables() {
 
     try { await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('fu_folders') AND name='group_id') ALTER TABLE fu_folders ADD group_id INT NULL`); } catch(e2) {}
     try { await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('fu_folders') AND name='group_name') ALTER TABLE fu_folders ADD group_name NVARCHAR(255) NULL`); } catch(e2) {}
+    try { await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('fu_issues') AND name='sp_ref') ALTER TABLE fu_issues ADD sp_ref INT NULL`); } catch(e2) {}
     console.log('✅ Follow Up v2 tables ready');
   } catch(e) { console.error('❌ Follow Up v2 tables error:', e.message); }
 }
@@ -4393,8 +4394,8 @@ app.post('/api/fu/issues', authRequired, async (request, res) => {
       .input('det',sql.NVarChar,b.detail||null).input('cat',sql.NVarChar,b.category||null)
       .input('pri',sql.NVarChar,b.priority||'normal').input('at',sql.Int,b.assigned_to||null)
       .input('dd',sql.Date,b.due_date||null).input('nt',sql.NVarChar,b.note||null)
-      .input('cb',sql.Int,request.user.id)
-      .query(`INSERT INTO fu_issues(board_id,branch,detail,category,priority,assigned_to,due_date,note,created_by) OUTPUT INSERTED.id VALUES(@bid,@br,@det,@cat,@pri,@at,@dd,@nt,@cb)`);
+      .input('cb',sql.Int,request.user.id).input('spref',sql.Int,b.sp_ref||null)
+      .query(`INSERT INTO fu_issues(board_id,branch,detail,category,priority,assigned_to,due_date,note,created_by,sp_ref) OUTPUT INSERTED.id VALUES(@bid,@br,@det,@cat,@pri,@at,@dd,@nt,@cb,@spref)`);
     const newId = r.recordset[0].id;
     if (b.category?.trim()) {
       try { await req().input('c',sql.NVarChar,b.category.trim())

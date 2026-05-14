@@ -1314,10 +1314,54 @@ textarea{resize:vertical;min-height:80px}
         <thead><tr>
           <th style="width:20px"></th><th>#</th><th>ร้านค้า</th><th>หัวข้อ</th><th>รายละเอียด</th>
           <th>ผู้ติดต่อ</th><th>ทีม / พนักงาน</th>
-          <th>สถานะ</th><th>วันที่มอบหมาย</th>
+          <th>สถานะ</th><th style="text-align:center">Issue</th><th>วันที่มอบหมาย</th>
         </tr></thead>
         <tbody id="specialist-tbody"></tbody>
       </table>
+    </div>
+  </div>
+</div>
+
+<!-- Create Issue from SP Modal -->
+<div class="overlay" id="modal-create-issue-sp">
+  <div class="modal" style="max-width:500px;padding:1.2rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
+      <div style="font-size:1rem;font-weight:800">🐛 สร้าง Issue — อ้างอิง SP <span id="cisp-sp-id" style="color:#7c3aed"></span></div>
+      <button class="modal-close" onclick="closeModal('modal-create-issue-sp')">×</button>
+    </div>
+    <!-- SP reference info -->
+    <div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px;padding:.6rem .85rem;margin-bottom:.85rem;font-size:.82rem">
+      <div style="font-weight:700;color:#1e293b;margin-bottom:.2rem" id="cisp-company">—</div>
+      <div style="color:#7c3aed;font-size:.78rem" id="cisp-subject">—</div>
+    </div>
+    <div class="form-group">
+      <label>Board <span style="color:#ef4444">*</span></label>
+      <select id="cisp-board" style="width:100%">
+        <option value="">กำลังโหลด...</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>รายละเอียด Issue</label>
+      <textarea id="cisp-detail" rows="4" placeholder="อธิบายปัญหาที่ต้องติดตาม..."></textarea>
+    </div>
+    <div class="grid-2">
+      <div class="form-group">
+        <label>Priority</label>
+        <select id="cisp-priority">
+          <option value="low">🟢 Low</option>
+          <option value="normal" selected>🟡 Normal</option>
+          <option value="high">🔴 High</option>
+          <option value="critical">🚨 Critical</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Category</label>
+        <input id="cisp-category" placeholder="เช่น Bug, Feature..."/>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:.75rem">
+      <button class="btn btn-ghost" onclick="closeModal('modal-create-issue-sp')">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="submitCreateIssueFromSp()">🐛 สร้าง Issue</button>
     </div>
   </div>
 </div>
@@ -6800,7 +6844,7 @@ function renderSpecialistTable(list) {
 
   const tbody = document.getElementById('specialist-tbody');
   if (!tbody) return;
-  if (!list.length) { tbody.innerHTML='<tr><td colspan="9" class="empty">ไม่พบข้อมูล</td></tr>'; return; }
+  if (!list.length) { tbody.innerHTML='<tr><td colspan="10" class="empty">ไม่พบข้อมูล</td></tr>'; return; }
 
   const spLead = isLeadRole();
   tbody.innerHTML = list.map(s=>{
@@ -6834,10 +6878,18 @@ function renderSpecialistTable(list) {
         ${s.accepted_by_name?`<div style="color:#2563eb;font-weight:600">👤 ${escHtml(s.accepted_by_name)}</div>`:`<div style="font-size:.75rem;color:#94a3b8">ยังไม่มีผู้รับ</div>`}
       </td>
       <td>${spStatusBadge(s.status)}</td>
+      <td style="text-align:center;white-space:nowrap" onclick="event.stopPropagation()">
+        ${s.issue_id
+          ? `<span style="font-family:monospace;font-size:.75rem;font-weight:700;color:#7c3aed;background:#f3f0ff;padding:.12rem .45rem;border-radius:5px;border:1px solid #e9d5ff">${escHtml(s.issue_id)}</span>`
+          : spLead
+            ? `<button onclick="openCreateIssueFromSp(${s.id},${JSON.stringify(s.company_name||'')},${JSON.stringify((s.subject||'').substring(0,80))},${JSON.stringify((s.calllog_description||s.description||'').substring(0,300))})"
+                style="border:1px solid #e9d5ff;background:#faf5ff;color:#7c3aed;border-radius:6px;padding:.18rem .55rem;font-size:.72rem;font-weight:600;cursor:pointer;font-family:inherit">🐛 สร้าง</button>`
+            : '<span style="color:#cbd5e1;font-size:.75rem">—</span>'}
+      </td>
       <td style="font-size:.75rem;white-space:nowrap">${fmtDT(s.assigned_at)}</td>
     </tr>
     <tr id="sp-detail-row-${s.id}" class="sp-row-detail" style="display:none">
-      <td colspan="9" style="padding:0">
+      <td colspan="10" style="padding:0">
         <div style="background:#f8fafc;border-left:3px solid #7c3aed;padding:.75rem 1.1rem .9rem 1.3rem">
 
           <!-- Header -->
@@ -8725,6 +8777,56 @@ function viewRefCase(calllogId) {
     const s = document.getElementById('tk-search');
     if (s) { s.value = String(calllogId); loadTickets(); }
   }, 200);
+}
+
+// ── Create Issue from SP Queue ──────────────────────────────
+let _cispSpId = null;
+
+async function openCreateIssueFromSp(spId, company, subject, description) {
+  _cispSpId = spId;
+  document.getElementById('cisp-sp-id').textContent = `#${spId}`;
+  document.getElementById('cisp-company').textContent = company || '—';
+  document.getElementById('cisp-subject').textContent = subject || '—';
+  // Pre-fill detail with SP info
+  const detail = `[Ref. SP #${spId}] ${company ? company + ' — ' : ''}${subject || ''}\n\n${description || ''}`.trim();
+  document.getElementById('cisp-detail').value = detail;
+  // Load boards
+  const bSel = document.getElementById('cisp-board');
+  bSel.innerHTML = '<option value="">กำลังโหลด...</option>';
+  try {
+    const folders = await api('/api/fu/folders');
+    const opts = [];
+    for (const f of (folders||[])) {
+      const boards = await api(`/api/fu/folders/${f.id}/boards`);
+      for (const b of (boards||[])) {
+        opts.push(`<option value="${b.id}">[${escHtml(f.name)}] ${escHtml(b.name)}</option>`);
+      }
+    }
+    bSel.innerHTML = '<option value="">— เลือก Board —</option>' + opts.join('');
+  } catch { bSel.innerHTML = '<option value="">โหลดไม่ได้</option>'; }
+  openModal('modal-create-issue-sp');
+}
+
+async function submitCreateIssueFromSp() {
+  const boardId  = parseInt(document.getElementById('cisp-board').value);
+  const detail   = document.getElementById('cisp-detail').value.trim();
+  const priority = document.getElementById('cisp-priority').value;
+  const category = document.getElementById('cisp-category').value.trim();
+  if (!boardId) return showToast('กรุณาเลือก Board', 'warn');
+  if (!detail)  return showToast('กรุณาใส่รายละเอียด', 'warn');
+  try {
+    const res = await api('/api/fu/issues', {
+      method: 'POST',
+      body: { board_id: boardId, detail, priority, category: category||null, sp_ref: _cispSpId }
+    });
+    if (!res?.id) throw new Error('ไม่ได้รับ ID');
+    // Save FU issue reference back to specialist_log
+    const issueLabel = `FU-${res.id}`;
+    await saveIssueId(_cispSpId, issueLabel);
+    closeModal('modal-create-issue-sp');
+    showToast(`สร้าง Issue ${issueLabel} สำเร็จ`, 'success');
+    loadSpecialist();
+  } catch(e) { showToast('สร้าง Issue ไม่สำเร็จ: ' + (e.message||''), 'error'); }
 }
 
 async function saveIssueId(id, value) {
