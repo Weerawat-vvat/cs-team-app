@@ -1450,9 +1450,11 @@ app.get('/api/dashboard', authRequired, async (_, res) => {
     const hour    = now.getHours(), minute = now.getMinutes();
     const timeVal = hour * 60 + minute;
     const currentShifts = [];
-    if (timeVal >= 8*60+30 && timeVal <= 16*60+30)  currentShifts.push('morning');
-    if (timeVal >= 15*60+30 && timeVal <= 23*60+30) currentShifts.push('afternoon');
-    if (timeVal >= 16*60 || timeVal <= 0)            currentShifts.push('night');
+    if (timeVal >= 8*60+30 && timeVal <= 17*60+30)  currentShifts.push('morning');
+    if (timeVal >= 10*60   && timeVal <= 19*60)      currentShifts.push('mid');
+    if (timeVal >= 10*60   && timeVal <= 19*60)      currentShifts.push('midday');
+    if (timeVal >= 12*60   && timeVal <= 21*60+30)   currentShifts.push('afternoon');
+    if (timeVal >= 15*60   || timeVal <= 1*60)       currentShifts.push('night');
     if (currentShifts.length === 0) currentShifts.push('morning');
     const ext = getExtPool();
     let ticketsToday = [], overdueTickets = [], ticketStats = [], kpiSummary = [];
@@ -1572,9 +1574,11 @@ async function getDashboardContext() {
   const hour  = now.getHours(), minute = now.getMinutes();
   const timeVal = hour * 60 + minute;
   const currentShifts = [];
-  if (timeVal >= 8*60+30 && timeVal <= 16*60+30)  currentShifts.push('morning');
-  if (timeVal >= 15*60+30 && timeVal <= 23*60+30) currentShifts.push('afternoon');
-  if (timeVal >= 16*60 || timeVal <= 0)            currentShifts.push('night');
+  if (timeVal >= 8*60+30 && timeVal <= 17*60+30)  currentShifts.push('morning');
+  if (timeVal >= 10*60   && timeVal <= 19*60)      currentShifts.push('mid');
+  if (timeVal >= 10*60   && timeVal <= 19*60)      currentShifts.push('midday');
+  if (timeVal >= 12*60   && timeVal <= 21*60+30)   currentShifts.push('afternoon');
+  if (timeVal >= 15*60   || timeVal <= 1*60)       currentShifts.push('night');
   if (currentShifts.length === 0) currentShifts.push('morning');
 
   const ext = getExtPool();
@@ -4275,6 +4279,7 @@ async function ensureFollowupV2Tables() {
     try { await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('fu_folders') AND name='group_id') ALTER TABLE fu_folders ADD group_id INT NULL`); } catch(e2) {}
     try { await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('fu_folders') AND name='group_name') ALTER TABLE fu_folders ADD group_name NVARCHAR(255) NULL`); } catch(e2) {}
     try { await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('fu_issues') AND name='sp_ref') ALTER TABLE fu_issues ADD sp_ref INT NULL`); } catch(e2) {}
+    try { await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('fu_issues') AND name='issue_url') ALTER TABLE fu_issues ADD issue_url NVARCHAR(500) NULL`); } catch(e2) {}
     console.log('✅ Follow Up v2 tables ready');
   } catch(e) { console.error('❌ Follow Up v2 tables error:', e.message); }
 }
@@ -4395,7 +4400,8 @@ app.post('/api/fu/issues', authRequired, async (request, res) => {
       .input('pri',sql.NVarChar,b.priority||'normal').input('at',sql.Int,b.assigned_to||null)
       .input('dd',sql.Date,b.due_date||null).input('nt',sql.NVarChar,b.note||null)
       .input('cb',sql.Int,request.user.id).input('spref',sql.Int,b.sp_ref||null)
-      .query(`INSERT INTO fu_issues(board_id,branch,detail,category,priority,assigned_to,due_date,note,created_by,sp_ref) OUTPUT INSERTED.id VALUES(@bid,@br,@det,@cat,@pri,@at,@dd,@nt,@cb,@spref)`);
+      .input('iu',sql.NVarChar,b.issue_url||null)
+      .query(`INSERT INTO fu_issues(board_id,branch,detail,category,priority,assigned_to,due_date,note,created_by,sp_ref,issue_url) OUTPUT INSERTED.id VALUES(@bid,@br,@det,@cat,@pri,@at,@dd,@nt,@cb,@spref,@iu)`);
     const newId = r.recordset[0].id;
     if (b.category?.trim()) {
       try { await req().input('c',sql.NVarChar,b.category.trim())
@@ -4428,6 +4434,7 @@ app.put('/api/fu/issues/:id', authRequired, async (request, res) => {
     if (b.hasOwnProperty('due_date'))    { r=r.input('dd',sql.Date,b.due_date||null);            updates.push('due_date=@dd'); }
     if (b.hasOwnProperty('fix_date'))    { r=r.input('fd',sql.Date,b.fix_date||null);            updates.push('fix_date=@fd'); }
     if (b.hasOwnProperty('note'))        { r=r.input('nt',sql.NVarChar,b.note??null);            updates.push('note=@nt'); }
+    if (b.hasOwnProperty('issue_url'))   { r=r.input('iu',sql.NVarChar,b.issue_url??null);       updates.push('issue_url=@iu'); }
     await r.query(`UPDATE fu_issues SET ${updates.join(',')} WHERE id=@id`);
 
     // Activity log for status/assignee changes

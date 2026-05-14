@@ -637,7 +637,12 @@ textarea{resize:vertical;min-height:80px}
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.55rem;flex-wrap:wrap;gap:.35rem">
         <div class="card-title" style="margin:0">🟢 พนักงานกะปัจจุบัน</div>
-        <div id="dash-onshift-summary" style="font-size:.78rem;font-weight:600;color:#16a34a;background:#f0fdf4;border:1px solid #bbf7d0;padding:.18rem .6rem;border-radius:20px"></div>
+        <div style="display:flex;align-items:center;gap:.4rem">
+          <div id="dash-onshift-summary" style="font-size:.78rem;font-weight:600;color:#16a34a;background:#f0fdf4;border:1px solid #bbf7d0;padding:.18rem .6rem;border-radius:20px"></div>
+          <button id="dash-onshift-refresh" onclick="dashRefreshOnShift()" title="รีเฟรชข้อมูลกะ"
+            style="background:none;border:1px solid #e2e8f0;border-radius:7px;padding:.15rem .45rem;font-size:.8rem;cursor:pointer;color:#64748b;line-height:1;transition:all .2s"
+            onmouseover="this.style.borderColor='#3b82f6';this.style.color='#3b82f6'" onmouseout="this.style.borderColor='#e2e8f0';this.style.color='#64748b'">⟳</button>
+        </div>
       </div>
       <div id="dash-onshift"></div>
     </div>
@@ -1376,6 +1381,15 @@ textarea{resize:vertical;min-height:80px}
           oninput="fuAddCatFilter(this)"
           onblur="setTimeout(()=>{const d=document.getElementById('fu-add-cat-drop');if(d)d.style.display='none'},150)"/>
         <div id="fu-add-cat-drop" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.1);z-index:999;max-height:180px;overflow-y:auto"></div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>🔗 Issue URL <span style="color:#94a3b8;font-weight:400;font-size:.73rem">(ไม่บังคับ — เช่น Azure DevOps)</span></label>
+      <input id="fu-add-issue-url" type="url" placeholder="https://dev.azure.com/.../_workitems/edit/13415/"
+        style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.83rem;font-family:inherit;outline:none"
+        oninput="fuAddIssueUrlPreview(this.value)"/>
+      <div id="fu-add-issue-url-preview" style="display:none;margin-top:.3rem;font-size:.75rem;color:#1d4ed8">
+        🆔 Issue ID: <a id="fu-add-issue-url-link" href="" target="_blank" style="font-weight:700;color:#1d4ed8"></a>
       </div>
     </div>
     <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:.75rem">
@@ -3077,6 +3091,61 @@ function recalcTarget() {
   if (pctEl)   { pctEl.textContent = `${pct}%`; pctEl.style.color = color; }
   if (fillEl)  { fillEl.style.width = Math.min(pct, 100) + '%'; fillEl.style.background = color; }
   if (detEl)   detEl.textContent = `${_dashLastAgents} คน × ${days} วัน × ${target} tickets/คน/วัน`;
+}
+
+async function dashRefreshOnShift() {
+  const btn = document.getElementById('dash-onshift-refresh');
+  if (btn) { btn.style.opacity = '.4'; btn.style.pointerEvents = 'none'; }
+  const d = await api('/api/dashboard');
+  if (d && d.serverTime) {
+    if (d.nameMap) Object.assign(nameMap, d.nameMap);
+    // Re-render only the OnShift section
+    const ONSHIFT_TEAMS = ['helpdesk', 'specialist', 'war_room'];
+    const SHIFT_ORDER   = ['morning', 'midday', 'mid', 'afternoon', 'night'];
+    const _teamCol = {};
+    allTeams.forEach(tm => { _teamCol[tm.name] = tm.color || '#475569'; });
+    const _onShiftFiltered = (d.onShift || []).filter(e => ONSHIFT_TEAMS.includes(e.team));
+    const _onShiftTotal = _onShiftFiltered.length;
+    const _nowStr = new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+    const _sumEl = document.getElementById('dash-onshift-summary');
+    if (_sumEl) _sumEl.textContent = `${_onShiftTotal} คน ณ ${_nowStr} น.`;
+    const onShiftByShift = {};
+    _onShiftFiltered.forEach(e => {
+      if (!onShiftByShift[e.shift_type]) onShiftByShift[e.shift_type] = [];
+      onShiftByShift[e.shift_type].push(e);
+    });
+    const shiftsPresent = [...new Set([
+      ...SHIFT_ORDER.filter(s => onShiftByShift[s]),
+      ...Object.keys(onShiftByShift).filter(s => !SHIFT_ORDER.includes(s))
+    ])];
+    document.getElementById('dash-onshift').innerHTML = shiftsPresent.length === 0
+      ? `<div style="font-size:.8rem;color:var(--muted);padding:.5rem">ไม่มีพนักงานออนกะ</div>`
+      : shiftsPresent.map(shiftKey => {
+          const emps   = onShiftByShift[shiftKey] || [];
+          const sBg    = shiftBg(shiftKey);
+          const sCol   = shiftColor(shiftKey);
+          const sLabel = shiftLabel(shiftKey, true);
+          return `<div style="margin-bottom:.65rem">
+            <div style="display:inline-flex;align-items:center;gap:.35rem;background:${sBg};color:${sCol};
+                        font-size:.7rem;font-weight:700;padding:.18rem .6rem;border-radius:20px;margin-bottom:.4rem">
+              ${sLabel}
+              <span style="font-weight:400;opacity:.8">(${emps.length} คน)</span>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:.3rem">
+              ${emps.map(e => {
+                const tCol = _teamCol[e.team] || '#475569';
+                return `<div style="background:#f8fafc;border:1.5px solid ${tCol};border-radius:8px;
+                                    padding:.28rem .65rem;font-size:.78rem;display:flex;align-items:center;gap:.3rem">
+                  <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${tCol};flex-shrink:0"></span>
+                  <b style="color:var(--text)">${e.nickname || e.name}</b>
+                </div>`;
+              }).join('')}
+            </div>
+          </div>`;
+        }).join('');
+    showToast('✅ รีเฟรชข้อมูลกะแล้ว');
+  }
+  if (btn) { btn.style.opacity = ''; btn.style.pointerEvents = ''; }
 }
 
 async function loadDashboard() {
@@ -7781,6 +7850,9 @@ function fuIssueRow(issue, today) {
         <div style="font-size:.65rem;color:#94a3b8">${fuDateLabel(issue.last_comment_at)}</div>
       ` : '<span style="color:#cbd5e1;font-size:.72rem">--</span>'}
     </td>
+    <td style="padding:.45rem .4rem;vertical-align:top;text-align:left">
+      ${(()=>{ const _eid = fuExtractIssueId(issue.issue_url); return _eid ? `<a href="${esc(issue.issue_url||'')}" target="_blank" style="font-size:.75rem;font-weight:700;color:#1d4ed8;text-decoration:none;font-family:monospace" title="${esc(issue.issue_url||'')}">#${esc(_eid)}</a>` : '<span style="color:#cbd5e1;font-size:.75rem">--</span>'; })()}
+    </td>
     <td style="padding:.45rem .3rem;vertical-align:top;text-align:center">
       <span onclick="if(confirm('ลบ Issue นี้?'))fuDeleteIssue(${issue.id})" style="cursor:pointer;font-size:.75rem;color:#cbd5e1" title="ลบ">🗑</span>
     </td>
@@ -7833,9 +7905,10 @@ function fuRenderTable() {
     <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;width:120px">สถานะ</th>
     <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;width:90px">Due Date</th>
     <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;min-width:140px">Last Comment</th>
+    <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;width:80px">Issue ID</th>
     <th style="padding:.5rem .6rem;width:40px"></th>
   </tr></thead>`;
-  const addBtn = `<tr><td colspan="10" style="padding:.4rem .6rem"><button onclick="fuAddIssue()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:.78rem;padding:.2rem .4rem;border-radius:5px" onmouseover="this.style.color='#1d4ed8'" onmouseout="this.style.color='#94a3b8'">+ เพิ่ม Issue</button></td></tr>`;
+  const addBtn = `<tr><td colspan="11" style="padding:.4rem .6rem"><button onclick="fuAddIssue()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:.78rem;padding:.2rem .4rem;border-radius:5px" onmouseover="this.style.color='#1d4ed8'" onmouseout="this.style.color='#94a3b8'">+ เพิ่ม Issue</button></td></tr>`;
 
   let bodyHTML = '';
   if (_fuGroupBy) {
@@ -7848,7 +7921,7 @@ function fuRenderTable() {
     });
     Object.entries(groups).sort(([a],[b])=>String(a).localeCompare(String(b),'th')).forEach(([key, items]) => {
       const color = fuGroupColor(_fuGroupBy, key);
-      bodyHTML += `<tr><td colspan="10" style="padding:.4rem .75rem;background:#f8fafc;border-top:2px solid ${color}33;border-bottom:1px solid #e2e8f0">
+      bodyHTML += `<tr><td colspan="11" style="padding:.4rem .75rem;background:#f8fafc;border-top:2px solid ${color}33;border-bottom:1px solid #e2e8f0">
         <span style="font-size:.75rem;font-weight:700;color:${color}">${fuGroupLabel(_fuGroupBy, key)}</span>
         <span style="font-size:.68rem;color:#94a3b8;margin-left:.4rem">(${items.length})</span>
       </td></tr>`;
@@ -8076,12 +8149,32 @@ async function fuSaveField(id, field, val) {
     if (field === 'category' && val && !_fuCategories.includes(val)) { _fuCategories.push(val); _fuCategories.sort(); }
     fuRender();
     if (_fuPanelId === id) fuRenderPanel();
+    if (field === 'issue_url') showToast(val ? `🔗 บันทึก Issue URL แล้ว` : '✅ ล้าง Issue URL แล้ว');
   }
 }
 
 // ── Add Issue ─────────────────────────────────────────────
 let _fuAddStatus = null; // status preset when opening add modal from board view
 let _fuAddSpRef  = null; // SP Queue ID reference
+
+function fuExtractIssueId(url) {
+  if (!url) return null;
+  return url.match(/\/(\d+)\/?(?:[?#].*)?$/)?.[1] || null;
+}
+
+function fuAddIssueUrlPreview(url) {
+  const preview = document.getElementById('fu-add-issue-url-preview');
+  const link    = document.getElementById('fu-add-issue-url-link');
+  if (!preview || !link) return;
+  const id = fuExtractIssueId(url);
+  if (id) {
+    link.textContent = '#' + id;
+    link.href = url;
+    preview.style.display = '';
+  } else {
+    preview.style.display = 'none';
+  }
+}
 
 function _fuResetAddModal() {
   document.getElementById('fu-add-title').value = '';
@@ -8091,6 +8184,8 @@ function _fuResetAddModal() {
   document.getElementById('fu-add-sp-id').value = '';
   document.getElementById('fu-add-sp-preview').style.display = 'none';
   document.getElementById('fu-add-sp-clear').style.display = 'none';
+  document.getElementById('fu-add-issue-url').value = '';
+  document.getElementById('fu-add-issue-url-preview').style.display = 'none';
   _fuAddSpRef = null;
 }
 
@@ -8161,10 +8256,12 @@ async function fuSubmitAddIssue() {
   const note     = document.getElementById('fu-add-note').value.trim();
   const priority = document.getElementById('fu-add-priority').value;
   const category = document.getElementById('fu-add-category').value.trim();
+  const issueUrl = document.getElementById('fu-add-issue-url').value.trim();
   if (!title) { showToast('กรุณาใส่หัวข้อ','warn'); return; }
   const body = { board_id: _fuBoardId, detail: title, note: note||null, priority, category: category||null };
-  if (_fuAddStatus) body.status = _fuAddStatus;
-  if (_fuAddSpRef)  body.sp_ref = _fuAddSpRef;
+  if (_fuAddStatus)      body.status    = _fuAddStatus;
+  if (_fuAddSpRef)       body.sp_ref    = _fuAddSpRef;
+  if (issueUrl)          body.issue_url = issueUrl;
   const r = await api('/api/fu/issues', { method:'POST', body, silent:true });
   if (r?.error) { showToast('❌ '+r.error,'error'); return; }
   closeModal('modal-fu-add-issue');
@@ -8358,6 +8455,17 @@ async function fuRenderPanel() {
         SP #${issue.sp_ref}
       </button>
     </div>` : ''}
+    <!-- Issue URL (Bug Tracker) -->
+    <div>
+      <div style="font-size:.72rem;font-weight:700;color:#94a3b8;margin-bottom:.25rem">🔗 Issue URL
+        ${fuExtractIssueId(issue.issue_url) ? `<a href="${esc(issue.issue_url||'')}" target="_blank" style="margin-left:.5rem;font-family:monospace;font-weight:700;color:#1d4ed8;font-size:.78rem;text-decoration:none" title="${esc(issue.issue_url||'')}">#${fuExtractIssueId(issue.issue_url)}</a>` : ''}
+      </div>
+      <input id="fup-issue-url-inp" type="url" value="${esc(issue.issue_url||'')}" placeholder="https://dev.azure.com/.../_workitems/edit/13415/"
+        style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:.35rem .5rem;font-size:.78rem;font-family:inherit;outline:none;transition:border .15s"
+        onfocus="this.style.borderColor='#3b82f6'"
+        onblur="this.style.borderColor='#e2e8f0';fuPanelSave(${id},'issue_url',this.value.trim()||null)"
+        onkeydown="if(event.key==='Enter')this.blur()"/>
+    </div>
     <!-- Attachments -->
     <div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem">
