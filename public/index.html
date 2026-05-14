@@ -628,15 +628,18 @@ textarea{resize:vertical;min-height:80px}
     <div id="tt-details" style="font-size:.75rem;color:var(--muted);white-space:nowrap"></div>
   </div>
 
-  <!-- ── Row: OnShift | Workload Chart ── -->
+  <!-- ── Row: Workload Chart | OnShift ── -->
   <div class="grid-2" style="margin-bottom:.75rem">
-    <div class="card">
-      <div class="card-title">🟢 พนักงานกะปัจจุบัน</div>
-      <div id="dash-onshift"></div>
-    </div>
     <div class="card">
       <div class="card-title">📅 Workload Agent — เฉลี่ย tickets/วัน</div>
       <div style="position:relative;height:200px"><canvas id="chart-agent-compare"></canvas></div>
+    </div>
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.55rem;flex-wrap:wrap;gap:.35rem">
+        <div class="card-title" style="margin:0">🟢 พนักงานกะปัจจุบัน</div>
+        <div id="dash-onshift-summary" style="font-size:.78rem;font-weight:600;color:#16a34a;background:#f0fdf4;border:1px solid #bbf7d0;padding:.18rem .6rem;border-radius:20px"></div>
+      </div>
+      <div id="dash-onshift"></div>
     </div>
   </div>
 
@@ -3058,6 +3061,11 @@ async function loadDashboard() {
     if (!onShiftByTeam[e.team]) onShiftByTeam[e.team] = [];
     onShiftByTeam[e.team].push(e);
   });
+  // Summary badge: total count + current time
+  const _onShiftTotal = (d.onShift || []).length;
+  const _nowStr = new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+  const _sumEl = document.getElementById('dash-onshift-summary');
+  if (_sumEl) _sumEl.textContent = `${_onShiftTotal} คน ณ ${_nowStr} น.`;
   // Use allTeams for order + color (dynamic, not hardcoded)
   const teamsToShow = allTeams.length ? allTeams : Object.keys(onShiftByTeam).map(n => ({ name: n, display_name: n, color: '#475569' }));
   document.getElementById('dash-onshift').innerHTML = teamsToShow.map(tm => {
