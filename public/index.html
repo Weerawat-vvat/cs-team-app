@@ -1256,7 +1256,43 @@ textarea{resize:vertical;min-height:80px}
     </div>
   </div>
 
-  <!-- Stat bar -->
+  <!-- Date & Filter Bar (top) -->
+  <div class="page-datebar" style="flex-direction:column;align-items:flex-start;gap:.45rem;margin-bottom:.65rem">
+    <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;width:100%">
+      <div class="drb" id="sp-drb">
+        <button class="drb-btn active" onclick="spRange('today',this)">วันนี้</button>
+        <button class="drb-btn" onclick="spRange('yesterday',this)">เมื่อวานนี้</button>
+        <button class="drb-btn" onclick="spRange('thisweek',this)">สัปดาห์นี้</button>
+        <button class="drb-btn" onclick="spRange('thismonth',this)">เดือนนี้</button>
+        <button class="drb-btn" onclick="spRange('lastmonth',this)">เดือนที่แล้ว</button>
+        <button class="drb-btn" onclick="spRange('7d',this)">7 วันที่แล้ว</button>
+        <button class="drb-btn" onclick="spRange('30d',this)">30 วันที่ผ่านมา</button>
+        <button class="drb-btn" onclick="spRange('custom',this)">กำหนดเอง</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;width:100%">
+      <select id="sp-filter-status" onchange="loadSpecialist()">
+        <option value="">ทุกสถานะ</option>
+        <option value="pending">⏳ รอดำเนินการ</option>
+        <option value="in_progress">🔄 กำลังดำเนินการ</option>
+        <option value="resolved">✅ แก้ไขแล้ว</option>
+        <option value="rejected">❌ ปฏิเสธ</option>
+        <option value="cancelled">🚫 ยกเลิก</option>
+      </select>
+      <select id="sp-filter-member" onchange="loadSpecialist()" style="min-width:140px">
+        <option value="">👤 ทุกพนักงาน</option>
+      </select>
+      <input id="sp-search" type="text" placeholder="🔍 ID / ร้าน / หัวข้อ / รายละเอียด..." oninput="spSearchDebounce()" style="min-width:160px;flex:1"/>
+    </div>
+    <div class="drb-custom" id="sp-custom-range">
+      <input id="sp-date-from" type="date" style="max-width:135px" title="วันที่เริ่มต้น"/>
+      <span style="color:var(--muted);font-size:.8rem">ถึง</span>
+      <input id="sp-date-to" type="date" style="max-width:135px" title="วันที่สิ้นสุด"/>
+      <button class="btn btn-sm btn-primary" onclick="loadSpecialist()">ค้นหา</button>
+    </div>
+  </div>
+
+  <!-- Stat bar (reflects current filter) -->
   <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem">
     <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
       <span style="font-size:.72rem;color:var(--muted)">📋 ทั้งหมด</span><span style="font-size:1.1rem;font-weight:800;color:var(--hd)" id="sp-stat-total">—</span>
@@ -1269,45 +1305,6 @@ textarea{resize:vertical;min-height:80px}
     </div>
     <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
       <span style="font-size:.72rem;color:var(--muted)">✅ แก้ไขแล้ว</span><span style="font-size:1.1rem;font-weight:800;color:#16a34a" id="sp-stat-resolved">—</span>
-    </div>
-  </div>
-
-  <!-- Date & Filter Bar -->
-  <div class="page-datebar" style="flex-direction:column;align-items:flex-start;gap:.45rem;margin-bottom:.75rem">
-    <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;width:100%">
-      <div class="drb" id="sp-drb">
-        <button class="drb-btn active" onclick="spRange('today',this)">วันนี้</button>
-        <button class="drb-btn" onclick="spRange('thisweek',this)">สัปดาห์นี้</button>
-        <button class="drb-btn" onclick="spRange('thismonth',this)">เดือนนี้</button>
-        <button class="drb-btn" onclick="spRange('30d',this)">30 วัน</button>
-        <button class="drb-btn" onclick="spRange('custom',this)">กำหนดเอง</button>
-      </div>
-      <span style="color:var(--border)">|</span>
-      <select id="sp-filter-status" onchange="loadSpecialist()">
-        <option value="">ทุกสถานะ</option>
-        <option value="pending">⏳ รอดำเนินการ</option>
-        <option value="in_progress">🔄 กำลังดำเนินการ</option>
-        <option value="resolved">✅ แก้ไขแล้ว</option>
-        <option value="rejected">❌ ปฏิเสธ</option>
-        <option value="cancelled">🚫 ยกเลิก</option>
-      </select>
-      <select id="sp-filter-team" onchange="loadSpecialist()">
-        <option value="">ทุกทีม</option>
-      </select>
-      <input id="sp-search" type="text" placeholder="🔍 ID / ร้าน / หัวข้อ / รายละเอียด..." oninput="spSearchDebounce()" style="min-width:160px;flex:1"/>
-      <select id="sp-filter-member" onchange="loadSpecialist()" style="min-width:140px">
-        <option value="">👤 ทุกพนักงาน</option>
-      </select>
-      <button id="sp-issue-toggle" onclick="spToggleIssue()"
-        style="border:1px solid #c4b5fd;background:#fff;color:#6d28d9;border-radius:20px;padding:.28rem .75rem;font-size:.77rem;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit;transition:.15s">
-        🔗 Issue URL
-      </button>
-    </div>
-    <div class="drb-custom" id="sp-custom-range">
-      <input id="sp-date-from" type="date" style="max-width:135px" title="วันที่เริ่มต้น"/>
-      <span style="color:var(--muted);font-size:.8rem">ถึง</span>
-      <input id="sp-date-to" type="date" style="max-width:135px" title="วันที่สิ้นสุด"/>
-      <button class="btn btn-sm btn-primary" onclick="loadSpecialist()">ค้นหา</button>
     </div>
   </div>
 
@@ -6740,7 +6737,6 @@ function spRange(preset, btn) {
 
 async function loadSpecialist() {
   const status   = document.getElementById('sp-filter-status')?.value || '';
-  const team     = document.getElementById('sp-filter-team')?.value   || '';
   const search   = document.getElementById('sp-search')?.value?.trim() || '';
   const member   = document.getElementById('sp-filter-member')?.value || '';
   const dateFrom = document.getElementById('sp-date-from')?.value || '';
@@ -6749,17 +6745,7 @@ async function loadSpecialist() {
   if (dateFrom) url += `dateFrom=${dateFrom}&`;
   if (dateTo)   url += `dateTo=${dateTo}&`;
   if (status)   url += `status=${status}&`;
-  if (team)     url += `team=${encodeURIComponent(team)}&`;
   _allSpecialist = await api(url);
-
-  // Populate team filter
-  const teams = [...new Set(_allSpecialist.map(s=>s.assigned_to_team).filter(Boolean))].sort();
-  const tSel  = document.getElementById('sp-filter-team');
-  if (tSel && teams.length) {
-    const cur = tSel.value;
-    tSel.innerHTML = '<option value="">ทุกทีม</option>' +
-      teams.map(t=>`<option value="${escHtml(t)}" ${t===cur?'selected':''}>${escHtml(t)}</option>`).join('');
-  }
 
   // Populate member dropdown — accepted_by_name only (ผู้รับงาน)
   const memberNames = [...new Set(
@@ -6793,16 +6779,15 @@ async function loadSpecialist() {
   });
   if (member === '__none__') list = list.filter(s=>!s.accepted_by_name);
   else if (member)           list = list.filter(s=>(s.accepted_by_name||'')===member);
-  if (_spSubFilter === 'issue') list = list.filter(s=>s.issue_id && s.issue_id.trim());
 
   renderSpecialistTable(list);
 }
 
 function renderSpecialistTable(list) {
-  const total    = _allSpecialist.length;
-  const pending  = _allSpecialist.filter(s=>s.status==='pending').length;
-  const inprog   = _allSpecialist.filter(s=>s.status==='in_progress').length;
-  const resolved = _allSpecialist.filter(s=>s.status==='resolved').length;
+  const total    = list.length;
+  const pending  = list.filter(s=>s.status==='pending').length;
+  const inprog   = list.filter(s=>s.status==='in_progress').length;
+  const resolved = list.filter(s=>s.status==='resolved').length;
   const _s = (id,v)=>{ const el=document.getElementById(id); if(el) el.textContent=v; };
   _s('sp-stat-total',   total);
   _s('sp-stat-pending', pending);
@@ -6895,10 +6880,10 @@ function renderSpecialistTable(list) {
               </div>`:''}
             </div>
 
-            <!-- Col 3: Status + Issue URL -->
+            <!-- Col 3: Status -->
             <div>
               <div style="font-size:.68rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.3rem">⚙️ จัดการ</div>
-              <div style="margin-bottom:.45rem">
+              <div>
                 <div style="font-size:.72rem;color:var(--muted);margin-bottom:.2rem">สถานะ</div>
                 ${spLead
                   ?`<select onchange="event.stopPropagation();spUpdateStatusInline(${s.id},this.value)"
@@ -6906,23 +6891,6 @@ function renderSpecialistTable(list) {
                       ${Object.entries(SP_STATUS).map(([v,l])=>`<option value="${v}" ${s.status===v?'selected':''}>${l}</option>`).join('')}
                     </select>`
                   :spStatusBadge(s.status)}
-              </div>
-              <div>
-                <div style="font-size:.72rem;color:var(--muted);margin-bottom:.2rem">🐛 Issue URL</div>
-                ${spLead
-                  ?`<input value="${escHtml(s.issue_id||'')}" placeholder="https://... หรือ ISS-123"
-                      onclick="event.stopPropagation()"
-                      onblur="saveIssueId(${s.id},this.value)"
-                      style="width:100%;border:1px solid var(--border);border-radius:6px;padding:.28rem .5rem;font-size:.78rem;outline:none;background:#fff;box-sizing:border-box"/>
-                    ${s.issue_id&&s.issue_id.startsWith('http')?`<a href="${escHtml(s.issue_id)}" target="_blank" rel="noopener"
-                      onclick="event.stopPropagation()"
-                      style="display:inline-block;margin-top:.2rem;font-size:.73rem;color:#7c3aed;font-weight:600">🔗 เปิด Issue</a>`:''}`
-                  :s.issue_id
-                    ?(s.issue_id.startsWith('http')
-                      ?`<a href="${escHtml(s.issue_id)}" target="_blank" rel="noopener" onclick="event.stopPropagation()"
-                          style="font-size:.78rem;color:#7c3aed;font-weight:600;word-break:break-all">${escHtml(s.issue_id)}</a>`
-                      :`<span style="font-family:monospace;font-size:.78rem;color:#7c3aed">${escHtml(s.issue_id)}</span>`)
-                    :`<span style="font-size:.75rem;color:#94a3b8">ยังไม่ระบุ</span>`}
               </div>
             </div>
           </div>

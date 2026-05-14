@@ -4579,8 +4579,8 @@ app.get('/api/specialist', authRequired, async (request, res) => {
     const r = req();
     // Simplified query — store names at create/accept time, minimal JOINs
     let q = `SELECT TOP 500 sl.*,
-               e1.name AS agent_name, e1.team AS agent_team,
-               e4.name AS accepted_by_name
+               ISNULL(e1.nickname, e1.name) AS agent_name, e1.team AS agent_team,
+               ISNULL(e4.nickname, e4.name) AS accepted_by_name
              FROM specialist_log sl
              LEFT JOIN app_users au1 ON au1.id = sl.original_agent
              LEFT JOIN employees  e1 ON e1.id  = au1.employee_id
