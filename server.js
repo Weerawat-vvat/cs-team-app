@@ -10,13 +10,13 @@ const multer                     = require('multer');
 const nodemailer                 = require('nodemailer');
 const axios                      = require('axios');
 const { init, getPool, getExtPool, getInfoPool, sql } = require('./database');
-const Anthropic                  = require('@anthropic-ai/sdk');
+const { GoogleGenerativeAI }     = require('@google/generative-ai');
 
 const app        = express();
 const PORT       = process.env.PORT || 3010;
-const AI_MODEL   = process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001';
+const AI_MODEL   = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
 const JWT_SECRET = process.env.JWT_SECRET || 'cs-team-jwt-secret-change-in-prod';
-const claude     = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const genAI      = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 // ── File upload config ────────────────────────────────────
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
@@ -1664,15 +1664,15 @@ app.post('/api/ai/chat', authRequired, async (request, res) => {
 ข้อมูลระบบที่ใช้คือ Calllog จาก LicenseDB และข้อมูลกะจาก cs_team
 ใช้ข้อมูลต่อไปนี้เพื่อตอบคำถาม:\n\n${context}`;
 
-    const messages = [
-      ...history.slice(-8),
-      { role: 'user', content: message }
-    ];
-    const response = await claude.messages.create({
-      model: AI_MODEL, max_tokens: 1024,
-      system: systemPrompt, messages
-    });
-    res.json({ reply: response.content[0].text });
+    const model = genAI.getGenerativeModel({ model: AI_MODEL, systemInstruction: systemPrompt });
+    // Convert history to Gemini format (role: user|model)
+    const geminiHistory = history.slice(-8).map(m => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }]
+    }));
+    const chat   = model.startChat({ history: geminiHistory });
+    const result = await chat.sendMessage(message);
+    res.json({ reply: result.response.text() });
   } catch (e) {
     console.error('AI chat error:', e.message);
     res.status(500).json({ error: e.message });
@@ -1694,11 +1694,9 @@ ${context}
 
 ตอบเป็นภาษาไทย กระชับ อ่านง่าย ไม่เกิน 200 คำ`;
 
-    const response = await claude.messages.create({
-      model: AI_MODEL, max_tokens: 800,
-      messages: [{ role: 'user', content: prompt }]
-    });
-    res.json({ summary: response.content[0].text });
+    const model  = genAI.getGenerativeModel({ model: AI_MODEL });
+    const result = await model.generateContent(prompt);
+    res.json({ summary: result.response.text() });
   } catch (e) {
     console.error('AI summary error:', e.message);
     res.status(500).json({ error: e.message });
@@ -1743,11 +1741,9 @@ ${JSON.stringify(approvedLeaves, null, 2)}
 ตอบเป็น JSON array เท่านั้น:
 [{"employee_id": 1, "shift_date": "YYYY-MM-DD", "shift_type": "morning|afternoon|night"}]`;
 
-    const response = await claude.messages.create({
-      model: 'claude-sonnet-4-6', max_tokens: 4096,
-      messages: [{ role: 'user', content: prompt }]
-    });
-    let text = response.content[0].text.trim()
+    const model  = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const result = await model.generateContent(prompt);
+    let text = result.response.text().trim()
       .replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
     res.json({ suggestions: JSON.parse(text), week_start: startDate, end_date: endDate });
   } catch (e) {
@@ -1782,11 +1778,9 @@ ${JSON.stringify(history, null, 2)}
 
 ตอบเป็นภาษาไทย ชัดเจน มีข้อมูลเชิงตัวเลขสนับสนุน`;
 
-    const response = await claude.messages.create({
-      model: AI_MODEL, max_tokens: 1200,
-      messages: [{ role: 'user', content: prompt }]
-    });
-    res.json({ analysis: response.content[0].text });
+    const model  = genAI.getGenerativeModel({ model: AI_MODEL });
+    const result = await model.generateContent(prompt);
+    res.json({ analysis: result.response.text() });
   } catch (e) {
     console.error('AI forecast error:', e.message);
     res.status(500).json({ error: e.message });
@@ -3282,8 +3276,8 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
 //  AI ANALYSIS — SSE streaming (real-time situation analysis)
 // ══════════════════════════════════════════════════════════
 app.get('/api/ai-analysis', authRequired, async (_, res) => {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return res.status(503).json({ error: 'ANTHROPIC_API_KEY ยังไม่ได้ตั้งค่าใน .env' });
+  if (!process.env.GEMINI_API_KEY) {
+    return res.status(503).json({ error: 'GEMINI_API_KEY ยังไม่ได้ตั้งค่าใน .env' });
   }
 
   // ── SSE headers
@@ -3413,23 +3407,15 @@ ${JSON.stringify(snap, null, 2)}
 
     send('start', { message: 'กำลังส่งข้อมูลให้ AI วิเคราะห์...' });
 
-    const stream = claude.messages.stream({
-      model:      AI_MODEL,
-      max_tokens: 1024,
-      messages:   [{ role: 'user', content: prompt }],
-    });
+    const model  = genAI.getGenerativeModel({ model: AI_MODEL });
+    const stream = await model.generateContentStream(prompt);
 
-    for await (const chunk of stream) {
-      if (chunk.type === 'content_block_delta' && chunk.delta?.type === 'text_delta') {
-        send('delta', { text: chunk.delta.text });
-      }
+    for await (const chunk of stream.stream) {
+      const text = chunk.text();
+      if (text) send('delta', { text });
     }
 
-    const final = await stream.finalMessage();
-    send('done', {
-      inputTokens:  final.usage.input_tokens,
-      outputTokens: final.usage.output_tokens,
-    });
+    send('done', { inputTokens: 0, outputTokens: 0 });
 
   } catch (err) {
     send('error', { message: err.message });
