@@ -14,7 +14,7 @@ const { GoogleGenerativeAI }     = require('@google/generative-ai');
 
 const app        = express();
 const PORT       = process.env.PORT || 3010;
-const AI_MODEL   = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+const AI_MODEL   = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
 const JWT_SECRET = process.env.JWT_SECRET || 'cs-team-jwt-secret-change-in-prod';
 const genAI      = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -1741,7 +1741,7 @@ ${JSON.stringify(approvedLeaves, null, 2)}
 ตอบเป็น JSON array เท่านั้น:
 [{"employee_id": 1, "shift_date": "YYYY-MM-DD", "shift_type": "morning|afternoon|night"}]`;
 
-    const model  = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const model  = genAI.getGenerativeModel({ model: AI_MODEL });
     const result = await model.generateContent(prompt);
     let text = result.response.text().trim()
       .replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
