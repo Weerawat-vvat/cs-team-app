@@ -1534,7 +1534,7 @@ app.get('/api/dashboard', authRequired, async (_, res) => {
     const shiftReq = req().input('today', sql.Date, today);
     currentShifts.forEach((s,i) => shiftReq.input(`st${i}`, sql.NVarChar, s));
     const onShift = (await shiftReq.query(`
-      SELECT s.shift_type, e.name, e.team, e.role
+      SELECT s.shift_type, e.name, e.nickname, e.team, e.role
       FROM shifts s JOIN employees e ON e.id=s.employee_id
       WHERE s.shift_date=@today AND s.shift_type IN (${shiftIn})
         AND s.status='scheduled' AND e.active=1
@@ -1621,7 +1621,7 @@ async function getDashboardContext() {
   const shiftReq = req().input('today', sql.Date, today);
   currentShifts.forEach((s,i) => shiftReq.input(`st${i}`, sql.NVarChar, s));
   const onShift = (await shiftReq.query(`
-    SELECT s.shift_type, e.name, e.team, e.role
+    SELECT s.shift_type, e.name, e.nickname, e.team, e.role
     FROM shifts s JOIN employees e ON e.id=s.employee_id
     WHERE s.shift_date=@today AND s.shift_type IN (${shiftIn})
       AND s.status='scheduled' AND e.active=1
