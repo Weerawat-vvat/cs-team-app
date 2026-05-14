@@ -628,14 +628,20 @@ textarea{resize:vertical;min-height:80px}
     <div id="tt-details" style="font-size:.75rem;color:var(--muted);white-space:nowrap"></div>
   </div>
 
-  <!-- ── Agent Workload Chart ── -->
-  <div class="card" style="margin-bottom:.75rem">
-    <div class="card-title">📅 Workload Agent — เดือนนี้ vs เดือนก่อน</div>
-    <div style="position:relative;height:200px"><canvas id="chart-agent-compare"></canvas></div>
+  <!-- ── Row: OnShift | Workload Chart ── -->
+  <div class="grid-2" style="margin-bottom:.75rem">
+    <div class="card">
+      <div class="card-title">🟢 พนักงานกะปัจจุบัน</div>
+      <div id="dash-onshift"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">📅 Workload Agent — เฉลี่ย tickets/วัน</div>
+      <div style="position:relative;height:200px"><canvas id="chart-agent-compare"></canvas></div>
+    </div>
   </div>
 
   <!-- ── Hour × Agent Heatmap ── -->
-  <div class="card" style="padding:.65rem .9rem">
+  <div class="card" style="padding:.65rem .9rem;margin-bottom:.75rem">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem;flex-wrap:wrap;gap:.35rem">
       <div style="font-size:.88rem;font-weight:700;color:var(--text)">🔥 จำนวนเคส ตามชั่วโมง × Agent</div>
       <div style="display:flex;gap:.35rem">
@@ -648,24 +654,10 @@ textarea{resize:vertical;min-height:80px}
     </div>
   </div>
 
-  <!-- ── Bottom: Overdue + OnShift/Leaves ── -->
-  <div class="dash-main" style="margin-top:0">
-    <div class="card">
-      <div class="card-title" style="color:#ef4444">⚠️ เคสค้างเกิน 24 ชม.
-        <span id="dash-overdue-badge" style="background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;padding:.1rem .5rem;border-radius:20px;font-size:.72rem;font-weight:700;margin-left:.4rem"></span>
-      </div>
-      <div id="dash-overdue"><div class="empty"><div class="icon">⏳</div>กำลังโหลด...</div></div>
-    </div>
-    <div>
-      <div class="card" style="margin-bottom:.75rem">
-        <div class="card-title">🟢 พนักงานกะปัจจุบัน</div>
-        <div id="dash-onshift"></div>
-      </div>
-      <div class="card">
-        <div class="card-title">📩 คำขอวันหยุดรออนุมัติ</div>
-        <div id="dash-leaves"></div>
-      </div>
-    </div>
+  <!-- ── Leaves ── -->
+  <div class="card" style="margin-bottom:.75rem">
+    <div class="card-title">📩 คำขอวันหยุดรออนุมัติ</div>
+    <div id="dash-leaves"></div>
   </div>
 
   <!-- ── AI Insight Card (SSE streaming) ── -->
@@ -748,6 +740,14 @@ textarea{resize:vertical;min-height:80px}
       <div id="iss-heatmap-wrap" style="overflow-x:auto;font-size:.73rem;margin-top:.5rem">
         <div style="color:var(--muted)">กำลังโหลด...</div>
       </div>
+    </div>
+
+    <!-- ── Overdue Cases ── -->
+    <div class="card" style="margin-bottom:.75rem">
+      <div class="card-title" style="color:#ef4444">⚠️ เคสค้างเกิน 24 ชม.
+        <span id="dash-overdue-badge" style="background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;padding:.1rem .5rem;border-radius:20px;font-size:.72rem;font-weight:700;margin-left:.4rem"></span>
+      </div>
+      <div id="dash-overdue"><div class="empty"><div class="icon">⏳</div>กำลังโหลด...</div></div>
     </div>
 
     <!-- Detail table -->
