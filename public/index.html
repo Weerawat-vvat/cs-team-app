@@ -331,6 +331,9 @@ textarea{resize:vertical;min-height:80px}
 .fu-kanban-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.12)!important;transform:translateY(-1px)}
 .fu-kanban-card{transition:box-shadow .15s,transform .15s,opacity .15s}
 .fu-kanban-col.drag-over{outline:2px dashed #3b82f6}
+.rp-kanban-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.12)!important;transform:translateY(-1px)}
+.rp-kanban-card{transition:box-shadow .15s,transform .15s,opacity .15s}
+.rp-kanban-col.drag-over{outline:2px dashed #3b82f6}
 .tk-detail-box{padding:.75rem 1rem;border-radius:8px;background:#fff;border:1px solid var(--border)}
 .tk-detail-label{font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:.25rem}
 .tk-detail-text{font-size:.84rem;line-height:1.7;color:var(--text);white-space:pre-wrap}
@@ -1838,7 +1841,14 @@ textarea{resize:vertical;min-height:80px}
 <div id="page-repair" class="page">
   <div class="section-header" style="margin-bottom:.75rem">
     <div class="section-title">🔧 งานซ่อม</div>
-    <div style="display:flex;gap:.5rem">
+    <div style="display:flex;gap:.5rem;align-items:center">
+      <!-- View toggle -->
+      <div style="display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+        <button id="rp-view-table" onclick="rpSetView('table')"
+          style="padding:.28rem .7rem;font-size:.78rem;font-weight:700;border:none;cursor:pointer;background:#2563eb;color:#fff;font-family:inherit;transition:all .15s" title="มุมมองตาราง">☰ ตาราง</button>
+        <button id="rp-view-board" onclick="rpSetView('board')"
+          style="padding:.28rem .7rem;font-size:.78rem;font-weight:700;border:none;cursor:pointer;background:#fff;color:#94a3b8;font-family:inherit;transition:all .15s" title="มุมมองบอร์ด">⬛ บอร์ด</button>
+      </div>
       <button class="btn btn-ghost btn-sm" onclick="openRepairLinkModal()">🔗 ลิงก์แจ้งซ่อม</button>
       <button class="btn btn-primary btn-sm" onclick="openRepairForm()">+ แจ้งซ่อมใหม่</button>
     </div>
@@ -1894,16 +1904,25 @@ textarea{resize:vertical;min-height:80px}
     <button class="btn btn-ghost btn-sm" onclick="loadRepair()">🔄</button>
   </div>
 
-  <!-- Table -->
-  <div class="card" style="padding:.5rem 0">
-    <div class="tbl-wrap">
-      <table>
-        <thead><tr>
-          <th>Job No</th><th>ร้านค้า</th><th>อุปกรณ์</th><th>S/N</th>
-          <th>สถานะ</th><th>การเงิน</th><th>ผู้แจ้ง</th><th>วันที่แจ้ง</th><th></th>
-        </tr></thead>
-        <tbody id="repair-tbody"></tbody>
-      </table>
+  <!-- Table view -->
+  <div id="rp-panel-table">
+    <div class="card" style="padding:.5rem 0">
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>Job No</th><th>ร้านค้า</th><th>อุปกรณ์</th><th>S/N</th>
+            <th>สถานะ</th><th>การเงิน</th><th>ผู้แจ้ง</th><th>วันที่แจ้ง</th><th></th>
+          </tr></thead>
+          <tbody id="repair-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Board view -->
+  <div id="rp-panel-board" style="display:none;overflow-x:auto;margin:0 -.5rem">
+    <div id="rp-kanban-wrap" style="min-height:calc(100vh - 260px)">
+      <div style="text-align:center;color:var(--muted);padding:3rem">กำลังโหลด...</div>
     </div>
   </div>
 </div>
@@ -5561,6 +5580,7 @@ async function loadRepair() {
     if (!_lastSeenRepairId) _lastSeenRepairId = maxId;
   }
   renderRepairTable();
+  if (_rpView === 'board') rpRenderKanban();
 }
 
 function renderRepairTable() {
@@ -5605,6 +5625,165 @@ function renderRepairTable() {
         <button class="btn btn-ghost btn-sm" onclick="genRepairLink(${j.id},'${j.public_token||''}')" title="Copy link ส่งลูกค้า" style="color:#2563eb">🔗</button>
       </td>
     </tr>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════
+//  REPAIR — KANBAN BOARD VIEW
+// ══════════════════════════════════════════════════════════
+
+let _rpView    = 'table'; // 'table' | 'board'
+let _rpDragId  = null;
+
+const REPAIR_KANBAN_COLS = [
+  { key:'received',         label:'📥 รับเรื่อง',            bg:'#dbeafe', col:'#1d4ed8' },
+  { key:'spared',           label:'🔩 สแปร์แล้ว',            bg:'#e0f2fe', col:'#0369a1' },
+  { key:'assessing',        label:'🔍 ประเมินงาน',            bg:'#fef3c7', col:'#92400e' },
+  { key:'quoted',           label:'📄 เสนอราคา',              bg:'#ede9fe', col:'#6d28d9' },
+  { key:'waiting_approval', label:'⏳ รออนุมัติ',             bg:'#fef9c3', col:'#854d0e' },
+  { key:'repairing',        label:'🔧 กำลังซ่อม',            bg:'#dcfce7', col:'#166534' },
+  { key:'waiting_return',   label:'📦 รอส่งคืน',             bg:'#d1fae5', col:'#15803d' },
+  { key:'returned',         label:'✅ ส่งคืนแล้ว',            bg:'#f0fdf4', col:'#15803d' },
+  { key:'cancelled',        label:'🚫 ยกเลิก',               bg:'#fee2e2', col:'#b91c1c' },
+];
+
+function rpSetView(view) {
+  _rpView = view;
+  const table = document.getElementById('rp-panel-table');
+  const board = document.getElementById('rp-panel-board');
+  const btnT  = document.getElementById('rp-view-table');
+  const btnB  = document.getElementById('rp-view-board');
+  if (view === 'board') {
+    table.style.display = 'none';
+    board.style.display = '';
+    btnT.style.background = '#fff';     btnT.style.color = '#94a3b8';
+    btnB.style.background = '#2563eb';  btnB.style.color = '#fff';
+    rpRenderKanban();
+  } else {
+    table.style.display = '';
+    board.style.display = 'none';
+    btnT.style.background = '#2563eb';  btnT.style.color = '#fff';
+    btnB.style.background = '#fff';     btnB.style.color = '#94a3b8';
+    renderRepairTable();
+  }
+}
+
+function rpRenderKanban() {
+  const wrap = document.getElementById('rp-kanban-wrap');
+  if (!wrap) return;
+  const jobs = allRepairJobs || [];
+
+  wrap.innerHTML = `
+    <div style="display:flex;gap:0;min-height:calc(100vh - 260px);overflow-x:auto">
+      ${REPAIR_KANBAN_COLS.map(col => {
+        const cards = jobs.filter(j => j.status === col.key);
+        return `
+          <div class="rp-kanban-col" data-status="${col.key}"
+            style="min-width:210px;flex:1;border-right:1px solid #e2e8f0;display:flex;flex-direction:column;background:${col.bg}10"
+            ondragover="rpDragOver(event)" ondrop="rpDrop(event,'${col.key}')" ondragleave="rpDragLeave(event)">
+            <!-- Column header -->
+            <div style="padding:.55rem .75rem;background:#fff;border-bottom:2px solid ${col.col}44;position:sticky;top:0;z-index:1">
+              <div style="display:flex;align-items:center;gap:.4rem">
+                <span style="font-size:.78rem;font-weight:700;color:${col.col}">${col.label}</span>
+                <span style="background:${col.col}22;color:${col.col};border-radius:20px;font-size:.68rem;padding:.05rem .4rem;font-weight:700">${cards.length}</span>
+              </div>
+            </div>
+            <!-- Cards -->
+            <div style="flex:1;padding:.45rem .4rem;overflow-y:auto;display:flex;flex-direction:column;gap:.35rem">
+              ${cards.map(j => rpKanbanCard(j, col)).join('')}
+              <!-- Drop placeholder -->
+              <div class="rp-drop-placeholder" style="display:none;height:56px;border:2px dashed ${col.col}66;border-radius:8px;background:${col.bg}44"></div>
+            </div>
+          </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function rpKanbanCard(j, col) {
+  const _needsAction = new Set((_repairUnread||[]).map(r=>r.repair_id));
+  const hasMsg  = _needsAction.has(j.id);
+  const dayAgo  = j.reported_at ? Math.floor((Date.now()-new Date(j.reported_at))/86400000) : null;
+  const dateTxt = dayAgo === 0 ? 'วันนี้' : dayAgo === 1 ? 'เมื่อวาน' : dayAgo != null ? `${dayAgo} วันที่แล้ว` : '';
+  const notPaid = j.finance_status && !['paid','free','cancelled'].includes(j.finance_status);
+  return `
+    <div class="rp-kanban-card" data-id="${j.id}" draggable="true"
+      ondragstart="rpDragStart(event,${j.id})"
+      ondragend="rpDragEnd(event)"
+      onclick="openRepairDetail(${j.id})"
+      style="background:#fff;border-radius:8px;padding:.55rem .65rem;box-shadow:0 1px 3px rgba(0,0,0,.07);cursor:pointer;border-left:3px solid ${col.col};user-select:none">
+      <!-- Job No + alert dot -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.25rem">
+        <span style="font-size:.75rem;font-weight:800;color:${col.col};font-family:monospace">${escHtml(j.job_no||'')}</span>
+        ${hasMsg ? '<span style="width:8px;height:8px;background:#ef4444;border-radius:50%;display:inline-block;animation:pulse 1.5s infinite" title="รอตอบข้อความ"></span>' : ''}
+      </div>
+      <!-- ร้าน -->
+      <div style="font-size:.8rem;font-weight:600;color:#1e293b;line-height:1.35;margin-bottom:.2rem;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden">${escHtml(j.company_name||'—')}</div>
+      <!-- อุปกรณ์ -->
+      <div style="font-size:.72rem;color:#64748b;margin-bottom:.3rem;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden">${escHtml(j.device_type||'')}${j.device_model?' '+j.device_model:''}</div>
+      <!-- Footer -->
+      <div style="display:flex;align-items:center;gap:.3rem;flex-wrap:wrap">
+        ${notPaid ? `<span style="font-size:.65rem;background:#fef3c7;color:#92400e;border-radius:20px;padding:.05rem .35rem;font-weight:700">💰 ${FINANCE_STATUS[j.finance_status]||j.finance_status}</span>` : ''}
+        ${j.reporter_name ? `<span style="font-size:.65rem;color:#94a3b8">👤 ${escHtml(j.reporter_name)}</span>` : ''}
+        ${dateTxt ? `<span style="font-size:.65rem;color:#cbd5e1;margin-left:auto">${dateTxt}</span>` : ''}
+      </div>
+    </div>`;
+}
+
+// ── Drag & Drop ───────────────────────────────────────────
+function rpDragStart(e, id) {
+  _rpDragId = id;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', id);
+  setTimeout(() => { e.target.style.opacity = '.4'; }, 0);
+}
+function rpDragEnd(e) {
+  e.target.style.opacity = '';
+  document.querySelectorAll('.rp-kanban-col').forEach(col => {
+    col.style.background = '';
+    const ph = col.querySelector('.rp-drop-placeholder');
+    if (ph) ph.style.display = 'none';
+  });
+  _rpDragId = null;
+}
+function rpDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const col    = e.currentTarget;
+  const status = col.dataset.status;
+  const meta   = REPAIR_KANBAN_COLS.find(c => c.key === status);
+  col.style.background = (meta?.bg || '#f8fafc') + '44';
+  const ph = col.querySelector('.rp-drop-placeholder');
+  if (ph) ph.style.display = '';
+}
+function rpDragLeave(e) {
+  const col = e.currentTarget;
+  if (!col.contains(e.relatedTarget)) {
+    col.style.background = '';
+    const ph = col.querySelector('.rp-drop-placeholder');
+    if (ph) ph.style.display = 'none';
+  }
+}
+async function rpDrop(e, newStatus) {
+  e.preventDefault();
+  const col = e.currentTarget;
+  col.style.background = '';
+  const ph = col.querySelector('.rp-drop-placeholder');
+  if (ph) ph.style.display = 'none';
+  const id = _rpDragId || parseInt(e.dataTransfer.getData('text/plain'));
+  if (!id) return;
+  const job = (allRepairJobs||[]).find(j => j.id === id);
+  if (!job || job.status === newStatus) return;
+  // Optimistic update
+  job.status = newStatus;
+  rpRenderKanban();
+  renderRepairTable();
+  // Save to server
+  const r = await api(`/api/repair/${id}`, { method:'PUT', body:{ status: newStatus }, silent:true });
+  if (r?.error) {
+    showToast('❌ บันทึกไม่สำเร็จ','error');
+    await loadRepair(); // revert
+  } else {
+    showToast(`✅ เปลี่ยนสถานะเป็น "${REPAIR_STATUS[newStatus]||newStatus}"`);
+  }
 }
 
 // ── Add SP Standalone ──────────────────────────────────────
