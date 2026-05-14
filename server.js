@@ -5348,6 +5348,43 @@ app.delete('/api/shopinfo/entry/:id', authRequired, async (request, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// GET /api/dashboard/issues — Issue Analytics: subject breakdown + heatmap
+app.get('/api/dashboard/issues', authRequired, async (request, res) => {
+  try {
+    const { dateFrom, dateTo } = request.query;
+    const s = dateFrom ? new Date(dateFrom) : new Date(new Date().setHours(0,0,0,0));
+    const e = dateTo   ? new Date(new Date(dateTo).setHours(23,59,59,999)) : new Date(new Date().setHours(23,59,59,999));
+
+    const [subjectR, heatmapR, totalR] = await Promise.all([
+      extReq()
+        .input('s', sql.DateTime, s).input('e', sql.DateTime, e)
+        .query(`SELECT cl.Subject AS subject, COUNT(*) AS cnt
+                FROM Calllog cl
+                WHERE cl.Active=1 AND cl.ReceiveDate>=@s AND cl.ReceiveDate<=@e
+                  AND cl.Subject IS NOT NULL AND LEN(LTRIM(cl.Subject))>0
+                GROUP BY cl.Subject ORDER BY cnt DESC`),
+      extReq()
+        .input('s', sql.DateTime, s).input('e', sql.DateTime, e)
+        .query(`SELECT DATEPART(weekday,cl.ReceiveDate) AS dow,
+                       DATEPART(hour,cl.ReceiveDate) AS hr,
+                       COUNT(*) AS cnt
+                FROM Calllog cl
+                WHERE cl.Active=1 AND cl.ReceiveDate>=@s AND cl.ReceiveDate<=@e
+                GROUP BY DATEPART(weekday,cl.ReceiveDate), DATEPART(hour,cl.ReceiveDate)`),
+      extReq()
+        .input('s', sql.DateTime, s).input('e', sql.DateTime, e)
+        .query(`SELECT COUNT(*) AS cnt FROM Calllog cl
+                WHERE cl.Active=1 AND cl.ReceiveDate>=@s AND cl.ReceiveDate<=@e`)
+    ]);
+
+    res.json({
+      subjects: subjectR.recordset,
+      heatmap:  heatmapR.recordset,
+      total:    totalR.recordset[0]?.cnt || 0
+    });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // DELETE /api/shopinfo/entry-brand — delete all entries of a brand
 app.delete('/api/shopinfo/entry-brand', authRequired, async (request, res) => {
   const { brand_name } = request.body || {};
