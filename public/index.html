@@ -9767,7 +9767,10 @@ async function loadAiInsight() {
   _aiAbortCtrl = new AbortController();
 
   try {
-    const resp = await fetch('/api/ai-analysis', { signal: _aiAbortCtrl.signal });
+    const resp = await fetch('/api/ai-analysis', {
+      signal: _aiAbortCtrl.signal,
+      headers: authToken ? { 'Authorization': 'Bearer ' + authToken } : {}
+    });
 
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({ error: resp.statusText }));
