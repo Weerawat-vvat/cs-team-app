@@ -1368,9 +1368,14 @@ textarea{resize:vertical;min-height:80px}
           <option value="critical">🚨 Critical</option>
         </select>
       </div>
-      <div class="form-group">
+      <div class="form-group" style="position:relative">
         <label>Category</label>
-        <input id="fu-add-category" placeholder="เช่น Bug, Feature..." style="width:100%"/>
+        <input id="fu-add-category" autocomplete="off" placeholder="พิมพ์หรือเลือก..."
+          style="width:100%"
+          onfocus="fuAddCatShow(this)"
+          oninput="fuAddCatFilter(this)"
+          onblur="setTimeout(()=>{const d=document.getElementById('fu-add-cat-drop');if(d)d.style.display='none'},150)"/>
+        <div id="fu-add-cat-drop" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.1);z-index:999;max-height:180px;overflow-y:auto"></div>
       </div>
     </div>
     <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:.75rem">
@@ -8111,8 +8116,9 @@ async function fuFetchSpRef() {
   const list = await api(`/api/specialist?dateFrom=2020-01-01`);
   const sp = (list||[]).find(s => s.id === spId);
   if (!sp) return showToast(`ไม่พบ SP #${spId}`,'warn');
-  // Fill form from SP data
-  const title = [sp.company_name, sp.subject].filter(Boolean).join(' — ');
+  // title = subject ของ SP ตรงๆ
+  const title = sp.subject || sp.company_name || '';
+  // note = description + solution
   const note  = [sp.calllog_description || sp.description, sp.calllog_solution || sp.solution].filter(Boolean).join('\n\n---\n');
   document.getElementById('fu-add-title').value    = title;
   document.getElementById('fu-add-note').value     = note;
@@ -8122,6 +8128,25 @@ async function fuFetchSpRef() {
   document.getElementById('fu-add-sp-clear').style.display   = '';
   _fuAddSpRef = spId;
   showToast(`ดึงข้อมูล SP #${spId} สำเร็จ`,'success');
+}
+
+function fuAddCatShow(inp) { fuAddCatFilter(inp); }
+function fuAddCatFilter(inp) {
+  const drop = document.getElementById('fu-add-cat-drop');
+  if (!drop) return;
+  const q = inp.value.trim().toLowerCase();
+  const matches = _fuCategories.filter(c => !q || c.toLowerCase().includes(q));
+  if (!matches.length && !q) { drop.style.display = 'none'; return; }
+  drop.style.display = '';
+  drop.innerHTML = matches.slice(0,12).map(c =>
+    `<div style="padding:.35rem .65rem;font-size:.8rem;cursor:pointer;color:#334155;border-radius:5px"
+      onmousedown="event.preventDefault();document.getElementById('fu-add-category').value='${c.replace(/'/g,"\\'")}';document.getElementById('fu-add-cat-drop').style.display='none'"
+      onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background=''">
+      ${esc(c)}</div>`
+  ).join('') + (q && !matches.some(c => c.toLowerCase() === q)
+    ? `<div style="padding:.35rem .65rem;font-size:.78rem;color:#1d4ed8;cursor:pointer;border-top:1px solid #f1f5f9;border-radius:0 0 7px 7px"
+        onmousedown="event.preventDefault();document.getElementById('fu-add-category').value='${inp.value.trim().replace(/'/g,"\\'")}';document.getElementById('fu-add-cat-drop').style.display='none'">
+        + เพิ่ม "${esc(inp.value.trim())}"</div>` : '');
 }
 
 function fuClearSpRef() {
