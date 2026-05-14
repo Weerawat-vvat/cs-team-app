@@ -6881,10 +6881,8 @@ function renderSpecialistTable(list) {
       <td style="text-align:center;white-space:nowrap" onclick="event.stopPropagation()">
         ${s.issue_id
           ? `<span style="font-family:monospace;font-size:.75rem;font-weight:700;color:#7c3aed;background:#f3f0ff;padding:.12rem .45rem;border-radius:5px;border:1px solid #e9d5ff">${escHtml(s.issue_id)}</span>`
-          : spLead
-            ? `<button onclick="openCreateIssueFromSp(${s.id},${JSON.stringify(s.company_name||'')},${JSON.stringify((s.subject||'').substring(0,80))},${JSON.stringify((s.calllog_description||s.description||'').substring(0,300))})"
-                style="border:1px solid #e9d5ff;background:#faf5ff;color:#7c3aed;border-radius:6px;padding:.18rem .55rem;font-size:.72rem;font-weight:600;cursor:pointer;font-family:inherit">🐛 สร้าง</button>`
-            : '<span style="color:#cbd5e1;font-size:.75rem">—</span>'}
+          : `<button onclick="openCreateIssueFromSp(${s.id},${JSON.stringify(s.company_name||'')},${JSON.stringify((s.subject||'').substring(0,80))},${JSON.stringify((s.calllog_description||s.description||'').substring(0,300))})"
+              style="border:1px solid #e9d5ff;background:#faf5ff;color:#7c3aed;border-radius:6px;padding:.18rem .55rem;font-size:.72rem;font-weight:600;cursor:pointer;font-family:inherit">🐛 สร้าง</button>`}
       </td>
       <td style="font-size:.75rem;white-space:nowrap">${fmtDT(s.assigned_at)}</td>
     </tr>
