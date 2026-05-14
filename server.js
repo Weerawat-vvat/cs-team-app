@@ -1045,12 +1045,12 @@ app.delete('/api/settings/problem-types/:id', authRequired, managerRequired, asy
 app.get('/api/name-map', authRequired, async (_, res) => {
   try {
     const rows = (await req().query(`
-      SELECT au.ext_username, e.name
+      SELECT au.ext_username, ISNULL(e.nickname, e.name) AS display_name
       FROM app_users au JOIN employees e ON e.id = au.employee_id
       WHERE au.ext_username IS NOT NULL AND au.active = 1 AND e.active = 1
     `)).recordset;
     const map = {};
-    rows.forEach(r => { map[r.ext_username] = r.name; });
+    rows.forEach(r => { map[r.ext_username] = r.display_name; });
     res.json(map);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -1545,12 +1545,12 @@ app.get('/api/dashboard', authRequired, async (_, res) => {
               WHERE lr.status='pending' ORDER BY lr.leave_date`)).recordset;
     // Build ext_username → employee name map
     const nameMapRows = (await req().query(`
-      SELECT au.ext_username, e.name
+      SELECT au.ext_username, ISNULL(e.nickname, e.name) AS display_name
       FROM app_users au JOIN employees e ON e.id = au.employee_id
       WHERE au.ext_username IS NOT NULL AND au.active = 1 AND e.active = 1
     `)).recordset;
     const nameMap = {};
-    nameMapRows.forEach(r => { nameMap[r.ext_username] = r.name; });
+    nameMapRows.forEach(r => { nameMap[r.ext_username] = r.display_name; });
 
     res.json({
       ticketsToday, overdueTickets, ticketStats,
@@ -3243,12 +3243,12 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
 
     // Build ext_username → employee name map
     const nameMapRows = (await req().query(`
-      SELECT au.ext_username, e.name
+      SELECT au.ext_username, ISNULL(e.nickname, e.name) AS display_name
       FROM app_users au JOIN employees e ON e.id = au.employee_id
       WHERE au.ext_username IS NOT NULL AND au.active = 1 AND e.active = 1
     `)).recordset;
     const nameMap = {};
-    nameMapRows.forEach(r => { nameMap[r.ext_username] = r.name; });
+    nameMapRows.forEach(r => { nameMap[r.ext_username] = r.display_name; });
 
     const fmt = d => d.toISOString().split('T')[0];
     res.json({
