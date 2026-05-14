@@ -3061,13 +3061,17 @@ async function loadDashboard() {
     if (!onShiftByTeam[e.team]) onShiftByTeam[e.team] = [];
     onShiftByTeam[e.team].push(e);
   });
-  // Summary badge: total count + current time
-  const _onShiftTotal = (d.onShift || []).length;
+  // Only show these 3 teams in the on-shift card
+  const ONSHIFT_TEAMS = ['helpdesk', 'specialist', 'war_room'];
+  // Summary badge: count only those 3 teams + current time
+  const _onShiftTotal = (d.onShift || []).filter(e => ONSHIFT_TEAMS.includes(e.team)).length;
   const _nowStr = new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
   const _sumEl = document.getElementById('dash-onshift-summary');
   if (_sumEl) _sumEl.textContent = `${_onShiftTotal} คน ณ ${_nowStr} น.`;
-  // Use allTeams for order + color (dynamic, not hardcoded)
-  const teamsToShow = allTeams.length ? allTeams : Object.keys(onShiftByTeam).map(n => ({ name: n, display_name: n, color: '#475569' }));
+  // Filter allTeams to only the 3 target teams, preserving order
+  const teamsToShow = (allTeams.length ? allTeams : Object.keys(onShiftByTeam).map(n => ({ name: n, display_name: n, color: '#475569' })))
+    .filter(tm => ONSHIFT_TEAMS.includes(tm.name))
+    .sort((a,b) => ONSHIFT_TEAMS.indexOf(a.name) - ONSHIFT_TEAMS.indexOf(b.name));
   document.getElementById('dash-onshift').innerHTML = teamsToShow.map(tm => {
     const emps = onShiftByTeam[tm.name] || [];
     const col  = tm.color || '#475569';
