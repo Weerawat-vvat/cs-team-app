@@ -1225,7 +1225,7 @@ textarea{resize:vertical;min-height:80px}
       <select id="sp-filter-team" onchange="loadSpecialist()">
         <option value="">ทุกทีม</option>
       </select>
-      <input id="sp-search" type="text" placeholder="🔍 ร้าน / หัวข้อ / รายละเอียด..." oninput="spSearchDebounce()" style="min-width:160px;flex:1"/>
+      <input id="sp-search" type="text" placeholder="🔍 ID / ร้าน / หัวข้อ / รายละเอียด..." oninput="spSearchDebounce()" style="min-width:160px;flex:1"/>
       <select id="sp-filter-member" onchange="loadSpecialist()" style="min-width:140px">
         <option value="">👤 ทุกพนักงาน</option>
       </select>
@@ -6676,10 +6676,14 @@ async function loadSpecialist() {
 
   // Filter locally
   let list = _allSpecialist;
-  if (search)  list = list.filter(s=>
-    (s.company_name||'').toLowerCase().includes(search.toLowerCase()) ||
-    (s.subject||'').toLowerCase().includes(search.toLowerCase()) ||
-    (s.calllog_description||s.description||'').toLowerCase().includes(search.toLowerCase()));
+  if (search)  list = list.filter(s=> {
+    const q = search.toLowerCase();
+    return String(s.id||'').includes(search) ||
+      String(s.calllog_id||'').includes(search) ||
+      (s.company_name||'').toLowerCase().includes(q) ||
+      (s.subject||'').toLowerCase().includes(q) ||
+      (s.calllog_description||s.description||'').toLowerCase().includes(q);
+  });
   if (member === '__none__') list = list.filter(s=>!s.accepted_by_name);
   else if (member)           list = list.filter(s=>(s.accepted_by_name||'')===member);
   if (_spSubFilter === 'issue') list = list.filter(s=>s.issue_id && s.issue_id.trim());
