@@ -2701,6 +2701,13 @@ function parseDbDate(str) {
 function fmtDate(d) {
   return parseDbDate(d).toLocaleDateString('th-TH', { day:'numeric', month:'short', year:'numeric' });
 }
+function fmtDT(d) {
+  if (!d) return '';
+  const dt = parseDbDate(d);
+  const isTdy = dt.toDateString() === new Date().toDateString();
+  const time = dt.toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit' }) + ' น.';
+  return isTdy ? time : dt.toLocaleDateString('th-TH', { day:'numeric', month:'short' }) + ' ' + time;
+}
 function showToast(msg, type='success') {
   let t = document.getElementById('_toast');
   if (!t) {
@@ -6742,7 +6749,7 @@ function renderSpecialistTable(list) {
         ${s.accepted_by_name?`<div style="color:#2563eb;font-weight:600">👤 ${escHtml(s.accepted_by_name)}</div>`:`<div style="font-size:.75rem;color:#94a3b8">ยังไม่มีผู้รับ</div>`}
       </td>
       <td>${spStatusBadge(s.status)}</td>
-      <td style="font-size:.75rem;white-space:nowrap">${fmtDate(s.assigned_at)}</td>
+      <td style="font-size:.75rem;white-space:nowrap">${fmtDT(s.assigned_at)}</td>
     </tr>
     <tr id="sp-detail-row-${s.id}" class="sp-row-detail" style="display:none">
       <td colspan="9" style="padding:0">
