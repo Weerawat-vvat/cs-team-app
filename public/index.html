@@ -628,16 +628,10 @@ textarea{resize:vertical;min-height:80px}
     <div id="tt-details" style="font-size:.75rem;color:var(--muted);white-space:nowrap"></div>
   </div>
 
-  <!-- ── Charts Row 1: Donut + Agent Compare Bar ── -->
-  <div class="grid-2" style="grid-template-columns:1fr 2fr">
-    <div class="card">
-      <div class="card-title">🥧 ประเภทปัญหา Top 5 (เดือนนี้)</div>
-      <div style="position:relative;height:210px"><canvas id="chart-cat-donut"></canvas></div>
-    </div>
-    <div class="card">
-      <div class="card-title">📅 Workload Agent — เดือนนี้ vs เดือนก่อน</div>
-      <div style="position:relative;height:180px"><canvas id="chart-agent-compare"></canvas></div>
-    </div>
+  <!-- ── Agent Workload Chart ── -->
+  <div class="card" style="margin-bottom:.75rem">
+    <div class="card-title">📅 Workload Agent — เดือนนี้ vs เดือนก่อน</div>
+    <div style="position:relative;height:200px"><canvas id="chart-agent-compare"></canvas></div>
   </div>
 
   <!-- ── Hour × Agent Heatmap ── -->
@@ -651,37 +645,6 @@ textarea{resize:vertical;min-height:80px}
     </div>
     <div style="overflow-x:auto;font-size:.73rem" id="dash-heatmap-wrap">
       <div style="color:var(--muted);font-size:.82rem;padding:.5rem">กำลังโหลด...</div>
-    </div>
-  </div>
-
-  <!-- ── Trends & Peak Analysis ── -->
-  <div class="section-divider">📈 Trends &amp; Peak Analysis</div>
-
-  <!-- Row: Daily Trend (wide) + Day-of-Week (narrow) -->
-  <div class="grid-2" style="grid-template-columns:2fr 1fr">
-    <div class="card">
-      <div class="card-title">📅 แนวโน้มรายวัน
-        <span id="trend-summary" style="font-size:.72rem;font-weight:400;color:var(--muted);margin-left:.5rem"></span>
-      </div>
-      <canvas id="chart-daily-trend" height="160"></canvas>
-    </div>
-    <div class="card">
-      <div class="card-title">📆 วันที่ยุ่งที่สุด</div>
-      <canvas id="chart-dow" height="160"></canvas>
-    </div>
-  </div>
-
-  <!-- Row: Peak Hour (wide) + Category Trend (wide) -->
-  <div class="grid-2">
-    <div class="card">
-      <div class="card-title">⏰ Peak Hour — ชั่วโมงที่ Ticket เยอะที่สุด
-        <span id="peak-hour-badge" style="font-size:.75rem;font-weight:700;padding:.1rem .55rem;border-radius:20px;background:#fef3c7;color:#92400e;margin-left:.4rem"></span>
-      </div>
-      <canvas id="chart-peak-hour" height="160"></canvas>
-    </div>
-    <div class="card">
-      <div class="card-title">📊 Category Trend — แนวโน้มประเภทปัญหา Top 5</div>
-      <canvas id="chart-cat-trend" height="160"></canvas>
     </div>
   </div>
 
@@ -745,6 +708,37 @@ textarea{resize:vertical;min-height:80px}
       <div class="card">
         <div class="card-title">📊 Top 15 หัวข้อปัญหา</div>
         <div style="position:relative;height:260px"><canvas id="chart-iss-bar"></canvas></div>
+      </div>
+    </div>
+
+    <!-- ── Trends & Peak Analysis ── -->
+    <div class="section-divider">📈 Trends &amp; Peak Analysis</div>
+
+    <!-- Row: Daily Trend (wide) + Day-of-Week (narrow) -->
+    <div class="grid-2" style="grid-template-columns:2fr 1fr;margin-bottom:.75rem">
+      <div class="card">
+        <div class="card-title">📅 แนวโน้มรายวัน
+          <span id="trend-summary" style="font-size:.72rem;font-weight:400;color:var(--muted);margin-left:.5rem"></span>
+        </div>
+        <canvas id="chart-daily-trend" height="160"></canvas>
+      </div>
+      <div class="card">
+        <div class="card-title">📆 วันที่ยุ่งที่สุด</div>
+        <canvas id="chart-dow" height="160"></canvas>
+      </div>
+    </div>
+
+    <!-- Row: Peak Hour + Category Trend -->
+    <div class="grid-2" style="margin-bottom:.75rem">
+      <div class="card">
+        <div class="card-title">⏰ Peak Hour — ชั่วโมงที่ Ticket เยอะที่สุด
+          <span id="peak-hour-badge" style="font-size:.75rem;font-weight:700;padding:.1rem .55rem;border-radius:20px;background:#fef3c7;color:#92400e;margin-left:.4rem"></span>
+        </div>
+        <canvas id="chart-peak-hour" height="160"></canvas>
+      </div>
+      <div class="card">
+        <div class="card-title">📊 Category Trend — แนวโน้มประเภทปัญหา Top 5</div>
+        <canvas id="chart-cat-trend" height="160"></canvas>
       </div>
     </div>
 
