@@ -4948,6 +4948,27 @@ function faceValueDate(s) {
 // ══════════════════════════════════════════════════════════
 //  SHOP INFO — Migration (new flat table)
 // ══════════════════════════════════════════════════════════
+async function ensureShopKnowledgeTable() {
+  try {
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='shop_knowledge' AND xtype='U')
+      CREATE TABLE shop_knowledge (
+        id          INT IDENTITY PRIMARY KEY,
+        brand_name  NVARCHAR(255) NOT NULL,
+        branch_name NVARCHAR(255) NULL,
+        category    NVARCHAR(100) NOT NULL DEFAULT N'ทั่วไป',
+        title       NVARCHAR(500) NOT NULL,
+        content     NVARCHAR(MAX) NULL,
+        sort_order  INT DEFAULT 0,
+        created_by  INT NULL,
+        updated_by  INT NULL,
+        created_at  DATETIME DEFAULT GETDATE(),
+        updated_at  DATETIME DEFAULT GETDATE()
+      )`);
+    console.log('✅ shop_knowledge table ready');
+  } catch(e) { console.error('❌ shop_knowledge table error:', e.message); }
+}
+
 async function ensureShopEntriesTable() {
   try {
     await req().query(`
@@ -5459,6 +5480,78 @@ app.post('/api/shopinfo/entries/import', authRequired, async (request, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ══════════════════════════════════════════════════════════
+//  SHOP KNOWLEDGE — APIs
+// ══════════════════════════════════════════════════════════
+
+// GET /api/shopinfo/knowledge?brand=&q=
+app.get('/api/shopinfo/knowledge', authRequired, async (request, res) => {
+  try {
+    const { brand, q } = request.query;
+    let sql_where = '1=1';
+    const qr = req();
+    if (brand) { qr.input('brand', sql.NVarChar, brand); sql_where += ' AND brand_name=@brand'; }
+    if (q)     { qr.input('q', sql.NVarChar, '%'+q+'%'); sql_where += ' AND (title LIKE @q OR content LIKE @q OR category LIKE @q)'; }
+    const rows = (await qr.query(`
+      SELECT k.*, e.name AS created_by_name, e2.name AS updated_by_name
+      FROM shop_knowledge k
+      LEFT JOIN app_users au  ON au.id = k.created_by
+      LEFT JOIN employees e   ON e.id  = au.employee_id
+      LEFT JOIN app_users au2 ON au2.id = k.updated_by
+      LEFT JOIN employees e2  ON e2.id  = au2.employee_id
+      WHERE ${sql_where}
+      ORDER BY k.brand_name, k.sort_order, k.created_at`)).recordset;
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/shopinfo/knowledge
+app.post('/api/shopinfo/knowledge', authRequired, async (request, res) => {
+  try {
+    const b = request.body;
+    if (!b.brand_name?.trim()) return res.status(400).json({ error: 'กรุณาระบุแบรนด์' });
+    if (!b.title?.trim())      return res.status(400).json({ error: 'กรุณาระบุหัวข้อ' });
+    const r = await req()
+      .input('bn', sql.NVarChar, b.brand_name.trim())
+      .input('br', sql.NVarChar, b.branch_name?.trim() || null)
+      .input('cat', sql.NVarChar, b.category?.trim() || 'ทั่วไป')
+      .input('ti', sql.NVarChar, b.title.trim())
+      .input('co', sql.NVarChar, b.content || null)
+      .input('so', sql.Int, b.sort_order || 0)
+      .input('cb', sql.Int, request.user.id)
+      .query(`INSERT INTO shop_knowledge(brand_name,branch_name,category,title,content,sort_order,created_by,updated_by)
+              OUTPUT INSERTED.id VALUES(@bn,@br,@cat,@ti,@co,@so,@cb,@cb)`);
+    res.json({ id: r.recordset[0].id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT /api/shopinfo/knowledge/:id
+app.put('/api/shopinfo/knowledge/:id', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const b  = request.body;
+    let r = req().input('id', sql.Int, id).input('ub', sql.Int, request.user.id);
+    const updates = ['updated_at=GETDATE()', 'updated_by=@ub'];
+    if (b.hasOwnProperty('brand_name'))  { r=r.input('bn',sql.NVarChar,b.brand_name?.trim()||null);   updates.push('brand_name=@bn'); }
+    if (b.hasOwnProperty('branch_name')) { r=r.input('br',sql.NVarChar,b.branch_name?.trim()||null);  updates.push('branch_name=@br'); }
+    if (b.hasOwnProperty('category'))    { r=r.input('cat',sql.NVarChar,b.category?.trim()||'ทั่วไป'); updates.push('category=@cat'); }
+    if (b.hasOwnProperty('title'))       { r=r.input('ti',sql.NVarChar,b.title?.trim()||null);        updates.push('title=@ti'); }
+    if (b.hasOwnProperty('content'))     { r=r.input('co',sql.NVarChar,b.content??null);              updates.push('content=@co'); }
+    if (b.hasOwnProperty('sort_order'))  { r=r.input('so',sql.Int,b.sort_order||0);                   updates.push('sort_order=@so'); }
+    await r.query(`UPDATE shop_knowledge SET ${updates.join(',')} WHERE id=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE /api/shopinfo/knowledge/:id
+app.delete('/api/shopinfo/knowledge/:id', authRequired, async (request, res) => {
+  try {
+    await req().input('id', sql.Int, parseInt(request.params.id))
+      .query('DELETE FROM shop_knowledge WHERE id=@id');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 init().then(async () => {
   // Drop hardcoded team CHECK constraint so dynamic teams work
   try {
@@ -5483,6 +5576,7 @@ init().then(async () => {
   await ensureFollowupV2Tables();
   await ensureShopInfoTables();
   await ensureShopEntriesTable();
+  await ensureShopKnowledgeTable();
 
   // Drop CHECK constraint on shifts.shift_type so 'dayoff' can be inserted
   try {

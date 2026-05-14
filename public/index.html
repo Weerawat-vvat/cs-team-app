@@ -2040,12 +2040,28 @@ textarea{resize:vertical;min-height:80px}
 
 <!-- ═══════════════════ PAGE: SHOP INFO ═══════════════════ -->
 <div id="page-shopinfo" class="page">
-  <div class="section-header" style="margin-bottom:.75rem">
+  <div class="section-header" style="margin-bottom:.65rem">
     <div class="section-title">📋 ข้อมูลร้าน</div>
-    <div class="btn-group" style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+  </div>
+
+  <!-- ── Tab Bar ── -->
+  <div style="display:flex;border-bottom:2px solid #e2e8f0;margin-bottom:.75rem;gap:0">
+    <button id="si-tab-btn-remote" onclick="siSwitchTab('remote')"
+      style="padding:.45rem 1.1rem;font-size:.85rem;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:2px solid #2563eb;color:#2563eb;margin-bottom:-2px;font-family:inherit;transition:all .15s">
+      🖥️ ข้อมูลรีโมท
+    </button>
+    <button id="si-tab-btn-knowledge" onclick="siSwitchTab('knowledge')"
+      style="padding:.45rem 1.1rem;font-size:.85rem;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:#94a3b8;margin-bottom:-2px;font-family:inherit;transition:all .15s">
+      📖 สิ่งที่ควรรู้
+    </button>
+  </div>
+
+  <!-- ── Tab 1: ข้อมูลรีโมท ── -->
+  <div id="si-panel-remote">
+    <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.75rem">
       <input id="si-search" type="text" placeholder="🔍 ค้นหา แบรนด์ สาขา ผู้ติดต่อ ชื่อเครื่อง Anydesk IP..."
              oninput="siSearchDebounce()"
-             style="border:1px solid var(--border);border-radius:8px;padding:.38rem .75rem;font-size:.83rem;min-width:280px;outline:none"/>
+             style="border:1px solid var(--border);border-radius:8px;padding:.38rem .75rem;font-size:.83rem;min-width:280px;outline:none;flex:1"/>
       <button class="btn btn-primary btn-sm" onclick="openCreateFolderModal()">📁 สร้างโฟลเดอร์</button>
       <button class="btn btn-ghost btn-sm" onclick="siExportCSV()" title="Export เป็น CSV">📥 Export</button>
       <label class="btn btn-ghost btn-sm" style="cursor:pointer;margin:0" title="Import จาก CSV">
@@ -2053,9 +2069,39 @@ textarea{resize:vertical;min-height:80px}
       </label>
       <button class="btn btn-ghost btn-sm" onclick="loadShopInfo()">🔄 รีเฟรช</button>
     </div>
+    <div id="shopinfo-list">
+      <div style="text-align:center;color:var(--muted);padding:2rem;font-size:.9rem">กำลังโหลด...</div>
+    </div>
   </div>
-  <div id="shopinfo-list">
-    <div style="text-align:center;color:var(--muted);padding:2rem;font-size:.9rem">กำลังโหลด...</div>
+
+  <!-- ── Tab 2: สิ่งที่ควรรู้ ── -->
+  <div id="si-panel-knowledge" style="display:none">
+    <!-- Filter bar -->
+    <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.75rem">
+      <input id="sk-search" type="text" placeholder="🔍 ค้นหาหัวข้อ / เนื้อหา..."
+             oninput="skSearchDebounce()"
+             style="border:1px solid var(--border);border-radius:8px;padding:.38rem .75rem;font-size:.83rem;min-width:220px;outline:none;flex:1"/>
+      <select id="sk-filter-brand" onchange="skLoad()"
+        style="border:1px solid var(--border);border-radius:8px;padding:.38rem .65rem;font-size:.83rem;font-family:inherit;outline:none;background:#fff;min-width:140px">
+        <option value="">ทุกแบรนด์</option>
+      </select>
+      <select id="sk-filter-cat" onchange="skLoad()"
+        style="border:1px solid var(--border);border-radius:8px;padding:.38rem .65rem;font-size:.83rem;font-family:inherit;outline:none;background:#fff;min-width:130px">
+        <option value="">ทุกหมวด</option>
+        <option value="โฟลการทำงาน">🔄 โฟลการทำงาน</option>
+        <option value="ฟังก์ชันเฉพาะทาง">⚙️ ฟังก์ชันเฉพาะทาง</option>
+        <option value="ข้อควรระวัง">⚠️ ข้อควรระวัง</option>
+        <option value="ขั้นตอนการติดตั้ง">📋 ขั้นตอนการติดตั้ง</option>
+        <option value="ติดต่อประสาน">📞 ติดต่อประสาน</option>
+        <option value="ทั่วไป">💡 ทั่วไป</option>
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="skOpenModal(null)">+ เพิ่มบทความ</button>
+      <button class="btn btn-ghost btn-sm" onclick="skLoad()">🔄 รีเฟรช</button>
+    </div>
+    <!-- Knowledge list -->
+    <div id="sk-list">
+      <div style="text-align:center;color:var(--muted);padding:2rem;font-size:.9rem">กำลังโหลด...</div>
+    </div>
   </div>
 </div>
 
@@ -2962,7 +3008,7 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 
 // click outside to close
 // Modals ที่ห้ามปิดเมื่อกด outside (ข้อมูลอาจหาย)
-const NO_BACKDROP_CLOSE = new Set(['modal-repair-link','modal-repair-form','modal-repair-detail','modal-person','modal-create-case','modal-edit-ticket-full','modal-specialist-detail','modal-assign-specialist','modal-add-sp','modal-edit-sp','modal-si-entry','modal-si-import','modal-fu-add-issue']);
+const NO_BACKDROP_CLOSE = new Set(['modal-repair-link','modal-repair-form','modal-repair-detail','modal-person','modal-create-case','modal-edit-ticket-full','modal-specialist-detail','modal-assign-specialist','modal-add-sp','modal-edit-sp','modal-si-entry','modal-si-import','modal-fu-add-issue','modal-sk-entry']);
 
 document.querySelectorAll('.overlay').forEach(el => {
   el.addEventListener('click', e => {
@@ -10643,6 +10689,240 @@ async function siImportConfirm() {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ══════════════════════════════════════════════════════════
+//  SHOP KNOWLEDGE — Tab 2 สิ่งที่ควรรู้
+// ══════════════════════════════════════════════════════════
+
+const SK_CAT_META = {
+  'โฟลการทำงาน':       { icon:'🔄', bg:'#dbeafe', col:'#1e40af' },
+  'ฟังก์ชันเฉพาะทาง': { icon:'⚙️', bg:'#dcfce7', col:'#166534' },
+  'ข้อควรระวัง':       { icon:'⚠️', bg:'#fef3c7', col:'#92400e' },
+  'ขั้นตอนการติดตั้ง': { icon:'📋', bg:'#f3e8ff', col:'#6b21a8' },
+  'ติดต่อประสาน':      { icon:'📞', bg:'#ffedd5', col:'#c2410c' },
+  'ทั่วไป':            { icon:'💡', bg:'#f1f5f9', col:'#475569' },
+};
+
+function skCatBadge(cat) {
+  const m = SK_CAT_META[cat] || { icon:'💡', bg:'#f1f5f9', col:'#475569' };
+  return `<span style="background:${m.bg};color:${m.col};border-radius:20px;padding:.12rem .55rem;font-size:.7rem;font-weight:700;white-space:nowrap">${m.icon} ${escHtml(cat||'ทั่วไป')}</span>`;
+}
+
+let _skData = [];
+let _skSearchTimer = null;
+let _skExpanded = new Set();
+
+function skSearchDebounce() {
+  clearTimeout(_skSearchTimer);
+  _skSearchTimer = setTimeout(skLoad, 300);
+}
+
+async function skLoad() {
+  const q     = document.getElementById('sk-search')?.value?.trim() || '';
+  const brand = document.getElementById('sk-filter-brand')?.value || '';
+  const cat   = document.getElementById('sk-filter-cat')?.value || '';
+  let url = '/api/shopinfo/knowledge?x=1';
+  if (brand) url += '&brand=' + encodeURIComponent(brand);
+  if (q)     url += '&q='     + encodeURIComponent(q);
+  const data = await api(url);
+  _skData = (data || []).filter(a => !cat || a.category === cat);
+  skRender(_skData);
+}
+
+async function skLoadBrandFilter() {
+  const brands = await api('/api/shopinfo/entry-brands');
+  const sel = document.getElementById('sk-filter-brand');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">ทุกแบรนด์</option>' +
+    (brands||[]).map(b => `<option value="${escHtml(b)}" ${b===cur?'selected':''}>${escHtml(b)}</option>`).join('');
+}
+
+function skRender(data) {
+  const wrap = document.getElementById('sk-list');
+  if (!wrap) return;
+  if (!data.length) {
+    wrap.innerHTML = `<div style="text-align:center;padding:3rem 1rem;color:#94a3b8">
+      <div style="font-size:2rem;margin-bottom:.5rem">📖</div>
+      <div style="margin-bottom:.75rem">ยังไม่มีบทความ</div>
+      <button onclick="skOpenModal(null)" style="background:#1d4ed8;color:#fff;border:none;border-radius:7px;padding:.45rem 1.1rem;font-size:.82rem;font-weight:700;cursor:pointer">+ เพิ่มบทความแรก</button>
+    </div>`;
+    return;
+  }
+  // Group by brand_name
+  const groups = {};
+  data.forEach(a => {
+    const bn = a.brand_name || '(ไม่ระบุแบรนด์)';
+    if (!groups[bn]) groups[bn] = [];
+    groups[bn].push(a);
+  });
+  wrap.innerHTML = Object.entries(groups).sort(([a],[b])=>a.localeCompare(b,'th')).map(([brand, articles]) => {
+    const key    = 'sk-brand-' + btoa(encodeURIComponent(brand)).replace(/=/g,'');
+    const isOpen = _skExpanded.has(key) || _skExpanded.size === 0; // open all by default first load
+    const brandJs = brand.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    return `<div style="margin-bottom:.65rem;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden">
+      <div onclick="skToggleBrand('${key}')" style="padding:.5rem .9rem;background:#f8fafc;display:flex;align-items:center;gap:.65rem;cursor:pointer;user-select:none"
+           onmouseenter="this.style.background='#f1f5f9'" onmouseleave="this.style.background='#f8fafc'">
+        <span style="font-size:.95rem">${isOpen?'📂':'📁'}</span>
+        <span style="font-weight:700;font-size:.9rem;flex:1">🏢 ${escHtml(brand)}</span>
+        <span style="font-size:.72rem;color:#94a3b8">${articles.length} บทความ</span>
+        <button onclick="event.stopPropagation();skOpenModal(null,'${brandJs}')"
+          style="background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:6px;padding:.15rem .55rem;font-size:.73rem;font-weight:700;cursor:pointer;white-space:nowrap">+ เพิ่ม</button>
+        <span id="${key}-arrow" style="color:#94a3b8;font-size:.75rem">${isOpen?'▼':'▶'}</span>
+      </div>
+      <div id="${key}" style="${isOpen?'':'display:none'}">
+        ${articles.map(a => skArticleCard(a)).join('')}
+      </div>
+    </div>`;
+  }).join('');
+  // Mark all as expanded on first load
+  if (_skExpanded.size === 0) {
+    Object.keys(groups).forEach(brand => {
+      _skExpanded.add('sk-brand-' + btoa(encodeURIComponent(brand)).replace(/=/g,''));
+    });
+  }
+}
+
+function skArticleCard(a) {
+  const key    = 'sk-art-' + a.id;
+  const isOpen = _skExpanded.has(key);
+  const lines  = (a.content||'').split('\n');
+  const preview = lines.slice(0,2).join(' ').substring(0,120);
+  const branchBadge = a.branch_name
+    ? `<span style="font-size:.68rem;color:#7c3aed;background:#f3e8ff;border-radius:4px;padding:.05rem .35rem">${escHtml(a.branch_name)}</span>`
+    : `<span style="font-size:.68rem;color:#94a3b8;background:#f1f5f9;border-radius:4px;padding:.05rem .35rem">ทุกสาขา</span>`;
+  const updater = a.updated_by_name || a.created_by_name || '';
+  const updatedAt = a.updated_at ? new Date(a.updated_at).toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'}) : '';
+  return `<div style="border-top:1px solid #f1f5f9">
+    <div onclick="skToggleArticle(${a.id})" style="padding:.5rem .9rem .5rem 1.2rem;display:flex;align-items:flex-start;gap:.55rem;cursor:pointer"
+         onmouseenter="this.style.background='#fafafa'" onmouseleave="this.style.background=''">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-bottom:.2rem">
+          ${skCatBadge(a.category)}
+          ${branchBadge}
+          <span style="font-weight:700;font-size:.85rem;color:#1e293b">${escHtml(a.title)}</span>
+        </div>
+        ${!isOpen && preview ? `<div style="font-size:.75rem;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(preview)}${lines.length>2||preview.length===120?'…':''}</div>` : ''}
+      </div>
+      <div style="display:flex;align-items:center;gap:.3rem;flex-shrink:0">
+        ${updatedAt ? `<span style="font-size:.65rem;color:#cbd5e1;white-space:nowrap">${updater ? escHtml(updater)+' · ' : ''}${updatedAt}</span>` : ''}
+        <button onclick="event.stopPropagation();skOpenModal(${a.id})" title="แก้ไข"
+          style="background:none;border:none;cursor:pointer;font-size:.78rem;color:#94a3b8;padding:.1rem .25rem;border-radius:4px"
+          onmouseover="this.style.color='#2563eb'" onmouseout="this.style.color='#94a3b8'">✏️</button>
+        <button onclick="event.stopPropagation();skDelete(${a.id})" title="ลบ"
+          style="background:none;border:none;cursor:pointer;font-size:.78rem;color:#94a3b8;padding:.1rem .25rem;border-radius:4px"
+          onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#94a3b8'">🗑</button>
+        <span style="color:#94a3b8;font-size:.75rem">${isOpen?'▲':'▼'}</span>
+      </div>
+    </div>
+    <div id="${key}" style="${isOpen?'':'display:none'};padding:.1rem 1.2rem .75rem 1.2rem">
+      <pre style="white-space:pre-wrap;word-break:break-word;font-family:inherit;font-size:.82rem;color:#334155;line-height:1.75;margin:0;background:#f8fafc;border-radius:7px;padding:.65rem .9rem;border:1px solid #f1f5f9">${escHtml(a.content||'(ยังไม่มีเนื้อหา)')}</pre>
+    </div>
+  </div>`;
+}
+
+function skToggleBrand(key) {
+  const el = document.getElementById(key);
+  const arrow = document.getElementById(key+'-arrow');
+  if (!el) return;
+  const isOpen = el.style.display !== 'none';
+  el.style.display = isOpen ? 'none' : '';
+  if (arrow) arrow.textContent = isOpen ? '▶' : '▼';
+  // update folder icon
+  const header = el.previousElementSibling;
+  if (header) { const icon = header.querySelector('span:first-child'); if (icon) icon.textContent = isOpen ? '📁' : '📂'; }
+  if (isOpen) _skExpanded.delete(key); else _skExpanded.add(key);
+}
+
+function skToggleArticle(id) {
+  const key = 'sk-art-' + id;
+  const el  = document.getElementById(key);
+  if (!el) return;
+  const isOpen = el.style.display !== 'none';
+  el.style.display = isOpen ? 'none' : '';
+  if (isOpen) _skExpanded.delete(key); else _skExpanded.add(key);
+  // flip arrow in parent row (last span)
+  const row = el.previousElementSibling;
+  if (row) { const spans = row.querySelectorAll('span'); const last = spans[spans.length-1]; if(last) last.textContent = isOpen?'▼':'▲'; }
+}
+
+async function skOpenModal(id, brandPreset) {
+  document.getElementById('sk-entry-id').value = id || '';
+  document.getElementById('sk-modal-title').textContent = id ? '✏️ แก้ไขบทความ' : '📖 เพิ่มบทความ';
+  // Populate brand datalist
+  const brands = await api('/api/shopinfo/entry-brands');
+  const dl = document.getElementById('sk-brand-list');
+  if (dl) dl.innerHTML = (brands||[]).map(b=>`<option value="${escHtml(b)}">`).join('');
+  if (id) {
+    const art = _skData.find(a => a.id === id);
+    if (art) {
+      document.getElementById('sk-brand').value    = art.brand_name || '';
+      document.getElementById('sk-branch').value   = art.branch_name || '';
+      document.getElementById('sk-title').value    = art.title || '';
+      document.getElementById('sk-category').value = art.category || 'ทั่วไป';
+      document.getElementById('sk-content').value  = art.content || '';
+    }
+  } else {
+    document.getElementById('sk-brand').value    = brandPreset || '';
+    document.getElementById('sk-branch').value   = '';
+    document.getElementById('sk-title').value    = '';
+    document.getElementById('sk-category').value = 'ทั่วไป';
+    document.getElementById('sk-content').value  = '';
+  }
+  openModal('modal-sk-entry');
+  setTimeout(() => document.getElementById(id ? 'sk-title' : 'sk-brand').focus(), 120);
+}
+
+async function skSaveEntry() {
+  const id       = document.getElementById('sk-entry-id').value;
+  const brand    = document.getElementById('sk-brand').value.trim();
+  const branch   = document.getElementById('sk-branch').value.trim();
+  const title    = document.getElementById('sk-title').value.trim();
+  const category = document.getElementById('sk-category').value;
+  const content  = document.getElementById('sk-content').value.trim();
+  if (!brand)  { showToast('กรุณาระบุแบรนด์','warn'); return; }
+  if (!title)  { showToast('กรุณาระบุหัวข้อ','warn'); return; }
+  const body = { brand_name: brand, branch_name: branch||null, title, category, content: content||null };
+  let r;
+  if (id) {
+    r = await api(`/api/shopinfo/knowledge/${id}`, { method:'PUT', body, silent:true });
+  } else {
+    r = await api('/api/shopinfo/knowledge', { method:'POST', body, silent:true });
+  }
+  if (r?.error) { showToast('❌ '+r.error,'error'); return; }
+  showToast(id ? '✅ แก้ไขแล้ว' : '✅ เพิ่มบทความแล้ว');
+  closeModal('modal-sk-entry');
+  await skLoad();
+}
+
+async function skDelete(id) {
+  const art = _skData.find(a => a.id === id);
+  if (!confirm(`ลบบทความ "${art?.title||id}"?`)) return;
+  const r = await api(`/api/shopinfo/knowledge/${id}`, { method:'DELETE', silent:true });
+  if (r?.error) { showToast('❌ '+r.error,'error'); return; }
+  showToast('🗑 ลบบทความแล้ว');
+  await skLoad();
+}
+
+function siSwitchTab(tab) {
+  const remote    = document.getElementById('si-panel-remote');
+  const knowledge = document.getElementById('si-panel-knowledge');
+  const btnR = document.getElementById('si-tab-btn-remote');
+  const btnK = document.getElementById('si-tab-btn-knowledge');
+  if (tab === 'remote') {
+    remote.style.display    = '';
+    knowledge.style.display = 'none';
+    btnR.style.borderBottomColor = '#2563eb'; btnR.style.color = '#2563eb';
+    btnK.style.borderBottomColor = 'transparent'; btnK.style.color = '#94a3b8';
+  } else {
+    remote.style.display    = 'none';
+    knowledge.style.display = '';
+    btnR.style.borderBottomColor = 'transparent'; btnR.style.color = '#94a3b8';
+    btnK.style.borderBottomColor = '#2563eb'; btnK.style.color = '#2563eb';
+    skLoadBrandFilter();
+    skLoad();
+  }
+}
+
 </script>
 
 <!-- ══════════ SHOP INFO MODAL ══════════ -->
@@ -10777,6 +11057,57 @@ async function siImportConfirm() {
     <div style="display:flex;gap:.5rem">
       <button class="btn btn-ghost" style="flex:1" onclick="closeModal('modal-si-entry')">ยกเลิก</button>
       <button class="btn btn-primary" style="flex:2;padding:.6rem" onclick="saveSiEntry()">💾 บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SHOP KNOWLEDGE MODAL ══ -->
+<div class="overlay" id="modal-sk-entry">
+  <div class="modal" style="max-width:620px;max-height:92vh;overflow-y:auto;padding:1.2rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
+      <div id="sk-modal-title" style="font-size:1rem;font-weight:800">📖 เพิ่มบทความ</div>
+      <button class="modal-close" onclick="closeModal('modal-sk-entry')">×</button>
+    </div>
+    <input type="hidden" id="sk-entry-id"/>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.65rem">
+      <div class="form-group" style="margin:0">
+        <label>แบรนด์ / เครือ <span style="color:#ef4444">*</span></label>
+        <input id="sk-brand" list="sk-brand-list" placeholder="เช่น MK Restaurant" autocomplete="off"
+          style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.88rem;font-family:inherit;outline:none"/>
+        <datalist id="sk-brand-list"></datalist>
+      </div>
+      <div class="form-group" style="margin:0">
+        <label>สาขา <span style="color:#94a3b8;font-weight:400;font-size:.72rem">(ว่าง = ทุกสาขาในเครือ)</span></label>
+        <input id="sk-branch" placeholder="เช่น สาขาอุดรธานี"
+          style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.88rem;font-family:inherit;outline:none"/>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:.75rem;margin-bottom:.65rem">
+      <div class="form-group" style="margin:0">
+        <label>หัวข้อ <span style="color:#ef4444">*</span></label>
+        <input id="sk-title" placeholder="ระบุหัวข้อบทความ..."
+          style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.88rem;font-family:inherit;outline:none"/>
+      </div>
+      <div class="form-group" style="margin:0">
+        <label>หมวดหมู่</label>
+        <select id="sk-category" style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.85rem;font-family:inherit;outline:none">
+          <option value="โฟลการทำงาน">🔄 โฟลการทำงาน</option>
+          <option value="ฟังก์ชันเฉพาะทาง">⚙️ ฟังก์ชันเฉพาะทาง</option>
+          <option value="ข้อควรระวัง">⚠️ ข้อควรระวัง</option>
+          <option value="ขั้นตอนการติดตั้ง">📋 ขั้นตอนการติดตั้ง</option>
+          <option value="ติดต่อประสาน">📞 ติดต่อประสาน</option>
+          <option value="ทั่วไป" selected>💡 ทั่วไป</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>เนื้อหา / รายละเอียด</label>
+      <textarea id="sk-content" rows="9" placeholder="เขียนเนื้อหา ขั้นตอน หรือคำอธิบาย..."
+        style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:.45rem .7rem;font-size:.85rem;font-family:inherit;resize:vertical;outline:none;line-height:1.7"></textarea>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:.3rem">
+      <button class="btn btn-ghost" onclick="closeModal('modal-sk-entry')">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="skSaveEntry()">💾 บันทึก</button>
     </div>
   </div>
 </div>
