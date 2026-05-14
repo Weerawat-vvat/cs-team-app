@@ -1324,24 +1324,43 @@ textarea{resize:vertical;min-height:80px}
 
 <!-- Add Issue Modal (Follow-up) -->
 <div class="overlay" id="modal-fu-add-issue">
-  <div class="modal" style="max-width:480px;padding:1.2rem">
+  <div class="modal" style="max-width:500px;padding:1.2rem">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
       <div style="font-size:1rem;font-weight:800">➕ เพิ่ม Issue ใหม่</div>
       <button class="modal-close" onclick="closeModal('modal-fu-add-issue')">×</button>
     </div>
+
+    <!-- Optional SP Reference -->
+    <div style="background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:.65rem .85rem;margin-bottom:.85rem">
+      <div style="font-size:.72rem;font-weight:700;color:#64748b;margin-bottom:.4rem">🔗 อ้างอิง SP Queue (ไม่บังคับ)</div>
+      <div style="display:flex;gap:.4rem;align-items:center">
+        <input id="fu-add-sp-id" type="number" placeholder="ใส่ SP ID เช่น 42"
+          style="flex:1;border:1.5px solid var(--border);border-radius:7px;padding:.35rem .6rem;font-size:.85rem;font-family:inherit;outline:none"
+          onkeydown="if(event.key==='Enter')fuFetchSpRef()"/>
+        <button onclick="fuFetchSpRef()"
+          style="white-space:nowrap;border:1.5px solid #7c3aed;background:#faf5ff;color:#7c3aed;border-radius:7px;padding:.35rem .8rem;font-size:.78rem;font-weight:700;cursor:pointer;font-family:inherit">
+          ดึงข้อมูล
+        </button>
+        <button id="fu-add-sp-clear" onclick="fuClearSpRef()" style="display:none;border:1px solid #fecaca;background:#fef2f2;color:#dc2626;border-radius:7px;padding:.35rem .6rem;font-size:.78rem;cursor:pointer;font-family:inherit">✕</button>
+      </div>
+      <div id="fu-add-sp-preview" style="display:none;margin-top:.45rem;padding:.4rem .6rem;background:#fff;border:1px solid #e9d5ff;border-radius:7px;font-size:.78rem">
+        <div style="font-weight:700;color:#1e293b" id="fu-add-sp-company"></div>
+        <div style="color:#7c3aed;font-size:.73rem" id="fu-add-sp-subject"></div>
+      </div>
+    </div>
+
     <div class="form-group">
-      <label>หัวข้อ / ชื่อปัญหา <span style="color:#ef4444">*</span></label>
+      <label>หัวข้อ <span style="color:#ef4444">*</span></label>
       <input id="fu-add-title" placeholder="ระบุหัวข้อปัญหา..."
-        onkeydown="if(event.key==='Enter')fuSubmitAddIssue()"
         style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.88rem;font-family:inherit;outline:none"/>
     </div>
     <div class="form-group">
-      <label>รายละเอียด</label>
-      <textarea id="fu-add-detail" rows="3" placeholder="อธิบายรายละเอียดเพิ่มเติม..." style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.83rem;font-family:inherit;resize:vertical;outline:none"></textarea>
+      <label>Note / รายละเอียดเพิ่มเติม</label>
+      <textarea id="fu-add-note" rows="3" placeholder="อธิบายรายละเอียดเพิ่มเติม..." style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.83rem;font-family:inherit;resize:vertical;outline:none"></textarea>
     </div>
     <div class="grid-2">
       <div class="form-group">
-        <label>Priority</label>
+        <label>ความสำคัญ</label>
         <select id="fu-add-priority" style="width:100%">
           <option value="low">🟢 Low</option>
           <option value="normal" selected>🟡 Normal</option>
@@ -8057,37 +8076,70 @@ async function fuSaveField(id, field, val) {
 
 // ── Add Issue ─────────────────────────────────────────────
 let _fuAddStatus = null; // status preset when opening add modal from board view
+let _fuAddSpRef  = null; // SP Queue ID reference
+
+function _fuResetAddModal() {
+  document.getElementById('fu-add-title').value = '';
+  document.getElementById('fu-add-note').value = '';
+  document.getElementById('fu-add-priority').value = 'normal';
+  document.getElementById('fu-add-category').value = '';
+  document.getElementById('fu-add-sp-id').value = '';
+  document.getElementById('fu-add-sp-preview').style.display = 'none';
+  document.getElementById('fu-add-sp-clear').style.display = 'none';
+  _fuAddSpRef = null;
+}
 
 function fuAddIssue() {
   if (!_fuBoardId) { showToast('❌ เลือก Board ก่อน','error'); return; }
   _fuAddStatus = null;
-  document.getElementById('fu-add-title').value = '';
-  document.getElementById('fu-add-detail').value = '';
-  document.getElementById('fu-add-priority').value = 'normal';
-  document.getElementById('fu-add-category').value = '';
+  _fuResetAddModal();
   openModal('modal-fu-add-issue');
-  setTimeout(()=>document.getElementById('fu-add-title').focus(), 100);
+  setTimeout(()=>document.getElementById('fu-add-sp-id').focus(), 100);
 }
 
 function fuAddIssueToStatus(status) {
   if (!_fuBoardId) return;
   _fuAddStatus = status;
-  document.getElementById('fu-add-title').value = '';
-  document.getElementById('fu-add-detail').value = '';
-  document.getElementById('fu-add-priority').value = 'normal';
-  document.getElementById('fu-add-category').value = '';
+  _fuResetAddModal();
   openModal('modal-fu-add-issue');
-  setTimeout(()=>document.getElementById('fu-add-title').focus(), 100);
+  setTimeout(()=>document.getElementById('fu-add-sp-id').focus(), 100);
+}
+
+async function fuFetchSpRef() {
+  const spId = parseInt(document.getElementById('fu-add-sp-id').value);
+  if (!spId) return showToast('ใส่ SP ID ก่อน','warn');
+  const list = await api(`/api/specialist?dateFrom=2020-01-01`);
+  const sp = (list||[]).find(s => s.id === spId);
+  if (!sp) return showToast(`ไม่พบ SP #${spId}`,'warn');
+  // Fill form from SP data
+  const title = [sp.company_name, sp.subject].filter(Boolean).join(' — ');
+  const note  = [sp.calllog_description || sp.description, sp.calllog_solution || sp.solution].filter(Boolean).join('\n\n---\n');
+  document.getElementById('fu-add-title').value    = title;
+  document.getElementById('fu-add-note').value     = note;
+  document.getElementById('fu-add-sp-company').textContent = sp.company_name || '—';
+  document.getElementById('fu-add-sp-subject').textContent = sp.subject || '—';
+  document.getElementById('fu-add-sp-preview').style.display = '';
+  document.getElementById('fu-add-sp-clear').style.display   = '';
+  _fuAddSpRef = spId;
+  showToast(`ดึงข้อมูล SP #${spId} สำเร็จ`,'success');
+}
+
+function fuClearSpRef() {
+  _fuAddSpRef = null;
+  document.getElementById('fu-add-sp-id').value = '';
+  document.getElementById('fu-add-sp-preview').style.display = 'none';
+  document.getElementById('fu-add-sp-clear').style.display   = 'none';
 }
 
 async function fuSubmitAddIssue() {
   const title    = document.getElementById('fu-add-title').value.trim();
-  const detail   = document.getElementById('fu-add-detail').value.trim();
+  const note     = document.getElementById('fu-add-note').value.trim();
   const priority = document.getElementById('fu-add-priority').value;
   const category = document.getElementById('fu-add-category').value.trim();
   if (!title) { showToast('กรุณาใส่หัวข้อ','warn'); return; }
-  const body = { board_id: _fuBoardId, detail: title, note: detail || null, priority, category: category || null };
+  const body = { board_id: _fuBoardId, detail: title, note: note||null, priority, category: category||null };
   if (_fuAddStatus) body.status = _fuAddStatus;
+  if (_fuAddSpRef)  body.sp_ref = _fuAddSpRef;
   const r = await api('/api/fu/issues', { method:'POST', body, silent:true });
   if (r?.error) { showToast('❌ '+r.error,'error'); return; }
   closeModal('modal-fu-add-issue');
