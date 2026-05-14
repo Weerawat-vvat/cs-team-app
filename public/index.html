@@ -4060,12 +4060,13 @@ function renderShiftTable(shifts, ws) {
       prevTeam = emp.team;
     }
     const isLead  = !['staff'].includes(emp.role);
-    const escN    = (emp.name||'').replace(/'/g,"\\'");
+    const dispN   = emp.nickname || emp.name;
+    const escN    = dispN.replace(/'/g,"\\'");
     const wc      = workCount[emp.id];
     const wcColor = wc > 5 ? '#ef4444' : wc === 5 ? '#16a34a' : '#64748b';
     const wcTitle = wc > 5 ? `⚠️ เกิน! ${wc} วัน (สูงสุด 5)` : `ทำงาน ${wc}/5 วันสัปดาห์นี้`;
     rows += `<tr><td style="white-space:nowrap;font-size:.84rem">
-      ${emp.name}${isLead?` <span style="font-size:.68rem;color:var(--muted)">(หน.)</span>`:''}
+      ${dispN}${isLead?` <span style="font-size:.68rem;color:var(--muted)">(หน.)</span>`:''}
       <span title="${wcTitle}" style="font-size:.68rem;font-weight:700;color:${wcColor};margin-left:.3rem;cursor:default">${wc}/5</span>
     </td>`;
     days.forEach(d => {
@@ -9888,7 +9889,7 @@ async function aiSuggestShifts() {
       const emp = allEmployees.find(e => e.id == eid);
       if (!emp) return;
       html += `<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:.35rem .65rem;font-size:.78rem">
-        <b>${emp.name}</b>: ${shifts.map(s => `${s.shift_date.slice(5)} ${shiftLabel(s.shift_type)}`).join(', ')}
+        <b>${emp.nickname || emp.name}</b>: ${shifts.map(s => `${s.shift_date.slice(5)} ${shiftLabel(s.shift_type)}`).join(', ')}
       </div>`;
     });
     html += '</div>';
@@ -9948,7 +9949,7 @@ function renderTodaySummary(shifts) {
     const key = s.shift_type || 'unknown';
     if (!groups[key]) groups[key] = [];
     const emp = allEmployees.find(e => e.id == s.employee_id);
-    groups[key].push(emp?.name || `#${s.employee_id}`);
+    groups[key].push(emp ? (emp.nickname || emp.name) : `#${s.employee_id}`);
   });
 
   const cards = shiftOrder
@@ -10108,7 +10109,8 @@ function renderMonthTable(shifts, year, month) {
       rows += `<tr><td colspan="${lastDay + 1}" style="background:${color}22;color:${color};font-weight:700;font-size:.75rem;padding:.3rem .6rem;position:sticky;left:0">${teamLabel(emp.team)}</td></tr>`;
       prevTeam = emp.team;
     }
-    rows += `<tr><td style="white-space:nowrap;font-size:.8rem;padding:.28rem .5rem;position:sticky;left:0;background:#fff;z-index:1;border-right:2px solid #e2e8f0">${emp.name}</td>`;
+    const mDispN = emp.nickname || emp.name;
+    rows += `<tr><td style="white-space:nowrap;font-size:.8rem;padding:.28rem .5rem;position:sticky;left:0;background:#fff;z-index:1;border-right:2px solid #e2e8f0">${mDispN}</td>`;
     days.forEach(({ iso, dow }) => {
       const s = shiftMap[emp.id]?.[iso];
       const isWeekend = dow === 0 || dow === 6;
@@ -10120,7 +10122,7 @@ function renderMonthTable(shifts, year, month) {
         const lbl = shiftLabel(s.shift_type);
         if (canEdit) {
           rows += `<td style="padding:.15rem .1rem;background:${cellBg};cursor:pointer"
-            onmousedown="shiftCellDown(${emp.id},'${esc(emp.name)}','${iso}',${shiftId},this,event)"
+            onmousedown="shiftCellDown(${emp.id},'${esc(mDispN)}','${iso}',${shiftId},this,event)"
             onmouseover="shiftCellOver(${emp.id},'${iso}',${shiftId},this)"
             ondragstart="return false">
             <div style="background:${bg};color:${col};border-radius:4px;padding:.12rem .2rem;font-weight:700;font-size:.68rem;text-align:center">${lbl}</div>
@@ -10131,7 +10133,7 @@ function renderMonthTable(shifts, year, month) {
       } else {
         if (canEdit) {
           rows += `<td style="padding:.15rem .1rem;background:${cellBg};text-align:center;color:#d1d5db;cursor:pointer;font-size:.82rem"
-            onmousedown="shiftCellDown(${emp.id},'${esc(emp.name)}','${iso}',null,this,event)"
+            onmousedown="shiftCellDown(${emp.id},'${esc(mDispN)}','${iso}',null,this,event)"
             onmouseover="shiftCellOver(${emp.id},'${iso}',null,this)"
             ondragstart="return false">·</td>`;
         } else {
