@@ -2512,9 +2512,11 @@ textarea{resize:vertical;min-height:80px}
     <div class="form-group">
       <label>กะ</label>
       <select id="s-type">
-        <option value="morning">🌅 เช้า (08:30–16:30)</option>
-        <option value="afternoon">🌤 บ่าย (15:30–23:59)</option>
-        <option value="night">🌙 ดึก (16:00–23:59)</option>
+        <option value="morning">🌅 เช้า (08:00–17:00)</option>
+        <option value="morning2">🌄 เช้า 2 (08:30–17:30)</option>
+        <option value="midday">🌤 กลางวัน (10:00–19:00)</option>
+        <option value="afternoon">🌇 บ่าย (12:00–21:00)</option>
+        <option value="night">🌙 ดึก (15:00–00:00)</option>
       </select>
     </div>
     <div class="form-group">
@@ -2969,6 +2971,7 @@ function teamBadgeHtml(t) {
 }
 const SHIFT_META = {
   morning:        { label:'เช้า',      time:'08:00–17:00', bg:'#dcfce7', col:'#166534' },
+  morning2:       { label:'เช้า 2',    time:'08:30–17:30', bg:'#bbf7d0', col:'#14532d' },
   afternoon:      { label:'บ่าย',      time:'12:00–21:00', bg:'#ffedd5', col:'#c2410c' },
   midday:         { label:'กลางวัน',   time:'10:00–19:00', bg:'#dbeafe', col:'#1e40af' },
   mid:            { label:'กลางวัน',   time:'10:00–19:00', bg:'#dbeafe', col:'#1e40af' },
@@ -3166,7 +3169,7 @@ async function dashRefreshOnShift() {
     if (d.nameMap) Object.assign(nameMap, d.nameMap);
     // Re-render only the OnShift section
     const ONSHIFT_TEAMS = ['helpdesk', 'specialist', 'war_room'];
-    const SHIFT_ORDER   = ['morning', 'midday', 'mid', 'afternoon', 'night'];
+    const SHIFT_ORDER   = ['morning', 'morning2', 'midday', 'mid', 'afternoon', 'night'];
     const _teamCol = {};
     allTeams.forEach(tm => { _teamCol[tm.name] = tm.color || '#475569'; });
     const _onShiftFiltered = (d.onShift || []).filter(e => ONSHIFT_TEAMS.includes(e.team));
@@ -3252,7 +3255,7 @@ async function loadDashboard() {
 
   // ── On Shift ─────────────────────────────────────────────
   const ONSHIFT_TEAMS = ['helpdesk', 'specialist', 'war_room'];
-  const SHIFT_ORDER   = ['morning', 'midday', 'mid', 'afternoon', 'night'];
+  const SHIFT_ORDER   = ['morning', 'morning2', 'midday', 'mid', 'afternoon', 'night'];
 
   // Build team color lookup
   const _teamCol = {};
@@ -10205,6 +10208,7 @@ function _shiftDragEnd(event) {
   // Render shift type buttons from SHIFT_META
   const shiftOptions = [
     { key:'morning',       label:'เช้า',     time:'08:00–17:00' },
+    { key:'morning2',      label:'เช้า 2',   time:'08:30–17:30' },
     { key:'midday',        label:'กลางวัน',  time:'10:00–19:00' },
     { key:'afternoon',     label:'บ่าย',     time:'12:00–21:00' },
     { key:'night',         label:'ดึก',      time:'15:00–00:00' },

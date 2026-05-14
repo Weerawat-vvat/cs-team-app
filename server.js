@@ -1451,6 +1451,7 @@ app.get('/api/dashboard', authRequired, async (_, res) => {
     const timeVal = hour * 60 + minute;
     const currentShifts = [];
     if (timeVal >= 8*60+30 && timeVal <= 17*60+30)  currentShifts.push('morning');
+    if (timeVal >= 8*60+30 && timeVal <= 17*60+30)  currentShifts.push('morning2');
     if (timeVal >= 10*60   && timeVal <= 19*60)      currentShifts.push('mid');
     if (timeVal >= 10*60   && timeVal <= 19*60)      currentShifts.push('midday');
     if (timeVal >= 12*60   && timeVal <= 21*60+30)   currentShifts.push('afternoon');
@@ -1575,6 +1576,7 @@ async function getDashboardContext() {
   const timeVal = hour * 60 + minute;
   const currentShifts = [];
   if (timeVal >= 8*60+30 && timeVal <= 17*60+30)  currentShifts.push('morning');
+  if (timeVal >= 8*60+30 && timeVal <= 17*60+30)  currentShifts.push('morning2');
   if (timeVal >= 10*60   && timeVal <= 19*60)      currentShifts.push('mid');
   if (timeVal >= 10*60   && timeVal <= 19*60)      currentShifts.push('midday');
   if (timeVal >= 12*60   && timeVal <= 21*60+30)   currentShifts.push('afternoon');
@@ -3359,9 +3361,12 @@ app.get('/api/ai-analysis', authRequired, async (_, res) => {
     const hour    = now.getHours(), minute = now.getMinutes();
     const timeVal = hour * 60 + minute;
     const curShifts = [];
-    if (timeVal >= 8*60+30  && timeVal <= 16*60+30) curShifts.push('morning');
-    if (timeVal >= 15*60+30 && timeVal <= 23*60+30) curShifts.push('afternoon');
-    if (timeVal >= 16*60   || timeVal <= 0)          curShifts.push('night');
+    if (timeVal >= 8*60+30  && timeVal <= 17*60+30) curShifts.push('morning');
+    if (timeVal >= 8*60+30  && timeVal <= 17*60+30) curShifts.push('morning2');
+    if (timeVal >= 10*60    && timeVal <= 19*60)     curShifts.push('mid');
+    if (timeVal >= 10*60    && timeVal <= 19*60)     curShifts.push('midday');
+    if (timeVal >= 12*60    && timeVal <= 21*60+30)  curShifts.push('afternoon');
+    if (timeVal >= 15*60   || timeVal <= 1*60)       curShifts.push('night');
     if (!curShifts.length) curShifts.push('morning');
 
     const shiftIn  = curShifts.map((_,i) => `@st${i}`).join(',');
