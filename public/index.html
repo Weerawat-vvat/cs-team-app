@@ -7867,6 +7867,21 @@ let _fuExpanded   = new Set();
 let _fuGroupBy    = ''; // '' | 'category' | 'assigned_to_name' | 'priority' | 'status'
 
 // ── Tab switching ─────────────────────────────────────────
+async function fuJumpToBoard(boardId, boardName, folderId, status) {
+  // 1. Switch to Tab 1
+  fuSwitchTab(1);
+  // 2. Expand folder + select board
+  _fuExpanded.add(folderId);
+  if (!_fuBoards[folderId]) {
+    _fuBoards[folderId] = await api(`/api/fu/folders/${folderId}/boards`) || [];
+  }
+  await fuSelectBoard(boardId, boardName, folderId);
+  // 3. Apply status filter
+  const sel = document.getElementById('fu-status-filter');
+  if (sel) { sel.value = status || ''; }
+  fuRender();
+}
+
 function fuSwitchTab(n) {
   const tab1 = document.getElementById('fu-tab-1');
   const tab2 = document.getElementById('fu-tab-2');
@@ -7917,10 +7932,34 @@ async function fuLoadOverview() {
     html += `<tr style="background:#f8fafc"><td colspan="${statusKeys.length+2}" style="padding:.35rem .8rem;font-weight:700;color:#1e3a5f;font-size:.77rem">📁 ${folder.name}</td></tr>`;
     Object.values(folder.boards).forEach(board => {
       const total = statusKeys.reduce((s,k) => s + (board.counts[k]||0), 0);
+      const bname = board.name.replace(/'/g,"\\'");
       html += `<tr style="border-top:1px solid #f1f5f9">
-        <td style="padding:.35rem .8rem 0.35rem 1.4rem;color:#334155">${board.name}</td>
-        ${statusKeys.map(s => `<td style="padding:.35rem .6rem;text-align:center;color:${(FU_STATUS[s]||{color:'#94a3b8'}).color}">${board.counts[s]||''}</td>`).join('')}
-        <td style="padding:.35rem .6rem;text-align:center;font-weight:700;color:#334155">${total||''}</td>
+        <td style="padding:.35rem .8rem 0.35rem 1.4rem;color:#334155;cursor:pointer;font-weight:600"
+            onclick="fuJumpToBoard(${board.id},'${bname}',${folder.id},'')"
+            onmouseover="this.style.color='#1d4ed8'" onmouseout="this.style.color='#334155'"
+            title="ดูงานทั้งหมดใน ${board.name}">
+          ${board.name}
+        </td>
+        ${statusKeys.map(s => {
+          const cnt = board.counts[s] || 0;
+          const col = (FU_STATUS[s]||{color:'#94a3b8'}).color;
+          return cnt
+            ? `<td style="padding:.35rem .6rem;text-align:center">
+                <span onclick="fuJumpToBoard(${board.id},'${bname}',${folder.id},'${s}')"
+                  style="display:inline-block;min-width:24px;font-weight:700;color:${col};cursor:pointer;border-radius:6px;padding:.1rem .35rem;transition:background .15s"
+                  onmouseover="this.style.background='${col}18'" onmouseout="this.style.background=''"
+                  title="ดูงานสถานะ ${(FU_STATUS[s]||{label:s}).label} ใน ${board.name}">
+                  ${cnt}
+                </span>
+               </td>`
+            : `<td style="padding:.35rem .6rem;text-align:center;color:#e2e8f0">—</td>`;
+        }).join('')}
+        <td style="padding:.35rem .6rem;text-align:center;font-weight:700;color:#334155;cursor:pointer"
+            onclick="fuJumpToBoard(${board.id},'${bname}',${folder.id},'')"
+            onmouseover="this.style.color='#1d4ed8'" onmouseout="this.style.color='#334155'"
+            title="ดูงานทั้งหมดใน ${board.name}">
+          ${total||'—'}
+        </td>
       </tr>`;
     });
   });
