@@ -7870,14 +7870,17 @@ let _fuGroupBy    = ''; // '' | 'category' | 'assigned_to_name' | 'priority' | '
 async function fuJumpToBoard(boardId, boardName, folderId, status) {
   // 1. Switch to Tab 1
   fuSwitchTab(1);
-  // 2. Set filter BEFORE loading so fuRender() inside fuSelectBoard uses it immediately
+  // 2. Set filter BEFORE loading so fuRender() picks it up immediately
   const sel = document.getElementById('fu-status-filter');
   if (sel) sel.value = status || '';
-  // 3. Expand folder + select board (fuRender inside will pick up the filter above)
+  // 3. Ensure sidebar data is loaded
+  if (!_fuFolders.length) await fuLoadSidebar();
+  // 4. Expand the target folder
   _fuExpanded.add(folderId);
   if (!_fuBoards[folderId]) {
     _fuBoards[folderId] = await api(`/api/fu/folders/${folderId}/boards`) || [];
   }
+  // 5. Select board — will render sidebar + scroll active item into view
   await fuSelectBoard(boardId, boardName, folderId);
 }
 
@@ -8148,12 +8151,29 @@ async function fuSelectBoard(bid, name, fid) {
   _fuSearchQ   = '';
   const sq = document.getElementById('fu-search'); if (sq) sq.value = '';
   if (!_fuBoards[fid]) _fuBoards[fid] = await api(`/api/fu/folders/${fid}/boards`) || [];
-  document.getElementById('fu-board-title').textContent = '📋 ' + name;
+
+  // Breadcrumb: Folder > Board
+  const folder   = _fuFolders.find(f => f.id === fid);
+  const titleEl  = document.getElementById('fu-board-title');
+  if (titleEl) {
+    titleEl.innerHTML = folder
+      ? `<span style="color:#94a3b8;font-weight:500">${esc(folder.name)}</span>
+         <span style="color:#cbd5e1;margin:0 .35rem">/</span>
+         <span>📋 ${esc(name)}</span>`
+      : `📋 ${esc(name)}`;
+  }
+
   document.getElementById('fu-board-actions').style.display = 'flex';
   fuClosePanel();
-  fuSetView(_fuView); // keep saved view preference
+  fuSetView(_fuView);
   await fuLoadIssues();
   fuRenderSidebar();
+
+  // Scroll sidebar to show active board
+  requestAnimationFrame(() => {
+    const activeItem = document.getElementById(`fu-board-item-${bid}`);
+    if (activeItem) activeItem.scrollIntoView({ block:'nearest', behavior:'smooth' });
+  });
 }
 
 // ── Folder/Board CRUD ─────────────────────────────────────
