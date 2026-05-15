@@ -65,6 +65,28 @@ const fuUpload = multer({
   }
 });
 
+// ── Knowledge image upload config ────────────────────────
+const skStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(UPLOAD_DIR, 'knowledge', String(req.params.id || 'tmp'));
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const ext  = path.extname(file.originalname).toLowerCase() || '.png';
+    const base = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9ก-๙._-]/g,'_').substring(0,60);
+    cb(null, `${Date.now()}_${base}${ext}`);
+  }
+});
+const skUpload = multer({
+  storage: skStorage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  fileFilter: (req, file, cb) => {
+    const allowed = /jpeg|jpg|png|gif|webp/;
+    cb(null, allowed.test(path.extname(file.originalname).toLowerCase() || '.png'));
+  }
+});
+
 // ── Notification helpers ──────────────────────────────────
 async function sendLineNotify(message) {
   const token = process.env.LINE_NOTIFY_TOKEN;
@@ -5071,6 +5093,18 @@ async function ensureShopKnowledgeTable() {
         created_at  DATETIME DEFAULT GETDATE(),
         updated_at  DATETIME DEFAULT GETDATE()
       )`);
+    // Images table for knowledge articles
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='shop_knowledge_images' AND xtype='U')
+      CREATE TABLE shop_knowledge_images (
+        id           INT IDENTITY PRIMARY KEY,
+        knowledge_id INT NOT NULL,
+        filename     NVARCHAR(255) NOT NULL,
+        original_name NVARCHAR(255) NULL,
+        caption      NVARCHAR(500) NULL,
+        sort_order   INT DEFAULT 0,
+        created_at   DATETIME DEFAULT GETDATE()
+      )`);
     console.log('✅ shop_knowledge table ready');
   } catch(e) { console.error('❌ shop_knowledge table error:', e.message); }
 }
@@ -5654,6 +5688,49 @@ app.delete('/api/shopinfo/knowledge/:id', authRequired, async (request, res) => 
   try {
     await req().input('id', sql.Int, parseInt(request.params.id))
       .query('DELETE FROM shop_knowledge WHERE id=@id');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/shopinfo/knowledge/:id/images
+app.get('/api/shopinfo/knowledge/:id/images', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const result = await req().input('id', sql.Int, id)
+      .query('SELECT * FROM shop_knowledge_images WHERE knowledge_id=@id ORDER BY sort_order, created_at');
+    res.json(result.recordset);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/shopinfo/knowledge/:id/images  (multipart upload)
+app.post('/api/shopinfo/knowledge/:id/images', authRequired, skUpload.array('images', 20), async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const caption = request.body.caption || null;
+    for (const file of (request.files || [])) {
+      await req()
+        .input('kid', sql.Int, id)
+        .input('fn',  sql.NVarChar, file.filename)
+        .input('on',  sql.NVarChar, file.originalname)
+        .input('cap', sql.NVarChar, caption)
+        .query('INSERT INTO shop_knowledge_images(knowledge_id,filename,original_name,caption) VALUES(@kid,@fn,@on,@cap)');
+    }
+    res.json({ ok: true, count: (request.files || []).length });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE /api/shopinfo/knowledge/images/:imgId
+app.delete('/api/shopinfo/knowledge/images/:imgId', authRequired, async (request, res) => {
+  try {
+    const imgId = parseInt(request.params.imgId);
+    const row = await req().input('id', sql.Int, imgId)
+      .query('SELECT * FROM shop_knowledge_images WHERE id=@id');
+    if (row.recordset[0]) {
+      const r = row.recordset[0];
+      const filePath = path.join(UPLOAD_DIR, 'knowledge', String(r.knowledge_id), r.filename);
+      try { fs.unlinkSync(filePath); } catch {}
+      await req().input('id', sql.Int, imgId).query('DELETE FROM shop_knowledge_images WHERE id=@id');
+    }
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

@@ -11642,8 +11642,20 @@ function skArticleCard(a) {
         <span style="color:#94a3b8;font-size:.75rem">${isOpen?'▲':'▼'}</span>
       </div>
     </div>
-    <div id="${key}" style="${isOpen?'':'display:none'};padding:.1rem 1.2rem .75rem 1.2rem">
+    <div id="${key}" style="${isOpen?'':'display:none'};padding:.1rem 1.2rem .85rem 1.2rem">
       <pre style="white-space:pre-wrap;word-break:break-word;font-family:inherit;font-size:.82rem;color:#334155;line-height:1.75;margin:0;background:#f8fafc;border-radius:7px;padding:.65rem .9rem;border:1px solid #f1f5f9">${escHtml(a.content||'(ยังไม่มีเนื้อหา)')}</pre>
+      <!-- image gallery -->
+      <div id="${key}-imgs" style="margin-top:.55rem"></div>
+      <!-- upload zone -->
+      <div onclick="skPickImage(${a.id})"
+           ondragover="event.preventDefault();this.style.borderColor='#2563eb'"
+           ondragleave="this.style.borderColor='#e2e8f0'"
+           ondrop="skDropImages(event,${a.id});this.style.borderColor='#e2e8f0'"
+           style="margin-top:.45rem;border:1.5px dashed #e2e8f0;border-radius:7px;padding:.45rem .7rem;display:flex;align-items:center;gap:.4rem;cursor:pointer;font-size:.75rem;color:#94a3b8;transition:border-color .15s"
+           onmouseenter="this.style.borderColor='#94a3b8'" onmouseleave="this.style.borderColor='#e2e8f0'">
+        📸 <span>คลิกหรือลากมาวาง หรือ <kbd style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:3px;padding:.05rem .3rem;font-size:.7rem">Ctrl+V</kbd> วางรูปจาก Snip ได้เลย</span>
+      </div>
+      <input type="file" id="${key}-file" accept="image/*" multiple style="display:none" onchange="skUploadImages(${a.id},this.files)">
     </div>
   </div>`;
 }
@@ -11667,7 +11679,8 @@ function skToggleArticle(id) {
   if (!el) return;
   const isOpen = el.style.display !== 'none';
   el.style.display = isOpen ? 'none' : '';
-  if (isOpen) _skExpanded.delete(key); else _skExpanded.add(key);
+  if (isOpen) { _skExpanded.delete(key); }
+  else        { _skExpanded.add(key); skLoadImages(id); }
   // flip arrow in parent row (last span)
   const row = el.previousElementSibling;
   if (row) { const spans = row.querySelectorAll('span'); const last = spans[spans.length-1]; if(last) last.textContent = isOpen?'▼':'▲'; }
@@ -11730,6 +11743,101 @@ async function skDelete(id) {
   showToast('🗑 ลบบทความแล้ว');
   await skLoad();
 }
+
+// ── Knowledge image helpers ───────────────────────────────
+async function skLoadImages(id) {
+  const key = 'sk-art-' + id;
+  const el  = document.getElementById(key + '-imgs');
+  if (!el) return;
+  el.innerHTML = '<span style="font-size:.72rem;color:#cbd5e1">กำลังโหลดรูป…</span>';
+  const imgs = await api(`/api/shopinfo/knowledge/${id}/images`);
+  skRenderImages(id, imgs || []);
+}
+
+function skRenderImages(id, imgs) {
+  const key = 'sk-art-' + id;
+  const el  = document.getElementById(key + '-imgs');
+  if (!el) return;
+  if (!imgs.length) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:.5rem;padding-top:.35rem">
+    ${imgs.map(img => `
+      <div style="position:relative;display:inline-flex;flex-direction:column;align-items:center">
+        <img src="/uploads/knowledge/${id}/${img.filename}"
+             alt="${escHtml(img.original_name||img.filename)}"
+             onclick="skViewImage('/uploads/knowledge/${id}/${img.filename}')"
+             style="max-width:220px;max-height:160px;border-radius:7px;border:1px solid #e2e8f0;cursor:zoom-in;object-fit:cover">
+        ${img.caption ? `<div style="font-size:.65rem;color:#64748b;text-align:center;margin-top:.2rem;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(img.caption)}</div>` : ''}
+        <button onclick="skDeleteImage(${img.id},${id})" title="ลบรูป"
+          style="position:absolute;top:4px;right:4px;background:rgba(15,23,42,.6);border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;color:#fff;font-size:.7rem;display:flex;align-items:center;justify-content:center">✕</button>
+      </div>`).join('')}
+  </div>`;
+}
+
+async function skUploadImages(id, files) {
+  if (!files || !files.length) return;
+  const fd = new FormData();
+  for (const f of files) fd.append('images', f);
+  try {
+    showToast('📤 กำลังอัพโหลด…');
+    const resp = await fetch(`/api/shopinfo/knowledge/${id}/images`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + authToken },
+      body: fd
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    await skLoadImages(id);
+    showToast('✅ อัพโหลดสำเร็จ');
+  } catch(e) { showToast('❌ อัพโหลดไม่สำเร็จ: '+e.message, 'error'); }
+  // reset file input so same file can be re-selected
+  const inp = document.getElementById('sk-art-'+id+'-file');
+  if (inp) inp.value = '';
+}
+
+function skPickImage(id) {
+  const inp = document.getElementById('sk-art-'+id+'-file');
+  if (inp) inp.click();
+}
+
+function skDropImages(e, id) {
+  e.preventDefault();
+  const files = e.dataTransfer.files;
+  if (files.length) skUploadImages(id, files);
+}
+
+async function skDeleteImage(imgId, knowledgeId) {
+  if (!confirm('ลบรูปนี้?')) return;
+  await api(`/api/shopinfo/knowledge/images/${imgId}`, { method: 'DELETE', silent: true });
+  await skLoadImages(knowledgeId);
+}
+
+function skViewImage(url) {
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;align-items:center;justify-content:center;cursor:zoom-out';
+  ov.innerHTML = `<img src="${url}" style="max-width:92vw;max-height:92vh;border-radius:8px;object-fit:contain;box-shadow:0 8px 40px rgba(0,0,0,.5)">`;
+  ov.onclick = () => ov.remove();
+  // also close on Escape
+  const onKey = e => { if (e.key==='Escape') { ov.remove(); document.removeEventListener('keydown',onKey); } };
+  document.addEventListener('keydown', onKey);
+  document.body.appendChild(ov);
+}
+
+// Global paste → upload to expanded knowledge article
+document.addEventListener('paste', function(e) {
+  // Only active when shop knowledge tab visible
+  const siPanel = document.getElementById('si-panel-knowledge');
+  if (!siPanel || siPanel.style.display === 'none') return;
+  const expanded = [..._skExpanded].filter(k => k.startsWith('sk-art-'));
+  if (!expanded.length) return;
+  const items = Array.from(e.clipboardData?.items || []);
+  const imageFiles = items
+    .filter(it => it.type.startsWith('image/'))
+    .map(it => it.getAsFile())
+    .filter(Boolean);
+  if (!imageFiles.length) return;
+  // Upload to the most-recently-toggled expanded article (last in set)
+  const id = parseInt(expanded[expanded.length-1].replace('sk-art-',''));
+  skUploadImages(id, imageFiles);
+});
 
 function siSwitchTab(tab) {
   const remote    = document.getElementById('si-panel-remote');
