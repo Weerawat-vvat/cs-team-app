@@ -1229,7 +1229,7 @@ function renderIssueTable(){
       <td colspan="8">📋 ${esc(key)} <span style="background:#e2e8f0;color:#64748b;border-radius:20px;padding:.02rem .45rem;font-size:.68rem;font-weight:700;margin-left:.3rem">${items.length}</span></td>
     </tr>`;
     items.forEach(s => {
-      const due = s.due_date ? new Date(s.due_date) : null;
+      const due = parseD(s.due_date);
       const overdue = due && due < today && !['resolved','cancelled'].includes(s.status);
       const st  = FU_STATUS_MAP[s.status] || {label:s.status,bg:'#f1f5f9',col:'#475569'};
       const pri = FU_PRI_MAP[s.priority]  || FU_PRI_MAP.normal;
@@ -1288,7 +1288,7 @@ function exportIssuesExcel(){
       'รายละเอียด':      s.note||'',
       'สถานะ':           STAT_LABEL[s.status]||s.status||'',
       'ผู้รับผิดชอบ':    s.assigned_to_name||'',
-      'กำหนด':           s.due_date ? new Date(s.due_date).toLocaleDateString('th-TH') : '',
+      'กำหนด':           s.due_date ? parseD(s.due_date).toLocaleDateString('th-TH') : '',
       'วันที่สร้าง':     fmtDateStr(s.created_at),
       'อัปเดตล่าสุด':    fmtDateStr(s.updated_at),
     }));

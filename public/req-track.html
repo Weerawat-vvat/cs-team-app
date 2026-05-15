@@ -71,6 +71,7 @@ function fmtDate(s){
   return d.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'});
 }
 function isClosed(s){ return s==='เสร็จสิ้น'||s==='ยกเลิก'; }
+function parseD(s){ return s ? new Date(String(s).replace('Z','')) : null; }
 
 const PRIORITY_STYLE = {
   critical:'background:#fee2e2;color:#b91c1c',
@@ -132,7 +133,7 @@ function render(){
   const today = new Date(); today.setHours(0,0,0,0);
   const inProg  = _data.filter(r=>['กำลังดำเนินการ','วิเคราะห์','ทดสอบ','รอส่งมอบ'].includes(r.status)).length;
   const done    = _data.filter(r=>r.status==='เสร็จสิ้น').length;
-  const overdue = _data.filter(r=>r.due_date&&!isClosed(r.status)&&new Date(r.due_date)<today).length;
+  const overdue = _data.filter(r=>r.due_date&&!isClosed(r.status)&&parseD(r.due_date)<today).length;
 
   root.innerHTML = `
     <!-- Stat cards -->
@@ -164,7 +165,7 @@ function render(){
     <!-- Requirement cards -->
     <div id="req-list">
       ${list.length ? list.map((r,i) => {
-        const due = r.due_date ? new Date(r.due_date) : null;
+        const due = parseD(r.due_date);
         const isOvd = due && !isClosed(r.status) && due < today;
         return `<div class="req-card">
           <div class="req-header" onclick="toggleCard(${i})">

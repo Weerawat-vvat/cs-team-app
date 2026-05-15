@@ -3275,7 +3275,7 @@ async function loadDashboard() {
 
   // Server time
   document.getElementById('dash-time').textContent =
-    'อัปเดต: ' + new Date(d.serverTime).toLocaleTimeString('th-TH');
+    'อัปเดต: ' + parseDbDate(d.serverTime).toLocaleTimeString('th-TH');
 
   // Partial stat cards (today + overdue) — charts API will fill month total
   const overdueCnt = (d.overdueTickets || []).length;
@@ -5820,7 +5820,7 @@ function rpRenderKanban() {
 function rpKanbanCard(j, col) {
   const _needsAction = new Set((_repairUnread||[]).map(r=>r.repair_id));
   const hasMsg  = _needsAction.has(j.id);
-  const dayAgo  = j.reported_at ? Math.floor((Date.now()-new Date(j.reported_at))/86400000) : null;
+  const dayAgo  = j.reported_at ? Math.floor((Date.now()-parseDbDate(j.reported_at))/86400000) : null;
   const dateTxt = dayAgo === 0 ? 'วันนี้' : dayAgo === 1 ? 'เมื่อวาน' : dayAgo != null ? `${dayAgo} วันที่แล้ว` : '';
   const notPaid = j.finance_status && !['paid','free','cancelled'].includes(j.finance_status);
   return `
@@ -8675,7 +8675,7 @@ async function fuLoadIssues() {
 function fuIssueRow(issue, today) {
   const st  = FU_STATUS[issue.status]  || FU_STATUS.pending;
   const pri = FU_PRIORITY[issue.priority] || FU_PRIORITY.normal;
-  const due = issue.due_date ? new Date(issue.due_date) : null;
+  const due = issue.due_date ? parseDbDate(issue.due_date) : null;
   const overdue = due && due < today && !['resolved','cancelled'].includes(issue.status);
   return `<tr data-id="${issue.id}" style="border-bottom:1px solid #f1f5f9;cursor:pointer${_fuPanelId===issue.id?';background:#eff6ff':''}"
     onmouseover="if(${_fuPanelId}!==${issue.id})this.style.background='#f8fafc'" onmouseout="if(${_fuPanelId}!==${issue.id})this.style.background=''">
