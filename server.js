@@ -4346,10 +4346,14 @@ app.get('/api/fu/by-assignee', authRequired, async (request, res) => {
   try {
     const result = await req().query(`
       SELECT
-        i.id, i.detail, i.note, i.status, i.priority, i.category, i.due_date,
-        i.assigned_to,
-        ISNULL(e.nickname, e.name) AS assignee_name,
+        i.id, i.detail, i.note, i.branch, i.status, i.priority, i.category,
+        i.due_date, i.issue_url, i.assigned_to, i.created_by,
+        ISNULL(e.nickname, e.name)  AS assignee_name,
+        ISNULL(e.nickname, e.name)  AS assigned_to_name,
         DATEDIFF(day, i.updated_at, GETDATE()) AS days_stale,
+        (SELECT COUNT(*) FROM fu_comments c WHERE c.issue_id=i.id) AS comment_count,
+        (SELECT TOP 1 c.created_at FROM fu_comments c WHERE c.issue_id=i.id ORDER BY c.created_at DESC) AS last_comment_at,
+        (SELECT TOP 1 c.body       FROM fu_comments c WHERE c.issue_id=i.id ORDER BY c.created_at DESC) AS last_comment_body,
         b.id AS board_id,  b.name AS board_name,
         f.id AS folder_id, f.name AS folder_name
       FROM fu_issues i

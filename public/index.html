@@ -8193,10 +8193,10 @@ async function fuLoadByAssignee() {
   body.innerHTML = html;
 }
 
-// ── Issue Quick-Edit Dialog (Tab 3) ──────────────────────
 // ── Panel Modal Mode (Tab 3) ──────────────────────────────
-let _fuPanelModal   = false;  // true = panel is floating as modal (Tab 3)
-let _fuByAssigneeMap = {};    // issueId → issue object
+let _fuPanelModal    = false;  // true = panel is floating as modal (Tab 3)
+let _fuByAssigneeMap = {};     // issueId → issue object
+let _fuIssuesSaved   = null;   // saved _fuIssues before modal overwrite
 
 function fuOpenIssueDialogById(id) {
   const issue = _fuByAssigneeMap[id];
@@ -8207,7 +8207,10 @@ function fuOpenIssueDialogById(id) {
 async function fuOpenPanelModal(issue) {
   _fuPanelModal = true;
 
-  // Temporarily inject issue into _fuIssues so fuRenderPanel() can find it
+  // Save Tab 1 issues so we can restore them when closing
+  _fuIssuesSaved = _fuIssues;
+
+  // Inject issue into _fuIssues so fuRenderPanel() can find it
   if (!_fuIssues.find(i => i.id === issue.id)) _fuIssues = [issue];
   _fuPanelId = issue.id;
 
@@ -8248,7 +8251,14 @@ function fuClosePanelModal() {
 
   document.getElementById('fu-panel-backdrop').style.display = 'none';
   _fuPanelId = null;
-  _fuIssues  = [];
+
+  // Restore Tab 1's issue list (was saved before modal opened)
+  if (_fuIssuesSaved !== null) {
+    _fuIssues      = _fuIssuesSaved;
+    _fuIssuesSaved = null;
+  } else {
+    _fuIssues = [];
+  }
 
   fuLoadByAssignee(); // refresh Tab 3
 }
