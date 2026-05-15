@@ -3785,7 +3785,7 @@ app.get('/api/public/track/:token/fu-issues', async (request, res) => {
     const rows = (await req().input('gid',sql.Int,link.group_id).query(`
       SELECT i.id, i.detail, i.category, i.priority, i.status,
              i.due_date, i.note, i.created_at, i.updated_at,
-             ea.name AS assigned_to_name,
+             ISNULL(ea.nickname, ea.name) AS assigned_to_name,
              b.id AS board_id, b.name AS board_name,
              f.id AS folder_id, f.name AS folder_name
       FROM fu_issues i
@@ -4478,8 +4478,8 @@ app.get('/api/fu/boards/:bid/issues', authRequired, async (request, res) => {
   try {
     const rows = (await req().input('bid',sql.Int,parseInt(request.params.bid)).query(`
       SELECT i.*,
-        ea.name AS assigned_to_name,
-        ec.name AS created_by_name,
+        ISNULL(ea.nickname, ea.name) AS assigned_to_name,
+        ISNULL(ec.nickname, ec.name) AS created_by_name,
         (SELECT COUNT(*) FROM fu_comments c WHERE c.issue_id=i.id) AS comment_count,
         (SELECT TOP 1 c.created_at FROM fu_comments c WHERE c.issue_id=i.id ORDER BY c.created_at DESC) AS last_comment_at,
         (SELECT TOP 1 c.body     FROM fu_comments c WHERE c.issue_id=i.id ORDER BY c.created_at DESC) AS last_comment_body
@@ -4568,11 +4568,11 @@ app.get('/api/fu/issues/:id/timeline', authRequired, async (request, res) => {
   try {
     const id = parseInt(request.params.id);
     const comments = (await req().input('id',sql.Int,id).query(`
-      SELECT 'comment' AS type,c.id,c.body AS content,c.created_at,e.name AS user_name
+      SELECT 'comment' AS type,c.id,c.body AS content,c.created_at,ISNULL(e.nickname,e.name) AS user_name
       FROM fu_comments c LEFT JOIN app_users au ON au.id=c.user_id LEFT JOIN employees e ON e.id=au.employee_id
       WHERE c.issue_id=@id`)).recordset;
     const activity = (await req().input('id',sql.Int,id).query(`
-      SELECT 'activity' AS type,a.id,a.action AS content,a.old_val,a.new_val,a.created_at,e.name AS user_name
+      SELECT 'activity' AS type,a.id,a.action AS content,a.old_val,a.new_val,a.created_at,ISNULL(e.nickname,e.name) AS user_name
       FROM fu_activity a LEFT JOIN app_users au ON au.id=a.user_id LEFT JOIN employees e ON e.id=au.employee_id
       WHERE a.issue_id=@id`)).recordset;
     res.json([...comments,...activity].sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)));

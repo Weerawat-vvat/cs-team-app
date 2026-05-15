@@ -8997,7 +8997,7 @@ async function fuSaveField(id, field, val) {
   const issue = _fuIssues.find(i=>i.id===id);
   if (issue) {
     issue[field] = val;
-    if (field === 'assigned_to') issue.assigned_to_name = allEmployees.find(e=>e.id==val)?.name || null;
+    if (field === 'assigned_to') { const emp = allEmployees.find(e=>e.id==val); issue.assigned_to_name = emp ? (emp.nickname||emp.name) : null; }
     if (field === 'category' && val && !_fuCategories.includes(val)) { _fuCategories.push(val); _fuCategories.sort(); }
     if (!_fuPanelModal) fuRender(); // don't re-render Tab 1 when in modal mode
     if (_fuPanelId === id) fuRenderPanel();
