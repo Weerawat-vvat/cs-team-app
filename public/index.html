@@ -1804,8 +1804,8 @@ textarea{resize:vertical;min-height:80px}
             <option value="assigned_to_name">จัดกลุ่มตาม ผู้รับผิดชอบ</option>
             <option value="priority">จัดกลุ่มตาม ความสำคัญ</option>
           </select>
-          <!-- Status filter (table only) -->
-          <select id="fu-status-filter" onchange="fuRender()" style="font-size:.75rem;padding:.3rem .5rem;border:1px solid #cbd5e1;border-radius:6px;background:#fff">
+          <!-- Status filter (hidden — controlled by stat cards) -->
+          <select id="fu-status-filter" onchange="fuRender();fuRenderStatBar()" style="display:none">
             <option value="">ทุกสถานะ</option>
             <option value="pending">⏳ รอดำเนินการ</option>
             <option value="in_progress">🔄 กำลังตรวจสอบ</option>
@@ -7848,48 +7848,77 @@ let _fuExpanded   = new Set();
 let _fuGroupBy    = ''; // '' | 'category' | 'assigned_to_name' | 'priority' | 'status'
 
 // ── Stat Cards (top bar) ──────────────────────────────────
+let _fuSummaryCache = null; // { status:{}, stale:{} }
+
 async function fuLoadSidebarStats() {
   const data = await api('/api/fu/summary');
-  const bar = document.getElementById('fu-stat-bar');
-  if (!bar) return;
-  if (!data) { bar.innerHTML = ''; return; }
+  if (!data) return;
+  _fuSummaryCache = data;
+  fuRenderStatBar();
+}
 
-  const sm = data.status || {};
-  const sl = data.stale  || {};
+function fuRenderStatBar() {
+  const bar = document.getElementById('fu-stat-bar');
+  if (!bar || !_fuSummaryCache) return;
+
+  const sm  = _fuSummaryCache.status || {};
+  const sl  = _fuSummaryCache.stale  || {};
+  const cur = document.getElementById('fu-status-filter')?.value || '';
+
+  const total = Object.values(sm).reduce((a, b) => a + b, 0);
 
   const CARDS = [
-    { key:'pending',     icon:'⏳', label:'รอดำเนินการ', bg:'#fffbeb', col:'#92400e', val: sm.pending     || 0 },
-    { key:'in_progress', icon:'🔄', label:'กำลังตรวจสอบ',bg:'#eff6ff', col:'#1e40af', val: sm.in_progress || 0 },
-    { key:'waiting',     icon:'⏸️', label:'รอข้อมูล',    bg:'#f5f3ff', col:'#5b21b6', val: sm.waiting     || 0 },
-    { key:'resolved',    icon:'✅', label:'แก้แล้ว',      bg:'#f0fdf4', col:'#166534', val: sm.resolved    || 0 },
+    { key:'',            icon:'📋', label:'ทั้งหมด',      bg:'#f1f5f9', col:'#334155', val: total },
+    { key:'pending',     icon:'⏳', label:'รอดำเนินการ',   bg:'#fffbeb', col:'#92400e', val: sm.pending     || 0 },
+    { key:'in_progress', icon:'🔄', label:'กำลังตรวจสอบ', bg:'#eff6ff', col:'#1e40af', val: sm.in_progress || 0 },
+    { key:'waiting',     icon:'⏸️', label:'รอข้อมูล',     bg:'#f5f3ff', col:'#5b21b6', val: sm.waiting     || 0 },
+    { key:'resolved',    icon:'✅', label:'แก้แล้ว',       bg:'#f0fdf4', col:'#166534', val: sm.resolved    || 0 },
+    { key:'cancelled',   icon:'🚫', label:'ยกเลิก',        bg:'#f8fafc', col:'#64748b', val: sm.cancelled   || 0 },
   ];
 
   const staleTotal = (sl.d7||0) + (sl.d14||0) + (sl.d30||0);
   const staleColor = sl.d30 ? '#b91c1c' : sl.d14 ? '#c2410c' : '#854d0e';
   const staleBg    = sl.d30 ? '#fee2e2' : sl.d14 ? '#ffedd5' : '#fef9c3';
+  const hasFilter  = cur !== '';
 
-  bar.innerHTML = CARDS.map(c => `
-    <div style="display:flex;align-items:center;gap:.4rem;background:${c.bg};border-radius:8px;padding:.3rem .65rem;cursor:pointer;transition:opacity .15s"
-         onclick="fuFilterByStatus('${c.key}')"
-         title="กรองเฉพาะ ${c.label}"
-         onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
-      <span style="font-size:.82rem">${c.icon}</span>
+  bar.innerHTML = CARDS.map(c => {
+    const isActive = c.key === cur;
+    const isDim    = hasFilter && !isActive;
+    const border   = isActive
+      ? `2px solid ${c.col}`
+      : '2px solid transparent';
+    const shadow   = isActive ? `0 0 0 3px ${c.col}22` : 'none';
+    const opacity  = isDim ? '.38' : '1';
+    const bgFill   = isActive ? c.col + '18' : c.bg;
+    return `
+    <div onclick="fuFilterByStatus('${c.key}')"
+      style="display:flex;align-items:center;gap:.45rem;background:${bgFill};
+             border:${border};border-radius:10px;padding:.32rem .7rem;
+             cursor:pointer;transition:all .18s;opacity:${opacity};
+             box-shadow:${shadow};user-select:none;flex-shrink:0"
+      title="${c.label}">
+      <span style="font-size:.85rem;line-height:1">${c.icon}</span>
       <div>
-        <div style="font-size:.95rem;font-weight:800;color:${c.col};line-height:1">${c.val}</div>
-        <div style="font-size:.62rem;color:${c.col};opacity:.75;white-space:nowrap">${c.label}</div>
+        <div style="font-size:1rem;font-weight:800;color:${c.col};line-height:1.1">${c.val}</div>
+        <div style="font-size:.6rem;font-weight:600;color:${c.col};opacity:.7;white-space:nowrap;margin-top:.05rem">${c.label}</div>
       </div>
-    </div>`).join('') +
+      ${isActive ? `<span style="font-size:.6rem;background:${c.col};color:#fff;border-radius:20px;padding:.05rem .3rem;font-weight:700;margin-left:.1rem">✓</span>` : ''}
+    </div>`;
+  }).join('') +
+
   (staleTotal ? `
-    <div style="display:flex;align-items:center;gap:.4rem;background:${staleBg};border-radius:8px;padding:.3rem .65rem;margin-left:.25rem;border-left:2px solid ${staleColor}20">
-      <span style="font-size:.82rem">🕐</span>
+    <div style="display:flex;align-items:center;gap:.45rem;background:${staleBg};
+                border:2px solid ${staleColor}44;border-radius:10px;padding:.32rem .7rem;
+                margin-left:.35rem;flex-shrink:0;opacity:${hasFilter?'.38':'1'}">
+      <span style="font-size:.85rem">🕐</span>
       <div>
-        <div style="font-size:.95rem;font-weight:800;color:${staleColor};line-height:1">${staleTotal}</div>
-        <div style="font-size:.62rem;color:${staleColor};opacity:.75;white-space:nowrap">ค้างนาน</div>
+        <div style="font-size:1rem;font-weight:800;color:${staleColor};line-height:1.1">${staleTotal}</div>
+        <div style="font-size:.6rem;font-weight:600;color:${staleColor};opacity:.7;white-space:nowrap;margin-top:.05rem">ค้างนาน</div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:.1rem;margin-left:.2rem">
-        ${sl.d7  ? `<span style="font-size:.6rem;font-weight:700;color:#854d0e;background:#fef08a;padding:.05rem .3rem;border-radius:6px">⚠️${sl.d7}</span>`  : ''}
-        ${sl.d14 ? `<span style="font-size:.6rem;font-weight:700;color:#c2410c;background:#fed7aa;padding:.05rem .3rem;border-radius:6px">🟠${sl.d14}</span>` : ''}
-        ${sl.d30 ? `<span style="font-size:.6rem;font-weight:700;color:#b91c1c;background:#fecaca;padding:.05rem .3rem;border-radius:6px">🔴${sl.d30}</span>` : ''}
+      <div style="display:flex;flex-direction:column;gap:.12rem;margin-left:.15rem">
+        ${sl.d7  ? `<span style="font-size:.58rem;font-weight:700;color:#854d0e;background:#fef08a;padding:.04rem .28rem;border-radius:5px;white-space:nowrap">⚠️ ${sl.d7} วัน</span>`  : ''}
+        ${sl.d14 ? `<span style="font-size:.58rem;font-weight:700;color:#c2410c;background:#fed7aa;padding:.04rem .28rem;border-radius:5px;white-space:nowrap">🟠 ${sl.d14} วัน</span>` : ''}
+        ${sl.d30 ? `<span style="font-size:.58rem;font-weight:700;color:#b91c1c;background:#fecaca;padding:.04rem .28rem;border-radius:5px;white-space:nowrap">🔴 ${sl.d30} วัน</span>` : ''}
       </div>
     </div>` : '');
 }
@@ -7897,7 +7926,8 @@ async function fuLoadSidebarStats() {
 function fuFilterByStatus(status) {
   const sel = document.getElementById('fu-status-filter');
   if (!sel) return;
-  sel.value = (sel.value === status) ? '' : status; // toggle
+  sel.value = (sel.value === status) ? '' : status; // toggle off if same
+  fuRenderStatBar();
   fuRender();
 }
 
