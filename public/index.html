@@ -7870,16 +7870,15 @@ let _fuGroupBy    = ''; // '' | 'category' | 'assigned_to_name' | 'priority' | '
 async function fuJumpToBoard(boardId, boardName, folderId, status) {
   // 1. Switch to Tab 1
   fuSwitchTab(1);
-  // 2. Expand folder + select board
+  // 2. Set filter BEFORE loading so fuRender() inside fuSelectBoard uses it immediately
+  const sel = document.getElementById('fu-status-filter');
+  if (sel) sel.value = status || '';
+  // 3. Expand folder + select board (fuRender inside will pick up the filter above)
   _fuExpanded.add(folderId);
   if (!_fuBoards[folderId]) {
     _fuBoards[folderId] = await api(`/api/fu/folders/${folderId}/boards`) || [];
   }
   await fuSelectBoard(boardId, boardName, folderId);
-  // 3. Apply status filter
-  const sel = document.getElementById('fu-status-filter');
-  if (sel) { sel.value = status || ''; }
-  fuRender();
 }
 
 function fuSwitchTab(n) {
