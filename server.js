@@ -4275,6 +4275,30 @@ async function ensureFollowupV2Tables() {
   } catch(e) { console.error('❌ Follow Up v2 tables error:', e.message); }
 }
 
+// ══ FOLLOW UP v2 — STALE ISSUES ══
+app.get('/api/fu/stale', authRequired, async (request, res) => {
+  try {
+    const minDays = parseInt(request.query.days || '7', 10);
+    const result = await req().input('minDays', sql.Int, minDays).query(`
+      SELECT TOP 50
+        i.id, i.detail, i.branch, i.status, i.priority,
+        i.updated_at, i.created_at,
+        DATEDIFF(day, i.updated_at, GETDATE()) AS days_stale,
+        ISNULL(e.nickname, e.name) AS assigned_name,
+        b.id AS board_id, b.name AS board_name,
+        f.name AS folder_name
+      FROM fu_issues i
+      LEFT JOIN employees e ON e.id = i.assigned_to
+      LEFT JOIN fu_boards b ON b.id = i.board_id
+      LEFT JOIN fu_folders f ON f.id = b.folder_id
+      WHERE i.status NOT IN ('resolved', 'cancelled')
+        AND DATEDIFF(day, i.updated_at, GETDATE()) >= @minDays
+      ORDER BY days_stale DESC
+    `);
+    res.json(result.recordset);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ══ FOLLOW UP v2 — FOLDERS ══
 app.get('/api/fu/folders', authRequired, async (request, res) => {
   try {

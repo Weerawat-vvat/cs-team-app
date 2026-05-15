@@ -651,6 +651,18 @@ textarea{resize:vertical;min-height:80px}
     </div>
   </div>
 
+  <!-- ── Stale Follow-up Issues ── -->
+  <div class="card" style="margin-bottom:.75rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem;flex-wrap:wrap;gap:.4rem">
+      <div style="font-size:.88rem;font-weight:700;color:var(--text)">🕐 Follow-up ค้างนาน</div>
+      <div style="display:flex;align-items:center;gap:.5rem">
+        <div id="dash-stale-chips" style="display:flex;gap:.35rem"></div>
+        <button class="btn btn-ghost btn-sm" style="font-size:.72rem;padding:.2rem .55rem" onclick="openPage('followup')">ดูทั้งหมด →</button>
+      </div>
+    </div>
+    <div id="dash-stale-body"><div style="color:var(--muted);font-size:.82rem;padding:.3rem">กำลังโหลด...</div></div>
+  </div>
+
   <!-- ── Hour × Agent Heatmap ── -->
   <div class="card" style="padding:.65rem .9rem;margin-bottom:.75rem">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem;flex-wrap:wrap;gap:.35rem">
@@ -3327,8 +3339,66 @@ async function loadDashboard() {
         </div>` : ''}
       </div>`).join('');
   }
+  loadStaleIssues();
 }
 
+
+async function loadStaleIssues() {
+  const issues = await api('/api/fu/stale?days=7');
+  const chipsEl = document.getElementById('dash-stale-chips');
+  const bodyEl  = document.getElementById('dash-stale-body');
+  if (!chipsEl || !bodyEl) return;
+
+  if (!issues || issues.length === 0) {
+    chipsEl.innerHTML = '';
+    bodyEl.innerHTML = `<div style="color:#22c55e;font-size:.82rem;padding:.3rem">✅ ไม่มีงานค้างนาน — ดีมาก!</div>`;
+    return;
+  }
+
+  // Count by tier
+  const t7  = issues.filter(i => i.days_stale >= 7  && i.days_stale < 14).length;
+  const t14 = issues.filter(i => i.days_stale >= 14 && i.days_stale < 30).length;
+  const t30 = issues.filter(i => i.days_stale >= 30).length;
+
+  chipsEl.innerHTML = [
+    t7  ? `<span style="background:#fef9c3;color:#854d0e;font-size:.72rem;font-weight:700;padding:.15rem .55rem;border-radius:20px">⚠️ 7+ วัน: ${t7}</span>`  : '',
+    t14 ? `<span style="background:#ffedd5;color:#c2410c;font-size:.72rem;font-weight:700;padding:.15rem .55rem;border-radius:20px">🟠 14+ วัน: ${t14}</span>` : '',
+    t30 ? `<span style="background:#fee2e2;color:#b91c1c;font-size:.72rem;font-weight:700;padding:.15rem .55rem;border-radius:20px">🔴 30+ วัน: ${t30}</span>` : '',
+  ].join('');
+
+  // Render top 10 rows
+  const top = issues.slice(0, 10);
+  bodyEl.innerHTML = `<div style="display:flex;flex-direction:column;gap:.3rem">
+    ${top.map(i => {
+      const d = i.days_stale;
+      const [dot, bg, col] = d >= 30 ? ['🔴','#fee2e2','#b91c1c'] : d >= 14 ? ['🟠','#ffedd5','#c2410c'] : ['⚠️','#fef9c3','#854d0e'];
+      const st = FU_STATUS[i.status] || { label: i.status };
+      const detail = (i.detail || '').slice(0, 60) + ((i.detail||'').length > 60 ? '…' : '');
+      const boardInfo = [i.folder_name, i.board_name].filter(Boolean).join(' / ');
+      return `<div onclick="fuGoToBoard(${i.board_id})" style="display:flex;align-items:center;gap:.55rem;padding:.4rem .6rem;border-radius:7px;background:#fafafa;border:1px solid #f1f5f9;cursor:pointer;transition:background .15s" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#fafafa'">
+        <span style="font-size:.78rem;font-weight:700;background:${bg};color:${col};padding:.15rem .45rem;border-radius:12px;white-space:nowrap;flex-shrink:0">${dot} ${d} วัน</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:.8rem;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(detail || '(ไม่มีรายละเอียด)')}</div>
+          <div style="font-size:.72rem;color:var(--muted);margin-top:.05rem">${escHtml(boardInfo)} ${i.branch ? '· ' + escHtml(i.branch) : ''}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.15rem;flex-shrink:0">
+          <span style="font-size:.7rem;font-weight:600;color:${FU_STATUS[i.status]?.color||'#94a3b8'}">${st.label}</span>
+          <span style="font-size:.69rem;color:#94a3b8">${i.assigned_name || '— ไม่ระบุ —'}</span>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function fuGoToBoard(boardId) {
+  openPage('followup');
+  // Wait for FU page to load then select the board
+  setTimeout(() => {
+    const btn = document.querySelector(`[data-board-id="${boardId}"]`);
+    if (btn) btn.click();
+    else { _fuBoardId = boardId; fuLoadIssues(); }
+  }, 400);
+}
 
 const dashCharts = { donut: null, bar: null, scatter: null, trend: null, dow: null, peak: null, catTrend: null };
 
