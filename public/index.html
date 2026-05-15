@@ -5654,6 +5654,7 @@ const FINANCE_STATUS = {
 };
 
 function rpStatusBadge(st) {
+  if (!st) return `<span style="color:#94a3b8;font-size:.72rem">—</span>`;
   const bg  = REPAIR_STATUS_COLOR[st] || '#f1f5f9';
   const col = REPAIR_STATUS_TEXT[st]  || '#475569';
   return `<span style="background:${bg};color:${col};padding:.15rem .5rem;border-radius:20px;font-size:.72rem;font-weight:700;white-space:nowrap">${REPAIR_STATUS[st]||st}</span>`;
@@ -5735,7 +5736,7 @@ function renderRepairTable() {
       <td>${rpStatusBadge(j.status)}</td>
       <td>${rpFinanceBadge(j.finance_status)}</td>
       <td style="font-size:.78rem">${escHtml(j.reporter_name||'—')}</td>
-      <td style="font-size:.75rem;white-space:nowrap">${fmtDate(j.reported_at)}</td>
+      <td style="font-size:.75rem;white-space:nowrap">${fmtDT(j.reported_at)}</td>
       <td onclick="event.stopPropagation()" style="white-space:nowrap">
         <button class="btn btn-ghost btn-sm" onclick="openRepairDetail(${j.id})" title="ดูรายละเอียด">📋</button>
         <button class="btn btn-ghost btn-sm" onclick="genRepairLink(${j.id},'${j.public_token||''}')" title="Copy link ส่งลูกค้า" style="color:#2563eb">🔗</button>
@@ -6203,7 +6204,7 @@ function renderRepairDetail(j) {
 
   const timelineHtml = (j.timeline||[]).map(t => `
     <div style="display:flex;gap:.5rem;padding:.3rem 0;border-bottom:1px solid #f1f5f9;font-size:.78rem">
-      <span style="color:var(--muted);white-space:nowrap">${fmtDate(t.changed_at)}</span>
+      <span style="color:var(--muted);white-space:nowrap">${fmtDT(t.changed_at)}</span>
       <span><b>${escHtml(t.changed_by_name||'—')}</b>
         ${t.field_changed==='status'?`เปลี่ยนสถานะ: ${rpStatusBadge(t.old_value)} → ${rpStatusBadge(t.new_value)}`
         :t.field_changed==='finance_status'?`เปลี่ยนการเงิน: ${rpFinanceBadge(t.old_value)} → ${rpFinanceBadge(t.new_value)}`

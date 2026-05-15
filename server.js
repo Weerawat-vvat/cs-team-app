@@ -2651,8 +2651,9 @@ app.post('/api/public/repair/submit', publicUpload.array('attachments', 5), asyn
     }
 
     await req().input('rid', sql.Int, newId)
+      .input('tnote', sql.NVarChar, 'ลูกค้าแจ้งซ่อมผ่านระบบออนไลน์')
       .query(`INSERT INTO repair_timeline (repair_id,field_changed,new_value,note)
-              VALUES (@rid,'status','received','ลูกค้าแจ้งซ่อมผ่านระบบออนไลน์')`);
+              VALUES (@rid,N'status',N'received',@tnote)`);
 
     const fileNote = request.files?.length ? ` (แนบรูป ${request.files.length} ไฟล์)` : '';
     // LINE notify is best-effort — don't fail the request if it errors
