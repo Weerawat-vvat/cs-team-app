@@ -10,23 +10,28 @@ body{font-family:'Segoe UI',Tahoma,sans-serif;background:#f1f5f9;color:#1e293b;m
 .top-bar{background:#1e293b;padding:.85rem 1.25rem;display:flex;align-items:center;gap:.75rem}
 .top-bar .logo{font-size:1rem;font-weight:800;color:#fff}
 .top-bar .sub{font-size:.75rem;color:#94a3b8;margin-top:.1rem}
-.container{max-width:620px;margin:0 auto;padding:1.5rem 1rem}
+.container{max-width:640px;margin:0 auto;padding:1.25rem 1rem 2.5rem}
 
-/* Job Card */
-.job-card{background:#fff;border-radius:12px;padding:1.1rem 1.3rem;border:1px solid #e2e8f0;margin-bottom:1.25rem;box-shadow:0 1px 4px #0001}
+.card{background:#fff;border-radius:12px;padding:1.1rem 1.25rem;border:1px solid #e2e8f0;margin-bottom:1rem;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.card-title{font-size:.72rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.8rem}
+
+/* Job header */
 .job-no{font-size:1.3rem;font-weight:800;color:#1e293b;letter-spacing:.03em}
-.job-sub{font-size:.8rem;color:#64748b;margin-top:.2rem}
-.device-row{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.75rem}
-.device-pill{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:.25rem .65rem;font-size:.78rem;color:#475569}
+.job-company{font-size:.88rem;color:#475569;margin-top:.25rem;font-weight:500}
+.pills{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.7rem}
+.pill{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:.22rem .6rem;font-size:.77rem;color:#475569}
+.pill.mono{font-family:monospace}
 
-/* Status Badge */
-.status-badge{display:inline-block;padding:.3rem .9rem;border-radius:20px;font-size:.85rem;font-weight:700;margin-top:.75rem}
+/* Status badge */
+.status-badge{display:inline-flex;align-items:center;gap:.4rem;padding:.32rem 1rem;border-radius:20px;font-size:.85rem;font-weight:700;margin-top:.8rem}
 
-/* Timeline */
-.timeline-card{background:#fff;border-radius:12px;padding:1.1rem 1.3rem;border:1px solid #e2e8f0;box-shadow:0 1px 4px #0001}
-.timeline-title{font-size:.8rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:1rem}
+/* Warranty badge */
+.warranty-ok{background:#dcfce7;color:#166534;border:1px solid #bbf7d0;border-radius:8px;padding:.45rem .85rem;font-size:.82rem;font-weight:600;display:flex;align-items:center;gap:.4rem}
+.warranty-no{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;border-radius:8px;padding:.45rem .85rem;font-size:.82rem;font-weight:600;display:flex;align-items:center;gap:.4rem}
+.warranty-exp{background:#fef9c3;color:#854d0e;border:1px solid #fde68a;border-radius:8px;padding:.45rem .85rem;font-size:.82rem;font-weight:600;display:flex;align-items:center;gap:.4rem}
 
-.step{display:flex;gap:.75rem;margin-bottom:.15rem}
+/* Timeline progress */
+.step{display:flex;gap:.75rem;margin-bottom:.1rem}
 .step-line{display:flex;flex-direction:column;align-items:center;width:28px;flex-shrink:0}
 .step-dot{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.8rem;flex-shrink:0;z-index:1}
 .step-dot.done{background:#16a34a;color:#fff}
@@ -35,23 +40,32 @@ body{font-family:'Segoe UI',Tahoma,sans-serif;background:#f1f5f9;color:#1e293b;m
 .step-connector{width:2px;flex:1;min-height:20px;background:#e2e8f0;margin:2px 0}
 .step-connector.done{background:#16a34a}
 .step-body{padding:.1rem 0 1rem}
-.step-label{font-size:.88rem;font-weight:600;color:#1e293b}
+.step-label{font-size:.88rem;font-weight:600}
 .step-label.done{color:#16a34a}
 .step-label.active{color:#2563eb}
 .step-label.pending{color:#94a3b8}
-.step-date{font-size:.75rem;color:#64748b;margin-top:.1rem}
-.step-date.active{color:#2563eb;font-weight:600}
+.step-sub{font-size:.74rem;color:#64748b;margin-top:.15rem;line-height:1.5}
+.step-sub.active{color:#2563eb;font-weight:600}
 
-.updated{font-size:.73rem;color:#94a3b8;text-align:center;margin-top:1rem}
-.loading{text-align:center;padding:4rem;color:#64748b}
-.error-box{background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:1.5rem;text-align:center;color:#b91c1c;margin-top:1rem}
+/* Inspection log */
+.log-row{display:flex;gap:.65rem;align-items:flex-start;padding:.5rem 0;border-bottom:1px solid #f8fafc}
+.log-row:last-child{border-bottom:none}
+.log-icon{font-size:1.1rem;flex-shrink:0;width:28px;text-align:center}
+.log-body{flex:1}
+.log-status{font-size:.83rem;font-weight:600;color:#1e293b}
+.log-note{font-size:.75rem;color:#64748b;margin-top:.1rem}
+.log-date{font-size:.7rem;color:#94a3b8;margin-top:.1rem}
 
-/* Message */
-.msg-card{background:#fff;border-radius:12px;padding:1.1rem 1.3rem;border:1px solid #e2e8f0;margin-top:1rem;box-shadow:0 1px 4px #0001}
-.msg-card h3{font-size:.8rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.75rem}
-.msg-bubble{background:#f1f5f9;border-radius:8px;padding:.55rem .8rem;margin-bottom:.5rem;font-size:.83rem;line-height:1.55}
-.msg-bubble .from{font-size:.7rem;font-weight:700;color:#2563eb;margin-bottom:.15rem}
-.msg-bubble .time{font-size:.68rem;color:#94a3b8;margin-top:.2rem}
+/* Detail rows */
+.detail-row{display:flex;gap:.5rem;padding:.45rem 0;border-bottom:1px solid #f8fafc;font-size:.83rem}
+.detail-row:last-child{border-bottom:none}
+.detail-label{color:#64748b;min-width:110px;flex-shrink:0;font-size:.78rem}
+.detail-val{color:#1e293b;font-weight:500;word-break:break-word}
+
+/* Messages */
+.msg-bubble{border-radius:8px;padding:.55rem .8rem;margin-bottom:.5rem;font-size:.83rem;line-height:1.55}
+.msg-from{font-size:.7rem;font-weight:700;margin-bottom:.15rem}
+.msg-time{font-size:.68rem;color:#94a3b8;margin-top:.2rem}
 .msg-input{width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:.45rem .7rem;font-size:.83rem;font-family:inherit;outline:none;resize:vertical;min-height:72px;margin-bottom:.5rem}
 .msg-input:focus{border-color:#2563eb}
 .msg-name{width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:.38rem .7rem;font-size:.82rem;font-family:inherit;outline:none;margin-bottom:.4rem}
@@ -59,6 +73,10 @@ body{font-family:'Segoe UI',Tahoma,sans-serif;background:#f1f5f9;color:#1e293b;m
 .btn-send{background:#2563eb;color:#fff;border:none;border-radius:8px;padding:.45rem 1.1rem;font-size:.83rem;font-weight:600;cursor:pointer;width:100%}
 .btn-send:hover{background:#1d4ed8}
 .btn-send:disabled{background:#94a3b8;cursor:not-allowed}
+
+.updated{font-size:.72rem;color:#94a3b8;text-align:center;margin-top:.75rem}
+.loading{text-align:center;padding:4rem;color:#64748b}
+.error-box{background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:1.5rem;text-align:center;color:#b91c1c;margin-top:1rem}
 </style>
 </head>
 <body>
@@ -77,159 +95,284 @@ body{font-family:'Segoe UI',Tahoma,sans-serif;background:#f1f5f9;color:#1e293b;m
 function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function parseD(s){ return s ? new Date(String(s).replace('Z','')) : null; }
 function fmtD(s){
-  const d = parseD(s); if(!d) return null;
+  const d = parseD(s); if(!d||isNaN(d)) return null;
   return d.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'});
 }
 function fmtDT(s){
-  const d = parseD(s); if(!d) return null;
+  const d = parseD(s); if(!d||isNaN(d)) return null;
   return d.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'})
     + ' ' + d.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
 }
 
+// ── สถานะปัจจุบัน (ตรงกับระบบหลัก) ──────────────────────
 const STATUS_STEPS = [
-  { key:'received',               label:'รับเรื่อง',               icon:'📋' },
-  { key:'assessing',              label:'กำลังประเมิน',             icon:'🔍' },
-  { key:'quoted',                 label:'เสนอราคาแล้ว',            icon:'📄' },
-  { key:'waiting_approval',       label:'รอลูกค้าอนุมัติ',         icon:'⏳' },
-  { key:'device_received',        label:'รับเครื่องแล้ว',          icon:'📦' },
-  { key:'sent_supplier',          label:'ส่ง Supplier ซ่อม',      icon:'🚚' },
-  { key:'returned_from_supplier', label:'ได้เครื่องคืน',           icon:'✅' },
-  { key:'returned_to_customer',   label:'ส่งคืนลูกค้าแล้ว',       icon:'🏁' },
+  { key:'received',         label:'รับเรื่อง',               icon:'📋', desc:'ลงทะเบียนงานซ่อมแล้ว' },
+  { key:'spared',           label:'จัดสแปร์อุปกรณ์',          icon:'📦', desc:'จัดอุปกรณ์สำรองให้ลูกค้า' },
+  { key:'assessing',        label:'ตรวจสอบ / ประเมิน',        icon:'🔍', desc:'ช่างกำลังตรวจสอบและประเมินงาน' },
+  { key:'quoted',           label:'เสนอราคาแล้ว',             icon:'📄', desc:'ส่งใบเสนอราคาให้ลูกค้า' },
+  { key:'waiting_approval', label:'รอลูกค้าอนุมัติ',          icon:'⏳', desc:'รอลูกค้าอนุมัติงานซ่อม' },
+  { key:'repairing',        label:'อยู่ระหว่างซ่อม',          icon:'🔧', desc:'ช่างกำลังดำเนินการซ่อม' },
+  { key:'waiting_return',   label:'รอส่งคืน',                 icon:'📬', desc:'งานเสร็จแล้ว รอนัดส่งคืน' },
+  { key:'returned',         label:'ส่งคืนเรียบร้อย',          icon:'🏁', desc:'ส่งคืนอุปกรณ์ให้ลูกค้าแล้ว' },
 ];
 
+// Legacy statuses (backwards compat)
+const LEGACY_STEPS = [
+  { key:'device_received',        label:'รับเครื่องแล้ว',      icon:'📦' },
+  { key:'sent_supplier',          label:'ส่ง Supplier ซ่อม',   icon:'🚚' },
+  { key:'returned_from_supplier', label:'ได้เครื่องคืน',        icon:'✅' },
+  { key:'returned_to_customer',   label:'ส่งคืนลูกค้าแล้ว',   icon:'🏁' },
+];
+const ALL_STEPS = [...STATUS_STEPS, ...LEGACY_STEPS];
+
 const STATUS_COLOR = {
-  received:'#dbeafe|#1d4ed8', assessing:'#fef3c7|#92400e',
-  quoted:'#ede9fe|#6d28d9', waiting_approval:'#fef9c3|#854d0e',
-  device_received:'#dcfce7|#166534', sent_supplier:'#e0f2fe|#0369a1',
-  returned_from_supplier:'#d1fae5|#15803d', returned_to_customer:'#bbf7d0|#15803d',
-  closed:'#f0fdf4|#166534', cancelled:'#fee2e2|#b91c1c'
+  received:               '#dbeafe|#1d4ed8',
+  spared:                 '#e0f2fe|#0369a1',
+  assessing:              '#fef3c7|#92400e',
+  quoted:                 '#ede9fe|#6d28d9',
+  waiting_approval:       '#fef9c3|#854d0e',
+  repairing:              '#ffedd5|#c2410c',
+  waiting_return:         '#dcfce7|#15803d',
+  returned:               '#bbf7d0|#15803d',
+  closed:                 '#f0fdf4|#166534',
+  cancelled:              '#fee2e2|#b91c1c',
+  // legacy
+  device_received:        '#dcfce7|#166534',
+  sent_supplier:          '#e0f2fe|#0369a1',
+  returned_from_supplier: '#d1fae5|#15803d',
+  returned_to_customer:   '#bbf7d0|#15803d',
+};
+const STATUS_LABEL = {
+  received:'รับเรื่อง', spared:'จัดสแปร์อุปกรณ์', assessing:'ตรวจสอบ/ประเมิน',
+  quoted:'เสนอราคาแล้ว', waiting_approval:'รอลูกค้าอนุมัติ',
+  repairing:'อยู่ระหว่างซ่อม', waiting_return:'รอส่งคืน', returned:'ส่งคืนเรียบร้อย',
+  closed:'ปิดงาน', cancelled:'ยกเลิก',
+  device_received:'รับเครื่องแล้ว', sent_supplier:'ส่ง Supplier ซ่อม',
+  returned_from_supplier:'ได้เครื่องคืน', returned_to_customer:'ส่งคืนลูกค้าแล้ว',
+};
+const STATUS_ICON = {
+  received:'📋', spared:'📦', assessing:'🔍', quoted:'📄',
+  waiting_approval:'⏳', repairing:'🔧', waiting_return:'📬', returned:'🏁',
+  closed:'🎉', cancelled:'❌',
+  device_received:'📦', sent_supplier:'🚚', returned_from_supplier:'✅', returned_to_customer:'🏁',
+};
+const FINANCE_LABEL = {
+  pending:'รอชำระ', invoiced:'ออกใบแจ้งหนี้แล้ว', paid:'ชำระแล้ว', free:'ไม่คิดค่าใช้จ่าย'
+};
+const FINANCE_COLOR = {
+  pending:'#fef9c3|#854d0e', invoiced:'#e0f2fe|#0369a1', paid:'#dcfce7|#166534', free:'#f1f5f9|#475569'
 };
 
-const STATUS_LABEL = {
-  received:'รับเรื่อง', assessing:'กำลังประเมิน', quoted:'เสนอราคาแล้ว',
-  waiting_approval:'รอลูกค้าอนุมัติ', device_received:'รับเครื่องแล้ว',
-  sent_supplier:'ส่ง Supplier ซ่อม', returned_from_supplier:'ได้เครื่องคืน',
-  returned_to_customer:'ส่งคืนลูกค้าแล้ว', closed:'ปิดงาน', cancelled:'ยกเลิก'
-};
+// ── decide which step list to use based on current status ──
+function resolveSteps(status) {
+  const isLegacy = LEGACY_STEPS.some(s => s.key === status);
+  return isLegacy
+    ? [...STATUS_STEPS.slice(0,1), ...LEGACY_STEPS]  // show received + legacy chain
+    : STATUS_STEPS;
+}
 
 async function load(){
   const token = new URLSearchParams(location.search).get('t');
   const root  = document.getElementById('root');
-  if (!token){
-    root.innerHTML = '<div class="error-box">❌ ไม่พบ link ที่ถูกต้อง</div>';
-    return;
-  }
+  if (!token){ root.innerHTML = '<div class="error-box">❌ ไม่พบ link ที่ถูกต้อง</div>'; return; }
   try {
     const res = await fetch(`/api/public/repair/${token}`);
     const d   = await res.json();
     if (!res.ok){ root.innerHTML=`<div class="error-box">❌ ${esc(d.error||'ไม่พบข้อมูล')}</div>`; return; }
-    const msgs = (d.timeline||[]).filter(t => t.field_changed === 'customer_message' || t.field_changed === 'admin_reply');
 
     document.title = `ติดตามงานซ่อม — ${d.job_no}`;
 
-    // Status badge
-    const [bg,col] = (STATUS_COLOR[d.status]||'#f1f5f9|#475569').split('|');
-    const badge = `<span class="status-badge" style="background:${bg};color:${col}">${STATUS_LABEL[d.status]||d.status}</span>`;
+    const isCancelled = d.status === 'cancelled';
+    const isDone      = ['returned','returned_to_customer','closed'].includes(d.status);
 
-    // Build timeline from steps + actual dates
+    // ── Status badge ───────────────────────────────────────
+    const [stBg,stCol] = (STATUS_COLOR[d.status]||'#f1f5f9|#475569').split('|');
+    const badge = `<span class="status-badge" style="background:${stBg};color:${stCol}">
+      ${STATUS_ICON[d.status]||'🔧'} ${STATUS_LABEL[d.status]||d.status}
+    </span>`;
+
+    // ── Finance badge ──────────────────────────────────────
+    let financeBadge = '';
+    if (d.finance_status && d.finance_status !== 'pending') {
+      const [fb,fc] = (FINANCE_COLOR[d.finance_status]||'#f1f5f9|#475569').split('|');
+      financeBadge = `<span style="display:inline-flex;align-items:center;gap:.3rem;padding:.25rem .7rem;border-radius:12px;font-size:.75rem;font-weight:600;background:${fb};color:${fc};margin-left:.4rem">
+        💰 ${FINANCE_LABEL[d.finance_status]||d.finance_status}
+      </span>`;
+    }
+
+    // ── Warranty block ─────────────────────────────────────
+    let warrantyHtml = '';
+    if (d.warranty) {
+      const expDate = parseD(d.warranty_expire);
+      const now     = new Date();
+      const expired = expDate && expDate < now;
+      const expStr  = d.warranty_expire ? ` (หมดอายุ: ${fmtD(d.warranty_expire)})` : '';
+      if (expired) {
+        warrantyHtml = `<div class="warranty-exp">⚠️ สินค้าหมดประกันแล้ว${expStr}</div>`;
+      } else {
+        warrantyHtml = `<div class="warranty-ok">🛡️ สินค้าอยู่ในประกัน${expStr}</div>`;
+      }
+    } else if (d.warranty === false || d.warranty === 0) {
+      warrantyHtml = `<div class="warranty-no">🔴 สินค้าไม่อยู่ในประกัน</div>`;
+    }
+
+    // ── Build step dates from timeline + fallback columns ──
     const stepDates = {
       received:               d.reported_at,
+      // legacy column fallbacks
       device_received:        d.received_date,
       sent_supplier:          d.sent_supplier_date,
       returned_from_supplier: d.returned_from_supplier_date,
       returned_to_customer:   d.returned_to_customer_date,
     };
-    // Also enrich from timeline log
+    // Enrich from timeline status log (most accurate)
     (d.timeline||[]).forEach(t => {
-      if (!stepDates[t.new_value]) stepDates[t.new_value] = t.changed_at;
+      if (t.field_changed === 'status' && !stepDates[t.new_value]) {
+        stepDates[t.new_value] = t.changed_at;
+      }
     });
 
-    const currentIdx = STATUS_STEPS.findIndex(s => s.key === d.status);
-    const isCancelled = d.status === 'cancelled';
-    const isClosed    = d.status === 'closed' || d.status === 'returned_to_customer';
+    // ── Progress steps ─────────────────────────────────────
+    const steps = resolveSteps(d.status);
+    const stepsWithDone = isDone ? [...steps, { key:'done', label:'เสร็จสิ้น', icon:'🎉', desc:'งานซ่อมเสร็จสมบูรณ์' }] : steps;
+    const currentIdx = steps.findIndex(s => s.key === d.status);
 
     let stepsHtml = '';
-    const steps = isClosed
-      ? [...STATUS_STEPS, { key:'closed', label:'เสร็จสิ้น', icon:'🎉' }]
-      : STATUS_STEPS;
-
-    steps.forEach((step, i) => {
-      const stepIdx = STATUS_STEPS.findIndex(s => s.key === step.key);
-      const isDone   = isClosed ? true : (stepIdx !== -1 && stepIdx < currentIdx);
-      const isActive = step.key === d.status;
-      const isPend   = !isDone && !isActive;
-      const state    = isDone ? 'done' : isActive ? 'active' : 'pending';
-      const dotIcon  = isDone ? '✓' : isActive ? step.icon : '○';
-      const dateVal  = stepDates[step.key];
-      const isLast   = i === steps.length - 1;
-
-      stepsHtml += `
-        <div class="step">
-          <div class="step-line">
-            <div class="step-dot ${state}">${dotIcon}</div>
-            ${!isLast ? `<div class="step-connector ${isDone?'done':''}"></div>` : ''}
-          </div>
-          <div class="step-body">
-            <div class="step-label ${state}">${step.label}</div>
-            ${dateVal ? `<div class="step-date ${isActive?'active':''}">${fmtDT(dateVal)}</div>` : ''}
-          </div>
-        </div>`;
-    });
-
     if (isCancelled) {
       stepsHtml = `<div style="text-align:center;padding:1.5rem;color:#b91c1c;font-size:.9rem">❌ งานนี้ถูกยกเลิกแล้ว</div>`;
+    } else {
+      stepsWithDone.forEach((step, i) => {
+        const stepIdx = steps.findIndex(s => s.key === step.key);
+        const isDoneStep   = isDone ? true : (stepIdx !== -1 && stepIdx < currentIdx);
+        const isActiveStep = step.key === d.status || (isDone && step.key === 'done');
+        const isPending    = !isDoneStep && !isActiveStep;
+        const state        = isDoneStep ? 'done' : isActiveStep ? 'active' : 'pending';
+        const dotIcon      = isDoneStep ? '✓' : isActiveStep ? step.icon : '○';
+        const dateVal      = stepDates[step.key];
+        const isLast       = i === stepsWithDone.length - 1;
+        const noteForStep  = (d.timeline||[]).find(t => t.field_changed==='status' && t.new_value===step.key)?.note || '';
+
+        stepsHtml += `
+          <div class="step">
+            <div class="step-line">
+              <div class="step-dot ${state}">${dotIcon}</div>
+              ${!isLast ? `<div class="step-connector ${isDoneStep?'done':''}"></div>` : ''}
+            </div>
+            <div class="step-body">
+              <div class="step-label ${state}">${step.label}</div>
+              <div class="step-sub ${isActiveStep?'active':''}">
+                ${dateVal ? fmtDT(dateVal) : (isPending ? `<span style="color:#cbd5e1">รอดำเนินการ</span>` : step.desc||'')}
+                ${noteForStep && !isPending ? `<br><span style="color:#64748b;font-style:italic">"${esc(noteForStep)}"</span>` : ''}
+              </div>
+            </div>
+          </div>`;
+      });
     }
 
-    root.innerHTML = `
-      <div class="job-card">
-        <div class="job-no">${esc(d.job_no)}</div>
-        <div class="job-sub">🏢 ${esc(d.company_name||'—')}</div>
-        <div class="device-row">
-          ${d.device_type  ? `<span class="device-pill">📦 ${esc(d.device_type)}</span>` : ''}
-          ${d.device_model ? `<span class="device-pill">🖥 ${esc(d.device_model)}</span>` : ''}
-          ${d.serial_no    ? `<span class="device-pill" style="font-family:monospace">S/N: ${esc(d.serial_no)}</span>` : ''}
+    // ── Inspection / activity log ──────────────────────────
+    const statusLog = (d.timeline||[]).filter(t => t.field_changed === 'status');
+    const inspHtml  = statusLog.length ? statusLog.map(t => {
+      const icon = STATUS_ICON[t.new_value] || '•';
+      return `<div class="log-row">
+        <div class="log-icon">${icon}</div>
+        <div class="log-body">
+          <div class="log-status">${STATUS_LABEL[t.new_value]||t.new_value}</div>
+          ${t.note ? `<div class="log-note">💬 ${esc(t.note)}</div>` : ''}
+          <div class="log-date">🕐 ${fmtDT(t.changed_at)||'—'}</div>
         </div>
-        ${badge}
-      </div>
+      </div>`;
+    }).join('') : `<div style="font-size:.82rem;color:#94a3b8;padding:.5rem 0">ยังไม่มีประวัติการดำเนินการ</div>`;
 
-      <div class="timeline-card">
-        <div class="timeline-title">⏱ ความคืบหน้า</div>
-        ${stepsHtml}
-      </div>
+    // ── Detail table ───────────────────────────────────────
+    const details = [];
+    if (d.symptom)         details.push(['🩺 อาการ / ปัญหา', esc(d.symptom)]);
+    if (d.initial_fix)     details.push(['🔧 การแก้ไขเบื้องต้น', esc(d.initial_fix)]);
+    if (d.spare_serial_no) details.push(['📦 S/N สแปร์', `<span style="font-family:monospace">${esc(d.spare_serial_no)}</span>`]);
+    if (d.quote_no)        details.push(['📄 เลขที่เสนอราคา', esc(d.quote_no) + (d.quote_date ? ` (${fmtD(d.quote_date)})` : '')]);
+    if (d.taken_back_items)details.push(['📦 รายการที่รับคืน', esc(d.taken_back_items)]);
+    if (d.remark)          details.push(['📝 หมายเหตุ', esc(d.remark)]);
 
-      <div class="updated">อัพเดทล่าสุด: ${fmtDT(d.updated_at)||'—'}</div>
+    const detailHtml = details.length ? `
+      <div class="card">
+        <div class="card-title">📋 รายละเอียดเพิ่มเติม</div>
+        ${details.map(([l,v]) => `<div class="detail-row"><div class="detail-label">${l}</div><div class="detail-val">${v}</div></div>`).join('')}
+      </div>` : '';
 
-      <!-- Message history (chat style) -->
-      ${msgs.length ? `
-      <div class="msg-card">
-        <h3>💬 ข้อความ</h3>
+    // ── Messages ───────────────────────────────────────────
+    const msgs = (d.timeline||[]).filter(t => t.field_changed === 'customer_message' || t.field_changed === 'admin_reply');
+    const msgsHtml = msgs.length ? `
+      <div class="card">
+        <div class="card-title">💬 ข้อความ</div>
         ${msgs.map(m => {
           const isAdmin = m.field_changed === 'admin_reply';
           return `<div style="display:flex;flex-direction:column;align-items:${isAdmin?'flex-end':'flex-start'};margin-bottom:.5rem">
             <div class="msg-bubble" style="max-width:85%;background:${isAdmin?'#dbeafe':'#f1f5f9'};border-radius:${isAdmin?'12px 12px 4px 12px':'12px 12px 12px 4px'};border:1px solid ${isAdmin?'#bfdbfe':'#e2e8f0'}">
-              <div class="from" style="color:${isAdmin?'#1d4ed8':'#475569'}">${isAdmin?'↩️ CS Team':'👤 '+esc(m.note||'คุณ')}</div>
+              <div class="msg-from" style="color:${isAdmin?'#1d4ed8':'#475569'}">${isAdmin?'↩️ CS Team':'👤 '+esc(m.note||'คุณ')}</div>
               <div>${esc(m.new_value)}</div>
-              <div class="time">${fmtDT(m.changed_at)}</div>
+              <div class="msg-time">${fmtDT(m.changed_at)}</div>
             </div>
           </div>`;
         }).join('')}
-      </div>` : ''}
+      </div>` : '';
 
-      <!-- Reply form: hide when job is done -->
-      ${['returned_to_customer','closed','cancelled'].includes(d.status) ? `
-      <div class="msg-card" style="text-align:center;color:#16a34a;font-size:.88rem;font-weight:600;background:#f0fdf4;border-color:#bbf7d0">
+    // ── Reply form ─────────────────────────────────────────
+    const replyForm = isDone || isCancelled ? `
+      <div class="card" style="text-align:center;color:#16a34a;font-size:.88rem;font-weight:600;background:#f0fdf4;border-color:#bbf7d0">
         ✅ งานนี้เสร็จสิ้นแล้ว — ขอบคุณที่ใช้บริการครับ
       </div>` : `
-      <div class="msg-card">
-        <h3>📩 ส่งข้อความถึงทีม CS</h3>
+      <div class="card">
+        <div class="card-title">📩 ส่งข้อความถึงทีม CS</div>
         <input class="msg-name" id="msg-name" placeholder="ชื่อของคุณ (ไม่บังคับ)"/>
         <textarea class="msg-input" id="msg-text" placeholder="พิมพ์ข้อความ เช่น สอบถามความคืบหน้า หรือแจ้งข้อมูลเพิ่มเติม..."></textarea>
         <button class="btn-send" id="msg-btn" onclick="sendMsg()">📤 ส่งข้อความ</button>
-      </div>`}`;
+      </div>`;
+
+    // ── Render all ─────────────────────────────────────────
+    root.innerHTML = `
+      <!-- Job header -->
+      <div class="card">
+        <div class="job-no">${esc(d.job_no)}</div>
+        <div class="job-company">🏢 ${esc(d.company_name||'—')}</div>
+        <div class="pills">
+          ${d.device_type  ? `<span class="pill">📦 ${esc(d.device_type)}</span>` : ''}
+          ${d.device_model ? `<span class="pill">🖥 ${esc(d.device_model)}</span>` : ''}
+          ${d.serial_no    ? `<span class="pill mono">S/N: ${esc(d.serial_no)}</span>` : ''}
+          ${d.device_location ? `<span class="pill">📍 ${esc(d.device_location)}</span>` : ''}
+        </div>
+        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:.35rem;margin-top:.7rem">
+          ${badge}${financeBadge}
+        </div>
+        ${warrantyHtml ? `<div style="margin-top:.7rem">${warrantyHtml}</div>` : ''}
+      </div>
+
+      <!-- Progress timeline -->
+      <div class="card">
+        <div class="card-title">⏱ ความคืบหน้า</div>
+        ${stepsHtml}
+      </div>
+
+      <!-- Inspection log -->
+      <div class="card">
+        <div class="card-title">🔎 ประวัติการดำเนินการ</div>
+        ${inspHtml}
+      </div>
+
+      <!-- Detail table -->
+      ${detailHtml}
+
+      <!-- Messages -->
+      ${msgsHtml}
+
+      <!-- Reply form -->
+      ${replyForm}
+
+      <div class="updated">อัพเดทล่าสุด: ${fmtDT(d.updated_at)||'—'}</div>
+    `;
   } catch(e){
     document.getElementById('root').innerHTML = `<div class="error-box">❌ ${esc(e.message)}</div>`;
   }
 }
+
 async function sendMsg() {
   const token = new URLSearchParams(location.search).get('t');
   const name  = document.getElementById('msg-name')?.value.trim() || '';
@@ -239,18 +382,12 @@ async function sendMsg() {
   if (btn) { btn.disabled = true; btn.textContent = '⏳ กำลังส่ง...'; }
   try {
     const r = await fetch(`/api/public/repair/${token}/message`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, message: msg })
     });
     const d = await r.json();
     if (!r.ok) { alert('❌ ' + (d.error||'ส่งไม่สำเร็จ')); }
-    else {
-      document.getElementById('msg-text').value = '';
-      document.getElementById('msg-name').value = '';
-      // Reload to show new message
-      await load();
-    }
+    else { document.getElementById('msg-text').value = ''; document.getElementById('msg-name').value = ''; await load(); }
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '📤 ส่งข้อความ'; }
   }

@@ -2408,18 +2408,34 @@ app.get('/api/public/repair/:token', async (request, res) => {
 
     // Only expose non-sensitive fields to public
     res.json({
-      job_no:        job.job_no,
-      company_name:  job.company_name,
-      device_type:   job.device_type,
-      device_model:  job.device_model,
-      serial_no:     job.serial_no,
-      status:        job.status,
-      reported_at:   job.reported_at,
-      received_date: job.received_date,
+      job_no:           job.job_no,
+      company_name:     job.company_name,
+      device_type:      job.device_type,
+      device_model:     job.device_model,
+      serial_no:        job.serial_no,
+      status:           job.status,
+      finance_status:   job.finance_status,
+      reported_at:      job.reported_at,
+      updated_at:       job.updated_at,
+      // dates (for legacy status mapping)
+      received_date:               job.received_date,
       sent_supplier_date:          job.sent_supplier_date,
       returned_from_supplier_date: job.returned_from_supplier_date,
       returned_to_customer_date:   job.returned_to_customer_date,
-      updated_at:    job.updated_at,
+      // problem detail
+      symptom:          job.symptom,
+      initial_fix:      job.initial_fix,
+      remark:           job.remark,
+      taken_back_items: job.taken_back_items,
+      // warranty
+      warranty:         job.warranty,
+      warranty_expire:  job.warranty_expire,
+      // quotation
+      quote_no:         job.quote_no,
+      quote_date:       job.quote_date,
+      // spare device
+      spare_serial_no:  job.spare_serial_no,
+      device_location:  job.device_location,
       timeline
     });
   } catch(e) { res.status(500).json({ error: e.message }); }
