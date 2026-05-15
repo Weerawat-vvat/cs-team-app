@@ -8077,7 +8077,6 @@ function fuRenderSidebar() {
             style="padding:.1rem .2rem;border-radius:4px;color:#3b82f6;font-size:.75rem;cursor:pointer">🔗</span>` : ''}
           <span onclick="event.stopPropagation();fuFolderMenu(event,${f.id},'${esc(f.name).replace(/'/g,"\\'")}','${f.color||'#3b82f6'}')" style="padding:.1rem .2rem;color:#94a3b8;border-radius:4px;cursor:pointer" title="จัดการ">⋯</span>
         </div>
-        ${f.group_name ? `<div style="font-size:.62rem;color:#3b82f6;padding:0 .45rem .12rem 1.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">🔗 ${esc(f.group_name)}</div>` : ''}
         ${isOpen ? `
         <div style="padding-left:.9rem">
           ${boards.map(b=>`
