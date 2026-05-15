@@ -8073,15 +8073,15 @@ function fuRenderSidebar() {
           <span style="color:${f.color||'#3b82f6'}">📁</span>
           <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</span>
           <span style="font-size:.65rem;color:#94a3b8">${f.board_count||0}</span>
-          <span onclick="event.stopPropagation();fuFolderLinkGroup(${f.id})" title="${f.group_name?'แก้ไข/ยกเลิก Customer Group':'ผูก Customer Group'}"
-            style="padding:.1rem .2rem;border-radius:4px;color:${f.group_id?'#3b82f6':'#cbd5e1'};font-size:.75rem">🔗</span>
-          <span onclick="event.stopPropagation();fuFolderMenu(${f.id},'${esc(f.name).replace(/'/g,"\\'")}','${f.color||'#3b82f6'}')" style="padding:.1rem .2rem;color:#94a3b8;border-radius:4px" title="จัดการ">⋯</span>
+          ${f.group_id ? `<span onclick="event.stopPropagation();fuFolderLinkGroup(${f.id})" title="ผูกกับ: ${esc(f.group_name||'')}"
+            style="padding:.1rem .2rem;border-radius:4px;color:#3b82f6;font-size:.75rem;cursor:pointer">🔗</span>` : ''}
+          <span onclick="event.stopPropagation();fuFolderMenu(event,${f.id},'${esc(f.name).replace(/'/g,"\\'")}','${f.color||'#3b82f6'}')" style="padding:.1rem .2rem;color:#94a3b8;border-radius:4px;cursor:pointer" title="จัดการ">⋯</span>
         </div>
         ${f.group_name ? `<div style="font-size:.62rem;color:#3b82f6;padding:0 .45rem .12rem 1.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">🔗 ${esc(f.group_name)}</div>` : ''}
         ${isOpen ? `
         <div style="padding-left:.9rem">
           ${boards.map(b=>`
-            <div onclick="fuSelectBoard(${b.id},'${esc(b.name).replace(/'/g,"\\'")}',${f.id})" id="fu-board-item-${b.id}"
+            <div onclick="fuSelectBoard(${b.id},'${esc(b.name).replace(/'/g,"\\'")}',${f.id})" id="fu-board-item-${b.id}" data-board-id="${b.id}"
               style="display:flex;align-items:center;gap:.3rem;padding:.28rem .5rem;border-radius:6px;cursor:pointer;font-size:.78rem;color:#475569;margin-bottom:.08rem${_fuBoardId===b.id?';background:#eff6ff;color:#1d4ed8;font-weight:600':''}"
               onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='${_fuBoardId===b.id?'#eff6ff':''}'">
               <span>📋</span>
@@ -8089,10 +8089,6 @@ function fuRenderSidebar() {
               <span style="font-size:.65rem;color:#94a3b8">${b.issue_count||0}</span>
               <span onclick="event.stopPropagation();fuBoardMenu(${b.id},'${esc(b.name).replace(/'/g,"\\'")}',${f.id})" style="padding:.1rem .2rem;color:#94a3b8;border-radius:4px" title="จัดการ Board">⋯</span>
             </div>`).join('')}
-          <div onclick="fuOpenCreateBoard(${f.id})" style="padding:.25rem .5rem;border-radius:6px;cursor:pointer;font-size:.75rem;color:#94a3b8;display:flex;align-items:center;gap:.3rem"
-            onmouseover="this.style.color='#1d4ed8'" onmouseout="this.style.color='#94a3b8'">
-            <span>+</span><span>Board ใหม่</span>
-          </div>
         </div>` : ''}
       </div>`;
   }).join('');
@@ -8140,20 +8136,51 @@ async function fuOpenCreateFolder() {
   }
 }
 
-async function fuFolderMenu(fid, name, color) {
-  const action = prompt(`Folder: "${name}"\n\nพิมพ์ "ลบ" เพื่อลบ หรือชื่อใหม่เพื่อเปลี่ยนชื่อ:`);
-  if (!action) return;
-  if (action.trim() === 'ลบ') {
-    if (!confirm(`ลบ Folder "${name}" และ Boards ทั้งหมดภายใน?`)) return;
-    await api(`/api/fu/folders/${fid}`, { method:'DELETE', silent:true });
-    showToast('🗑 ลบ Folder แล้ว');
-    delete _fuBoards[fid]; _fuExpanded.delete(fid);
-    await fuLoadSidebar();
-  } else {
-    await api(`/api/fu/folders/${fid}`, { method:'PUT', body:{ name:action.trim(), color }, silent:true });
-    showToast('✅ เปลี่ยนชื่อแล้ว');
-    await fuLoadSidebar();
-  }
+function fuFolderMenu(e, fid, name, color) {
+  document.querySelectorAll('.fu-ctx-menu').forEach(m => m.remove());
+  const rect   = e.currentTarget.getBoundingClientRect();
+  const folder = _fuFolders.find(f => f.id === fid);
+  const menu   = document.createElement('div');
+  menu.className = 'fu-ctx-menu';
+  menu.style.cssText = `position:fixed;z-index:9999;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.12);padding:.3rem;min-width:185px;font-size:.8rem`;
+  const safeName = name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  const items = [
+    { icon:'➕', label:'เพิ่ม Board ใหม่',     fn:`fuOpenCreateBoard(${fid})` },
+    { icon:'✏️', label:'เปลี่ยนชื่อ Folder',   fn:`fuFolderRename(${fid},'${safeName}','${color}')` },
+    { icon:'🔗', label: folder?.group_id ? 'แก้ไข Customer Group' : 'ผูก Customer Group', fn:`fuFolderLinkGroup(${fid})` },
+    { divider: true },
+    { icon:'🗑', label:'ลบ Folder', fn:`fuFolderDelete(${fid},'${safeName}')`, danger:true },
+  ];
+  menu.innerHTML = items.map(it => it.divider
+    ? `<div style="border-top:1px solid #f1f5f9;margin:.25rem 0"></div>`
+    : `<div onclick="${it.fn};document.querySelectorAll('.fu-ctx-menu').forEach(m=>m.remove())"
+        style="display:flex;align-items:center;gap:.55rem;padding:.38rem .65rem;border-radius:7px;cursor:pointer;color:${it.danger?'#dc2626':'#334155'}"
+        onmouseover="this.style.background='${it.danger?'#fef2f2':'#f1f5f9'}'" onmouseout="this.style.background=''">
+        <span>${it.icon}</span><span>${it.label}</span>
+      </div>`
+  ).join('');
+  document.body.appendChild(menu);
+  const mh = menu.offsetHeight;
+  const top = rect.bottom + 4 + mh > window.innerHeight ? rect.top - mh - 4 : rect.bottom + 4;
+  menu.style.top  = top + 'px';
+  menu.style.left = Math.min(rect.left, window.innerWidth - 195) + 'px';
+  setTimeout(() => document.addEventListener('click', () => document.querySelectorAll('.fu-ctx-menu').forEach(m=>m.remove()), { once:true }), 10);
+}
+
+async function fuFolderRename(fid, oldName, color) {
+  const name = prompt('ชื่อ Folder ใหม่:', oldName);
+  if (!name?.trim() || name.trim() === oldName) return;
+  await api(`/api/fu/folders/${fid}`, { method:'PUT', body:{ name:name.trim(), color }, silent:true });
+  showToast('✅ เปลี่ยนชื่อแล้ว');
+  await fuLoadSidebar();
+}
+
+async function fuFolderDelete(fid, name) {
+  if (!confirm(`ลบ Folder "${name}" และ Boards ทั้งหมดภายใน?`)) return;
+  await api(`/api/fu/folders/${fid}`, { method:'DELETE', silent:true });
+  showToast('🗑 ลบ Folder แล้ว');
+  delete _fuBoards[fid]; _fuExpanded.delete(fid);
+  await fuLoadSidebar();
 }
 
 // ── Folder ↔ Customer Group Linking ──────────────────────
