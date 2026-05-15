@@ -1778,6 +1778,14 @@ textarea{resize:vertical;min-height:80px}
         <button onclick="fuOpenCreateFolder()" title="สร้างโฟลเดอร์ใหม่" style="background:#eff6ff;color:#1d4ed8;border:none;border-radius:6px;padding:.2rem .5rem;font-size:.8rem;cursor:pointer;font-weight:700">+ Folder</button>
       </div>
       <div id="fu-folder-tree" style="flex:1;overflow-y:auto;padding:.4rem .5rem"></div>
+
+      <!-- ── Mini Dashboard ── -->
+      <div id="fu-sidebar-stats" style="border-top:1px solid #f0f4f8;padding:.5rem .7rem;background:#f8fafc;flex-shrink:0">
+        <div style="font-size:.67rem;font-weight:700;color:#94a3b8;letter-spacing:.04em;margin-bottom:.4rem">📊 ภาพรวม</div>
+        <div id="fu-stat-status" style="display:flex;flex-wrap:wrap;gap:.25rem;margin-bottom:.45rem"></div>
+        <div style="font-size:.67rem;font-weight:700;color:#94a3b8;letter-spacing:.04em;margin-bottom:.3rem">🕐 ค้างนาน</div>
+        <div id="fu-stat-stale" style="display:flex;flex-wrap:wrap;gap:.25rem"></div>
+      </div>
     </div>
 
     <!-- ── Main ── -->
@@ -7843,6 +7851,38 @@ let _fuCategories = [];
 let _fuExpanded   = new Set();
 let _fuGroupBy    = ''; // '' | 'category' | 'assigned_to_name' | 'priority' | 'status'
 
+// ── Sidebar Mini Dashboard ───────────────────────────────
+async function fuLoadSidebarStats() {
+  const data = await api('/api/fu/summary');
+  if (!data) return;
+
+  const statusEl = document.getElementById('fu-stat-status');
+  const staleEl  = document.getElementById('fu-stat-stale');
+  if (!statusEl || !staleEl) return;
+
+  const ST = {
+    pending:     { label:'⏳ รอ',      bg:'#fffbeb', col:'#92400e' },
+    in_progress: { label:'🔄 ดำเนิน', bg:'#eff6ff', col:'#1e40af' },
+    waiting:     { label:'⏸️ รอข้อมูล',bg:'#f5f3ff', col:'#5b21b6' },
+    resolved:    { label:'✅ แก้แล้ว', bg:'#f0fdf4', col:'#166534' },
+    cancelled:   { label:'🚫 ยกเลิก',  bg:'#f8fafc', col:'#64748b' },
+  };
+  const sm = data.status || {};
+  statusEl.innerHTML = Object.entries(ST).map(([k, s]) => {
+    const cnt = sm[k] || 0;
+    if (!cnt) return '';
+    return `<span style="background:${s.bg};color:${s.col};font-size:.68rem;font-weight:700;padding:.12rem .42rem;border-radius:10px;white-space:nowrap">${s.label} ${cnt}</span>`;
+  }).join('');
+
+  const sl = data.stale || {};
+  const chips = [
+    sl.d7  ? `<span style="background:#fef9c3;color:#854d0e;font-size:.68rem;font-weight:700;padding:.12rem .42rem;border-radius:10px;white-space:nowrap">⚠️ 7+ วัน: ${sl.d7}</span>`  : '',
+    sl.d14 ? `<span style="background:#ffedd5;color:#c2410c;font-size:.68rem;font-weight:700;padding:.12rem .42rem;border-radius:10px;white-space:nowrap">🟠 14+ วัน: ${sl.d14}</span>` : '',
+    sl.d30 ? `<span style="background:#fee2e2;color:#b91c1c;font-size:.68rem;font-weight:700;padding:.12rem .42rem;border-radius:10px;white-space:nowrap">🔴 30+ วัน: ${sl.d30}</span>` : '',
+  ].join('');
+  staleEl.innerHTML = chips || `<span style="font-size:.69rem;color:#22c55e">✅ ไม่มีค้างนาน</span>`;
+}
+
 // ── Sidebar ──────────────────────────────────────────────
 async function fuLoadSidebar() {
   try {
@@ -7851,6 +7891,7 @@ async function fuLoadSidebar() {
     const cats = await api('/api/fu/categories');
     _fuCategories = Array.isArray(cats) ? cats : [];
     fuRenderSidebar();
+    fuLoadSidebarStats();
   } catch(e) {
     console.error('[fuLoadSidebar] error:', e);
     showToast('❌ โหลด Sidebar ล้มเหลว: ' + e.message, 'error');
@@ -8463,6 +8504,7 @@ async function fuSaveField(id, field, val) {
     fuRender();
     if (_fuPanelId === id) fuRenderPanel();
     if (field === 'issue_url') showToast(val ? `🔗 บันทึก Issue URL แล้ว` : '✅ ล้าง Issue URL แล้ว');
+    if (field === 'status') fuLoadSidebarStats();
   }
 }
 
@@ -8580,6 +8622,7 @@ async function fuSubmitAddIssue() {
   closeModal('modal-fu-add-issue');
   await fuLoadIssues();
   fuOpenPanel(r.id);
+  fuLoadSidebarStats();
   setTimeout(()=>{ const wrap=document.getElementById('fu-table-wrap'); if(wrap) wrap.scrollTop=wrap.scrollHeight; }, 100);
 }
 
@@ -8590,6 +8633,7 @@ async function fuDeleteIssue(id) {
   if (_fuPanelId===id) fuClosePanel();
   else fuRender();
   showToast('🗑 ลบแล้ว');
+  fuLoadSidebarStats();
 }
 
 // ── Slide Panel ───────────────────────────────────────────

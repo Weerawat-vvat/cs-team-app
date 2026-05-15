@@ -4275,6 +4275,28 @@ async function ensureFollowupV2Tables() {
   } catch(e) { console.error('❌ Follow Up v2 tables error:', e.message); }
 }
 
+// ══ FOLLOW UP v2 — SUMMARY (sidebar stats) ══
+app.get('/api/fu/summary', authRequired, async (request, res) => {
+  try {
+    const [statusRows, staleRows] = await Promise.all([
+      req().query(`
+        SELECT status, COUNT(*) AS cnt
+        FROM fu_issues
+        GROUP BY status`),
+      req().query(`
+        SELECT
+          SUM(CASE WHEN DATEDIFF(day,updated_at,GETDATE()) BETWEEN 7  AND 13 THEN 1 ELSE 0 END) AS d7,
+          SUM(CASE WHEN DATEDIFF(day,updated_at,GETDATE()) BETWEEN 14 AND 29 THEN 1 ELSE 0 END) AS d14,
+          SUM(CASE WHEN DATEDIFF(day,updated_at,GETDATE()) >= 30              THEN 1 ELSE 0 END) AS d30
+        FROM fu_issues
+        WHERE status NOT IN ('resolved','cancelled')`)
+    ]);
+    const statusMap = {};
+    statusRows.recordset.forEach(r => { statusMap[r.status] = r.cnt; });
+    res.json({ status: statusMap, stale: staleRows.recordset[0] || { d7:0, d14:0, d30:0 } });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ══ FOLLOW UP v2 — STALE ISSUES ══
 app.get('/api/fu/stale', authRequired, async (request, res) => {
   try {
