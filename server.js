@@ -5707,15 +5707,19 @@ app.post('/api/shopinfo/knowledge/:id/images', authRequired, skUpload.array('ima
   try {
     const id = parseInt(request.params.id);
     const caption = request.body.caption || null;
+    const inserted = [];
     for (const file of (request.files || [])) {
-      await req()
+      const r = await req()
         .input('kid', sql.Int, id)
         .input('fn',  sql.NVarChar, file.filename)
         .input('on',  sql.NVarChar, file.originalname)
         .input('cap', sql.NVarChar, caption)
-        .query('INSERT INTO shop_knowledge_images(knowledge_id,filename,original_name,caption) VALUES(@kid,@fn,@on,@cap)');
+        .query(`INSERT INTO shop_knowledge_images(knowledge_id,filename,original_name,caption)
+                OUTPUT INSERTED.id, INSERTED.filename, INSERTED.original_name, INSERTED.knowledge_id
+                VALUES(@kid,@fn,@on,@cap)`);
+      if (r.recordset[0]) inserted.push(r.recordset[0]);
     }
-    res.json({ ok: true, count: (request.files || []).length });
+    res.json({ ok: true, count: inserted.length, images: inserted });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

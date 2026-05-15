@@ -11608,6 +11608,13 @@ function skRender(data) {
       _skExpanded.add('sk-brand-' + btoa(encodeURIComponent(brand)).replace(/=/g,''));
     });
   }
+  // Re-load images for articles that were already open before re-render
+  _skExpanded.forEach(key => {
+    if (key.startsWith('sk-art-')) {
+      const id = parseInt(key.replace('sk-art-', ''));
+      skLoadImages(id);
+    }
+  });
 }
 
 function skArticleCard(a) {
@@ -11643,17 +11650,25 @@ function skArticleCard(a) {
       </div>
     </div>
     <div id="${key}" style="${isOpen?'':'display:none'};padding:.1rem 1.2rem .85rem 1.2rem">
-      <pre style="white-space:pre-wrap;word-break:break-word;font-family:inherit;font-size:.82rem;color:#334155;line-height:1.75;margin:0;background:#f8fafc;border-radius:7px;padding:.65rem .9rem;border:1px solid #f1f5f9">${escHtml(a.content||'(ยังไม่มีเนื้อหา)')}</pre>
-      <!-- image gallery -->
-      <div id="${key}-imgs" style="margin-top:.55rem"></div>
-      <!-- upload zone -->
-      <div onclick="skPickImage(${a.id})"
-           ondragover="event.preventDefault();this.style.borderColor='#2563eb'"
-           ondragleave="this.style.borderColor='#e2e8f0'"
-           ondrop="skDropImages(event,${a.id});this.style.borderColor='#e2e8f0'"
-           style="margin-top:.45rem;border:1.5px dashed #e2e8f0;border-radius:7px;padding:.45rem .7rem;display:flex;align-items:center;gap:.4rem;cursor:pointer;font-size:.75rem;color:#94a3b8;transition:border-color .15s"
-           onmouseenter="this.style.borderColor='#94a3b8'" onmouseleave="this.style.borderColor='#e2e8f0'">
-        📸 <span>คลิกหรือลากมาวาง หรือ <kbd style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:3px;padding:.05rem .3rem;font-size:.7rem">Ctrl+V</kbd> วางรูปจาก Snip ได้เลย</span>
+      <!-- dynamic render: text + [IMG:id] + [LINK:url|label] markers -->
+      <div id="${key}-content">${isOpen ? skRenderContentHtml(a.content||'', [], a.id) : ''}</div>
+      <!-- orphan images (not referenced inline) -->
+      <div id="${key}-imgs" style="margin-top:.35rem"></div>
+      <!-- toolbar: upload + link -->
+      <div style="margin-top:.5rem;display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
+        <div onclick="skPickImage(${a.id})"
+             ondragover="event.preventDefault();this.style.borderColor='#2563eb'"
+             ondragleave="this.style.borderColor='#e2e8f0'"
+             ondrop="skDropImages(event,${a.id});this.style.borderColor='#e2e8f0'"
+             style="flex:1;border:1.5px dashed #e2e8f0;border-radius:7px;padding:.38rem .7rem;display:flex;align-items:center;gap:.4rem;cursor:pointer;font-size:.74rem;color:#94a3b8;transition:border-color .15s;min-width:160px"
+             onmouseenter="this.style.borderColor='#94a3b8'" onmouseleave="this.style.borderColor='#e2e8f0'">
+          📸 <span>คลิก / ลาก / <kbd style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:3px;padding:.03rem .28rem;font-size:.68rem">Ctrl+V</kbd> วางรูปได้เลย</span>
+        </div>
+        <button onclick="skAddLinkInline(${a.id})"
+          style="border:1.5px dashed #e2e8f0;border-radius:7px;padding:.38rem .75rem;background:none;cursor:pointer;font-size:.74rem;color:#94a3b8;white-space:nowrap;transition:border-color .15s"
+          onmouseenter="this.style.borderColor='#94a3b8';this.style.color='#2563eb'" onmouseleave="this.style.borderColor='#e2e8f0';this.style.color='#94a3b8'">
+          🔗 เพิ่มลิงค์
+        </button>
       </div>
       <input type="file" id="${key}-file" accept="image/*" multiple style="display:none" onchange="skUploadImages(${a.id},this.files)">
     </div>
@@ -11713,6 +11728,20 @@ async function skOpenModal(id, brandPreset) {
   setTimeout(() => document.getElementById(id ? 'sk-title' : 'sk-brand').focus(), 120);
 }
 
+function skModalInsertLink() {
+  const url   = prompt('🔗 วาง URL:');
+  if (!url?.trim()) return;
+  const label = prompt('ชื่อที่แสดง (ว่างไว้ = แสดง URL เต็ม):') || '';
+  const marker = `[LINK:${url.trim()}|${label.trim()}]`;
+  const ta    = document.getElementById('sk-content');
+  if (!ta) return;
+  const start = ta.selectionStart;
+  const end   = ta.selectionEnd;
+  ta.value = ta.value.substring(0, start) + marker + ta.value.substring(end);
+  ta.selectionStart = ta.selectionEnd = start + marker.length;
+  ta.focus();
+}
+
 async function skSaveEntry() {
   const id       = document.getElementById('sk-entry-id').value;
   const brand    = document.getElementById('sk-brand').value.trim();
@@ -11744,33 +11773,93 @@ async function skDelete(id) {
   await skLoad();
 }
 
-// ── Knowledge image helpers ───────────────────────────────
-async function skLoadImages(id) {
-  const key = 'sk-art-' + id;
-  const el  = document.getElementById(key + '-imgs');
-  if (!el) return;
-  el.innerHTML = '<span style="font-size:.72rem;color:#cbd5e1">กำลังโหลดรูป…</span>';
-  const imgs = await api(`/api/shopinfo/knowledge/${id}/images`);
-  skRenderImages(id, imgs || []);
+// ── Knowledge: content renderer ──────────────────────────
+// Parses [IMG:id] and [LINK:url|label] markers into rich HTML
+function skRenderContentHtmlFull(content, images, knowledgeId) {
+  const imgMap = {};
+  const used   = new Set();
+  (images||[]).forEach(img => { imgMap[img.id] = img; });
+  const parts = (content||'').split(/(\[IMG:\d+\]|\[LINK:[^\]]+\])/g);
+  let html = '';
+  for (const part of parts) {
+    const imgM = part.match(/^\[IMG:(\d+)\]$/);
+    const lnkM = part.match(/^\[LINK:([^|]+)\|([^\]]*)\]$/);
+    if (imgM) {
+      const imgId = parseInt(imgM[1]);
+      used.add(imgId);
+      const img = imgMap[imgId];
+      if (img) {
+        html += `<div style="margin:.5rem 0;display:flex;flex-direction:column;align-items:flex-start;gap:.2rem">
+          <div style="position:relative;display:inline-block">
+            <img src="/uploads/knowledge/${knowledgeId}/${img.filename}"
+                 onclick="skViewImage('/uploads/knowledge/${knowledgeId}/${img.filename}')"
+                 style="max-width:100%;max-height:420px;border-radius:8px;border:1px solid #e2e8f0;cursor:zoom-in;object-fit:contain;display:block">
+            <button onclick="skDeleteImage(${img.id},${knowledgeId})" title="ลบรูปนี้"
+              style="position:absolute;top:5px;right:5px;background:rgba(15,23,42,.65);border:none;border-radius:50%;width:24px;height:24px;cursor:pointer;color:#fff;font-size:.72rem;display:flex;align-items:center;justify-content:center;line-height:1">✕</button>
+          </div>
+          ${img.original_name && img.original_name !== img.filename ? `<div style="font-size:.68rem;color:#94a3b8">${escHtml(img.original_name)}</div>` : ''}
+        </div>`;
+      } else {
+        html += `<span style="font-size:.72rem;color:#94a3b8;font-style:italic">[รูป #${imgId} ไม่พบ]</span>`;
+      }
+    } else if (lnkM) {
+      const url   = lnkM[1].trim();
+      const label = (lnkM[2].trim()) || url;
+      html += `<a href="${escHtml(url)}" target="_blank" rel="noopener"
+        style="display:inline-flex;align-items:center;gap:.3rem;color:#2563eb;text-decoration:none;font-size:.82rem;font-weight:500;background:#eff6ff;border:1px solid #bfdbfe;border-radius:5px;padding:.15rem .55rem;margin:.1rem .05rem"
+        onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background='#eff6ff'">🔗 ${escHtml(label)}</a>`;
+    } else if (part) {
+      html += `<pre style="white-space:pre-wrap;word-break:break-word;font-family:inherit;font-size:.82rem;color:#334155;line-height:1.75;margin:0 0 .2rem;background:#f8fafc;border-radius:7px;padding:.6rem .85rem;border:1px solid #f1f5f9">${escHtml(part)}</pre>`;
+    }
+  }
+  return {
+    html: html || `<pre style="white-space:pre-wrap;font-family:inherit;font-size:.82rem;color:#94a3b8;line-height:1.75;margin:0;background:#f8fafc;border-radius:7px;padding:.6rem .85rem;border:1px solid #f1f5f9">(ยังไม่มีเนื้อหา)</pre>`,
+    used
+  };
+}
+// Lightweight wrapper: returns just HTML string (for static render in card)
+function skRenderContentHtml(content, images, knowledgeId) {
+  return skRenderContentHtmlFull(content, images, knowledgeId).html;
 }
 
-function skRenderImages(id, imgs) {
-  const key = 'sk-art-' + id;
-  const el  = document.getElementById(key + '-imgs');
-  if (!el) return;
-  if (!imgs.length) { el.innerHTML = ''; return; }
-  el.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:.5rem;padding-top:.35rem">
-    ${imgs.map(img => `
-      <div style="position:relative;display:inline-flex;flex-direction:column;align-items:center">
-        <img src="/uploads/knowledge/${id}/${img.filename}"
-             alt="${escHtml(img.original_name||img.filename)}"
-             onclick="skViewImage('/uploads/knowledge/${id}/${img.filename}')"
-             style="max-width:220px;max-height:160px;border-radius:7px;border:1px solid #e2e8f0;cursor:zoom-in;object-fit:cover">
-        ${img.caption ? `<div style="font-size:.65rem;color:#64748b;text-align:center;margin-top:.2rem;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(img.caption)}</div>` : ''}
-        <button onclick="skDeleteImage(${img.id},${id})" title="ลบรูป"
-          style="position:absolute;top:4px;right:4px;background:rgba(15,23,42,.6);border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;color:#fff;font-size:.7rem;display:flex;align-items:center;justify-content:center">✕</button>
-      </div>`).join('')}
-  </div>`;
+// ── Knowledge image helpers ───────────────────────────────
+async function skLoadImages(id) {
+  const imgs = await api(`/api/shopinfo/knowledge/${id}/images`);
+  const art  = _skData.find(a => a.id === id);
+  skRenderExpanded(id, art?.content || '', imgs || []);
+}
+
+function skRenderExpanded(id, content, images) {
+  const key       = 'sk-art-' + id;
+  const contentEl = document.getElementById(key + '-content');
+  const imgsEl    = document.getElementById(key + '-imgs');
+  if (!contentEl) return;
+
+  const { html, used } = skRenderContentHtmlFull(content, images, id);
+  contentEl.innerHTML  = html;
+
+  // Orphan images (uploaded but not yet referenced inline)
+  const orphans = (images||[]).filter(img => !used.has(img.id));
+  if (!imgsEl) return;
+  if (!orphans.length) { imgsEl.innerHTML = ''; return; }
+  imgsEl.innerHTML = `
+    <div style="margin-top:.35rem;padding:.45rem .65rem;background:#fefce8;border:1px solid #fde68a;border-radius:7px">
+      <div style="font-size:.7rem;color:#92400e;margin-bottom:.35rem;font-weight:600">📎 รูปที่ยังไม่ได้แทรก — กด <b>แทรก</b> เพื่อใส่ท้ายบทความ</div>
+      <div style="display:flex;flex-wrap:wrap;gap:.4rem">
+        ${orphans.map(img => `
+          <div style="position:relative;display:inline-flex;flex-direction:column;align-items:center;gap:.25rem">
+            <img src="/uploads/knowledge/${id}/${img.filename}"
+                 onclick="skViewImage('/uploads/knowledge/${id}/${img.filename}')"
+                 style="max-width:130px;max-height:95px;border-radius:5px;border:1px solid #e2e8f0;cursor:zoom-in;object-fit:cover">
+            <div style="display:flex;gap:.2rem">
+              <button onclick="skInlineAppendImg(${img.id},${id})"
+                style="font-size:.65rem;background:#1d4ed8;color:#fff;border:none;border-radius:4px;padding:.15rem .45rem;cursor:pointer">📌 แทรก</button>
+              <button onclick="skDeleteImage(${img.id},${id})"
+                style="font-size:.65rem;background:#ef4444;color:#fff;border:none;border-radius:4px;padding:.15rem .35rem;cursor:pointer">✕</button>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`;
 }
 
 async function skUploadImages(id, files) {
@@ -11785,10 +11874,24 @@ async function skUploadImages(id, files) {
       body: fd
     });
     if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    // Auto-append [IMG:id] markers to content and save
+    if (data.images?.length) {
+      const art = _skData.find(a => a.id === id);
+      if (art) {
+        const markers   = data.images.map(img => `\n[IMG:${img.id}]`).join('');
+        const newContent = (art.content || '') + markers;
+        const r = await api(`/api/shopinfo/knowledge/${id}`, {
+          method: 'PUT',
+          body: { brand_name: art.brand_name, branch_name: art.branch_name, title: art.title, category: art.category, content: newContent },
+          silent: true
+        });
+        if (!r?.error) art.content = newContent;
+      }
+    }
     await skLoadImages(id);
-    showToast('✅ อัพโหลดสำเร็จ');
-  } catch(e) { showToast('❌ อัพโหลดไม่สำเร็จ: '+e.message, 'error'); }
-  // reset file input so same file can be re-selected
+    showToast('✅ อัพโหลดและแทรกรูปแล้ว');
+  } catch(e) { showToast('❌ อัพโหลดไม่สำเร็จ: ' + e.message, 'error'); }
   const inp = document.getElementById('sk-art-'+id+'-file');
   if (inp) inp.value = '';
 }
@@ -11804,8 +11907,55 @@ function skDropImages(e, id) {
   if (files.length) skUploadImages(id, files);
 }
 
+async function skInlineAppendImg(imgId, knowledgeId) {
+  const art = _skData.find(a => a.id === knowledgeId);
+  if (!art) return;
+  const newContent = (art.content || '') + `\n[IMG:${imgId}]`;
+  const r = await api(`/api/shopinfo/knowledge/${knowledgeId}`, {
+    method: 'PUT',
+    body: { brand_name: art.brand_name, branch_name: art.branch_name, title: art.title, category: art.category, content: newContent },
+    silent: true
+  });
+  if (r?.error) { showToast('❌ ไม่สามารถแทรกรูปได้', 'error'); return; }
+  art.content = newContent;
+  await skLoadImages(knowledgeId);
+  showToast('✅ แทรกรูปในบทความแล้ว');
+}
+
+async function skAddLinkInline(knowledgeId) {
+  const url = prompt('🔗 วาง URL ที่ต้องการแนบ:');
+  if (!url?.trim()) return;
+  const label = prompt('ชื่อที่แสดง (ว่างไว้ = แสดง URL เต็ม):') || '';
+  const marker = `\n[LINK:${url.trim()}|${label.trim()}]`;
+  const art = _skData.find(a => a.id === knowledgeId);
+  if (!art) return;
+  const newContent = (art.content || '') + marker;
+  const r = await api(`/api/shopinfo/knowledge/${knowledgeId}`, {
+    method: 'PUT',
+    body: { brand_name: art.brand_name, branch_name: art.branch_name, title: art.title, category: art.category, content: newContent },
+    silent: true
+  });
+  if (r?.error) { showToast('❌ ไม่สามารถแนบลิงค์ได้', 'error'); return; }
+  art.content = newContent;
+  await skLoadImages(knowledgeId);
+  showToast('✅ แนบลิงค์แล้ว');
+}
+
 async function skDeleteImage(imgId, knowledgeId) {
   if (!confirm('ลบรูปนี้?')) return;
+  // Remove [IMG:id] marker from content then save
+  const art = _skData.find(a => a.id === knowledgeId);
+  if (art) {
+    const cleaned = (art.content || '').replace(new RegExp('\\n?\\[IMG:' + imgId + '\\]', 'g'), '');
+    if (cleaned !== art.content) {
+      await api(`/api/shopinfo/knowledge/${knowledgeId}`, {
+        method: 'PUT',
+        body: { brand_name: art.brand_name, branch_name: art.branch_name, title: art.title, category: art.category, content: cleaned },
+        silent: true
+      });
+      art.content = cleaned;
+    }
+  }
   await api(`/api/shopinfo/knowledge/images/${imgId}`, { method: 'DELETE', silent: true });
   await skLoadImages(knowledgeId);
 }
@@ -11815,28 +11965,60 @@ function skViewImage(url) {
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;align-items:center;justify-content:center;cursor:zoom-out';
   ov.innerHTML = `<img src="${url}" style="max-width:92vw;max-height:92vh;border-radius:8px;object-fit:contain;box-shadow:0 8px 40px rgba(0,0,0,.5)">`;
   ov.onclick = () => ov.remove();
-  // also close on Escape
-  const onKey = e => { if (e.key==='Escape') { ov.remove(); document.removeEventListener('keydown',onKey); } };
+  const onKey = ev => { if (ev.key==='Escape') { ov.remove(); document.removeEventListener('keydown',onKey); } };
   document.addEventListener('keydown', onKey);
   document.body.appendChild(ov);
 }
 
-// Global paste → upload to expanded knowledge article
+// Global Ctrl+V paste → upload to last-opened expanded article
 document.addEventListener('paste', function(e) {
-  // Only active when shop knowledge tab visible
+  // Skip if user is typing in a text input / textarea (e.g. edit modal)
+  const tag = document.activeElement?.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return;
   const siPanel = document.getElementById('si-panel-knowledge');
   if (!siPanel || siPanel.style.display === 'none') return;
   const expanded = [..._skExpanded].filter(k => k.startsWith('sk-art-'));
   if (!expanded.length) return;
-  const items = Array.from(e.clipboardData?.items || []);
-  const imageFiles = items
-    .filter(it => it.type.startsWith('image/'))
-    .map(it => it.getAsFile())
-    .filter(Boolean);
+  const items      = Array.from(e.clipboardData?.items || []);
+  const imageFiles = items.filter(it => it.type.startsWith('image/')).map(it => it.getAsFile()).filter(Boolean);
   if (!imageFiles.length) return;
-  // Upload to the most-recently-toggled expanded article (last in set)
   const id = parseInt(expanded[expanded.length-1].replace('sk-art-',''));
   skUploadImages(id, imageFiles);
+});
+
+// Paste handler inside edit modal textarea → upload & insert [IMG:id] at cursor
+document.addEventListener('DOMContentLoaded', function() {
+  const ta = document.getElementById('sk-content');
+  if (!ta) return;
+  ta.addEventListener('paste', async function(e) {
+    const items = Array.from(e.clipboardData?.items || []);
+    const imgItem = items.find(it => it.type.startsWith('image/'));
+    if (!imgItem) return; // normal text paste — don't interfere
+    e.preventDefault();
+    const artId = document.getElementById('sk-entry-id')?.value;
+    if (!artId) { showToast('💡 บันทึกบทความก่อนแล้วค่อยแทรกรูป', 'warn'); return; }
+    const file = imgItem.getAsFile();
+    if (!file) return;
+    showToast('📤 กำลังอัพโหลดรูป…');
+    const fd = new FormData();
+    fd.append('images', file);
+    try {
+      const resp = await fetch(`/api/shopinfo/knowledge/${artId}/images`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + authToken },
+        body: fd
+      });
+      const data = await resp.json();
+      if (!data.ok || !data.images?.[0]) throw new Error('upload failed');
+      const imgId  = data.images[0].id;
+      const marker = `\n[IMG:${imgId}]\n`;
+      const start  = ta.selectionStart;
+      const end    = ta.selectionEnd;
+      ta.value = ta.value.substring(0, start) + marker + ta.value.substring(end);
+      ta.selectionStart = ta.selectionEnd = start + marker.length;
+      showToast(`✅ แทรกรูปแล้ว [IMG:${imgId}]`);
+    } catch(err) { showToast('❌ อัพโหลดไม่สำเร็จ', 'error'); }
+  });
 });
 
 function siSwitchTab(tab) {
@@ -12037,8 +12219,15 @@ function siSwitchTab(tab) {
       </div>
     </div>
     <div class="form-group">
-      <label>เนื้อหา / รายละเอียด</label>
-      <textarea id="sk-content" rows="9" placeholder="เขียนเนื้อหา ขั้นตอน หรือคำอธิบาย..."
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.3rem">
+        <label style="margin:0">เนื้อหา / รายละเอียด</label>
+        <div style="display:flex;gap:.35rem">
+          <button type="button" onclick="skModalInsertLink()"
+            style="font-size:.72rem;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:5px;padding:.15rem .55rem;cursor:pointer">🔗 แนบลิงค์</button>
+          <span style="font-size:.68rem;color:#94a3b8;align-self:center">หรือ Ctrl+V วางรูปได้เลย</span>
+        </div>
+      </div>
+      <textarea id="sk-content" rows="9" placeholder="เขียนเนื้อหา ขั้นตอน หรือคำอธิบาย...&#10;&#10;วาง [IMG:id] เพื่อแทรกรูป  |  วาง [LINK:url|ชื่อ] เพื่อแทรกลิงค์"
         style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:.45rem .7rem;font-size:.85rem;font-family:inherit;resize:vertical;outline:none;line-height:1.7"></textarea>
     </div>
     <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:.3rem">
