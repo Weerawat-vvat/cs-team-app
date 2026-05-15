@@ -5728,7 +5728,7 @@ function renderRepairTable() {
   setTimeout(renderRepairUnreadHighlight, 50);
   tbody.innerHTML = allRepairJobs.map(j => `
     <tr style="cursor:pointer;${_needsAction.has(j.id)?'background:#fff5f5;':''}\" onclick="openRepairDetail(${j.id})">
-      <td>
+      <td style="white-space:nowrap">
         <b style="color:var(--hd)">${j.job_no}</b>
         ${_needsAction.has(j.id)?'<span style="display:inline-block;width:9px;height:9px;background:#ef4444;border-radius:50%;margin-left:.35rem;vertical-align:middle;animation:pulse 1.5s infinite" title="รอตอบข้อความลูกค้า"></span>':''}
       </td>
