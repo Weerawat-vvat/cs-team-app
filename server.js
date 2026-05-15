@@ -4297,6 +4297,39 @@ app.get('/api/fu/summary', authRequired, async (request, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ══ FOLLOW UP v2 — OVERVIEW (manager tab) ══
+app.get('/api/fu/overview', authRequired, async (request, res) => {
+  try {
+    const [boardRows, staleRows] = await Promise.all([
+      req().query(`
+        SELECT
+          f.id AS folder_id, f.name AS folder_name,
+          b.id AS board_id,  b.name AS board_name,
+          ISNULL(i.status,'none') AS status,
+          COUNT(i.id) AS cnt
+        FROM fu_folders f
+        JOIN fu_boards b ON b.folder_id = f.id
+        LEFT JOIN fu_issues i ON i.board_id = b.id
+        GROUP BY f.id, f.name, b.id, b.name, i.status
+        ORDER BY f.name, b.name, i.status`),
+      req().query(`
+        SELECT TOP 20
+          i.id, i.detail, i.status, i.priority,
+          DATEDIFF(day, i.updated_at, GETDATE()) AS days_stale,
+          ISNULL(e.nickname, e.name) AS assigned_name,
+          b.id AS board_id, b.name AS board_name, f.name AS folder_name
+        FROM fu_issues i
+        LEFT JOIN employees e ON e.id = i.assigned_to
+        LEFT JOIN fu_boards b ON b.id = i.board_id
+        LEFT JOIN fu_folders f ON f.id = b.folder_id
+        WHERE i.status NOT IN ('resolved','cancelled')
+          AND DATEDIFF(day, i.updated_at, GETDATE()) >= 7
+        ORDER BY days_stale DESC`)
+    ]);
+    res.json({ boards: boardRows.recordset, stale: staleRows.recordset });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ══ FOLLOW UP v2 — STALE ISSUES ══
 app.get('/api/fu/stale', authRequired, async (request, res) => {
   try {
