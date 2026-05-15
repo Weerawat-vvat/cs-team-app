@@ -466,7 +466,7 @@ textarea{resize:vertical;min-height:80px}
     <button class="s-tab" id="nav-btn-repair" onclick="showPage('repair',this)">
       <svg class="s-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
       งานซ่อม
-      <span id="repair-new-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.62rem;padding:.1rem .42rem;margin-left:auto;font-weight:800;animation:pulse 1s infinite">ใหม่!</span>
+      <span id="repair-new-badge" style="display:none;background:#ef4444;color:#fff;border-radius:50px;font-size:.65rem;padding:.08rem .45rem;min-width:1.3rem;text-align:center;margin-left:auto;font-weight:800;line-height:1.4;animation:pulse 1.4s infinite"></span>
       <span id="repair-msg-badge" style="display:none;background:#f97316;color:#fff;border-radius:20px;font-size:.62rem;padding:.02rem .38rem;font-weight:700"></span>
     </button>
     <!-- 5. เครื่องมือ Support -->
@@ -3104,9 +3104,6 @@ function showPage(name, btn) {
   if (name === 'complaints') loadComplaints();
   if (name === 'settings')   loadSettings();
   if (name === 'repair')       {
-    _newRepairCount = 0;
-    const nb = document.getElementById('repair-new-badge');
-    if (nb) nb.style.display = 'none';
     loadRepairGroups(); loadRepair(); pollRepairMessages();
   }
   // create-case is now a modal
@@ -6355,6 +6352,18 @@ let _repairUnread = [];
 let _repairPollTimer = null;
 let _lastSeenRepairId = 0;
 let _newRepairCount   = 0;
+let _rpReceivedCount  = 0;
+
+function rpUpdateReceivedBadge() {
+  const nb = document.getElementById('repair-new-badge');
+  if (!nb) return;
+  if (_rpReceivedCount > 0) {
+    nb.textContent = _rpReceivedCount;
+    nb.style.display = '';
+  } else {
+    nb.style.display = 'none';
+  }
+}
 
 async function pollRepairMessages() {
   try {
@@ -6385,12 +6394,10 @@ async function pollRepairMessages() {
       }
     }
 
-    // New-job badge on nav
-    const newBadge = document.getElementById('repair-new-badge');
-    if (newBadge) {
-      if (_newRepairCount > 0) { newBadge.textContent = `ใหม่ ${_newRepairCount}`; newBadge.style.display = ''; }
-      else newBadge.style.display = 'none';
-    }
+    // Received-status badge — count all jobs still in "received", stays until status changes
+    const receivedJobs = await api('/api/repair?status=received', { silent: true }).catch(() => null);
+    _rpReceivedCount = Array.isArray(receivedJobs) ? receivedJobs.length : _rpReceivedCount;
+    rpUpdateReceivedBadge();
 
     // Message badge
     const badge = document.getElementById('repair-msg-badge');
