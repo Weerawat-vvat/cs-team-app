@@ -1778,18 +1778,14 @@ textarea{resize:vertical;min-height:80px}
         <button onclick="fuOpenCreateFolder()" title="สร้างโฟลเดอร์ใหม่" style="background:#eff6ff;color:#1d4ed8;border:none;border-radius:6px;padding:.2rem .5rem;font-size:.8rem;cursor:pointer;font-weight:700">+ Folder</button>
       </div>
       <div id="fu-folder-tree" style="flex:1;overflow-y:auto;padding:.4rem .5rem"></div>
-
-      <!-- ── Mini Dashboard ── -->
-      <div id="fu-sidebar-stats" style="border-top:1px solid #f0f4f8;padding:.5rem .7rem;background:#f8fafc;flex-shrink:0">
-        <div style="font-size:.67rem;font-weight:700;color:#94a3b8;letter-spacing:.04em;margin-bottom:.4rem">📊 ภาพรวม</div>
-        <div id="fu-stat-status" style="display:flex;flex-wrap:wrap;gap:.25rem;margin-bottom:.45rem"></div>
-        <div style="font-size:.67rem;font-weight:700;color:#94a3b8;letter-spacing:.04em;margin-bottom:.3rem">🕐 ค้างนาน</div>
-        <div id="fu-stat-stale" style="display:flex;flex-wrap:wrap;gap:.25rem"></div>
-      </div>
     </div>
 
     <!-- ── Main ── -->
     <div id="fu-main-area" style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:#f8fafc">
+
+      <!-- ── Stat Cards ── -->
+      <div id="fu-stat-bar" style="display:flex;gap:.5rem;padding:.5rem .85rem;background:#fff;border-bottom:1px solid #f1f5f9;flex-wrap:wrap"></div>
+
       <!-- Board header -->
       <div id="fu-board-header" style="background:#fff;border-bottom:1px solid #e2e8f0;padding:.65rem 1rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;min-height:52px">
         <span id="fu-board-title" style="font-weight:700;font-size:.95rem;color:#1e293b">เลือก Board จาก Sidebar</span>
@@ -7851,36 +7847,58 @@ let _fuCategories = [];
 let _fuExpanded   = new Set();
 let _fuGroupBy    = ''; // '' | 'category' | 'assigned_to_name' | 'priority' | 'status'
 
-// ── Sidebar Mini Dashboard ───────────────────────────────
+// ── Stat Cards (top bar) ──────────────────────────────────
 async function fuLoadSidebarStats() {
   const data = await api('/api/fu/summary');
-  if (!data) return;
+  const bar = document.getElementById('fu-stat-bar');
+  if (!bar) return;
+  if (!data) { bar.innerHTML = ''; return; }
 
-  const statusEl = document.getElementById('fu-stat-status');
-  const staleEl  = document.getElementById('fu-stat-stale');
-  if (!statusEl || !staleEl) return;
-
-  const ST = {
-    pending:     { label:'⏳ รอ',      bg:'#fffbeb', col:'#92400e' },
-    in_progress: { label:'🔄 ดำเนิน', bg:'#eff6ff', col:'#1e40af' },
-    waiting:     { label:'⏸️ รอข้อมูล',bg:'#f5f3ff', col:'#5b21b6' },
-    resolved:    { label:'✅ แก้แล้ว', bg:'#f0fdf4', col:'#166534' },
-    cancelled:   { label:'🚫 ยกเลิก',  bg:'#f8fafc', col:'#64748b' },
-  };
   const sm = data.status || {};
-  statusEl.innerHTML = Object.entries(ST).map(([k, s]) => {
-    const cnt = sm[k] || 0;
-    if (!cnt) return '';
-    return `<span style="background:${s.bg};color:${s.col};font-size:.68rem;font-weight:700;padding:.12rem .42rem;border-radius:10px;white-space:nowrap">${s.label} ${cnt}</span>`;
-  }).join('');
+  const sl = data.stale  || {};
 
-  const sl = data.stale || {};
-  const chips = [
-    sl.d7  ? `<span style="background:#fef9c3;color:#854d0e;font-size:.68rem;font-weight:700;padding:.12rem .42rem;border-radius:10px;white-space:nowrap">⚠️ 7+ วัน: ${sl.d7}</span>`  : '',
-    sl.d14 ? `<span style="background:#ffedd5;color:#c2410c;font-size:.68rem;font-weight:700;padding:.12rem .42rem;border-radius:10px;white-space:nowrap">🟠 14+ วัน: ${sl.d14}</span>` : '',
-    sl.d30 ? `<span style="background:#fee2e2;color:#b91c1c;font-size:.68rem;font-weight:700;padding:.12rem .42rem;border-radius:10px;white-space:nowrap">🔴 30+ วัน: ${sl.d30}</span>` : '',
-  ].join('');
-  staleEl.innerHTML = chips || `<span style="font-size:.69rem;color:#22c55e">✅ ไม่มีค้างนาน</span>`;
+  const CARDS = [
+    { key:'pending',     icon:'⏳', label:'รอดำเนินการ', bg:'#fffbeb', col:'#92400e', val: sm.pending     || 0 },
+    { key:'in_progress', icon:'🔄', label:'กำลังตรวจสอบ',bg:'#eff6ff', col:'#1e40af', val: sm.in_progress || 0 },
+    { key:'waiting',     icon:'⏸️', label:'รอข้อมูล',    bg:'#f5f3ff', col:'#5b21b6', val: sm.waiting     || 0 },
+    { key:'resolved',    icon:'✅', label:'แก้แล้ว',      bg:'#f0fdf4', col:'#166534', val: sm.resolved    || 0 },
+  ];
+
+  const staleTotal = (sl.d7||0) + (sl.d14||0) + (sl.d30||0);
+  const staleColor = sl.d30 ? '#b91c1c' : sl.d14 ? '#c2410c' : '#854d0e';
+  const staleBg    = sl.d30 ? '#fee2e2' : sl.d14 ? '#ffedd5' : '#fef9c3';
+
+  bar.innerHTML = CARDS.map(c => `
+    <div style="display:flex;align-items:center;gap:.4rem;background:${c.bg};border-radius:8px;padding:.3rem .65rem;cursor:pointer;transition:opacity .15s"
+         onclick="fuFilterByStatus('${c.key}')"
+         title="กรองเฉพาะ ${c.label}"
+         onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
+      <span style="font-size:.82rem">${c.icon}</span>
+      <div>
+        <div style="font-size:.95rem;font-weight:800;color:${c.col};line-height:1">${c.val}</div>
+        <div style="font-size:.62rem;color:${c.col};opacity:.75;white-space:nowrap">${c.label}</div>
+      </div>
+    </div>`).join('') +
+  (staleTotal ? `
+    <div style="display:flex;align-items:center;gap:.4rem;background:${staleBg};border-radius:8px;padding:.3rem .65rem;margin-left:.25rem;border-left:2px solid ${staleColor}20">
+      <span style="font-size:.82rem">🕐</span>
+      <div>
+        <div style="font-size:.95rem;font-weight:800;color:${staleColor};line-height:1">${staleTotal}</div>
+        <div style="font-size:.62rem;color:${staleColor};opacity:.75;white-space:nowrap">ค้างนาน</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:.1rem;margin-left:.2rem">
+        ${sl.d7  ? `<span style="font-size:.6rem;font-weight:700;color:#854d0e;background:#fef08a;padding:.05rem .3rem;border-radius:6px">⚠️${sl.d7}</span>`  : ''}
+        ${sl.d14 ? `<span style="font-size:.6rem;font-weight:700;color:#c2410c;background:#fed7aa;padding:.05rem .3rem;border-radius:6px">🟠${sl.d14}</span>` : ''}
+        ${sl.d30 ? `<span style="font-size:.6rem;font-weight:700;color:#b91c1c;background:#fecaca;padding:.05rem .3rem;border-radius:6px">🔴${sl.d30}</span>` : ''}
+      </div>
+    </div>` : '');
+}
+
+function fuFilterByStatus(status) {
+  const sel = document.getElementById('fu-status-filter');
+  if (!sel) return;
+  sel.value = (sel.value === status) ? '' : status; // toggle
+  fuRender();
 }
 
 // ── Sidebar ──────────────────────────────────────────────
