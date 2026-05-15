@@ -4300,7 +4300,7 @@ app.get('/api/fu/summary', authRequired, async (request, res) => {
 // ══ FOLLOW UP v2 — OVERVIEW (manager tab) ══
 app.get('/api/fu/overview', authRequired, async (request, res) => {
   try {
-    const [boardRows, staleRows] = await Promise.all([
+    const [boardRows, staleRows, assigneeRows] = await Promise.all([
       req().query(`
         SELECT
           f.id AS folder_id, f.name AS folder_name,
@@ -4324,9 +4324,41 @@ app.get('/api/fu/overview', authRequired, async (request, res) => {
         LEFT JOIN fu_folders f ON f.id = b.folder_id
         WHERE i.status NOT IN ('resolved','cancelled')
           AND DATEDIFF(day, i.updated_at, GETDATE()) >= 7
-        ORDER BY days_stale DESC`)
+        ORDER BY days_stale DESC`),
+      req().query(`
+        SELECT
+          i.assigned_to,
+          ISNULL(e.nickname, e.name) AS assignee_name,
+          i.status,
+          COUNT(i.id) AS cnt
+        FROM fu_issues i
+        LEFT JOIN employees e ON e.id = i.assigned_to
+        WHERE i.status NOT IN ('resolved','cancelled')
+        GROUP BY i.assigned_to, ISNULL(e.nickname, e.name), i.status
+        ORDER BY assignee_name, i.status`)
     ]);
-    res.json({ boards: boardRows.recordset, stale: staleRows.recordset });
+    res.json({ boards: boardRows.recordset, stale: staleRows.recordset, assignee: assigneeRows.recordset });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══ FOLLOW UP v2 — ISSUES BY ASSIGNEE (Tab 3) ══
+app.get('/api/fu/by-assignee', authRequired, async (request, res) => {
+  try {
+    const result = await req().query(`
+      SELECT
+        i.id, i.detail, i.note, i.status, i.priority, i.category, i.due_date,
+        i.assigned_to,
+        ISNULL(e.nickname, e.name) AS assignee_name,
+        DATEDIFF(day, i.updated_at, GETDATE()) AS days_stale,
+        b.id AS board_id,  b.name AS board_name,
+        f.id AS folder_id, f.name AS folder_name
+      FROM fu_issues i
+      LEFT JOIN employees e ON e.id = i.assigned_to
+      LEFT JOIN fu_boards b ON b.id = i.board_id
+      LEFT JOIN fu_folders f ON f.id = b.folder_id
+      WHERE i.status NOT IN ('resolved','cancelled')
+      ORDER BY assignee_name, i.status, i.priority`);
+    res.json(result.recordset);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
