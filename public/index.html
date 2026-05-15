@@ -8342,13 +8342,13 @@ async function fuInlineEditSelect(e, id, field) {
   const rect  = e.currentTarget.getBoundingClientRect();
   const popup = document.createElement('div');
   popup.className = 'fu-inline-popup';
-  popup.style.cssText = `position:fixed;z-index:9999;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);padding:.3rem;min-width:160px;top:${rect.bottom+2}px;left:${rect.left}px`;
+  popup.style.cssText = `position:fixed;z-index:9999;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);padding:.3rem;min-width:160px;max-height:260px;overflow-y:auto`;
 
   let options = [];
   if (field === 'status')   options = Object.entries(FU_STATUS).map(([v,s])=>({ val:v, label:s.label, color:s.color }));
   if (field === 'priority') options = Object.entries(FU_PRIORITY).map(([v,p])=>({ val:v, label:p.label, color:p.color }));
   if (field === 'assigned_to') {
-    const people = [{ val:'', label:'— ไม่ระบุ —', color:'#94a3b8' }, ...allEmployees.filter(em=>em.active).map(em=>({ val:em.id, label:em.name, color:'#334155' }))];
+    const people = [{ val:'', label:'— ไม่ระบุ —', color:'#94a3b8' }, ...allEmployees.filter(em=>em.active).map(em=>({ val:em.id, label:em.nickname||em.name, color:'#334155' }))];
     options = people;
   }
 
@@ -8360,6 +8360,20 @@ async function fuInlineEditSelect(e, id, field) {
     </div>`).join('');
 
   document.body.appendChild(popup);
+
+  // Flip upward if not enough space below
+  const popH = popup.offsetHeight;
+  const spaceBelow = window.innerHeight - rect.bottom - 6;
+  if (spaceBelow < popH && rect.top > popH) {
+    popup.style.top  = (rect.top - popH - 2) + 'px';
+  } else {
+    popup.style.top  = (rect.bottom + 2) + 'px';
+  }
+  // Keep popup within right edge
+  const popW = popup.offsetWidth;
+  const left = Math.min(rect.left, window.innerWidth - popW - 8);
+  popup.style.left = Math.max(4, left) + 'px';
+
   setTimeout(()=>{ document.addEventListener('click', ()=>popup.remove(), { once:true }); }, 10);
 }
 
