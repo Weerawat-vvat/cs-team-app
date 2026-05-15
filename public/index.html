@@ -3235,6 +3235,7 @@ async function dashRefreshOnShift() {
       ...SHIFT_ORDER.filter(s => onShiftByShift[s]),
       ...Object.keys(onShiftByShift).filter(s => !SHIFT_ORDER.includes(s))
     ])];
+    const _stc = d.shiftTaskCounts || {};
     document.getElementById('dash-onshift').innerHTML = shiftsPresent.length === 0
       ? `<div style="font-size:.8rem;color:var(--muted);padding:.5rem">ไม่มีพนักงานออนกะ</div>`
       : shiftsPresent.map(shiftKey => {
@@ -3251,10 +3252,12 @@ async function dashRefreshOnShift() {
             <div style="display:flex;flex-wrap:wrap;gap:.3rem">
               ${emps.map(e => {
                 const tCol = _teamCol[e.team] || '#475569';
+                const cnt  = _stc[e.employee_id] || 0;
                 return `<div style="background:#f8fafc;border:1.5px solid ${tCol};border-radius:8px;
                                     padding:.28rem .65rem;font-size:.78rem;display:flex;align-items:center;gap:.3rem">
                   <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${tCol};flex-shrink:0"></span>
                   <b style="color:var(--text)">${e.nickname || e.name}</b>
+                  ${cnt > 0 ? `<span style="background:${tCol}28;color:${tCol};font-size:.68rem;font-weight:800;border-radius:10px;padding:.05rem .38rem;min-width:1.1rem;text-align:center;line-height:1.4">${cnt}</span>` : ''}
                 </div>`;
               }).join('')}
             </div>
@@ -3332,6 +3335,7 @@ async function loadDashboard() {
     ...Object.keys(onShiftByShift).filter(s => !SHIFT_ORDER.includes(s))
   ])];
 
+  const _stc = d.shiftTaskCounts || {};
   document.getElementById('dash-onshift').innerHTML = shiftsPresent.length === 0
     ? `<div style="font-size:.8rem;color:var(--muted);padding:.5rem">ไม่มีพนักงานออนกะ</div>`
     : shiftsPresent.map(shiftKey => {
@@ -3339,19 +3343,23 @@ async function loadDashboard() {
         const sBg     = shiftBg(shiftKey);
         const sCol    = shiftColor(shiftKey);
         const sLabel  = shiftLabel(shiftKey, true);
+        const totalCnt = emps.reduce((s, e) => s + (_stc[e.employee_id] || 0), 0);
         return `<div style="margin-bottom:.65rem">
           <div style="display:inline-flex;align-items:center;gap:.35rem;background:${sBg};color:${sCol};
                       font-size:.7rem;font-weight:700;padding:.18rem .6rem;border-radius:20px;margin-bottom:.4rem">
             ${sLabel}
             <span style="font-weight:400;opacity:.8">(${emps.length} คน)</span>
+            ${totalCnt > 0 ? `<span style="font-weight:700;opacity:.9">· ${totalCnt} งาน</span>` : ''}
           </div>
           <div style="display:flex;flex-wrap:wrap;gap:.3rem">
             ${emps.map(e => {
               const tCol = _teamCol[e.team] || '#475569';
+              const cnt  = _stc[e.employee_id] || 0;
               return `<div style="background:#f8fafc;border:1.5px solid ${tCol};border-radius:8px;
                                   padding:.28rem .65rem;font-size:.78rem;display:flex;align-items:center;gap:.3rem">
                 <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${tCol};flex-shrink:0"></span>
                 <b style="color:var(--text)">${e.nickname || e.name}</b>
+                ${cnt > 0 ? `<span style="background:${tCol}28;color:${tCol};font-size:.68rem;font-weight:800;border-radius:10px;padding:.05rem .38rem;min-width:1.1rem;text-align:center;line-height:1.4">${cnt}</span>` : ''}
               </div>`;
             }).join('')}
           </div>

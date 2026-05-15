@@ -1559,11 +1559,51 @@ app.get('/api/dashboard', authRequired, async (_, res) => {
     const shiftReq = req().input('today', sql.Date, today);
     currentShifts.forEach((s,i) => shiftReq.input(`st${i}`, sql.NVarChar, s));
     const onShift = (await shiftReq.query(`
-      SELECT s.shift_type, e.name, e.nickname, e.team, e.role
+      SELECT s.shift_type, e.id AS employee_id, e.name, e.nickname, e.team, e.role
       FROM shifts s JOIN employees e ON e.id=s.employee_id
       WHERE s.shift_date=@today AND s.shift_type IN (${shiftIn})
         AND s.status='scheduled' AND e.active=1
       ORDER BY e.team, s.shift_type`)).recordset;
+
+    // ── Count Calllog per employee since their shift start ────
+    let shiftTaskCounts = {}; // employee_id → count
+    if (ext && onShift.length > 0) {
+      try {
+        const onShiftIds = [...new Set(onShift.map(e => e.employee_id).filter(id => id > 0))];
+        if (onShiftIds.length > 0) {
+          const cuRows = (await req().query(
+            `SELECT employee_id, calluserid FROM app_users WHERE employee_id IN (${onShiftIds.join(',')}) AND calluserid IS NOT NULL AND active=1`
+          )).recordset;
+          if (cuRows.length > 0) {
+            const empToCalluser = {}, calluserToEmp = {};
+            cuRows.forEach(r => { empToCalluser[r.employee_id] = r.calluserid; calluserToEmp[r.calluserid] = r.employee_id; });
+            const SHIFT_START = { morning:'08:00', morning2:'08:30', midday:'10:00', mid:'10:00', afternoon:'12:00', night:'15:00' };
+            // Group by shift_type
+            const byShiftType = {};
+            onShift.forEach(e => {
+              if (!e.employee_id || !empToCalluser[e.employee_id]) return;
+              if (!byShiftType[e.shift_type]) byShiftType[e.shift_type] = [];
+              byShiftType[e.shift_type].push({ empId: e.employee_id, callId: empToCalluser[e.employee_id] });
+            });
+            for (const [sType, emps] of Object.entries(byShiftType)) {
+              const startTime = SHIFT_START[sType] || '08:00';
+              const startDT   = new Date(`${today}T${startTime}:00`);
+              const callIds   = emps.map(e => e.callId);
+              const r         = extReq().input('st', sql.DateTime, startDT);
+              callIds.forEach((cu, i) => r.input(`c${i}`, sql.Int, cu));
+              const rows = (await r.query(
+                `SELECT SupportId, COUNT(*) AS cnt FROM Calllog WHERE Active=1 AND ReceiveDate>=@st AND SupportId IN (${callIds.map((_,i)=>`@c${i}`).join(',')}) GROUP BY SupportId`
+              )).recordset;
+              rows.forEach(row => {
+                const emp = emps.find(e => e.callId === row.SupportId);
+                if (emp) shiftTaskCounts[emp.empId] = row.cnt;
+              });
+            }
+          }
+        }
+      } catch(err) { console.warn('shiftTaskCounts error:', err.message); }
+    }
+
     const pendingLeaves = (await req()
       .query(`SELECT lr.*, e.name AS emp_name, e.team
               FROM leave_requests lr JOIN employees e ON e.id=lr.employee_id
@@ -1583,7 +1623,7 @@ app.get('/api/dashboard', authRequired, async (_, res) => {
       currentShifts, serverTime: now.toISOString(),
       extConnected: !!ext,
       dailyTrend, monthTotal, lastMonthTotal, totalYear, closedThisMonth,
-      todayTotal, weekTotal, weekStart, nameMap
+      todayTotal, weekTotal, weekStart, nameMap, shiftTaskCounts
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
