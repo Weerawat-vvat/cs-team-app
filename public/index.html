@@ -9295,7 +9295,7 @@ async function fuRenderPanel() {
         <div style="font-size:.72rem;font-weight:700;color:#94a3b8;margin-bottom:.25rem">ผู้รับผิดชอบ</div>
         <select onchange="fuPanelSave(${id},'assigned_to',this.value||null)" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:.35rem .5rem;font-size:.8rem;font-family:inherit;outline:none">
           <option value="">— ไม่ระบุ —</option>
-          ${allEmployees.filter(e=>e.active).map(e=>`<option value="${e.id}" ${issue.assigned_to==e.id?'selected':''}>${esc(e.name)}</option>`).join('')}
+          ${allEmployees.filter(e=>e.active).map(e=>`<option value="${e.id}" ${issue.assigned_to==e.id?'selected':''}>${esc(e.nickname||e.name)}</option>`).join('')}
         </select>
       </div>
       <div>
