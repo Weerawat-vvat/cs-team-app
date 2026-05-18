@@ -4842,6 +4842,96 @@ app.post('/api/fu/mentions/seen', authRequired, async (request, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ══ FOLLOW UP v2 — AZURE ISSUES (Tab 4) ══
+app.get('/api/fu/azure-items', authRequired, async (request, res) => {
+  try {
+    // 1. Get all fu_issues with issue_url
+    const localRows = (await req().query(`
+      SELECT i.id, i.issue_url, i.priority AS fu_priority,
+             b.id AS board_id, b.name AS board_name,
+             f.id AS folder_id, f.name AS folder_name
+      FROM fu_issues i
+      LEFT JOIN fu_boards b ON b.id = i.board_id
+      LEFT JOIN fu_folders f ON f.id = b.folder_id
+      WHERE i.issue_url IS NOT NULL AND i.issue_url != ''
+      ORDER BY f.name, b.name
+    `)).recordset;
+
+    if (!localRows.length) return res.json([]);
+
+    // 2. Parse each issue_url to extract project + workItemId
+    const urlRegex = /infogrammer\/([^\/]+)\/_workitems\/edit\/(\d+)/;
+    const parsed = localRows.map(row => {
+      const m = urlRegex.exec(row.issue_url || '');
+      return { ...row, project: m ? m[1] : null, workItemId: m ? parseInt(m[2], 10) : null };
+    });
+
+    // 3. Group by project
+    const byProject = {};
+    parsed.forEach(r => {
+      if (!r.project || !r.workItemId) return;
+      if (!byProject[r.project]) byProject[r.project] = [];
+      byProject[r.project].push(r);
+    });
+
+    // 4. Batch-query Azure OData per project
+    const pat = process.env.AZURE_DEVOPS_PAT || '';
+    const authHeader = 'Basic ' + Buffer.from(':' + pat).toString('base64');
+    const azureMap = {}; // workItemId → azure fields
+
+    await Promise.all(Object.entries(byProject).map(async ([project, rows]) => {
+      const ids = rows.map(r => r.workItemId).join(',');
+      const url = `https://analytics.dev.azure.com/infogrammer/${encodeURIComponent(project)}/_odata/v3.0-preview/WorkItems` +
+        `?$select=WorkItemId,Title,State,Custom_LevelofUrgency,Custom_ReleaseDate,Custom_ReleaseVersion` +
+        `&$expand=AssignedTo($select=UserName)` +
+        `&$filter=WorkItemId in (${ids})`;
+      try {
+        const https = require('https');
+        const data = await new Promise((resolve, reject) => {
+          const req2 = https.request(url, { headers: { Authorization: authHeader, Accept: 'application/json' } }, resp => {
+            let body = '';
+            resp.on('data', chunk => { body += chunk; });
+            resp.on('end', () => {
+              try { resolve(JSON.parse(body)); } catch(e) { reject(e); }
+            });
+          });
+          req2.on('error', reject);
+          req2.end();
+        });
+        (data.value || []).forEach(item => {
+          azureMap[item.WorkItemId] = {
+            title: item.Title || null,
+            state: item.State || null,
+            levelOfUrgency: item.Custom_LevelofUrgency || null,
+            assignedTo: item.AssignedTo?.UserName || null,
+            releaseDate: item.Custom_ReleaseDate || null,
+            releaseVersion: item.Custom_ReleaseVersion || null,
+          };
+        });
+      } catch(e) {
+        console.error(`Azure OData error for project ${project}:`, e.message);
+      }
+    }));
+
+    // 5. Merge and return
+    const result = parsed.map(r => ({
+      fu_id: r.id,
+      board_id: r.board_id,
+      board_name: r.board_name,
+      folder_id: r.folder_id,
+      folder_name: r.folder_name,
+      workItemId: r.workItemId,
+      project: r.project,
+      issue_url: r.issue_url,
+      ...(r.workItemId && azureMap[r.workItemId] ? azureMap[r.workItemId] : {
+        title: null, state: null, levelOfUrgency: null, assignedTo: null, releaseDate: null, releaseVersion: null
+      })
+    }));
+
+    res.json(result);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // Lightweight badge count only
 app.get('/api/specialist/badge', authRequired, async (request, res) => {
   try {
