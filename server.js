@@ -4879,24 +4879,24 @@ app.get('/api/fu/azure-items', authRequired, async (request, res) => {
     const authHeader = 'Basic ' + Buffer.from(':' + pat).toString('base64');
     const azureMap = {}; // workItemId → azure fields
 
+    const httpsModule = require('https');
     await Promise.all(Object.entries(byProject).map(async ([project, rows]) => {
       const ids = rows.map(r => r.workItemId).join(',');
-      const url = `https://analytics.dev.azure.com/infogrammer/${encodeURIComponent(project)}/_odata/v3.0-preview/WorkItems` +
-        `?$select=WorkItemId,Title,State,Custom_LevelofUrgency,Custom_ReleaseDate,Custom_ReleaseVersion` +
-        `&$expand=AssignedTo($select=UserName)` +
-        `&$filter=WorkItemId in (${ids})`;
+      const qs = new URLSearchParams({
+        '$select': 'WorkItemId,Title,State,Custom_LevelofUrgency,Custom_ReleaseDate,Custom_ReleaseVersion',
+        '$expand': 'AssignedTo($select=UserName)',
+        '$filter': `WorkItemId in (${ids})`,
+      });
+      const url = `https://analytics.dev.azure.com/infogrammer/${encodeURIComponent(project)}/_odata/v3.0-preview/WorkItems?${qs}`;
       try {
-        const https = require('https');
         const data = await new Promise((resolve, reject) => {
-          const req2 = https.request(url, { headers: { Authorization: authHeader, Accept: 'application/json' } }, resp => {
+          const u = new URL(url);
+          const opts = { hostname: u.hostname, path: u.pathname + u.search, headers: { Authorization: authHeader, Accept: 'application/json' } };
+          httpsModule.get(opts, resp => {
             let body = '';
             resp.on('data', chunk => { body += chunk; });
-            resp.on('end', () => {
-              try { resolve(JSON.parse(body)); } catch(e) { reject(e); }
-            });
-          });
-          req2.on('error', reject);
-          req2.end();
+            resp.on('end', () => { try { resolve(JSON.parse(body)); } catch(e) { reject(e); } });
+          }).on('error', reject);
         });
         (data.value || []).forEach(item => {
           azureMap[item.WorkItemId] = {
