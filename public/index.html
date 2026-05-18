@@ -3467,6 +3467,7 @@ async function loadDashboardCharts() {
   const { catStats = [], agentThis = [], agentLast = [], agentCat = [],
           dailyTrend = [], hourlyStats = [], dowStats = [], catDailyTrend = [],
           closedThis = 0, closedLast = 0, hourlyAgentGrid = [],
+          agentSpecialist = [],
           daysThis = 30, daysPrev = 30,
           thisFrom = '', thisTo = '', prevFrom = '', prevTo = '' } = data;
 
@@ -3599,6 +3600,11 @@ async function loadDashboardCharts() {
     const avgThis = r => +((r.cnt || 0) / daysThis).toFixed(2);
     const avgPrev = r => +((lastMap[r.UserName] || 0) / daysPrev).toFixed(2);
 
+    // Specialist map: UserName → count
+    const spMap = {};
+    agentSpecialist.forEach(r => { spMap[r.UserName] = r.cnt || 0; });
+    const avgSp = r => +((spMap[r.UserName] || 0) / daysThis).toFixed(2);
+
     // Update chart card title dynamically
     const barTitle = document.querySelector('#chart-agent-compare')?.closest('.card')?.querySelector('.card-title');
     if (barTitle) barTitle.textContent = `📅 Workload Agent — เฉลี่ย tickets/วัน`;
@@ -3619,6 +3625,14 @@ async function loadDashboardCharts() {
         backgroundColor: '#cbd5e1',
         borderRadius: 4,
         order: 3
+      },
+      {
+        type: 'bar',
+        label: 'Specialist',
+        data: topN.map(avgSp),
+        backgroundColor: '#a78bfa',
+        borderRadius: 4,
+        order: 2
       }
     ];
     if (_tgt) {
@@ -3647,10 +3661,11 @@ async function loadDashboardCharts() {
                 const raw = ctx.raw;
                 if (ctx.dataset.type === 'line') return ` Target: ${raw} tickets/วัน`;
                 const agent = topN[ctx.dataIndex];
-                const total = ctx.datasetIndex === 0
-                  ? (agent?.cnt || 0)
-                  : (lastMap[agent?.UserName] || 0);
-                return ` ${ctx.dataset.label}: ${raw} tickets/วัน (รวม ${total})`;
+                let total;
+                if (ctx.dataset.label === 'Specialist') total = spMap[agent?.UserName] || 0;
+                else if (ctx.datasetIndex === 0) total = agent?.cnt || 0;
+                else total = lastMap[agent?.UserName] || 0;
+                return ` ${ctx.dataset.label}: ${raw}/วัน (รวม ${total})`;
               }
             }
           }

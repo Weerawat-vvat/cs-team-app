@@ -3400,6 +3400,19 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
           AND (cs.StatusName LIKE '%close%' OR cs.StatusName LIKE '%ปิด%' OR cs.StatusName LIKE '%complete%')${sc11}`),
     ]);
 
+    // Specialist workload for same period (internal DB)
+    const spRows = (await req()
+      .input('ms', sql.DateTime, msDate)
+      .input('me', sql.DateTime, meDate)
+      .query(`SELECT au.ext_username AS UserName, COUNT(*) AS cnt
+              FROM specialist_log sl
+              JOIN app_users au ON au.id = sl.assigned_to_user
+              WHERE sl.assigned_at >= @ms AND sl.assigned_at < @me
+                AND au.ext_username IS NOT NULL
+              GROUP BY au.ext_username`)).recordset;
+    const agentSpecialist = scope === undefined ? spRows
+      : spRows.filter(r => !scope || scope.includes(r.UserName));
+
     // Build ext_username → employee name map
     const nameMapRows = (await req().query(`
       SELECT au.ext_username, ISNULL(e.nickname, e.name) AS display_name
@@ -3422,6 +3435,7 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
       closedThis:      d9.recordset[0]?.cnt || 0,
       hourlyAgentGrid: d10.recordset,
       closedLast:      d11.recordset[0]?.cnt || 0,
+      agentSpecialist,
       nameMap,
       daysThis,
       daysPrev:  daysThis,
