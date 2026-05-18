@@ -2828,6 +2828,22 @@ app.get('/api/repair/:id', authRequired, async (request, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// Toggle acknowledge
+app.patch('/api/repair/:id/acknowledge', authRequired, async (request, res) => {
+  try {
+    const id  = parseInt(request.params.id);
+    const val = request.body.acknowledged ? 1 : 0;
+    await req().input('id', sql.Int, id).input('v', sql.Bit, val)
+      .input('by', sql.Int, request.user.id || null)
+      .query(`UPDATE repair_jobs SET
+                acknowledged=@v,
+                acknowledged_at=${val ? 'GETDATE()' : 'NULL'},
+                acknowledged_by=${val ? '@by' : 'NULL'}
+              WHERE id=@id`);
+    res.json({ acknowledged: val });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // Create repair job
 app.post('/api/repair', authRequired, async (request, res) => {
   try {
@@ -4094,9 +4110,12 @@ async function ensureRepairTables() {
       )`);
     // Add columns that may be missing from existing tables
     for (const [tbl, col, def] of [
-      ['repair_jobs',     'public_token', 'NVARCHAR(48) NULL'],
-      ['repair_timeline', 'read_at',      'DATETIME NULL'],
-      ['repair_timeline', 'replied_at',   'DATETIME NULL'],
+      ['repair_jobs',     'public_token',    'NVARCHAR(48) NULL'],
+      ['repair_jobs',     'acknowledged',    'BIT DEFAULT 0'],
+      ['repair_jobs',     'acknowledged_at', 'DATETIME NULL'],
+      ['repair_jobs',     'acknowledged_by', 'INT NULL'],
+      ['repair_timeline', 'read_at',         'DATETIME NULL'],
+      ['repair_timeline', 'replied_at',      'DATETIME NULL'],
     ]) {
       try {
         await req().query(`

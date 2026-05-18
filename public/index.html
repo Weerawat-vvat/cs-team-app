@@ -1960,7 +1960,8 @@ textarea{resize:vertical;min-height:80px}
         <table>
           <thead><tr>
             <th>Job No</th><th>ร้านค้า</th><th>อุปกรณ์</th><th>S/N</th>
-            <th>สถานะ</th><th>การเงิน</th><th>ผู้แจ้ง</th><th>วันที่แจ้ง</th><th></th>
+            <th>สถานะ</th><th>การเงิน</th><th>ผู้แจ้ง</th><th>วันที่แจ้ง</th>
+            <th title="รับทราบและประสานงานเรียบร้อยแล้ว" style="white-space:nowrap">✅ รับทราบ</th><th></th>
           </tr></thead>
           <tbody id="repair-tbody"></tbody>
         </table>
@@ -5737,6 +5738,11 @@ function renderRepairTable() {
       <td>${rpFinanceBadge(j.finance_status)}</td>
       <td style="font-size:.78rem">${escHtml(j.reporter_name||'—')}</td>
       <td style="font-size:.75rem;white-space:nowrap">${fmtDT(j.reported_at)}</td>
+      <td onclick="event.stopPropagation()" style="text-align:center">
+        <input type="checkbox" ${j.acknowledged?'checked':''} title="รับทราบและประสานงานเรียบร้อยแล้ว"
+          style="width:16px;height:16px;cursor:pointer;accent-color:#16a34a"
+          onchange="rpToggleAck(${j.id},this.checked)">
+      </td>
       <td onclick="event.stopPropagation()" style="white-space:nowrap">
         <button class="btn btn-ghost btn-sm" onclick="openRepairDetail(${j.id})" title="ดูรายละเอียด">📋</button>
         <button class="btn btn-ghost btn-sm" onclick="genRepairLink(${j.id},'${j.public_token||''}')" title="Copy link ส่งลูกค้า" style="color:#2563eb">🔗</button>
@@ -6277,13 +6283,21 @@ function renderRepairDetail(j) {
         </div>
         <div class="form-group"><label style="font-size:.72rem">หมายเหตุ</label>
           <textarea id="rd-remark" rows="2" onblur="quickUpdateRepair(${j.id},'remark',this.value)">${escHtml(j.remark||'')}</textarea></div>
+        <div style="margin-top:.6rem;padding:.55rem .7rem;background:${j.acknowledged?'#f0fdf4':'#f8fafc'};border-radius:8px;border:1px solid ${j.acknowledged?'#bbf7d0':'#e2e8f0'}">
+          <label style="display:flex;align-items:center;gap:.55rem;cursor:pointer;user-select:none;font-size:.84rem;font-weight:600;color:${j.acknowledged?'#15803d':'#475569'}">
+            <input type="checkbox" id="rd-ack-cb" ${j.acknowledged?'checked':''} style="width:17px;height:17px;accent-color:#16a34a;cursor:pointer" onchange="rpToggleAck(${j.id},this.checked)">
+            ✅ รับทราบและประสานงานเรียบร้อยแล้ว
+          </label>
+          ${j.acknowledged_at ? `<div style="font-size:.7rem;color:#16a34a;margin-top:.2rem;padding-left:1.6rem">บันทึกเมื่อ ${fmtDT(j.acknowledged_at)}</div>` : ''}
+        </div>
         ` : `
         <table style="font-size:.8rem;width:100%;border-collapse:collapse">
           ${[['สถานะ', rpStatusBadge(j.status)],['การเงิน', rpFinanceBadge(j.finance_status)],
              ['เสนอราคา', fmtD(j.quote_date)],['เลขใบเสนอ', j.quote_no||'—'],
              ['รับเครื่อง', fmtD(j.received_date)],['ส่ง Supplier', fmtD(j.sent_supplier_date)],
              ['ได้คืน', fmtD(j.returned_from_supplier_date)],['ส่งลูกค้า', fmtD(j.returned_to_customer_date)],
-             ['S/N สแปร์', j.spare_serial_no||'—'],['หมายเหตุ', j.remark||'—']
+             ['S/N สแปร์', j.spare_serial_no||'—'],['หมายเหตุ', j.remark||'—'],
+             ['รับทราบแล้ว', j.acknowledged ? `<span style="color:#16a34a;font-weight:700">✅ เรียบร้อย</span>${j.acknowledged_at?` <span style="color:#94a3b8;font-size:.72rem">${fmtDT(j.acknowledged_at)}</span>`:''}` : '<span style="color:#94a3b8">ยังไม่รับทราบ</span>']
           ].map(([k,v])=>`<tr><td style="color:var(--muted);padding:.15rem .3rem .15rem 0;white-space:nowrap">${k}</td>
             <td style="padding:.15rem 0">${v}</td></tr>`).join('')}
         </table>`}
@@ -6679,6 +6693,18 @@ async function rlDeleteLink(id) {
   await rlLoadList();
 }
 // ─────────────────────────────────────────────────────────────────────────────
+
+async function rpToggleAck(id, checked) {
+  const r = await api(`/api/repair/${id}/acknowledge`, { method:'PATCH', body:{ acknowledged: checked }, silent:true });
+  if (r?.error) { showToast('❌ ' + r.error, 'error'); return; }
+  showToast(checked ? '✅ รับทราบและประสานงานเรียบร้อยแล้ว' : '↩️ ยกเลิกการรับทราบ');
+  // Update modal checkbox if open
+  const mc = document.getElementById('rd-ack-cb');
+  if (mc) mc.checked = checked;
+  // Refresh list silently (don't close modal)
+  allRepairJobs = allRepairJobs.map(j => j.id===id ? {...j, acknowledged: checked?1:0} : j);
+  renderRepairTable();
+}
 
 async function quickUpdateRepair(id, field, value) {
   const body = { [field]: value || null };
