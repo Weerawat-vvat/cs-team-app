@@ -4998,8 +4998,6 @@ app.put('/api/specialist/:id', authRequired, async (request, res) => {
     if (b.status && b.status !== cur.status) {
       const statusLabel = {pending:'รอดำเนินการ',in_progress:'กำลังดำเนินการ',assigned_to_programmer:'Assign to Programmer',resolved:'แก้ไขแล้ว',rejected:'ปฏิเสธ',cancelled:'ยกเลิก'};
       const uname = request.user.name || request.user.username;
-      await sendLineNotify(`\n🔧 [Specialist] ${cur.company_name||'—'}\nสถานะ: ${statusLabel[b.status]||b.status}\nโดย: ${uname}${b.resolution_note?'\n'+b.resolution_note:''}`, 'specialist');
-
       // Auto-close calllog when specialist marks resolved OR assigned_to_programmer
       if (['resolved','assigned_to_programmer'].includes(b.status) && getExtPool()) {
         try {
