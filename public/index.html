@@ -6972,35 +6972,49 @@ function openLineTargetForm(target = null) {
   const isEdit = target && target.id;
   const evList = target?.events ? target.events.split(',').map(e => e.trim()) : [];
   const checkboxes = LINE_EVENTS.map(ev => `
-    <label style="display:flex;align-items:center;gap:.35rem;font-size:.8rem;cursor:pointer;padding:3px 0">
-      <input type="checkbox" name="line_event" value="${ev.key}" ${evList.includes(ev.key) || (!isEdit && !evList.length) ? 'checked' : ''}>
-      ${ev.label}
+    <label style="display:flex;align-items:center;gap:.4rem;font-size:.8rem;cursor:pointer;
+                  background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:.4rem .65rem;
+                  transition:background .15s">
+      <input type="checkbox" name="line_event" value="${ev.key}"
+        style="accent-color:#2563eb;width:14px;height:14px;flex-shrink:0"
+        ${evList.includes(ev.key) || (!isEdit && !evList.length) ? 'checked' : ''}>
+      <span>${ev.label}</span>
     </label>
   `).join('');
   wrap.style.display = '';
   wrap.innerHTML = `
-    <div style="font-size:.88rem;font-weight:600;margin-bottom:.75rem">${isEdit ? '✏️ แก้ไขกลุ่ม' : '➕ เพิ่มกลุ่มใหม่'}</div>
-    <div class="form-group" style="margin-bottom:.6rem">
-      <label style="font-size:.75rem;font-weight:600;display:block;margin-bottom:.25rem">ชื่อกลุ่ม</label>
-      <input id="lf-name" type="text" value="${escHtml(target?.name||'')}" placeholder="เช่น ทีม CS" style="width:100%;max-width:320px;font-size:.8rem;padding:.35rem .6rem;border:1px solid #d1d5db;border-radius:8px"/>
+    <div style="font-size:.88rem;font-weight:700;color:var(--hd);margin-bottom:1rem;padding-bottom:.5rem;border-bottom:1px solid #f1f5f9">
+      ${isEdit ? '✏️ แก้ไขกลุ่ม' : '➕ เพิ่มกลุ่มใหม่'}
     </div>
-    <div class="form-group" style="margin-bottom:.6rem">
-      <label style="font-size:.75rem;font-weight:600;display:block;margin-bottom:.25rem">Group ID</label>
-      <input id="lf-gid" type="text" value="${escHtml(target?.group_id||'')}" placeholder="Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" style="width:100%;max-width:320px;font-size:.8rem;padding:.35rem .6rem;border:1px solid #d1d5db;border-radius:8px"/>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.75rem">
+      <div>
+        <label style="font-size:.73rem;font-weight:600;color:#475569;display:block;margin-bottom:.3rem">ชื่อกลุ่ม <span style="color:#ef4444">*</span></label>
+        <input id="lf-name" type="text" value="${escHtml(target?.name||'')}" placeholder="เช่น ทีม CS"
+          style="width:100%;font-size:.82rem;padding:.4rem .65rem;border:1px solid #d1d5db;border-radius:8px;outline:none"/>
+      </div>
+      <div>
+        <label style="font-size:.73rem;font-weight:600;color:#475569;display:block;margin-bottom:.3rem">Group ID <span style="color:#ef4444">*</span></label>
+        <input id="lf-gid" type="text" value="${escHtml(target?.group_id||'')}" placeholder="Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          style="width:100%;font-size:.82rem;padding:.4rem .65rem;border:1px solid #d1d5db;border-radius:8px;outline:none;font-family:monospace"/>
+      </div>
     </div>
-    <div class="form-group" style="margin-bottom:.6rem">
-      <label style="font-size:.75rem;font-weight:600;display:block;margin-bottom:.35rem">เหตุการณ์ที่แจ้งเตือน <span style="font-weight:400;color:var(--muted)">(ไม่เลือก = แจ้งทุกเหตุการณ์)</span></label>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.15rem">${checkboxes}</div>
+    <div style="margin-bottom:.75rem">
+      <label style="font-size:.73rem;font-weight:600;color:#475569;display:block;margin-bottom:.45rem">
+        เหตุการณ์ที่แจ้งเตือน
+        <span style="font-weight:400;color:#94a3b8;font-size:.7rem">(ไม่เลือกเลย = แจ้งทุกเหตุการณ์)</span>
+      </label>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.4rem">${checkboxes}</div>
     </div>
-    <div class="form-group" style="margin-bottom:.75rem">
-      <label style="display:flex;align-items:center;gap:.4rem;font-size:.8rem;cursor:pointer">
-        <input id="lf-active" type="checkbox" ${(!isEdit || target?.active) ? 'checked' : ''}>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding-top:.6rem;border-top:1px solid #f1f5f9">
+      <label style="display:flex;align-items:center;gap:.4rem;font-size:.82rem;cursor:pointer;color:#475569">
+        <input id="lf-active" type="checkbox" style="accent-color:#16a34a;width:15px;height:15px" ${(!isEdit || target?.active) ? 'checked' : ''}>
         เปิดใช้งาน
       </label>
-    </div>
-    <div style="display:flex;gap:.5rem">
-      <button class="btn btn-primary btn-sm" onclick="saveLineTarget(${isEdit ? target.id : 'null'})">💾 บันทึก</button>
-      <button class="btn btn-sm" onclick="document.getElementById('line-target-form-wrap').style.display='none'">ยกเลิก</button>
+      <div style="display:flex;gap:.5rem">
+        <button class="btn btn-sm" onclick="document.getElementById('line-target-form-wrap').style.display='none'"
+          style="background:#f1f5f9;color:#475569">ยกเลิก</button>
+        <button class="btn btn-primary btn-sm" onclick="saveLineTarget(${isEdit ? target.id : 'null'})">💾 บันทึก</button>
+      </div>
     </div>
   `;
   wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
