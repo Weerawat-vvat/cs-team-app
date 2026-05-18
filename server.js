@@ -87,17 +87,66 @@ const skUpload = multer({
   }
 });
 
+// ── LINE Settings table ───────────────────────────────────
+async function ensureLineNotifyTable() {
+  await getPool().request().query(`
+    IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name='line_settings')
+      CREATE TABLE line_settings (
+        id INT PRIMARY KEY,
+        channel_token NVARCHAR(500) NULL,
+        updated_at DATETIME DEFAULT GETDATE()
+      );
+    IF NOT EXISTS (SELECT 1 FROM line_settings WHERE id=1)
+      INSERT INTO line_settings (id) VALUES (1);
+    IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name='line_notify_targets')
+      CREATE TABLE line_notify_targets (
+        id INT PRIMARY KEY IDENTITY,
+        name NVARCHAR(100) NOT NULL,
+        group_id NVARCHAR(100) NOT NULL,
+        events NVARCHAR(500) NULL,
+        active BIT DEFAULT 1,
+        created_at DATETIME DEFAULT GETDATE()
+      );
+  `);
+}
+
 // ── Notification helpers ──────────────────────────────────
-async function sendLineNotify(message) {
-  const token   = process.env.LINE_CHANNEL_TOKEN;
-  const groupId = process.env.LINE_GROUP_ID;
-  if (!token || !groupId) return;
+async function sendLineNotify(message, eventType = null) {
   try {
-    await axios.post('https://api.line.me/v2/bot/message/push',
-      { to: groupId, messages: [{ type: 'text', text: message.trim() }] },
-      { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
-    );
-  } catch(e) { console.error('LINE Messaging API error:', e.response?.data || e.message); }
+    // Read channel token: DB first, fallback to env
+    let token;
+    try {
+      const tokenRow = (await getPool().request()
+        .query(`SELECT channel_token FROM line_settings WHERE id=1`)).recordset[0];
+      token = tokenRow?.channel_token || process.env.LINE_CHANNEL_TOKEN;
+    } catch { token = process.env.LINE_CHANNEL_TOKEN; }
+    if (!token) return;
+
+    // Read active targets
+    let targets = [];
+    try {
+      targets = (await getPool().request()
+        .query(`SELECT id, name, group_id, events FROM line_notify_targets WHERE active=1`)).recordset;
+    } catch {
+      // Fallback to legacy single group if table not ready
+      const groupId = process.env.LINE_GROUP_ID;
+      if (groupId) targets = [{ name: 'default', group_id: groupId, events: null }];
+    }
+
+    for (const target of targets) {
+      // Filter by eventType
+      if (eventType && target.events) {
+        const allowed = target.events.split(',').map(e => e.trim());
+        if (!allowed.includes(eventType)) continue;
+      }
+      try {
+        await axios.post('https://api.line.me/v2/bot/message/push',
+          { to: target.group_id, messages: [{ type: 'text', text: message.trim() }] },
+          { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+        );
+      } catch(e) { console.error(`LINE Messaging API error (target: ${target.name}):`, e.response?.data || e.message); }
+    }
+  } catch(e) { console.error('sendLineNotify error:', e.message); }
 }
 
 async function sendEmail(to, subject, html) {
@@ -140,7 +189,7 @@ async function notifyRepairStatus(repairId, jobNo, companyName, newStatus, chang
   } else {
     msg = `\n🔧 [${jobNo}] ${companyName}\nสถานะ: ${label}\nอัพเดทโดย: ${changedByName}\n${new Date().toLocaleString('th-TH')}`;
   }
-  await sendLineNotify(msg);
+  await sendLineNotify(msg, newStatus === 'received' ? 'repair_received' : 'repair_status');
   // log to DB
   try {
     await req().input('rid', sql.Int, repairId).input('ch', sql.NVarChar, 'line')
@@ -2170,7 +2219,7 @@ app.post('/api/public/complaint/direct', async (request, res) => {
       .input('msg',  sql.NVarChar, message.trim())
       .query(`INSERT INTO ticket_complaints (company_name, contact_name, contact_phone, email, message)
               VALUES (@cn, @cname, @ctel, @em, @msg)`);
-    await sendLineNotify(`\n📣 [ร้องเรียนใหม่] ${company_name.trim()}${contact_name?` | ${contact_name.trim()}`:''}${contact_phone?` | ${contact_phone}`:''}\n"${message.trim().substring(0,100)}${message.trim().length>100?'…':''}"`);
+    await sendLineNotify(`\n📣 [ร้องเรียนใหม่] ${company_name.trim()}${contact_name?` | ${contact_name.trim()}`:''}${contact_phone?` | ${contact_phone}`:''}\n"${message.trim().substring(0,100)}${message.trim().length>100?'…':''}"`, 'complaint');
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -2375,7 +2424,7 @@ app.post('/api/repair/:id/reply', authRequired, async (request, res) => {
     }
 
     // Notify Line
-    await sendLineNotify(`\n↩️ [${job.job_no}] ${job.company_name}\nAdmin ตอบ: ${sender}\n"${message.trim()}"`);
+    await sendLineNotify(`\n↩️ [${job.job_no}] ${job.company_name}\nAdmin ตอบ: ${sender}\n"${message.trim()}"`, 'repair_message');
 
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -2668,7 +2717,7 @@ app.post('/api/public/repair/submit', publicUpload.array('attachments', 5), asyn
 
     const fileNote = request.files?.length ? ` (แนบรูป ${request.files.length} ไฟล์)` : '';
     // LINE notify is best-effort — don't fail the request if it errors
-    sendLineNotify(`\n🔧 [แจ้งซ่อมใหม่] ${b.company_name}\nJob: ${newJob}\nอุปกรณ์: ${b.device_type||'—'} ${b.device_model||''}\nS/N: ${b.serial_no||'—'}\nอาการ: ${b.symptom}\nผู้แจ้ง: ${b.contact_name} ${b.contact_phone}${fileNote}`).catch(()=>{});
+    sendLineNotify(`\n🔧 [แจ้งซ่อมใหม่] ${b.company_name}\nJob: ${newJob}\nอุปกรณ์: ${b.device_type||'—'} ${b.device_model||''}\nS/N: ${b.serial_no||'—'}\nอาการ: ${b.symptom}\nผู้แจ้ง: ${b.contact_name} ${b.contact_phone}${fileNote}`, 'repair_received').catch(()=>{});
 
     res.json({ id: newId, job_no: newJob, token: newToken });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -2691,7 +2740,7 @@ app.post('/api/public/repair/:token/message', async (request, res) => {
               VALUES (@rid, @fc, @nv, @nt)`);
     // Notify Line
     const displayName = name?.trim() || 'ลูกค้า';
-    await sendLineNotify(`\n💬 [${job.job_no}] ${job.company_name}\nข้อความจาก: ${displayName}\n"${message.trim()}"`);
+    await sendLineNotify(`\n💬 [${job.job_no}] ${job.company_name}\nข้อความจาก: ${displayName}\n"${message.trim()}"`, 'repair_message');
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -4299,7 +4348,7 @@ app.post('/api/followup', authRequired, async (request, res) => {
         VALUES(@slid,@cid,@cn,@sub,@desc,@ctn,@ctp,@pri,@cb,@att,@atu)`);
     const newId = result.recordset[0].id;
     const uname = request.user.name || request.user.username;
-    await sendLineNotify(`\n🔁 [Follow Up ใหม่] ${b.company_name||'—'}\n📋 ${b.subject}\nทีมที่รับ: ${b.assigned_to_team}\nสร้างโดย: ${uname}`);
+    await sendLineNotify(`\n🔁 [Follow Up ใหม่] ${b.company_name||'—'}\n📋 ${b.subject}\nทีมที่รับ: ${b.assigned_to_team}\nสร้างโดย: ${uname}`, 'followup');
     res.json({ id: newId });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -4887,7 +4936,7 @@ app.post('/api/specialist', authRequired, async (request, res) => {
         (@cid,@rid,@cn,@subj,@pt,@ptid,@siid,@ctn,@ctp,@li,@lg,@it,@loc,@oa,@att,@atu,@nt,@desc,@sol)`);
     // Line notify
     const uname = request.user.name || request.user.username;
-    await sendLineNotify(`\n🔧 [Specialist] ${b.company_name||'—'}\nมอบหมายโดย: ${uname}\nทีม: ${b.assigned_to_team||'—'}\n${b.note||''}`);
+    await sendLineNotify(`\n🔧 [Specialist] ${b.company_name||'—'}\nมอบหมายโดย: ${uname}\nทีม: ${b.assigned_to_team||'—'}\n${b.note||''}`, 'specialist');
     res.json({ id: result.recordset[0].id });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -4943,13 +4992,13 @@ app.put('/api/specialist/:id', authRequired, async (request, res) => {
     // Notify on reassign
     if (b.hasOwnProperty('accepted_by') && b.accepted_by === null && b.assigned_to_team && b.assigned_to_team !== cur.assigned_to_team) {
       const uname = request.user.name || request.user.username;
-      await sendLineNotify(`\n🔄 [Specialist Reassign] ${cur.company_name||'—'}\nจาก: ${cur.assigned_to_team||'—'} → ใหม่: ${b.assigned_to_team}\nโดย: ${uname}${b.note?'\n'+b.note:''}`);
+      await sendLineNotify(`\n🔄 [Specialist Reassign] ${cur.company_name||'—'}\nจาก: ${cur.assigned_to_team||'—'} → ใหม่: ${b.assigned_to_team}\nโดย: ${uname}${b.note?'\n'+b.note:''}`, 'specialist');
     }
     // Notify on status change
     if (b.status && b.status !== cur.status) {
       const statusLabel = {pending:'รอดำเนินการ',in_progress:'กำลังดำเนินการ',assigned_to_programmer:'Assign to Programmer',resolved:'แก้ไขแล้ว',rejected:'ปฏิเสธ',cancelled:'ยกเลิก'};
       const uname = request.user.name || request.user.username;
-      await sendLineNotify(`\n🔧 [Specialist] ${cur.company_name||'—'}\nสถานะ: ${statusLabel[b.status]||b.status}\nโดย: ${uname}${b.resolution_note?'\n'+b.resolution_note:''}`);
+      await sendLineNotify(`\n🔧 [Specialist] ${cur.company_name||'—'}\nสถานะ: ${statusLabel[b.status]||b.status}\nโดย: ${uname}${b.resolution_note?'\n'+b.resolution_note:''}`, 'specialist');
 
       // Auto-close calllog when specialist marks resolved OR assigned_to_programmer
       if (['resolved','assigned_to_programmer'].includes(b.status) && getExtPool()) {
@@ -5830,6 +5879,111 @@ app.delete('/api/shopinfo/knowledge/images/:imgId', authRequired, async (request
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ══════════════════════════════════════════════════════════
+//  LINE NOTIFICATION SETTINGS — APIs
+// ══════════════════════════════════════════════════════════
+
+// GET /api/settings/line
+app.get('/api/settings/line', authRequired, async (request, res) => {
+  try {
+    const tokenRow = (await req().query(`SELECT channel_token FROM line_settings WHERE id=1`)).recordset[0];
+    const rawToken = tokenRow?.channel_token || null;
+    let maskedToken = null;
+    if (rawToken && rawToken.length >= 8) {
+      maskedToken = rawToken.slice(0, 4) + '****' + rawToken.slice(-4);
+    } else if (rawToken) {
+      maskedToken = '****';
+    }
+    const targets = (await req().query(`SELECT * FROM line_notify_targets ORDER BY created_at`)).recordset;
+    res.json({ token: maskedToken, has_token: !!rawToken, targets });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/settings/line/token
+app.post('/api/settings/line/token', authRequired, async (request, res) => {
+  try {
+    const { token } = request.body;
+    await req()
+      .input('tok', sql.NVarChar, token?.trim() || null)
+      .query(`UPDATE line_settings SET channel_token=@tok, updated_at=GETDATE() WHERE id=1`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/settings/line/targets
+app.get('/api/settings/line/targets', authRequired, async (request, res) => {
+  try {
+    const targets = (await req().query(`SELECT * FROM line_notify_targets ORDER BY created_at`)).recordset;
+    res.json(targets);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/settings/line/targets
+app.post('/api/settings/line/targets', authRequired, async (request, res) => {
+  try {
+    const { name, group_id, events } = request.body;
+    if (!name?.trim()) return res.status(400).json({ error: 'กรุณาระบุชื่อกลุ่ม' });
+    if (!group_id?.trim()) return res.status(400).json({ error: 'กรุณาระบุ Group ID' });
+    const eventsStr = Array.isArray(events) ? events.join(',') : (events || null);
+    const r = await req()
+      .input('nm', sql.NVarChar, name.trim())
+      .input('gid', sql.NVarChar, group_id.trim())
+      .input('ev', sql.NVarChar, eventsStr || null)
+      .query(`INSERT INTO line_notify_targets (name, group_id, events) OUTPUT INSERTED.id VALUES (@nm, @gid, @ev)`);
+    res.json({ id: r.recordset[0].id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT /api/settings/line/targets/:id
+app.put('/api/settings/line/targets/:id', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const { name, group_id, events, active } = request.body;
+    const eventsStr = Array.isArray(events) ? events.join(',') : (events ?? null);
+    await req()
+      .input('id', sql.Int, id)
+      .input('nm', sql.NVarChar, name?.trim() || null)
+      .input('gid', sql.NVarChar, group_id?.trim() || null)
+      .input('ev', sql.NVarChar, eventsStr)
+      .input('act', sql.Bit, active !== undefined ? (active ? 1 : 0) : 1)
+      .query(`UPDATE line_notify_targets SET name=COALESCE(@nm,name), group_id=COALESCE(@gid,group_id),
+              events=@ev, active=@act WHERE id=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE /api/settings/line/targets/:id
+app.delete('/api/settings/line/targets/:id', authRequired, async (request, res) => {
+  try {
+    await req().input('id', sql.Int, parseInt(request.params.id))
+      .query(`DELETE FROM line_notify_targets WHERE id=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/settings/line/targets/:id/test
+app.post('/api/settings/line/targets/:id/test', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const target = (await req().input('id', sql.Int, id)
+      .query(`SELECT * FROM line_notify_targets WHERE id=@id`)).recordset[0];
+    if (!target) return res.status(404).json({ error: 'ไม่พบกลุ่มนี้' });
+    // Read token
+    let token;
+    try {
+      const tokenRow = (await req().query(`SELECT channel_token FROM line_settings WHERE id=1`)).recordset[0];
+      token = tokenRow?.channel_token || process.env.LINE_CHANNEL_TOKEN;
+    } catch { token = process.env.LINE_CHANNEL_TOKEN; }
+    if (!token) return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า Channel Access Token' });
+    const msg = `🔔 ทดสอบการแจ้งเตือน\nCS Team App — ส่งถึง: ${target.name}\n${new Date().toLocaleString('th-TH')}`;
+    await axios.post('https://api.line.me/v2/bot/message/push',
+      { to: target.group_id, messages: [{ type: 'text', text: msg }] },
+      { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+    );
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.response?.data?.message || e.message }); }
+});
+
 init().then(async () => {
   // Drop hardcoded team CHECK constraint so dynamic teams work
   try {
@@ -5855,6 +6009,7 @@ init().then(async () => {
   await ensureShopInfoTables();
   await ensureShopEntriesTable();
   await ensureShopKnowledgeTable();
+  await ensureLineNotifyTable();
 
   // Drop CHECK constraint on shifts.shift_type so 'dayoff' can be inserted
   try {

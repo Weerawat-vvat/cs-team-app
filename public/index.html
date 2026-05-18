@@ -508,6 +508,7 @@ textarea{resize:vertical;min-height:80px}
         <button class="s-sub" id="nav-sub-schedule" onclick="navSettings('schedule',this)">ตารางงาน</button>
         <button class="s-sub" id="nav-sub-subjects" onclick="navSettings('subjects',this)">หัวข้อ / ประเภทปัญหา</button>
         <button class="s-sub" id="nav-sub-users" onclick="navSettings('users',this)">จัดการ User</button>
+        <button class="s-sub" id="nav-sub-line" onclick="navSettings('line',this)">LINE Notifications</button>
       </div>
     </div>
     <!-- hidden buttons for backward compat -->
@@ -2020,6 +2021,11 @@ textarea{resize:vertical;min-height:80px}
         </table>
       </div>
     </div>
+  </div>
+
+  <!-- LINE Notifications tab -->
+  <div id="stab-content-line" style="display:none">
+    <div id="line-settings-inner"><!-- populated by loadLineSettings --></div>
   </div>
 
   <!-- ProblemType tab -->
@@ -6799,6 +6805,17 @@ function navSettings(sub, btn) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('page-users').classList.add('active');
     loadUsers();
+  } else if (sub === 'line') {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-settings').classList.add('active');
+    const title = document.getElementById('settings-page-title');
+    if (title) title.textContent = '🔔 LINE Notifications';
+    document.getElementById('stab-content-schedule').style.display = 'none';
+    document.getElementById('stab-content-users').style.display    = 'none';
+    document.getElementById('stab-content-subjects').style.display = 'none';
+    document.getElementById('stab-content-ptypes').style.display   = 'none';
+    document.getElementById('stab-content-line').style.display     = '';
+    loadLineSettings();
   } else {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('page-settings').classList.add('active');
@@ -6841,11 +6858,195 @@ function loadSettings() {
   const tab = _settingTab || 'subjects';
   document.getElementById('stab-content-schedule').style.display = 'none';
   document.getElementById('stab-content-users').style.display    = 'none';
+  document.getElementById('stab-content-line').style.display     = 'none';
   document.getElementById('stab-content-subjects').style.display = '';
   document.getElementById('stab-content-ptypes').style.display   = tab==='ptypes' ? '' : 'none';
   const title = document.getElementById('settings-page-title');
   if (title) title.textContent = '⚙️ หัวข้อ / ประเภทปัญหา';
   if (tab === 'ptypes') loadPTypes(); else loadSubjects();
+}
+
+// ── LINE Notifications ────────────────────────────────────
+const LINE_EVENTS = [
+  { key: 'repair_received', label: '🔧 งานซ่อมใหม่' },
+  { key: 'repair_status',   label: '🔄 เปลี่ยนสถานะซ่อม' },
+  { key: 'repair_message',  label: '💬 ข้อความลูกค้า' },
+  { key: 'complaint',       label: '📣 ร้องเรียนใหม่' },
+  { key: 'followup',        label: '📋 Follow Up ใหม่' },
+  { key: 'specialist',      label: '🎯 Specialist ใหม่' },
+];
+
+async function loadLineSettings() {
+  const wrap = document.getElementById('line-settings-inner');
+  if (!wrap) return;
+  wrap.innerHTML = '<p style="color:var(--muted);font-size:.8rem">กำลังโหลด...</p>';
+  try {
+    const data = await api('/api/settings/line');
+    wrap.innerHTML = `
+      <!-- Token card -->
+      <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:1rem;margin-bottom:1rem">
+        <div style="font-size:.88rem;font-weight:600;margin-bottom:.65rem">🔑 Channel Access Token</div>
+        <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+          <input id="line-token-input" type="password"
+            placeholder="${data.has_token ? '(โทเค็นถูกตั้งค่าแล้ว — ป้อนใหม่เพื่อเปลี่ยน)' : 'วาง Channel Access Token ที่นี่'}"
+            style="flex:1;min-width:220px;font-size:.8rem;padding:.35rem .6rem;border:1px solid #d1d5db;border-radius:8px"
+            autocomplete="off"/>
+          <button class="btn btn-primary btn-sm" onclick="saveLineToken()">💾 บันทึก Token</button>
+        </div>
+        <div style="font-size:.72rem;color:var(--muted);margin-top:.35rem">
+          Channel Access Token จาก LINE Developers Console
+          ${data.has_token ? `<span style="color:#22c55e;margin-left:.5rem">✓ ตั้งค่าแล้ว (${escHtml(data.token||'')})</span>` : ''}
+        </div>
+      </div>
+
+      <!-- Targets card -->
+      <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:1rem;margin-bottom:1rem">
+        <div style="font-size:.88rem;font-weight:600;margin-bottom:.65rem">📬 กลุ่มแจ้งเตือน</div>
+        <div id="line-targets-wrap">${renderLineTargets(data.targets || [])}</div>
+        <div style="margin-top:.75rem">
+          <button class="btn btn-primary btn-sm" onclick="openLineTargetForm(null)">+ เพิ่มกลุ่มใหม่</button>
+        </div>
+      </div>
+
+      <!-- Inline form area -->
+      <div id="line-target-form-wrap" style="display:none;background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:1rem;margin-bottom:1rem">
+      </div>
+    `;
+  } catch(e) {
+    wrap.innerHTML = `<p style="color:#ef4444;font-size:.8rem">โหลดข้อมูลล้มเหลว: ${escHtml(e.message)}</p>`;
+  }
+}
+
+function renderLineTargets(targets) {
+  if (!targets.length) {
+    return '<p style="color:var(--muted);font-size:.8rem;margin:.5rem 0">ยังไม่มีกลุ่ม — กด + เพิ่มกลุ่มใหม่</p>';
+  }
+  const rows = targets.map(t => {
+    const evList = t.events ? t.events.split(',').map(e => e.trim()).filter(Boolean) : [];
+    const badges = evList.length
+      ? evList.map(e => {
+          const found = LINE_EVENTS.find(x => x.key === e);
+          return `<span style="display:inline-block;background:#eff6ff;color:#1d4ed8;border-radius:4px;padding:1px 6px;font-size:.68rem;margin:1px">${found ? found.label : escHtml(e)}</span>`;
+        }).join('')
+      : '<span style="font-size:.72rem;color:var(--muted)">ทุกเหตุการณ์</span>';
+    const activeBadge = t.active
+      ? '<span style="color:#22c55e;font-size:.75rem">● เปิด</span>'
+      : '<span style="color:#94a3b8;font-size:.75rem">○ ปิด</span>';
+    return `<tr>
+      <td style="font-size:.8rem">${escHtml(t.name)}</td>
+      <td style="font-size:.72rem;color:var(--muted);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(t.group_id)}">${escHtml(t.group_id)}</td>
+      <td style="font-size:.75rem">${badges}</td>
+      <td>${activeBadge}</td>
+      <td>
+        <button class="btn btn-sm" style="font-size:.72rem;padding:2px 8px;margin-right:2px" onclick="testLineTarget(${t.id},'${escHtml(t.name.replace(/'/g,"\\'"))}')">🔔 ทดสอบ</button>
+        <button class="btn btn-sm" style="font-size:.72rem;padding:2px 8px;margin-right:2px" onclick="openLineTargetForm(${JSON.stringify(t).replace(/"/g,'&quot;')})">✏️</button>
+        <button class="btn btn-sm" style="font-size:.72rem;padding:2px 8px;color:#ef4444" onclick="deleteLineTarget(${t.id})">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+  return `<div class="tbl-wrap"><table>
+    <thead><tr>
+      <th style="font-size:.75rem">ชื่อกลุ่ม</th>
+      <th style="font-size:.75rem">Group ID</th>
+      <th style="font-size:.75rem">เหตุการณ์ที่แจ้ง</th>
+      <th style="font-size:.75rem">สถานะ</th>
+      <th style="font-size:.75rem"></th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
+async function saveLineToken() {
+  const val = document.getElementById('line-token-input')?.value?.trim();
+  if (!val) { showToast('กรุณาป้อน Token', 'error'); return; }
+  try {
+    await api('/api/settings/line/token', { method: 'POST', body: { token: val } });
+    showToast('บันทึก Token เรียบร้อย');
+    loadLineSettings();
+  } catch(e) { showToast('บันทึกล้มเหลว: ' + e.message, 'error'); }
+}
+
+function openLineTargetForm(target = null) {
+  const wrap = document.getElementById('line-target-form-wrap');
+  if (!wrap) return;
+  const isEdit = target && target.id;
+  const evList = target?.events ? target.events.split(',').map(e => e.trim()) : [];
+  const checkboxes = LINE_EVENTS.map(ev => `
+    <label style="display:flex;align-items:center;gap:.35rem;font-size:.8rem;cursor:pointer;padding:3px 0">
+      <input type="checkbox" name="line_event" value="${ev.key}" ${evList.includes(ev.key) || (!isEdit && !evList.length) ? 'checked' : ''}>
+      ${ev.label}
+    </label>
+  `).join('');
+  wrap.style.display = '';
+  wrap.innerHTML = `
+    <div style="font-size:.88rem;font-weight:600;margin-bottom:.75rem">${isEdit ? '✏️ แก้ไขกลุ่ม' : '➕ เพิ่มกลุ่มใหม่'}</div>
+    <div class="form-group" style="margin-bottom:.6rem">
+      <label style="font-size:.75rem;font-weight:600;display:block;margin-bottom:.25rem">ชื่อกลุ่ม</label>
+      <input id="lf-name" type="text" value="${escHtml(target?.name||'')}" placeholder="เช่น ทีม CS" style="width:100%;max-width:320px;font-size:.8rem;padding:.35rem .6rem;border:1px solid #d1d5db;border-radius:8px"/>
+    </div>
+    <div class="form-group" style="margin-bottom:.6rem">
+      <label style="font-size:.75rem;font-weight:600;display:block;margin-bottom:.25rem">Group ID</label>
+      <input id="lf-gid" type="text" value="${escHtml(target?.group_id||'')}" placeholder="Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" style="width:100%;max-width:320px;font-size:.8rem;padding:.35rem .6rem;border:1px solid #d1d5db;border-radius:8px"/>
+    </div>
+    <div class="form-group" style="margin-bottom:.6rem">
+      <label style="font-size:.75rem;font-weight:600;display:block;margin-bottom:.35rem">เหตุการณ์ที่แจ้งเตือน <span style="font-weight:400;color:var(--muted)">(ไม่เลือก = แจ้งทุกเหตุการณ์)</span></label>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.15rem">${checkboxes}</div>
+    </div>
+    <div class="form-group" style="margin-bottom:.75rem">
+      <label style="display:flex;align-items:center;gap:.4rem;font-size:.8rem;cursor:pointer">
+        <input id="lf-active" type="checkbox" ${(!isEdit || target?.active) ? 'checked' : ''}>
+        เปิดใช้งาน
+      </label>
+    </div>
+    <div style="display:flex;gap:.5rem">
+      <button class="btn btn-primary btn-sm" onclick="saveLineTarget(${isEdit ? target.id : 'null'})">💾 บันทึก</button>
+      <button class="btn btn-sm" onclick="document.getElementById('line-target-form-wrap').style.display='none'">ยกเลิก</button>
+    </div>
+  `;
+  wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function saveLineTarget(id = null) {
+  const name = document.getElementById('lf-name')?.value?.trim();
+  const group_id = document.getElementById('lf-gid')?.value?.trim();
+  const active = document.getElementById('lf-active')?.checked ? 1 : 0;
+  const checked = [...document.querySelectorAll('input[name="line_event"]:checked')].map(c => c.value);
+  if (!name) { showToast('กรุณาระบุชื่อกลุ่ม', 'error'); return; }
+  if (!group_id) { showToast('กรุณาระบุ Group ID', 'error'); return; }
+  const body = { name, group_id, events: checked, active };
+  try {
+    if (id) {
+      await api(`/api/settings/line/targets/${id}`, { method: 'PUT', body });
+    } else {
+      await api('/api/settings/line/targets', { method: 'POST', body });
+    }
+    showToast(id ? 'แก้ไขเรียบร้อย' : 'เพิ่มกลุ่มเรียบร้อย');
+    document.getElementById('line-target-form-wrap').style.display = 'none';
+    // Refresh targets table
+    try {
+      const targets = await api('/api/settings/line/targets');
+      const tw = document.getElementById('line-targets-wrap');
+      if (tw) tw.innerHTML = renderLineTargets(targets);
+    } catch {}
+  } catch(e) { showToast('บันทึกล้มเหลว: ' + e.message, 'error'); }
+}
+
+async function deleteLineTarget(id) {
+  if (!confirm('ต้องการลบกลุ่มนี้?')) return;
+  try {
+    await api(`/api/settings/line/targets/${id}`, { method: 'DELETE' });
+    showToast('ลบเรียบร้อย');
+    const targets = await api('/api/settings/line/targets');
+    const tw = document.getElementById('line-targets-wrap');
+    if (tw) tw.innerHTML = renderLineTargets(targets);
+  } catch(e) { showToast('ลบล้มเหลว: ' + e.message, 'error'); }
+}
+
+async function testLineTarget(id, name) {
+  try {
+    await api(`/api/settings/line/targets/${id}/test`, { method: 'POST' });
+    showToast(`ส่งทดสอบไปยัง "${name}" เรียบร้อย`);
+  } catch(e) { showToast('ส่งทดสอบล้มเหลว: ' + e.message, 'error'); }
 }
 
 // ── Subjects ──────────────────────────────────────────────
