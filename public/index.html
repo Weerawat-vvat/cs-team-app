@@ -658,7 +658,7 @@ textarea{resize:vertical;min-height:80px}
       <div style="font-size:.88rem;font-weight:700;color:var(--text)">🕐 Follow-up ค้างนาน</div>
       <div style="display:flex;align-items:center;gap:.5rem">
         <div id="dash-stale-chips" style="display:flex;gap:.35rem"></div>
-        <button class="btn btn-ghost btn-sm" style="font-size:.72rem;padding:.2rem .55rem" onclick="openPage('followup')">ดูทั้งหมด →</button>
+        <button class="btn btn-ghost btn-sm" style="font-size:.72rem;padding:.2rem .55rem" onclick="showPage('followup',document.getElementById('nav-btn-followup'))">ดูทั้งหมด →</button>
       </div>
     </div>
     <div id="dash-stale-body"><div style="color:var(--muted);font-size:.82rem;padding:.3rem">กำลังโหลด...</div></div>
@@ -3440,13 +3440,16 @@ async function loadStaleIssues() {
 }
 
 function fuGoToBoard(boardId) {
-  openPage('followup');
-  // Wait for FU page to load then select the board
-  setTimeout(() => {
+  showPage('followup', document.getElementById('nav-btn-followup'));
+  // fuLoadSidebar is async — poll until board button appears then click
+  let attempts = 0;
+  const tryClick = () => {
     const btn = document.querySelector(`[data-board-id="${boardId}"]`);
-    if (btn) btn.click();
+    if (btn) { btn.click(); return; }
+    if (++attempts < 20) setTimeout(tryClick, 200);
     else { _fuBoardId = boardId; fuLoadIssues(); }
-  }, 400);
+  };
+  setTimeout(tryClick, 300);
 }
 
 const dashCharts = { donut: null, bar: null, scatter: null, trend: null, dow: null, peak: null, catTrend: null };
@@ -3467,7 +3470,6 @@ async function loadDashboardCharts() {
   const { catStats = [], agentThis = [], agentLast = [], agentCat = [],
           dailyTrend = [], hourlyStats = [], dowStats = [], catDailyTrend = [],
           closedThis = 0, closedLast = 0, hourlyAgentGrid = [],
-          agentSpecialist = [],
           daysThis = 30, daysPrev = 30,
           thisFrom = '', thisTo = '', prevFrom = '', prevTo = '' } = data;
 
@@ -3600,11 +3602,6 @@ async function loadDashboardCharts() {
     const avgThis = r => +((r.cnt || 0) / daysThis).toFixed(2);
     const avgPrev = r => +((lastMap[r.UserName] || 0) / daysPrev).toFixed(2);
 
-    // Specialist map: UserName → count
-    const spMap = {};
-    agentSpecialist.forEach(r => { spMap[r.UserName] = r.cnt || 0; });
-    const avgSp = r => +((spMap[r.UserName] || 0) / daysThis).toFixed(2);
-
     // Update chart card title dynamically
     const barTitle = document.querySelector('#chart-agent-compare')?.closest('.card')?.querySelector('.card-title');
     if (barTitle) barTitle.textContent = `📅 Workload Agent — เฉลี่ย tickets/วัน`;
@@ -3626,14 +3623,6 @@ async function loadDashboardCharts() {
         borderRadius: 4,
         order: 3
       },
-      {
-        type: 'bar',
-        label: 'Specialist',
-        data: topN.map(avgSp),
-        backgroundColor: '#a78bfa',
-        borderRadius: 4,
-        order: 2
-      }
     ];
     if (_tgt) {
       barDatasets.push({
@@ -3661,10 +3650,7 @@ async function loadDashboardCharts() {
                 const raw = ctx.raw;
                 if (ctx.dataset.type === 'line') return ` Target: ${raw} tickets/วัน`;
                 const agent = topN[ctx.dataIndex];
-                let total;
-                if (ctx.dataset.label === 'Specialist') total = spMap[agent?.UserName] || 0;
-                else if (ctx.datasetIndex === 0) total = agent?.cnt || 0;
-                else total = lastMap[agent?.UserName] || 0;
+                const total = ctx.datasetIndex === 0 ? agent?.cnt || 0 : lastMap[agent?.UserName] || 0;
                 return ` ${ctx.dataset.label}: ${raw}/วัน (รวม ${total})`;
               }
             }
@@ -8967,6 +8953,9 @@ function fuIssueRow(issue, today) {
     <td style="padding:.45rem .4rem;vertical-align:top" onclick="fuInlineEditSelect(event,${issue.id},'priority')" title="คลิกเพื่อแก้ไข">
       <span style="color:${pri.color};font-size:.75rem;cursor:pointer">${pri.label}</span>
     </td>
+    <td style="padding:.45rem .4rem;vertical-align:top" onclick="fuOpenPanel(${issue.id})">
+      ${issue.created_by_name ? `<span style="font-size:.75rem;color:#475569">✍️ ${esc(issue.created_by_name)}</span>` : '<span style="color:#cbd5e1;font-size:.75rem">--</span>'}
+    </td>
     <td style="padding:.45rem .4rem;vertical-align:top" onclick="fuInlineEditSelect(event,${issue.id},'assigned_to')" title="คลิกเพื่อแก้ไข">
       ${issue.assigned_to_name ? `<span style="font-size:.78rem">👤 ${esc(issue.assigned_to_name)}</span>` : '<span style="color:#cbd5e1;font-size:.75rem">ไม่ระบุ</span>'}
     </td>
@@ -9034,6 +9023,7 @@ function fuRenderTable() {
     <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;min-width:220px">หัวข้อ / รายละเอียดปัญหา</th>
     <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;min-width:100px">Category</th>
     <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;width:90px">ความสำคัญ</th>
+    <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;min-width:90px">สร้างโดย</th>
     <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;min-width:110px">ผู้รับผิดชอบ</th>
     <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;width:120px">สถานะ</th>
     <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;width:90px">Due Date</th>
@@ -9041,7 +9031,7 @@ function fuRenderTable() {
     <th style="padding:.5rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;width:80px">Issue ID</th>
     <th style="padding:.5rem .6rem;width:40px"></th>
   </tr></thead>`;
-  const addBtn = `<tr><td colspan="11" style="padding:.4rem .6rem"><button onclick="fuAddIssue()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:.78rem;padding:.2rem .4rem;border-radius:5px" onmouseover="this.style.color='#1d4ed8'" onmouseout="this.style.color='#94a3b8'">+ เพิ่ม Issue</button></td></tr>`;
+  const addBtn = `<tr><td colspan="12" style="padding:.4rem .6rem"><button onclick="fuAddIssue()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:.78rem;padding:.2rem .4rem;border-radius:5px" onmouseover="this.style.color='#1d4ed8'" onmouseout="this.style.color='#94a3b8'">+ เพิ่ม Issue</button></td></tr>`;
 
   let bodyHTML = '';
   if (_fuGroupBy) {
@@ -9054,7 +9044,7 @@ function fuRenderTable() {
     });
     Object.entries(groups).sort(([a],[b])=>String(a).localeCompare(String(b),'th')).forEach(([key, items]) => {
       const color = fuGroupColor(_fuGroupBy, key);
-      bodyHTML += `<tr><td colspan="11" style="padding:.4rem .75rem;background:#f8fafc;border-top:2px solid ${color}33;border-bottom:1px solid #e2e8f0">
+      bodyHTML += `<tr><td colspan="12" style="padding:.4rem .75rem;background:#f8fafc;border-top:2px solid ${color}33;border-bottom:1px solid #e2e8f0">
         <span style="font-size:.75rem;font-weight:700;color:${color}">${fuGroupLabel(_fuGroupBy, key)}</span>
         <span style="font-size:.68rem;color:#94a3b8;margin-left:.4rem">(${items.length})</span>
       </td></tr>`;
