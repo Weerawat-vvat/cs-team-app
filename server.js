@@ -5987,7 +5987,7 @@ app.post('/api/settings/line/targets/:id/test', authRequired, async (request, re
 // ══════════════════════════════════════════════════════════
 //  FOLLOW UP — DAILY DIGEST NOTIFICATION
 // ══════════════════════════════════════════════════════════
-const PRI_LABEL = { urgent:'🔴 Urgent', high:'🟠 High', normal:'🟡 Normal', low:'🟢 Low' };
+const PRI_EMOJI = { urgent:'🔴', high:'🟠', normal:'🟡', low:'🟢' };
 const STALE_DAYS = 3; // days without update = stale
 
 async function sendFollowUpDigest() {
@@ -6016,10 +6016,11 @@ async function sendFollowUpDigest() {
     if (!od.length && !td.length && !tm.length && !st.length) return; // ไม่มีอะไร ไม่ส่ง
 
     const fmtIssue = (r) => {
-      const who  = r.assigned_to_name ? ` → ${r.assigned_to_name}` : '';
-      const brd  = r.folder_name ? `[${r.folder_name}/${r.board_name}]` : `[${r.board_name||'—'}]`;
-      const txt  = (r.detail||'').substring(0, 60) + ((r.detail||'').length > 60 ? '…' : '');
-      return `  • ${PRI_LABEL[r.priority]||r.priority} ${brd} ${txt}${who}`;
+      const emoji = PRI_EMOJI[r.priority] || '⚪';
+      const who   = r.assigned_to_name ? ` → ${r.assigned_to_name}` : '';
+      const brd   = r.folder_name ? `[${r.folder_name}/${r.board_name}]` : `[${r.board_name||'—'}]`;
+      const txt   = (r.detail||'').substring(0, 60) + ((r.detail||'').length > 60 ? '…' : '');
+      return `${emoji}  ${brd} เรื่อง ${txt}${who}`;
     };
     const fmtDaysAgo = (d) => {
       if (!d) return '';
