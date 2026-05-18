@@ -111,7 +111,7 @@ async function sendEmail(to, subject, html) {
   } catch(e) { console.error('Email error:', e.message); }
 }
 
-async function notifyRepairStatus(repairId, jobNo, companyName, newStatus, changedByName) {
+async function notifyRepairStatus(repairId, jobNo, companyName, newStatus, changedByName, details={}) {
   const statusLabel = {
     received:         'รับเรื่อง',
     spared:           'สแปร์แล้ว',
@@ -128,7 +128,17 @@ async function notifyRepairStatus(repairId, jobNo, companyName, newStatus, chang
     closed:'ปิดงาน'
   };
   const label = statusLabel[newStatus] || newStatus;
-  const msg   = `\n🔧 [${jobNo}] ${companyName}\nสถานะ: ${label}\nอัพเดทโดย: ${changedByName}\n${new Date().toLocaleString('th-TH')}`;
+  let msg;
+  if (newStatus === 'received') {
+    msg = `\n🔧 [งานซ่อมใหม่] ${jobNo} — ${companyName}`;
+    if (details.device_type)  msg += `\nอุปกรณ์: ${details.device_type}${details.device_model ? ' ' + details.device_model : ''}`;
+    if (details.serial_no)    msg += `\nS/N: ${details.serial_no}`;
+    if (details.symptom)      msg += `\nอาการ: ${details.symptom}`;
+    if (details.contact_name) msg += `\nผู้ติดต่อ: ${details.contact_name}${details.contact_phone ? ' ' + details.contact_phone : ''}`;
+    msg += `\nโดย: ${changedByName}\n${new Date().toLocaleString('th-TH')}`;
+  } else {
+    msg = `\n🔧 [${jobNo}] ${companyName}\nสถานะ: ${label}\nอัพเดทโดย: ${changedByName}\n${new Date().toLocaleString('th-TH')}`;
+  }
   await sendLineNotify(msg);
   // log to DB
   try {
@@ -2392,7 +2402,7 @@ app.get('/api/public/repair/:token', async (request, res) => {
   try {
     const { token } = request.params;
     const job = (await req().input('tok', sql.NVarChar, token)
-      .query(`SELECT rj.*, e.name AS reporter_name
+      .query(`SELECT rj.*, ISNULL(e.nickname, e.name) AS reporter_name
               FROM repair_jobs rj
               LEFT JOIN app_users au ON au.id = rj.reported_by
               LEFT JOIN employees e  ON e.id  = au.employee_id
@@ -2748,7 +2758,7 @@ app.get('/api/repair/search-shop', authRequired, async (request, res) => {
 app.get('/api/repair', authRequired, async (request, res) => {
   try {
     const { status, finance_status, group_name, dateFrom, dateTo, search } = request.query;
-    let q = `SELECT rj.*, e.name AS reporter_name, e2.name AS updater_name
+    let q = `SELECT rj.*, ISNULL(e.nickname, e.name) AS reporter_name, ISNULL(e2.nickname, e2.name) AS updater_name
              FROM repair_jobs rj
              LEFT JOIN app_users au  ON au.id = rj.reported_by
              LEFT JOIN employees e   ON e.id  = au.employee_id
@@ -2795,7 +2805,7 @@ app.get('/api/repair/:id', authRequired, async (request, res) => {
     const id = parseInt(request.params.id);
     const [job, attachments, timeline] = await Promise.all([
       req().input('id', sql.Int, id)
-        .query(`SELECT rj.*, e.name AS reporter_name, e2.name AS updater_name
+        .query(`SELECT rj.*, ISNULL(e.nickname, e.name) AS reporter_name, ISNULL(e2.nickname, e2.name) AS updater_name
                 FROM repair_jobs rj
                 LEFT JOIN app_users au  ON au.id = rj.reported_by
                 LEFT JOIN employees e   ON e.id  = au.employee_id
@@ -2852,12 +2862,16 @@ app.post('/api/repair', authRequired, async (request, res) => {
     const newToken = result.recordset[0].public_token;
     // Timeline
     await req().input('rid', sql.Int, newId).input('by', sql.Int, request.user.id||null)
-      .input('nv', sql.NVarChar, 'received')
+      .input('nv', sql.NVarChar, 'received').input('nt', sql.NVarChar, 'สร้างงานใหม่')
       .query(`INSERT INTO repair_timeline (repair_id,field_changed,new_value,changed_by,note)
-              VALUES (@rid,'status',@nv,@by,'สร้างงานใหม่')`);
+              VALUES (@rid,N'status',@nv,@by,@nt)`);
     // Line notify
     const uname = request.user.name || request.user.username;
-    await notifyRepairStatus(newId, newJob, b.company_name||'—', 'received', uname);
+    await notifyRepairStatus(newId, newJob, b.company_name||'—', 'received', uname, {
+      device_type: b.device_type, device_model: b.device_model,
+      serial_no: b.serial_no, symptom: b.symptom,
+      contact_name: b.contact_name, contact_phone: b.contact_phone
+    });
     res.json({ id: newId, job_no: newJob, public_token: newToken });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
