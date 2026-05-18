@@ -6873,6 +6873,7 @@ const LINE_EVENTS = [
   { key: 'repair_message',  label: '💬 ข้อความลูกค้า' },
   { key: 'complaint',       label: '📣 ร้องเรียนใหม่' },
   { key: 'followup',        label: '📋 Follow Up ใหม่' },
+  { key: 'followup_due',    label: '⏰ FU สรุปรายวัน (due/stale)' },
   { key: 'specialist',      label: '🎯 Specialist ใหม่' },
 ];
 
@@ -6903,8 +6904,10 @@ async function loadLineSettings() {
       <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:1rem;margin-bottom:1rem">
         <div style="font-size:.88rem;font-weight:600;margin-bottom:.65rem">📬 กลุ่มแจ้งเตือน</div>
         <div id="line-targets-wrap">${renderLineTargets(data.targets || [])}</div>
-        <div style="margin-top:.75rem">
+        <div style="margin-top:.75rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
           <button class="btn btn-primary btn-sm" onclick="openLineTargetForm(null)">+ เพิ่มกลุ่มใหม่</button>
+          <button class="btn btn-sm" style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0"
+            onclick="triggerFuDigest()" title="ทดสอบส่งสรุป Follow Up ทันที">⏰ ทดสอบ FU Digest</button>
         </div>
       </div>
 
@@ -7061,6 +7064,16 @@ async function testLineTarget(id, name) {
     await api(`/api/settings/line/targets/${id}/test`, { method: 'POST' });
     showToast(`ส่งทดสอบไปยัง "${name}" เรียบร้อย`);
   } catch(e) { showToast('ส่งทดสอบล้มเหลว: ' + e.message, 'error'); }
+}
+
+async function triggerFuDigest() {
+  const btn = event?.target;
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ กำลังส่ง...'; }
+  try {
+    await api('/api/followup/digest', { method: 'POST' });
+    showToast('⏰ ส่ง Follow Up Digest เรียบร้อย — เช็คกลุ่ม LINE ได้เลย');
+  } catch(e) { showToast('❌ ส่งไม่สำเร็จ: ' + e.message, 'error'); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = '⏰ ทดสอบ FU Digest'; } }
 }
 
 // ── Subjects ──────────────────────────────────────────────

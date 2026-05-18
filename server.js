@@ -5984,6 +5984,93 @@ app.post('/api/settings/line/targets/:id/test', authRequired, async (request, re
   } catch(e) { res.status(500).json({ error: e.response?.data?.message || e.message }); }
 });
 
+// ══════════════════════════════════════════════════════════
+//  FOLLOW UP — DAILY DIGEST NOTIFICATION
+// ══════════════════════════════════════════════════════════
+const PRI_LABEL = { urgent:'🔴 Urgent', high:'🟠 High', normal:'🟡 Normal', low:'🟢 Low' };
+const STALE_DAYS = 3; // days without update = stale
+
+async function sendFollowUpDigest() {
+  try {
+    const today    = `CAST(GETDATE() AS DATE)`;
+    const tomorrow = `CAST(DATEADD(DAY,1,GETDATE()) AS DATE)`;
+    const staleTS  = `DATEADD(DAY,-${STALE_DAYS},GETDATE())`;
+    const notDone  = `i.status NOT IN ('resolved','cancelled')`;
+    const cols     = `i.id, i.detail, i.priority, i.due_date, i.updated_at,
+                      ISNULL(e.nickname,e.name) AS assigned_to_name,
+                      b.name AS board_name, f.name AS folder_name`;
+    const joins    = `FROM fu_issues i
+                      LEFT JOIN fu_boards b  ON b.id = i.board_id
+                      LEFT JOIN fu_folders f ON f.id = b.folder_id
+                      LEFT JOIN app_users au ON au.id = i.assigned_to
+                      LEFT JOIN employees e  ON e.id  = au.employee_id`;
+
+    const [overdue, dueToday, dueTmr, stale] = await Promise.all([
+      req().query(`SELECT ${cols} ${joins} WHERE ${notDone} AND i.due_date < ${today} ORDER BY i.due_date ASC`),
+      req().query(`SELECT ${cols} ${joins} WHERE ${notDone} AND i.due_date = ${today}  ORDER BY i.priority`),
+      req().query(`SELECT ${cols} ${joins} WHERE ${notDone} AND i.due_date = ${tomorrow} ORDER BY i.priority`),
+      req().query(`SELECT ${cols} ${joins} WHERE ${notDone} AND i.due_date IS NOT NULL AND i.updated_at < ${staleTS} ORDER BY i.updated_at ASC`),
+    ]);
+
+    const od = overdue.recordset, td = dueToday.recordset, tm = dueTmr.recordset, st = stale.recordset;
+    if (!od.length && !td.length && !tm.length && !st.length) return; // ไม่มีอะไร ไม่ส่ง
+
+    const fmtIssue = (r) => {
+      const who  = r.assigned_to_name ? ` → ${r.assigned_to_name}` : '';
+      const brd  = r.folder_name ? `[${r.folder_name}/${r.board_name}]` : `[${r.board_name||'—'}]`;
+      const txt  = (r.detail||'').substring(0, 60) + ((r.detail||'').length > 60 ? '…' : '');
+      return `  • ${PRI_LABEL[r.priority]||r.priority} ${brd} ${txt}${who}`;
+    };
+    const fmtDaysAgo = (d) => {
+      if (!d) return '';
+      const days = Math.floor((Date.now() - new Date(String(d).replace('Z',''))) / 86400000);
+      return days > 0 ? ` (${days} วันที่แล้ว)` : '';
+    };
+
+    const dateStr = new Date().toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'});
+    let msg = `📋 Follow Up สรุปรายวัน — ${dateStr}\n`;
+
+    if (od.length) {
+      msg += `\n🔴 เลยกำหนด ${od.length} รายการ:\n`;
+      msg += od.map(r => fmtIssue(r) + fmtDaysAgo(r.due_date)).join('\n');
+    }
+    if (td.length) {
+      msg += `\n\n⚠️ ครบกำหนดวันนี้ ${td.length} รายการ:\n`;
+      msg += td.map(fmtIssue).join('\n');
+    }
+    if (tm.length) {
+      msg += `\n\n🔔 พรุ่งนี้ครบกำหนด ${tm.length} รายการ:\n`;
+      msg += tm.map(fmtIssue).join('\n');
+    }
+    if (st.length) {
+      msg += `\n\n💤 ไม่มี update ${STALE_DAYS}+ วัน ${st.length} รายการ:\n`;
+      msg += st.map(r => fmtIssue(r) + fmtDaysAgo(r.updated_at)).join('\n');
+    }
+
+    await sendLineNotify(msg, 'followup_due');
+    console.log('📋 Follow Up digest sent');
+  } catch(e) { console.error('Follow Up digest error:', e.message); }
+}
+
+// Manual trigger endpoint
+app.post('/api/followup/digest', authRequired, async (req2, res) => {
+  await sendFollowUpDigest();
+  res.json({ ok: true });
+});
+
+// Schedule: check every minute, fire at 08:00 Bangkok (UTC+7)
+let _lastDigestDate = '';
+setInterval(() => {
+  const now = new Date();
+  const bkk = new Date(now.getTime() + 7 * 3600000); // UTC+7
+  const hh  = bkk.getUTCHours(), mm = bkk.getUTCMinutes();
+  const today = bkk.toISOString().split('T')[0];
+  if (hh === 8 && mm === 0 && today !== _lastDigestDate) {
+    _lastDigestDate = today;
+    sendFollowUpDigest();
+  }
+}, 60000);
+
 init().then(async () => {
   // Drop hardcoded team CHECK constraint so dynamic teams work
   try {
