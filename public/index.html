@@ -3082,7 +3082,12 @@ async function api(path, opts = {}) {
   });
   // 401 จาก background call → ไม่ทำอะไรทั้งนั้น, tryAutoLogin() เป็นผู้จัดการ session เท่านั้น
   if (res.status === 401) { console.warn('[auth] 401 from api():', path, '(ignored — session managed by tryAutoLogin)'); return {}; }
-  const data = await res.json();
+  let data;
+  try { data = await res.json(); } catch(e) {
+    if (opts.silent) return null;
+    console.error('[api] JSON parse error:', path, e.message);
+    return null;
+  }
   if (!res.ok) {
     const msg = data?.error || `Error ${res.status}`;
     if (opts.silent) return { error: msg }; // let caller handle

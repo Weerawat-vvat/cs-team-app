@@ -4891,12 +4891,17 @@ app.get('/api/fu/azure-items', authRequired, async (request, res) => {
       try {
         const data = await new Promise((resolve, reject) => {
           const u = new URL(url);
-          const opts = { hostname: u.hostname, path: u.pathname + u.search, headers: { Authorization: authHeader, Accept: 'application/json' } };
-          httpsModule.get(opts, resp => {
+          const opts = { hostname: u.hostname, path: u.pathname + u.search, headers: { Authorization: authHeader, Accept: 'application/json' }, timeout: 10000 };
+          const reqAz = httpsModule.get(opts, resp => {
             let body = '';
             resp.on('data', chunk => { body += chunk; });
-            resp.on('end', () => { try { resolve(JSON.parse(body)); } catch(e) { reject(e); } });
-          }).on('error', reject);
+            resp.on('end', () => {
+              try { resolve(JSON.parse(body)); }
+              catch(e) { console.error('Azure JSON parse error:', body.slice(0,200)); reject(e); }
+            });
+          });
+          reqAz.on('timeout', () => { reqAz.destroy(); reject(new Error('Azure API timeout')); });
+          reqAz.on('error', reject);
         });
         (data.value || []).forEach(item => {
           azureMap[item.WorkItemId] = {
