@@ -89,14 +89,15 @@ const skUpload = multer({
 
 // ── Notification helpers ──────────────────────────────────
 async function sendLineNotify(message) {
-  const token = process.env.LINE_NOTIFY_TOKEN;
-  if (!token) return;
+  const token   = process.env.LINE_CHANNEL_TOKEN;
+  const groupId = process.env.LINE_GROUP_ID;
+  if (!token || !groupId) return;
   try {
-    await axios.post('https://notify-api.line.me/api/notify',
-      new URLSearchParams({ message }),
-      { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/x-www-form-urlencoded' } }
+    await axios.post('https://api.line.me/v2/bot/message/push',
+      { to: groupId, messages: [{ type: 'text', text: message.trim() }] },
+      { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
     );
-  } catch(e) { console.error('Line Notify error:', e.message); }
+  } catch(e) { console.error('LINE Messaging API error:', e.response?.data || e.message); }
 }
 
 async function sendEmail(to, subject, html) {
