@@ -4510,8 +4510,9 @@ app.get('/api/fu/by-assignee', authRequired, async (request, res) => {
       SELECT
         i.id, i.detail, i.note, i.branch, i.status, i.priority, i.category,
         i.due_date, i.issue_url, i.assigned_to, i.created_by,
-        ISNULL(e.nickname, e.name)  AS assignee_name,
-        ISNULL(e.nickname, e.name)  AS assigned_to_name,
+        ISNULL(e.nickname, e.name)   AS assignee_name,
+        ISNULL(e.nickname, e.name)   AS assigned_to_name,
+        ISNULL(ec.nickname, ec.name) AS created_by_name,
         DATEDIFF(day, i.updated_at, GETDATE()) AS days_stale,
         (SELECT COUNT(*) FROM fu_comments c WHERE c.issue_id=i.id) AS comment_count,
         (SELECT TOP 1 c.created_at FROM fu_comments c WHERE c.issue_id=i.id ORDER BY c.created_at DESC) AS last_comment_at,
@@ -4519,9 +4520,11 @@ app.get('/api/fu/by-assignee', authRequired, async (request, res) => {
         b.id AS board_id,  b.name AS board_name,
         f.id AS folder_id, f.name AS folder_name
       FROM fu_issues i
-      LEFT JOIN employees e ON e.id = i.assigned_to
-      LEFT JOIN fu_boards b ON b.id = i.board_id
-      LEFT JOIN fu_folders f ON f.id = b.folder_id
+      LEFT JOIN employees  e  ON e.id  = i.assigned_to
+      LEFT JOIN app_users  uc ON uc.id = i.created_by
+      LEFT JOIN employees  ec ON ec.id = uc.employee_id
+      LEFT JOIN fu_boards  b  ON b.id  = i.board_id
+      LEFT JOIN fu_folders f  ON f.id  = b.folder_id
       WHERE i.status NOT IN ('resolved','cancelled')
       ORDER BY assignee_name, i.status, i.priority`);
     res.json(result.recordset);
