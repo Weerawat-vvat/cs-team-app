@@ -13007,15 +13007,38 @@ function svcCopySidebarLink(projId, btn){
   const proj = _svcProjects.find(p=>p.id==projId);
   if(!proj || !proj.public_token){ showToast('ไม่พบ token ของ Project นี้','warn'); return; }
   const url = `${location.origin}/p.html?t=${proj.public_token}`;
-  navigator.clipboard.writeText(url).then(()=>{
+
+  const onSuccess = () => {
     const orig = btn.textContent;
     btn.textContent = '✅';
     btn.style.color = '#16a34a';
     setTimeout(()=>{ btn.textContent = orig; btn.style.color=''; }, 1800);
     showToast('คัดลอกลิงค์แล้ว','ok');
-  }).catch(()=>{
-    prompt('คัดลอกลิงค์ด้านล่าง:', url);
-  });
+  };
+
+  // Modern API — requires HTTPS / secure context
+  if(navigator.clipboard && window.isSecureContext){
+    navigator.clipboard.writeText(url).then(onSuccess).catch(()=>_fallbackCopy(url, onSuccess));
+  } else {
+    // HTTP fallback: use hidden textarea + execCommand
+    _fallbackCopy(url, onSuccess);
+  }
+}
+
+function _fallbackCopy(text, onSuccess){
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    if(ok) onSuccess();
+    else prompt('คัดลอกลิงค์ด้านล่าง:', text);
+  } catch(e){
+    prompt('คัดลอกลิงค์ด้านล่าง:', text);
+  }
 }
 
 async function svcCreateProjectSidebar(){

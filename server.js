@@ -96,14 +96,17 @@ const svcPubUpload = multer({
       cb(null, dir);
     },
     filename: (req, file, cb) => {
-      const ext  = path.extname(file.originalname).toLowerCase();
-      const base = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9ก-๙_-]/g,'_').slice(0,40);
+      // Fix multer Latin-1 → UTF-8 decoding for Thai filenames
+      const nameUtf8 = Buffer.from(file.originalname, 'latin1').toString('utf8');
+      const ext  = path.extname(nameUtf8).toLowerCase();
+      const base = path.basename(nameUtf8, ext).replace(/[^a-zA-Z0-9ก-๙฀-๿ _-]/g,'_').slice(0,60);
       cb(null, `${Date.now()}_${base}${ext}`);
     }
   }),
   limits: { fileSize: 15 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    cb(null, /\.(jpg|jpeg|png|gif|pdf|xlsx|xls|csv)$/i.test(file.originalname));
+    const nameUtf8 = Buffer.from(file.originalname, 'latin1').toString('utf8');
+    cb(null, /\.(jpg|jpeg|png|gif|pdf|xlsx|xls|csv)$/i.test(nameUtf8));
   }
 });
 
@@ -5626,9 +5629,10 @@ app.post('/api/service-requests/:id/stage-files', authRequired, svcPubUpload.arr
         const newPath = path.join(jobDir, file.filename);
         fs.renameSync(file.path, newPath);
         const relPath = `/uploads/svc/${id}/${file.filename}`;
+        const origName = Buffer.from(file.originalname,'latin1').toString('utf8');
         const r = await req()
           .input('sid', sql.Int,      id)
-          .input('fn',  sql.NVarChar, file.originalname)
+          .input('fn',  sql.NVarChar, origName)
           .input('fp',  sql.NVarChar, relPath)
           .input('fs',  sql.Int,      file.size)
           .input('mt',  sql.NVarChar, file.mimetype||null)
@@ -5793,9 +5797,10 @@ app.post('/api/public/project/:token/submit', svcPubUpload.array('files', 10), a
         const newPath = path.join(jobDir, file.filename);
         fs.renameSync(file.path, newPath);
         const relPath = `/uploads/svc/${inserted.id}/${file.filename}`;
+        const origName = Buffer.from(file.originalname,'latin1').toString('utf8');
         await req()
           .input('sid', sql.Int,      inserted.id)
-          .input('fn',  sql.NVarChar, file.originalname)
+          .input('fn',  sql.NVarChar, origName)
           .input('fp',  sql.NVarChar, relPath)
           .input('fs',  sql.Int,      file.size)
           .input('mt',  sql.NVarChar, file.mimetype||null)
@@ -5897,9 +5902,10 @@ app.put('/api/public/project/:token/jobs/:id', svcPubUpload.array('files', 10), 
         const newPath = path.join(jobDir, file.filename);
         fs.renameSync(file.path, newPath);
         const relPath = `/uploads/svc/${id}/${file.filename}`;
+        const origName = Buffer.from(file.originalname,'latin1').toString('utf8');
         await req()
           .input('sid', sql.Int,      id)
-          .input('fn',  sql.NVarChar, file.originalname)
+          .input('fn',  sql.NVarChar, origName)
           .input('fp',  sql.NVarChar, relPath)
           .input('fs',  sql.Int,      file.size)
           .input('mt',  sql.NVarChar, file.mimetype||null)
