@@ -1884,6 +1884,7 @@ textarea{resize:vertical;min-height:80px}
       <div class="tbl-wrap">
         <table>
           <thead><tr>
+            <th>ประเภท</th>
             <th>รหัสคูปอง</th>
             <th>ชื่อโปรโมชัน</th>
             <th>แบรนด์</th>
@@ -1916,6 +1917,20 @@ textarea{resize:vertical;min-height:80px}
       <button class="modal-close" onclick="closeModal('modal-svc-form')">×</button>
     </div>
     <div style="padding:.85rem 1rem;display:flex;flex-direction:column;gap:.75rem">
+
+      <!-- ── ประเภทคำขอ ── -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem" id="svc-rtype-selector">
+        <button type="button" id="svc-rtype-coupon"
+          onclick="svcSetRequestType('coupon')"
+          style="padding:.7rem .5rem;border-radius:10px;font-size:.88rem;font-weight:700;border:2px solid #3b82f6;background:#dbeafe;color:#1d4ed8;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.45rem;font-family:inherit;transition:all .15s">
+          🎫 สร้างคูปอง / โปรฯ
+        </button>
+        <button type="button" id="svc-rtype-menu"
+          onclick="svcSetRequestType('menu')"
+          style="padding:.7rem .5rem;border-radius:10px;font-size:.88rem;font-weight:700;border:2px solid #e2e8f0;background:#fff;color:#94a3b8;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.45rem;font-family:inherit;transition:all .15s">
+          📋 เพิ่มเมนูใหม่
+        </button>
+      </div>
 
       <!-- Section 1 — แบรนด์ / สาขา -->
       <div class="svc-card">
@@ -1966,6 +1981,8 @@ textarea{resize:vertical;min-height:80px}
           <textarea id="svc-promo-detail" rows="2" style="width:100%;resize:vertical" placeholder="อธิบายรายละเอียดของโปรโมชัน..."></textarea>
         </div>
 
+        <!-- ── Coupon-only fields (hidden when type=menu) ── -->
+        <div id="svc-coupon-fields">
         <!-- Row: รหัสคูปอง + รหัส ERP -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.9rem">
           <div>
@@ -2053,6 +2070,7 @@ textarea{resize:vertical;min-height:80px}
           </div>
 
         </div>
+        </div><!-- end #svc-coupon-fields -->
 
         <!-- Dates -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-top:.8rem">
@@ -12948,14 +12966,18 @@ async function svcLoadList(){
 function svcRenderTable(rows){
   const tbody=document.getElementById('svc-tbody'); if(!tbody) return;
   if(!rows.length){
-    tbody.innerHTML=`<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:2rem">ยังไม่มีรายการ</td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:2rem">ยังไม่มีรายการ</td></tr>`;
     return;
   }
   tbody.innerHTML=rows.map(r=>{
     const brands=svcParseJSON(r.brands,[]).join(', ')||'—';
     const dt=r.created_at?new Date(r.created_at).toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'}):'—';
     const m=SVC_STATUSES.find(s=>s.key===r.status)||{};
+    const rtypeStyle = r.request_type==='menu'
+      ? 'background:#d1fae5;color:#065f46;border:1px solid #6ee7b7'
+      : 'background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd';
     return `<tr>
+      <td><span style="display:inline-block;padding:.1rem .5rem;border-radius:20px;font-size:.7rem;font-weight:700;white-space:nowrap;${rtypeStyle}">${r.request_type==='menu'?'📋 เมนูใหม่':'🎫 คูปอง/โปรฯ'}</span></td>
       <td><code style="font-size:.78rem;background:#f1f5f9;padding:.1rem .3rem;border-radius:4px">${r.coupon_code||'—'}</code></td>
       <td style="font-weight:600;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(r.promo_name||'(ไม่มีชื่อ)')}</td>
       <td style="max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.82rem">${escHtml(brands)}</td>
@@ -13002,7 +13024,10 @@ function svcKanbanCard(r,col){
   return `
     <div class="svc-kanban-card" onclick="svcOpenDetail(${r.id})"
       style="background:#fff;border-radius:8px;padding:.55rem .65rem;box-shadow:0 1px 3px rgba(0,0,0,.07);cursor:pointer;border-left:3px solid ${col.col};user-select:none">
-      <div style="font-size:.73rem;font-weight:700;color:${col.col};margin-bottom:.2rem;font-family:monospace">${escHtml(r.coupon_code||'—')}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.2rem">
+        <span style="font-size:.73rem;font-weight:700;color:${col.col};font-family:monospace">${escHtml(r.coupon_code||'—')}</span>
+        <span style="font-size:.65rem;font-weight:700;padding:.05rem .35rem;border-radius:10px;${r.request_type==='menu'?'background:#d1fae5;color:#065f46':'background:#dbeafe;color:#1d4ed8'}">${r.request_type==='menu'?'📋 เมนูใหม่':'🎫 คูปอง/โปรฯ'}</span>
+      </div>
       <div style="font-size:.83rem;font-weight:600;color:#1e293b;margin-bottom:.15rem;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${escHtml(r.promo_name||'(ไม่มีชื่อ)')}</div>
       <div style="font-size:.72rem;color:#64748b;margin-bottom:.25rem;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${escHtml(brands)}</div>
       <div style="display:flex;align-items:center;justify-content:space-between">
@@ -13010,6 +13035,23 @@ function svcKanbanCard(r,col){
         <span style="font-size:.68rem;color:#cbd5e1">${dt}</span>
       </div>
     </div>`;
+}
+
+// ── Request type toggle ──────────────────────────────────────────
+const SVC_RTYPE_LABEL = { coupon:'🎫 สร้างคูปอง/โปรฯ', menu:'📋 เพิ่มเมนูใหม่' };
+let _svcRequestType = 'coupon';
+
+function svcSetRequestType(type){
+  _svcRequestType = type;
+  const isCoupon = type === 'coupon';
+  // Toggle button styles
+  const btnC = document.getElementById('svc-rtype-coupon');
+  const btnM = document.getElementById('svc-rtype-menu');
+  if(btnC){ Object.assign(btnC.style,{border:'2px solid '+(isCoupon?'#3b82f6':'#e2e8f0'),background:isCoupon?'#dbeafe':'#fff',color:isCoupon?'#1d4ed8':'#94a3b8'}); }
+  if(btnM){ Object.assign(btnM.style,{border:'2px solid '+(isCoupon?'#e2e8f0':'#10b981'),background:isCoupon?'#fff':'#d1fae5',color:isCoupon?'#94a3b8':'#065f46'}); }
+  // Show/hide coupon-specific fields
+  const cf = document.getElementById('svc-coupon-fields');
+  if(cf) cf.style.display = isCoupon ? '' : 'none';
 }
 
 // ── Open Form ────────────────────────────────────────────────────
@@ -13022,7 +13064,8 @@ async function svcOpenForm(id){
 }
 
 function svcResetForm(){
-  ['svc-promo-name','svc-coupon-code','svc-erp-code',
+  svcSetRequestType('coupon'); // default = coupon
+  ['svc-promo-name','svc-promo-detail','svc-condition','svc-coupon-code','svc-erp-code',
    'svc-start-date','svc-start-time','svc-expiry-date',
    'svc-expiry-days','svc-fixed-amount','svc-disc-pct-val','svc-disc-pct-max',
    'svc-disc-thb-val','svc-redeem-price','svc-max-per-receipt',
@@ -13260,6 +13303,7 @@ function svcCollectPayload(){
     return b?`${b.brand_name} — ${b.branch_name}`:id;
   });
   return {
+    request_type:      _svcRequestType||'coupon',
     brands:            svcComboGetValues('svc-brands-combo'),
     branch_scope:      document.querySelector('input[name="svc-branch-scope"]:checked')?.value||'all',
     branches:          svcComboGetValues('svc-branches-combo'),
@@ -13338,8 +13382,12 @@ async function svcOpenDetail(id){
   const statusOpts = SVC_STATUSES.map(s=>`<option value="${s.key}"${r.status===s.key?' selected':''}>${s.label}</option>`).join('');
   const curS = SVC_STATUSES.find(s=>s.key===r.status)||{bg:'#f1f5f9',col:'#64748b'};
 
+  const rtLabel = r.request_type==='menu' ? '📋 เพิ่มเมนูใหม่' : '🎫 สร้างคูปอง/โปรฯ';
+  const rtBadgeStyle = r.request_type==='menu'
+    ? 'background:#d1fae5;color:#065f46;border:1px solid #6ee7b7'
+    : 'background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd';
   document.getElementById('svc-detail-title').innerHTML=
-    `🛎️ ${escHtml(r.promo_name||'(ไม่มีชื่อ)')} <button class="modal-close" onclick="closeModal('modal-svc-detail')">×</button>`;
+    `🛎️ ${escHtml(r.promo_name||'(ไม่มีชื่อ)')} <span style="font-size:.72rem;font-weight:700;padding:.1rem .55rem;border-radius:20px;vertical-align:middle;${rtBadgeStyle}">${rtLabel}</span> <button class="modal-close" onclick="closeModal('modal-svc-detail')">×</button>`;
 
   document.getElementById('svc-detail-body').innerHTML=`
     <div style="display:flex;flex-direction:column;gap:.75rem;padding:.25rem 0">

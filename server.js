@@ -5419,6 +5419,7 @@ async function ensureServiceRequestsTable() {
     // Add new columns if not exist
     await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='promo_detail') ALTER TABLE service_requests ADD promo_detail NVARCHAR(MAX) NULL`);
     await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='condition') ALTER TABLE service_requests ADD condition NVARCHAR(MAX) NULL`);
+    await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='request_type') ALTER TABLE service_requests ADD request_type NVARCHAR(30) DEFAULT 'coupon' NULL`);
     console.log('✅ service_requests table ready');
   } catch(e) { console.error('❌ service_requests error:', e.message); }
 }
@@ -5477,6 +5478,7 @@ app.post('/api/service-requests', authRequired, async (request, res) => {
       .input('attachment_name',  sql.NVarChar, b.attachment_name||null)
       .input('promo_detail',     sql.NVarChar, b.promo_detail||null)
       .input('condition',        sql.NVarChar, b.condition||null)
+      .input('request_type',     sql.NVarChar, b.request_type||'coupon')
       .input('status',           sql.NVarChar, 'received')
       .input('created_by',       sql.Int,      request.user.id)
       .query(`INSERT INTO service_requests
@@ -5484,13 +5486,13 @@ app.post('/api/service-requests', authRequired, async (request, res) => {
          coupon_type,coupon_details,start_date,start_time,expiry_type,expiry_date,expiry_days,
          per_bill,max_per_receipt,min_purchase_type,min_purchase_value,can_combine,
          customer_groups,pilot_store,contact_name,test_date,test_time,attachment_name,
-         promo_detail,condition,status,created_by)
+         promo_detail,condition,request_type,status,created_by)
         OUTPUT INSERTED.id
         VALUES(@brands,@branch_scope,@branches,@promo_name,@sale_types,@coupon_code,@erp_code,
                @coupon_type,@coupon_details,@start_date,@start_time,@expiry_type,@expiry_date,@expiry_days,
                @per_bill,@max_per_receipt,@min_purchase_type,@min_purchase_value,@can_combine,
                @customer_groups,@pilot_store,@contact_name,@test_date,@test_time,@attachment_name,
-               @promo_detail,@condition,@status,@created_by)`);
+               @promo_detail,@condition,@request_type,@status,@created_by)`);
     res.json({ id: result.recordset[0].id });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
