@@ -5591,6 +5591,18 @@ app.delete('/api/service-requests/:id', authRequired, async (request, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── GET /api/service-requests/:id/attachments ─────────────
+app.get('/api/service-requests/:id/attachments', authRequired, async (request, res) => {
+  try {
+    const rows = (await req()
+      .input('sid', sql.Int, parseInt(request.params.id))
+      .query(`SELECT id, file_name, file_path, file_size, mime_type, uploaded_at
+              FROM service_attachments WHERE service_request_id=@sid ORDER BY uploaded_at`))
+      .recordset;
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── GET /api/service-projects ──────────────────────────────
 app.get('/api/service-projects', authRequired, async (request, res) => {
   try {

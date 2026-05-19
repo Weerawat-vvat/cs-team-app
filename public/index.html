@@ -13348,6 +13348,9 @@ async function svcOpenDetail(id){
   }
   if(!r) return;
 
+  // Fetch attachments from service_attachments table
+  const attachments = await api(`/api/service-requests/${id}/attachments`,{silent:true}) || [];
+
   const brands    = svcParseJSON(r.brands,[]).join(', ')||'—';
   const branches  = svcParseJSON(r.branches,[]).join(', ')||'—';
   const statusOpts= SVC_STATUSES.map(s=>`<option value="${s.key}"${r.status===s.key?' selected':''}>${s.label}</option>`).join('');
@@ -13406,11 +13409,22 @@ async function svcOpenDetail(id){
         <div style="font-size:.84rem;white-space:pre-wrap">${escHtml(r.condition)}</div>
       </div>`:''}
 
-      ${r.attachment_name?`
+      ${(attachments.length||r.attachment_name)?`
       <!-- 6. Files -->
       <div class="svc-card">
         <div class="svc-section-head">📎 ไฟล์แนบ</div>
-        <div style="font-size:.84rem">📎 ${escHtml(r.attachment_name)}</div>
+        <div style="display:flex;flex-direction:column;gap:.4rem">
+          ${attachments.length ? attachments.map(f=>{
+            const ext=(f.file_name||'').split('.').pop().toLowerCase();
+            const ico=['jpg','jpeg','png','gif'].includes(ext)?'🖼️':ext==='pdf'?'📄':['xlsx','xls'].includes(ext)?'📊':'📎';
+            const sz=f.file_size?`<span style="color:#94a3b8;font-size:.72rem">${f.file_size<1048576?(f.file_size/1024).toFixed(1)+'KB':(f.file_size/1048576).toFixed(1)+'MB'}</span>`:'';
+            return `<div style="display:flex;align-items:center;gap:.5rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.4rem .65rem">
+              <span style="font-size:1rem">${ico}</span>
+              <a href="${escHtml(f.file_path)}" target="_blank" style="flex:1;font-size:.82rem;color:#0369a1;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(f.file_name)}</a>
+              ${sz}
+            </div>`;
+          }).join('') : `<div style="font-size:.82rem;color:#64748b">📎 ${escHtml(r.attachment_name||'')}</div>`}
+        </div>
       </div>`:''}
 
       <!-- 7. Edit section -->
