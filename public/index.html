@@ -12916,6 +12916,7 @@ async function svcLoadList(){
 // ── Projects ──────────────────────────────────────────────────────
 let _svcProjects = [];
 let _svcActiveProject = null; // null = all jobs
+let _svcProofFiles = [];      // pending proof files for stage upload
 
 async function svcOpenProjects(){
   openModal('modal-svc-projects');
@@ -13409,23 +13410,38 @@ async function svcOpenDetail(id){
         <div style="font-size:.84rem;white-space:pre-wrap">${escHtml(r.condition)}</div>
       </div>`:''}
 
-      ${(attachments.length||r.attachment_name)?`
-      <!-- 6. Files -->
-      <div class="svc-card">
-        <div class="svc-section-head">📎 ไฟล์แนบ</div>
-        <div style="display:flex;flex-direction:column;gap:.4rem">
-          ${attachments.length ? attachments.map(f=>{
-            const ext=(f.file_name||'').split('.').pop().toLowerCase();
-            const ico=['jpg','jpeg','png','gif'].includes(ext)?'🖼️':ext==='pdf'?'📄':['xlsx','xls'].includes(ext)?'📊':'📎';
-            const sz=f.file_size?`<span style="color:#94a3b8;font-size:.72rem">${f.file_size<1048576?(f.file_size/1024).toFixed(1)+'KB':(f.file_size/1048576).toFixed(1)+'MB'}</span>`:'';
-            return `<div style="display:flex;align-items:center;gap:.5rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.4rem .65rem">
-              <span style="font-size:1rem">${ico}</span>
-              <a href="${escHtml(f.file_path)}" target="_blank" style="flex:1;font-size:.82rem;color:#0369a1;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(f.file_name)}</a>
-              ${sz}
-            </div>`;
-          }).join('') : `<div style="font-size:.82rem;color:#64748b">📎 ${escHtml(r.attachment_name||'')}</div>`}
-        </div>
-      </div>`:''}
+      ${(()=>{
+        const custFiles = attachments.filter(f=>!f.stage);
+        const testFiles = attachments.filter(f=>f.stage==='testing');
+        const delFiles  = attachments.filter(f=>f.stage==='delivered');
+        const renderFileList = files => files.map(f=>{
+          const ext=(f.file_name||'').split('.').pop().toLowerCase();
+          const ico=['jpg','jpeg','png','gif'].includes(ext)?'🖼️':ext==='pdf'?'📄':['xlsx','xls'].includes(ext)?'📊':'📎';
+          const sz=f.file_size?`<span style="color:#94a3b8;font-size:.7rem;flex-shrink:0">${f.file_size<1048576?(f.file_size/1024).toFixed(1)+'KB':(f.file_size/1048576).toFixed(1)+'MB'}</span>`:'';
+          return `<div style="display:flex;align-items:center;gap:.5rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.38rem .65rem">
+            <span style="font-size:.95rem">${ico}</span>
+            <a href="${escHtml(f.file_path)}" target="_blank" style="flex:1;font-size:.81rem;color:#0369a1;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(f.file_name)}</a>
+            ${sz}
+          </div>`;
+        }).join('');
+        let html = '';
+        if(custFiles.length||r.attachment_name) html += `
+        <div class="svc-card">
+          <div class="svc-section-head">📎 ไฟล์แนบ (จากลูกค้า)</div>
+          <div style="display:flex;flex-direction:column;gap:.35rem">${custFiles.length?renderFileList(custFiles):`<div style="font-size:.82rem;color:#64748b">📎 ${escHtml(r.attachment_name||'')}</div>`}</div>
+        </div>`;
+        if(testFiles.length) html += `
+        <div class="svc-card" style="border-left:3px solid #f97316">
+          <div class="svc-section-head" style="border-left:none;color:#c2410c">🧪 หลักฐาน — กำลังทดสอบ</div>
+          <div style="display:flex;flex-direction:column;gap:.35rem">${renderFileList(testFiles)}</div>
+        </div>`;
+        if(delFiles.length) html += `
+        <div class="svc-card" style="border-left:3px solid #10b981">
+          <div class="svc-section-head" style="border-left:none;color:#065f46">✅ หลักฐาน — ส่งมอบ</div>
+          <div style="display:flex;flex-direction:column;gap:.35rem">${renderFileList(delFiles)}</div>
+        </div>`;
+        return html;
+      })()}
 
       <!-- 7. Edit section -->
       <div class="svc-card" style="border:1.5px solid #bfdbfe;background:#f0f7ff">
@@ -13434,10 +13450,44 @@ async function svcOpenDetail(id){
           <label class="svc-lbl">สถานะ</label>
           <select id="svc-det-status"
             style="width:100%;background:${curS.bg};color:${curS.col};font-weight:700;border:1.5px solid ${curS.col}40;border-radius:8px;padding:.4rem .7rem;font-size:.85rem;font-family:inherit;outline:none;cursor:pointer"
-            onchange="const s=SVC_STATUSES.find(x=>x.key===this.value)||{bg:'#f1f5f9',col:'#64748b'};this.style.background=s.bg;this.style.color=s.col;this.style.borderColor=s.col+'40'">
+            onchange="const s=SVC_STATUSES.find(x=>x.key===this.value)||{bg:'#f1f5f9',col:'#64748b'};this.style.background=s.bg;this.style.color=s.col;this.style.borderColor=s.col+'40';svcToggleProofUpload(this.value)">
             ${statusOpts}
           </select>
         </div>
+
+        <!-- Proof upload area — shown for testing / delivered -->
+        <div id="svc-proof-upload" style="display:${['testing','delivered'].includes(r.status)?'':'none'};margin-bottom:.65rem">
+          <div id="svc-proof-testing-wrap" style="display:${r.status==='testing'?'':'none'}">
+            <div style="font-size:.75rem;font-weight:700;color:#c2410c;margin-bottom:.4rem;display:flex;align-items:center;gap:.35rem">
+              🧪 หลักฐาน — กำลังทดสอบ
+            </div>
+            <div style="font-size:.72rem;color:#64748b;margin-bottom:.45rem">
+              📄 แนบ <b>PDF ขั้นตอนการใช้งาน</b> (บังคับ) และ Capture หน้าจอ
+            </div>
+          </div>
+          <div id="svc-proof-delivered-wrap" style="display:${r.status==='delivered'?'':'none'}">
+            <div style="font-size:.75rem;font-weight:700;color:#065f46;margin-bottom:.4rem;display:flex;align-items:center;gap:.35rem">
+              ✅ หลักฐาน — ส่งมอบ
+            </div>
+            <div style="font-size:.72rem;color:#64748b;margin-bottom:.45rem">
+              📸 แนบ Capture หลักฐานที่ส่งใน LINE กลุ่ม (บังคับ)
+            </div>
+          </div>
+          <!-- File drop zone -->
+          <div id="svc-proof-zone"
+            style="border:2px dashed #cbd5e1;border-radius:9px;padding:.9rem;text-align:center;background:#f8fafc;cursor:pointer;transition:.15s"
+            onclick="document.getElementById('svc-proof-input').click()"
+            ondragover="event.preventDefault();this.style.borderColor='#3b82f6';this.style.background='#eff6ff'"
+            ondragleave="this.style.borderColor='#cbd5e1';this.style.background='#f8fafc'"
+            ondrop="svcProofDrop(event)">
+            <div style="font-size:1.4rem;margin-bottom:.2rem">📂</div>
+            <div style="font-size:.78rem;font-weight:600;color:#64748b">ลากไฟล์มาวาง หรือคลิกเพื่อเลือก</div>
+            <div style="font-size:.68rem;color:#94a3b8;margin-top:.15rem">PDF, JPG, PNG · สูงสุด 15 MB</div>
+          </div>
+          <input type="file" id="svc-proof-input" multiple accept=".pdf,.jpg,.jpeg,.png,.gif" style="display:none" onchange="svcAddProofFiles(this.files)"/>
+          <div id="svc-proof-file-list" style="display:flex;flex-direction:column;gap:.35rem;margin-top:.4rem"></div>
+        </div>
+
         <div>
           <label class="svc-lbl">หมายเหตุ / Note</label>
           <textarea id="svc-det-note" rows="3" style="width:100%;resize:vertical" placeholder="เพิ่มหมายเหตุหรือบันทึกเพิ่มเติม...">${escHtml(r.note||'')}</textarea>
@@ -13475,12 +13525,86 @@ async function svcOpenDetail(id){
 async function svcSaveDetail(id){
   const status = document.getElementById('svc-det-status')?.value;
   const note   = document.getElementById('svc-det-note')?.value||'';
+
+  // Validate proof files for testing / delivered
+  if(status==='testing'){
+    const hasPdf = _svcProofFiles.some(f=>/\.pdf$/i.test(f.name));
+    if(!hasPdf){ showToast('กรุณาแนบ PDF ขั้นตอนการใช้งาน ก่อนเปลี่ยนสถานะเป็น "กำลังทดสอบ"','error'); return; }
+  }
+  if(status==='delivered'){
+    if(!_svcProofFiles.length){ showToast('กรุณาแนบ Capture หลักฐานส่งมอบ ก่อนเปลี่ยนสถานะเป็น "ส่งมอบ"','error'); return; }
+  }
+
+  // Upload proof files first (if any)
+  if(_svcProofFiles.length){
+    const fd = new FormData();
+    fd.append('stage', status);
+    _svcProofFiles.forEach(f=>fd.append('files',f));
+    const upRes = await fetch(`/api/service-requests/${id}/stage-files`,{method:'POST',body:fd}).then(r=>r.json());
+    if(!upRes?.ok){ showToast('อัปโหลดไฟล์ไม่สำเร็จ: '+(upRes?.error||''),'error'); return; }
+    _svcProofFiles = [];
+    renderSvcProofFileList();
+  }
+
   const res = await api(`/api/service-requests/${id}`,{method:'PUT',body:{status,note}});
   if(res&&res.ok){
     closeModal('modal-svc-detail');
-    showToast(`บันทึกเรียบร้อย`,'success');
+    showToast('บันทึกเรียบร้อย','success');
     svcLoadList();
-  } else { alert('เกิดข้อผิดพลาด: '+(res?.error||'unknown')); }
+  } else { showToast('เกิดข้อผิดพลาด: '+(res?.error||'unknown'),'error'); }
+}
+
+function svcToggleProofUpload(status){
+  _svcProofFiles = [];
+  renderSvcProofFileList();
+  const wrap = document.getElementById('svc-proof-upload');
+  const tw   = document.getElementById('svc-proof-testing-wrap');
+  const dw   = document.getElementById('svc-proof-delivered-wrap');
+  if(!wrap) return;
+  if(status==='testing'){
+    wrap.style.display=''; tw&&(tw.style.display=''); dw&&(dw.style.display='none');
+  } else if(status==='delivered'){
+    wrap.style.display=''; tw&&(tw.style.display='none'); dw&&(dw.style.display='');
+  } else {
+    wrap.style.display='none';
+    tw&&(tw.style.display='none'); dw&&(dw.style.display='none');
+  }
+}
+
+function svcAddProofFiles(fileList){
+  for(const f of fileList){
+    if(f.size>15*1024*1024){ showToast(`${f.name} ใหญ่เกิน 15 MB`,'error'); continue; }
+    if(!_svcProofFiles.find(x=>x.name===f.name&&x.size===f.size)) _svcProofFiles.push(f);
+  }
+  const inp = document.getElementById('svc-proof-input');
+  if(inp) inp.value='';
+  renderSvcProofFileList();
+}
+
+function svcProofDrop(e){
+  e.preventDefault();
+  const zone = document.getElementById('svc-proof-zone');
+  if(zone){ zone.style.borderColor='#cbd5e1'; zone.style.background='#f8fafc'; }
+  svcAddProofFiles(e.dataTransfer.files);
+}
+
+function renderSvcProofFileList(){
+  const el = document.getElementById('svc-proof-file-list');
+  if(!el) return;
+  const fmtSz = b => b<1048576?(b/1024).toFixed(1)+'KB':(b/1048576).toFixed(1)+'MB';
+  const ico   = n => { const e=(n||'').split('.').pop().toLowerCase(); return e==='pdf'?'📄':['jpg','jpeg','png','gif'].includes(e)?'🖼️':'📎'; };
+  el.innerHTML = _svcProofFiles.map((f,i)=>`
+    <div style="display:flex;align-items:center;gap:.45rem;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:7px;padding:.35rem .6rem;font-size:.78rem">
+      <span>${ico(f.name)}</span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(f.name)}</span>
+      <span style="color:#94a3b8;font-size:.7rem;flex-shrink:0">${fmtSz(f.size)}</span>
+      <button onclick="svcRemoveProofFile(${i})" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:.85rem;padding:.1rem;line-height:1;border-radius:4px" onmouseover="this.style.color='#dc2626'" onmouseout="this.style.color='#94a3b8'">✕</button>
+    </div>`).join('');
+}
+
+function svcRemoveProofFile(i){
+  _svcProofFiles.splice(i,1);
+  renderSvcProofFileList();
 }
 
 function svcShowDeleteBox(){

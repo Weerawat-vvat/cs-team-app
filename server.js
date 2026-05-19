@@ -5486,6 +5486,11 @@ async function ensureServiceAttachmentsTable() {
         mime_type          NVARCHAR(100),
         uploaded_at        DATETIME DEFAULT GETDATE()
       )`);
+    // Add new columns if not exist
+    await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_attachments') AND name='stage')
+      ALTER TABLE service_attachments ADD stage NVARCHAR(30) NULL`);
+    await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_attachments') AND name='uploaded_by')
+      ALTER TABLE service_attachments ADD uploaded_by INT NULL`);
     console.log('✅ service_attachments table ready');
   } catch(e) { console.error('❌ service_attachments error:', e.message); }
 }
@@ -5596,10 +5601,47 @@ app.get('/api/service-requests/:id/attachments', authRequired, async (request, r
   try {
     const rows = (await req()
       .input('sid', sql.Int, parseInt(request.params.id))
-      .query(`SELECT id, file_name, file_path, file_size, mime_type, uploaded_at
+      .query(`SELECT id, file_name, file_path, file_size, mime_type, stage, uploaded_at
               FROM service_attachments WHERE service_request_id=@sid ORDER BY uploaded_at`))
       .recordset;
     res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── POST /api/service-requests/:id/stage-files ─────────────
+// Admin: upload proof files tagged to a workflow stage
+app.post('/api/service-requests/:id/stage-files', authRequired, svcPubUpload.array('files', 10), async (request, res) => {
+  try {
+    const id    = parseInt(request.params.id);
+    const stage = request.body.stage || null;
+    const job   = (await req().input('id', sql.Int, id)
+      .query('SELECT id FROM service_requests WHERE id=@id')).recordset[0];
+    if (!job) return res.status(404).json({ error: 'not found' });
+    const files = request.files || [];
+    const inserted = [];
+    if (files.length) {
+      const jobDir = path.join(UPLOAD_DIR, 'svc', String(id));
+      if (!fs.existsSync(jobDir)) fs.mkdirSync(jobDir, { recursive: true });
+      for (const file of files) {
+        const newPath = path.join(jobDir, file.filename);
+        fs.renameSync(file.path, newPath);
+        const relPath = `/uploads/svc/${id}/${file.filename}`;
+        const r = await req()
+          .input('sid', sql.Int,      id)
+          .input('fn',  sql.NVarChar, file.originalname)
+          .input('fp',  sql.NVarChar, relPath)
+          .input('fs',  sql.Int,      file.size)
+          .input('mt',  sql.NVarChar, file.mimetype||null)
+          .input('st',  sql.NVarChar, stage)
+          .input('by',  sql.Int,      request.user.id||null)
+          .query(`INSERT INTO service_attachments
+                    (service_request_id,file_name,file_path,file_size,mime_type,stage,uploaded_by)
+                  OUTPUT INSERTED.id,INSERTED.file_name,INSERTED.file_path,INSERTED.stage
+                  VALUES(@sid,@fn,@fp,@fs,@mt,@st,@by)`);
+        inserted.push(r.recordset[0]);
+      }
+    }
+    res.json({ ok: true, files: inserted });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
