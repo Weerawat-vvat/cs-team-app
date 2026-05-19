@@ -13477,7 +13477,7 @@ async function svcOpenDetail(id){
           const sz=f.file_size?`<span style="color:#94a3b8;font-size:.7rem;flex-shrink:0">${f.file_size<1048576?(f.file_size/1024).toFixed(1)+'KB':(f.file_size/1048576).toFixed(1)+'MB'}</span>`:'';
           return `<div style="display:flex;align-items:center;gap:.5rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.38rem .65rem">
             <span style="font-size:.95rem">${ico}</span>
-            <a href="${escHtml(f.file_path)}" target="_blank" style="flex:1;font-size:.81rem;color:#0369a1;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(f.file_name)}</a>
+            <a href="${escHtml(f.file_path)}" download="${escHtml(f.file_name)}" target="_blank" style="flex:1;font-size:.81rem;color:#0369a1;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(f.file_name)}</a>
             ${sz}
           </div>`;
         }).join('');
