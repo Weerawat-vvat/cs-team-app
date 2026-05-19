@@ -87,6 +87,20 @@ const skUpload = multer({
   }
 });
 
+// ── Smart filename decoder for Thai/Unicode ───────────────
+// busboy 1.x may already return correct UTF-8, OR may return latin1-encoded bytes.
+// Check first: if name already contains Thai/Unicode → use as-is.
+// Otherwise try latin1→utf8 conversion (legacy browsers / older busboy).
+function fixUploadName(raw) {
+  if (!raw) return raw;
+  if (/[฀-๿-ÿ]/.test(raw)) return raw; // already has real Unicode
+  try {
+    const decoded = Buffer.from(raw, 'latin1').toString('utf8');
+    if (/[฀-๿]/.test(decoded)) return decoded; // successfully recovered Thai
+  } catch (e) {}
+  return raw;
+}
+
 // ── Service public-portal upload config ──────────────────
 const svcPubUpload = multer({
   storage: multer.diskStorage({
@@ -96,17 +110,19 @@ const svcPubUpload = multer({
       cb(null, dir);
     },
     filename: (req, file, cb) => {
-      // Fix multer Latin-1 → UTF-8 decoding for Thai filenames
-      const nameUtf8 = Buffer.from(file.originalname, 'latin1').toString('utf8');
-      const ext  = path.extname(nameUtf8).toLowerCase();
-      const base = path.basename(nameUtf8, ext).replace(/[^a-zA-Z0-9ก-๙฀-๿ _-]/g,'_').slice(0,60);
+      const name = fixUploadName(file.originalname);
+      const ext  = path.extname(name).toLowerCase();
+      // Keep Thai chars in disk filename but strip unsafe chars
+      const base = path.basename(name, ext)
+        .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
+        .slice(0, 60);
       cb(null, `${Date.now()}_${base}${ext}`);
     }
   }),
   limits: { fileSize: 15 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const nameUtf8 = Buffer.from(file.originalname, 'latin1').toString('utf8');
-    cb(null, /\.(jpg|jpeg|png|gif|pdf|xlsx|xls|csv)$/i.test(nameUtf8));
+    const name = fixUploadName(file.originalname);
+    cb(null, /\.(jpg|jpeg|png|gif|pdf|xlsx|xls|csv)$/i.test(name));
   }
 });
 
@@ -5629,7 +5645,7 @@ app.post('/api/service-requests/:id/stage-files', authRequired, svcPubUpload.arr
         const newPath = path.join(jobDir, file.filename);
         fs.renameSync(file.path, newPath);
         const relPath = `/uploads/svc/${id}/${file.filename}`;
-        const origName = Buffer.from(file.originalname,'latin1').toString('utf8');
+        const origName = fixUploadName(file.originalname);
         const r = await req()
           .input('sid', sql.Int,      id)
           .input('fn',  sql.NVarChar, origName)
@@ -5797,7 +5813,7 @@ app.post('/api/public/project/:token/submit', svcPubUpload.array('files', 10), a
         const newPath = path.join(jobDir, file.filename);
         fs.renameSync(file.path, newPath);
         const relPath = `/uploads/svc/${inserted.id}/${file.filename}`;
-        const origName = Buffer.from(file.originalname,'latin1').toString('utf8');
+        const origName = fixUploadName(file.originalname);
         await req()
           .input('sid', sql.Int,      inserted.id)
           .input('fn',  sql.NVarChar, origName)
@@ -5902,7 +5918,7 @@ app.put('/api/public/project/:token/jobs/:id', svcPubUpload.array('files', 10), 
         const newPath = path.join(jobDir, file.filename);
         fs.renameSync(file.path, newPath);
         const relPath = `/uploads/svc/${id}/${file.filename}`;
-        const origName = Buffer.from(file.originalname,'latin1').toString('utf8');
+        const origName = fixUploadName(file.originalname);
         await req()
           .input('sid', sql.Int,      id)
           .input('fn',  sql.NVarChar, origName)
