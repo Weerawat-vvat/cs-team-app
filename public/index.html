@@ -447,8 +447,8 @@ textarea{resize:vertical;min-height:80px}
   border-color:var(--hd);box-shadow:0 0 0 3px #2563eb22;
 }
 .svc-card input[type=radio],.svc-card input[type=checkbox]{width:auto;padding:0;border:none;border-radius:0;box-shadow:none}
-.svc-list-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:.85rem 1rem;cursor:pointer;transition:box-shadow .15s,border-color .15s;display:flex;flex-direction:column;gap:.35rem}
-.svc-list-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.08);border-color:#93c5fd}
+.svc-kanban-card{transition:box-shadow .15s,transform .15s}
+.svc-kanban-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.12)!important;transform:translateY(-1px)}
 .svc-status-badge{display:inline-block;padding:.12rem .55rem;border-radius:20px;font-size:.7rem;font-weight:700}
 .svc-status-received{background:#dbeafe;color:#1d4ed8}
 .svc-status-in_progress{background:#fef9c3;color:#854d0e}
@@ -1824,27 +1824,86 @@ textarea{resize:vertical;min-height:80px}
 
 <!-- ═══════════════════ PAGE: SERVICE ═══════════════════ -->
 <div id="page-service" class="page">
-  <div style="max-width:1100px;margin:0 auto;padding:1rem">
-    <!-- Header -->
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem">
-      <div>
-        <div class="section-title">🛎️ บริการ Support Package</div>
-        <div style="font-size:.78rem;color:var(--muted);margin-top:.15rem">จัดการคำขอสร้างโปรโมชัน / คูปอง / เมนู</div>
+  <!-- Header -->
+  <div class="section-header" style="margin-bottom:.75rem">
+    <div>
+      <div class="section-title">🛎️ บริการ Support Package</div>
+      <div style="font-size:.75rem;color:var(--muted);margin-top:.1rem">จัดการโปรโมชัน / คูปอง / เมนู</div>
+    </div>
+    <div style="display:flex;gap:.5rem;align-items:center">
+      <div style="display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+        <button id="svc-view-table" onclick="svcSetView('table')"
+          style="padding:.28rem .7rem;font-size:.78rem;font-weight:700;border:none;cursor:pointer;background:#2563eb;color:#fff;font-family:inherit;transition:all .15s">☰ ตาราง</button>
+        <button id="svc-view-board" onclick="svcSetView('board')"
+          style="padding:.28rem .7rem;font-size:.78rem;font-weight:700;border:none;cursor:pointer;background:#fff;color:#94a3b8;font-family:inherit;transition:all .15s">⬛ บอร์ด</button>
       </div>
-      <button onclick="svcOpenForm()" class="btn btn-primary" style="font-size:.82rem;padding:.4rem 1rem">➕ แจ้งขอบริการใหม่</button>
+      <button class="btn btn-primary btn-sm" onclick="svcOpenForm()">➕ แจ้งขอบริการใหม่</button>
     </div>
+  </div>
 
-    <!-- Status filter -->
-    <div style="display:flex;gap:.4rem;margin-bottom:.85rem;flex-wrap:wrap">
-      <button onclick="svcSetFilter('')"    id="svc-f-all"      class="btn btn-sm" style="border-radius:20px;font-size:.75rem">ทั้งหมด</button>
-      <button onclick="svcSetFilter('received')"  id="svc-f-received"  class="btn btn-sm" style="border-radius:20px;font-size:.75rem;background:#dbeafe;color:#1d4ed8;border-color:#bfdbfe">📥 รับเรื่อง</button>
-      <button onclick="svcSetFilter('in_progress')" id="svc-f-in_progress" class="btn btn-sm" style="border-radius:20px;font-size:.75rem;background:#fef9c3;color:#854d0e;border-color:#fde047">⚙️ กำลังทำ</button>
-      <button onclick="svcSetFilter('testing')"  id="svc-f-testing"  class="btn btn-sm" style="border-radius:20px;font-size:.75rem;background:#ffedd5;color:#c2410c;border-color:#fdba74">🧪 ทดสอบ</button>
-      <button onclick="svcSetFilter('delivered')" id="svc-f-delivered" class="btn btn-sm" style="border-radius:20px;font-size:.75rem;background:#dcfce7;color:#15803d;border-color:#86efac">✅ ส่งมอบ</button>
+  <!-- Stat bar -->
+  <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem">
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">📋 ทั้งหมด</span>
+      <span style="font-size:1.1rem;font-weight:800;color:var(--hd)" id="svc-stat-total">—</span>
     </div>
+    <div style="background:#dbeafe;border:1px solid #bfdbfe;border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;cursor:pointer" onclick="svcQuickFilter('received')">
+      <span style="font-size:.72rem;color:#1d4ed8">📥 รับเรื่อง</span>
+      <span style="font-size:1.1rem;font-weight:800;color:#1d4ed8" id="svc-stat-received">—</span>
+    </div>
+    <div style="background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;cursor:pointer" onclick="svcQuickFilter('in_progress')">
+      <span style="font-size:.72rem;color:#854d0e">⚙️ กำลังทำ</span>
+      <span style="font-size:1.1rem;font-weight:800;color:#854d0e" id="svc-stat-in_progress">—</span>
+    </div>
+    <div style="background:#ffedd5;border:1px solid #fdba74;border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;cursor:pointer" onclick="svcQuickFilter('testing')">
+      <span style="font-size:.72rem;color:#c2410c">🧪 ทดสอบ</span>
+      <span style="font-size:1.1rem;font-weight:800;color:#c2410c" id="svc-stat-testing">—</span>
+    </div>
+    <div style="background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;cursor:pointer" onclick="svcQuickFilter('delivered')">
+      <span style="font-size:.72rem;color:#15803d">✅ ส่งมอบ</span>
+      <span style="font-size:1.1rem;font-weight:800;color:#15803d" id="svc-stat-delivered">—</span>
+    </div>
+  </div>
 
-    <!-- List -->
-    <div id="svc-list-wrap"><div style="color:var(--muted);padding:2rem;text-align:center">กำลังโหลด...</div></div>
+  <!-- Filter bar -->
+  <div class="page-datebar" style="margin-bottom:.75rem;gap:.5rem;flex-wrap:wrap">
+    <select id="svc-filter-status" onchange="svcLoadList()">
+      <option value="">ทุกสถานะ</option>
+      <option value="received">📥 รับเรื่อง</option>
+      <option value="in_progress">⚙️ กำลังทำ</option>
+      <option value="testing">🧪 ทดสอบ</option>
+      <option value="delivered">✅ ส่งมอบ</option>
+    </select>
+    <input id="svc-search" type="text" placeholder="🔍 ค้นหาชื่อโปรโมชัน / รหัส / แบรนด์..." oninput="svcSearchDebounce()" style="flex:1;min-width:180px"/>
+    <button class="btn btn-ghost btn-sm" onclick="svcLoadList()">🔄</button>
+  </div>
+
+  <!-- Table view -->
+  <div id="svc-panel-table">
+    <div class="card" style="padding:.5rem 0">
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>รหัสคูปอง</th>
+            <th>ชื่อโปรโมชัน</th>
+            <th>แบรนด์</th>
+            <th>ประเภทคูปอง</th>
+            <th>สถานะ</th>
+            <th>สร้างโดย</th>
+            <th>วันที่</th>
+            <th></th>
+          </tr></thead>
+          <tbody id="svc-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Board view -->
+  <div id="svc-panel-board" style="display:none;overflow-x:auto;margin:0 -.5rem">
+    <div id="svc-kanban-wrap" style="min-height:calc(100vh - 260px)">
+      <div style="text-align:center;color:var(--muted);padding:3rem">กำลังโหลด...</div>
+    </div>
   </div>
 </div>
 
@@ -12803,63 +12862,148 @@ let _svcBrandList  = [];   // string[]
 let _svcBranchList = [];   // [{id,brand_name,branch_name}]
 let _svcCGrpList   = [];   // [{group_id,group_name,group_code}]
 
-// ── Status helpers ───────────────────────────────────────────────
-function svcStatusLabel(s){
-  return {received:'📥 รับเรื่อง',in_progress:'⚙️ กำลังทำ',testing:'🧪 ทดสอบ',delivered:'✅ ส่งมอบ'}[s]||s;
-}
+// ── Status config ─────────────────────────────────────────────────
+const SVC_STATUSES = [
+  {key:'received',    label:'📥 รับเรื่อง', col:'#2563eb', bg:'#dbeafe'},
+  {key:'in_progress', label:'⚙️ กำลังทำ',  col:'#b45309', bg:'#fef9c3'},
+  {key:'testing',     label:'🧪 ทดสอบ',    col:'#c2410c', bg:'#ffedd5'},
+  {key:'delivered',   label:'✅ ส่งมอบ',   col:'#15803d', bg:'#dcfce7'},
+];
+const SVC_CTYPE_LABEL = {fixed:'💵 เงินสด',discount:'🏷️ ส่วนลด',redeem:'🎁 แลกซื้อ'};
+let _svcAllRows = [];
+let _svcView    = 'table';
+let _svcSearchTimer = null;
+
+function svcStatusLabel(s){ return SVC_STATUSES.find(x=>x.key===s)?.label||s; }
 function svcStatusBadge(s){
-  return `<span class="svc-status-badge svc-status-${s}">${svcStatusLabel(s)}</span>`;
+  const m=SVC_STATUSES.find(x=>x.key===s)||{};
+  return `<span style="display:inline-block;padding:.12rem .55rem;border-radius:20px;font-size:.7rem;font-weight:700;background:${m.bg||'#f1f5f9'};color:${m.col||'#475569'}">${m.label||s}</span>`;
 }
 function svcParseJSON(str, def){
   if(!str) return def;
   try{ return JSON.parse(str); }catch{ return def; }
 }
 
-// ── Load list ────────────────────────────────────────────────────
-async function svcLoadList(){
-  const wrap = document.getElementById('svc-list-wrap');
-  wrap.innerHTML = '<div style="color:var(--muted);padding:2rem;text-align:center">กำลังโหลด...</div>';
-  const params = _svcFilter ? `?status=${_svcFilter}` : '';
-  const rows = await api('/api/service-requests'+params);
-  if(!rows||!rows.length){
-    wrap.innerHTML = '<div style="color:var(--muted);padding:2rem;text-align:center">ยังไม่มีรายการ</div>';
-    return;
+// ── View toggle ───────────────────────────────────────────────────
+function svcSetView(mode){
+  _svcView = mode;
+  const btnT=document.getElementById('svc-view-table'), btnB=document.getElementById('svc-view-board');
+  const panT=document.getElementById('svc-panel-table'), panB=document.getElementById('svc-panel-board');
+  if(mode==='table'){
+    btnT.style.background='#2563eb'; btnT.style.color='#fff';
+    btnB.style.background='#fff';    btnB.style.color='#94a3b8';
+    panT.style.display=''; panB.style.display='none';
+    svcRenderTable(_svcAllRows);
+  } else {
+    btnB.style.background='#2563eb'; btnB.style.color='#fff';
+    btnT.style.background='#fff';    btnT.style.color='#94a3b8';
+    panT.style.display='none'; panB.style.display='';
+    svcRenderBoard(_svcAllRows);
   }
-  const grid = document.createElement('div');
-  grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:.85rem';
-  rows.forEach(r=>{
-    const brands = svcParseJSON(r.brands,[]).join(', ')||'—';
-    const card = document.createElement('div');
-    card.className = 'svc-list-card';
-    card.onclick = ()=>svcOpenDetail(r.id);
-    const typeMap = {fixed:'💵 เงินสด',discount:'🏷️ ส่วนลด',redeem:'🎁 แลกซื้อ',campaign:'📢 แคมเปญ'};
-    card.innerHTML = `
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.4rem">
-        <div style="font-weight:700;font-size:.9rem;color:#1e293b;flex:1">${r.promo_name||'(ไม่มีชื่อ)'}</div>
-        ${svcStatusBadge(r.status)}
-      </div>
-      <div style="font-size:.77rem;color:#64748b">แบรนด์: <b>${brands}</b></div>
-      <div style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin-top:.15rem">
-        ${r.coupon_code?`<code style="font-size:.72rem;background:#f1f5f9;border-radius:4px;padding:.05rem .3rem">${r.coupon_code}</code>`:''}
-        ${r.coupon_type?`<span style="font-size:.72rem;color:#64748b">${typeMap[r.coupon_type]||r.coupon_type}</span>`:''}
-      </div>
-      <div style="font-size:.72rem;color:#94a3b8;margin-top:.1rem">
-        สร้างโดย ${r.created_by_name||'—'} · ${r.created_at?new Date(r.created_at).toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'}):''}
-      </div>`;
-    grid.appendChild(card);
-  });
-  wrap.innerHTML='';
-  wrap.appendChild(grid);
 }
 
-// ── Filter ───────────────────────────────────────────────────────
-function svcSetFilter(status){
-  _svcFilter = status;
-  ['all','received','in_progress','testing','delivered'].forEach(k=>{
-    const btn = document.getElementById('svc-f-'+k);
-    if(btn) btn.style.outline=(k===status||(k==='all'&&!status))?'2px solid #3b82f6':'none';
-  });
+function svcSearchDebounce(){
+  clearTimeout(_svcSearchTimer);
+  _svcSearchTimer = setTimeout(()=>svcLoadList(), 300);
+}
+
+function svcQuickFilter(status){
+  const sel=document.getElementById('svc-filter-status');
+  if(sel) sel.value=status;
   svcLoadList();
+}
+
+// ── Load list ────────────────────────────────────────────────────
+async function svcLoadList(){
+  const status = document.getElementById('svc-filter-status')?.value||'';
+  const q      = document.getElementById('svc-search')?.value.trim()||'';
+  let url = '/api/service-requests';
+  const p = new URLSearchParams();
+  if(status) p.append('status',status);
+  if(q)      p.append('q',q);
+  if(p.toString()) url += '?'+p.toString();
+
+  const rows = await api(url,{silent:true})||[];
+  _svcAllRows = Array.isArray(rows)?rows:[];
+
+  // Stats
+  const all = _svcAllRows;
+  const el = id=>document.getElementById(id);
+  if(el('svc-stat-total'))       el('svc-stat-total').textContent = all.length;
+  ['received','in_progress','testing','delivered'].forEach(s=>{
+    if(el('svc-stat-'+s)) el('svc-stat-'+s).textContent = all.filter(r=>r.status===s).length;
+  });
+
+  if(_svcView==='table') svcRenderTable(_svcAllRows);
+  else svcRenderBoard(_svcAllRows);
+}
+
+// ── Table render ──────────────────────────────────────────────────
+function svcRenderTable(rows){
+  const tbody=document.getElementById('svc-tbody'); if(!tbody) return;
+  if(!rows.length){
+    tbody.innerHTML=`<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:2rem">ยังไม่มีรายการ</td></tr>`;
+    return;
+  }
+  tbody.innerHTML=rows.map(r=>{
+    const brands=svcParseJSON(r.brands,[]).join(', ')||'—';
+    const dt=r.created_at?new Date(r.created_at).toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'}):'—';
+    const m=SVC_STATUSES.find(s=>s.key===r.status)||{};
+    return `<tr>
+      <td><code style="font-size:.78rem;background:#f1f5f9;padding:.1rem .3rem;border-radius:4px">${r.coupon_code||'—'}</code></td>
+      <td style="font-weight:600;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(r.promo_name||'(ไม่มีชื่อ)')}</td>
+      <td style="max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.82rem">${escHtml(brands)}</td>
+      <td style="font-size:.82rem">${SVC_CTYPE_LABEL[r.coupon_type]||r.coupon_type||'—'}</td>
+      <td>
+        <select onchange="svcUpdateStatus(${r.id},this.value)"
+          style="font-size:.75rem;padding:.22rem .5rem;border-radius:20px;border:1.5px solid ${m.col||'#e2e8f0'}55;outline:none;cursor:pointer;font-family:inherit;background:${m.bg||'#f8fafc'};color:${m.col||'#475569'};font-weight:600">
+          ${SVC_STATUSES.map(s=>`<option value="${s.key}"${r.status===s.key?' selected':''}>${s.label}</option>`).join('')}
+        </select>
+      </td>
+      <td style="font-size:.82rem">${escHtml(r.created_by_name||'—')}</td>
+      <td style="font-size:.78rem;color:var(--muted)">${dt}</td>
+      <td><button class="si-action-btn" onclick="svcOpenDetail(${r.id})" title="ดูรายละเอียด">👁</button></td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Board render ──────────────────────────────────────────────────
+function svcRenderBoard(rows){
+  const wrap=document.getElementById('svc-kanban-wrap'); if(!wrap) return;
+  wrap.innerHTML=`
+    <div style="display:flex;gap:0;min-height:calc(100vh - 260px)">
+      ${SVC_STATUSES.map(col=>{
+        const cards=rows.filter(r=>r.status===col.key);
+        return `
+          <div style="min-width:220px;flex:1;border-right:1px solid #e2e8f0;display:flex;flex-direction:column;background:${col.bg}18">
+            <div style="padding:.55rem .75rem;background:#fff;border-bottom:3px solid ${col.col}55;position:sticky;top:0;z-index:1">
+              <div style="display:flex;align-items:center;gap:.4rem">
+                <span style="font-size:.8rem;font-weight:700;color:${col.col}">${col.label}</span>
+                <span style="background:${col.col}22;color:${col.col};border-radius:20px;font-size:.68rem;padding:.05rem .4rem;font-weight:700">${cards.length}</span>
+              </div>
+            </div>
+            <div style="flex:1;padding:.45rem .4rem;display:flex;flex-direction:column;gap:.35rem;overflow-y:auto">
+              ${cards.length?cards.map(r=>svcKanbanCard(r,col)).join(''):`<div style="text-align:center;color:var(--muted);font-size:.78rem;padding:1.5rem .5rem">ว่าง</div>`}
+            </div>
+          </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function svcKanbanCard(r,col){
+  const brands=svcParseJSON(r.brands,[]).join(', ')||'—';
+  const dt=r.created_at?new Date(r.created_at).toLocaleDateString('th-TH',{day:'2-digit',month:'short'}):'';
+  return `
+    <div class="svc-kanban-card" onclick="svcOpenDetail(${r.id})"
+      style="background:#fff;border-radius:8px;padding:.55rem .65rem;box-shadow:0 1px 3px rgba(0,0,0,.07);cursor:pointer;border-left:3px solid ${col.col};user-select:none">
+      <div style="font-size:.73rem;font-weight:700;color:${col.col};margin-bottom:.2rem;font-family:monospace">${escHtml(r.coupon_code||'—')}</div>
+      <div style="font-size:.83rem;font-weight:600;color:#1e293b;margin-bottom:.15rem;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${escHtml(r.promo_name||'(ไม่มีชื่อ)')}</div>
+      <div style="font-size:.72rem;color:#64748b;margin-bottom:.25rem;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${escHtml(brands)}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:.68rem;color:#94a3b8">${escHtml(r.created_by_name||'')}</span>
+        <span style="font-size:.68rem;color:#cbd5e1">${dt}</span>
+      </div>
+    </div>`;
 }
 
 // ── Open Form ────────────────────────────────────────────────────
