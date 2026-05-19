@@ -6,723 +6,807 @@
 <title>Project Portal</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Sarabun','Segoe UI',sans-serif;background:#f0f4f8;min-height:100vh}
-:root{--blue:#3b82f6;--blue-dark:#1d4ed8;--border:#e2e8f0;--text:#1e293b;--sub:#94a3b8}
+body{font-family:'Sarabun','Segoe UI',sans-serif;background:#f1f5f9;min-height:100vh}
+:root{
+  --blue:#3b82f6;--blue-dark:#1d4ed8;--blue-light:#dbeafe;
+  --green:#10b981;--amber:#f59e0b;--orange:#f97316;
+  --border:#e2e8f0;--text:#1e293b;--sub:#94a3b8;
+}
 
-.hdr{background:linear-gradient(135deg,#1e3a5f,#2563eb);padding:1.1rem 1.25rem;color:#fff;display:flex;align-items:center;gap:.75rem}
-.hdr-icon{font-size:1.6rem}
-.hdr-title{font-size:1.05rem;font-weight:700}
-.hdr-sub{font-size:.75rem;color:#93c5fd;margin-top:.1rem}
+/* ── Header ── */
+.hdr{
+  background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%);
+  padding:1rem 1.5rem;
+  display:flex;align-items:center;justify-content:space-between;gap:1rem;
+  position:sticky;top:0;z-index:20;
+  box-shadow:0 2px 12px #0003;
+}
+.hdr-left{display:flex;align-items:center;gap:.75rem}
+.hdr-icon{font-size:1.5rem}
+.hdr-title{font-size:1rem;font-weight:700;color:#fff}
+.hdr-sub{font-size:.72rem;color:#93c5fd;margin-top:.05rem}
+.btn-new{
+  background:#fff;color:#1d4ed8;border:none;border-radius:10px;
+  padding:.55rem 1.1rem;font-size:.85rem;font-weight:700;cursor:pointer;
+  font-family:inherit;white-space:nowrap;display:flex;align-items:center;gap:.4rem;
+  box-shadow:0 2px 8px #0002;transition:.15s;flex-shrink:0;
+}
+.btn-new:hover{background:#eff6ff;transform:translateY(-1px);box-shadow:0 4px 12px #0003}
 
-.tabs{background:#fff;border-bottom:2px solid var(--border);display:flex;position:sticky;top:0;z-index:10}
-.tab{flex:1;padding:.65rem 1rem;font-size:.85rem;font-weight:700;border:none;background:none;cursor:pointer;color:var(--sub);font-family:inherit;border-bottom:3px solid transparent;transition:.15s;text-align:center}
-.tab.active{color:var(--blue);border-bottom-color:var(--blue)}
+/* ── Main content ── */
+.main{max-width:960px;margin:0 auto;padding:1.25rem 1rem}
 
-.content{max-width:720px;margin:0 auto;padding:1.25rem 1rem}
+/* ── Stat bar ── */
+.stat-bar{display:flex;gap:.65rem;margin-bottom:1.1rem;flex-wrap:wrap}
+.stat-chip{
+  background:#fff;border:1.5px solid var(--border);border-radius:10px;
+  padding:.45rem .85rem;display:flex;align-items:center;gap:.45rem;
+  font-size:.8rem;font-weight:700;color:#64748b;cursor:pointer;transition:.12s;
+}
+.stat-chip:hover{border-color:var(--blue);color:var(--blue)}
+.stat-chip.active{border-color:var(--blue);background:var(--blue-light);color:var(--blue-dark)}
+.stat-chip .cnt{
+  background:#e2e8f0;color:#475569;border-radius:20px;
+  padding:.05rem .42rem;font-size:.72rem;min-width:18px;text-align:center;
+}
+.stat-chip.active .cnt{background:#bfdbfe;color:#1d4ed8}
 
-/* Job status cards */
-.job-card{background:#fff;border-radius:12px;border:1px solid var(--border);padding:.9rem 1rem;margin-bottom:.65rem;border-left:4px solid #e2e8f0}
-.job-card.received{border-left-color:#3b82f6}
-.job-card.in_progress{border-left-color:#f59e0b}
-.job-card.testing{border-left-color:#f97316}
-.job-card.delivered{border-left-color:#10b981}
-.job-meta{display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;flex-wrap:wrap;gap:.35rem}
-.job-no{font-family:monospace;font-size:.75rem;font-weight:700;color:#0369a1;background:#e0f2fe;padding:.1rem .45rem;border-radius:4px}
-.status-badge{font-size:.72rem;font-weight:700;padding:.2rem .6rem;border-radius:20px}
-.status-badge.received{background:#dbeafe;color:#1d4ed8}
-.status-badge.in_progress{background:#fef3c7;color:#b45309}
-.status-badge.testing{background:#ffedd5;color:#c2410c}
-.status-badge.delivered{background:#dcfce7;color:#15803d}
-.job-title{font-size:.92rem;font-weight:600;color:var(--text);margin-bottom:.25rem}
-.job-info{font-size:.75rem;color:var(--sub)}
-.btn-edit-job{background:none;border:1.5px solid var(--border);border-radius:6px;padding:.2rem .6rem;font-size:.72rem;font-weight:700;cursor:pointer;color:#64748b;font-family:inherit;margin-top:.5rem;transition:.15s}
-.btn-edit-job:hover{border-color:var(--blue);color:var(--blue);background:#f0f9ff}
+/* ── Table ── */
+.tbl-wrap{background:#fff;border-radius:14px;border:1px solid var(--border);overflow:hidden;box-shadow:0 1px 4px #0001}
+table{width:100%;border-collapse:collapse}
+thead tr{background:#f8fafc;border-bottom:2px solid var(--border)}
+thead th{
+  padding:.6rem .9rem;font-size:.72rem;font-weight:700;color:var(--sub);
+  text-align:left;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;
+}
+tbody tr{border-bottom:1px solid #f1f5f9;transition:.1s}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:#f8fbff}
+tbody td{padding:.65rem .9rem;font-size:.83rem;color:var(--text);vertical-align:middle}
+.td-jobno{font-family:monospace;font-size:.75rem;font-weight:700;color:#0369a1;background:#e0f2fe;padding:.12rem .5rem;border-radius:5px;white-space:nowrap}
+.td-title{font-weight:600;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.td-sub{font-size:.75rem;color:var(--sub);margin-top:.1rem}
+.badge{display:inline-flex;align-items:center;gap:.3rem;font-size:.72rem;font-weight:700;padding:.18rem .55rem;border-radius:20px;white-space:nowrap}
+.badge.received{background:#dbeafe;color:#1d4ed8}
+.badge.in_progress{background:#fef3c7;color:#b45309}
+.badge.testing{background:#ffedd5;color:#c2410c}
+.badge.delivered{background:#dcfce7;color:#15803d}
+.stype-chip{display:inline-block;font-size:.7rem;font-weight:700;padding:.1rem .42rem;border-radius:20px;white-space:nowrap}
+.stype-chip.promo{background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0}
+.stype-chip.quick{background:#fef9c3;color:#92400e;border:1px solid #fde68a}
+.btn-edit-row{
+  background:none;border:1.5px solid var(--border);border-radius:7px;
+  padding:.22rem .6rem;font-size:.72rem;font-weight:700;cursor:pointer;
+  color:#64748b;font-family:inherit;transition:.15s;white-space:nowrap;
+}
+.btn-edit-row:hover{border-color:var(--blue);color:var(--blue);background:#f0f9ff}
+.empty-row td{text-align:center;padding:3rem 1rem;color:var(--sub);font-size:.85rem}
 
-/* Form cards */
-.card{background:#fff;border-radius:12px;border:1px solid var(--border);margin-bottom:.85rem;overflow:visible}
-.card-head{padding:.6rem 1rem;background:#fafbfc;border-bottom:1px solid var(--border);font-size:.75rem;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.04em;border-radius:12px 12px 0 0}
-.card-body{padding:.9rem 1rem;display:flex;flex-direction:column;gap:.65rem}
-.field label{display:block;font-size:.72rem;font-weight:700;color:var(--sub);margin-bottom:.28rem;letter-spacing:.02em}
-.field label .req{color:#ef4444}
-.field input,.field select,.field textarea{width:100%;border:1.5px solid var(--border);border-radius:8px;padding:.48rem .7rem;font-size:.83rem;color:var(--text);font-family:inherit;outline:none;transition:.15s}
-.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px #dbeafe60}
-.field textarea{resize:vertical;min-height:72px}
-.row-2{display:grid;grid-template-columns:1fr 1fr;gap:.65rem}
-.period-wrap{display:flex;align-items:center;gap:.4rem}
-.period-wrap input{flex:1}
-.period-wrap span{color:var(--sub);flex-shrink:0}
+/* ── Modal overlay ── */
+.overlay{
+  position:fixed;inset:0;background:#00000055;z-index:100;
+  display:flex;align-items:flex-start;justify-content:center;
+  padding:1.5rem 1rem;overflow-y:auto;
+}
+.overlay{display:none}
+.overlay.open{display:flex}
+.modal{
+  background:#fff;border-radius:16px;width:100%;max-width:640px;
+  box-shadow:0 20px 60px #0004;overflow:hidden;
+  animation:slideUp .22s ease;
+}
+@keyframes slideUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
 
-/* ── Multi-select combo ── */
+/* Modal header */
+.modal-hdr{
+  background:linear-gradient(135deg,#1e3a5f,#2563eb);
+  padding:1rem 1.25rem;display:flex;align-items:center;justify-content:space-between;
+}
+.modal-hdr-left{display:flex;align-items:center;gap:.6rem;color:#fff}
+.modal-hdr-icon{font-size:1.4rem}
+.modal-hdr-title{font-size:1rem;font-weight:700}
+.modal-hdr-sub{font-size:.72rem;color:#93c5fd;margin-top:.05rem}
+.modal-close{
+  background:#ffffff25;border:none;color:#fff;width:28px;height:28px;
+  border-radius:50%;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;
+  transition:.15s;flex-shrink:0;
+}
+.modal-close:hover{background:#ffffff40}
+
+/* Modal body */
+.modal-body{padding:1.1rem 1.25rem;display:flex;flex-direction:column;gap:.85rem;max-height:72vh;overflow-y:auto}
+.section{background:#f8fafc;border:1px solid var(--border);border-radius:10px;overflow:visible}
+.section-head{
+  padding:.5rem .85rem;background:#fff;border-bottom:1px solid var(--border);
+  font-size:.7rem;font-weight:700;color:var(--sub);text-transform:uppercase;
+  letter-spacing:.05em;border-radius:10px 10px 0 0;
+}
+.section-body{padding:.75rem .85rem;display:flex;flex-direction:column;gap:.6rem}
+.field label{display:block;font-size:.72rem;font-weight:700;color:#475569;margin-bottom:.25rem}
+.field label .req{color:#ef4444;margin-left:.1rem}
+.field input,.field select,.field textarea{
+  width:100%;border:1.5px solid var(--border);border-radius:8px;
+  padding:.46rem .7rem;font-size:.83rem;color:var(--text);
+  font-family:inherit;outline:none;transition:.15s;background:#fff;
+}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px #dbeafe55}
+.field textarea{resize:vertical;min-height:68px}
+.row-2{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
+.period-row{display:flex;align-items:center;gap:.4rem}
+.period-row input{flex:1}
+.period-row .dash{color:var(--sub);flex-shrink:0;font-size:.9rem}
+
+/* combo */
 .combo-box{position:relative}
 .combo-input-row{
   min-height:38px;border:1.5px solid var(--border);border-radius:8px;
-  background:#fff;padding:.3rem .5rem;display:flex;flex-wrap:wrap;gap:.3rem;
+  background:#fff;padding:.28rem .48rem;display:flex;flex-wrap:wrap;gap:.28rem;
   align-items:center;cursor:text;transition:.15s;
 }
-.combo-input-row:focus-within{border-color:var(--blue);box-shadow:0 0 0 3px #dbeafe60}
+.combo-input-row:focus-within{border-color:var(--blue);box-shadow:0 0 0 3px #dbeafe55}
 .combo-chip{
-  display:inline-flex;align-items:center;gap:.25rem;
-  background:#dbeafe;color:#1d4ed8;border-radius:6px;
-  padding:.15rem .45rem .15rem .55rem;font-size:.78rem;font-weight:600;
+  display:inline-flex;align-items:center;gap:.22rem;
+  background:var(--blue-light);color:#1d4ed8;border-radius:6px;
+  padding:.13rem .42rem .13rem .5rem;font-size:.77rem;font-weight:600;
 }
-.combo-chip button{background:none;border:none;cursor:pointer;color:#3b82f6;font-size:.85rem;line-height:1;padding:0}
+.combo-chip button{background:none;border:none;cursor:pointer;color:#3b82f6;font-size:.82rem;line-height:1;padding:0}
 .combo-chip button:hover{color:#b91c1c}
-.combo-search{border:none;outline:none;font-size:.82rem;min-width:90px;flex:1;background:transparent;font-family:inherit;padding:.1rem .2rem;color:var(--text)}
+.combo-search{border:none;outline:none;font-size:.82rem;min-width:80px;flex:1;background:transparent;font-family:inherit;padding:.08rem .18rem;color:var(--text)}
 .combo-drop{
-  position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:100;
+  position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:200;
   background:#fff;border:1.5px solid var(--border);border-radius:10px;
-  box-shadow:0 8px 24px rgba(0,0,0,.1);max-height:200px;overflow-y:auto;display:none;
+  box-shadow:0 8px 24px #0002;max-height:180px;overflow-y:auto;display:none;
 }
-.combo-opt{padding:.48rem .75rem;font-size:.83rem;cursor:pointer;color:var(--text);display:flex;align-items:center;gap:.5rem;transition:.1s}
+.combo-opt{padding:.45rem .7rem;font-size:.82rem;cursor:pointer;color:var(--text);display:flex;align-items:center;gap:.45rem;transition:.1s}
 .combo-opt:hover{background:#f0f9ff}
-.combo-opt.selected{color:#1d4ed8;font-weight:600}
-.combo-opt .chk{font-size:.85rem;color:#3b82f6;width:16px}
+.combo-opt.sel{color:#1d4ed8;font-weight:600}
+.combo-opt .chk{font-size:.82rem;color:#3b82f6;width:15px;flex-shrink:0}
 
-/* ── Single autocomplete ── */
+/* autocomplete */
 .ac-box{position:relative}
 .ac-drop{
-  position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:100;
+  position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:200;
   background:#fff;border:1.5px solid var(--border);border-radius:10px;
-  box-shadow:0 8px 24px rgba(0,0,0,.1);max-height:160px;overflow-y:auto;display:none;
+  box-shadow:0 8px 24px #0002;max-height:150px;overflow-y:auto;display:none;
 }
-.ac-opt{padding:.45rem .75rem;font-size:.83rem;cursor:pointer;color:var(--text);transition:.1s}
-.ac-opt:hover{background:#f0f9ff;color:#1d4ed8}
+.ac-opt{padding:.42rem .7rem;font-size:.82rem;cursor:pointer;color:var(--text);transition:.1s}
+.ac-opt:hover{background:#f0f9ff;color:var(--blue)}
 
-/* ── File zone ── */
+/* file zone */
 .file-zone{
-  border:2px dashed var(--border);border-radius:10px;padding:1.2rem 1rem;
+  border:2px dashed var(--border);border-radius:9px;padding:1rem;
   text-align:center;background:#fafbfc;cursor:pointer;transition:.15s;
 }
 .file-zone:hover,.file-zone.drag-over{border-color:var(--blue);background:#eff6ff}
-.file-zone-icon{font-size:1.8rem;margin-bottom:.3rem}
-.file-zone-lbl{font-size:.8rem;font-weight:600;color:var(--sub)}
-.file-zone-sub{font-size:.7rem;color:var(--sub);margin-top:.2rem}
-.file-list{display:flex;flex-direction:column;gap:.4rem;margin-top:.5rem}
-.file-item{display:flex;align-items:center;gap:.5rem;background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:.4rem .65rem;font-size:.78rem;color:var(--text)}
-.file-item-icon{font-size:1rem;flex-shrink:0}
+.file-zone-icon{font-size:1.6rem;margin-bottom:.25rem}
+.file-zone-lbl{font-size:.78rem;font-weight:600;color:var(--sub)}
+.file-zone-sub{font-size:.68rem;color:var(--sub);margin-top:.15rem}
+.file-list{display:flex;flex-direction:column;gap:.35rem;margin-top:.45rem}
+.file-item{display:flex;align-items:center;gap:.45rem;background:#f8fafc;border:1px solid var(--border);border-radius:7px;padding:.35rem .6rem;font-size:.77rem}
 .file-item-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.file-item-size{color:var(--sub);flex-shrink:0;font-size:.7rem}
-.file-item-del{background:none;border:none;cursor:pointer;color:var(--sub);font-size:.9rem;padding:.1rem;border-radius:4px;flex-shrink:0}
+.file-item-size{color:var(--sub);font-size:.7rem;flex-shrink:0}
+.file-item-del{background:none;border:none;cursor:pointer;color:var(--sub);font-size:.85rem;padding:.1rem;border-radius:4px;flex-shrink:0;line-height:1}
 .file-item-del:hover{color:#dc2626;background:#fee2e2}
-.file-item.existing{background:#f0fdf4;border-color:#bbf7d0}
-.file-item.existing .file-item-icon::before{content:'📎'}
+.file-item.exist{background:#f0fdf4;border-color:#bbf7d0}
 
-/* Buttons */
-.btn{border:none;border-radius:8px;padding:.55rem 1.2rem;font-size:.85rem;font-weight:700;cursor:pointer;font-family:inherit;transition:.15s}
-.btn-primary{background:var(--blue);color:#fff;width:100%}
+/* edit banner */
+.edit-banner{
+  background:#fef9c3;border:1.5px solid #fde047;border-radius:9px;
+  padding:.6rem .9rem;font-size:.8rem;color:#854d0e;
+  display:flex;align-items:center;gap:.5rem;
+}
+
+/* modal footer */
+.modal-footer{
+  padding:.85rem 1.25rem;border-top:1px solid var(--border);background:#f8fafc;
+  display:flex;justify-content:space-between;align-items:center;
+}
+.modal-footer-right{display:flex;gap:.5rem}
+.btn{border:none;border-radius:8px;padding:.5rem 1.1rem;font-size:.82rem;font-weight:700;cursor:pointer;font-family:inherit;transition:.15s}
+.btn-ghost{background:#fff;color:#64748b;border:1.5px solid var(--border)}
+.btn-ghost:hover{border-color:#94a3b8}
+.btn-primary{background:var(--blue);color:#fff}
 .btn-primary:hover{background:var(--blue-dark)}
 .btn-primary:disabled{opacity:.5;cursor:not-allowed}
 
-/* Editing banner */
-.edit-banner{background:#fef3c7;border:1.5px solid #fbbf24;border-radius:10px;padding:.7rem 1rem;font-size:.82rem;color:#92400e;margin-bottom:.85rem;display:flex;align-items:center;gap:.5rem}
+/* success */
+.success-wrap{text-align:center;padding:2rem 1.5rem}
+.success-icon{font-size:2.8rem;margin-bottom:.6rem}
+.success-title{font-size:1.1rem;font-weight:700;color:#15803d;margin-bottom:.35rem}
+.success-jobno{font-family:monospace;font-size:1.05rem;font-weight:700;color:#0369a1;background:#e0f2fe;padding:.3rem .85rem;border-radius:6px;display:inline-block;margin:.4rem 0}
+.success-sub{font-size:.78rem;color:#64748b;margin-top:.3rem}
+.btn-success{background:var(--blue);color:#fff;border:none;border-radius:8px;padding:.5rem 1.2rem;font-size:.83rem;font-weight:700;cursor:pointer;margin-top:1rem;font-family:inherit}
 
-/* Success */
-.success-box{background:#f0fdf4;border:2px solid #86efac;border-radius:12px;padding:1.5rem;text-align:center;display:none}
-.success-icon{font-size:2.5rem;margin-bottom:.5rem}
-.success-title{font-size:1.1rem;font-weight:700;color:#15803d;margin-bottom:.3rem}
-.success-jobno{font-family:monospace;font-size:1.1rem;font-weight:700;color:#0369a1;background:#e0f2fe;padding:.3rem .8rem;border-radius:6px;display:inline-block;margin:.5rem 0}
-.success-sub{font-size:.8rem;color:#64748b;margin-top:.4rem}
-.btn-reset{background:var(--blue);color:#fff;border:none;border-radius:8px;padding:.5rem 1.2rem;font-size:.85rem;font-weight:700;cursor:pointer;margin-top:1rem}
-
-.empty{text-align:center;padding:3rem 1rem;color:var(--sub)}
-.empty-icon{font-size:2.5rem;margin-bottom:.5rem}
-.loading{text-align:center;padding:2rem;color:var(--sub)}
+/* loading / empty */
+.loading{text-align:center;padding:3rem 1rem;color:var(--sub);font-size:.85rem}
+@media(max-width:600px){
+  .col-hide{display:none}
+  .td-title{max-width:130px}
+  thead th:nth-child(3),tbody td:nth-child(3){display:none}
+}
 </style>
 </head>
 <body>
 
+<!-- ── HEADER ── -->
 <div class="hdr">
-  <div class="hdr-icon">📁</div>
-  <div>
-    <div class="hdr-title" id="proj-name">กำลังโหลด...</div>
-    <div class="hdr-sub" id="proj-desc">Project Portal</div>
-  </div>
-</div>
-
-<div class="tabs">
-  <button class="tab active" id="tab-status" onclick="switchTab('status')">📋 สถานะงาน</button>
-  <button class="tab" id="tab-form" onclick="switchTab('form')">📤 แจ้งงานใหม่</button>
-</div>
-
-<!-- STATUS TAB -->
-<div class="content" id="panel-status">
-  <div class="loading" id="status-loading">⏳ กำลังโหลด...</div>
-  <div id="job-list"></div>
-</div>
-
-<!-- FORM TAB -->
-<div class="content" id="panel-form" style="display:none">
-
-  <div class="success-box" id="success-box">
-    <div class="success-icon">✅</div>
-    <div class="success-title" id="success-title">ส่งคำขอเรียบร้อยแล้ว!</div>
-    <div class="success-sub">หมายเลข Job ของคุณ:</div>
-    <div class="success-jobno" id="success-jobno">JOB-2026-0001</div>
-    <div class="success-sub">ทีมงานจะดำเนินการและอัปเดตสถานะในหน้า "สถานะงาน"</div>
-    <button class="btn-reset" onclick="resetForm()">📤 แจ้งงานใหม่อีกครั้ง</button>
-  </div>
-
-  <div id="form-wrap">
-    <!-- Edit banner (hidden when creating new) -->
-    <div class="edit-banner" id="edit-banner" style="display:none">
-      ✏️ กำลังแก้ไขงาน <strong id="edit-job-no-label"></strong> — งานนี้ยังไม่มีเจ้าหน้าที่รับ
+  <div class="hdr-left">
+    <div class="hdr-icon">📁</div>
+    <div>
+      <div class="hdr-title" id="proj-name">กำลังโหลด...</div>
+      <div class="hdr-sub" id="proj-desc">Project Portal</div>
     </div>
+  </div>
+  <button class="btn-new" onclick="openForm()">
+    ➕ แจ้งงานใหม่
+  </button>
+</div>
 
-    <!-- Serve Type -->
-    <div class="card">
-      <div class="card-head">⚙️ ประเภทคำขอ</div>
-      <div class="card-body">
-        <div class="field">
-          <label>Serve Type <span class="req">*</span></label>
-          <select id="f-serve-type">
-            <option value="">— เลือกประเภทคำขอ —</option>
-            <option value="promo_coupon">🎯 สร้างโปรฯ / คูปอง</option>
-            <option value="quick_sale">⚡ สร้างปุ่มขายด่วน</option>
-          </select>
-        </div>
+<!-- ── MAIN ── -->
+<div class="main">
+
+  <!-- Stat filter chips -->
+  <div class="stat-bar" id="stat-bar">
+    <div class="stat-chip active" data-filter="all" onclick="setFilter('all',this)">
+      ทั้งหมด <span class="cnt" id="cnt-all">—</span>
+    </div>
+    <div class="stat-chip" data-filter="received" onclick="setFilter('received',this)">
+      📥 รับเรื่อง <span class="cnt" id="cnt-received">0</span>
+    </div>
+    <div class="stat-chip" data-filter="in_progress" onclick="setFilter('in_progress',this)">
+      ⚙️ กำลังทำ <span class="cnt" id="cnt-in_progress">0</span>
+    </div>
+    <div class="stat-chip" data-filter="testing" onclick="setFilter('testing',this)">
+      🧪 ทดสอบ <span class="cnt" id="cnt-testing">0</span>
+    </div>
+    <div class="stat-chip" data-filter="delivered" onclick="setFilter('delivered',this)">
+      ✅ ส่งมอบ <span class="cnt" id="cnt-delivered">0</span>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Job No.</th>
+          <th>ชื่อ / Title</th>
+          <th class="col-hide">ประเภท</th>
+          <th class="col-hide">แบรนด์</th>
+          <th>สถานะ</th>
+          <th class="col-hide">วันที่</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="job-tbody">
+        <tr class="empty-row"><td colspan="7"><div class="loading">⏳ กำลังโหลด...</div></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<!-- ══════════════ FORM MODAL ══════════════ -->
+<div class="overlay" id="form-overlay" onclick="if(event.target===this)closeForm()">
+  <div class="modal" id="form-modal">
+
+    <!-- success screen -->
+    <div id="success-screen" style="display:none">
+      <div class="success-wrap">
+        <div class="success-icon">✅</div>
+        <div class="success-title" id="suc-title">ส่งคำขอเรียบร้อยแล้ว!</div>
+        <div class="success-sub">หมายเลข Job ของคุณ</div>
+        <div class="success-jobno" id="suc-jobno">JOB-2026-0001</div>
+        <div class="success-sub">ทีมงานจะดำเนินการและอัปเดตสถานะในตาราง</div>
+        <button class="btn-success" onclick="openForm()">➕ แจ้งงานใหม่อีกครั้ง</button>
+        <button class="btn-success" style="background:#64748b;margin-left:.5rem" onclick="closeForm()">✕ ปิด</button>
       </div>
     </div>
 
-    <!-- ข้อมูลคำขอ -->
-    <div class="card">
-      <div class="card-head">📋 ข้อมูลคำขอ</div>
-      <div class="card-body">
-
-        <!-- Brand multi-select -->
-        <div class="field">
-          <label>แบรนด์ <span class="req">*</span></label>
-          <div class="combo-box" id="brand-box">
-            <div class="combo-input-row" id="brand-row" onclick="focusCombo('brand')">
-              <input id="brand-search" class="combo-search" placeholder="พิมพ์หรือเลือกแบรนด์..."
-                autocomplete="off"
-                oninput="filterCombo('brand',this.value)"
-                onfocus="openDrop('brand-drop')"
-                onkeydown="comboKey(event,'brand')"/>
-            </div>
-            <div class="combo-drop" id="brand-drop"></div>
+    <!-- form screen -->
+    <div id="form-screen">
+      <div class="modal-hdr">
+        <div class="modal-hdr-left">
+          <div class="modal-hdr-icon">🛎️</div>
+          <div>
+            <div class="modal-hdr-title" id="form-modal-title">แจ้งขอบริการใหม่</div>
+            <div class="modal-hdr-sub">กรุณากรอกข้อมูลให้ครบถ้วน</div>
           </div>
         </div>
-
-        <!-- Branch multi-select -->
-        <div class="field">
-          <label>สาขา <span class="req">*</span></label>
-          <div class="combo-box" id="branch-box">
-            <div class="combo-input-row" id="branch-row" onclick="focusCombo('branch')">
-              <input id="branch-search" class="combo-search" placeholder="พิมพ์หรือเลือกสาขา..."
-                autocomplete="off"
-                oninput="filterCombo('branch',this.value)"
-                onfocus="openDrop('branch-drop')"
-                onkeydown="comboKey(event,'branch')"/>
-            </div>
-            <div class="combo-drop" id="branch-drop"></div>
-          </div>
-        </div>
-
-        <!-- Title -->
-        <div class="field">
-          <label>ชื่อ / Title <span class="req">*</span></label>
-          <input id="f-title" type="text" placeholder="ระบุชื่อโปรโมชัน / คำขอ..."/>
-        </div>
-
-        <div class="row-2">
-          <div class="field">
-            <label>Request No.</label>
-            <input id="f-request-no" type="text" placeholder="เลขจากลูกค้า (ถ้ามี)"/>
-          </div>
-          <div class="field">
-            <label>วันที่ <span class="req">*</span></label>
-            <input id="f-date" type="date"/>
-          </div>
-        </div>
+        <button class="modal-close" onclick="closeForm()">×</button>
       </div>
-    </div>
 
-    <!-- ผู้ขอ -->
-    <div class="card">
-      <div class="card-head">👥 ผู้ขอ / Team</div>
-      <div class="card-body">
-        <div class="row-2">
-          <!-- Position autocomplete -->
-          <div class="field">
-            <label>ตำแหน่ง</label>
-            <div class="ac-box">
-              <input id="f-position" type="text" placeholder="เช่น Manager"
-                autocomplete="off"
-                oninput="filterAc('position-drop',this.value)"
-                onfocus="filterAc('position-drop',this.value)"
-                onblur="setTimeout(()=>closeDrop('position-drop'),200)"/>
-              <div class="ac-drop" id="position-drop"></div>
+      <div class="modal-body">
+
+        <!-- edit banner -->
+        <div class="edit-banner" id="edit-banner" style="display:none">
+          ✏️ แก้ไขงาน <strong id="edit-jobno-lbl"></strong> — ยังไม่มีเจ้าหน้าที่รับงาน
+        </div>
+
+        <!-- ประเภทคำขอ -->
+        <div class="section">
+          <div class="section-head">⚙️ ประเภทคำขอ</div>
+          <div class="section-body">
+            <div class="field">
+              <label>Serve Type <span class="req">*</span></label>
+              <select id="f-serve-type">
+                <option value="">— เลือกประเภทคำขอ —</option>
+                <option value="promo_coupon">🎯 สร้างโปรฯ / คูปอง</option>
+                <option value="quick_sale">⚡ สร้างปุ่มขายด่วน</option>
+              </select>
             </div>
           </div>
-          <div class="field">
-            <label>ชื่อ-สกุล <span class="req">*</span></label>
-            <input id="f-name" type="text" placeholder="ผู้รับผิดชอบ"/>
+        </div>
+
+        <!-- ข้อมูลคำขอ -->
+        <div class="section">
+          <div class="section-head">📋 ข้อมูลคำขอ</div>
+          <div class="section-body">
+
+            <div class="field">
+              <label>แบรนด์ <span class="req">*</span></label>
+              <div class="combo-box" id="brand-box">
+                <div class="combo-input-row" id="brand-row" onclick="focusCombo('brand')">
+                  <input id="brand-search" class="combo-search" placeholder="พิมพ์หรือเลือกแบรนด์..."
+                    autocomplete="off"
+                    oninput="filterCombo('brand',this.value)"
+                    onfocus="openDrop('brand-drop')"
+                    onkeydown="comboKey(event,'brand')"/>
+                </div>
+                <div class="combo-drop" id="brand-drop"></div>
+              </div>
+            </div>
+
+            <div class="field">
+              <label>สาขา <span class="req">*</span></label>
+              <div class="combo-box" id="branch-box">
+                <div class="combo-input-row" id="branch-row" onclick="focusCombo('branch')">
+                  <input id="branch-search" class="combo-search" placeholder="พิมพ์หรือเลือกสาขา..."
+                    autocomplete="off"
+                    oninput="filterCombo('branch',this.value)"
+                    onfocus="openDrop('branch-drop')"
+                    onkeydown="comboKey(event,'branch')"/>
+                </div>
+                <div class="combo-drop" id="branch-drop"></div>
+              </div>
+            </div>
+
+            <div class="field">
+              <label>ชื่อ / Title <span class="req">*</span></label>
+              <input id="f-title" type="text" placeholder="ระบุชื่อโปรโมชัน / คำขอ..."/>
+            </div>
+
+            <div class="row-2">
+              <div class="field">
+                <label>Request No.</label>
+                <input id="f-request-no" type="text" placeholder="เลขจากลูกค้า (ถ้ามี)"/>
+              </div>
+              <div class="field">
+                <label>วันที่ <span class="req">*</span></label>
+                <input id="f-date" type="date"/>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
 
-    <!-- รายละเอียด -->
-    <div class="card">
-      <div class="card-head">📝 รายละเอียด</div>
-      <div class="card-body">
-        <div class="field">
-          <label>ช่วงเวลา / Period <span class="req">*</span></label>
-          <div class="period-wrap">
-            <input id="f-period-start" type="date"/>
-            <span>→</span>
-            <input id="f-period-end" type="date"/>
+        <!-- ผู้ขอ -->
+        <div class="section">
+          <div class="section-head">👥 ผู้ขอ / Team</div>
+          <div class="section-body">
+            <div class="row-2">
+              <div class="field">
+                <label>ตำแหน่ง</label>
+                <div class="ac-box">
+                  <input id="f-position" type="text" placeholder="เช่น Manager"
+                    autocomplete="off"
+                    oninput="filterAc('pos-drop',this.value)"
+                    onfocus="filterAc('pos-drop',this.value)"
+                    onblur="setTimeout(()=>closeDrop('pos-drop'),200)"/>
+                  <div class="ac-drop" id="pos-drop"></div>
+                </div>
+              </div>
+              <div class="field">
+                <label>ชื่อ-สกุล <span class="req">*</span></label>
+                <input id="f-name" type="text" placeholder="ผู้รับผิดชอบ"/>
+              </div>
+            </div>
           </div>
         </div>
-        <div class="field">
-          <label>วัตถุประสงค์ / Objective</label>
-          <textarea id="f-objective" rows="3" placeholder="อธิบายวัตถุประสงค์..."></textarea>
+
+        <!-- รายละเอียด -->
+        <div class="section">
+          <div class="section-head">📝 รายละเอียด</div>
+          <div class="section-body">
+            <div class="field">
+              <label>ช่วงเวลา / Period <span class="req">*</span></label>
+              <div class="period-row">
+                <input id="f-period-start" type="date"/>
+                <span class="dash">→</span>
+                <input id="f-period-end" type="date"/>
+              </div>
+            </div>
+            <div class="field">
+              <label>วัตถุประสงค์ / Objective</label>
+              <textarea id="f-objective" rows="3" placeholder="อธิบายวัตถุประสงค์..."></textarea>
+            </div>
+            <div class="field">
+              <label>เงื่อนไข / Condition</label>
+              <textarea id="f-condition" rows="3" placeholder="เงื่อนไขและข้อจำกัด..."></textarea>
+            </div>
+          </div>
         </div>
-        <div class="field">
-          <label>เงื่อนไข / Condition</label>
-          <textarea id="f-condition" rows="3" placeholder="เงื่อนไขและข้อจำกัด..."></textarea>
+
+        <!-- ไฟล์แนบ -->
+        <div class="section">
+          <div class="section-head">📎 ไฟล์แนบ</div>
+          <div class="section-body">
+            <div id="existing-files-wrap" style="display:none">
+              <div style="font-size:.7rem;font-weight:700;color:var(--sub);margin-bottom:.3rem">ไฟล์ที่แนบไว้แล้ว</div>
+              <div class="file-list" id="existing-file-list"></div>
+              <div style="font-size:.7rem;font-weight:700;color:var(--sub);margin:.55rem 0 .3rem">เพิ่มไฟล์ใหม่</div>
+            </div>
+            <div class="file-zone" id="file-zone"
+              onclick="document.getElementById('file-input').click()"
+              ondragover="event.preventDefault();this.classList.add('drag-over')"
+              ondragleave="this.classList.remove('drag-over')"
+              ondrop="handleDrop(event)">
+              <div class="file-zone-icon">📂</div>
+              <div class="file-zone-lbl">ลากไฟล์มาวาง หรือคลิกเพื่อเลือก</div>
+              <div class="file-zone-sub">JPG, PNG, PDF, XLSX, XLS, CSV · สูงสุด 15 MB ต่อไฟล์</div>
+            </div>
+            <input type="file" id="file-input" multiple accept=".jpg,.jpeg,.png,.gif,.pdf,.xlsx,.xls,.csv" style="display:none" onchange="addFiles(this.files)"/>
+            <div class="file-list" id="new-file-list"></div>
+          </div>
+        </div>
+
+      </div><!-- /modal-body -->
+
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeForm()">✕ ยกเลิก</button>
+        <div class="modal-footer-right">
+          <button class="btn btn-primary" id="submit-btn" onclick="submitForm()">📤 ส่งคำขอ</button>
         </div>
       </div>
-    </div>
+    </div><!-- /form-screen -->
 
-    <!-- ไฟล์แนบ -->
-    <div class="card">
-      <div class="card-head">📎 ไฟล์แนบ</div>
-      <div class="card-body">
-        <!-- existing attachments (edit mode) -->
-        <div id="existing-files" style="display:none">
-          <div style="font-size:.72rem;font-weight:700;color:var(--sub);margin-bottom:.35rem">ไฟล์ที่แนบไว้แล้ว</div>
-          <div class="file-list" id="existing-file-list"></div>
-          <div style="font-size:.72rem;font-weight:700;color:var(--sub);margin:.6rem 0 .35rem">เพิ่มไฟล์ใหม่</div>
-        </div>
-        <div class="file-zone" id="file-zone"
-          onclick="document.getElementById('file-input').click()"
-          ondragover="event.preventDefault();this.classList.add('drag-over')"
-          ondragleave="this.classList.remove('drag-over')"
-          ondrop="handleDrop(event)">
-          <div class="file-zone-icon">📂</div>
-          <div class="file-zone-lbl">ลากไฟล์มาวาง หรือคลิกเพื่อเลือก</div>
-          <div class="file-zone-sub">JPG, PNG, PDF, XLSX, XLS, CSV · สูงสุด 15 MB ต่อไฟล์</div>
-        </div>
-        <input type="file" id="file-input" multiple accept=".jpg,.jpeg,.png,.gif,.pdf,.xlsx,.xls,.csv" style="display:none" onchange="addFiles(this.files)"/>
-        <div class="file-list" id="new-file-list"></div>
-      </div>
-    </div>
-
-    <button class="btn btn-primary" id="submit-btn" onclick="submitForm()">📤 ส่งคำขอ</button>
-  </div>
-</div>
+  </div><!-- /modal -->
+</div><!-- /overlay -->
 
 <script>
 const params = new URLSearchParams(location.search);
 const TOKEN  = params.get('t') || '';
 let PROJECT  = null;
+let _jobs    = [];
+let _filter  = 'all';
 
-// Suggestion lists (populated from project's existing jobs)
-const _suggestions = { brand: [], branch: [], position: [] };
+const _sug   = { brand:[], branch:[], position:[] };
+const _sel   = { brand:[], branch:[] };
+let _newFiles       = [];
+let _existingFiles  = [];
+let _deletedFileIds = [];
+let _editJobId      = null;
 
-// Multi-select state
-const _selected = { brand: [], branch: [] };
-
-// File state
-let _newFiles        = [];   // File objects to upload
-let _existingFiles   = [];   // { id, file_name, file_path } from DB
-let _deletedFileIds  = [];   // ids to delete on save
-
-// Edit state
-let _editJobId = null;
-
-const STATUS_LABEL = {
-  received:    '📥 รับเรื่อง',
-  in_progress: '⚙️ กำลังทำ',
-  testing:     '🧪 ทดสอบ',
-  delivered:   '✅ ส่งมอบ',
+const STATUS_META = {
+  received:    { label:'📥 รับเรื่อง',  cls:'received'    },
+  in_progress: { label:'⚙️ กำลังทำ',   cls:'in_progress' },
+  testing:     { label:'🧪 ทดสอบ',      cls:'testing'     },
+  delivered:   { label:'✅ ส่งมอบ',     cls:'delivered'   },
 };
 
-/* ────────────────────────────────────────────────
-   Init
-──────────────────────────────────────────────── */
+/* ══ INIT ══════════════════════════════════════════════ */
 async function init(){
   if(!TOKEN){ document.getElementById('proj-name').textContent='ลิงค์ไม่ถูกต้อง'; return; }
   try {
     const data = await fetch(`/api/public/project/${TOKEN}`).then(r=>r.json());
     if(data.error){ document.getElementById('proj-name').textContent='ไม่พบ Project'; return; }
     PROJECT = data.project;
-    document.getElementById('proj-name').textContent  = PROJECT.name;
-    document.getElementById('proj-desc').textContent  = PROJECT.description || 'Project Portal';
-    document.title = PROJECT.name + ' — Portal';
-    renderJobs(data.jobs);
-    buildSuggestions(data.jobs);
-    document.getElementById('status-loading').style.display='none';
+    document.getElementById('proj-name').textContent = PROJECT.name;
+    document.getElementById('proj-desc').textContent = PROJECT.description||'Project Portal';
+    document.title = PROJECT.name+' — Portal';
+    setJobs(data.jobs||[]);
   } catch(e){
     document.getElementById('proj-name').textContent='เกิดข้อผิดพลาด';
   }
 }
 
-/* ────────────────────────────────────────────────
-   Build suggestion lists from existing jobs
-──────────────────────────────────────────────── */
-function buildSuggestions(jobs){
-  const brands = new Set(), branches = new Set(), positions = new Set();
-  (jobs||[]).forEach(j=>{
-    try { JSON.parse(j.brands||'[]').forEach(b=>b&&brands.add(b)); } catch(e){}
-    try { JSON.parse(j.branches||'[]').forEach(b=>b&&branches.add(b)); } catch(e){}
-    if(j.requester_position) positions.add(j.requester_position);
-  });
-  _suggestions.brand    = [...brands].sort();
-  _suggestions.branch   = [...branches].sort();
-  _suggestions.position = [...positions].sort();
-  renderDrop('brand',  '');
-  renderDrop('branch', '');
+async function refreshJobs(){
+  try {
+    const data = await fetch(`/api/public/project/${TOKEN}`).then(r=>r.json());
+    if(data.jobs) setJobs(data.jobs);
+  } catch(e){}
 }
 
-/* ────────────────────────────────────────────────
-   Multi-select combo
-──────────────────────────────────────────────── */
+function setJobs(jobs){
+  _jobs = jobs;
+  buildSuggestions(jobs);
+  updateStats(jobs);
+  renderTable();
+}
+
+/* ══ SUGGESTIONS ════════════════════════════════════════ */
+function buildSuggestions(jobs){
+  const br=new Set(), bn=new Set(), ps=new Set();
+  jobs.forEach(j=>{
+    try{ JSON.parse(j.brands||'[]').forEach(b=>b&&br.add(b)); }catch{}
+    try{ JSON.parse(j.branches||'[]').forEach(b=>b&&bn.add(b)); }catch{}
+    if(j.requester_position) ps.add(j.requester_position);
+  });
+  _sug.brand=[...br].sort(); _sug.branch=[...bn].sort(); _sug.position=[...ps].sort();
+}
+
+/* ══ STATS & FILTER ═════════════════════════════════════ */
+function updateStats(jobs){
+  const keys=['received','in_progress','testing','delivered'];
+  const counts={all:jobs.length};
+  keys.forEach(k=>counts[k]=jobs.filter(j=>j.status===k).length);
+  document.getElementById('cnt-all').textContent=counts.all;
+  keys.forEach(k=>{ const el=document.getElementById('cnt-'+k); if(el) el.textContent=counts[k]; });
+}
+
+function setFilter(f, el){
+  _filter = f;
+  document.querySelectorAll('.stat-chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  renderTable();
+}
+
+/* ══ TABLE ═══════════════════════════════════════════════ */
+function renderTable(){
+  const tbody = document.getElementById('job-tbody');
+  const rows = _filter==='all' ? _jobs : _jobs.filter(j=>j.status===_filter);
+  if(!rows.length){
+    tbody.innerHTML=`<tr class="empty-row"><td colspan="7">📭 ยังไม่มีงาน${_filter!=='all'?' ในสถานะนี้':''}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(j=>{
+    const sm  = STATUS_META[j.status]||STATUS_META.received;
+    const brs = tryParseArr(j.brands).join(', ')||'—';
+    const dt  = j.request_date
+      ? new Date(j.request_date).toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'})
+      : new Date(j.created_at).toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'});
+    const stypeCls = j.serve_type==='quick_sale'?'quick':'promo';
+    const stypeLbl = j.serve_type==='quick_sale'?'⚡ ขายด่วน':'🎯 โปรฯ';
+    const canEdit  = j.status==='received';
+    return `<tr>
+      <td><span class="td-jobno">${esc(j.job_no||'—')}</span></td>
+      <td>
+        <div class="td-title" title="${esc(j.title||'')}">${esc(j.title||'(ไม่มีชื่อ)')}</div>
+        <div class="td-sub">${esc(j.requester_name||'—')}</div>
+      </td>
+      <td class="col-hide"><span class="stype-chip ${stypeCls}">${stypeLbl}</span></td>
+      <td class="col-hide" style="font-size:.78rem;color:#475569;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(brs)}</td>
+      <td><span class="badge ${sm.cls}">${sm.label}</span></td>
+      <td class="col-hide" style="font-size:.78rem;color:var(--sub)">${dt}</td>
+      <td>${canEdit?`<button class="btn-edit-row" onclick="openEdit(${j.id},'${esc(j.job_no||'')}')">✏️ แก้ไข</button>`:''}</td>
+    </tr>`;
+  }).join('');
+}
+
+function tryParseArr(s){ try{ return JSON.parse(s||'[]'); }catch{ return []; } }
+
+/* ══ FORM MODAL ══════════════════════════════════════════ */
+function openForm(){
+  resetForm();
+  document.getElementById('form-modal-title').textContent = 'แจ้งขอบริการใหม่';
+  document.getElementById('submit-btn').textContent = '📤 ส่งคำขอ';
+  document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
+  showFormScreen();
+  document.getElementById('form-overlay').classList.add('open');
+  document.body.style.overflow='hidden';
+}
+
+function closeForm(){
+  document.getElementById('form-overlay').classList.remove('open');
+  document.body.style.overflow='';
+  refreshJobs();
+}
+
+function showFormScreen(){
+  document.getElementById('success-screen').style.display='none';
+  document.getElementById('form-screen').style.display='';
+}
+
+async function openEdit(jobId, jobNo){
+  try{
+    const data = await fetch(`/api/public/project/${TOKEN}/jobs/${jobId}`).then(r=>r.json());
+    if(data.error){ alert(data.error); return; }
+    resetForm();
+    _editJobId = jobId;
+    document.getElementById('f-serve-type').value       = data.serve_type||'';
+    document.getElementById('f-title').value            = data.title||'';
+    document.getElementById('f-request-no').value       = data.request_no||'';
+    document.getElementById('f-date').value             = (data.request_date||'').slice(0,10);
+    document.getElementById('f-position').value         = data.requester_position||'';
+    document.getElementById('f-name').value             = data.requester_name||'';
+    document.getElementById('f-period-start').value     = (data.period_start||'').slice(0,10);
+    document.getElementById('f-period-end').value       = (data.period_end||'').slice(0,10);
+    document.getElementById('f-objective').value        = data.objective||'';
+    document.getElementById('f-condition').value        = data.condition||'';
+    _sel.brand  = tryParseArr(data.brands);
+    _sel.branch = tryParseArr(data.branches);
+    renderChips('brand'); renderChips('branch');
+    _existingFiles  = data.attachments||[];
+    _deletedFileIds = [];
+    renderExistingFiles();
+    document.getElementById('edit-banner').style.display='';
+    document.getElementById('edit-jobno-lbl').textContent = jobNo;
+    document.getElementById('form-modal-title').textContent = 'แก้ไขคำขอ';
+    document.getElementById('submit-btn').textContent = '💾 บันทึกการแก้ไข';
+    showFormScreen();
+    document.getElementById('form-overlay').classList.add('open');
+    document.body.style.overflow='hidden';
+  }catch(e){ alert('โหลดข้อมูลไม่สำเร็จ'); }
+}
+
+/* ══ COMBO ═══════════════════════════════════════════════ */
 function renderDrop(key, q){
   const drop = document.getElementById(key+'-drop');
   if(!drop) return;
   const q2 = q.toLowerCase();
-  let opts = _suggestions[key].filter(s=>!q2||s.toLowerCase().includes(q2));
-  if(q && !_suggestions[key].some(s=>s.toLowerCase()===q2))
-    opts = [{label:q+'  (เพิ่มใหม่)', value:q, isNew:true}, ...opts];
+  let opts = _sug[key].filter(s=>!q2||s.toLowerCase().includes(q2));
+  if(q && !_sug[key].some(s=>s.toLowerCase()===q2))
+    opts=[{label:q+'  (เพิ่มใหม่)',value:q},...opts];
   if(!opts.length){ drop.style.display='none'; return; }
   drop.innerHTML = opts.map(o=>{
-    const val   = typeof o==='object' ? o.value : o;
-    const label = typeof o==='object' ? o.label : o;
-    const sel   = _selected[key].includes(val);
-    return `<div class="combo-opt${sel?' selected':''}" onmousedown="toggleCombo('${key}','${val.replace(/'/g,"\\'")}')">`+
-      `<span class="chk">${sel?'✓':''}</span>${esc(label)}</div>`;
+    const val=typeof o==='object'?o.value:o;
+    const lbl=typeof o==='object'?o.label:o;
+    const sel=_sel[key].includes(val);
+    return `<div class="combo-opt${sel?' sel':''}" onmousedown="toggleCombo('${key}','${val.replace(/'/g,"\\'")}')"><span class="chk">${sel?'✓':''}</span>${esc(lbl)}</div>`;
   }).join('');
   drop.style.display='';
 }
-
-function filterCombo(key, q){ renderDrop(key, q); openDrop(key+'-drop'); }
+function filterCombo(key,q){ renderDrop(key,q); openDrop(key+'-drop'); }
 function openDrop(id){ const d=document.getElementById(id); if(d) d.style.display=''; }
 function closeDrop(id){ const d=document.getElementById(id); if(d) d.style.display='none'; }
 function focusCombo(key){ document.getElementById(key+'-search').focus(); }
-
-function toggleCombo(key, val){
-  const idx = _selected[key].indexOf(val);
-  if(idx>=0) _selected[key].splice(idx,1); else _selected[key].push(val);
-  renderChips(key);
-  renderDrop(key, document.getElementById(key+'-search').value);
+function toggleCombo(key,val){
+  const i=_sel[key].indexOf(val);
+  if(i>=0) _sel[key].splice(i,1); else _sel[key].push(val);
+  renderChips(key); renderDrop(key,document.getElementById(key+'-search').value);
   document.getElementById(key+'-search').focus();
 }
-
-function removeChip(key, val){
-  _selected[key] = _selected[key].filter(v=>v!==val);
-  renderChips(key);
-  renderDrop(key, '');
+function removeChip(key,val){
+  _sel[key]=_sel[key].filter(v=>v!==val);
+  renderChips(key); renderDrop(key,'');
 }
-
 function renderChips(key){
-  const row = document.getElementById(key+'-row');
-  const inp = document.getElementById(key+'-search');
+  const row=document.getElementById(key+'-row');
+  const inp=document.getElementById(key+'-search');
   if(!row||!inp) return;
   row.querySelectorAll('.combo-chip').forEach(c=>c.remove());
-  _selected[key].forEach(val=>{
-    const chip = document.createElement('span');
-    chip.className = 'combo-chip';
-    chip.innerHTML = esc(val)+` <button type="button" onmousedown="event.preventDefault();removeChip('${key}','${val.replace(/'/g,"\\'")}')">×</button>`;
-    row.insertBefore(chip, inp);
+  _sel[key].forEach(val=>{
+    const chip=document.createElement('span');
+    chip.className='combo-chip';
+    chip.innerHTML=esc(val)+` <button type="button" onmousedown="event.preventDefault();removeChip('${key}','${val.replace(/'/g,"\\'")}')">×</button>`;
+    row.insertBefore(chip,inp);
   });
   inp.value='';
 }
-
-function comboKey(e, key){
-  if(e.key==='Enter' && document.getElementById(key+'-search').value.trim()){
+function comboKey(e,key){
+  if(e.key==='Enter'&&document.getElementById(key+'-search').value.trim()){
     e.preventDefault();
-    const v = document.getElementById(key+'-search').value.trim();
-    if(!_selected[key].includes(v)) _selected[key].push(v);
-    renderChips(key);
-    closeDrop(key+'-drop');
+    const v=document.getElementById(key+'-search').value.trim();
+    if(!_sel[key].includes(v)) _sel[key].push(v);
+    renderChips(key); closeDrop(key+'-drop');
   }
 }
-
-document.addEventListener('click', e=>{
+document.addEventListener('click',e=>{
   ['brand','branch'].forEach(key=>{
     const box=document.getElementById(key+'-box');
     if(box&&!box.contains(e.target)) closeDrop(key+'-drop');
   });
 });
 
-/* ────────────────────────────────────────────────
-   Single autocomplete (Position)
-──────────────────────────────────────────────── */
-function filterAc(dropId, q){
-  const drop = document.getElementById(dropId);
+/* ══ AUTOCOMPLETE (position) ════════════════════════════ */
+function filterAc(dropId,q){
+  const drop=document.getElementById(dropId);
   if(!drop) return;
-  const q2 = q.toLowerCase();
-  const opts = _suggestions.position.filter(s=>!q2||s.toLowerCase().includes(q2));
+  const q2=q.toLowerCase();
+  const opts=_sug.position.filter(s=>!q2||s.toLowerCase().includes(q2));
   if(!opts.length){ drop.style.display='none'; return; }
-  drop.innerHTML = opts.map(s=>
-    `<div class="ac-opt" onmousedown="pickAc('f-position','${s.replace(/'/g,"\\'")}','${dropId}')">${esc(s)}</div>`
-  ).join('');
+  drop.innerHTML=opts.map(s=>`<div class="ac-opt" onmousedown="pickAc('f-position','${s.replace(/'/g,"\\'")}','${dropId}')">${esc(s)}</div>`).join('');
   drop.style.display='';
 }
-
-function pickAc(inputId, val, dropId){
-  const el = document.getElementById(inputId);
-  if(el) el.value = val;
-  closeDrop(dropId);
+function pickAc(inputId,val,dropId){
+  const el=document.getElementById(inputId); if(el) el.value=val; closeDrop(dropId);
 }
 
-/* ────────────────────────────────────────────────
-   File handling
-──────────────────────────────────────────────── */
-function fileIcon(name){
-  const ext = (name||'').split('.').pop().toLowerCase();
-  if(['jpg','jpeg','png','gif'].includes(ext)) return '🖼️';
-  if(ext==='pdf') return '📄';
-  if(['xlsx','xls'].includes(ext)) return '📊';
-  if(ext==='csv') return '📋';
-  return '📎';
-}
-function fmtSize(bytes){
-  if(bytes<1024) return bytes+'B';
-  if(bytes<1048576) return (bytes/1024).toFixed(1)+'KB';
-  return (bytes/1048576).toFixed(1)+'MB';
-}
+/* ══ FILES ═══════════════════════════════════════════════ */
+function fileIcon(n){ const e=(n||'').split('.').pop().toLowerCase(); return ['jpg','jpeg','png','gif'].includes(e)?'🖼️':e==='pdf'?'📄':['xlsx','xls'].includes(e)?'📊':'📎'; }
+function fmtSz(b){ return b<1024?b+'B':b<1048576?(b/1024).toFixed(1)+'KB':(b/1048576).toFixed(1)+'MB'; }
 
-function addFiles(fileList){
-  for(const f of fileList){
-    if(f.size > 15*1024*1024){ alert(`ไฟล์ ${f.name} ใหญ่เกิน 15 MB`); continue; }
+function addFiles(list){
+  for(const f of list){
+    if(f.size>15*1024*1024){ alert(`${f.name} ใหญ่เกิน 15 MB`); continue; }
     if(!_newFiles.find(x=>x.name===f.name&&x.size===f.size)) _newFiles.push(f);
   }
   document.getElementById('file-input').value='';
   renderNewFiles();
 }
-
-function removeNewFile(idx){
-  _newFiles.splice(idx,1);
-  renderNewFiles();
-}
-
+function removeNewFile(i){ _newFiles.splice(i,1); renderNewFiles(); }
 function renderNewFiles(){
-  const el = document.getElementById('new-file-list');
+  const el=document.getElementById('new-file-list');
   if(!el) return;
-  el.innerHTML = _newFiles.map((f,i)=>
-    `<div class="file-item">
-      <span class="file-item-icon">${fileIcon(f.name)}</span>
-      <span class="file-item-name">${esc(f.name)}</span>
-      <span class="file-item-size">${fmtSize(f.size)}</span>
-      <button class="file-item-del" onclick="removeNewFile(${i})" title="ลบ">✕</button>
-    </div>`
-  ).join('');
+  el.innerHTML=_newFiles.map((f,i)=>`<div class="file-item"><span>${fileIcon(f.name)}</span><span class="file-item-name">${esc(f.name)}</span><span class="file-item-size">${fmtSz(f.size)}</span><button class="file-item-del" onclick="removeNewFile(${i})">✕</button></div>`).join('');
 }
-
 function renderExistingFiles(){
-  const wrap = document.getElementById('existing-files');
-  const list = document.getElementById('existing-file-list');
+  const wrap=document.getElementById('existing-files-wrap');
+  const list=document.getElementById('existing-file-list');
   if(!wrap||!list) return;
-  const visible = _existingFiles.filter(f=>!_deletedFileIds.includes(f.id));
-  if(!visible.length){ wrap.style.display='none'; return; }
+  const vis=_existingFiles.filter(f=>!_deletedFileIds.includes(f.id));
+  if(!vis.length){ wrap.style.display='none'; return; }
   wrap.style.display='';
-  list.innerHTML = visible.map(f=>
-    `<div class="file-item existing">
-      <span class="file-item-icon">📎</span>
-      <a class="file-item-name" href="${esc(f.file_path)}" target="_blank" style="color:#0369a1;text-decoration:none">${esc(f.file_name)}</a>
-      <button class="file-item-del" onclick="deleteExisting(${f.id})" title="ลบ">✕</button>
-    </div>`
-  ).join('');
+  list.innerHTML=vis.map(f=>`<div class="file-item exist"><span>${fileIcon(f.file_name)}</span><a class="file-item-name" href="${esc(f.file_path)}" target="_blank" style="color:#0369a1;text-decoration:none">${esc(f.file_name)}</a><button class="file-item-del" onclick="delExisting(${f.id})">✕</button></div>`).join('');
 }
-
-function deleteExisting(id){
-  _deletedFileIds.push(id);
-  renderExistingFiles();
-}
-
+function delExisting(id){ _deletedFileIds.push(id); renderExistingFiles(); }
 function handleDrop(e){
   e.preventDefault();
   document.getElementById('file-zone').classList.remove('drag-over');
   addFiles(e.dataTransfer.files);
 }
 
-/* ────────────────────────────────────────────────
-   Status board
-──────────────────────────────────────────────── */
-function renderJobs(jobs){
-  const el = document.getElementById('job-list');
-  if(!jobs||!jobs.length){
-    el.innerHTML=`<div class="empty"><div class="empty-icon">📭</div><div>ยังไม่มีงาน</div></div>`;
-    return;
-  }
-  el.innerHTML = jobs.map(j=>{
-    const dt = j.request_date
-      ? new Date(j.request_date).toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'})
-      : new Date(j.created_at).toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'});
-    const stLabel = j.serve_type==='quick_sale'?'⚡ ขายด่วน':'🎯 โปรฯ/คูปอง';
-    const period  = j.period_start&&j.period_end
-      ? ` · ${new Date(j.period_start).toLocaleDateString('th-TH',{day:'2-digit',month:'short'})} → ${new Date(j.period_end).toLocaleDateString('th-TH',{day:'2-digit',month:'short'})}`
-      : '';
-    const canEdit = j.status==='received';
-    return `
-      <div class="job-card ${j.status||'received'}">
-        <div class="job-meta">
-          <span class="job-no">${esc(j.job_no||'—')}</span>
-          <span class="status-badge ${j.status||'received'}">${STATUS_LABEL[j.status]||'รับเรื่อง'}</span>
-        </div>
-        <div class="job-title">${esc(j.title||'(ไม่มีชื่อ)')}</div>
-        <div class="job-info">${esc(stLabel)} · ${esc(j.requester_name||'—')} · ${dt}${esc(period)}</div>
-        ${canEdit?`<button class="btn-edit-job" onclick="openEdit(${j.id},'${esc(j.job_no||'')}')">✏️ แก้ไขงานนี้</button>`:''}
-      </div>`;
-  }).join('');
-}
-
-/* ────────────────────────────────────────────────
-   Open edit mode
-──────────────────────────────────────────────── */
-async function openEdit(jobId, jobNo){
-  try {
-    const data = await fetch(`/api/public/project/${TOKEN}/jobs/${jobId}`).then(r=>r.json());
-    if(data.error){ alert(data.error); return; }
-
-    // Reset form then pre-fill
-    resetForm(false);
-    _editJobId = jobId;
-
-    // Set field values
-    document.getElementById('f-serve-type').value   = data.serve_type||'';
-    document.getElementById('f-title').value        = data.title||'';
-    document.getElementById('f-request-no').value   = data.request_no||'';
-    document.getElementById('f-date').value         = data.request_date ? data.request_date.slice(0,10) : '';
-    document.getElementById('f-position').value     = data.requester_position||'';
-    document.getElementById('f-name').value         = data.requester_name||'';
-    document.getElementById('f-period-start').value = data.period_start ? data.period_start.slice(0,10) : '';
-    document.getElementById('f-period-end').value   = data.period_end   ? data.period_end.slice(0,10)   : '';
-    document.getElementById('f-objective').value    = data.objective||'';
-    document.getElementById('f-condition').value    = data.condition||'';
-
-    // Set combo chips
-    try { _selected.brand  = JSON.parse(data.brands||'[]');  } catch(e){ _selected.brand=[];  }
-    try { _selected.branch = JSON.parse(data.branches||'[]');} catch(e){ _selected.branch=[]; }
-    renderChips('brand');
-    renderChips('branch');
-
-    // Existing attachments
-    _existingFiles  = data.attachments || [];
-    _deletedFileIds = [];
-    renderExistingFiles();
-
-    // Show edit banner
-    document.getElementById('edit-banner').style.display='';
-    document.getElementById('edit-job-no-label').textContent = jobNo;
-    document.getElementById('submit-btn').textContent = '💾 บันทึกการแก้ไข';
-
-    switchTab('form');
-    window.scrollTo({top:0, behavior:'smooth'});
-  } catch(e) { alert('เกิดข้อผิดพลาดในการโหลดข้อมูล'); }
-}
-
-/* ────────────────────────────────────────────────
-   Tabs
-──────────────────────────────────────────────── */
-function switchTab(t){
-  document.getElementById('panel-status').style.display = t==='status'?'':'none';
-  document.getElementById('panel-form').style.display   = t==='form'?'':'none';
-  document.getElementById('tab-status').classList.toggle('active', t==='status');
-  document.getElementById('tab-form').classList.toggle('active',   t==='form');
-  if(t==='status') refreshJobs();
-}
-
-async function refreshJobs(){
-  try {
-    const data = await fetch(`/api/public/project/${TOKEN}`).then(r=>r.json());
-    if(data.jobs){ renderJobs(data.jobs); buildSuggestions(data.jobs); }
-  } catch(e){}
-}
-
-/* ────────────────────────────────────────────────
-   Submit / Update
-──────────────────────────────────────────────── */
+/* ══ SUBMIT ══════════════════════════════════════════════ */
 async function submitForm(){
-  const gv = id => document.getElementById(id)?.value.trim()||'';
-  if(!gv('f-serve-type'))               { alert('กรุณาเลือกประเภทคำขอ'); return; }
-  if(!_selected.brand.length)           { alert('กรุณาระบุแบรนด์อย่างน้อย 1 รายการ'); return; }
-  if(!_selected.branch.length)          { alert('กรุณาระบุสาขาอย่างน้อย 1 รายการ'); return; }
-  if(!gv('f-title'))                    { alert('กรุณาระบุชื่อ / Title'); return; }
-  if(!gv('f-date'))                     { alert('กรุณาระบุวันที่'); return; }
-  if(!gv('f-name'))                     { alert('กรุณาระบุชื่อ-สกุลผู้ขอ'); return; }
+  const gv=id=>document.getElementById(id)?.value.trim()||'';
+  if(!gv('f-serve-type'))         { alert('กรุณาเลือกประเภทคำขอ'); return; }
+  if(!_sel.brand.length)          { alert('กรุณาระบุแบรนด์อย่างน้อย 1 รายการ'); return; }
+  if(!_sel.branch.length)         { alert('กรุณาระบุสาขาอย่างน้อย 1 รายการ'); return; }
+  if(!gv('f-title'))              { alert('กรุณาระบุชื่อ / Title'); return; }
+  if(!gv('f-date'))               { alert('กรุณาระบุวันที่'); return; }
+  if(!gv('f-name'))               { alert('กรุณาระบุชื่อ-สกุลผู้ขอ'); return; }
   if(!gv('f-period-start')||!gv('f-period-end')){ alert('กรุณาระบุช่วงเวลา Period'); return; }
 
-  const btn = document.getElementById('submit-btn');
+  const btn=document.getElementById('submit-btn');
   btn.disabled=true; btn.textContent='⏳ กำลังส่ง...';
+  try{
+    const fd=new FormData();
+    fd.append('serve_type',         gv('f-serve-type'));
+    fd.append('brands',             JSON.stringify(_sel.brand));
+    fd.append('branches',           JSON.stringify(_sel.branch));
+    fd.append('title',              gv('f-title'));
+    fd.append('request_no',         gv('f-request-no'));
+    fd.append('request_date',       gv('f-date'));
+    fd.append('requester_position', gv('f-position'));
+    fd.append('requester_name',     gv('f-name'));
+    fd.append('period_start',       gv('f-period-start'));
+    fd.append('period_end',         gv('f-period-end'));
+    fd.append('objective',          gv('f-objective'));
+    fd.append('condition',          gv('f-condition'));
+    if(_deletedFileIds.length) fd.append('delete_attachment_ids',_deletedFileIds.join(','));
+    _newFiles.forEach(f=>fd.append('files',f));
 
-  try {
-    const fd = new FormData();
-    fd.append('serve_type',          gv('f-serve-type'));
-    fd.append('brands',              JSON.stringify(_selected.brand));
-    fd.append('branches',            JSON.stringify(_selected.branch));
-    fd.append('title',               gv('f-title'));
-    fd.append('request_no',          gv('f-request-no'));
-    fd.append('request_date',        gv('f-date'));
-    fd.append('requester_position',  gv('f-position'));
-    fd.append('requester_name',      gv('f-name'));
-    fd.append('period_start',        gv('f-period-start'));
-    fd.append('period_end',          gv('f-period-end'));
-    fd.append('objective',           gv('f-objective'));
-    fd.append('condition',           gv('f-condition'));
-    if(_deletedFileIds.length) fd.append('delete_attachment_ids', _deletedFileIds.join(','));
-    for(const f of _newFiles) fd.append('files', f);
-
-    let url, method;
-    if(_editJobId){
-      url    = `/api/public/project/${TOKEN}/jobs/${_editJobId}`;
-      method = 'PUT';
-    } else {
-      url    = `/api/public/project/${TOKEN}/submit`;
-      method = 'POST';
-    }
-
-    const res = await fetch(url, { method, body: fd }).then(r=>r.json());
+    const url    = _editJobId ? `/api/public/project/${TOKEN}/jobs/${_editJobId}` : `/api/public/project/${TOKEN}/submit`;
+    const method = _editJobId ? 'PUT' : 'POST';
+    const res    = await fetch(url,{method,body:fd}).then(r=>r.json());
 
     if(res.ok){
-      if(_editJobId){
-        document.getElementById('success-title').textContent = 'บันทึกการแก้ไขแล้ว!';
-        document.getElementById('success-jobno').textContent = document.getElementById('edit-job-no-label').textContent;
-      } else {
-        document.getElementById('success-title').textContent = 'ส่งคำขอเรียบร้อยแล้ว!';
-        document.getElementById('success-jobno').textContent = res.job_no;
-      }
-      document.getElementById('form-wrap').style.display='none';
-      document.getElementById('success-box').style.display='block';
-    } else {
-      alert('เกิดข้อผิดพลาด: '+(res.error||'unknown'));
-    }
-  } catch(e){ alert('เกิดข้อผิดพลาด กรุณาลองใหม่'); }
-
+      document.getElementById('suc-title').textContent  = _editJobId ? 'บันทึกการแก้ไขแล้ว!' : 'ส่งคำขอเรียบร้อยแล้ว!';
+      document.getElementById('suc-jobno').textContent  = _editJobId ? document.getElementById('edit-jobno-lbl').textContent : res.job_no;
+      document.getElementById('form-screen').style.display='none';
+      document.getElementById('success-screen').style.display='';
+      refreshJobs();
+    } else { alert('เกิดข้อผิดพลาด: '+(res.error||'unknown')); }
+  }catch(e){ alert('เกิดข้อผิดพลาด กรุณาลองใหม่'); }
   btn.disabled=false;
   btn.textContent = _editJobId ? '💾 บันทึกการแก้ไข' : '📤 ส่งคำขอ';
 }
 
-/* ────────────────────────────────────────────────
-   Reset
-──────────────────────────────────────────────── */
-function resetForm(showNew=true){
-  _editJobId = null;
-  _newFiles = []; _existingFiles = []; _deletedFileIds = [];
-  _selected.brand=[]; _selected.branch=[];
+/* ══ RESET ═══════════════════════════════════════════════ */
+function resetForm(){
+  _editJobId=null; _newFiles=[]; _existingFiles=[]; _deletedFileIds=[];
+  _sel.brand=[]; _sel.branch=[];
   renderChips('brand'); renderChips('branch');
   renderNewFiles();
-  document.getElementById('existing-files').style.display='none';
+  document.getElementById('existing-files-wrap').style.display='none';
   document.getElementById('existing-file-list').innerHTML='';
   ['f-serve-type','f-title','f-request-no','f-date',
    'f-position','f-name','f-period-start','f-period-end','f-objective','f-condition']
     .forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
-  document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
   document.getElementById('edit-banner').style.display='none';
-  document.getElementById('submit-btn').textContent='📤 ส่งคำขอ';
-  if(showNew){
-    document.getElementById('form-wrap').style.display='';
-    document.getElementById('success-box').style.display='none';
-  }
 }
 
 function esc(s){ const d=document.createElement('div');d.textContent=String(s);return d.innerHTML; }
 
-// Set today's date
-document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
 init();
 </script>
 </body>
