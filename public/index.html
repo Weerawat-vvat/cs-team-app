@@ -13143,7 +13143,7 @@ async function svcSaveDraft(){
   const payload=svcCollectPayload();
   const url=_svcEditId?`/api/service-requests/${_svcEditId}`:'/api/service-requests';
   const method=_svcEditId?'PUT':'POST';
-  const res=await api(url,{method,body:JSON.stringify(payload)});
+  const res=await api(url,{method,body:payload});
   if(res&&(res.id||res.ok)){
     closeModal('modal-svc-form'); showToast('บันทึกร่างฉบับแล้ว','success'); svcLoadList();
   } else { alert('เกิดข้อผิดพลาด: '+(res?.error||'unknown')); }
@@ -13157,7 +13157,7 @@ async function svcSubmit(){
   if(!payload.erp_code){ alert('กรุณากรอกรหัสทางบัญชี ERP'); return; }
   const url=_svcEditId?`/api/service-requests/${_svcEditId}`:'/api/service-requests';
   const method=_svcEditId?'PUT':'POST';
-  const res=await api(url,{method,body:JSON.stringify(payload)});
+  const res=await api(url,{method,body:payload});
   if(res&&(res.id||res.ok)){
     closeModal('modal-svc-form'); showToast('ส่งคำขอสร้างระบบเรียบร้อย','success'); svcLoadList();
   } else { alert('เกิดข้อผิดพลาด: '+(res?.error||'unknown')); }
@@ -13239,7 +13239,7 @@ async function svcOpenDetail(id){
 }
 
 async function svcUpdateStatus(id, newStatus){
-  const res=await api(`/api/service-requests/${id}`,{method:'PUT',body:JSON.stringify({status:newStatus})});
+  const res=await api(`/api/service-requests/${id}`,{method:'PUT',body:{status:newStatus}});
   if(res&&res.ok){
     closeModal('modal-svc-detail');
     showToast(`อัพเดตสถานะเป็น "${svcStatusLabel(newStatus)}" แล้ว`,'success');
