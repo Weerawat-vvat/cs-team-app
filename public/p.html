@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Project Portal</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun','Segoe UI',sans-serif;background:#f0f4f8;min-height:100vh}
+:root{--blue:#3b82f6;--blue-dark:#1d4ed8;--border:#e2e8f0;--text:#1e293b;--sub:#94a3b8}
+
+/* Header */
+.hdr{background:linear-gradient(135deg,#1e3a5f,#2563eb);padding:1.1rem 1.25rem;color:#fff;display:flex;align-items:center;gap:.75rem}
+.hdr-icon{font-size:1.6rem}
+.hdr-title{font-size:1.05rem;font-weight:700}
+.hdr-sub{font-size:.75rem;color:#93c5fd;margin-top:.1rem}
+
+/* Tabs */
+.tabs{background:#fff;border-bottom:2px solid var(--border);display:flex;gap:0;position:sticky;top:0;z-index:10}
+.tab{flex:1;padding:.65rem 1rem;font-size:.85rem;font-weight:700;border:none;background:none;cursor:pointer;color:var(--sub);font-family:inherit;border-bottom:3px solid transparent;transition:.15s;text-align:center}
+.tab.active{color:var(--blue);border-bottom-color:var(--blue)}
+
+/* Content */
+.content{max-width:720px;margin:0 auto;padding:1.25rem 1rem}
+
+/* Status cards */
+.job-card{background:#fff;border-radius:12px;border:1px solid var(--border);padding:.9rem 1rem;margin-bottom:.65rem;border-left:4px solid #e2e8f0}
+.job-card.received{border-left-color:#3b82f6}
+.job-card.in_progress{border-left-color:#f59e0b}
+.job-card.testing{border-left-color:#f97316}
+.job-card.delivered{border-left-color:#10b981}
+.job-meta{display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;flex-wrap:wrap;gap:.35rem}
+.job-no{font-family:monospace;font-size:.75rem;font-weight:700;color:#0369a1;background:#e0f2fe;padding:.1rem .45rem;border-radius:4px}
+.status-badge{font-size:.72rem;font-weight:700;padding:.2rem .6rem;border-radius:20px}
+.status-badge.received{background:#dbeafe;color:#1d4ed8}
+.status-badge.in_progress{background:#fef3c7;color:#b45309}
+.status-badge.testing{background:#ffedd5;color:#c2410c}
+.status-badge.delivered{background:#dcfce7;color:#15803d}
+.job-title{font-size:.92rem;font-weight:600;color:var(--text);margin-bottom:.25rem}
+.job-info{font-size:.75rem;color:var(--sub)}
+
+/* Form */
+.card{background:#fff;border-radius:12px;border:1px solid var(--border);margin-bottom:.85rem;overflow:hidden}
+.card-head{padding:.6rem 1rem;background:#fafbfc;border-bottom:1px solid var(--border);font-size:.75rem;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.04em}
+.card-body{padding:.9rem 1rem;display:flex;flex-direction:column;gap:.65rem}
+.field label{display:block;font-size:.72rem;font-weight:700;color:var(--sub);margin-bottom:.28rem;letter-spacing:.02em}
+.field label .req{color:#ef4444}
+.field input,.field select,.field textarea{width:100%;border:1.5px solid var(--border);border-radius:8px;padding:.48rem .7rem;font-size:.83rem;color:var(--text);font-family:inherit;outline:none;transition:.15s}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px #dbeafe60}
+.field textarea{resize:vertical;min-height:72px}
+.row-2{display:grid;grid-template-columns:1fr 1fr;gap:.65rem}
+.period-wrap{display:flex;align-items:center;gap:.4rem}
+.period-wrap input{flex:1}
+.period-wrap span{color:var(--sub);flex-shrink:0}
+.btn{border:none;border-radius:8px;padding:.55rem 1.2rem;font-size:.85rem;font-weight:700;cursor:pointer;font-family:inherit;transition:.15s}
+.btn-primary{background:var(--blue);color:#fff;width:100%}
+.btn-primary:hover{background:var(--blue-dark)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+
+/* Success */
+.success-box{background:#f0fdf4;border:2px solid #86efac;border-radius:12px;padding:1.5rem;text-align:center;display:none}
+.success-icon{font-size:2.5rem;margin-bottom:.5rem}
+.success-title{font-size:1.1rem;font-weight:700;color:#15803d;margin-bottom:.3rem}
+.success-jobno{font-family:monospace;font-size:1.1rem;font-weight:700;color:#0369a1;background:#e0f2fe;padding:.3rem .8rem;border-radius:6px;display:inline-block;margin:.5rem 0}
+.success-sub{font-size:.8rem;color:#64748b;margin-top:.4rem}
+.btn-reset{background:var(--blue);color:#fff;border:none;border-radius:8px;padding:.5rem 1.2rem;font-size:.85rem;font-weight:700;cursor:pointer;margin-top:1rem}
+
+/* Loading/empty */
+.empty{text-align:center;padding:3rem 1rem;color:var(--sub)}
+.empty-icon{font-size:2.5rem;margin-bottom:.5rem}
+.loading{text-align:center;padding:2rem;color:var(--sub)}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="hdr-icon">📁</div>
+  <div>
+    <div class="hdr-title" id="proj-name">กำลังโหลด...</div>
+    <div class="hdr-sub" id="proj-desc">Project Portal</div>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" id="tab-status" onclick="switchTab('status')">📋 สถานะงาน</button>
+  <button class="tab" id="tab-form" onclick="switchTab('form')">📤 แจ้งงานใหม่</button>
+</div>
+
+<!-- STATUS TAB -->
+<div class="content" id="panel-status">
+  <div class="loading" id="status-loading">⏳ กำลังโหลด...</div>
+  <div id="job-list"></div>
+</div>
+
+<!-- FORM TAB -->
+<div class="content" id="panel-form" style="display:none">
+
+  <!-- Success -->
+  <div class="success-box" id="success-box">
+    <div class="success-icon">✅</div>
+    <div class="success-title">ส่งคำขอเรียบร้อยแล้ว!</div>
+    <div class="success-sub">หมายเลข Job ของคุณ:</div>
+    <div class="success-jobno" id="success-jobno">JOB-2026-0001</div>
+    <div class="success-sub">ทีมงานจะดำเนินการและอัปเดตสถานะในหน้า "สถานะงาน"</div>
+    <button class="btn-reset" onclick="resetForm()">📤 แจ้งงานใหม่อีกครั้ง</button>
+  </div>
+
+  <!-- Form -->
+  <div id="form-wrap">
+    <!-- Serve Type -->
+    <div class="card">
+      <div class="card-head">⚙️ ประเภทคำขอ</div>
+      <div class="card-body">
+        <div class="field">
+          <label>Serve Type <span class="req">*</span></label>
+          <select id="f-serve-type">
+            <option value="">— เลือกประเภทคำขอ —</option>
+            <option value="promo_coupon">🎯 สร้างโปรฯ / คูปอง</option>
+            <option value="quick_sale">⚡ สร้างปุ่มขายด่วน</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- ข้อมูลคำขอ -->
+    <div class="card">
+      <div class="card-head">📋 ข้อมูลคำขอ</div>
+      <div class="card-body">
+        <div class="field">
+          <label>แบรนด์ <span class="req">*</span></label>
+          <input id="f-brand" type="text" placeholder="ชื่อแบรนด์"/>
+        </div>
+        <div class="field">
+          <label>สาขา <span class="req">*</span></label>
+          <input id="f-branch" type="text" placeholder="ชื่อสาขา หรือ ทุกสาขา"/>
+        </div>
+        <div class="field">
+          <label>ชื่อ / Title <span class="req">*</span></label>
+          <input id="f-title" type="text" placeholder="ระบุชื่อโปรโมชัน / คำขอ..."/>
+        </div>
+        <div class="row-2">
+          <div class="field">
+            <label>Request No.</label>
+            <input id="f-request-no" type="text" placeholder="เลขจากลูกค้า (ถ้ามี)"/>
+          </div>
+          <div class="field">
+            <label>วันที่ <span class="req">*</span></label>
+            <input id="f-date" type="date"/>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ผู้ขอ -->
+    <div class="card">
+      <div class="card-head">👥 ผู้ขอ / Team</div>
+      <div class="card-body">
+        <div class="row-2">
+          <div class="field">
+            <label>ตำแหน่ง</label>
+            <input id="f-position" type="text" placeholder="เช่น Manager"/>
+          </div>
+          <div class="field">
+            <label>ชื่อ-สกุล <span class="req">*</span></label>
+            <input id="f-name" type="text" placeholder="ผู้รับผิดชอบ"/>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- รายละเอียด -->
+    <div class="card">
+      <div class="card-head">📝 รายละเอียด</div>
+      <div class="card-body">
+        <div class="field">
+          <label>ช่วงเวลา / Period <span class="req">*</span></label>
+          <div class="period-wrap">
+            <input id="f-period-start" type="date"/>
+            <span>→</span>
+            <input id="f-period-end" type="date"/>
+          </div>
+        </div>
+        <div class="field">
+          <label>วัตถุประสงค์ / Objective</label>
+          <textarea id="f-objective" rows="3" placeholder="อธิบายวัตถุประสงค์..."></textarea>
+        </div>
+        <div class="field">
+          <label>เงื่อนไข / Condition</label>
+          <textarea id="f-condition" rows="3" placeholder="เงื่อนไขและข้อจำกัด..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="submit-btn" onclick="submitForm()">📤 ส่งคำขอ</button>
+  </div>
+</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const TOKEN  = params.get('t') || '';
+let PROJECT  = null;
+
+const STATUS_LABEL = {
+  received:    '📥 รับเรื่อง',
+  in_progress: '⚙️ กำลังทำ',
+  testing:     '🧪 ทดสอบ',
+  delivered:   '✅ ส่งมอบ',
+};
+
+async function init(){
+  if(!TOKEN){ document.getElementById('proj-name').textContent='ลิงค์ไม่ถูกต้อง'; return; }
+  try {
+    const data = await fetch(`/api/public/project/${TOKEN}`).then(r=>r.json());
+    if(data.error){ document.getElementById('proj-name').textContent='ไม่พบ Project'; return; }
+    PROJECT = data.project;
+    document.getElementById('proj-name').textContent = PROJECT.name;
+    document.getElementById('proj-desc').textContent = PROJECT.description || 'Project Portal';
+    document.title = PROJECT.name + ' — Portal';
+    renderJobs(data.jobs);
+    document.getElementById('status-loading').style.display='none';
+  } catch(e){
+    document.getElementById('proj-name').textContent='เกิดข้อผิดพลาด';
+  }
+}
+
+function renderJobs(jobs){
+  const el = document.getElementById('job-list');
+  if(!jobs||!jobs.length){
+    el.innerHTML=`<div class="empty"><div class="empty-icon">📭</div><div>ยังไม่มีงาน</div></div>`;
+    return;
+  }
+  el.innerHTML = jobs.map(j=>{
+    const dt = j.request_date
+      ? new Date(j.request_date).toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'})
+      : new Date(j.created_at).toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'});
+    const stypeLabel = j.serve_type==='quick_sale'?'⚡ ขายด่วน':'🎯 โปรฯ/คูปอง';
+    const periodStr = j.period_start&&j.period_end
+      ? ` · ${new Date(j.period_start).toLocaleDateString('th-TH',{day:'2-digit',month:'short'})} → ${new Date(j.period_end).toLocaleDateString('th-TH',{day:'2-digit',month:'short'})}`
+      : '';
+    return `
+      <div class="job-card ${j.status||'received'}">
+        <div class="job-meta">
+          <span class="job-no">${esc(j.job_no||'—')}</span>
+          <span class="status-badge ${j.status||'received'}">${STATUS_LABEL[j.status]||j.status||'รับเรื่อง'}</span>
+        </div>
+        <div class="job-title">${esc(j.title||'(ไม่มีชื่อ)')}</div>
+        <div class="job-info">${stypeLabel} · ${esc(j.requester_name||'—')} · ${dt}${esc(periodStr)}</div>
+      </div>`;
+  }).join('');
+}
+
+function esc(s){ const d=document.createElement('div');d.textContent=s;return d.innerHTML; }
+
+function switchTab(t){
+  document.getElementById('panel-status').style.display = t==='status'?'':'none';
+  document.getElementById('panel-form').style.display   = t==='form'?'':'none';
+  document.getElementById('tab-status').classList.toggle('active', t==='status');
+  document.getElementById('tab-form').classList.toggle('active',   t==='form');
+  if(t==='status') refreshJobs();
+}
+
+async function refreshJobs(){
+  try {
+    const data = await fetch(`/api/public/project/${TOKEN}`).then(r=>r.json());
+    if(data.jobs) renderJobs(data.jobs);
+  } catch(e){}
+}
+
+async function submitForm(){
+  const gv = id => document.getElementById(id)?.value.trim()||'';
+  if(!gv('f-serve-type')){ alert('กรุณาเลือกประเภทคำขอ'); return; }
+  if(!gv('f-brand')){ alert('กรุณาระบุแบรนด์'); return; }
+  if(!gv('f-branch')){ alert('กรุณาระบุสาขา'); return; }
+  if(!gv('f-title')){ alert('กรุณาระบุชื่อ / Title'); return; }
+  if(!gv('f-date')){ alert('กรุณาระบุวันที่'); return; }
+  if(!gv('f-name')){ alert('กรุณาระบุชื่อ-สกุลผู้ขอ'); return; }
+  if(!gv('f-period-start')||!gv('f-period-end')){ alert('กรุณาระบุช่วงเวลา Period'); return; }
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled=true; btn.textContent='⏳ กำลังส่ง...';
+  try {
+    const payload = {
+      serve_type:          gv('f-serve-type'),
+      brands:              [gv('f-brand')],
+      branches:            [gv('f-branch')],
+      title:               gv('f-title'),
+      request_no:          gv('f-request-no')||null,
+      request_date:        gv('f-date'),
+      requester_position:  gv('f-position')||null,
+      requester_name:      gv('f-name'),
+      period_start:        gv('f-period-start'),
+      period_end:          gv('f-period-end'),
+      objective:           gv('f-objective')||null,
+      condition:           gv('f-condition')||null,
+    };
+    const res = await fetch(`/api/public/project/${TOKEN}/submit`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    }).then(r=>r.json());
+    if(res.ok){
+      document.getElementById('success-jobno').textContent = res.job_no;
+      document.getElementById('form-wrap').style.display='none';
+      document.getElementById('success-box').style.display='block';
+    } else { alert('เกิดข้อผิดพลาด: '+(res.error||'unknown')); }
+  } catch(e){ alert('เกิดข้อผิดพลาด กรุณาลองใหม่'); }
+  btn.disabled=false; btn.textContent='📤 ส่งคำขอ';
+}
+
+function resetForm(){
+  ['f-serve-type','f-brand','f-branch','f-title','f-request-no','f-date',
+   'f-position','f-name','f-period-start','f-period-end','f-objective','f-condition']
+    .forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  // Set today
+  const today=new Date().toISOString().slice(0,10);
+  document.getElementById('f-date').value=today;
+  document.getElementById('form-wrap').style.display='';
+  document.getElementById('success-box').style.display='none';
+}
+
+// Init date
+document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
+init();
+</script>
+</body>
+</html>

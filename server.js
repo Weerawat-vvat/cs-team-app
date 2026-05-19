@@ -5430,8 +5430,27 @@ async function ensureServiceRequestsTable() {
     await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='period_start') ALTER TABLE service_requests ADD period_start DATE NULL`);
     await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='period_end') ALTER TABLE service_requests ADD period_end DATE NULL`);
     await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='objective') ALTER TABLE service_requests ADD objective NVARCHAR(MAX) NULL`);
+    await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='project_id') ALTER TABLE service_requests ADD project_id INT NULL`);
     console.log('✅ service_requests table ready');
   } catch(e) { console.error('❌ service_requests error:', e.message); }
+}
+
+async function ensureServiceProjectsTable() {
+  try {
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='service_projects' AND xtype='U')
+      CREATE TABLE service_projects (
+        id           INT PRIMARY KEY IDENTITY,
+        name         NVARCHAR(300) NOT NULL,
+        description  NVARCHAR(MAX) NULL,
+        public_token NVARCHAR(64)  NOT NULL,
+        is_active    BIT           DEFAULT 1,
+        created_by   INT           NULL,
+        created_at   DATETIME      DEFAULT GETDATE(),
+        updated_at   DATETIME      DEFAULT GETDATE()
+      )`);
+    console.log('✅ service_projects table ready');
+  } catch(e) { console.error('❌ service_projects error:', e.message); }
 }
 
 // ── GET /api/service-requests/next-job-no ─────────────────
@@ -5476,6 +5495,7 @@ app.post('/api/service-requests', authRequired, async (request, res) => {
   try {
     const b = request.body;
     const result = await req()
+      .input('project_id',         sql.Int,      b.project_id ? parseInt(b.project_id) : null)
       .input('job_no',             sql.NVarChar, b.job_no||null)
       .input('serve_type',         sql.NVarChar, b.serve_type||null)
       .input('brands',             sql.NVarChar, JSON.stringify(b.brands||[]))
@@ -5493,11 +5513,11 @@ app.post('/api/service-requests', authRequired, async (request, res) => {
       .input('status',             sql.NVarChar, 'received')
       .input('created_by',         sql.Int,      request.user.id)
       .query(`INSERT INTO service_requests
-        (job_no,serve_type,brands,branches,title,request_no,request_date,
+        (project_id,job_no,serve_type,brands,branches,title,request_no,request_date,
          requester_position,requester_name,period_start,period_end,
          objective,condition,attachment_name,status,created_by)
         OUTPUT INSERTED.id
-        VALUES(@job_no,@serve_type,@brands,@branches,@title,@request_no,@request_date,
+        VALUES(@project_id,@job_no,@serve_type,@brands,@branches,@title,@request_no,@request_date,
                @requester_position,@requester_name,@period_start,@period_end,
                @objective,@condition,@attachment_name,@status,@created_by)`);
     res.json({ id: result.recordset[0].id });
@@ -5530,6 +5550,148 @@ app.delete('/api/service-requests/:id', authRequired, async (request, res) => {
     await req().input('id', sql.Int, parseInt(request.params.id))
       .query('DELETE FROM service_requests WHERE id=@id');
     res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /api/service-projects ──────────────────────────────
+app.get('/api/service-projects', authRequired, async (request, res) => {
+  try {
+    const rows = (await req().query(`
+      SELECT p.*,
+             ISNULL(e.nickname, e.name) AS created_by_name,
+             (SELECT COUNT(*) FROM service_requests sr WHERE sr.project_id = p.id) AS job_count
+      FROM service_projects p
+      LEFT JOIN app_users u ON u.id = p.created_by
+      LEFT JOIN employees e ON e.id = u.employee_id
+      ORDER BY p.created_at DESC`)).recordset;
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── POST /api/service-projects ─────────────────────────────
+app.post('/api/service-projects', authRequired, async (request, res) => {
+  try {
+    const b = request.body;
+    const token = crypto.randomBytes(24).toString('hex');
+    const result = await req()
+      .input('name',         sql.NVarChar, b.name||'Untitled Project')
+      .input('description',  sql.NVarChar, b.description||null)
+      .input('public_token', sql.NVarChar, token)
+      .input('created_by',   sql.Int,      request.user.id)
+      .query(`INSERT INTO service_projects (name,description,public_token,created_by)
+              OUTPUT INSERTED.id, INSERTED.public_token
+              VALUES(@name,@description,@public_token,@created_by)`);
+    res.json({ id: result.recordset[0].id, public_token: result.recordset[0].public_token });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── PUT /api/service-projects/:id ─────────────────────────
+app.put('/api/service-projects/:id', authRequired, async (request, res) => {
+  try {
+    const b = request.body;
+    await req()
+      .input('id',          sql.Int,      parseInt(request.params.id))
+      .input('name',        sql.NVarChar, b.name||null)
+      .input('description', sql.NVarChar, b.description||null)
+      .query(`UPDATE service_projects SET
+        name=COALESCE(@name,name),
+        description=COALESCE(@description,description),
+        updated_at=GETDATE()
+        WHERE id=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── DELETE /api/service-projects/:id ──────────────────────
+app.delete('/api/service-projects/:id', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    // Unlink jobs from this project (don't delete the jobs)
+    await req().input('id', sql.Int, id)
+      .query(`UPDATE service_requests SET project_id=NULL WHERE project_id=@id`);
+    await req().input('id', sql.Int, id)
+      .query(`DELETE FROM service_projects WHERE id=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── POST /api/service-projects/:id/regen-token ─────────────
+app.post('/api/service-projects/:id/regen-token', authRequired, async (request, res) => {
+  try {
+    const token = crypto.randomBytes(24).toString('hex');
+    await req()
+      .input('id',    sql.Int,      parseInt(request.params.id))
+      .input('token', sql.NVarChar, token)
+      .query(`UPDATE service_projects SET public_token=@token WHERE id=@id`);
+    res.json({ public_token: token });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /api/public/project/:token ─────────────────────────
+// Public: get project info + all jobs (no auth)
+app.get('/api/public/project/:token', async (request, res) => {
+  try {
+    const token = request.params.token;
+    const proj = (await req()
+      .input('token', sql.NVarChar, token)
+      .query(`SELECT id, name, description FROM service_projects WHERE public_token=@token AND is_active=1`))
+      .recordset[0];
+    if (!proj) return res.status(404).json({ error: 'Project not found' });
+    const jobs = (await req()
+      .input('pid', sql.Int, proj.id)
+      .query(`SELECT id, job_no, request_no, title, serve_type, status, request_date, requester_name,
+                     period_start, period_end, created_at
+              FROM service_requests
+              WHERE project_id=@pid
+              ORDER BY created_at DESC`)).recordset;
+    res.json({ project: proj, jobs });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── POST /api/public/project/:token/submit ──────────────────
+// Public: submit a new job into a project (no auth required)
+app.post('/api/public/project/:token/submit', async (request, res) => {
+  try {
+    const token = request.params.token;
+    const proj = (await req()
+      .input('token', sql.NVarChar, token)
+      .query(`SELECT id FROM service_projects WHERE public_token=@token AND is_active=1`))
+      .recordset[0];
+    if (!proj) return res.status(404).json({ error: 'Project not found or inactive' });
+
+    const b = request.body;
+    // Generate job_no
+    const year = new Date().getFullYear();
+    const cntRes = await req().query(
+      `SELECT COUNT(*) AS cnt FROM service_requests WHERE YEAR(created_at) = ${year}`
+    );
+    const cnt   = (cntRes.recordset[0].cnt || 0) + 1;
+    const jobNo = `JOB-${year}-${String(cnt).padStart(4, '0')}`;
+
+    const result = await req()
+      .input('project_id',        sql.Int,      proj.id)
+      .input('job_no',            sql.NVarChar, jobNo)
+      .input('serve_type',        sql.NVarChar, b.serve_type||null)
+      .input('brands',            sql.NVarChar, JSON.stringify(b.brands||[]))
+      .input('branches',          sql.NVarChar, JSON.stringify(b.branches||[]))
+      .input('title',             sql.NVarChar, b.title||null)
+      .input('request_no',        sql.NVarChar, b.request_no||null)
+      .input('request_date',      sql.Date,     b.request_date?new Date(b.request_date):new Date())
+      .input('requester_position',sql.NVarChar, b.requester_position||null)
+      .input('requester_name',    sql.NVarChar, b.requester_name||null)
+      .input('period_start',      sql.Date,     b.period_start?new Date(b.period_start):null)
+      .input('period_end',        sql.Date,     b.period_end?new Date(b.period_end):null)
+      .input('objective',         sql.NVarChar, b.objective||null)
+      .input('condition',         sql.NVarChar, b.condition||null)
+      .input('status',            sql.NVarChar, 'received')
+      .query(`INSERT INTO service_requests
+        (project_id,job_no,serve_type,brands,branches,title,request_no,request_date,
+         requester_position,requester_name,period_start,period_end,objective,condition,status)
+        OUTPUT INSERTED.id, INSERTED.job_no
+        VALUES(@project_id,@job_no,@serve_type,@brands,@branches,@title,@request_no,@request_date,
+               @requester_position,@requester_name,@period_start,@period_end,@objective,@condition,@status)`);
+    const inserted = result.recordset[0];
+    res.json({ ok: true, id: inserted.id, job_no: inserted.job_no });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -6353,6 +6515,7 @@ init().then(async () => {
   await ensureShopKnowledgeTable();
   await ensureLineNotifyTable();
   await ensureServiceRequestsTable();
+  await ensureServiceProjectsTable();
 
   // Drop CHECK constraint on shifts.shift_type so 'dayoff' can be inserted
   try {
