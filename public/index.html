@@ -13529,10 +13529,23 @@ async function svcOpenDetail(id){
         </div>
       </div>
 
+      <!-- 🗑 Delete confirmation (hidden by default) -->
+      <div id="svc-det-delete-box" style="display:none;background:#fff5f5;border:1.5px solid #fca5a5;border-radius:10px;padding:.85rem 1rem">
+        <div style="font-size:.82rem;font-weight:700;color:#b91c1c;margin-bottom:.5rem">⚠️ ยืนยันการลบรายการนี้</div>
+        <div style="font-size:.78rem;color:#64748b;margin-bottom:.6rem">การลบไม่สามารถย้อนกลับได้ — กรุณาระบุเหตุผลก่อนดำเนินการ</div>
+        <label class="svc-lbl" style="color:#b91c1c">เหตุผลในการลบ <span style="color:#ef4444">*</span></label>
+        <textarea id="svc-det-delete-reason" rows="2" style="width:100%;resize:vertical;border:1.5px solid #fca5a5;border-radius:8px;padding:.4rem .6rem;font-size:.83rem;font-family:inherit;outline:none;margin-bottom:.6rem" placeholder="ระบุเหตุผลในการลบ..."></textarea>
+        <div style="display:flex;gap:.5rem;justify-content:flex-end">
+          <button class="btn btn-ghost btn-sm" onclick="svcCancelDelete()">ยกเลิก</button>
+          <button class="btn btn-sm" style="background:#dc2626;color:#fff;border:none;font-weight:700" onclick="svcDeleteRecord(${r.id})">🗑 ยืนยันลบ</button>
+        </div>
+      </div>
+
       <!-- Footer -->
       <div style="display:flex;gap:.5rem;justify-content:space-between;align-items:center;padding-top:.1rem">
-        <div style="font-size:.72rem;color:#94a3b8">
-          สร้างโดย ${escHtml(r.created_by_name||'—')} · ${r.created_at?new Date(r.created_at).toLocaleString('th-TH'):'—'}
+        <div style="display:flex;align-items:center;gap:.75rem">
+          <span style="font-size:.72rem;color:#94a3b8">สร้างโดย ${escHtml(r.created_by_name||'—')} · ${r.created_at?new Date(r.created_at).toLocaleString('th-TH'):'—'}</span>
+          <button class="btn btn-sm" onclick="svcShowDeleteBox()" style="background:#fff5f5;color:#b91c1c;border:1.5px solid #fca5a5;font-weight:700">🗑 ลบ</button>
         </div>
         <div style="display:flex;gap:.5rem">
           <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-svc-detail')">ยกเลิก</button>
@@ -13551,6 +13564,33 @@ async function svcSaveDetail(id){
   if(res&&res.ok){
     closeModal('modal-svc-detail');
     showToast(`บันทึกเรียบร้อย`,'success');
+    svcLoadList();
+  } else { alert('เกิดข้อผิดพลาด: '+(res?.error||'unknown')); }
+}
+
+function svcShowDeleteBox(){
+  const box = document.getElementById('svc-det-delete-box');
+  if(box){ box.style.display=''; box.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+  const ta = document.getElementById('svc-det-delete-reason');
+  if(ta){ ta.value=''; ta.style.borderColor=''; ta.focus(); }
+}
+
+function svcCancelDelete(){
+  const box = document.getElementById('svc-det-delete-box');
+  if(box) box.style.display='none';
+}
+
+async function svcDeleteRecord(id){
+  const reason = document.getElementById('svc-det-delete-reason')?.value.trim()||'';
+  if(!reason){
+    const ta = document.getElementById('svc-det-delete-reason');
+    if(ta){ ta.style.borderColor='#ef4444'; ta.focus(); }
+    showToast('กรุณาระบุเหตุผลในการลบ','error'); return;
+  }
+  const res = await api(`/api/service-requests/${id}`,{method:'DELETE'});
+  if(res&&res.ok){
+    closeModal('modal-svc-detail');
+    showToast('ลบรายการเรียบร้อยแล้ว','success');
     svcLoadList();
   } else { alert('เกิดข้อผิดพลาด: '+(res?.error||'unknown')); }
 }
