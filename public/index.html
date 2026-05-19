@@ -1904,6 +1904,7 @@ textarea{resize:vertical;min-height:80px}
         <table>
           <thead><tr>
             <th>ประเภท</th>
+            <th>Job No.</th>
             <th>Request No.</th>
             <th>Title</th>
             <th>แบรนด์</th>
@@ -1972,10 +1973,16 @@ textarea{resize:vertical;min-height:80px}
           <input id="svc-title" type="text" style="width:100%" placeholder="ระบุชื่อโปรโมชัน / คำขอบริการ..."/>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.65rem">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.65rem">
+          <div>
+            <label class="svc-lbl">Job No.</label>
+            <div style="display:flex;align-items:center;gap:.3rem">
+              <input id="svc-job-no" type="text" style="flex:1;background:#f8fafc;color:#64748b;font-family:monospace;font-size:.82rem" readonly placeholder="JOB-2026-0001"/>
+            </div>
+          </div>
           <div>
             <label class="svc-lbl">Request No. <span style="color:#ef4444">*</span></label>
-            <input id="svc-request-no" type="text" style="width:100%" placeholder="เช่น SVC-2026-001"/>
+            <input id="svc-request-no" type="text" style="width:100%" placeholder="เลขจากลูกค้า"/>
           </div>
           <div>
             <label class="svc-lbl">วันที่ <span style="color:#ef4444">*</span></label>
@@ -12846,7 +12853,7 @@ async function svcLoadList(){
 function svcRenderTable(rows){
   const tbody=document.getElementById('svc-tbody'); if(!tbody) return;
   if(!rows.length){
-    tbody.innerHTML=`<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:2rem">ยังไม่มีรายการ</td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:2rem">ยังไม่มีรายการ</td></tr>`;
     return;
   }
   tbody.innerHTML=rows.map(r=>{
@@ -12861,9 +12868,10 @@ function svcRenderTable(rows){
     const stLabel = r.serve_type==='quick_sale' ? '⚡ ขายด่วน' : '🎯 โปรฯ/คูปอง';
     return `<tr>
       <td><span style="display:inline-block;padding:.1rem .5rem;border-radius:20px;font-size:.7rem;font-weight:700;white-space:nowrap;${stStyle}">${stLabel}</span></td>
+      <td><code style="font-size:.78rem;background:#e0f2fe;color:#0369a1;padding:.1rem .35rem;border-radius:4px;font-weight:700">${escHtml(r.job_no||'—')}</code></td>
       <td><code style="font-size:.78rem;background:#f1f5f9;padding:.1rem .3rem;border-radius:4px">${escHtml(r.request_no||'—')}</code></td>
-      <td style="font-weight:600;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(r.title||r.promo_name||'(ไม่มีชื่อ)')}</td>
-      <td style="max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.82rem">${escHtml(brands)}</td>
+      <td style="font-weight:600;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(r.title||r.promo_name||'(ไม่มีชื่อ)')}</td>
+      <td style="max-width:130px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.82rem">${escHtml(brands)}</td>
       <td style="font-size:.82rem">${escHtml(r.requester_name||r.created_by_name||'—')}</td>
       <td>
         <select onchange="svcUpdateStatus(${r.id},this.value)"
@@ -12913,7 +12921,7 @@ function svcKanbanCard(r,col){
       style="background:#fff;border-radius:8px;padding:.55rem .65rem;box-shadow:0 1px 3px rgba(0,0,0,.07);cursor:pointer;border-left:3px solid ${col.col};user-select:none">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.25rem">
         <span style="font-size:.7rem;font-weight:700;padding:.05rem .4rem;border-radius:10px;${stStyle}">${stLabel}</span>
-        <span style="font-size:.68rem;color:#94a3b8">${escHtml(r.request_no||'')}</span>
+        <span style="font-size:.68rem;color:#0369a1;font-weight:700;font-family:monospace">${escHtml(r.job_no||'')}</span>
       </div>
       <div style="font-size:.83rem;font-weight:600;color:#1e293b;margin-bottom:.15rem;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${escHtml(r.title||r.promo_name||'(ไม่มีชื่อ)')}</div>
       <div style="font-size:.72rem;color:#64748b;margin-bottom:.25rem;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${escHtml(brands)}</div>
@@ -12933,16 +12941,16 @@ async function svcOpenForm(id){
   _svcFiles  = [];
   svcResetForm();
   openModal('modal-svc-form');
-  // Auto-fill Request No. สำหรับรายการใหม่
+  // Auto-fill Job No. สำหรับรายการใหม่
   if(!id){
-    const nr = await api('/api/service-requests/next-no');
-    if(nr?.no){ const el=document.getElementById('svc-request-no'); if(el) el.value=nr.no; }
+    const nr = await api('/api/service-requests/next-job-no');
+    if(nr?.job_no){ const el=document.getElementById('svc-job-no'); if(el) el.value=nr.job_no; }
   }
   await svcInitCombos();
 }
 
 function svcResetForm(){
-  ['svc-serve-type','svc-title','svc-request-no','svc-request-date',
+  ['svc-serve-type','svc-job-no','svc-title','svc-request-no','svc-request-date',
    'svc-req-position','svc-req-name',
    'svc-period-start','svc-period-end','svc-objective','svc-condition'
   ].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
@@ -13063,6 +13071,7 @@ function svcRemoveFile(i){ _svcFiles.splice(i,1); svcRenderFileChips(); }
 function svcCollectPayload(){
   const gv=id=>{ const el=document.getElementById(id); return el?el.value.trim()||null:null; };
   return {
+    job_no:              gv('svc-job-no'),
     serve_type:          gv('svc-serve-type'),
     brands:              svcComboGetValues('svc-brands-combo'),
     branches:            svcComboGetValues('svc-branches-combo'),

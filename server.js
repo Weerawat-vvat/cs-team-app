@@ -5423,6 +5423,7 @@ async function ensureServiceRequestsTable() {
     await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='serve_type') ALTER TABLE service_requests ADD serve_type NVARCHAR(50) NULL`);
     await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='title') ALTER TABLE service_requests ADD title NVARCHAR(500) NULL`);
     await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='request_no') ALTER TABLE service_requests ADD request_no NVARCHAR(100) NULL`);
+    await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='job_no') ALTER TABLE service_requests ADD job_no NVARCHAR(50) NULL`);
     await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='request_date') ALTER TABLE service_requests ADD request_date DATE NULL`);
     await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='requester_position') ALTER TABLE service_requests ADD requester_position NVARCHAR(200) NULL`);
     await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='requester_name') ALTER TABLE service_requests ADD requester_name NVARCHAR(200) NULL`);
@@ -5433,16 +5434,16 @@ async function ensureServiceRequestsTable() {
   } catch(e) { console.error('❌ service_requests error:', e.message); }
 }
 
-// ── GET /api/service-requests/next-no ─────────────────────
-app.get('/api/service-requests/next-no', authRequired, async (request, res) => {
+// ── GET /api/service-requests/next-job-no ─────────────────
+app.get('/api/service-requests/next-job-no', authRequired, async (request, res) => {
   try {
     const year = new Date().getFullYear();
     const result = await req().query(
       `SELECT COUNT(*) AS cnt FROM service_requests WHERE YEAR(created_at) = ${year}`
     );
-    const cnt = (result.recordset[0].cnt || 0) + 1;
-    const no  = `SVC-${year}-${String(cnt).padStart(4, '0')}`;
-    res.json({ no });
+    const cnt  = (result.recordset[0].cnt || 0) + 1;
+    const jobNo = `JOB-${year}-${String(cnt).padStart(4, '0')}`;
+    res.json({ job_no: jobNo });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -5452,7 +5453,7 @@ app.get('/api/service-requests', authRequired, async (request, res) => {
     const { status, q, dateFrom, dateTo } = request.query;
     let where = 'WHERE 1=1';
     if (status)   where += ` AND sr.status=N'${status.replace(/'/g,"''")}'`;
-    if (q)        where += ` AND (sr.title LIKE N'%${q.replace(/'/g,"''")}%' OR sr.promo_name LIKE N'%${q.replace(/'/g,"''")}%' OR sr.brands LIKE N'%${q.replace(/'/g,"''")}%' OR sr.request_no LIKE N'%${q.replace(/'/g,"''")}%' OR sr.requester_name LIKE N'%${q.replace(/'/g,"''")}%')`;
+    if (q)        where += ` AND (sr.job_no LIKE N'%${q.replace(/'/g,"''")}%' OR sr.title LIKE N'%${q.replace(/'/g,"''")}%' OR sr.brands LIKE N'%${q.replace(/'/g,"''")}%' OR sr.request_no LIKE N'%${q.replace(/'/g,"''")}%' OR sr.requester_name LIKE N'%${q.replace(/'/g,"''")}%')`;
     if (dateFrom) where += ` AND CAST(sr.created_at AS DATE) >= '${dateFrom}'`;
     if (dateTo)   where += ` AND CAST(sr.created_at AS DATE) <= '${dateTo}'`;
     const rows = (await req().query(`
@@ -5475,6 +5476,7 @@ app.post('/api/service-requests', authRequired, async (request, res) => {
   try {
     const b = request.body;
     const result = await req()
+      .input('job_no',             sql.NVarChar, b.job_no||null)
       .input('serve_type',         sql.NVarChar, b.serve_type||null)
       .input('brands',             sql.NVarChar, JSON.stringify(b.brands||[]))
       .input('branches',           sql.NVarChar, JSON.stringify(b.branches||[]))
@@ -5491,11 +5493,11 @@ app.post('/api/service-requests', authRequired, async (request, res) => {
       .input('status',             sql.NVarChar, 'received')
       .input('created_by',         sql.Int,      request.user.id)
       .query(`INSERT INTO service_requests
-        (serve_type,brands,branches,title,request_no,request_date,
+        (job_no,serve_type,brands,branches,title,request_no,request_date,
          requester_position,requester_name,period_start,period_end,
          objective,condition,attachment_name,status,created_by)
         OUTPUT INSERTED.id
-        VALUES(@serve_type,@brands,@branches,@title,@request_no,@request_date,
+        VALUES(@job_no,@serve_type,@brands,@branches,@title,@request_no,@request_date,
                @requester_position,@requester_name,@period_start,@period_end,
                @objective,@condition,@attachment_name,@status,@created_by)`);
     res.json({ id: result.recordset[0].id });
