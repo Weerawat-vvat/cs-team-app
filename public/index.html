@@ -1866,16 +1866,33 @@ textarea{resize:vertical;min-height:80px}
   </div>
 
   <!-- Filter bar -->
-  <div class="page-datebar" style="margin-bottom:.75rem;gap:.5rem;flex-wrap:wrap">
-    <select id="svc-filter-status" onchange="svcLoadList()">
-      <option value="">ทุกสถานะ</option>
-      <option value="received">📥 รับเรื่อง</option>
-      <option value="in_progress">⚙️ กำลังทำ</option>
-      <option value="testing">🧪 ทดสอบ</option>
-      <option value="delivered">✅ ส่งมอบ</option>
-    </select>
-    <input id="svc-search" type="text" placeholder="🔍 ค้นหาชื่อโปรโมชัน / รหัส / แบรนด์..." oninput="svcSearchDebounce()" style="flex:1;min-width:180px"/>
-    <button class="btn btn-ghost btn-sm" onclick="svcLoadList()">🔄</button>
+  <div class="page-datebar" style="margin-bottom:.75rem;flex-direction:column;align-items:flex-start;gap:.45rem">
+    <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;width:100%">
+      <div class="drb" id="svc-drb">
+        <button class="drb-btn active" onclick="svcRange('thismonth',this)">เดือนนี้</button>
+        <button class="drb-btn" onclick="svcRange('lastmonth',this)">เดือนที่แล้ว</button>
+        <button class="drb-btn" onclick="svcRange('7d',this)">7 วันที่แล้ว</button>
+        <button class="drb-btn" onclick="svcRange('30d',this)">30 วันที่ผ่านมา</button>
+        <button class="drb-btn" onclick="svcRange('all',this)">ทั้งหมด</button>
+        <button class="drb-btn" onclick="svcRange('custom',this)">กำหนดเอง</button>
+      </div>
+      <span style="color:var(--border)">|</span>
+      <select id="svc-filter-status" onchange="svcLoadList()">
+        <option value="">ทุกสถานะ</option>
+        <option value="received">📥 รับเรื่อง</option>
+        <option value="in_progress">⚙️ กำลังทำ</option>
+        <option value="testing">🧪 ทดสอบ</option>
+        <option value="delivered">✅ ส่งมอบ</option>
+      </select>
+      <input id="svc-search" type="text" placeholder="🔍 ค้นหาชื่อโปรโมชัน / รหัส / แบรนด์..." oninput="svcSearchDebounce()" style="flex:1;min-width:180px"/>
+      <button class="btn btn-ghost btn-sm" onclick="svcLoadList()">🔄</button>
+    </div>
+    <div class="drb-custom" id="svc-custom-range">
+      <input id="svc-date-from" type="date" style="max-width:135px" title="วันที่เริ่มต้น"/>
+      <span style="color:var(--muted);font-size:.8rem">ถึง</span>
+      <input id="svc-date-to" type="date" style="max-width:135px" title="วันที่สิ้นสุด"/>
+      <button class="btn btn-sm btn-primary" onclick="svcLoadList()">ค้นหา</button>
+    </div>
   </div>
 
   <!-- Table view -->
@@ -3561,7 +3578,12 @@ function showPage(name, btn) {
     }
   }
   if (name === 'followup') { fuLoadSidebar(); }
-  if (name === 'service')  { svcLoadList(); }
+  if (name === 'service')  {
+    // init date range to "เดือนนี้" on first open
+    const df = document.getElementById('svc-date-from');
+    if(df && !df.value) svcRange('thismonth', document.querySelector('#svc-drb .drb-btn'));
+    else svcLoadList();
+  }
   if (name === 'shopinfo') { loadShopInfo(); }
 }
 
@@ -12909,6 +12931,18 @@ function svcParseJSON(str, def){
 }
 
 // ── View toggle ───────────────────────────────────────────────────
+function svcRange(preset, btn){
+  if(preset==='all'){
+    document.querySelectorAll('#svc-drb .drb-btn').forEach(b=>b.classList.remove('active'));
+    if(btn) btn.classList.add('active');
+    document.getElementById('svc-custom-range').style.display='none';
+    document.getElementById('svc-date-from').value='';
+    document.getElementById('svc-date-to').value='';
+    svcLoadList(); return;
+  }
+  _applyRange(preset, btn, 'svc-date-from', 'svc-date-to', 'svc-drb', 'svc-custom-range', svcLoadList);
+}
+
 function svcSetView(mode){
   _svcView = mode;
   const btnT=document.getElementById('svc-view-table'), btnB=document.getElementById('svc-view-board');
@@ -12939,12 +12973,16 @@ function svcQuickFilter(status){
 
 // ── Load list ────────────────────────────────────────────────────
 async function svcLoadList(){
-  const status = document.getElementById('svc-filter-status')?.value||'';
-  const q      = document.getElementById('svc-search')?.value.trim()||'';
+  const status   = document.getElementById('svc-filter-status')?.value||'';
+  const q        = document.getElementById('svc-search')?.value.trim()||'';
+  const dateFrom = document.getElementById('svc-date-from')?.value||'';
+  const dateTo   = document.getElementById('svc-date-to')?.value||'';
   let url = '/api/service-requests';
   const p = new URLSearchParams();
-  if(status) p.append('status',status);
-  if(q)      p.append('q',q);
+  if(status)   p.append('status',status);
+  if(q)        p.append('q',q);
+  if(dateFrom) p.append('dateFrom',dateFrom);
+  if(dateTo)   p.append('dateTo',dateTo);
   if(p.toString()) url += '?'+p.toString();
 
   const rows = await api(url,{silent:true})||[];

@@ -5427,10 +5427,12 @@ async function ensureServiceRequestsTable() {
 // ── GET /api/service-requests ──────────────────────────────
 app.get('/api/service-requests', authRequired, async (request, res) => {
   try {
-    const { status, q } = request.query;
+    const { status, q, dateFrom, dateTo } = request.query;
     let where = 'WHERE 1=1';
-    if (status) where += ` AND sr.status=N'${status.replace(/'/g,"''")}'`;
-    if (q)      where += ` AND (sr.promo_name LIKE N'%${q.replace(/'/g,"''")}%' OR sr.brands LIKE N'%${q.replace(/'/g,"''")}%' OR sr.coupon_code LIKE N'%${q.replace(/'/g,"''")}%')`;
+    if (status)   where += ` AND sr.status=N'${status.replace(/'/g,"''")}'`;
+    if (q)        where += ` AND (sr.promo_name LIKE N'%${q.replace(/'/g,"''")}%' OR sr.brands LIKE N'%${q.replace(/'/g,"''")}%' OR sr.coupon_code LIKE N'%${q.replace(/'/g,"''")}%')`;
+    if (dateFrom) where += ` AND CAST(sr.created_at AS DATE) >= '${dateFrom}'`;
+    if (dateTo)   where += ` AND CAST(sr.created_at AS DATE) <= '${dateTo}'`;
     const rows = (await req().query(`
       SELECT sr.*,
              ISNULL(ec.nickname, ec.name) AS created_by_name,
