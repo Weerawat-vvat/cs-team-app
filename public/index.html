@@ -411,11 +411,14 @@ textarea{resize:vertical;min-height:80px}
 /* ─── SERVICE PAGE ──────────────────────────────────────────── */
 .svc-card{background:#fff;border:1px solid #eef1f7;border-radius:10px;padding:.9rem 1rem}
 /* Project sidebar */
-.svc-proj-item{display:flex;align-items:center;justify-content:space-between;padding:.48rem .8rem;font-size:.82rem;cursor:pointer;color:#475569;transition:.12s;gap:.4rem;border-left:3px solid transparent}
+.svc-proj-item{display:flex;align-items:center;justify-content:space-between;padding:.48rem .8rem;font-size:.82rem;cursor:pointer;color:#475569;transition:.12s;gap:.4rem;border-left:3px solid transparent;position:relative}
 .svc-proj-item:hover{background:#f0f9ff;color:#1d4ed8}
 .svc-proj-item.active{background:#dbeafe;color:#1d4ed8;font-weight:700;border-left-color:#3b82f6}
 .svc-proj-count{background:#e2e8f0;color:#64748b;border-radius:20px;padding:.05rem .45rem;font-size:.7rem;font-weight:700;flex-shrink:0}
 .svc-proj-item.active .svc-proj-count{background:#bfdbfe;color:#1d4ed8}
+.svc-proj-copy{opacity:0;pointer-events:none;background:none;border:none;cursor:pointer;color:#94a3b8;font-size:.85rem;padding:.1rem .2rem;border-radius:4px;line-height:1;flex-shrink:0;transition:.12s}
+.svc-proj-item:hover .svc-proj-copy{opacity:1;pointer-events:auto}
+.svc-proj-copy:hover{color:#2563eb;background:#bfdbfe}
 .svc-section-head{font-size:.68rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.09em;margin-bottom:.65rem;display:flex;align-items:center;gap:.45rem;border-left:3px solid #3b82f6;padding-left:.5rem}
 .svc-badge{display:none}
 .svc-lbl{font-size:.75rem;font-weight:600;color:#64748b;margin-bottom:.3rem;display:block}
@@ -12980,7 +12983,9 @@ function svcRenderProjectSidebar(){
   if(empty) empty.style.display='none';
   list.innerHTML = _svcProjects.map(p=>`
     <div class="svc-proj-item${_svcActiveProject==p.id?' active':''}" id="svc-proj-item-${p.id}" onclick="svcSelectProject(${p.id})">
-      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📁 ${escHtml(p.name)}</span>
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">📁 ${escHtml(p.name)}</span>
+      <button class="svc-proj-copy" title="คัดลอกลิงค์สาธารณะ"
+        onclick="event.stopPropagation();svcCopySidebarLink(${p.id},this)" >🔗</button>
       <span class="svc-proj-count">${p.job_count||0}</span>
     </div>`).join('');
 
@@ -12995,6 +13000,21 @@ function svcSelectProject(id){
   const target = id ? document.getElementById(`svc-proj-item-${id}`) : document.getElementById('svc-proj-item-all');
   if(target) target.classList.add('active');
   svcLoadList();
+}
+
+function svcCopySidebarLink(projId, btn){
+  const proj = _svcProjects.find(p=>p.id==projId);
+  if(!proj || !proj.public_token){ showToast('ไม่พบ token ของ Project นี้','warn'); return; }
+  const url = `${location.origin}/p.html?t=${proj.public_token}`;
+  navigator.clipboard.writeText(url).then(()=>{
+    const orig = btn.textContent;
+    btn.textContent = '✅';
+    btn.style.color = '#16a34a';
+    setTimeout(()=>{ btn.textContent = orig; btn.style.color=''; }, 1800);
+    showToast('คัดลอกลิงค์แล้ว','ok');
+  }).catch(()=>{
+    prompt('คัดลอกลิงค์ด้านล่าง:', url);
+  });
 }
 
 async function svcCreateProjectSidebar(){
