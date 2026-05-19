@@ -35,6 +35,8 @@ body{font-family:'Sarabun','Segoe UI',sans-serif;background:#f0f4f8;min-height:1
 .status-badge.delivered{background:#dcfce7;color:#15803d}
 .job-title{font-size:.92rem;font-weight:600;color:var(--text);margin-bottom:.25rem}
 .job-info{font-size:.75rem;color:var(--sub)}
+.btn-edit-job{background:none;border:1.5px solid var(--border);border-radius:6px;padding:.2rem .6rem;font-size:.72rem;font-weight:700;cursor:pointer;color:#64748b;font-family:inherit;margin-top:.5rem;transition:.15s}
+.btn-edit-job:hover{border-color:var(--blue);color:var(--blue);background:#f0f9ff}
 
 /* Form cards */
 .card{background:#fff;border-radius:12px;border:1px solid var(--border);margin-bottom:.85rem;overflow:visible}
@@ -86,11 +88,33 @@ body{font-family:'Sarabun','Segoe UI',sans-serif;background:#f0f4f8;min-height:1
 .ac-opt{padding:.45rem .75rem;font-size:.83rem;cursor:pointer;color:var(--text);transition:.1s}
 .ac-opt:hover{background:#f0f9ff;color:#1d4ed8}
 
+/* ── File zone ── */
+.file-zone{
+  border:2px dashed var(--border);border-radius:10px;padding:1.2rem 1rem;
+  text-align:center;background:#fafbfc;cursor:pointer;transition:.15s;
+}
+.file-zone:hover,.file-zone.drag-over{border-color:var(--blue);background:#eff6ff}
+.file-zone-icon{font-size:1.8rem;margin-bottom:.3rem}
+.file-zone-lbl{font-size:.8rem;font-weight:600;color:var(--sub)}
+.file-zone-sub{font-size:.7rem;color:var(--sub);margin-top:.2rem}
+.file-list{display:flex;flex-direction:column;gap:.4rem;margin-top:.5rem}
+.file-item{display:flex;align-items:center;gap:.5rem;background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:.4rem .65rem;font-size:.78rem;color:var(--text)}
+.file-item-icon{font-size:1rem;flex-shrink:0}
+.file-item-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file-item-size{color:var(--sub);flex-shrink:0;font-size:.7rem}
+.file-item-del{background:none;border:none;cursor:pointer;color:var(--sub);font-size:.9rem;padding:.1rem;border-radius:4px;flex-shrink:0}
+.file-item-del:hover{color:#dc2626;background:#fee2e2}
+.file-item.existing{background:#f0fdf4;border-color:#bbf7d0}
+.file-item.existing .file-item-icon::before{content:'📎'}
+
 /* Buttons */
 .btn{border:none;border-radius:8px;padding:.55rem 1.2rem;font-size:.85rem;font-weight:700;cursor:pointer;font-family:inherit;transition:.15s}
 .btn-primary{background:var(--blue);color:#fff;width:100%}
 .btn-primary:hover{background:var(--blue-dark)}
 .btn-primary:disabled{opacity:.5;cursor:not-allowed}
+
+/* Editing banner */
+.edit-banner{background:#fef3c7;border:1.5px solid #fbbf24;border-radius:10px;padding:.7rem 1rem;font-size:.82rem;color:#92400e;margin-bottom:.85rem;display:flex;align-items:center;gap:.5rem}
 
 /* Success */
 .success-box{background:#f0fdf4;border:2px solid #86efac;border-radius:12px;padding:1.5rem;text-align:center;display:none}
@@ -131,7 +155,7 @@ body{font-family:'Sarabun','Segoe UI',sans-serif;background:#f0f4f8;min-height:1
 
   <div class="success-box" id="success-box">
     <div class="success-icon">✅</div>
-    <div class="success-title">ส่งคำขอเรียบร้อยแล้ว!</div>
+    <div class="success-title" id="success-title">ส่งคำขอเรียบร้อยแล้ว!</div>
     <div class="success-sub">หมายเลข Job ของคุณ:</div>
     <div class="success-jobno" id="success-jobno">JOB-2026-0001</div>
     <div class="success-sub">ทีมงานจะดำเนินการและอัปเดตสถานะในหน้า "สถานะงาน"</div>
@@ -139,6 +163,11 @@ body{font-family:'Sarabun','Segoe UI',sans-serif;background:#f0f4f8;min-height:1
   </div>
 
   <div id="form-wrap">
+    <!-- Edit banner (hidden when creating new) -->
+    <div class="edit-banner" id="edit-banner" style="display:none">
+      ✏️ กำลังแก้ไขงาน <strong id="edit-job-no-label"></strong> — งานนี้ยังไม่มีเจ้าหน้าที่รับ
+    </div>
+
     <!-- Serve Type -->
     <div class="card">
       <div class="card-head">⚙️ ประเภทคำขอ</div>
@@ -256,6 +285,30 @@ body{font-family:'Sarabun','Segoe UI',sans-serif;background:#f0f4f8;min-height:1
       </div>
     </div>
 
+    <!-- ไฟล์แนบ -->
+    <div class="card">
+      <div class="card-head">📎 ไฟล์แนบ</div>
+      <div class="card-body">
+        <!-- existing attachments (edit mode) -->
+        <div id="existing-files" style="display:none">
+          <div style="font-size:.72rem;font-weight:700;color:var(--sub);margin-bottom:.35rem">ไฟล์ที่แนบไว้แล้ว</div>
+          <div class="file-list" id="existing-file-list"></div>
+          <div style="font-size:.72rem;font-weight:700;color:var(--sub);margin:.6rem 0 .35rem">เพิ่มไฟล์ใหม่</div>
+        </div>
+        <div class="file-zone" id="file-zone"
+          onclick="document.getElementById('file-input').click()"
+          ondragover="event.preventDefault();this.classList.add('drag-over')"
+          ondragleave="this.classList.remove('drag-over')"
+          ondrop="handleDrop(event)">
+          <div class="file-zone-icon">📂</div>
+          <div class="file-zone-lbl">ลากไฟล์มาวาง หรือคลิกเพื่อเลือก</div>
+          <div class="file-zone-sub">JPG, PNG, PDF, XLSX, XLS, CSV · สูงสุด 15 MB ต่อไฟล์</div>
+        </div>
+        <input type="file" id="file-input" multiple accept=".jpg,.jpeg,.png,.gif,.pdf,.xlsx,.xls,.csv" style="display:none" onchange="addFiles(this.files)"/>
+        <div class="file-list" id="new-file-list"></div>
+      </div>
+    </div>
+
     <button class="btn btn-primary" id="submit-btn" onclick="submitForm()">📤 ส่งคำขอ</button>
   </div>
 </div>
@@ -270,6 +323,14 @@ const _suggestions = { brand: [], branch: [], position: [] };
 
 // Multi-select state
 const _selected = { brand: [], branch: [] };
+
+// File state
+let _newFiles        = [];   // File objects to upload
+let _existingFiles   = [];   // { id, file_name, file_path } from DB
+let _deletedFileIds  = [];   // ids to delete on save
+
+// Edit state
+let _editJobId = null;
 
 const STATUS_LABEL = {
   received:    '📥 รับเรื่อง',
@@ -323,7 +384,6 @@ function renderDrop(key, q){
   if(!drop) return;
   const q2 = q.toLowerCase();
   let opts = _suggestions[key].filter(s=>!q2||s.toLowerCase().includes(q2));
-  // Also add typed value if not in list
   if(q && !_suggestions[key].some(s=>s.toLowerCase()===q2))
     opts = [{label:q+'  (เพิ่มใหม่)', value:q, isNew:true}, ...opts];
   if(!opts.length){ drop.style.display='none'; return; }
@@ -338,10 +398,8 @@ function renderDrop(key, q){
 }
 
 function filterCombo(key, q){ renderDrop(key, q); openDrop(key+'-drop'); }
-
 function openDrop(id){ const d=document.getElementById(id); if(d) d.style.display=''; }
 function closeDrop(id){ const d=document.getElementById(id); if(d) d.style.display='none'; }
-
 function focusCombo(key){ document.getElementById(key+'-search').focus(); }
 
 function toggleCombo(key, val){
@@ -373,7 +431,6 @@ function renderChips(key){
 }
 
 function comboKey(e, key){
-  // Enter = add typed value
   if(e.key==='Enter' && document.getElementById(key+'-search').value.trim()){
     e.preventDefault();
     const v = document.getElementById(key+'-search').value.trim();
@@ -383,7 +440,6 @@ function comboKey(e, key){
   }
 }
 
-// Close dropdowns when clicking outside
 document.addEventListener('click', e=>{
   ['brand','branch'].forEach(key=>{
     const box=document.getElementById(key+'-box');
@@ -413,6 +469,77 @@ function pickAc(inputId, val, dropId){
 }
 
 /* ────────────────────────────────────────────────
+   File handling
+──────────────────────────────────────────────── */
+function fileIcon(name){
+  const ext = (name||'').split('.').pop().toLowerCase();
+  if(['jpg','jpeg','png','gif'].includes(ext)) return '🖼️';
+  if(ext==='pdf') return '📄';
+  if(['xlsx','xls'].includes(ext)) return '📊';
+  if(ext==='csv') return '📋';
+  return '📎';
+}
+function fmtSize(bytes){
+  if(bytes<1024) return bytes+'B';
+  if(bytes<1048576) return (bytes/1024).toFixed(1)+'KB';
+  return (bytes/1048576).toFixed(1)+'MB';
+}
+
+function addFiles(fileList){
+  for(const f of fileList){
+    if(f.size > 15*1024*1024){ alert(`ไฟล์ ${f.name} ใหญ่เกิน 15 MB`); continue; }
+    if(!_newFiles.find(x=>x.name===f.name&&x.size===f.size)) _newFiles.push(f);
+  }
+  document.getElementById('file-input').value='';
+  renderNewFiles();
+}
+
+function removeNewFile(idx){
+  _newFiles.splice(idx,1);
+  renderNewFiles();
+}
+
+function renderNewFiles(){
+  const el = document.getElementById('new-file-list');
+  if(!el) return;
+  el.innerHTML = _newFiles.map((f,i)=>
+    `<div class="file-item">
+      <span class="file-item-icon">${fileIcon(f.name)}</span>
+      <span class="file-item-name">${esc(f.name)}</span>
+      <span class="file-item-size">${fmtSize(f.size)}</span>
+      <button class="file-item-del" onclick="removeNewFile(${i})" title="ลบ">✕</button>
+    </div>`
+  ).join('');
+}
+
+function renderExistingFiles(){
+  const wrap = document.getElementById('existing-files');
+  const list = document.getElementById('existing-file-list');
+  if(!wrap||!list) return;
+  const visible = _existingFiles.filter(f=>!_deletedFileIds.includes(f.id));
+  if(!visible.length){ wrap.style.display='none'; return; }
+  wrap.style.display='';
+  list.innerHTML = visible.map(f=>
+    `<div class="file-item existing">
+      <span class="file-item-icon">📎</span>
+      <a class="file-item-name" href="${esc(f.file_path)}" target="_blank" style="color:#0369a1;text-decoration:none">${esc(f.file_name)}</a>
+      <button class="file-item-del" onclick="deleteExisting(${f.id})" title="ลบ">✕</button>
+    </div>`
+  ).join('');
+}
+
+function deleteExisting(id){
+  _deletedFileIds.push(id);
+  renderExistingFiles();
+}
+
+function handleDrop(e){
+  e.preventDefault();
+  document.getElementById('file-zone').classList.remove('drag-over');
+  addFiles(e.dataTransfer.files);
+}
+
+/* ────────────────────────────────────────────────
    Status board
 ──────────────────────────────────────────────── */
 function renderJobs(jobs){
@@ -429,6 +556,7 @@ function renderJobs(jobs){
     const period  = j.period_start&&j.period_end
       ? ` · ${new Date(j.period_start).toLocaleDateString('th-TH',{day:'2-digit',month:'short'})} → ${new Date(j.period_end).toLocaleDateString('th-TH',{day:'2-digit',month:'short'})}`
       : '';
+    const canEdit = j.status==='received';
     return `
       <div class="job-card ${j.status||'received'}">
         <div class="job-meta">
@@ -436,12 +564,56 @@ function renderJobs(jobs){
           <span class="status-badge ${j.status||'received'}">${STATUS_LABEL[j.status]||'รับเรื่อง'}</span>
         </div>
         <div class="job-title">${esc(j.title||'(ไม่มีชื่อ)')}</div>
-        <div class="job-info">${stLabel} · ${esc(j.requester_name||'—')} · ${dt}${esc(period)}</div>
+        <div class="job-info">${esc(stLabel)} · ${esc(j.requester_name||'—')} · ${dt}${esc(period)}</div>
+        ${canEdit?`<button class="btn-edit-job" onclick="openEdit(${j.id},'${esc(j.job_no||'')}')">✏️ แก้ไขงานนี้</button>`:''}
       </div>`;
   }).join('');
 }
 
-function esc(s){ const d=document.createElement('div');d.textContent=String(s);return d.innerHTML; }
+/* ────────────────────────────────────────────────
+   Open edit mode
+──────────────────────────────────────────────── */
+async function openEdit(jobId, jobNo){
+  try {
+    const data = await fetch(`/api/public/project/${TOKEN}/jobs/${jobId}`).then(r=>r.json());
+    if(data.error){ alert(data.error); return; }
+
+    // Reset form then pre-fill
+    resetForm(false);
+    _editJobId = jobId;
+
+    // Set field values
+    document.getElementById('f-serve-type').value   = data.serve_type||'';
+    document.getElementById('f-title').value        = data.title||'';
+    document.getElementById('f-request-no').value   = data.request_no||'';
+    document.getElementById('f-date').value         = data.request_date ? data.request_date.slice(0,10) : '';
+    document.getElementById('f-position').value     = data.requester_position||'';
+    document.getElementById('f-name').value         = data.requester_name||'';
+    document.getElementById('f-period-start').value = data.period_start ? data.period_start.slice(0,10) : '';
+    document.getElementById('f-period-end').value   = data.period_end   ? data.period_end.slice(0,10)   : '';
+    document.getElementById('f-objective').value    = data.objective||'';
+    document.getElementById('f-condition').value    = data.condition||'';
+
+    // Set combo chips
+    try { _selected.brand  = JSON.parse(data.brands||'[]');  } catch(e){ _selected.brand=[];  }
+    try { _selected.branch = JSON.parse(data.branches||'[]');} catch(e){ _selected.branch=[]; }
+    renderChips('brand');
+    renderChips('branch');
+
+    // Existing attachments
+    _existingFiles  = data.attachments || [];
+    _deletedFileIds = [];
+    renderExistingFiles();
+
+    // Show edit banner
+    document.getElementById('edit-banner').style.display='';
+    document.getElementById('edit-job-no-label').textContent = jobNo;
+    document.getElementById('submit-btn').textContent = '💾 บันทึกการแก้ไข';
+
+    switchTab('form');
+    window.scrollTo({top:0, behavior:'smooth'});
+  } catch(e) { alert('เกิดข้อผิดพลาดในการโหลดข้อมูล'); }
+}
 
 /* ────────────────────────────────────────────────
    Tabs
@@ -462,7 +634,7 @@ async function refreshJobs(){
 }
 
 /* ────────────────────────────────────────────────
-   Submit
+   Submit / Update
 ──────────────────────────────────────────────── */
 async function submitForm(){
   const gv = id => document.getElementById(id)?.value.trim()||'';
@@ -476,47 +648,78 @@ async function submitForm(){
 
   const btn = document.getElementById('submit-btn');
   btn.disabled=true; btn.textContent='⏳ กำลังส่ง...';
+
   try {
-    const payload = {
-      serve_type:          gv('f-serve-type'),
-      brands:              [..._selected.brand],
-      branches:            [..._selected.branch],
-      title:               gv('f-title'),
-      request_no:          gv('f-request-no')||null,
-      request_date:        gv('f-date'),
-      requester_position:  gv('f-position')||null,
-      requester_name:      gv('f-name'),
-      period_start:        gv('f-period-start'),
-      period_end:          gv('f-period-end'),
-      objective:           gv('f-objective')||null,
-      condition:           gv('f-condition')||null,
-    };
-    const res = await fetch(`/api/public/project/${TOKEN}/submit`,{
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify(payload)
-    }).then(r=>r.json());
+    const fd = new FormData();
+    fd.append('serve_type',          gv('f-serve-type'));
+    fd.append('brands',              JSON.stringify(_selected.brand));
+    fd.append('branches',            JSON.stringify(_selected.branch));
+    fd.append('title',               gv('f-title'));
+    fd.append('request_no',          gv('f-request-no'));
+    fd.append('request_date',        gv('f-date'));
+    fd.append('requester_position',  gv('f-position'));
+    fd.append('requester_name',      gv('f-name'));
+    fd.append('period_start',        gv('f-period-start'));
+    fd.append('period_end',          gv('f-period-end'));
+    fd.append('objective',           gv('f-objective'));
+    fd.append('condition',           gv('f-condition'));
+    if(_deletedFileIds.length) fd.append('delete_attachment_ids', _deletedFileIds.join(','));
+    for(const f of _newFiles) fd.append('files', f);
+
+    let url, method;
+    if(_editJobId){
+      url    = `/api/public/project/${TOKEN}/jobs/${_editJobId}`;
+      method = 'PUT';
+    } else {
+      url    = `/api/public/project/${TOKEN}/submit`;
+      method = 'POST';
+    }
+
+    const res = await fetch(url, { method, body: fd }).then(r=>r.json());
+
     if(res.ok){
-      document.getElementById('success-jobno').textContent = res.job_no;
+      if(_editJobId){
+        document.getElementById('success-title').textContent = 'บันทึกการแก้ไขแล้ว!';
+        document.getElementById('success-jobno').textContent = document.getElementById('edit-job-no-label').textContent;
+      } else {
+        document.getElementById('success-title').textContent = 'ส่งคำขอเรียบร้อยแล้ว!';
+        document.getElementById('success-jobno').textContent = res.job_no;
+      }
       document.getElementById('form-wrap').style.display='none';
       document.getElementById('success-box').style.display='block';
-    } else { alert('เกิดข้อผิดพลาด: '+(res.error||'unknown')); }
+    } else {
+      alert('เกิดข้อผิดพลาด: '+(res.error||'unknown'));
+    }
   } catch(e){ alert('เกิดข้อผิดพลาด กรุณาลองใหม่'); }
-  btn.disabled=false; btn.textContent='📤 ส่งคำขอ';
+
+  btn.disabled=false;
+  btn.textContent = _editJobId ? '💾 บันทึกการแก้ไข' : '📤 ส่งคำขอ';
 }
 
 /* ────────────────────────────────────────────────
    Reset
 ──────────────────────────────────────────────── */
-function resetForm(){
+function resetForm(showNew=true){
+  _editJobId = null;
+  _newFiles = []; _existingFiles = []; _deletedFileIds = [];
   _selected.brand=[]; _selected.branch=[];
   renderChips('brand'); renderChips('branch');
+  renderNewFiles();
+  document.getElementById('existing-files').style.display='none';
+  document.getElementById('existing-file-list').innerHTML='';
   ['f-serve-type','f-title','f-request-no','f-date',
    'f-position','f-name','f-period-start','f-period-end','f-objective','f-condition']
     .forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
   document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
-  document.getElementById('form-wrap').style.display='';
-  document.getElementById('success-box').style.display='none';
+  document.getElementById('edit-banner').style.display='none';
+  document.getElementById('submit-btn').textContent='📤 ส่งคำขอ';
+  if(showNew){
+    document.getElementById('form-wrap').style.display='';
+    document.getElementById('success-box').style.display='none';
+  }
 }
+
+function esc(s){ const d=document.createElement('div');d.textContent=String(s);return d.innerHTML; }
 
 // Set today's date
 document.getElementById('f-date').value = new Date().toISOString().slice(0,10);

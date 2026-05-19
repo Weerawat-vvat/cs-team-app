@@ -87,6 +87,26 @@ const skUpload = multer({
   }
 });
 
+// ── Service public-portal upload config ──────────────────
+const svcPubUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const dir = path.join(UPLOAD_DIR, 'svc', 'tmp');
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    },
+    filename: (req, file, cb) => {
+      const ext  = path.extname(file.originalname).toLowerCase();
+      const base = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9ก-๙_-]/g,'_').slice(0,40);
+      cb(null, `${Date.now()}_${base}${ext}`);
+    }
+  }),
+  limits: { fileSize: 15 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    cb(null, /\.(jpg|jpeg|png|gif|pdf|xlsx|xls|csv)$/i.test(file.originalname));
+  }
+});
+
 // ── LINE Settings table ───────────────────────────────────
 async function ensureLineNotifyTable() {
   await getPool().request().query(`
@@ -5453,6 +5473,23 @@ async function ensureServiceProjectsTable() {
   } catch(e) { console.error('❌ service_projects error:', e.message); }
 }
 
+async function ensureServiceAttachmentsTable() {
+  try {
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='service_attachments' AND xtype='U')
+      CREATE TABLE service_attachments (
+        id                 INT PRIMARY KEY IDENTITY,
+        service_request_id INT NOT NULL,
+        file_name          NVARCHAR(300) NOT NULL,
+        file_path          NVARCHAR(500) NOT NULL,
+        file_size          INT,
+        mime_type          NVARCHAR(100),
+        uploaded_at        DATETIME DEFAULT GETDATE()
+      )`);
+    console.log('✅ service_attachments table ready');
+  } catch(e) { console.error('❌ service_attachments error:', e.message); }
+}
+
 // ── GET /api/service-requests/next-job-no ─────────────────
 app.get('/api/service-requests/next-job-no', authRequired, async (request, res) => {
   try {
@@ -5640,8 +5677,9 @@ app.get('/api/public/project/:token', async (request, res) => {
     if (!proj) return res.status(404).json({ error: 'Project not found' });
     const jobs = (await req()
       .input('pid', sql.Int, proj.id)
-      .query(`SELECT id, job_no, request_no, title, serve_type, status, request_date, requester_name,
-                     period_start, period_end, created_at
+      .query(`SELECT id, job_no, request_no, title, serve_type, status, request_date,
+                     requester_name, requester_position, brands, branches,
+                     period_start, period_end, objective, condition, created_at
               FROM service_requests
               WHERE project_id=@pid
               ORDER BY created_at DESC`)).recordset;
@@ -5651,7 +5689,7 @@ app.get('/api/public/project/:token', async (request, res) => {
 
 // ── POST /api/public/project/:token/submit ──────────────────
 // Public: submit a new job into a project (no auth required)
-app.post('/api/public/project/:token/submit', async (request, res) => {
+app.post('/api/public/project/:token/submit', svcPubUpload.array('files', 10), async (request, res) => {
   try {
     const token = request.params.token;
     const proj = (await req()
@@ -5673,8 +5711,8 @@ app.post('/api/public/project/:token/submit', async (request, res) => {
       .input('project_id',        sql.Int,      proj.id)
       .input('job_no',            sql.NVarChar, jobNo)
       .input('serve_type',        sql.NVarChar, b.serve_type||null)
-      .input('brands',            sql.NVarChar, JSON.stringify(b.brands||[]))
-      .input('branches',          sql.NVarChar, JSON.stringify(b.branches||[]))
+      .input('brands',            sql.NVarChar, b.brands||'[]')
+      .input('branches',          sql.NVarChar, b.branches||'[]')
       .input('title',             sql.NVarChar, b.title||null)
       .input('request_no',        sql.NVarChar, b.request_no||null)
       .input('request_date',      sql.Date,     b.request_date?new Date(b.request_date):new Date())
@@ -5692,7 +5730,130 @@ app.post('/api/public/project/:token/submit', async (request, res) => {
         VALUES(@project_id,@job_no,@serve_type,@brands,@branches,@title,@request_no,@request_date,
                @requester_position,@requester_name,@period_start,@period_end,@objective,@condition,@status)`);
     const inserted = result.recordset[0];
+
+    // Handle file uploads
+    if (request.files && request.files.length) {
+      const jobDir = path.join(UPLOAD_DIR, 'svc', String(inserted.id));
+      if (!fs.existsSync(jobDir)) fs.mkdirSync(jobDir, { recursive: true });
+      for (const file of request.files) {
+        const newPath = path.join(jobDir, file.filename);
+        fs.renameSync(file.path, newPath);
+        const relPath = `/uploads/svc/${inserted.id}/${file.filename}`;
+        await req()
+          .input('sid', sql.Int,      inserted.id)
+          .input('fn',  sql.NVarChar, file.originalname)
+          .input('fp',  sql.NVarChar, relPath)
+          .input('fs',  sql.Int,      file.size)
+          .input('mt',  sql.NVarChar, file.mimetype||null)
+          .query(`INSERT INTO service_attachments(service_request_id,file_name,file_path,file_size,mime_type)
+                  VALUES(@sid,@fn,@fp,@fs,@mt)`);
+      }
+    }
     res.json({ ok: true, id: inserted.id, job_no: inserted.job_no });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /api/public/project/:token/jobs/:id ─────────────────
+// Public: get single job + attachments (for edit pre-fill)
+app.get('/api/public/project/:token/jobs/:id', async (request, res) => {
+  try {
+    const token = request.params.token;
+    const id    = parseInt(request.params.id);
+    const proj  = (await req()
+      .input('token', sql.NVarChar, token)
+      .query(`SELECT id FROM service_projects WHERE public_token=@token AND is_active=1`))
+      .recordset[0];
+    if (!proj) return res.status(404).json({ error: 'Project not found' });
+    const job = (await req()
+      .input('id',  sql.Int, id)
+      .input('pid', sql.Int, proj.id)
+      .query(`SELECT id, job_no, request_no, title, serve_type, status,
+                     request_date, requester_name, requester_position, brands, branches,
+                     period_start, period_end, objective, condition
+              FROM service_requests WHERE id=@id AND project_id=@pid`))
+      .recordset[0];
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+    const attachments = (await req()
+      .input('sid', sql.Int, id)
+      .query(`SELECT id, file_name, file_path, file_size FROM service_attachments WHERE service_request_id=@sid ORDER BY uploaded_at`))
+      .recordset;
+    res.json({ ...job, attachments });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── PUT /api/public/project/:token/jobs/:id ──────────────────
+// Public: edit a job only if status is still 'received'
+app.put('/api/public/project/:token/jobs/:id', svcPubUpload.array('files', 10), async (request, res) => {
+  try {
+    const token = request.params.token;
+    const id    = parseInt(request.params.id);
+    const proj  = (await req()
+      .input('token', sql.NVarChar, token)
+      .query(`SELECT id FROM service_projects WHERE public_token=@token AND is_active=1`))
+      .recordset[0];
+    if (!proj) return res.status(404).json({ error: 'Project not found' });
+    const job = (await req()
+      .input('id',  sql.Int, id)
+      .input('pid', sql.Int, proj.id)
+      .query(`SELECT id, status FROM service_requests WHERE id=@id AND project_id=@pid`))
+      .recordset[0];
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+    if (job.status !== 'received') return res.status(403).json({ error: 'ไม่สามารถแก้ไขได้ เนื่องจากมีเจ้าหน้าที่รับงานแล้ว' });
+
+    const b = request.body;
+    await req()
+      .input('id',                 sql.Int,      id)
+      .input('serve_type',         sql.NVarChar, b.serve_type||null)
+      .input('brands',             sql.NVarChar, b.brands||'[]')
+      .input('branches',           sql.NVarChar, b.branches||'[]')
+      .input('title',              sql.NVarChar, b.title||null)
+      .input('request_no',         sql.NVarChar, b.request_no||null)
+      .input('request_date',       sql.Date,     b.request_date?new Date(b.request_date):null)
+      .input('requester_position', sql.NVarChar, b.requester_position||null)
+      .input('requester_name',     sql.NVarChar, b.requester_name||null)
+      .input('period_start',       sql.Date,     b.period_start?new Date(b.period_start):null)
+      .input('period_end',         sql.Date,     b.period_end?new Date(b.period_end):null)
+      .input('objective',          sql.NVarChar, b.objective||null)
+      .input('condition',          sql.NVarChar, b.condition||null)
+      .query(`UPDATE service_requests SET
+        serve_type=@serve_type, brands=@brands, branches=@branches, title=@title,
+        request_no=@request_no, request_date=@request_date, requester_position=@requester_position,
+        requester_name=@requester_name, period_start=@period_start, period_end=@period_end,
+        objective=@objective, condition=@condition
+        WHERE id=@id`);
+
+    // Handle deleted attachments
+    if (b.delete_attachment_ids) {
+      const delIds = String(b.delete_attachment_ids).split(',').map(x=>parseInt(x)).filter(n=>!isNaN(n));
+      for (const aid of delIds) {
+        const row = (await req().input('id',sql.Int,aid).input('sid',sql.Int,id)
+          .query(`SELECT file_path FROM service_attachments WHERE id=@id AND service_request_id=@sid`)).recordset[0];
+        if (row) {
+          try { const fp=path.join(UPLOAD_DIR,row.file_path.replace('/uploads/','')); if(fs.existsSync(fp))fs.unlinkSync(fp); } catch{}
+          await req().input('id',sql.Int,aid).query(`DELETE FROM service_attachments WHERE id=@id`);
+        }
+      }
+    }
+
+    // Handle new file uploads
+    if (request.files && request.files.length) {
+      const jobDir = path.join(UPLOAD_DIR, 'svc', String(id));
+      if (!fs.existsSync(jobDir)) fs.mkdirSync(jobDir, { recursive: true });
+      for (const file of request.files) {
+        const newPath = path.join(jobDir, file.filename);
+        fs.renameSync(file.path, newPath);
+        const relPath = `/uploads/svc/${id}/${file.filename}`;
+        await req()
+          .input('sid', sql.Int,      id)
+          .input('fn',  sql.NVarChar, file.originalname)
+          .input('fp',  sql.NVarChar, relPath)
+          .input('fs',  sql.Int,      file.size)
+          .input('mt',  sql.NVarChar, file.mimetype||null)
+          .query(`INSERT INTO service_attachments(service_request_id,file_name,file_path,file_size,mime_type)
+                  VALUES(@sid,@fn,@fp,@fs,@mt)`);
+      }
+    }
+    res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -6517,6 +6678,7 @@ init().then(async () => {
   await ensureLineNotifyTable();
   await ensureServiceRequestsTable();
   await ensureServiceProjectsTable();
+  await ensureServiceAttachmentsTable();
 
   // Drop CHECK constraint on shifts.shift_type so 'dayoff' can be inserted
   try {
