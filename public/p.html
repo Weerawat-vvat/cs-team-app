@@ -9,21 +9,18 @@
 body{font-family:'Sarabun','Segoe UI',sans-serif;background:#f0f4f8;min-height:100vh}
 :root{--blue:#3b82f6;--blue-dark:#1d4ed8;--border:#e2e8f0;--text:#1e293b;--sub:#94a3b8}
 
-/* Header */
 .hdr{background:linear-gradient(135deg,#1e3a5f,#2563eb);padding:1.1rem 1.25rem;color:#fff;display:flex;align-items:center;gap:.75rem}
 .hdr-icon{font-size:1.6rem}
 .hdr-title{font-size:1.05rem;font-weight:700}
 .hdr-sub{font-size:.75rem;color:#93c5fd;margin-top:.1rem}
 
-/* Tabs */
-.tabs{background:#fff;border-bottom:2px solid var(--border);display:flex;gap:0;position:sticky;top:0;z-index:10}
+.tabs{background:#fff;border-bottom:2px solid var(--border);display:flex;position:sticky;top:0;z-index:10}
 .tab{flex:1;padding:.65rem 1rem;font-size:.85rem;font-weight:700;border:none;background:none;cursor:pointer;color:var(--sub);font-family:inherit;border-bottom:3px solid transparent;transition:.15s;text-align:center}
 .tab.active{color:var(--blue);border-bottom-color:var(--blue)}
 
-/* Content */
 .content{max-width:720px;margin:0 auto;padding:1.25rem 1rem}
 
-/* Status cards */
+/* Job status cards */
 .job-card{background:#fff;border-radius:12px;border:1px solid var(--border);padding:.9rem 1rem;margin-bottom:.65rem;border-left:4px solid #e2e8f0}
 .job-card.received{border-left-color:#3b82f6}
 .job-card.in_progress{border-left-color:#f59e0b}
@@ -39,9 +36,9 @@ body{font-family:'Sarabun','Segoe UI',sans-serif;background:#f0f4f8;min-height:1
 .job-title{font-size:.92rem;font-weight:600;color:var(--text);margin-bottom:.25rem}
 .job-info{font-size:.75rem;color:var(--sub)}
 
-/* Form */
-.card{background:#fff;border-radius:12px;border:1px solid var(--border);margin-bottom:.85rem;overflow:hidden}
-.card-head{padding:.6rem 1rem;background:#fafbfc;border-bottom:1px solid var(--border);font-size:.75rem;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.04em}
+/* Form cards */
+.card{background:#fff;border-radius:12px;border:1px solid var(--border);margin-bottom:.85rem;overflow:visible}
+.card-head{padding:.6rem 1rem;background:#fafbfc;border-bottom:1px solid var(--border);font-size:.75rem;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.04em;border-radius:12px 12px 0 0}
 .card-body{padding:.9rem 1rem;display:flex;flex-direction:column;gap:.65rem}
 .field label{display:block;font-size:.72rem;font-weight:700;color:var(--sub);margin-bottom:.28rem;letter-spacing:.02em}
 .field label .req{color:#ef4444}
@@ -52,6 +49,44 @@ body{font-family:'Sarabun','Segoe UI',sans-serif;background:#f0f4f8;min-height:1
 .period-wrap{display:flex;align-items:center;gap:.4rem}
 .period-wrap input{flex:1}
 .period-wrap span{color:var(--sub);flex-shrink:0}
+
+/* ── Multi-select combo ── */
+.combo-box{position:relative}
+.combo-input-row{
+  min-height:38px;border:1.5px solid var(--border);border-radius:8px;
+  background:#fff;padding:.3rem .5rem;display:flex;flex-wrap:wrap;gap:.3rem;
+  align-items:center;cursor:text;transition:.15s;
+}
+.combo-input-row:focus-within{border-color:var(--blue);box-shadow:0 0 0 3px #dbeafe60}
+.combo-chip{
+  display:inline-flex;align-items:center;gap:.25rem;
+  background:#dbeafe;color:#1d4ed8;border-radius:6px;
+  padding:.15rem .45rem .15rem .55rem;font-size:.78rem;font-weight:600;
+}
+.combo-chip button{background:none;border:none;cursor:pointer;color:#3b82f6;font-size:.85rem;line-height:1;padding:0}
+.combo-chip button:hover{color:#b91c1c}
+.combo-search{border:none;outline:none;font-size:.82rem;min-width:90px;flex:1;background:transparent;font-family:inherit;padding:.1rem .2rem;color:var(--text)}
+.combo-drop{
+  position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:100;
+  background:#fff;border:1.5px solid var(--border);border-radius:10px;
+  box-shadow:0 8px 24px rgba(0,0,0,.1);max-height:200px;overflow-y:auto;display:none;
+}
+.combo-opt{padding:.48rem .75rem;font-size:.83rem;cursor:pointer;color:var(--text);display:flex;align-items:center;gap:.5rem;transition:.1s}
+.combo-opt:hover{background:#f0f9ff}
+.combo-opt.selected{color:#1d4ed8;font-weight:600}
+.combo-opt .chk{font-size:.85rem;color:#3b82f6;width:16px}
+
+/* ── Single autocomplete ── */
+.ac-box{position:relative}
+.ac-drop{
+  position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:100;
+  background:#fff;border:1.5px solid var(--border);border-radius:10px;
+  box-shadow:0 8px 24px rgba(0,0,0,.1);max-height:160px;overflow-y:auto;display:none;
+}
+.ac-opt{padding:.45rem .75rem;font-size:.83rem;cursor:pointer;color:var(--text);transition:.1s}
+.ac-opt:hover{background:#f0f9ff;color:#1d4ed8}
+
+/* Buttons */
 .btn{border:none;border-radius:8px;padding:.55rem 1.2rem;font-size:.85rem;font-weight:700;cursor:pointer;font-family:inherit;transition:.15s}
 .btn-primary{background:var(--blue);color:#fff;width:100%}
 .btn-primary:hover{background:var(--blue-dark)}
@@ -65,7 +100,6 @@ body{font-family:'Sarabun','Segoe UI',sans-serif;background:#f0f4f8;min-height:1
 .success-sub{font-size:.8rem;color:#64748b;margin-top:.4rem}
 .btn-reset{background:var(--blue);color:#fff;border:none;border-radius:8px;padding:.5rem 1.2rem;font-size:.85rem;font-weight:700;cursor:pointer;margin-top:1rem}
 
-/* Loading/empty */
 .empty{text-align:center;padding:3rem 1rem;color:var(--sub)}
 .empty-icon{font-size:2.5rem;margin-bottom:.5rem}
 .loading{text-align:center;padding:2rem;color:var(--sub)}
@@ -95,7 +129,6 @@ body{font-family:'Sarabun','Segoe UI',sans-serif;background:#f0f4f8;min-height:1
 <!-- FORM TAB -->
 <div class="content" id="panel-form" style="display:none">
 
-  <!-- Success -->
   <div class="success-box" id="success-box">
     <div class="success-icon">✅</div>
     <div class="success-title">ส่งคำขอเรียบร้อยแล้ว!</div>
@@ -105,7 +138,6 @@ body{font-family:'Sarabun','Segoe UI',sans-serif;background:#f0f4f8;min-height:1
     <button class="btn-reset" onclick="resetForm()">📤 แจ้งงานใหม่อีกครั้ง</button>
   </div>
 
-  <!-- Form -->
   <div id="form-wrap">
     <!-- Serve Type -->
     <div class="card">
@@ -126,18 +158,43 @@ body{font-family:'Sarabun','Segoe UI',sans-serif;background:#f0f4f8;min-height:1
     <div class="card">
       <div class="card-head">📋 ข้อมูลคำขอ</div>
       <div class="card-body">
+
+        <!-- Brand multi-select -->
         <div class="field">
           <label>แบรนด์ <span class="req">*</span></label>
-          <input id="f-brand" type="text" placeholder="ชื่อแบรนด์"/>
+          <div class="combo-box" id="brand-box">
+            <div class="combo-input-row" id="brand-row" onclick="focusCombo('brand')">
+              <input id="brand-search" class="combo-search" placeholder="พิมพ์หรือเลือกแบรนด์..."
+                autocomplete="off"
+                oninput="filterCombo('brand',this.value)"
+                onfocus="openDrop('brand-drop')"
+                onkeydown="comboKey(event,'brand')"/>
+            </div>
+            <div class="combo-drop" id="brand-drop"></div>
+          </div>
         </div>
+
+        <!-- Branch multi-select -->
         <div class="field">
           <label>สาขา <span class="req">*</span></label>
-          <input id="f-branch" type="text" placeholder="ชื่อสาขา หรือ ทุกสาขา"/>
+          <div class="combo-box" id="branch-box">
+            <div class="combo-input-row" id="branch-row" onclick="focusCombo('branch')">
+              <input id="branch-search" class="combo-search" placeholder="พิมพ์หรือเลือกสาขา..."
+                autocomplete="off"
+                oninput="filterCombo('branch',this.value)"
+                onfocus="openDrop('branch-drop')"
+                onkeydown="comboKey(event,'branch')"/>
+            </div>
+            <div class="combo-drop" id="branch-drop"></div>
+          </div>
         </div>
+
+        <!-- Title -->
         <div class="field">
           <label>ชื่อ / Title <span class="req">*</span></label>
           <input id="f-title" type="text" placeholder="ระบุชื่อโปรโมชัน / คำขอ..."/>
         </div>
+
         <div class="row-2">
           <div class="field">
             <label>Request No.</label>
@@ -156,9 +213,17 @@ body{font-family:'Sarabun','Segoe UI',sans-serif;background:#f0f4f8;min-height:1
       <div class="card-head">👥 ผู้ขอ / Team</div>
       <div class="card-body">
         <div class="row-2">
+          <!-- Position autocomplete -->
           <div class="field">
             <label>ตำแหน่ง</label>
-            <input id="f-position" type="text" placeholder="เช่น Manager"/>
+            <div class="ac-box">
+              <input id="f-position" type="text" placeholder="เช่น Manager"
+                autocomplete="off"
+                oninput="filterAc('position-drop',this.value)"
+                onfocus="filterAc('position-drop',this.value)"
+                onblur="setTimeout(()=>closeDrop('position-drop'),200)"/>
+              <div class="ac-drop" id="position-drop"></div>
+            </div>
           </div>
           <div class="field">
             <label>ชื่อ-สกุล <span class="req">*</span></label>
@@ -200,6 +265,12 @@ const params = new URLSearchParams(location.search);
 const TOKEN  = params.get('t') || '';
 let PROJECT  = null;
 
+// Suggestion lists (populated from project's existing jobs)
+const _suggestions = { brand: [], branch: [], position: [] };
+
+// Multi-select state
+const _selected = { brand: [], branch: [] };
+
 const STATUS_LABEL = {
   received:    '📥 รับเรื่อง',
   in_progress: '⚙️ กำลังทำ',
@@ -207,22 +278,143 @@ const STATUS_LABEL = {
   delivered:   '✅ ส่งมอบ',
 };
 
+/* ────────────────────────────────────────────────
+   Init
+──────────────────────────────────────────────── */
 async function init(){
   if(!TOKEN){ document.getElementById('proj-name').textContent='ลิงค์ไม่ถูกต้อง'; return; }
   try {
     const data = await fetch(`/api/public/project/${TOKEN}`).then(r=>r.json());
     if(data.error){ document.getElementById('proj-name').textContent='ไม่พบ Project'; return; }
     PROJECT = data.project;
-    document.getElementById('proj-name').textContent = PROJECT.name;
-    document.getElementById('proj-desc').textContent = PROJECT.description || 'Project Portal';
+    document.getElementById('proj-name').textContent  = PROJECT.name;
+    document.getElementById('proj-desc').textContent  = PROJECT.description || 'Project Portal';
     document.title = PROJECT.name + ' — Portal';
     renderJobs(data.jobs);
+    buildSuggestions(data.jobs);
     document.getElementById('status-loading').style.display='none';
   } catch(e){
     document.getElementById('proj-name').textContent='เกิดข้อผิดพลาด';
   }
 }
 
+/* ────────────────────────────────────────────────
+   Build suggestion lists from existing jobs
+──────────────────────────────────────────────── */
+function buildSuggestions(jobs){
+  const brands = new Set(), branches = new Set(), positions = new Set();
+  (jobs||[]).forEach(j=>{
+    try { JSON.parse(j.brands||'[]').forEach(b=>b&&brands.add(b)); } catch(e){}
+    try { JSON.parse(j.branches||'[]').forEach(b=>b&&branches.add(b)); } catch(e){}
+    if(j.requester_position) positions.add(j.requester_position);
+  });
+  _suggestions.brand    = [...brands].sort();
+  _suggestions.branch   = [...branches].sort();
+  _suggestions.position = [...positions].sort();
+  renderDrop('brand',  '');
+  renderDrop('branch', '');
+}
+
+/* ────────────────────────────────────────────────
+   Multi-select combo
+──────────────────────────────────────────────── */
+function renderDrop(key, q){
+  const drop = document.getElementById(key+'-drop');
+  if(!drop) return;
+  const q2 = q.toLowerCase();
+  let opts = _suggestions[key].filter(s=>!q2||s.toLowerCase().includes(q2));
+  // Also add typed value if not in list
+  if(q && !_suggestions[key].some(s=>s.toLowerCase()===q2))
+    opts = [{label:q+'  (เพิ่มใหม่)', value:q, isNew:true}, ...opts];
+  if(!opts.length){ drop.style.display='none'; return; }
+  drop.innerHTML = opts.map(o=>{
+    const val   = typeof o==='object' ? o.value : o;
+    const label = typeof o==='object' ? o.label : o;
+    const sel   = _selected[key].includes(val);
+    return `<div class="combo-opt${sel?' selected':''}" onmousedown="toggleCombo('${key}','${val.replace(/'/g,"\\'")}')">`+
+      `<span class="chk">${sel?'✓':''}</span>${esc(label)}</div>`;
+  }).join('');
+  drop.style.display='';
+}
+
+function filterCombo(key, q){ renderDrop(key, q); openDrop(key+'-drop'); }
+
+function openDrop(id){ const d=document.getElementById(id); if(d) d.style.display=''; }
+function closeDrop(id){ const d=document.getElementById(id); if(d) d.style.display='none'; }
+
+function focusCombo(key){ document.getElementById(key+'-search').focus(); }
+
+function toggleCombo(key, val){
+  const idx = _selected[key].indexOf(val);
+  if(idx>=0) _selected[key].splice(idx,1); else _selected[key].push(val);
+  renderChips(key);
+  renderDrop(key, document.getElementById(key+'-search').value);
+  document.getElementById(key+'-search').focus();
+}
+
+function removeChip(key, val){
+  _selected[key] = _selected[key].filter(v=>v!==val);
+  renderChips(key);
+  renderDrop(key, '');
+}
+
+function renderChips(key){
+  const row = document.getElementById(key+'-row');
+  const inp = document.getElementById(key+'-search');
+  if(!row||!inp) return;
+  row.querySelectorAll('.combo-chip').forEach(c=>c.remove());
+  _selected[key].forEach(val=>{
+    const chip = document.createElement('span');
+    chip.className = 'combo-chip';
+    chip.innerHTML = esc(val)+` <button type="button" onmousedown="event.preventDefault();removeChip('${key}','${val.replace(/'/g,"\\'")}')">×</button>`;
+    row.insertBefore(chip, inp);
+  });
+  inp.value='';
+}
+
+function comboKey(e, key){
+  // Enter = add typed value
+  if(e.key==='Enter' && document.getElementById(key+'-search').value.trim()){
+    e.preventDefault();
+    const v = document.getElementById(key+'-search').value.trim();
+    if(!_selected[key].includes(v)) _selected[key].push(v);
+    renderChips(key);
+    closeDrop(key+'-drop');
+  }
+}
+
+// Close dropdowns when clicking outside
+document.addEventListener('click', e=>{
+  ['brand','branch'].forEach(key=>{
+    const box=document.getElementById(key+'-box');
+    if(box&&!box.contains(e.target)) closeDrop(key+'-drop');
+  });
+});
+
+/* ────────────────────────────────────────────────
+   Single autocomplete (Position)
+──────────────────────────────────────────────── */
+function filterAc(dropId, q){
+  const drop = document.getElementById(dropId);
+  if(!drop) return;
+  const q2 = q.toLowerCase();
+  const opts = _suggestions.position.filter(s=>!q2||s.toLowerCase().includes(q2));
+  if(!opts.length){ drop.style.display='none'; return; }
+  drop.innerHTML = opts.map(s=>
+    `<div class="ac-opt" onmousedown="pickAc('f-position','${s.replace(/'/g,"\\'")}','${dropId}')">${esc(s)}</div>`
+  ).join('');
+  drop.style.display='';
+}
+
+function pickAc(inputId, val, dropId){
+  const el = document.getElementById(inputId);
+  if(el) el.value = val;
+  closeDrop(dropId);
+}
+
+/* ────────────────────────────────────────────────
+   Status board
+──────────────────────────────────────────────── */
 function renderJobs(jobs){
   const el = document.getElementById('job-list');
   if(!jobs||!jobs.length){
@@ -233,24 +425,27 @@ function renderJobs(jobs){
     const dt = j.request_date
       ? new Date(j.request_date).toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'})
       : new Date(j.created_at).toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'});
-    const stypeLabel = j.serve_type==='quick_sale'?'⚡ ขายด่วน':'🎯 โปรฯ/คูปอง';
-    const periodStr = j.period_start&&j.period_end
+    const stLabel = j.serve_type==='quick_sale'?'⚡ ขายด่วน':'🎯 โปรฯ/คูปอง';
+    const period  = j.period_start&&j.period_end
       ? ` · ${new Date(j.period_start).toLocaleDateString('th-TH',{day:'2-digit',month:'short'})} → ${new Date(j.period_end).toLocaleDateString('th-TH',{day:'2-digit',month:'short'})}`
       : '';
     return `
       <div class="job-card ${j.status||'received'}">
         <div class="job-meta">
           <span class="job-no">${esc(j.job_no||'—')}</span>
-          <span class="status-badge ${j.status||'received'}">${STATUS_LABEL[j.status]||j.status||'รับเรื่อง'}</span>
+          <span class="status-badge ${j.status||'received'}">${STATUS_LABEL[j.status]||'รับเรื่อง'}</span>
         </div>
         <div class="job-title">${esc(j.title||'(ไม่มีชื่อ)')}</div>
-        <div class="job-info">${stypeLabel} · ${esc(j.requester_name||'—')} · ${dt}${esc(periodStr)}</div>
+        <div class="job-info">${stLabel} · ${esc(j.requester_name||'—')} · ${dt}${esc(period)}</div>
       </div>`;
   }).join('');
 }
 
-function esc(s){ const d=document.createElement('div');d.textContent=s;return d.innerHTML; }
+function esc(s){ const d=document.createElement('div');d.textContent=String(s);return d.innerHTML; }
 
+/* ────────────────────────────────────────────────
+   Tabs
+──────────────────────────────────────────────── */
 function switchTab(t){
   document.getElementById('panel-status').style.display = t==='status'?'':'none';
   document.getElementById('panel-form').style.display   = t==='form'?'':'none';
@@ -262,18 +457,21 @@ function switchTab(t){
 async function refreshJobs(){
   try {
     const data = await fetch(`/api/public/project/${TOKEN}`).then(r=>r.json());
-    if(data.jobs) renderJobs(data.jobs);
+    if(data.jobs){ renderJobs(data.jobs); buildSuggestions(data.jobs); }
   } catch(e){}
 }
 
+/* ────────────────────────────────────────────────
+   Submit
+──────────────────────────────────────────────── */
 async function submitForm(){
   const gv = id => document.getElementById(id)?.value.trim()||'';
-  if(!gv('f-serve-type')){ alert('กรุณาเลือกประเภทคำขอ'); return; }
-  if(!gv('f-brand')){ alert('กรุณาระบุแบรนด์'); return; }
-  if(!gv('f-branch')){ alert('กรุณาระบุสาขา'); return; }
-  if(!gv('f-title')){ alert('กรุณาระบุชื่อ / Title'); return; }
-  if(!gv('f-date')){ alert('กรุณาระบุวันที่'); return; }
-  if(!gv('f-name')){ alert('กรุณาระบุชื่อ-สกุลผู้ขอ'); return; }
+  if(!gv('f-serve-type'))               { alert('กรุณาเลือกประเภทคำขอ'); return; }
+  if(!_selected.brand.length)           { alert('กรุณาระบุแบรนด์อย่างน้อย 1 รายการ'); return; }
+  if(!_selected.branch.length)          { alert('กรุณาระบุสาขาอย่างน้อย 1 รายการ'); return; }
+  if(!gv('f-title'))                    { alert('กรุณาระบุชื่อ / Title'); return; }
+  if(!gv('f-date'))                     { alert('กรุณาระบุวันที่'); return; }
+  if(!gv('f-name'))                     { alert('กรุณาระบุชื่อ-สกุลผู้ขอ'); return; }
   if(!gv('f-period-start')||!gv('f-period-end')){ alert('กรุณาระบุช่วงเวลา Period'); return; }
 
   const btn = document.getElementById('submit-btn');
@@ -281,8 +479,8 @@ async function submitForm(){
   try {
     const payload = {
       serve_type:          gv('f-serve-type'),
-      brands:              [gv('f-brand')],
-      branches:            [gv('f-branch')],
+      brands:              [..._selected.brand],
+      branches:            [..._selected.branch],
       title:               gv('f-title'),
       request_no:          gv('f-request-no')||null,
       request_date:        gv('f-date'),
@@ -293,9 +491,8 @@ async function submitForm(){
       objective:           gv('f-objective')||null,
       condition:           gv('f-condition')||null,
     };
-    const res = await fetch(`/api/public/project/${TOKEN}/submit`, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
+    const res = await fetch(`/api/public/project/${TOKEN}/submit`,{
+      method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify(payload)
     }).then(r=>r.json());
     if(res.ok){
@@ -307,18 +504,21 @@ async function submitForm(){
   btn.disabled=false; btn.textContent='📤 ส่งคำขอ';
 }
 
+/* ────────────────────────────────────────────────
+   Reset
+──────────────────────────────────────────────── */
 function resetForm(){
-  ['f-serve-type','f-brand','f-branch','f-title','f-request-no','f-date',
+  _selected.brand=[]; _selected.branch=[];
+  renderChips('brand'); renderChips('branch');
+  ['f-serve-type','f-title','f-request-no','f-date',
    'f-position','f-name','f-period-start','f-period-end','f-objective','f-condition']
     .forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
-  // Set today
-  const today=new Date().toISOString().slice(0,10);
-  document.getElementById('f-date').value=today;
+  document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
   document.getElementById('form-wrap').style.display='';
   document.getElementById('success-box').style.display='none';
 }
 
-// Init date
+// Set today's date
 document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
 init();
 </script>
