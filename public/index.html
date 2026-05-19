@@ -13010,10 +13010,10 @@ function svcRenderTable(rows){
       : 'background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd';
     return `<tr>
       <td><span style="display:inline-block;padding:.1rem .5rem;border-radius:20px;font-size:.7rem;font-weight:700;white-space:nowrap;${rtypeStyle}">${r.request_type==='menu'?'📋 เมนูใหม่':'🎫 คูปอง/โปรฯ'}</span></td>
-      <td><code style="font-size:.78rem;background:#f1f5f9;padding:.1rem .3rem;border-radius:4px">${r.coupon_code||'—'}</code></td>
+      <td>${r.request_type==='menu'?'<span style="color:#94a3b8;font-size:.78rem">—</span>':`<code style="font-size:.78rem;background:#f1f5f9;padding:.1rem .3rem;border-radius:4px">${escHtml(r.coupon_code||'—')}</code>`}</td>
       <td style="font-weight:600;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(r.promo_name||'(ไม่มีชื่อ)')}</td>
       <td style="max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.82rem">${escHtml(brands)}</td>
-      <td style="font-size:.82rem">${SVC_CTYPE_LABEL[r.coupon_type]||r.coupon_type||'—'}</td>
+      <td style="font-size:.82rem">${r.request_type==='menu'?'<span style="color:#94a3b8">—</span>':(SVC_CTYPE_LABEL[r.coupon_type]||r.coupon_type||'—')}</td>
       <td>
         <select onchange="svcUpdateStatus(${r.id},this.value)"
           style="font-size:.75rem;padding:.22rem .5rem;border-radius:20px;border:1.5px solid ${m.col||'#e2e8f0'}55;outline:none;cursor:pointer;font-family:inherit;background:${m.bg||'#f8fafc'};color:${m.col||'#475569'};font-weight:600">
@@ -13057,8 +13057,8 @@ function svcKanbanCard(r,col){
     <div class="svc-kanban-card" onclick="svcOpenDetail(${r.id})"
       style="background:#fff;border-radius:8px;padding:.55rem .65rem;box-shadow:0 1px 3px rgba(0,0,0,.07);cursor:pointer;border-left:3px solid ${col.col};user-select:none">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.2rem">
-        <span style="font-size:.73rem;font-weight:700;color:${col.col};font-family:monospace">${escHtml(r.coupon_code||'—')}</span>
-        <span style="font-size:.65rem;font-weight:700;padding:.05rem .35rem;border-radius:10px;${r.request_type==='menu'?'background:#d1fae5;color:#065f46':'background:#dbeafe;color:#1d4ed8'}">${r.request_type==='menu'?'📋 เมนูใหม่':'🎫 คูปอง/โปรฯ'}</span>
+        ${r.request_type==='menu'?'':'<span style="font-size:.73rem;font-weight:700;color:'+col.col+';font-family:monospace">'+escHtml(r.coupon_code||'—')+'</span>'}
+        <span style="font-size:.65rem;font-weight:700;padding:.05rem .35rem;border-radius:10px;margin-left:auto;${r.request_type==='menu'?'background:#d1fae5;color:#065f46':'background:#dbeafe;color:#1d4ed8'}">${r.request_type==='menu'?'📋 เมนูใหม่':'🎫 คูปอง/โปรฯ'}</span>
       </div>
       <div style="font-size:.83rem;font-weight:600;color:#1e293b;margin-bottom:.15rem;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${escHtml(r.promo_name||'(ไม่มีชื่อ)')}</div>
       <div style="font-size:.72rem;color:#64748b;margin-bottom:.25rem;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${escHtml(brands)}</div>
@@ -13394,46 +13394,59 @@ async function svcSubmit(){
   } else { alert('เกิดข้อผิดพลาด: '+(res?.error||'unknown')); }
 }
 
-// ── Detail modal (editable) ──────────────────────────────────
+// ── Detail modal (editable, type-aware) ─────────────────────
 async function svcOpenDetail(id){
-  const rows = await api('/api/service-requests');
-  if(!rows) return;
-  let r = rows.find(x=>x.id===id);
-  if(!r){ const all=await api('/api/service-requests'); r=all&&all.find(x=>x.id===id); }
+  // ดึงข้อมูลจาก cache ก่อน ถ้าไม่มีค่อย fetch
+  let r = _svcAllRows.find(x=>x.id===id);
+  if(!r){
+    const all = await api('/api/service-requests');
+    r = all && all.find(x=>x.id===id);
+  }
   if(!r) return;
 
+  const isMenu    = r.request_type === 'menu';
   const brands    = svcParseJSON(r.brands,[]).join(', ')||'—';
-  const saleTypes = svcParseJSON(r.sale_types,[]).map(t=>({dine_in:'ทานที่ร้าน',takeaway:'ซื้อกลับบ้าน',delivery:'Delivery'}[t]||t)).join(', ')||'—';
-  const cd        = svcParseJSON(r.coupon_details,{});
-  const canCombine= svcParseJSON(r.can_combine,[]);
-  const cgrps     = svcParseJSON(r.customer_groups,[]).join(', ')||'—';
-  let discDetail='—';
-  if(r.coupon_type==='fixed')      discDetail=`💵 เงินสด ${cd.amount||0} บาท`;
-  else if(r.coupon_type==='discount'){
-    if(cd.mode==='pct') discDetail=`🏷️ ลด ${cd.pct||0}% (สูงสุด ${cd.max||'ไม่จำกัด'} บาท)`;
-    else                discDetail=`🏷️ ลด ${cd.amount||0} บาท`;
-  } else if(r.coupon_type==='redeem') discDetail=`🎁 แลกซื้อราคา ${cd.price||0} บาท`;
-
-  const statusOpts = SVC_STATUSES.map(s=>`<option value="${s.key}"${r.status===s.key?' selected':''}>${s.label}</option>`).join('');
-  const curS = SVC_STATUSES.find(s=>s.key===r.status)||{bg:'#f1f5f9',col:'#64748b'};
-
-  const rtLabel = r.request_type==='menu' ? '📋 เพิ่มเมนูใหม่' : '🎫 สร้างคูปอง/โปรฯ';
-  const rtBadgeStyle = r.request_type==='menu'
+  const branchTxt = r.branch_scope==='all' ? 'ทุกสาขา' : escHtml(svcParseJSON(r.branches,[]).join(', ')||'—');
+  const statusOpts= SVC_STATUSES.map(s=>`<option value="${s.key}"${r.status===s.key?' selected':''}>${s.label}</option>`).join('');
+  const curS      = SVC_STATUSES.find(s=>s.key===r.status)||{bg:'#f1f5f9',col:'#64748b'};
+  const rtLabel   = isMenu ? '📋 เพิ่มเมนูใหม่' : '🎫 สร้างคูปอง/โปรฯ';
+  const rtStyle   = isMenu
     ? 'background:#d1fae5;color:#065f46;border:1px solid #6ee7b7'
     : 'background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd';
+
   document.getElementById('svc-detail-title').innerHTML=
-    `🛎️ ${escHtml(r.promo_name||'(ไม่มีชื่อ)')} <span style="font-size:.72rem;font-weight:700;padding:.1rem .55rem;border-radius:20px;vertical-align:middle;${rtBadgeStyle}">${rtLabel}</span> <button class="modal-close" onclick="closeModal('modal-svc-detail')">×</button>`;
+    `🛎️ ${escHtml(r.promo_name||'(ไม่มีชื่อ)')} <span style="font-size:.72rem;font-weight:700;padding:.1rem .55rem;border-radius:20px;vertical-align:middle;${rtStyle}">${rtLabel}</span> <button class="modal-close" onclick="closeModal('modal-svc-detail')">×</button>`;
 
-  document.getElementById('svc-detail-body').innerHTML=`
-    <div style="display:flex;flex-direction:column;gap:.75rem;padding:.25rem 0">
+  // ── Section: แบรนด์ / สาขา (แสดงทุก type) ──
+  const secBrand = `
+    <div class="svc-card">
+      <div class="svc-section-head">แบรนด์ / สาขา</div>
+      <div style="font-size:.84rem"><b>แบรนด์:</b> ${escHtml(brands)}</div>
+      <div style="font-size:.84rem;margin-top:.25rem"><b>ขอบเขต:</b> ${branchTxt}</div>
+    </div>`;
 
-      <!-- Info cards (read-only) -->
-      <div class="svc-card">
-        <div class="svc-section-head">แบรนด์ / สาขา</div>
-        <div style="font-size:.84rem"><b>แบรนด์:</b> ${escHtml(brands)}</div>
-        <div style="font-size:.84rem;margin-top:.25rem"><b>ขอบเขต:</b> ${r.branch_scope==='all'?'ทุกสาขา':escHtml(svcParseJSON(r.branches,[]).join(', ')||'—')}</div>
+  // ── Section: ข้อมูลเมนู (เฉพาะ menu type) ──
+  const secMenu = isMenu ? `
+    <div class="svc-card">
+      <div class="svc-section-head">ข้อมูลเมนู</div>
+      <div style="font-size:.84rem;display:flex;flex-direction:column;gap:.3rem">
+        <div><b>ชื่อ:</b> ${escHtml(r.promo_name||'—')}</div>
+        ${r.promo_detail?`<div><b>รายละเอียด:</b> ${escHtml(r.promo_detail)}</div>`:''}
       </div>
+    </div>` : '';
 
+  // ── Section: คูปอง / โปรโมชัน (เฉพาะ coupon type) ──
+  let secCoupon = '';
+  if(!isMenu){
+    const saleTypes = svcParseJSON(r.sale_types,[]).map(t=>({dine_in:'ทานที่ร้าน',takeaway:'ซื้อกลับบ้าน',delivery:'Delivery'}[t]||t)).join(', ')||'—';
+    const cd = svcParseJSON(r.coupon_details,{});
+    let discDetail = '—';
+    if(r.coupon_type==='fixed')      discDetail=`💵 เงินสด ${cd.amount||0} บาท`;
+    else if(r.coupon_type==='discount'){
+      if(cd.mode==='pct') discDetail=`🏷️ ลด ${cd.pct||0}% (สูงสุด ${cd.max||'ไม่จำกัด'} บาท)`;
+      else                discDetail=`🏷️ ลด ${cd.amount||0} บาท`;
+    } else if(r.coupon_type==='redeem') discDetail=`🎁 แลกซื้อราคา ${cd.price||0} บาท`;
+    secCoupon = `
       <div class="svc-card">
         <div class="svc-section-head">คูปอง / โปรโมชัน</div>
         <div style="font-size:.84rem;display:grid;grid-template-columns:1fr 1fr;gap:.4rem .8rem">
@@ -13446,8 +13459,15 @@ async function svcOpenDetail(id){
           <div><b>เริ่มใช้งาน:</b> ${r.start_date||'—'} ${r.start_time||''}</div>
           <div><b>หมดอายุ:</b> ${r.expiry_type==='none'?'ไม่หมดอายุ':r.expiry_type==='date'?(r.expiry_date||'—'):`${r.expiry_days||'?'} วัน`}</div>
         </div>
-      </div>
+      </div>`;
+  }
 
+  // ── Section: เงื่อนไข (เฉพาะ coupon type) ──
+  let secCond = '';
+  if(!isMenu){
+    const canCombine = svcParseJSON(r.can_combine,[]);
+    const cgrps      = svcParseJSON(r.customer_groups,[]).join(', ')||'—';
+    secCond = `
       <div class="svc-card">
         <div class="svc-section-head">เงื่อนไข</div>
         <div style="font-size:.84rem;display:grid;grid-template-columns:1fr 1fr;gap:.4rem .8rem">
@@ -13458,23 +13478,33 @@ async function svcOpenDetail(id){
           <div style="grid-column:1/-1"><b>กลุ่มลูกค้า:</b> ${escHtml(cgrps)}</div>
           ${r.condition?`<div style="grid-column:1/-1"><b>เงื่อนไขการจัดจำหน่าย:</b> ${escHtml(r.condition)}</div>`:''}
         </div>
-      </div>
+      </div>`;
+  }
 
-      ${r.attachment_name?`<div class="svc-card"><div class="svc-section-head">ไฟล์</div><div style="font-size:.84rem">📎 ${escHtml(r.attachment_name)}</div></div>`:''}
-      ${r.pilot_store?`<div class="svc-card"><div class="svc-section-head">นัดหมายทดสอบ</div><div style="font-size:.84rem"><b>Pilot Store:</b> ${escHtml(r.pilot_store)}</div></div>`:''}
+  // ── Section: ไฟล์ + นัดหมาย (แสดงทุก type ถ้ามีข้อมูล) ──
+  const secFile  = r.attachment_name ? `<div class="svc-card"><div class="svc-section-head">ไฟล์</div><div style="font-size:.84rem">📎 ${escHtml(r.attachment_name)}</div></div>` : '';
+  const secPilot = r.pilot_store     ? `<div class="svc-card"><div class="svc-section-head">นัดหมายทดสอบ</div><div style="font-size:.84rem"><b>Pilot Store:</b> ${escHtml(r.pilot_store)}</div></div>` : '';
 
-      <!-- Editable section -->
+  document.getElementById('svc-detail-body').innerHTML=`
+    <div style="display:flex;flex-direction:column;gap:.75rem;padding:.25rem 0">
+      ${secBrand}
+      ${secMenu}
+      ${secCoupon}
+      ${secCond}
+      ${secFile}
+      ${secPilot}
+
+      <!-- ✏️ แก้ไข -->
       <div class="svc-card" style="border:1.5px solid #bfdbfe;background:#f0f7ff">
         <div class="svc-section-head" style="border-color:#2563eb;color:#1d4ed8">✏️ แก้ไข</div>
-
         <div style="margin-bottom:.65rem">
           <label class="svc-lbl">สถานะ</label>
-          <select id="svc-det-status" style="width:100%;background:${curS.bg};color:${curS.col};font-weight:700;border:1.5px solid ${curS.col}40;border-radius:8px;padding:.4rem .7rem;font-size:.85rem;font-family:inherit;outline:none;cursor:pointer"
+          <select id="svc-det-status"
+            style="width:100%;background:${curS.bg};color:${curS.col};font-weight:700;border:1.5px solid ${curS.col}40;border-radius:8px;padding:.4rem .7rem;font-size:.85rem;font-family:inherit;outline:none;cursor:pointer"
             onchange="const s=SVC_STATUSES.find(x=>x.key===this.value)||{bg:'#f1f5f9',col:'#64748b'};this.style.background=s.bg;this.style.color=s.col;this.style.borderColor=s.col+'40'">
             ${statusOpts}
           </select>
         </div>
-
         <div>
           <label class="svc-lbl">หมายเหตุ / Note</label>
           <textarea id="svc-det-note" rows="3" style="width:100%;resize:vertical" placeholder="เพิ่มหมายเหตุหรือบันทึกเพิ่มเติม...">${escHtml(r.note||'')}</textarea>
@@ -13491,7 +13521,6 @@ async function svcOpenDetail(id){
           <button class="btn btn-primary btn-sm" onclick="svcSaveDetail(${r.id})">💾 บันทึก</button>
         </div>
       </div>
-
     </div>`;
 
   openModal('modal-svc-detail');
