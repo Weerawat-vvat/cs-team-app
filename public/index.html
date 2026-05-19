@@ -13531,7 +13531,9 @@ async function svcSaveDetail(id){
     const fd = new FormData();
     fd.append('stage', status);
     _svcProofFiles.forEach(f=>fd.append('files',f));
-    const upRes = await fetch(`/api/service-requests/${id}/stage-files`,{method:'POST',body:fd}).then(r=>r.json());
+    const upHeaders = {};
+    if(authToken) upHeaders['Authorization'] = 'Bearer ' + authToken;
+    const upRes = await fetch(`/api/service-requests/${id}/stage-files`,{method:'POST',headers:upHeaders,body:fd}).then(r=>r.json());
     if(!upRes?.ok){ showToast('อัปโหลดไฟล์ไม่สำเร็จ: '+(upRes?.error||''),'error'); return; }
     _svcProofFiles = [];
     renderSvcProofFileList();
