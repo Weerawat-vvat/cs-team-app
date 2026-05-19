@@ -3498,6 +3498,7 @@ function showPage(name, btn) {
   }
   if (name === 'followup') { fuLoadSidebar(); }
   if (name === 'service')  {
+    svcUpdateNavBadge(0); // clear badge when entering service page
     // init date range to "เดือนนี้" on first open
     const df = document.getElementById('svc-date-from');
     if(df && !df.value) svcRange('thismonth', document.querySelector('#svc-drb .drb-btn'));
@@ -5730,6 +5731,10 @@ function applyUserContext() {
     // Poll every 60s for new customer messages
     clearInterval(_repairPollTimer);
     _repairPollTimer = setInterval(pollRepairMessages, 30000);
+    // Service badge poll
+    svcPollBadge();
+    clearInterval(_svcBadgePollTimer);
+    _svcBadgePollTimer = setInterval(svcPollBadge, 60000);
     // Follow Up badge
     fuPollBadge();
     setInterval(fuPollBadge, 60000);
@@ -12928,6 +12933,7 @@ let _svcProjects = [];
 let _svcActiveProject = null; // null = all jobs
 let _svcProofFiles = [];      // pending proof files for stage upload
 let _svcReceivedCount = 0;    // jobs with status='received' → nav badge
+let _svcBadgePollTimer = null;
 
 function svcUpdateNavBadge(count) {
   _svcReceivedCount = count;
@@ -12935,6 +12941,15 @@ function svcUpdateNavBadge(count) {
   if (!el) return;
   if (count > 0) { el.textContent = count; el.style.display = ''; }
   else el.style.display = 'none';
+}
+
+async function svcPollBadge() {
+  try {
+    const onPage = document.getElementById('page-service')?.classList.contains('active');
+    if (onPage) { svcUpdateNavBadge(0); return; }
+    const rows = await api('/api/service-requests?status=received', { silent: true });
+    svcUpdateNavBadge(Array.isArray(rows) ? rows.length : 0);
+  } catch(e) {}
 }
 
 async function svcOpenProjects(){
