@@ -1970,29 +1970,10 @@ textarea{resize:vertical;min-height:80px}
               </div>
               <!-- Thb mode -->
               <div id="svc-disc-thb" style="display:none">
-                <label style="display:flex;align-items:center;gap:.4rem;font-size:.82rem;margin-bottom:.5rem;cursor:pointer;width:fit-content">
-                  <input type="checkbox" id="svc-tiered-chk" onchange="svcTieredToggle()"> ลดแบบขั้นบันได
-                </label>
-                <div id="svc-disc-flat">
-                  <label class="svc-lbl">มูลค่าส่วนลด</label>
-                  <div class="svc-field-row">
-                    <input type="number" id="svc-disc-thb-val" min="0" style="width:110px" placeholder="0">
-                    <span class="svc-unit">บาท</span>
-                  </div>
-                </div>
-                <div id="svc-disc-tiered" style="display:none">
-                  <table style="width:auto;font-size:.8rem;border-collapse:collapse">
-                    <thead><tr>
-                      <th style="padding:.25rem .5rem;text-align:left;font-weight:600;color:#64748b;white-space:nowrap">ซื้อครบ (บาท)</th>
-                      <th style="padding:.25rem .5rem;text-align:left;font-weight:600;color:#64748b;white-space:nowrap">ลด (บาท)</th>
-                      <th style="width:28px"></th>
-                    </tr></thead>
-                    <tbody id="svc-tier-rows">
-                      <tr><td style="padding:.2rem .4rem"><input type="number" class="svc-tier-inp" placeholder="500" style="width:90px"></td><td style="padding:.2rem .4rem"><input type="number" class="svc-tier-inp" placeholder="50" style="width:80px"></td><td><button type="button" onclick="this.closest('tr').remove()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:1rem;line-height:1">×</button></td></tr>
-                      <tr><td style="padding:.2rem .4rem"><input type="number" class="svc-tier-inp" placeholder="1000" style="width:90px"></td><td style="padding:.2rem .4rem"><input type="number" class="svc-tier-inp" placeholder="120" style="width:80px"></td><td><button type="button" onclick="this.closest('tr').remove()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:1rem;line-height:1">×</button></td></tr>
-                    </tbody>
-                  </table>
-                  <button type="button" onclick="svcAddTier()" style="margin-top:.3rem;font-size:.75rem;color:#2563eb;background:none;border:none;cursor:pointer;padding:0">+ เพิ่มขั้น</button>
+                <label class="svc-lbl">มูลค่าส่วนลด</label>
+                <div class="svc-field-row">
+                  <input type="number" id="svc-disc-thb-val" min="0" style="width:110px" placeholder="0">
+                  <span class="svc-unit">บาท</span>
                 </div>
               </div>
             </div>
@@ -12910,13 +12891,6 @@ function svcResetForm(){
   svcMinType('none');
   svcSelectCType('discount');
   svcDiscMode('pct');
-  const td=document.getElementById('svc-disc-tiered');if(td)td.style.display='none';
-  const df=document.getElementById('svc-disc-flat');if(df)df.style.display='';
-  const tc=document.getElementById('svc-tiered-chk');if(tc)tc.checked=false;
-  const tb=document.getElementById('svc-tier-rows');
-  if(tb)tb.innerHTML=`
-    <tr><td style="padding:.25rem .4rem"><input type="number" class="svc-tier-inp" placeholder="500" style="width:90px"></td><td style="padding:.25rem .4rem"><input type="number" class="svc-tier-inp" placeholder="50" style="width:80px"></td><td><button type="button" onclick="this.closest('tr').remove()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:1rem">×</button></td></tr>
-    <tr><td style="padding:.25rem .4rem"><input type="number" class="svc-tier-inp" placeholder="1000" style="width:90px"></td><td style="padding:.25rem .4rem"><input type="number" class="svc-tier-inp" placeholder="120" style="width:80px"></td><td><button type="button" onclick="this.closest('tr').remove()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:1rem">×</button></td></tr>`;
 }
 
 // ── Multi-select combo ───────────────────────────────────────────
@@ -13123,16 +13097,7 @@ function svcCollectPayload(){
     const isPct=document.getElementById('svc-disc-pct-btn').classList.contains('active');
     coupon_details.mode=isPct?'pct':'thb';
     if(isPct){ coupon_details.pct=gvn('svc-disc-pct-val'); coupon_details.max=gvn('svc-disc-pct-max'); }
-    else{
-      const isTiered=document.getElementById('svc-tiered-chk')?.checked;
-      coupon_details.tiered=!!isTiered;
-      if(isTiered){
-        coupon_details.tiers=[...document.querySelectorAll('#svc-tier-rows tr')].map(tr=>{
-          const ins=[...tr.querySelectorAll('input')];
-          return{min:parseFloat(ins[0]?.value)||0,amount:parseFloat(ins[1]?.value)||0};
-        });
-      } else { coupon_details.amount=gvn('svc-disc-thb-val'); }
-    }
+    else{ coupon_details.amount=gvn('svc-disc-thb-val'); }
   }
   if(ctype==='redeem')   coupon_details.price=gvn('svc-redeem-price');
   const can_combine=[...document.querySelectorAll('#modal-svc-form input[type=checkbox]:checked')].map(c=>c.value);
