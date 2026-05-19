@@ -5469,12 +5469,13 @@ app.get('/api/service-requests/next-job-no', authRequired, async (request, res) 
 // ── GET /api/service-requests ──────────────────────────────
 app.get('/api/service-requests', authRequired, async (request, res) => {
   try {
-    const { status, q, dateFrom, dateTo } = request.query;
+    const { status, q, dateFrom, dateTo, projectId } = request.query;
     let where = 'WHERE 1=1';
-    if (status)   where += ` AND sr.status=N'${status.replace(/'/g,"''")}'`;
-    if (q)        where += ` AND (sr.job_no LIKE N'%${q.replace(/'/g,"''")}%' OR sr.title LIKE N'%${q.replace(/'/g,"''")}%' OR sr.brands LIKE N'%${q.replace(/'/g,"''")}%' OR sr.request_no LIKE N'%${q.replace(/'/g,"''")}%' OR sr.requester_name LIKE N'%${q.replace(/'/g,"''")}%')`;
-    if (dateFrom) where += ` AND CAST(sr.created_at AS DATE) >= '${dateFrom}'`;
-    if (dateTo)   where += ` AND CAST(sr.created_at AS DATE) <= '${dateTo}'`;
+    if (status)    where += ` AND sr.status=N'${status.replace(/'/g,"''")}'`;
+    if (q)         where += ` AND (sr.job_no LIKE N'%${q.replace(/'/g,"''")}%' OR sr.title LIKE N'%${q.replace(/'/g,"''")}%' OR sr.brands LIKE N'%${q.replace(/'/g,"''")}%' OR sr.request_no LIKE N'%${q.replace(/'/g,"''")}%' OR sr.requester_name LIKE N'%${q.replace(/'/g,"''")}%')`;
+    if (dateFrom)  where += ` AND CAST(sr.created_at AS DATE) >= '${dateFrom}'`;
+    if (dateTo)    where += ` AND CAST(sr.created_at AS DATE) <= '${dateTo}'`;
+    if (projectId) where += ` AND sr.project_id = ${parseInt(projectId)}`;
     const rows = (await req().query(`
       SELECT sr.*,
              ISNULL(ec.nickname, ec.name) AS created_by_name,

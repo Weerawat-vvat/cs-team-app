@@ -410,6 +410,12 @@ textarea{resize:vertical;min-height:80px}
 .si-svc-sync{background:#dcfce7;color:#166534}
 /* ─── SERVICE PAGE ──────────────────────────────────────────── */
 .svc-card{background:#fff;border:1px solid #eef1f7;border-radius:10px;padding:.9rem 1rem}
+/* Project sidebar */
+.svc-proj-item{display:flex;align-items:center;justify-content:space-between;padding:.48rem .8rem;font-size:.82rem;cursor:pointer;color:#475569;transition:.12s;gap:.4rem;border-left:3px solid transparent}
+.svc-proj-item:hover{background:#f0f9ff;color:#1d4ed8}
+.svc-proj-item.active{background:#dbeafe;color:#1d4ed8;font-weight:700;border-left-color:#3b82f6}
+.svc-proj-count{background:#e2e8f0;color:#64748b;border-radius:20px;padding:.05rem .45rem;font-size:.7rem;font-weight:700;flex-shrink:0}
+.svc-proj-item.active .svc-proj-count{background:#bfdbfe;color:#1d4ed8}
 .svc-section-head{font-size:.68rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.09em;margin-bottom:.65rem;display:flex;align-items:center;gap:.45rem;border-left:3px solid #3b82f6;padding-left:.5rem}
 .svc-badge{display:none}
 .svc-lbl{font-size:.75rem;font-weight:600;color:#64748b;margin-bottom:.3rem;display:block}
@@ -1842,6 +1848,30 @@ textarea{resize:vertical;min-height:80px}
     </div>
   </div>
 
+  <!-- Main layout: sidebar + content -->
+  <div style="display:flex;gap:.85rem;align-items:flex-start">
+
+  <!-- ── LEFT SIDEBAR ── -->
+  <div style="width:192px;flex-shrink:0;background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden;position:sticky;top:.5rem">
+    <div style="padding:.55rem .8rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">📁 Projects</span>
+      <button onclick="svcCreateProjectSidebar()" title="สร้าง Project ใหม่"
+        style="background:none;border:none;cursor:pointer;color:#3b82f6;font-size:1.1rem;line-height:1;padding:.1rem .2rem;border-radius:4px" >+</button>
+    </div>
+    <!-- All jobs -->
+    <div class="svc-proj-item active" id="svc-proj-item-all" onclick="svcSelectProject(null)">
+      <span>📋 งานทั้งหมด</span>
+      <span class="svc-proj-count" id="svc-proj-count-all">—</span>
+    </div>
+    <!-- Dynamic project list -->
+    <div id="svc-proj-list"></div>
+    <!-- No projects hint -->
+    <div id="svc-proj-empty" style="display:none;padding:.75rem .8rem;font-size:.75rem;color:#94a3b8;text-align:center">ยังไม่มี Project<br><span style="font-size:.7rem">กด + เพื่อสร้าง</span></div>
+  </div>
+
+  <!-- ── RIGHT CONTENT ── -->
+  <div style="flex:1;min-width:0">
+
   <!-- Stat bar -->
   <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem">
     <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
@@ -1926,6 +1956,9 @@ textarea{resize:vertical;min-height:80px}
       <div style="text-align:center;color:var(--muted);padding:3rem">กำลังโหลด...</div>
     </div>
   </div>
+
+  </div><!-- /right content -->
+  </div><!-- /main layout flex -->
 </div>
 
 <!-- ═══════════════════ MODAL: SERVICE FORM ═══════════════════ -->
@@ -3465,6 +3498,7 @@ function showPage(name, btn) {
     const df = document.getElementById('svc-date-from');
     if(df && !df.value) svcRange('thismonth', document.querySelector('#svc-drb .drb-btn'));
     else svcLoadList();
+    svcLoadProjects();
   }
   if (name === 'shopinfo') { loadShopInfo(); }
 }
@@ -12856,11 +12890,13 @@ async function svcLoadList(){
   if(status)   p.append('status',status);
   if(q)        p.append('q',q);
   if(dateFrom) p.append('dateFrom',dateFrom);
-  if(dateTo)   p.append('dateTo',dateTo);
+  if(dateTo)          p.append('dateTo',dateTo);
+  if(_svcActiveProject) p.append('projectId', _svcActiveProject);
   if(p.toString()) url += '?'+p.toString();
 
   const rows = await api(url,{silent:true})||[];
   _svcAllRows = Array.isArray(rows)?rows:[];
+  svcRenderProjectSidebar();
 
   // Stats
   const all = _svcAllRows;
@@ -12876,6 +12912,7 @@ async function svcLoadList(){
 
 // ── Projects ──────────────────────────────────────────────────────
 let _svcProjects = [];
+let _svcActiveProject = null; // null = all jobs
 
 async function svcOpenProjects(){
   openModal('modal-svc-projects');
@@ -12885,39 +12922,87 @@ async function svcOpenProjects(){
 async function svcLoadProjects(){
   const rows = await api('/api/service-projects') || [];
   _svcProjects = Array.isArray(rows) ? rows : [];
+
+  // ── Update sidebar ──
+  svcRenderProjectSidebar();
+
+  // ── Update modal list ──
   const wrap = document.getElementById('proj-list-wrap');
-  if(!wrap) return;
+  if(wrap){
+    if(!_svcProjects.length){
+      wrap.innerHTML=`<div style="text-align:center;color:#94a3b8;padding:3rem;font-size:.85rem">ยังไม่มี Project<br><span style="font-size:.75rem">กด "➕ สร้าง Project ใหม่" เพื่อเริ่ม</span></div>`;
+    } else {
+      const baseUrl = location.origin + '/p.html?t=';
+      wrap.innerHTML = _svcProjects.map(p=>`
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.85rem 1rem;margin-bottom:.65rem">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem">
+            <div style="flex:1;cursor:pointer" onclick="closeModal('modal-svc-projects');svcSelectProject(${p.id})">
+              <div style="font-size:.9rem;font-weight:700;color:#1e293b;margin-bottom:.2rem">📁 ${escHtml(p.name)}</div>
+              ${p.description?`<div style="font-size:.78rem;color:#64748b;margin-bottom:.35rem">${escHtml(p.description)}</div>`:''}
+              <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+                <span style="font-size:.72rem;background:#dbeafe;color:#1d4ed8;border-radius:20px;padding:.1rem .5rem;font-weight:600">📋 ${p.job_count||0} Jobs</span>
+                <span style="font-size:.72rem;color:#94a3b8">สร้างโดย ${escHtml(p.created_by_name||'—')}</span>
+              </div>
+            </div>
+            <div style="display:flex;gap:.35rem;flex-shrink:0">
+              <button class="btn btn-ghost btn-sm" onclick="svcEditProject(${p.id},'${escHtml(p.name)}','${escHtml(p.description||'')}')" title="แก้ไข">✏️</button>
+              <button class="btn btn-sm" style="background:#fee2e2;color:#b91c1c;border:none" onclick="svcDeleteProject(${p.id})" title="ลบ">🗑</button>
+            </div>
+          </div>
+          <div style="margin-top:.65rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.5rem .7rem;display:flex;align-items:center;gap:.5rem">
+            <span style="font-size:.72rem;color:#64748b;flex-shrink:0">🔗 Public Link:</span>
+            <code style="font-size:.72rem;color:#0369a1;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${baseUrl}${escHtml(p.public_token)}</code>
+            <button class="btn btn-ghost btn-sm" style="flex-shrink:0;padding:.2rem .5rem;font-size:.72rem" onclick="svcCopyLink('${baseUrl}${p.public_token}')">📋 copy</button>
+            <button class="btn btn-ghost btn-sm" style="flex-shrink:0;padding:.2rem .5rem;font-size:.72rem" onclick="window.open('${baseUrl}${p.public_token}','_blank')">🔗 เปิด</button>
+          </div>
+        </div>`).join('');
+    }
+  }
+
+  svcUpdateProjectSelect();
+}
+
+function svcRenderProjectSidebar(){
+  const list  = document.getElementById('svc-proj-list');
+  const empty = document.getElementById('svc-proj-empty');
+  const allEl = document.getElementById('svc-proj-item-all');
+  if(!list) return;
+
+  // Update "All" count
+  const allCount = document.getElementById('svc-proj-count-all');
+  if(allCount) allCount.textContent = _svcAllRows.length||'—';
+
   if(!_svcProjects.length){
-    wrap.innerHTML=`<div style="text-align:center;color:#94a3b8;padding:3rem;font-size:.85rem">ยังไม่มี Project<br><span style="font-size:.75rem">กด "➕ สร้าง Project ใหม่" เพื่อเริ่ม</span></div>`;
+    list.innerHTML='';
+    if(empty) empty.style.display='';
     return;
   }
-  const baseUrl = location.origin + '/p.html?t=';
-  wrap.innerHTML = _svcProjects.map(p=>`
-    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.85rem 1rem;margin-bottom:.65rem">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem">
-        <div style="flex:1">
-          <div style="font-size:.9rem;font-weight:700;color:#1e293b;margin-bottom:.2rem">📁 ${escHtml(p.name)}</div>
-          ${p.description?`<div style="font-size:.78rem;color:#64748b;margin-bottom:.35rem">${escHtml(p.description)}</div>`:''}
-          <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
-            <span style="font-size:.72rem;background:#dbeafe;color:#1d4ed8;border-radius:20px;padding:.1rem .5rem;font-weight:600">📋 ${p.job_count||0} Jobs</span>
-            <span style="font-size:.72rem;color:#94a3b8">สร้างโดย ${escHtml(p.created_by_name||'—')}</span>
-          </div>
-        </div>
-        <div style="display:flex;gap:.35rem;flex-shrink:0">
-          <button class="btn btn-ghost btn-sm" onclick="svcEditProject(${p.id},'${escHtml(p.name)}','${escHtml(p.description||'')}')" title="แก้ไข">✏️</button>
-          <button class="btn btn-sm" style="background:#fee2e2;color:#b91c1c;border:none" onclick="svcDeleteProject(${p.id})" title="ลบ">🗑</button>
-        </div>
-      </div>
-      <div style="margin-top:.65rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.5rem .7rem;display:flex;align-items:center;gap:.5rem">
-        <span style="font-size:.72rem;color:#64748b;flex-shrink:0">🔗 Public Link:</span>
-        <code style="font-size:.72rem;color:#0369a1;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${baseUrl}${escHtml(p.public_token)}</code>
-        <button class="btn btn-ghost btn-sm" style="flex-shrink:0;padding:.2rem .5rem;font-size:.72rem" onclick="svcCopyLink('${baseUrl}${p.public_token}')">📋 copy</button>
-        <button class="btn btn-ghost btn-sm" style="flex-shrink:0;padding:.2rem .5rem;font-size:.72rem" onclick="window.open('${baseUrl}${p.public_token}','_blank')">🔗 เปิด</button>
-      </div>
+  if(empty) empty.style.display='none';
+  list.innerHTML = _svcProjects.map(p=>`
+    <div class="svc-proj-item${_svcActiveProject==p.id?' active':''}" id="svc-proj-item-${p.id}" onclick="svcSelectProject(${p.id})">
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📁 ${escHtml(p.name)}</span>
+      <span class="svc-proj-count">${p.job_count||0}</span>
     </div>`).join('');
 
-  // Also update the project selector in the form
-  svcUpdateProjectSelect();
+  // Update all-item active state
+  if(allEl) allEl.classList.toggle('active', _svcActiveProject===null);
+}
+
+function svcSelectProject(id){
+  _svcActiveProject = id;
+  // Update active state in sidebar
+  document.querySelectorAll('.svc-proj-item').forEach(el=>el.classList.remove('active'));
+  const target = id ? document.getElementById(`svc-proj-item-${id}`) : document.getElementById('svc-proj-item-all');
+  if(target) target.classList.add('active');
+  svcLoadList();
+}
+
+async function svcCreateProjectSidebar(){
+  const name = prompt('ชื่อ Project ใหม่:');
+  if(!name||!name.trim()) return;
+  const res = await api('/api/service-projects',{method:'POST',body:{name:name.trim()}});
+  if(res&&res.id){ showToast('สร้าง Project เรียบร้อย','success'); await svcLoadProjects(); }
+  else alert('เกิดข้อผิดพลาด: '+(res?.error||'unknown'));
 }
 
 function svcUpdateProjectSelect(){
