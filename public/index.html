@@ -1956,7 +1956,7 @@ textarea{resize:vertical;min-height:80px}
       </div>
 
       <!-- Section 2 — ข้อมูลโปรโมชัน -->
-      <div class="svc-card">
+      <div class="svc-card" id="svc-section-promo">
         <div class="svc-section-head">ข้อมูลชุดโปรโมชัน</div>
 
         <!-- Row: ชื่อ (full) + ประเภทการขาย (inline row) -->
@@ -2093,7 +2093,7 @@ textarea{resize:vertical;min-height:80px}
       </div>
 
       <!-- Section 3 — เงื่อนไข -->
-      <div class="svc-card">
+      <div class="svc-card" id="svc-section-cond">
         <div class="svc-section-head">เงื่อนไขและข้อจำกัด</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
 
@@ -13049,9 +13049,10 @@ function svcSetRequestType(type){
   const btnM = document.getElementById('svc-rtype-menu');
   if(btnC){ Object.assign(btnC.style,{border:'2px solid '+(isCoupon?'#3b82f6':'#e2e8f0'),background:isCoupon?'#dbeafe':'#fff',color:isCoupon?'#1d4ed8':'#94a3b8'}); }
   if(btnM){ Object.assign(btnM.style,{border:'2px solid '+(isCoupon?'#e2e8f0':'#10b981'),background:isCoupon?'#fff':'#d1fae5',color:isCoupon?'#94a3b8':'#065f46'}); }
-  // Show/hide coupon-specific fields
-  const cf = document.getElementById('svc-coupon-fields');
-  if(cf) cf.style.display = isCoupon ? '' : 'none';
+  // Show/hide entire Section 2 (โปรโมชัน) + Section 3 (เงื่อนไข) for menu type
+  ['svc-section-promo','svc-section-cond'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.style.display=isCoupon?'':'none';
+  });
 }
 
 // ── Open Form ────────────────────────────────────────────────────
