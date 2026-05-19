@@ -886,15 +886,23 @@ async function openDocViewer(jobId, jobNo, title){
   try {
     const data = await fetch(`/api/public/project/${TOKEN}/jobs/${jobId}`).then(r=>r.json());
     if(data.error){ document.getElementById('doc-body').innerHTML=`<div class="doc-empty">❌ ${esc(data.error)}</div>`; return; }
-    const atts = data.attachments || [];
+
+    const atts     = data.attachments || [];
+    const status   = data.status || 'received';
     const custFiles = atts.filter(f=>!f.stage);
     const testFiles = atts.filter(f=>f.stage==='testing');
     const delFiles  = atts.filter(f=>f.stage==='delivered');
 
     const fmtSz = b => !b?'':(b<1048576?(b/1024).toFixed(1)+'KB':(b/1048576).toFixed(1)+'MB');
-    const fIcon = n => { const e=(n||'').split('.').pop().toLowerCase(); return e==='pdf'?'📄':['jpg','jpeg','png','gif'].includes(e)?'🖼️':['xlsx','xls'].includes(e)?'📊':'📎'; };
+    const fIcon = n => {
+      const e=(n||'').split('.').pop().toLowerCase();
+      return e==='pdf'?'📄':['jpg','jpeg','png','gif'].includes(e)?'🖼️':['xlsx','xls'].includes(e)?'📊':'📎';
+    };
     const renderFiles = (files, emptyMsg) => {
-      if(!files.length) return `<div style="font-size:.78rem;color:var(--sub);padding:.25rem 0">${emptyMsg||'ไม่มีไฟล์'}</div>`;
+      if(!files.length) return `
+        <div style="display:flex;align-items:center;gap:.45rem;background:#f8fafc;border:1.5px dashed #e2e8f0;border-radius:9px;padding:.6rem .85rem;font-size:.78rem;color:#94a3b8">
+          <span style="font-size:1.1rem">📭</span> ${emptyMsg||'ยังไม่มีไฟล์'}
+        </div>`;
       return files.map(f=>`
         <a class="doc-file" href="${esc(f.file_path)}" target="_blank" download>
           <span class="doc-file-icon">${fIcon(f.file_name)}</span>
@@ -906,23 +914,38 @@ async function openDocViewer(jobId, jobNo, title){
 
     let html = '';
 
-    if(testFiles.length) html += `
-      <div>
-        <div class="doc-stage-head" style="color:#c2410c;border-color:#fed7aa">🧪 เอกสารทดสอบ / ขั้นตอนการใช้งาน</div>
-        ${renderFiles(testFiles)}
-      </div>`;
+    // Always show testing section when status = testing or delivered
+    if(['testing','delivered'].includes(status)){
+      html += `
+        <div>
+          <div class="doc-stage-head" style="color:#c2410c;border-color:#fed7aa">
+            🧪 เอกสารทดสอบ / ขั้นตอนการใช้งาน
+          </div>
+          ${renderFiles(testFiles,'ยังไม่มีเอกสารทดสอบ')}
+        </div>`;
+    }
 
-    if(delFiles.length) html += `
-      <div>
-        <div class="doc-stage-head" style="color:#065f46;border-color:#86efac">✅ หลักฐานส่งมอบ</div>
-        ${renderFiles(delFiles)}
-      </div>`;
+    // Always show delivered section when status = delivered
+    if(status==='delivered'){
+      html += `
+        <div>
+          <div class="doc-stage-head" style="color:#065f46;border-color:#86efac">
+            ✅ หลักฐานส่งมอบ
+          </div>
+          ${renderFiles(delFiles,'ยังไม่มีหลักฐานส่งมอบ')}
+        </div>`;
+    }
 
-    if(custFiles.length) html += `
-      <div>
-        <div class="doc-stage-head" style="color:#1d4ed8;border-color:#bfdbfe">📎 ไฟล์จากลูกค้า</div>
-        ${renderFiles(custFiles)}
-      </div>`;
+    // Customer files (always shown if any exist)
+    if(custFiles.length){
+      html += `
+        <div>
+          <div class="doc-stage-head" style="color:#1d4ed8;border-color:#bfdbfe">
+            📎 ไฟล์แนบจากลูกค้า
+          </div>
+          ${renderFiles(custFiles)}
+        </div>`;
+    }
 
     if(!html) html = `<div class="doc-empty">📭 ยังไม่มีเอกสารในขณะนี้</div>`;
     document.getElementById('doc-body').innerHTML = html;
