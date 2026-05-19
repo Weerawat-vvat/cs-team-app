@@ -1908,7 +1908,7 @@ textarea{resize:vertical;min-height:80px}
 </div>
 
 <!-- ═══════════════════ MODAL: SERVICE FORM ═══════════════════ -->
-<div class="overlay" id="modal-svc-form">
+<div class="overlay" id="modal-svc-form" onclick="if(event.target===this)event.stopPropagation()">
   <div class="modal" style="max-width:780px;max-height:92vh;overflow-y:auto;padding:0;background:#f4f6f9">
     <!-- Modal header -->
     <div style="padding:.8rem 1.1rem;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:.6rem;position:sticky;top:0;background:#fff;z-index:10">
@@ -1960,21 +1960,21 @@ textarea{resize:vertical;min-height:80px}
           </div>
         </div>
 
+        <!-- รายละเอียดโปรโมชัน -->
+        <div style="margin-bottom:.7rem">
+          <label class="svc-lbl">รายละเอียดโปรโมชัน</label>
+          <textarea id="svc-promo-detail" rows="2" style="width:100%;resize:vertical" placeholder="อธิบายรายละเอียดของโปรโมชัน..."></textarea>
+        </div>
+
         <!-- Row: รหัสคูปอง + รหัส ERP -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.9rem">
           <div>
             <label class="svc-lbl">รหัสชุดคูปอง <span style="color:#ef4444">*</span></label>
-            <div style="display:flex;gap:.35rem">
-              <input id="svc-coupon-code" type="text" style="font-family:monospace;flex:1;min-width:0;font-size:.82rem" placeholder="CPN-XXX-YYMM-001"/>
-              <button type="button" class="btn btn-sm" onclick="svcAutoCode('svc-coupon-code','CPN')" style="white-space:nowrap;flex-shrink:0">Auto</button>
-            </div>
+            <input id="svc-coupon-code" type="text" style="font-family:monospace;width:100%;font-size:.82rem" placeholder="CPN-XXX-YYMM-001"/>
           </div>
           <div>
             <label class="svc-lbl">รหัสทางบัญชี ERP <span style="color:#ef4444">*</span></label>
-            <div style="display:flex;gap:.35rem">
-              <input id="svc-erp-code" type="text" style="font-family:monospace;flex:1;min-width:0;font-size:.82rem" placeholder="ERP-XXX-YYMM-001"/>
-              <button type="button" class="btn btn-sm" onclick="svcAutoCode('svc-erp-code','ERP')" style="white-space:nowrap;flex-shrink:0">Auto</button>
-            </div>
+            <input id="svc-erp-code" type="text" style="font-family:monospace;width:100%;font-size:.82rem" placeholder="ERP-XXX-YYMM-001"/>
           </div>
         </div>
 
@@ -2127,6 +2127,12 @@ textarea{resize:vertical;min-height:80px}
           <label class="svc-lbl">ประเภทลูกค้า</label>
           <div class="svc-combo" id="svc-custgrp-combo" data-field="customer_groups"></div>
         </div>
+
+        <!-- เงื่อนไขการจัดจำหน่าย -->
+        <div style="margin-top:.7rem">
+          <label class="svc-lbl">เงื่อนไขการจัดจำหน่าย / Condition</label>
+          <textarea id="svc-condition" rows="2" style="width:100%;resize:vertical" placeholder="ระบุเงื่อนไขการจัดจำหน่าย เช่น ไม่ใช้ร่วมกับรายการอาหารประเภท A..."></textarea>
+        </div>
       </div>
 
       <!-- Section 4 — ไฟล์ -->
@@ -2162,7 +2168,7 @@ textarea{resize:vertical;min-height:80px}
 </div>
 
 <!-- ═══════════════════ MODAL: SERVICE DETAIL ═══════════════════ -->
-<div class="overlay" id="modal-svc-detail">
+<div class="overlay" id="modal-svc-detail" onclick="if(event.target===this)event.stopPropagation()">
   <div class="modal" style="max-width:600px;max-height:90vh;overflow-y:auto">
     <div class="modal-title" id="svc-detail-title">รายละเอียด <button class="modal-close" onclick="closeModal('modal-svc-detail')">×</button></div>
     <div id="svc-detail-body"></div>
@@ -13279,6 +13285,8 @@ function svcCollectPayload(){
     test_date:         null,
     test_time:         null,
     attachment_name:   _svcFiles.map(f=>f.name).join(', ')||null,
+    promo_detail:      gv('svc-promo-detail'),
+    condition:         gv('svc-condition'),
   };
 }
 
@@ -13307,86 +13315,120 @@ async function svcSubmit(){
   } else { alert('เกิดข้อผิดพลาด: '+(res?.error||'unknown')); }
 }
 
-// ── Detail modal ─────────────────────────────────────────────────
+// ── Detail modal (editable) ──────────────────────────────────
 async function svcOpenDetail(id){
-  const params=_svcFilter?`?status=${_svcFilter}`:'';
-  let rows=await api('/api/service-requests'+params);
+  const rows = await api('/api/service-requests');
   if(!rows) return;
-  let r=rows.find(x=>x.id===id);
-  if(!r){ rows=await api('/api/service-requests'); r=rows&&rows.find(x=>x.id===id); }
+  let r = rows.find(x=>x.id===id);
+  if(!r){ const all=await api('/api/service-requests'); r=all&&all.find(x=>x.id===id); }
   if(!r) return;
-  document.getElementById('svc-detail-title').innerHTML=
-    `🛎️ ${r.promo_name||'(ไม่มีชื่อ)'} ${svcStatusBadge(r.status)} <button class="modal-close" onclick="closeModal('modal-svc-detail')">×</button>`;
-  const brands=svcParseJSON(r.brands,[]).join(', ')||'—';
-  const saleTypes=svcParseJSON(r.sale_types,[]).map(t=>({dine_in:'ทานที่ร้าน',takeaway:'ซื้อกลับบ้าน',delivery:'Delivery'}[t]||t)).join(', ')||'—';
-  const cd=svcParseJSON(r.coupon_details,{});
-  const canCombine=svcParseJSON(r.can_combine,[]);
-  const cgrps=svcParseJSON(r.customer_groups,[]).join(', ')||'—';
+
+  const brands    = svcParseJSON(r.brands,[]).join(', ')||'—';
+  const saleTypes = svcParseJSON(r.sale_types,[]).map(t=>({dine_in:'ทานที่ร้าน',takeaway:'ซื้อกลับบ้าน',delivery:'Delivery'}[t]||t)).join(', ')||'—';
+  const cd        = svcParseJSON(r.coupon_details,{});
+  const canCombine= svcParseJSON(r.can_combine,[]);
+  const cgrps     = svcParseJSON(r.customer_groups,[]).join(', ')||'—';
   let discDetail='—';
-  if(r.coupon_type==='fixed')     discDetail=`💵 เงินสด ${cd.amount||0} บาท`;
+  if(r.coupon_type==='fixed')      discDetail=`💵 เงินสด ${cd.amount||0} บาท`;
   else if(r.coupon_type==='discount'){
     if(cd.mode==='pct') discDetail=`🏷️ ลด ${cd.pct||0}% (สูงสุด ${cd.max||'ไม่จำกัด'} บาท)`;
-    else if(cd.tiered)  discDetail=`🏷️ ขั้นบันได ${(cd.tiers||[]).map(t=>`≥${t.min}บ ลด${t.amount}บ`).join(' / ')}`;
     else                discDetail=`🏷️ ลด ${cd.amount||0} บาท`;
-  } else if(r.coupon_type==='redeem')   discDetail=`🎁 แลกซื้อราคา ${cd.price||0} บาท`;
-  else if(r.coupon_type==='campaign')   discDetail=`📢 ${cd.detail||'—'}`;
+  } else if(r.coupon_type==='redeem') discDetail=`🎁 แลกซื้อราคา ${cd.price||0} บาท`;
+
+  const statusOpts = SVC_STATUSES.map(s=>`<option value="${s.key}"${r.status===s.key?' selected':''}>${s.label}</option>`).join('');
+  const curS = SVC_STATUSES.find(s=>s.key===r.status)||{bg:'#f1f5f9',col:'#64748b'};
+
+  document.getElementById('svc-detail-title').innerHTML=
+    `🛎️ ${escHtml(r.promo_name||'(ไม่มีชื่อ)')} <button class="modal-close" onclick="closeModal('modal-svc-detail')">×</button>`;
+
   document.getElementById('svc-detail-body').innerHTML=`
     <div style="display:flex;flex-direction:column;gap:.75rem;padding:.25rem 0">
+
+      <!-- Info cards (read-only) -->
       <div class="svc-card">
-        <div class="svc-section-head"><span class="svc-badge">1</span>แบรนด์ / สาขา</div>
-        <div style="font-size:.84rem"><b>แบรนด์:</b> ${brands}</div>
-        <div style="font-size:.84rem;margin-top:.25rem"><b>ขอบเขต:</b> ${r.branch_scope==='all'?'ทุกสาขา':svcParseJSON(r.branches,[]).join(', ')||'—'}</div>
+        <div class="svc-section-head">แบรนด์ / สาขา</div>
+        <div style="font-size:.84rem"><b>แบรนด์:</b> ${escHtml(brands)}</div>
+        <div style="font-size:.84rem;margin-top:.25rem"><b>ขอบเขต:</b> ${r.branch_scope==='all'?'ทุกสาขา':escHtml(svcParseJSON(r.branches,[]).join(', ')||'—')}</div>
       </div>
+
       <div class="svc-card">
-        <div class="svc-section-head"><span class="svc-badge">2</span>คูปอง / โปรโมชัน</div>
+        <div class="svc-section-head">คูปอง / โปรโมชัน</div>
         <div style="font-size:.84rem;display:grid;grid-template-columns:1fr 1fr;gap:.4rem .8rem">
-          <div><b>ชื่อ:</b> ${r.promo_name||'—'}</div>
-          <div><b>ประเภทการขาย:</b> ${saleTypes}</div>
-          <div><b>รหัสคูปอง:</b> <code>${r.coupon_code||'—'}</code></div>
-          <div><b>รหัส ERP:</b> <code>${r.erp_code||'—'}</code></div>
+          <div><b>ชื่อ:</b> ${escHtml(r.promo_name||'—')}</div>
+          <div><b>ประเภทการขาย:</b> ${escHtml(saleTypes)}</div>
+          <div><b>รหัสคูปอง:</b> <code>${escHtml(r.coupon_code||'—')}</code></div>
+          <div><b>รหัส ERP:</b> <code>${escHtml(r.erp_code||'—')}</code></div>
           <div style="grid-column:1/-1"><b>ส่วนลด:</b> ${discDetail}</div>
+          ${r.promo_detail?`<div style="grid-column:1/-1"><b>รายละเอียด:</b> ${escHtml(r.promo_detail)}</div>`:''}
           <div><b>เริ่มใช้งาน:</b> ${r.start_date||'—'} ${r.start_time||''}</div>
           <div><b>หมดอายุ:</b> ${r.expiry_type==='none'?'ไม่หมดอายุ':r.expiry_type==='date'?(r.expiry_date||'—'):`${r.expiry_days||'?'} วัน`}</div>
         </div>
       </div>
+
       <div class="svc-card">
-        <div class="svc-section-head"><span class="svc-badge">3</span>เงื่อนไข</div>
+        <div class="svc-section-head">เงื่อนไข</div>
         <div style="font-size:.84rem;display:grid;grid-template-columns:1fr 1fr;gap:.4rem .8rem">
           <div><b>นับคูปอง:</b> ${r.per_bill?'1 คูปอง/บิล':'1 คูปอง/รายการ'}</div>
           <div><b>สูงสุด/ใบเสร็จ:</b> ${r.max_per_receipt||'ไม่จำกัด'}</div>
           <div><b>ยอดขั้นต่ำ:</b> ${r.min_purchase_type==='none'?'ไม่มี':r.min_purchase_type==='price'?(r.min_purchase_value+' บาท'):(r.min_purchase_value+' ชิ้น')}</div>
-          <div><b>ใช้ร่วมกับ:</b> ${canCombine.length?canCombine.join(', '):'—'}</div>
-          <div style="grid-column:1/-1"><b>กลุ่มลูกค้า:</b> ${cgrps}</div>
+          <div><b>ใช้ร่วมกับ:</b> ${canCombine.length?escHtml(canCombine.join(', ')):'—'}</div>
+          <div style="grid-column:1/-1"><b>กลุ่มลูกค้า:</b> ${escHtml(cgrps)}</div>
+          ${r.condition?`<div style="grid-column:1/-1"><b>เงื่อนไขการจัดจำหน่าย:</b> ${escHtml(r.condition)}</div>`:''}
         </div>
       </div>
-      ${r.attachment_name?`<div class="svc-card"><div class="svc-section-head"><span class="svc-badge">4</span>ไฟล์</div><div style="font-size:.84rem">📎 ${r.attachment_name}</div></div>`:''}
-      ${(r.pilot_store||r.test_date)?`
-      <div class="svc-card">
-        <div class="svc-section-head"><span class="svc-badge">5</span>นัดหมายทดสอบ</div>
-        <div style="font-size:.84rem;display:grid;grid-template-columns:1fr 1fr;gap:.4rem .8rem">
-          <div><b>Pilot Store:</b> ${r.pilot_store||'—'}</div>
-          <div><b>ผู้ประสาน:</b> ${r.contact_name||'—'}</div>
-          <div><b>วันทดสอบ:</b> ${r.test_date||'—'}</div>
-          <div><b>เวลา:</b> ${r.test_time||'—'}</div>
+
+      ${r.attachment_name?`<div class="svc-card"><div class="svc-section-head">ไฟล์</div><div style="font-size:.84rem">📎 ${escHtml(r.attachment_name)}</div></div>`:''}
+      ${r.pilot_store?`<div class="svc-card"><div class="svc-section-head">นัดหมายทดสอบ</div><div style="font-size:.84rem"><b>Pilot Store:</b> ${escHtml(r.pilot_store)}</div></div>`:''}
+
+      <!-- Editable section -->
+      <div class="svc-card" style="border:1.5px solid #bfdbfe;background:#f0f7ff">
+        <div class="svc-section-head" style="border-color:#2563eb;color:#1d4ed8">✏️ แก้ไข</div>
+
+        <div style="margin-bottom:.65rem">
+          <label class="svc-lbl">สถานะ</label>
+          <select id="svc-det-status" style="width:100%;background:${curS.bg};color:${curS.col};font-weight:700;border:1.5px solid ${curS.col}40;border-radius:8px;padding:.4rem .7rem;font-size:.85rem;font-family:inherit;outline:none;cursor:pointer"
+            onchange="const s=SVC_STATUSES.find(x=>x.key===this.value)||{bg:'#f1f5f9',col:'#64748b'};this.style.background=s.bg;this.style.color=s.col;this.style.borderColor=s.col+'40'">
+            ${statusOpts}
+          </select>
         </div>
-      </div>`:''}
-      ${r.note?`<div class="svc-card"><div class="svc-section-head">📝 หมายเหตุ</div><div style="font-size:.84rem;white-space:pre-wrap">${r.note}</div></div>`:''}
-      <div style="display:flex;gap:.4rem;flex-wrap:wrap;justify-content:space-between;align-items:center;padding-top:.25rem">
-        <div style="font-size:.75rem;color:#94a3b8">สร้างโดย ${r.created_by_name||'—'} · ${r.created_at?new Date(r.created_at).toLocaleString('th-TH'):'—'}</div>
-        <div style="display:flex;gap:.4rem;flex-wrap:wrap">
-          ${['received','in_progress','testing','delivered'].filter(s=>s!==r.status).map(s=>`
-            <button class="btn btn-sm" onclick="svcUpdateStatus(${r.id},'${s}')" style="font-size:.75rem">${svcStatusLabel(s)}</button>`).join('')}
+
+        <div>
+          <label class="svc-lbl">หมายเหตุ / Note</label>
+          <textarea id="svc-det-note" rows="3" style="width:100%;resize:vertical" placeholder="เพิ่มหมายเหตุหรือบันทึกเพิ่มเติม...">${escHtml(r.note||'')}</textarea>
         </div>
       </div>
+
+      <!-- Footer -->
+      <div style="display:flex;gap:.5rem;justify-content:space-between;align-items:center;padding-top:.1rem">
+        <div style="font-size:.72rem;color:#94a3b8">
+          สร้างโดย ${escHtml(r.created_by_name||'—')} · ${r.created_at?new Date(r.created_at).toLocaleString('th-TH'):'—'}
+        </div>
+        <div style="display:flex;gap:.5rem">
+          <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-svc-detail')">ยกเลิก</button>
+          <button class="btn btn-primary btn-sm" onclick="svcSaveDetail(${r.id})">💾 บันทึก</button>
+        </div>
+      </div>
+
     </div>`;
+
   openModal('modal-svc-detail');
+}
+
+async function svcSaveDetail(id){
+  const status = document.getElementById('svc-det-status')?.value;
+  const note   = document.getElementById('svc-det-note')?.value||'';
+  const res = await api(`/api/service-requests/${id}`,{method:'PUT',body:{status,note}});
+  if(res&&res.ok){
+    closeModal('modal-svc-detail');
+    showToast(`บันทึกเรียบร้อย`,'success');
+    svcLoadList();
+  } else { alert('เกิดข้อผิดพลาด: '+(res?.error||'unknown')); }
 }
 
 async function svcUpdateStatus(id, newStatus){
   const res=await api(`/api/service-requests/${id}`,{method:'PUT',body:{status:newStatus}});
   if(res&&res.ok){
-    closeModal('modal-svc-detail');
-    showToast(`อัพเดตสถานะเป็น "${svcStatusLabel(newStatus)}" แล้ว`,'success');
+    showToast(`อัพเดตสถานะแล้ว`,'success');
     svcLoadList();
   } else { alert('เกิดข้อผิดพลาด'); }
 }

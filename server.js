@@ -5416,6 +5416,9 @@ async function ensureServiceRequestsTable() {
         created_at      DATETIME      DEFAULT GETDATE(),
         updated_at      DATETIME      DEFAULT GETDATE()
       )`);
+    // Add new columns if not exist
+    await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='promo_detail') ALTER TABLE service_requests ADD promo_detail NVARCHAR(MAX) NULL`);
+    await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='condition') ALTER TABLE service_requests ADD condition NVARCHAR(MAX) NULL`);
     console.log('✅ service_requests table ready');
   } catch(e) { console.error('❌ service_requests error:', e.message); }
 }
@@ -5472,6 +5475,8 @@ app.post('/api/service-requests', authRequired, async (request, res) => {
       .input('test_date',        sql.NVarChar, b.test_date||null)
       .input('test_time',        sql.NVarChar, b.test_time||null)
       .input('attachment_name',  sql.NVarChar, b.attachment_name||null)
+      .input('promo_detail',     sql.NVarChar, b.promo_detail||null)
+      .input('condition',        sql.NVarChar, b.condition||null)
       .input('status',           sql.NVarChar, 'received')
       .input('created_by',       sql.Int,      request.user.id)
       .query(`INSERT INTO service_requests
@@ -5479,13 +5484,13 @@ app.post('/api/service-requests', authRequired, async (request, res) => {
          coupon_type,coupon_details,start_date,start_time,expiry_type,expiry_date,expiry_days,
          per_bill,max_per_receipt,min_purchase_type,min_purchase_value,can_combine,
          customer_groups,pilot_store,contact_name,test_date,test_time,attachment_name,
-         status,created_by)
+         promo_detail,condition,status,created_by)
         OUTPUT INSERTED.id
         VALUES(@brands,@branch_scope,@branches,@promo_name,@sale_types,@coupon_code,@erp_code,
                @coupon_type,@coupon_details,@start_date,@start_time,@expiry_type,@expiry_date,@expiry_days,
                @per_bill,@max_per_receipt,@min_purchase_type,@min_purchase_value,@can_combine,
                @customer_groups,@pilot_store,@contact_name,@test_date,@test_time,@attachment_name,
-               @status,@created_by)`);
+               @promo_detail,@condition,@status,@created_by)`);
     res.json({ id: result.recordset[0].id });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -5498,7 +5503,7 @@ app.put('/api/service-requests/:id', authRequired, async (request, res) => {
     await req()
       .input('id',     sql.Int,      id)
       .input('status', sql.NVarChar, b.status||null)
-      .input('note',   sql.NVarChar, b.note||null)
+      .input('note',   sql.NVarChar, b.note!=null ? b.note : null)
       .input('assigned_to', sql.Int, b.assigned_to||null)
       .query(`UPDATE service_requests SET
         status=COALESCE(@status,status),
