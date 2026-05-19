@@ -5514,6 +5514,33 @@ async function ensureServiceAttachmentsTable() {
   } catch(e) { console.error('❌ service_attachments error:', e.message); }
 }
 
+// ── One-time migration: fix garbled Thai filenames in service_attachments ──
+async function fixGarbledServiceAttachmentNames() {
+  try {
+    const rows = (await req().query(
+      `SELECT id, file_name FROM service_attachments WHERE file_name IS NOT NULL`
+    )).recordset;
+    let fixed = 0;
+    for (const row of rows) {
+      const original = row.file_name;
+      // Skip if already contains valid Thai Unicode
+      if (/[฀-๿]/.test(original)) continue;
+      // Try latin1 → utf8 recovery
+      try {
+        const decoded = Buffer.from(original, 'latin1').toString('utf8');
+        if (/[฀-๿]/.test(decoded)) {
+          await req()
+            .input('id',  sql.Int,      row.id)
+            .input('fn',  sql.NVarChar, decoded)
+            .query(`UPDATE service_attachments SET file_name=@fn WHERE id=@id`);
+          fixed++;
+        }
+      } catch (e) {}
+    }
+    if (fixed > 0) console.log(`✅ Fixed ${fixed} garbled Thai filename(s) in service_attachments`);
+  } catch (e) { console.warn('fixGarbledServiceAttachmentNames:', e.message); }
+}
+
 // ── GET /api/service-requests/next-job-no ─────────────────
 app.get('/api/service-requests/next-job-no', authRequired, async (request, res) => {
   try {
@@ -6755,6 +6782,7 @@ init().then(async () => {
   await ensureServiceRequestsTable();
   await ensureServiceProjectsTable();
   await ensureServiceAttachmentsTable();
+  await fixGarbledServiceAttachmentNames();
 
   // Drop CHECK constraint on shifts.shift_type so 'dayoff' can be inserted
   try {
