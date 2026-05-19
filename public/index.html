@@ -1886,7 +1886,7 @@ textarea{resize:vertical;min-height:80px}
         <option value="testing">🧪 ทดสอบ</option>
         <option value="delivered">✅ ส่งมอบ</option>
       </select>
-      <input id="svc-search" type="text" placeholder="🔍 ค้นหาชื่อโปรโมชัน / รหัส / แบรนด์..." oninput="svcSearchDebounce()" style="flex:1;min-width:180px"/>
+      <input id="svc-search" type="text" placeholder="🔍 ค้นหาชื่อ / Request No. / แบรนด์..." oninput="svcSearchDebounce()" style="flex:1;min-width:180px"/>
       <button class="btn btn-ghost btn-sm" onclick="svcLoadList()">🔄</button>
     </div>
     <div class="drb-custom" id="svc-custom-range">
@@ -1904,12 +1904,11 @@ textarea{resize:vertical;min-height:80px}
         <table>
           <thead><tr>
             <th>ประเภท</th>
-            <th>รหัสคูปอง</th>
-            <th>ชื่อโปรโมชัน</th>
+            <th>Request No.</th>
+            <th>Title</th>
             <th>แบรนด์</th>
-            <th>ประเภทคูปอง</th>
+            <th>ผู้ขอ</th>
             <th>สถานะ</th>
-            <th>สร้างโดย</th>
             <th>วันที่</th>
             <th></th>
           </tr></thead>
@@ -1929,290 +1928,126 @@ textarea{resize:vertical;min-height:80px}
 
 <!-- ═══════════════════ MODAL: SERVICE FORM ═══════════════════ -->
 <div class="overlay" id="modal-svc-form" onclick="if(event.target===this)event.stopPropagation()">
-  <div class="modal" style="max-width:780px;max-height:92vh;overflow-y:auto;padding:0;background:#f4f6f9">
-    <!-- Modal header -->
-    <div style="padding:.8rem 1.1rem;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:.6rem;position:sticky;top:0;background:#fff;z-index:10">
-      <span style="font-size:.92rem;font-weight:700;color:#1e293b;flex:1">🛎️ แจ้งขอบริการ</span>
-      <button class="modal-close" onclick="closeModal('modal-svc-form')">×</button>
-    </div>
-    <div style="padding:.85rem 1rem;display:flex;flex-direction:column;gap:.75rem">
+  <div class="modal" style="max-width:720px;max-height:92vh;overflow-y:auto;padding:0;background:#f0f4f8">
 
-      <!-- ── ประเภทคำขอ ── -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem" id="svc-rtype-selector">
-        <button type="button" id="svc-rtype-coupon"
-          onclick="svcSetRequestType('coupon')"
-          style="padding:.7rem .5rem;border-radius:10px;font-size:.88rem;font-weight:700;border:2px solid #3b82f6;background:#dbeafe;color:#1d4ed8;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.45rem;font-family:inherit;transition:all .15s">
-          🎫 สร้างคูปอง / โปรฯ
-        </button>
-        <button type="button" id="svc-rtype-menu"
-          onclick="svcSetRequestType('menu')"
-          style="padding:.7rem .5rem;border-radius:10px;font-size:.88rem;font-weight:700;border:2px solid #e2e8f0;background:#fff;color:#94a3b8;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.45rem;font-family:inherit;transition:all .15s">
-          📋 เพิ่มเมนูใหม่
-        </button>
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%);padding:1rem 1.25rem;display:flex;align-items:center;gap:.65rem;position:sticky;top:0;z-index:10">
+      <span style="font-size:1.4rem">🛎️</span>
+      <div style="flex:1">
+        <div style="color:#fff;font-size:1rem;font-weight:700">แจ้งขอบริการใหม่</div>
+        <div style="color:#93c5fd;font-size:.73rem;margin-top:.05rem">Service Request · กรุณากรอกข้อมูลให้ครบถ้วน</div>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-svc-form')" style="color:#93c5fd;font-size:1.3rem;background:none;border:none;cursor:pointer;line-height:1">×</button>
+    </div>
+
+    <div style="padding:1rem;display:flex;flex-direction:column;gap:.85rem">
+
+      <!-- 1. ประเภทคำขอ -->
+      <div class="svc-card">
+        <div class="svc-section-head">⚙️ ประเภทคำขอบริการ</div>
+        <label class="svc-lbl">Serve Type <span style="color:#ef4444">*</span></label>
+        <select id="svc-serve-type" style="width:100%">
+          <option value="">— เลือกประเภทคำขอ —</option>
+          <option value="promo_coupon">🎯 สร้างโปรฯ / คูปอง</option>
+          <option value="quick_sale">⚡ สร้างปุ่มขายด่วน</option>
+        </select>
       </div>
 
-      <!-- Section 1 — แบรนด์ / สาขา -->
+      <!-- 2. ข้อมูลคำขอ -->
       <div class="svc-card">
-        <div class="svc-section-head">แบรนด์และสาขา</div>
-        <div class="form-group" style="margin-bottom:.6rem">
-          <label class="svc-lbl">แบรนด์ในเครือ <span style="color:#ef4444">*</span></label>
+        <div class="svc-section-head">📋 ข้อมูลคำขอ</div>
+
+        <div class="form-group" style="margin-bottom:.65rem">
+          <label class="svc-lbl">แบรนด์ <span style="color:#ef4444">*</span></label>
           <div class="svc-combo" id="svc-brands-combo" data-field="brands"></div>
         </div>
-        <div class="form-group" style="margin:0">
-          <label class="svc-lbl">ขอบเขตสาขา</label>
-          <div style="display:flex;gap:.75rem;margin-bottom:.4rem;flex-wrap:nowrap">
-            <label style="display:flex;align-items:center;gap:.35rem;font-size:.83rem;cursor:pointer;white-space:nowrap">
-              <input type="radio" name="svc-branch-scope" value="all" checked onchange="svcBranchScope('all')"> ทุกสาขา
-            </label>
-            <label style="display:flex;align-items:center;gap:.35rem;font-size:.83rem;cursor:pointer;white-space:nowrap">
-              <input type="radio" name="svc-branch-scope" value="specific" onchange="svcBranchScope('specific')"> เฉพาะบางสาขา
-            </label>
+
+        <div class="form-group" style="margin-bottom:.65rem">
+          <label class="svc-lbl">สาขา <span style="color:#ef4444">*</span></label>
+          <div class="svc-combo" id="svc-branches-combo" data-field="branches"></div>
+        </div>
+
+        <div style="margin-bottom:.65rem">
+          <label class="svc-lbl">ชื่อ / Title <span style="color:#ef4444">*</span></label>
+          <input id="svc-title" type="text" style="width:100%" placeholder="ระบุชื่อโปรโมชัน / คำขอบริการ..."/>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.65rem">
+          <div>
+            <label class="svc-lbl">Request No. <span style="color:#ef4444">*</span></label>
+            <input id="svc-request-no" type="text" style="width:100%" placeholder="เช่น SVC-2026-001"/>
           </div>
-          <div id="svc-branch-combo-wrap" style="display:none">
-            <div class="svc-combo" id="svc-branches-combo" data-field="branches"></div>
+          <div>
+            <label class="svc-lbl">วันที่ <span style="color:#ef4444">*</span></label>
+            <input id="svc-request-date" type="date" style="width:100%"/>
           </div>
         </div>
       </div>
 
-      <!-- Section: ชื่อเมนู (เฉพาะ menu type) -->
-      <div class="svc-card" id="svc-section-menu-name" style="display:none">
-        <div class="svc-section-head">ข้อมูลเมนู</div>
-        <div style="margin-bottom:.6rem">
-          <label class="svc-lbl">ชื่อเมนู / Title <span style="color:#ef4444">*</span></label>
-          <input id="svc-menu-title" type="text" style="width:100%" placeholder="ระบุชื่อเมนูที่ต้องการเพิ่ม..."/>
-        </div>
-        <div>
-          <label class="svc-lbl">รายละเอียดเพิ่มเติม</label>
-          <textarea id="svc-menu-detail" rows="2" style="width:100%;resize:vertical" placeholder="อธิบายรายละเอียดของเมนู วัตถุดิบ หรือข้อมูลเพิ่มเติม..."></textarea>
-        </div>
-      </div>
-
-      <!-- Section 2 — ข้อมูลโปรโมชัน -->
-      <div class="svc-card" id="svc-section-promo">
-        <div class="svc-section-head">ข้อมูลชุดโปรโมชัน</div>
-
-        <!-- Row: ชื่อ (full) + ประเภทการขาย (inline row) -->
-        <div style="display:flex;align-items:flex-end;gap:.75rem;margin-bottom:.7rem;flex-wrap:wrap">
-          <div style="flex:1;min-width:200px">
-            <label class="svc-lbl">ชื่อชุดโปรโมชัน</label>
-            <input id="svc-promo-name" type="text" style="width:100%" placeholder="ชื่อโปรโมชัน..."/>
-          </div>
-          <div style="flex-shrink:0">
-            <label class="svc-lbl">ประเภทการขาย</label>
-            <div style="display:flex;gap:.35rem" id="svc-sale-types">
-              <button type="button" class="svc-chip" data-val="dine_in"  onclick="svcToggleChip(this)">ทานที่ร้าน</button>
-              <button type="button" class="svc-chip" data-val="takeaway" onclick="svcToggleChip(this)">ซื้อกลับบ้าน</button>
-              <button type="button" class="svc-chip" data-val="delivery" onclick="svcToggleChip(this)">Delivery</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- รายละเอียดโปรโมชัน -->
-        <div style="margin-bottom:.7rem">
-          <label class="svc-lbl">รายละเอียดโปรโมชัน</label>
-          <textarea id="svc-promo-detail" rows="2" style="width:100%;resize:vertical" placeholder="อธิบายรายละเอียดของโปรโมชัน..."></textarea>
-        </div>
-
-        <!-- ── Coupon-only fields (hidden when type=menu) ── -->
-        <div id="svc-coupon-fields">
-        <!-- Row: รหัสคูปอง + รหัส ERP -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.9rem">
-          <div>
-            <label class="svc-lbl">รหัสชุดคูปอง <span style="color:#ef4444">*</span></label>
-            <input id="svc-coupon-code" type="text" style="font-family:monospace;width:100%;font-size:.82rem" placeholder="CPN-XXX-YYMM-001"/>
-          </div>
-          <div>
-            <label class="svc-lbl">รหัสทางบัญชี ERP <span style="color:#ef4444">*</span></label>
-            <input id="svc-erp-code" type="text" style="font-family:monospace;width:100%;font-size:.82rem" placeholder="ERP-XXX-YYMM-001"/>
-          </div>
-        </div>
-
-        <!-- ประเภทคูปอง -->
-        <label class="svc-lbl">ประเภทคูปอง</label>
-        <div class="svc-ctype-list" id="svc-coupon-types">
-
-          <!-- Type 1: Fixed Amount -->
-          <div class="svc-ctype-card" data-type="fixed">
-            <div class="svc-ctype-head" onclick="svcSelectCType('fixed')">
-              <input type="radio" name="svc-coupon-type" value="fixed"> <span>💵 คูปองเงินสด</span>
-              <span style="color:#94a3b8;font-size:.75rem;margin-left:.25rem">Fixed Amount</span>
-            </div>
-            <div class="svc-ctype-body">
-              <label class="svc-lbl">มูลค่าส่วนลด</label>
-              <div class="svc-field-row">
-                <input type="number" id="svc-fixed-amount" min="0" style="width:110px" placeholder="0">
-                <span class="svc-unit">บาท</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Type 2: Discount -->
-          <div class="svc-ctype-card active" data-type="discount">
-            <div class="svc-ctype-head" onclick="svcSelectCType('discount')">
-              <input type="radio" name="svc-coupon-type" value="discount" checked> <span>🏷️ คูปองส่วนลด</span>
-            </div>
-            <div class="svc-ctype-body" style="display:block">
-              <!-- Mode toggle -->
-              <div style="display:inline-flex;border:1.5px solid #d1d5db;border-radius:7px;overflow:hidden;margin-bottom:.6rem">
-                <button type="button" id="svc-disc-pct-btn" class="svc-mode-btn active" onclick="svcDiscMode('pct')">ลด %</button>
-                <button type="button" id="svc-disc-thb-btn" class="svc-mode-btn" onclick="svcDiscMode('thb')">ลด ฿</button>
-              </div>
-              <!-- Pct mode -->
-              <div id="svc-disc-pct">
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem .75rem">
-                  <div>
-                    <label class="svc-lbl">อัตราส่วนลด</label>
-                    <div class="svc-field-row">
-                      <input type="number" id="svc-disc-pct-val" min="0" max="100" style="width:75px" placeholder="0">
-                      <span class="svc-unit">%</span>
-                    </div>
-                  </div>
-                  <div>
-                    <label class="svc-lbl">ส่วนลดสูงสุด</label>
-                    <div class="svc-field-row">
-                      <input type="number" id="svc-disc-pct-max" min="0" style="width:95px" placeholder="ไม่จำกัด">
-                      <span class="svc-unit">บาท</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <!-- Thb mode -->
-              <div id="svc-disc-thb" style="display:none">
-                <label class="svc-lbl">มูลค่าส่วนลด</label>
-                <div class="svc-field-row">
-                  <input type="number" id="svc-disc-thb-val" min="0" style="width:110px" placeholder="0">
-                  <span class="svc-unit">บาท</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Type 3: Redeem Price -->
-          <div class="svc-ctype-card" data-type="redeem">
-            <div class="svc-ctype-head" onclick="svcSelectCType('redeem')">
-              <input type="radio" name="svc-coupon-type" value="redeem"> <span>🎁 แลกซื้อราคาพิเศษ</span>
-            </div>
-            <div class="svc-ctype-body">
-              <label class="svc-lbl">ราคาพิเศษ</label>
-              <div class="svc-field-row">
-                <input type="number" id="svc-redeem-price" min="0" style="width:110px" placeholder="0">
-                <span class="svc-unit">บาท</span>
-              </div>
-            </div>
-          </div>
-
-        </div>
-        </div><!-- end #svc-coupon-fields -->
-
-        <!-- Dates -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-top:.8rem">
-          <div>
-            <label class="svc-lbl">วันเริ่มใช้งาน</label>
-            <div style="display:flex;gap:.35rem">
-              <input type="date" id="svc-start-date" style="flex:1;min-width:0">
-              <input type="time" id="svc-start-time" style="width:100px">
-            </div>
-          </div>
-          <div>
-            <label class="svc-lbl">วันหมดอายุ</label>
-            <div style="display:flex;flex-direction:column;gap:.3rem">
-              <label style="font-size:.82rem;cursor:pointer;display:flex;align-items:center;gap:.4rem"><input type="radio" name="svc-expiry" value="none" checked onchange="svcExpiryType('none')"> ไม่หมดอายุ</label>
-              <label style="font-size:.82rem;cursor:pointer;display:flex;align-items:center;gap:.4rem"><input type="radio" name="svc-expiry" value="date" onchange="svcExpiryType('date')"> ตามวันที่ <input type="date" id="svc-expiry-date" style="display:none;margin-left:.2rem;flex:1"></label>
-              <label style="font-size:.82rem;cursor:pointer;display:flex;align-items:center;gap:.4rem"><input type="radio" name="svc-expiry" value="days" onchange="svcExpiryType('days')"> ภายใน <input type="number" id="svc-expiry-days" style="display:none;width:55px;margin:0 .2rem" min="1" placeholder="30"> วัน</label>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Section 3 — เงื่อนไข -->
-      <div class="svc-card" id="svc-section-cond">
-        <div class="svc-section-head">เงื่อนไขและข้อจำกัด</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
-
-          <!-- การนับคูปอง -->
-          <div>
-            <label class="svc-lbl">การนับคูปอง</label>
-            <div style="display:inline-flex;border:1.5px solid #d1d5db;border-radius:7px;overflow:hidden">
-              <label style="display:flex;align-items:center;gap:.3rem;padding:.28rem .7rem;font-size:.8rem;cursor:pointer;background:#fff;border-right:1px solid #d1d5db">
-                <input type="radio" name="svc-per" value="bill" checked style="margin:0"> ต่อบิล
-              </label>
-              <label style="display:flex;align-items:center;gap:.3rem;padding:.28rem .7rem;font-size:.8rem;cursor:pointer;background:#fff">
-                <input type="radio" name="svc-per" value="item" style="margin:0"> ต่อรายการ
-              </label>
-            </div>
-          </div>
-
-          <!-- จำนวนสูงสุด -->
-          <div>
-            <label class="svc-lbl">สูงสุดต่อใบเสร็จ</label>
-            <div class="svc-field-row">
-              <input type="number" id="svc-max-per-receipt" min="1" style="width:90px" placeholder="ไม่จำกัด">
-              <span class="svc-unit">ใบ</span>
-            </div>
-          </div>
-
-          <!-- ยอดขั้นต่ำ -->
-          <div>
-            <label class="svc-lbl">ยอดซื้อขั้นต่ำ</label>
-            <div style="display:flex;flex-direction:column;gap:.3rem">
-              <label style="font-size:.82rem;cursor:pointer;display:flex;align-items:center;gap:.4rem"><input type="radio" name="svc-min" value="none" checked onchange="svcMinType('none')"> ไม่มี</label>
-              <label style="font-size:.82rem;cursor:pointer;display:flex;align-items:center;gap:.4rem"><input type="radio" name="svc-min" value="price" onchange="svcMinType('price')"> ราคา <input type="number" id="svc-min-price" style="display:none;width:72px;margin:0 .2rem" min="0"> บาท</label>
-              <label style="font-size:.82rem;cursor:pointer;display:flex;align-items:center;gap:.4rem"><input type="radio" name="svc-min" value="qty" onchange="svcMinType('qty')"> จำนวน <input type="number" id="svc-min-qty" style="display:none;width:55px;margin:0 .2rem" min="0"> ชิ้น</label>
-            </div>
-          </div>
-
-          <!-- การใช้ร่วม -->
-          <div>
-            <label class="svc-lbl">ใช้ร่วมกับ</label>
-            <div style="display:flex;flex-direction:column;gap:.3rem">
-              <label style="font-size:.82rem;cursor:pointer;display:flex;align-items:center;gap:.4rem"><input type="checkbox" value="promotion"> โปรโมชันอื่น</label>
-              <label style="font-size:.82rem;cursor:pointer;display:flex;align-items:center;gap:.4rem"><input type="checkbox" value="other_coupon"> คูปองอื่น</label>
-              <label style="font-size:.82rem;cursor:pointer;display:flex;align-items:center;gap:.4rem"><input type="checkbox" value="member_discount"> ส่วนลดสมาชิก</label>
-            </div>
-          </div>
-        </div>
-
-        <!-- ประเภทลูกค้า — full width -->
-        <div style="margin-top:.7rem">
-          <label class="svc-lbl">ประเภทลูกค้า</label>
-          <div class="svc-combo" id="svc-custgrp-combo" data-field="customer_groups"></div>
-        </div>
-
-        <!-- เงื่อนไขการจัดจำหน่าย -->
-        <div style="margin-top:.7rem">
-          <label class="svc-lbl">เงื่อนไขการจัดจำหน่าย / Condition</label>
-          <textarea id="svc-condition" rows="2" style="width:100%;resize:vertical" placeholder="ระบุเงื่อนไขการจัดจำหน่าย เช่น ไม่ใช้ร่วมกับรายการอาหารประเภท A..."></textarea>
-        </div>
-      </div>
-
-      <!-- Section 4 — ไฟล์ -->
+      <!-- 3. ผู้ขอ / Team -->
       <div class="svc-card">
-        <div class="svc-section-head">ไฟล์เอกสาร</div>
-        <div id="svc-upload-area" style="border:2px dashed #d1d5db;border-radius:8px;padding:1.1rem;text-align:center;cursor:pointer;transition:border-color .15s;color:#64748b;font-size:.83rem"
+        <div class="svc-section-head">👥 ผู้ขอ / Team</div>
+        <div style="display:grid;grid-template-columns:1fr 2fr;gap:.65rem">
+          <div>
+            <label class="svc-lbl">ตำแหน่ง / Position</label>
+            <input id="svc-req-position" type="text" style="width:100%" placeholder="เช่น Manager"/>
+          </div>
+          <div>
+            <label class="svc-lbl">ชื่อ-สกุล / Name <span style="color:#ef4444">*</span></label>
+            <input id="svc-req-name" type="text" style="width:100%" placeholder="ชื่อผู้รับผิดชอบ"/>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. รายละเอียด -->
+      <div class="svc-card">
+        <div class="svc-section-head">📝 รายละเอียด</div>
+
+        <div style="margin-bottom:.65rem">
+          <label class="svc-lbl">ช่วงเวลา / Period <span style="color:#ef4444">*</span></label>
+          <div style="display:flex;align-items:center;gap:.5rem">
+            <input id="svc-period-start" type="date" style="flex:1"/>
+            <span style="color:#94a3b8;font-size:.85rem;flex-shrink:0">→</span>
+            <input id="svc-period-end" type="date" style="flex:1"/>
+          </div>
+        </div>
+
+        <div style="margin-bottom:.65rem">
+          <label class="svc-lbl">วัตถุประสงค์ / Objective</label>
+          <textarea id="svc-objective" rows="3" style="width:100%;resize:vertical" placeholder="อธิบายวัตถุประสงค์หลักของคำขอบริการนี้..."></textarea>
+        </div>
+
+        <div>
+          <label class="svc-lbl">เงื่อนไข / Condition</label>
+          <textarea id="svc-condition" rows="3" style="width:100%;resize:vertical" placeholder="เงื่อนไขและข้อจำกัดการใช้งาน..."></textarea>
+        </div>
+      </div>
+
+      <!-- 5. ไฟล์แนบ -->
+      <div class="svc-card">
+        <div class="svc-section-head">📎 ไฟล์แนบ</div>
+        <div id="svc-upload-area" style="border:2px dashed #d1d5db;border-radius:8px;padding:1.2rem;text-align:center;cursor:pointer;transition:border-color .15s;color:#64748b;font-size:.83rem"
           onclick="document.getElementById('svc-file-input').click()"
           ondragover="event.preventDefault();this.style.borderColor='#3b82f6'"
           ondragleave="this.style.borderColor='#d1d5db'"
           ondrop="svcHandleDrop(event)">
-          <div style="font-size:1.3rem;margin-bottom:.2rem">📎</div>
-          คลิกหรือลากไฟล์มาวาง
-          <div style="font-size:.72rem;color:#94a3b8;margin-top:.15rem">.xlsx · .xls · .pdf</div>
-          <input type="file" id="svc-file-input" accept=".xlsx,.xls,.pdf" style="display:none" onchange="svcHandleFile(this.files[0])">
+          <div style="font-size:1.5rem;margin-bottom:.25rem">📂</div>
+          ลากไฟล์มาวาง หรือคลิกเพื่อเลือกไฟล์
+          <div style="font-size:.72rem;color:#94a3b8;margin-top:.15rem">PDF · JPG · PNG · XLSX · XLS · สูงสุด 10 MB ต่อไฟล์</div>
+          <input type="file" id="svc-file-input" accept=".xlsx,.xls,.pdf,.jpg,.jpeg,.png" style="display:none" onchange="svcHandleFile(this.files[0])">
         </div>
         <div id="svc-file-chips" style="display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.5rem"></div>
       </div>
 
-      <!-- Section 5 — นัดหมายทดสอบ -->
-      <div class="svc-card">
-        <div class="svc-section-head">นัดหมายทดสอบระบบ</div>
-        <label class="svc-lbl">สาขาที่ทดสอบ (Pilot Store)</label>
-        <div class="svc-combo" id="svc-pilot-combo" data-field="pilot_stores"></div>
-      </div>
-
     </div>
+
     <!-- Footer -->
-    <div style="padding:.75rem 1rem;border-top:1px solid #e2e8f0;display:flex;gap:.5rem;justify-content:flex-end;position:sticky;bottom:0;background:#fff">
-      <button type="button" class="btn btn-ghost" onclick="svcSaveDraft()">💾 บันทึกร่าง</button>
-      <button type="button" class="btn btn-primary" onclick="svcSubmit()">📤 ส่งขอสร้างระบบ</button>
+    <div style="padding:.75rem 1rem;border-top:1px solid #e2e8f0;display:flex;gap:.5rem;justify-content:space-between;align-items:center;position:sticky;bottom:0;background:#fff">
+      <button type="button" class="btn btn-ghost" onclick="closeModal('modal-svc-form')">✕ ยกเลิก</button>
+      <div style="display:flex;gap:.5rem">
+        <button type="button" class="btn btn-ghost" onclick="svcSaveDraft()">💾 บันทึกร่าง</button>
+        <button type="button" class="btn btn-primary" onclick="svcSubmit()">📤 ส่งคำขอ</button>
+      </div>
     </div>
   </div>
 </div>
@@ -13011,29 +12846,31 @@ async function svcLoadList(){
 function svcRenderTable(rows){
   const tbody=document.getElementById('svc-tbody'); if(!tbody) return;
   if(!rows.length){
-    tbody.innerHTML=`<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:2rem">ยังไม่มีรายการ</td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:2rem">ยังไม่มีรายการ</td></tr>`;
     return;
   }
   tbody.innerHTML=rows.map(r=>{
     const brands=svcParseJSON(r.brands,[]).join(', ')||'—';
-    const dt=r.created_at?new Date(r.created_at).toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'}):'—';
+    const dt=r.request_date
+      ? new Date(r.request_date).toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'})
+      : (r.created_at?new Date(r.created_at).toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'}):'—');
     const m=SVC_STATUSES.find(s=>s.key===r.status)||{};
-    const rtypeStyle = r.request_type==='menu'
-      ? 'background:#d1fae5;color:#065f46;border:1px solid #6ee7b7'
+    const stStyle = r.serve_type==='quick_sale'
+      ? 'background:#fef3c7;color:#b45309;border:1px solid #fcd34d'
       : 'background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd';
+    const stLabel = r.serve_type==='quick_sale' ? '⚡ ขายด่วน' : '🎯 โปรฯ/คูปอง';
     return `<tr>
-      <td><span style="display:inline-block;padding:.1rem .5rem;border-radius:20px;font-size:.7rem;font-weight:700;white-space:nowrap;${rtypeStyle}">${r.request_type==='menu'?'📋 เมนูใหม่':'🎫 คูปอง/โปรฯ'}</span></td>
-      <td>${r.request_type==='menu'?'<span style="color:#94a3b8;font-size:.78rem">—</span>':`<code style="font-size:.78rem;background:#f1f5f9;padding:.1rem .3rem;border-radius:4px">${escHtml(r.coupon_code||'—')}</code>`}</td>
-      <td style="font-weight:600;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(r.promo_name||'(ไม่มีชื่อ)')}</td>
+      <td><span style="display:inline-block;padding:.1rem .5rem;border-radius:20px;font-size:.7rem;font-weight:700;white-space:nowrap;${stStyle}">${stLabel}</span></td>
+      <td><code style="font-size:.78rem;background:#f1f5f9;padding:.1rem .3rem;border-radius:4px">${escHtml(r.request_no||'—')}</code></td>
+      <td style="font-weight:600;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(r.title||r.promo_name||'(ไม่มีชื่อ)')}</td>
       <td style="max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.82rem">${escHtml(brands)}</td>
-      <td style="font-size:.82rem">${r.request_type==='menu'?'<span style="color:#94a3b8">—</span>':(SVC_CTYPE_LABEL[r.coupon_type]||r.coupon_type||'—')}</td>
+      <td style="font-size:.82rem">${escHtml(r.requester_name||r.created_by_name||'—')}</td>
       <td>
         <select onchange="svcUpdateStatus(${r.id},this.value)"
           style="font-size:.75rem;padding:.22rem .5rem;border-radius:20px;border:1.5px solid ${m.col||'#e2e8f0'}55;outline:none;cursor:pointer;font-family:inherit;background:${m.bg||'#f8fafc'};color:${m.col||'#475569'};font-weight:600">
           ${SVC_STATUSES.map(s=>`<option value="${s.key}"${r.status===s.key?' selected':''}>${s.label}</option>`).join('')}
         </select>
       </td>
-      <td style="font-size:.82rem">${escHtml(r.created_by_name||'—')}</td>
       <td style="font-size:.78rem;color:var(--muted)">${dt}</td>
       <td><button class="si-action-btn" onclick="svcOpenDetail(${r.id})" title="ดูรายละเอียด">👁</button></td>
     </tr>`;
@@ -13065,42 +12902,30 @@ function svcRenderBoard(rows){
 
 function svcKanbanCard(r,col){
   const brands=svcParseJSON(r.brands,[]).join(', ')||'—';
-  const dt=r.created_at?new Date(r.created_at).toLocaleDateString('th-TH',{day:'2-digit',month:'short'}):'';
+  const dt=r.request_date
+    ? new Date(r.request_date).toLocaleDateString('th-TH',{day:'2-digit',month:'short'})
+    : (r.created_at?new Date(r.created_at).toLocaleDateString('th-TH',{day:'2-digit',month:'short'}):'');
+  const stStyle = r.serve_type==='quick_sale'
+    ? 'background:#fef3c7;color:#b45309' : 'background:#dbeafe;color:#1d4ed8';
+  const stLabel = r.serve_type==='quick_sale' ? '⚡ ขายด่วน' : '🎯 โปรฯ/คูปอง';
   return `
     <div class="svc-kanban-card" onclick="svcOpenDetail(${r.id})"
       style="background:#fff;border-radius:8px;padding:.55rem .65rem;box-shadow:0 1px 3px rgba(0,0,0,.07);cursor:pointer;border-left:3px solid ${col.col};user-select:none">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.2rem">
-        ${r.request_type==='menu'?'':'<span style="font-size:.73rem;font-weight:700;color:'+col.col+';font-family:monospace">'+escHtml(r.coupon_code||'—')+'</span>'}
-        <span style="font-size:.65rem;font-weight:700;padding:.05rem .35rem;border-radius:10px;margin-left:auto;${r.request_type==='menu'?'background:#d1fae5;color:#065f46':'background:#dbeafe;color:#1d4ed8'}">${r.request_type==='menu'?'📋 เมนูใหม่':'🎫 คูปอง/โปรฯ'}</span>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.25rem">
+        <span style="font-size:.7rem;font-weight:700;padding:.05rem .4rem;border-radius:10px;${stStyle}">${stLabel}</span>
+        <span style="font-size:.68rem;color:#94a3b8">${escHtml(r.request_no||'')}</span>
       </div>
-      <div style="font-size:.83rem;font-weight:600;color:#1e293b;margin-bottom:.15rem;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${escHtml(r.promo_name||'(ไม่มีชื่อ)')}</div>
+      <div style="font-size:.83rem;font-weight:600;color:#1e293b;margin-bottom:.15rem;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${escHtml(r.title||r.promo_name||'(ไม่มีชื่อ)')}</div>
       <div style="font-size:.72rem;color:#64748b;margin-bottom:.25rem;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${escHtml(brands)}</div>
       <div style="display:flex;align-items:center;justify-content:space-between">
-        <span style="font-size:.68rem;color:#94a3b8">${escHtml(r.created_by_name||'')}</span>
+        <span style="font-size:.68rem;color:#94a3b8">${escHtml(r.requester_name||r.created_by_name||'')}</span>
         <span style="font-size:.68rem;color:#cbd5e1">${dt}</span>
       </div>
     </div>`;
 }
 
-// ── Request type toggle ──────────────────────────────────────────
-const SVC_RTYPE_LABEL = { coupon:'🎫 สร้างคูปอง/โปรฯ', menu:'📋 เพิ่มเมนูใหม่' };
-let _svcRequestType = 'coupon';
-
-function svcSetRequestType(type){
-  _svcRequestType = type;
-  const isCoupon = type === 'coupon';
-  // Toggle button styles
-  const btnC = document.getElementById('svc-rtype-coupon');
-  const btnM = document.getElementById('svc-rtype-menu');
-  if(btnC){ Object.assign(btnC.style,{border:'2px solid '+(isCoupon?'#3b82f6':'#e2e8f0'),background:isCoupon?'#dbeafe':'#fff',color:isCoupon?'#1d4ed8':'#94a3b8'}); }
-  if(btnM){ Object.assign(btnM.style,{border:'2px solid '+(isCoupon?'#e2e8f0':'#10b981'),background:isCoupon?'#fff':'#d1fae5',color:isCoupon?'#94a3b8':'#065f46'}); }
-  // Show/hide sections by type
-  ['svc-section-promo','svc-section-cond'].forEach(id=>{
-    const el=document.getElementById(id); if(el) el.style.display=isCoupon?'':'none';
-  });
-  const mn=document.getElementById('svc-section-menu-name');
-  if(mn) mn.style.display=isCoupon?'none':'';
-}
+// ── Serve type label map ─────────────────────────────────────────
+const SVC_STYPE_LABEL = { promo_coupon:'🎯 สร้างโปรฯ/คูปอง', quick_sale:'⚡ สร้างปุ่มขายด่วน' };
 
 // ── Open Form ────────────────────────────────────────────────────
 async function svcOpenForm(id){
@@ -13112,60 +12937,31 @@ async function svcOpenForm(id){
 }
 
 function svcResetForm(){
-  svcSetRequestType('coupon'); // default = coupon
-  ['svc-promo-name','svc-promo-detail','svc-condition','svc-menu-title','svc-menu-detail','svc-coupon-code','svc-erp-code',
-   'svc-start-date','svc-start-time','svc-expiry-date',
-   'svc-expiry-days','svc-fixed-amount','svc-disc-pct-val','svc-disc-pct-max',
-   'svc-disc-thb-val','svc-redeem-price','svc-max-per-receipt',
-   'svc-min-price','svc-min-qty'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  const setRadio=(name,val)=>{const r=document.querySelector(`input[name="${name}"][value="${val}"]`);if(r)r.checked=true;};
-  setRadio('svc-branch-scope','all');
-  setRadio('svc-expiry','none');
-  setRadio('svc-per','bill');
-  setRadio('svc-min','none');
-  document.querySelectorAll('.svc-chip').forEach(c=>c.classList.remove('active'));
+  ['svc-serve-type','svc-title','svc-request-no','svc-request-date',
+   'svc-req-position','svc-req-name',
+   'svc-period-start','svc-period-end','svc-objective','svc-condition'
+  ].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  // Default date = today
+  const today=new Date().toISOString().slice(0,10);
+  const rd=document.getElementById('svc-request-date'); if(rd) rd.value=today;
   _svcFiles=[];
-  const fc=document.getElementById('svc-file-chips');if(fc)fc.innerHTML='';
-  const fi=document.getElementById('svc-file-input');if(fi)fi.value='';
-  svcBranchScope('all');
-  svcExpiryType('none');
-  svcMinType('none');
-  svcSelectCType('discount');
-  svcDiscMode('pct');
+  const fc=document.getElementById('svc-file-chips'); if(fc) fc.innerHTML='';
+  const fi=document.getElementById('svc-file-input'); if(fi) fi.value='';
 }
 
 // ── Multi-select combo ───────────────────────────────────────────
 async function svcInitCombos(){
-  const [brands, siData, cgrps] = await Promise.all([
+  const [brands, siData] = await Promise.all([
     api('/api/shopinfo/brands'),
     api('/api/shopinfo'),
-    api('/api/customer-groups')
   ]);
   _svcBrandList  = Array.isArray(brands) ? brands : [];
   _svcBranchList = Array.isArray(siData)
     ? siData.map(b=>({id:b.id,brand_name:b.brand_name||'',branch_name:b.branch_name||''}))
     : [];
-  _svcCGrpList = Array.isArray(cgrps) ? cgrps : [];
-
   const branchOpts = _svcBranchList.map(b=>({id:String(b.id),label:`${b.brand_name} — ${b.branch_name}`}));
-
-  // ประเภทลูกค้า: ใช้ข้อมูลจาก EXT DB ถ้ามี มิฉะนั้น fallback predefined list
-  const _fallbackCTypes = [
-    {id:'general',    label:'ลูกค้าทั่วไป'},
-    {id:'member',     label:'สมาชิก'},
-    {id:'vip',        label:'VIP'},
-    {id:'staff',      label:'พนักงาน'},
-    {id:'corporate',  label:'ลูกค้าองค์กร'},
-    {id:'tour',       label:'กลุ่มทัวร์'},
-  ];
-  const custGrpOpts = _svcCGrpList.length
-    ? _svcCGrpList.map(g=>({id:g.group_code||String(g.group_id), label:g.group_name+(g.group_code?` (${g.group_code})`:'') }))
-    : _fallbackCTypes;
-
   svcBuildCombo('svc-brands-combo',   _svcBrandList.map(n=>({id:n,label:n})), []);
   svcBuildCombo('svc-branches-combo', branchOpts, []);
-  svcBuildCombo('svc-pilot-combo',    branchOpts, []);
-  svcBuildCombo('svc-custgrp-combo',  custGrpOpts, []);
 }
 
 function svcBuildCombo(elId, options, selected){
@@ -13196,7 +12992,6 @@ function svcBuildCombo(elId, options, selected){
       chip.appendChild(lbl); chip.appendChild(btn);
       inner.insertBefore(chip, input);
     });
-    if(elId==='svc-branches-combo') svcSyncPilotStore();
   };
 
   const renderDrop = (q='')=>{
@@ -13236,73 +13031,6 @@ function svcComboGetValues(elId){
   const el=document.getElementById(elId); return (el&&el._selected)||[];
 }
 
-// ── Branch scope ─────────────────────────────────────────────────
-function svcBranchScope(val){
-  const wrap=document.getElementById('svc-branch-combo-wrap');
-  if(wrap) wrap.style.display=val==='specific'?'':'none';
-  svcSyncPilotStore();
-}
-
-// ── Sync pilot store (stub — pilot now uses svc-pilot-combo) ──────
-function svcSyncPilotStore(){ /* no-op */ }
-
-// ── Sale type chips ──────────────────────────────────────────────
-function svcToggleChip(btn){ btn.classList.toggle('active'); }
-
-// ── Auto code ────────────────────────────────────────────────────
-function svcAutoCode(inputId, prefix){
-  const now=new Date();
-  const ym=now.getFullYear().toString().slice(-2)+(now.getMonth()+1).toString().padStart(2,'0');
-  const rnd=Math.random().toString(36).slice(2,5).toUpperCase();
-  document.getElementById(inputId).value=`${prefix}-${rnd}-${ym}-001`;
-}
-
-// ── Coupon type ──────────────────────────────────────────────────
-function svcSelectCType(type){
-  document.querySelectorAll('.svc-ctype-card').forEach(c=>{
-    const isMe=c.dataset.type===type;
-    c.classList.toggle('active',isMe);
-    const body=c.querySelector('.svc-ctype-body'); if(body) body.style.display=isMe?'block':'none';
-    const radio=c.querySelector('input[type=radio]'); if(radio) radio.checked=isMe;
-  });
-}
-
-// ── Discount mode ────────────────────────────────────────────────
-function svcDiscMode(mode){
-  const isPct=mode==='pct';
-  document.getElementById('svc-disc-pct').style.display=isPct?'':'none';
-  document.getElementById('svc-disc-thb').style.display=isPct?'none':'';
-  document.getElementById('svc-disc-pct-btn').classList.toggle('active',isPct);
-  document.getElementById('svc-disc-thb-btn').classList.toggle('active',!isPct);
-}
-
-// ── Tiered toggle ────────────────────────────────────────────────
-function svcTieredToggle(){
-  const chk=document.getElementById('svc-tiered-chk').checked;
-  document.getElementById('svc-disc-flat').style.display=chk?'none':'';
-  document.getElementById('svc-disc-tiered').style.display=chk?'':'none';
-}
-
-// ── Add tier row ─────────────────────────────────────────────────
-function svcAddTier(){
-  const tb=document.getElementById('svc-tier-rows');
-  const tr=document.createElement('tr');
-  tr.innerHTML=`<td style="padding:.25rem .4rem"><input type="number" class="svc-tier-inp" placeholder="0" style="width:90px"></td><td style="padding:.25rem .4rem"><input type="number" class="svc-tier-inp" placeholder="0" style="width:80px"></td><td><button type="button" onclick="this.closest('tr').remove()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:1rem">×</button></td>`;
-  tb.appendChild(tr);
-}
-
-// ── Expiry type ──────────────────────────────────────────────────
-function svcExpiryType(val){
-  const ed=document.getElementById('svc-expiry-date'); if(ed) ed.style.display=val==='date'?'':'none';
-  const dy=document.getElementById('svc-expiry-days'); if(dy) dy.style.display=val==='days'?'':'none';
-}
-
-// ── Min purchase ─────────────────────────────────────────────────
-function svcMinType(val){
-  const mp=document.getElementById('svc-min-price'); if(mp) mp.style.display=val==='price'?'':'none';
-  const mq=document.getElementById('svc-min-qty');   if(mq) mq.style.display=val==='qty'?'':'none';
-}
-
 // ── File handling ────────────────────────────────────────────────
 function svcHandleDrop(evt){
   evt.preventDefault(); evt.currentTarget.style.borderColor='#cbd5e1';
@@ -13311,7 +13039,7 @@ function svcHandleDrop(evt){
 function svcHandleFile(file){
   if(!file) return;
   const ext=file.name.split('.').pop().toLowerCase();
-  if(!['xlsx','xls','pdf'].includes(ext)){ alert('รองรับเฉพาะไฟล์ .xlsx, .xls, .pdf'); return; }
+  if(!['xlsx','xls','pdf','jpg','jpeg','png'].includes(ext)){ alert('รองรับเฉพาะไฟล์ PDF · JPG · PNG · XLSX · XLS'); return; }
   const reader=new FileReader();
   reader.onload=e=>{ _svcFiles.push({name:file.name,size:file.size,dataUrl:e.target.result}); svcRenderFileChips(); };
   reader.readAsDataURL(file);
@@ -13328,58 +13056,21 @@ function svcRemoveFile(i){ _svcFiles.splice(i,1); svcRenderFileChips(); }
 
 // ── Collect payload ──────────────────────────────────────────────
 function svcCollectPayload(){
-  const gv=id=>{const el=document.getElementById(id);return el?el.value.trim()||null:null;};
-  const gvn=id=>{const v=gv(id);return v?parseFloat(v):null;};
-  const sale_types=[...document.querySelectorAll('#svc-sale-types .svc-chip.active')].map(c=>c.dataset.val);
-  const ctype=document.querySelector('input[name="svc-coupon-type"]:checked')?.value||'discount';
-  const coupon_details={};
-  if(ctype==='fixed')    coupon_details.amount=gvn('svc-fixed-amount');
-  if(ctype==='discount'){
-    const isPct=document.getElementById('svc-disc-pct-btn').classList.contains('active');
-    coupon_details.mode=isPct?'pct':'thb';
-    if(isPct){ coupon_details.pct=gvn('svc-disc-pct-val'); coupon_details.max=gvn('svc-disc-pct-max'); }
-    else{ coupon_details.amount=gvn('svc-disc-thb-val'); }
-  }
-  if(ctype==='redeem')   coupon_details.price=gvn('svc-redeem-price');
-  const can_combine=[...document.querySelectorAll('#modal-svc-form input[type=checkbox]:checked')].map(c=>c.value);
-  const min_type=document.querySelector('input[name="svc-min"]:checked')?.value||'none';
-  const min_value=min_type==='price'?gv('svc-min-price'):min_type==='qty'?gv('svc-min-qty'):null;
-  // pilot stores — use combo, resolve ids to branch labels
-  const pilotIds=svcComboGetValues('svc-pilot-combo');
-  const pilotLabels=pilotIds.map(id=>{
-    const b=_svcBranchList.find(x=>String(x.id)===id);
-    return b?`${b.brand_name} — ${b.branch_name}`:id;
-  });
-  const isMenu = (_svcRequestType||'coupon') === 'menu';
+  const gv=id=>{ const el=document.getElementById(id); return el?el.value.trim()||null:null; };
   return {
-    request_type:      _svcRequestType||'coupon',
-    brands:            svcComboGetValues('svc-brands-combo'),
-    branch_scope:      document.querySelector('input[name="svc-branch-scope"]:checked')?.value||'all',
-    branches:          svcComboGetValues('svc-branches-combo'),
-    promo_name:        isMenu ? gv('svc-menu-title') : gv('svc-promo-name'),
-    sale_types,
-    coupon_code:       gv('svc-coupon-code'),
-    erp_code:          gv('svc-erp-code'),
-    coupon_type:       ctype,
-    coupon_details,
-    start_date:        gv('svc-start-date'),
-    start_time:        gv('svc-start-time'),
-    expiry_type:       document.querySelector('input[name="svc-expiry"]:checked')?.value||'none',
-    expiry_date:       gv('svc-expiry-date'),
-    expiry_days:       gvn('svc-expiry-days'),
-    per_bill:          document.querySelector('input[name="svc-per"]:checked')?.value==='bill',
-    max_per_receipt:   gvn('svc-max-per-receipt'),
-    min_purchase_type: min_type,
-    min_purchase_value:min_value,
-    can_combine,
-    customer_groups:   svcComboGetValues('svc-custgrp-combo'),
-    pilot_store:       pilotLabels.join(', ')||null,
-    contact_name:      null,
-    test_date:         null,
-    test_time:         null,
-    attachment_name:   _svcFiles.map(f=>f.name).join(', ')||null,
-    promo_detail:      isMenu ? gv('svc-menu-detail') : gv('svc-promo-detail'),
-    condition:         gv('svc-condition'),
+    serve_type:          gv('svc-serve-type'),
+    brands:              svcComboGetValues('svc-brands-combo'),
+    branches:            svcComboGetValues('svc-branches-combo'),
+    title:               gv('svc-title'),
+    request_no:          gv('svc-request-no'),
+    request_date:        gv('svc-request-date'),
+    requester_position:  gv('svc-req-position'),
+    requester_name:      gv('svc-req-name'),
+    period_start:        gv('svc-period-start'),
+    period_end:          gv('svc-period-end'),
+    objective:           gv('svc-objective'),
+    condition:           gv('svc-condition'),
+    attachment_name:     _svcFiles.map(f=>f.name).join(', ')||null,
   };
 }
 
@@ -13390,31 +13081,31 @@ async function svcSaveDraft(){
   const method=_svcEditId?'PUT':'POST';
   const res=await api(url,{method,body:payload});
   if(res&&(res.id||res.ok)){
-    closeModal('modal-svc-form'); showToast('บันทึกร่างฉบับแล้ว','success'); svcLoadList();
+    closeModal('modal-svc-form'); showToast('บันทึกร่างแล้ว','success'); svcLoadList();
   } else { alert('เกิดข้อผิดพลาด: '+(res?.error||'unknown')); }
 }
 
 // ── Submit ───────────────────────────────────────────────────────
 async function svcSubmit(){
   const payload=svcCollectPayload();
+  if(!payload.serve_type){ alert('กรุณาเลือกประเภทคำขอบริการ'); return; }
   if(!svcComboGetValues('svc-brands-combo').length){ alert('กรุณาเลือกแบรนด์อย่างน้อย 1 แบรนด์'); return; }
-  if(_svcRequestType==='menu'){
-    if(!payload.promo_name){ alert('กรุณาระบุชื่อเมนู'); return; }
-  } else {
-    if(!payload.coupon_code){ alert('กรุณากรอกรหัสชุดคูปอง'); return; }
-    if(!payload.erp_code){ alert('กรุณากรอกรหัสทางบัญชี ERP'); return; }
-  }
+  if(!svcComboGetValues('svc-branches-combo').length){ alert('กรุณาเลือกสาขาอย่างน้อย 1 สาขา'); return; }
+  if(!payload.title){ alert('กรุณาระบุชื่อ / Title'); return; }
+  if(!payload.request_no){ alert('กรุณาระบุ Request No.'); return; }
+  if(!payload.request_date){ alert('กรุณาระบุวันที่'); return; }
+  if(!payload.requester_name){ alert('กรุณาระบุชื่อ-สกุลผู้ขอ'); return; }
+  if(!payload.period_start||!payload.period_end){ alert('กรุณาระบุช่วงเวลา Period'); return; }
   const url=_svcEditId?`/api/service-requests/${_svcEditId}`:'/api/service-requests';
   const method=_svcEditId?'PUT':'POST';
   const res=await api(url,{method,body:payload});
   if(res&&(res.id||res.ok)){
-    closeModal('modal-svc-form'); showToast('ส่งคำขอสร้างระบบเรียบร้อย','success'); svcLoadList();
+    closeModal('modal-svc-form'); showToast('ส่งคำขอเรียบร้อยแล้ว','success'); svcLoadList();
   } else { alert('เกิดข้อผิดพลาด: '+(res?.error||'unknown')); }
 }
 
-// ── Detail modal (editable, type-aware) ─────────────────────
+// ── Detail modal ─────────────────────────────────────────────────
 async function svcOpenDetail(id){
-  // ดึงข้อมูลจาก cache ก่อน ถ้าไม่มีค่อย fetch
   let r = _svcAllRows.find(x=>x.id===id);
   if(!r){
     const all = await api('/api/service-requests');
@@ -13422,97 +13113,72 @@ async function svcOpenDetail(id){
   }
   if(!r) return;
 
-  const isMenu    = r.request_type === 'menu';
   const brands    = svcParseJSON(r.brands,[]).join(', ')||'—';
-  const branchTxt = r.branch_scope==='all' ? 'ทุกสาขา' : escHtml(svcParseJSON(r.branches,[]).join(', ')||'—');
+  const branches  = svcParseJSON(r.branches,[]).join(', ')||'—';
   const statusOpts= SVC_STATUSES.map(s=>`<option value="${s.key}"${r.status===s.key?' selected':''}>${s.label}</option>`).join('');
   const curS      = SVC_STATUSES.find(s=>s.key===r.status)||{bg:'#f1f5f9',col:'#64748b'};
-  const rtLabel   = isMenu ? '📋 เพิ่มเมนูใหม่' : '🎫 สร้างคูปอง/โปรฯ';
-  const rtStyle   = isMenu
-    ? 'background:#d1fae5;color:#065f46;border:1px solid #6ee7b7'
+  const stStyle   = r.serve_type==='quick_sale'
+    ? 'background:#fef3c7;color:#b45309;border:1px solid #fcd34d'
     : 'background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd';
+  const stLabel   = r.serve_type==='quick_sale' ? '⚡ สร้างปุ่มขายด่วน' : '🎯 สร้างโปรฯ/คูปอง';
+
+  const fmtDate = d => d ? new Date(d).toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'numeric'}) : '—';
 
   document.getElementById('svc-detail-title').innerHTML=
-    `🛎️ ${escHtml(r.promo_name||'(ไม่มีชื่อ)')} <span style="font-size:.72rem;font-weight:700;padding:.1rem .55rem;border-radius:20px;vertical-align:middle;${rtStyle}">${rtLabel}</span> <button class="modal-close" onclick="closeModal('modal-svc-detail')">×</button>`;
-
-  // ── Section: แบรนด์ / สาขา (แสดงทุก type) ──
-  const secBrand = `
-    <div class="svc-card">
-      <div class="svc-section-head">แบรนด์ / สาขา</div>
-      <div style="font-size:.84rem"><b>แบรนด์:</b> ${escHtml(brands)}</div>
-      <div style="font-size:.84rem;margin-top:.25rem"><b>ขอบเขต:</b> ${branchTxt}</div>
-    </div>`;
-
-  // ── Section: ข้อมูลเมนู (เฉพาะ menu type) ──
-  const secMenu = isMenu ? `
-    <div class="svc-card">
-      <div class="svc-section-head">ข้อมูลเมนู</div>
-      <div style="font-size:.84rem;display:flex;flex-direction:column;gap:.3rem">
-        <div><b>ชื่อ:</b> ${escHtml(r.promo_name||'—')}</div>
-        ${r.promo_detail?`<div><b>รายละเอียด:</b> ${escHtml(r.promo_detail)}</div>`:''}
-      </div>
-    </div>` : '';
-
-  // ── Section: คูปอง / โปรโมชัน (เฉพาะ coupon type) ──
-  let secCoupon = '';
-  if(!isMenu){
-    const saleTypes = svcParseJSON(r.sale_types,[]).map(t=>({dine_in:'ทานที่ร้าน',takeaway:'ซื้อกลับบ้าน',delivery:'Delivery'}[t]||t)).join(', ')||'—';
-    const cd = svcParseJSON(r.coupon_details,{});
-    let discDetail = '—';
-    if(r.coupon_type==='fixed')      discDetail=`💵 เงินสด ${cd.amount||0} บาท`;
-    else if(r.coupon_type==='discount'){
-      if(cd.mode==='pct') discDetail=`🏷️ ลด ${cd.pct||0}% (สูงสุด ${cd.max||'ไม่จำกัด'} บาท)`;
-      else                discDetail=`🏷️ ลด ${cd.amount||0} บาท`;
-    } else if(r.coupon_type==='redeem') discDetail=`🎁 แลกซื้อราคา ${cd.price||0} บาท`;
-    secCoupon = `
-      <div class="svc-card">
-        <div class="svc-section-head">คูปอง / โปรโมชัน</div>
-        <div style="font-size:.84rem;display:grid;grid-template-columns:1fr 1fr;gap:.4rem .8rem">
-          <div><b>ชื่อ:</b> ${escHtml(r.promo_name||'—')}</div>
-          <div><b>ประเภทการขาย:</b> ${escHtml(saleTypes)}</div>
-          <div><b>รหัสคูปอง:</b> <code>${escHtml(r.coupon_code||'—')}</code></div>
-          <div><b>รหัส ERP:</b> <code>${escHtml(r.erp_code||'—')}</code></div>
-          <div style="grid-column:1/-1"><b>ส่วนลด:</b> ${discDetail}</div>
-          ${r.promo_detail?`<div style="grid-column:1/-1"><b>รายละเอียด:</b> ${escHtml(r.promo_detail)}</div>`:''}
-          <div><b>เริ่มใช้งาน:</b> ${r.start_date||'—'} ${r.start_time||''}</div>
-          <div><b>หมดอายุ:</b> ${r.expiry_type==='none'?'ไม่หมดอายุ':r.expiry_type==='date'?(r.expiry_date||'—'):`${r.expiry_days||'?'} วัน`}</div>
-        </div>
-      </div>`;
-  }
-
-  // ── Section: เงื่อนไข (เฉพาะ coupon type) ──
-  let secCond = '';
-  if(!isMenu){
-    const canCombine = svcParseJSON(r.can_combine,[]);
-    const cgrps      = svcParseJSON(r.customer_groups,[]).join(', ')||'—';
-    secCond = `
-      <div class="svc-card">
-        <div class="svc-section-head">เงื่อนไข</div>
-        <div style="font-size:.84rem;display:grid;grid-template-columns:1fr 1fr;gap:.4rem .8rem">
-          <div><b>นับคูปอง:</b> ${r.per_bill?'1 คูปอง/บิล':'1 คูปอง/รายการ'}</div>
-          <div><b>สูงสุด/ใบเสร็จ:</b> ${r.max_per_receipt||'ไม่จำกัด'}</div>
-          <div><b>ยอดขั้นต่ำ:</b> ${r.min_purchase_type==='none'?'ไม่มี':r.min_purchase_type==='price'?(r.min_purchase_value+' บาท'):(r.min_purchase_value+' ชิ้น')}</div>
-          <div><b>ใช้ร่วมกับ:</b> ${canCombine.length?escHtml(canCombine.join(', ')):'—'}</div>
-          <div style="grid-column:1/-1"><b>กลุ่มลูกค้า:</b> ${escHtml(cgrps)}</div>
-          ${r.condition?`<div style="grid-column:1/-1"><b>เงื่อนไขการจัดจำหน่าย:</b> ${escHtml(r.condition)}</div>`:''}
-        </div>
-      </div>`;
-  }
-
-  // ── Section: ไฟล์ + นัดหมาย (แสดงทุก type ถ้ามีข้อมูล) ──
-  const secFile  = r.attachment_name ? `<div class="svc-card"><div class="svc-section-head">ไฟล์</div><div style="font-size:.84rem">📎 ${escHtml(r.attachment_name)}</div></div>` : '';
-  const secPilot = r.pilot_store     ? `<div class="svc-card"><div class="svc-section-head">นัดหมายทดสอบ</div><div style="font-size:.84rem"><b>Pilot Store:</b> ${escHtml(r.pilot_store)}</div></div>` : '';
+    `🛎️ ${escHtml(r.title||r.promo_name||'(ไม่มีชื่อ)')} <span style="font-size:.72rem;font-weight:700;padding:.1rem .55rem;border-radius:20px;vertical-align:middle;${stStyle}">${stLabel}</span> <button class="modal-close" onclick="closeModal('modal-svc-detail')">×</button>`;
 
   document.getElementById('svc-detail-body').innerHTML=`
     <div style="display:flex;flex-direction:column;gap:.75rem;padding:.25rem 0">
-      ${secBrand}
-      ${secMenu}
-      ${secCoupon}
-      ${secCond}
-      ${secFile}
-      ${secPilot}
 
-      <!-- ✏️ แก้ไข -->
+      <!-- 1. Serve type + Request No + Date -->
+      <div class="svc-card">
+        <div class="svc-section-head">📋 ข้อมูลคำขอ</div>
+        <div style="font-size:.84rem;display:grid;grid-template-columns:1fr 1fr;gap:.35rem .8rem">
+          <div><b>Request No.:</b> <code>${escHtml(r.request_no||'—')}</code></div>
+          <div><b>วันที่:</b> ${fmtDate(r.request_date)}</div>
+          <div style="grid-column:1/-1"><b>แบรนด์:</b> ${escHtml(brands)}</div>
+          <div style="grid-column:1/-1"><b>สาขา:</b> ${escHtml(branches)}</div>
+          <div style="grid-column:1/-1"><b>Title:</b> ${escHtml(r.title||r.promo_name||'—')}</div>
+        </div>
+      </div>
+
+      <!-- 2. Team -->
+      <div class="svc-card">
+        <div class="svc-section-head">👥 ผู้ขอ / Team</div>
+        <div style="font-size:.84rem;display:grid;grid-template-columns:1fr 2fr;gap:.35rem .8rem">
+          <div><b>ตำแหน่ง:</b> ${escHtml(r.requester_position||'—')}</div>
+          <div><b>ชื่อ-สกุล:</b> ${escHtml(r.requester_name||'—')}</div>
+        </div>
+      </div>
+
+      <!-- 3. Period -->
+      <div class="svc-card">
+        <div class="svc-section-head">📅 ช่วงเวลา / Period</div>
+        <div style="font-size:.84rem">${fmtDate(r.period_start)} → ${fmtDate(r.period_end)}</div>
+      </div>
+
+      ${r.objective?`
+      <!-- 4. Objective -->
+      <div class="svc-card">
+        <div class="svc-section-head">🎯 วัตถุประสงค์ / Objective</div>
+        <div style="font-size:.84rem;white-space:pre-wrap">${escHtml(r.objective)}</div>
+      </div>`:''}
+
+      ${r.condition?`
+      <!-- 5. Condition -->
+      <div class="svc-card">
+        <div class="svc-section-head">📌 เงื่อนไข / Condition</div>
+        <div style="font-size:.84rem;white-space:pre-wrap">${escHtml(r.condition)}</div>
+      </div>`:''}
+
+      ${r.attachment_name?`
+      <!-- 6. Files -->
+      <div class="svc-card">
+        <div class="svc-section-head">📎 ไฟล์แนบ</div>
+        <div style="font-size:.84rem">📎 ${escHtml(r.attachment_name)}</div>
+      </div>`:''}
+
+      <!-- 7. Edit section -->
       <div class="svc-card" style="border:1.5px solid #bfdbfe;background:#f0f7ff">
         <div class="svc-section-head" style="border-color:#2563eb;color:#1d4ed8">✏️ แก้ไข</div>
         <div style="margin-bottom:.65rem">
@@ -13529,7 +13195,7 @@ async function svcOpenDetail(id){
         </div>
       </div>
 
-      <!-- 🗑 Delete confirmation (hidden by default) -->
+      <!-- 8. Delete confirmation (hidden by default) -->
       <div id="svc-det-delete-box" style="display:none;background:#fff5f5;border:1.5px solid #fca5a5;border-radius:10px;padding:.85rem 1rem">
         <div style="font-size:.82rem;font-weight:700;color:#b91c1c;margin-bottom:.5rem">⚠️ ยืนยันการลบรายการนี้</div>
         <div style="font-size:.78rem;color:#64748b;margin-bottom:.6rem">การลบไม่สามารถย้อนกลับได้ — กรุณาระบุเหตุผลก่อนดำเนินการ</div>

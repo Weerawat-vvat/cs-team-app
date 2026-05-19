@@ -5420,6 +5420,15 @@ async function ensureServiceRequestsTable() {
     await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='promo_detail') ALTER TABLE service_requests ADD promo_detail NVARCHAR(MAX) NULL`);
     await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='condition') ALTER TABLE service_requests ADD condition NVARCHAR(MAX) NULL`);
     await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='request_type') ALTER TABLE service_requests ADD request_type NVARCHAR(30) DEFAULT 'coupon' NULL`);
+    await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='serve_type') ALTER TABLE service_requests ADD serve_type NVARCHAR(50) NULL`);
+    await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='title') ALTER TABLE service_requests ADD title NVARCHAR(500) NULL`);
+    await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='request_no') ALTER TABLE service_requests ADD request_no NVARCHAR(100) NULL`);
+    await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='request_date') ALTER TABLE service_requests ADD request_date DATE NULL`);
+    await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='requester_position') ALTER TABLE service_requests ADD requester_position NVARCHAR(200) NULL`);
+    await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='requester_name') ALTER TABLE service_requests ADD requester_name NVARCHAR(200) NULL`);
+    await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='period_start') ALTER TABLE service_requests ADD period_start DATE NULL`);
+    await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='period_end') ALTER TABLE service_requests ADD period_end DATE NULL`);
+    await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='objective') ALTER TABLE service_requests ADD objective NVARCHAR(MAX) NULL`);
     console.log('✅ service_requests table ready');
   } catch(e) { console.error('❌ service_requests error:', e.message); }
 }
@@ -5430,7 +5439,7 @@ app.get('/api/service-requests', authRequired, async (request, res) => {
     const { status, q, dateFrom, dateTo } = request.query;
     let where = 'WHERE 1=1';
     if (status)   where += ` AND sr.status=N'${status.replace(/'/g,"''")}'`;
-    if (q)        where += ` AND (sr.promo_name LIKE N'%${q.replace(/'/g,"''")}%' OR sr.brands LIKE N'%${q.replace(/'/g,"''")}%' OR sr.coupon_code LIKE N'%${q.replace(/'/g,"''")}%')`;
+    if (q)        where += ` AND (sr.title LIKE N'%${q.replace(/'/g,"''")}%' OR sr.promo_name LIKE N'%${q.replace(/'/g,"''")}%' OR sr.brands LIKE N'%${q.replace(/'/g,"''")}%' OR sr.request_no LIKE N'%${q.replace(/'/g,"''")}%' OR sr.requester_name LIKE N'%${q.replace(/'/g,"''")}%')`;
     if (dateFrom) where += ` AND CAST(sr.created_at AS DATE) >= '${dateFrom}'`;
     if (dateTo)   where += ` AND CAST(sr.created_at AS DATE) <= '${dateTo}'`;
     const rows = (await req().query(`
@@ -5453,48 +5462,29 @@ app.post('/api/service-requests', authRequired, async (request, res) => {
   try {
     const b = request.body;
     const result = await req()
-      .input('brands',           sql.NVarChar, JSON.stringify(b.brands||[]))
-      .input('branch_scope',     sql.NVarChar, b.branch_scope||'all')
-      .input('branches',         sql.NVarChar, JSON.stringify(b.branches||[]))
-      .input('promo_name',       sql.NVarChar, b.promo_name||null)
-      .input('sale_types',       sql.NVarChar, JSON.stringify(b.sale_types||[]))
-      .input('coupon_code',      sql.NVarChar, b.coupon_code||null)
-      .input('erp_code',         sql.NVarChar, b.erp_code||null)
-      .input('coupon_type',      sql.NVarChar, b.coupon_type||null)
-      .input('coupon_details',   sql.NVarChar, JSON.stringify(b.coupon_details||{}))
-      .input('start_date',       sql.NVarChar, b.start_date||null)
-      .input('start_time',       sql.NVarChar, b.start_time||null)
-      .input('expiry_type',      sql.NVarChar, b.expiry_type||'none')
-      .input('expiry_date',      sql.NVarChar, b.expiry_date||null)
-      .input('expiry_days',      sql.Int,      b.expiry_days||null)
-      .input('per_bill',         sql.Bit,      b.per_bill!==false?1:0)
-      .input('max_per_receipt',  sql.Int,      b.max_per_receipt||null)
-      .input('min_purchase_type',sql.NVarChar, b.min_purchase_type||'none')
-      .input('min_purchase_value',sql.NVarChar,b.min_purchase_value||null)
-      .input('can_combine',      sql.NVarChar, JSON.stringify(b.can_combine||[]))
-      .input('customer_groups',  sql.NVarChar, JSON.stringify(b.customer_groups||[]))
-      .input('pilot_store',      sql.NVarChar, b.pilot_store||null)
-      .input('contact_name',     sql.NVarChar, b.contact_name||null)
-      .input('test_date',        sql.NVarChar, b.test_date||null)
-      .input('test_time',        sql.NVarChar, b.test_time||null)
-      .input('attachment_name',  sql.NVarChar, b.attachment_name||null)
-      .input('promo_detail',     sql.NVarChar, b.promo_detail||null)
-      .input('condition',        sql.NVarChar, b.condition||null)
-      .input('request_type',     sql.NVarChar, b.request_type||'coupon')
-      .input('status',           sql.NVarChar, 'received')
-      .input('created_by',       sql.Int,      request.user.id)
+      .input('serve_type',         sql.NVarChar, b.serve_type||null)
+      .input('brands',             sql.NVarChar, JSON.stringify(b.brands||[]))
+      .input('branches',           sql.NVarChar, JSON.stringify(b.branches||[]))
+      .input('title',              sql.NVarChar, b.title||null)
+      .input('request_no',         sql.NVarChar, b.request_no||null)
+      .input('request_date',       sql.Date,     b.request_date?new Date(b.request_date):null)
+      .input('requester_position', sql.NVarChar, b.requester_position||null)
+      .input('requester_name',     sql.NVarChar, b.requester_name||null)
+      .input('period_start',       sql.Date,     b.period_start?new Date(b.period_start):null)
+      .input('period_end',         sql.Date,     b.period_end?new Date(b.period_end):null)
+      .input('objective',          sql.NVarChar, b.objective||null)
+      .input('condition',          sql.NVarChar, b.condition||null)
+      .input('attachment_name',    sql.NVarChar, b.attachment_name||null)
+      .input('status',             sql.NVarChar, 'received')
+      .input('created_by',         sql.Int,      request.user.id)
       .query(`INSERT INTO service_requests
-        (brands,branch_scope,branches,promo_name,sale_types,coupon_code,erp_code,
-         coupon_type,coupon_details,start_date,start_time,expiry_type,expiry_date,expiry_days,
-         per_bill,max_per_receipt,min_purchase_type,min_purchase_value,can_combine,
-         customer_groups,pilot_store,contact_name,test_date,test_time,attachment_name,
-         promo_detail,condition,request_type,status,created_by)
+        (serve_type,brands,branches,title,request_no,request_date,
+         requester_position,requester_name,period_start,period_end,
+         objective,condition,attachment_name,status,created_by)
         OUTPUT INSERTED.id
-        VALUES(@brands,@branch_scope,@branches,@promo_name,@sale_types,@coupon_code,@erp_code,
-               @coupon_type,@coupon_details,@start_date,@start_time,@expiry_type,@expiry_date,@expiry_days,
-               @per_bill,@max_per_receipt,@min_purchase_type,@min_purchase_value,@can_combine,
-               @customer_groups,@pilot_store,@contact_name,@test_date,@test_time,@attachment_name,
-               @promo_detail,@condition,@request_type,@status,@created_by)`);
+        VALUES(@serve_type,@brands,@branches,@title,@request_no,@request_date,
+               @requester_position,@requester_name,@period_start,@period_end,
+               @objective,@condition,@attachment_name,@status,@created_by)`);
     res.json({ id: result.recordset[0].id });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -5505,10 +5495,10 @@ app.put('/api/service-requests/:id', authRequired, async (request, res) => {
     const id = parseInt(request.params.id);
     const b  = request.body;
     await req()
-      .input('id',     sql.Int,      id)
-      .input('status', sql.NVarChar, b.status||null)
-      .input('note',   sql.NVarChar, b.note!=null ? b.note : null)
-      .input('assigned_to', sql.Int, b.assigned_to||null)
+      .input('id',          sql.Int,      id)
+      .input('status',      sql.NVarChar, b.status||null)
+      .input('note',        sql.NVarChar, b.note!=null ? b.note : null)
+      .input('assigned_to', sql.Int,      b.assigned_to||null)
       .query(`UPDATE service_requests SET
         status=COALESCE(@status,status),
         note=COALESCE(@note,note),
