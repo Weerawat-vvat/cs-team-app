@@ -2082,9 +2082,9 @@ textarea{resize:vertical;min-height:80px}
           </div>
         </div>
 
-        <!-- กลุ่มลูกค้า — full width -->
+        <!-- ประเภทลูกค้า — full width -->
         <div style="margin-top:.7rem">
-          <label class="svc-lbl">กลุ่มลูกค้า</label>
+          <label class="svc-lbl">ประเภทลูกค้า</label>
           <div class="svc-combo" id="svc-custgrp-combo" data-field="customer_groups"></div>
         </div>
       </div>
@@ -12933,11 +12933,24 @@ async function svcInitCombos(){
   _svcCGrpList = Array.isArray(cgrps) ? cgrps : [];
 
   const branchOpts = _svcBranchList.map(b=>({id:String(b.id),label:`${b.brand_name} — ${b.branch_name}`}));
+
+  // ประเภทลูกค้า: ใช้ข้อมูลจาก EXT DB ถ้ามี มิฉะนั้น fallback predefined list
+  const _fallbackCTypes = [
+    {id:'general',    label:'ลูกค้าทั่วไป'},
+    {id:'member',     label:'สมาชิก'},
+    {id:'vip',        label:'VIP'},
+    {id:'staff',      label:'พนักงาน'},
+    {id:'corporate',  label:'ลูกค้าองค์กร'},
+    {id:'tour',       label:'กลุ่มทัวร์'},
+  ];
+  const custGrpOpts = _svcCGrpList.length
+    ? _svcCGrpList.map(g=>({id:g.group_code||String(g.group_id), label:g.group_name+(g.group_code?` (${g.group_code})`:'') }))
+    : _fallbackCTypes;
+
   svcBuildCombo('svc-brands-combo',   _svcBrandList.map(n=>({id:n,label:n})), []);
   svcBuildCombo('svc-branches-combo', branchOpts, []);
   svcBuildCombo('svc-pilot-combo',    branchOpts, []);
-  svcBuildCombo('svc-custgrp-combo',
-    _svcCGrpList.map(g=>({id:g.group_code||String(g.group_id),label:g.group_name+(g.group_code?` (${g.group_code})`:'')})), []);
+  svcBuildCombo('svc-custgrp-combo',  custGrpOpts, []);
 }
 
 function svcBuildCombo(elId, options, selected){
