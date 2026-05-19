@@ -12985,7 +12985,7 @@ function svcComboRemove(elId, id){
 }
 
 function svcComboGetValues(elId){
-  const el=document.getElementById(elId); return el?el._selected:[];
+  const el=document.getElementById(elId); return (el&&el._selected)||[];
 }
 
 // ── Branch scope ─────────────────────────────────────────────────
