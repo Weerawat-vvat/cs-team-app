@@ -12995,7 +12995,11 @@ function svcBuildCombo(elId, options, selected){
     el._selected.forEach(id=>{
       const opt=options.find(o=>o.id===id); if(!opt) return;
       const chip=document.createElement('span'); chip.className='svc-combo-chip';
-      chip.innerHTML=`${opt.label}<button type="button" onclick="svcComboRemove('${elId}',${JSON.stringify(id)})">×</button>`;
+      const lbl=document.createTextNode(opt.label);
+      const btn=document.createElement('button');
+      btn.type='button'; btn.textContent='×';
+      btn.onclick=(e)=>{ e.stopPropagation(); svcComboRemove(elId, id); };
+      chip.appendChild(lbl); chip.appendChild(btn);
       inner.insertBefore(chip, input);
     });
     if(elId==='svc-branches-combo') svcSyncPilotStore();
