@@ -2012,16 +2012,6 @@ textarea{resize:vertical;min-height:80px}
             </div>
           </div>
 
-          <!-- Type 4: Campaign -->
-          <div class="svc-ctype-card" data-type="campaign">
-            <div class="svc-ctype-head" onclick="svcSelectCType('campaign')">
-              <input type="radio" name="svc-coupon-type" value="campaign"> <span>📢 แคมเปญเมนูใหม่</span>
-            </div>
-            <div class="svc-ctype-body">
-              <label class="svc-lbl">รายละเอียดแคมเปญ</label>
-              <textarea id="svc-campaign-detail" rows="3" placeholder="ระบุรายละเอียด..." style="width:100%;border:1.5px solid #e2e8f0;border-radius:6px;padding:.4rem .6rem;font-family:inherit;font-size:.82rem;resize:vertical;outline:none"></textarea>
-            </div>
-          </div>
         </div>
 
         <!-- Dates -->
@@ -2118,30 +2108,8 @@ textarea{resize:vertical;min-height:80px}
       <!-- Section 5 — นัดหมายทดสอบ -->
       <div class="svc-card">
         <div class="svc-section-head">นัดหมายทดสอบระบบ</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
-          <div>
-            <label class="svc-lbl">Pilot Store</label>
-            <select id="svc-pilot-store" style="width:100%">
-              <option value="">— เลือกสาขาจาก Section 1 ก่อน —</option>
-            </select>
-          </div>
-          <div>
-            <label class="svc-lbl">ผู้ประสานงาน</label>
-            <input type="text" id="svc-contact" placeholder="ชื่อ · เบอร์โทร">
-          </div>
-          <div>
-            <label class="svc-lbl">วันที่ทดสอบ</label>
-            <input type="date" id="svc-test-date" style="width:100%">
-          </div>
-          <div>
-            <label class="svc-lbl">เวลา</label>
-            <select id="svc-test-time" style="width:100%">
-              <option value="09:30">09:30 — ก่อนร้านเปิด</option>
-              <option value="13:00">13:00 — ช่วงบ่าย</option>
-              <option value="17:00">17:00 — ช่วงเย็น</option>
-            </select>
-          </div>
-        </div>
+        <label class="svc-lbl">สาขาที่ทดสอบ (Pilot Store)</label>
+        <div class="svc-combo" id="svc-pilot-combo" data-field="pilot_stores"></div>
       </div>
 
     </div>
@@ -12923,10 +12891,10 @@ async function svcOpenForm(id){
 }
 
 function svcResetForm(){
-  ['svc-promo-name','svc-coupon-code','svc-erp-code','svc-contact',
-   'svc-start-date','svc-start-time','svc-test-date','svc-expiry-date',
+  ['svc-promo-name','svc-coupon-code','svc-erp-code',
+   'svc-start-date','svc-start-time','svc-expiry-date',
    'svc-expiry-days','svc-fixed-amount','svc-disc-pct-val','svc-disc-pct-max',
-   'svc-disc-thb-val','svc-redeem-price','svc-campaign-detail','svc-max-per-receipt',
+   'svc-disc-thb-val','svc-redeem-price','svc-max-per-receipt',
    'svc-min-price','svc-min-qty'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const setRadio=(name,val)=>{const r=document.querySelector(`input[name="${name}"][value="${val}"]`);if(r)r.checked=true;};
   setRadio('svc-branch-scope','all');
@@ -12937,8 +12905,6 @@ function svcResetForm(){
   _svcFiles=[];
   const fc=document.getElementById('svc-file-chips');if(fc)fc.innerHTML='';
   const fi=document.getElementById('svc-file-input');if(fi)fi.value='';
-  const ps=document.getElementById('svc-pilot-store');
-  if(ps)ps.innerHTML='<option value="">— เลือกสาขาจาก Section 1 ก่อน —</option>';
   svcBranchScope('all');
   svcExpiryType('none');
   svcMinType('none');
@@ -12966,10 +12932,10 @@ async function svcInitCombos(){
     : [];
   _svcCGrpList = Array.isArray(cgrps) ? cgrps : [];
 
-  svcBuildCombo('svc-brands-combo',
-    _svcBrandList.map(n=>({id:n,label:n})), []);
-  svcBuildCombo('svc-branches-combo',
-    _svcBranchList.map(b=>({id:String(b.id),label:`${b.brand_name} — ${b.branch_name}`})), []);
+  const branchOpts = _svcBranchList.map(b=>({id:String(b.id),label:`${b.brand_name} — ${b.branch_name}`}));
+  svcBuildCombo('svc-brands-combo',   _svcBrandList.map(n=>({id:n,label:n})), []);
+  svcBuildCombo('svc-branches-combo', branchOpts, []);
+  svcBuildCombo('svc-pilot-combo',    branchOpts, []);
   svcBuildCombo('svc-custgrp-combo',
     _svcCGrpList.map(g=>({id:g.group_code||String(g.group_id),label:g.group_name+(g.group_code?` (${g.group_code})`:'')})), []);
 }
@@ -13049,21 +13015,8 @@ function svcBranchScope(val){
   svcSyncPilotStore();
 }
 
-// ── Sync pilot store ─────────────────────────────────────────────
-function svcSyncPilotStore(){
-  const scope=document.querySelector('input[name="svc-branch-scope"]:checked');
-  const ps=document.getElementById('svc-pilot-store'); if(!ps) return;
-  let branches=[];
-  if(scope&&scope.value==='specific'){
-    const ids=svcComboGetValues('svc-branches-combo');
-    branches=_svcBranchList.filter(b=>ids.includes(String(b.id)));
-  } else {
-    const brandSel=svcComboGetValues('svc-brands-combo');
-    branches=brandSel.length?_svcBranchList.filter(b=>brandSel.includes(b.brand_name)):_svcBranchList;
-  }
-  ps.innerHTML='<option value="">— เลือก Pilot Store —</option>'+
-    branches.map(b=>`<option value="${b.id}">${b.brand_name} — ${b.branch_name}</option>`).join('');
-}
+// ── Sync pilot store (stub — pilot now uses svc-pilot-combo) ──────
+function svcSyncPilotStore(){ /* no-op */ }
 
 // ── Sale type chips ──────────────────────────────────────────────
 function svcToggleChip(btn){ btn.classList.toggle('active'); }
@@ -13169,13 +13122,15 @@ function svcCollectPayload(){
     }
   }
   if(ctype==='redeem')   coupon_details.price=gvn('svc-redeem-price');
-  if(ctype==='campaign') coupon_details.detail=gv('svc-campaign-detail');
   const can_combine=[...document.querySelectorAll('#modal-svc-form input[type=checkbox]:checked')].map(c=>c.value);
   const min_type=document.querySelector('input[name="svc-min"]:checked')?.value||'none';
   const min_value=min_type==='price'?gv('svc-min-price'):min_type==='qty'?gv('svc-min-qty'):null;
-  const ps=document.getElementById('svc-pilot-store');
-  const pilotId=ps?ps.value:'';
-  const pilotBranch=pilotId?_svcBranchList.find(b=>String(b.id)===pilotId):null;
+  // pilot stores — use combo, resolve ids to branch labels
+  const pilotIds=svcComboGetValues('svc-pilot-combo');
+  const pilotLabels=pilotIds.map(id=>{
+    const b=_svcBranchList.find(x=>String(x.id)===id);
+    return b?`${b.brand_name} — ${b.branch_name}`:id;
+  });
   return {
     brands:            svcComboGetValues('svc-brands-combo'),
     branch_scope:      document.querySelector('input[name="svc-branch-scope"]:checked')?.value||'all',
@@ -13197,10 +13152,10 @@ function svcCollectPayload(){
     min_purchase_value:min_value,
     can_combine,
     customer_groups:   svcComboGetValues('svc-custgrp-combo'),
-    pilot_store:       pilotBranch?`${pilotBranch.brand_name} — ${pilotBranch.branch_name}`:(pilotId||null),
-    contact_name:      gv('svc-contact'),
-    test_date:         gv('svc-test-date'),
-    test_time:         document.getElementById('svc-test-time')?.value||null,
+    pilot_store:       pilotLabels.join(', ')||null,
+    contact_name:      null,
+    test_date:         null,
+    test_time:         null,
     attachment_name:   _svcFiles.map(f=>f.name).join(', ')||null,
   };
 }
