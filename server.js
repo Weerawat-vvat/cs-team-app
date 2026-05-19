@@ -5376,6 +5376,150 @@ async function ensureShopEntriesTable() {
 }
 
 // ══════════════════════════════════════════════════════════
+//  SERVICE REQUESTS (Support Package / Promotion Setup)
+// ══════════════════════════════════════════════════════════
+async function ensureServiceRequestsTable() {
+  try {
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='service_requests' AND xtype='U')
+      CREATE TABLE service_requests (
+        id              INT PRIMARY KEY IDENTITY,
+        brands          NVARCHAR(MAX) NULL,
+        branch_scope    NVARCHAR(20)  DEFAULT 'all',
+        branches        NVARCHAR(MAX) NULL,
+        promo_name      NVARCHAR(500) NULL,
+        sale_types      NVARCHAR(MAX) NULL,
+        coupon_code     NVARCHAR(100) NULL,
+        erp_code        NVARCHAR(100) NULL,
+        coupon_type     NVARCHAR(50)  NULL,
+        coupon_details  NVARCHAR(MAX) NULL,
+        start_date      NVARCHAR(20)  NULL,
+        start_time      NVARCHAR(10)  NULL,
+        expiry_type     NVARCHAR(20)  DEFAULT 'none',
+        expiry_date     NVARCHAR(20)  NULL,
+        expiry_days     INT           NULL,
+        per_bill        BIT           DEFAULT 1,
+        max_per_receipt INT           NULL,
+        min_purchase_type NVARCHAR(20) DEFAULT 'none',
+        min_purchase_value NVARCHAR(50) NULL,
+        can_combine     NVARCHAR(MAX) NULL,
+        customer_groups NVARCHAR(MAX) NULL,
+        pilot_store     NVARCHAR(200) NULL,
+        contact_name    NVARCHAR(200) NULL,
+        test_date       NVARCHAR(20)  NULL,
+        test_time       NVARCHAR(50)  NULL,
+        attachment_name NVARCHAR(500) NULL,
+        status          NVARCHAR(30)  DEFAULT 'received',
+        assigned_to     INT           NULL,
+        note            NVARCHAR(MAX) NULL,
+        created_by      INT           NULL,
+        created_at      DATETIME      DEFAULT GETDATE(),
+        updated_at      DATETIME      DEFAULT GETDATE()
+      )`);
+    console.log('✅ service_requests table ready');
+  } catch(e) { console.error('❌ service_requests error:', e.message); }
+}
+
+// ── GET /api/service-requests ──────────────────────────────
+app.get('/api/service-requests', authRequired, async (request, res) => {
+  try {
+    const { status, q } = request.query;
+    let where = 'WHERE 1=1';
+    if (status) where += ` AND sr.status=N'${status.replace(/'/g,"''")}'`;
+    if (q)      where += ` AND (sr.promo_name LIKE N'%${q.replace(/'/g,"''")}%' OR sr.brands LIKE N'%${q.replace(/'/g,"''")}%' OR sr.coupon_code LIKE N'%${q.replace(/'/g,"''")}%')`;
+    const rows = (await req().query(`
+      SELECT sr.*,
+             ISNULL(ec.nickname, ec.name) AS created_by_name,
+             ISNULL(ea.nickname, ea.name) AS assigned_to_name
+      FROM service_requests sr
+      LEFT JOIN app_users  uc ON uc.id = sr.created_by
+      LEFT JOIN employees  ec ON ec.id = uc.employee_id
+      LEFT JOIN app_users  ua ON ua.id = sr.assigned_to
+      LEFT JOIN employees  ea ON ea.id = ua.employee_id
+      ${where}
+      ORDER BY sr.created_at DESC`)).recordset;
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── POST /api/service-requests ─────────────────────────────
+app.post('/api/service-requests', authRequired, async (request, res) => {
+  try {
+    const b = request.body;
+    const result = await req()
+      .input('brands',           sql.NVarChar, JSON.stringify(b.brands||[]))
+      .input('branch_scope',     sql.NVarChar, b.branch_scope||'all')
+      .input('branches',         sql.NVarChar, JSON.stringify(b.branches||[]))
+      .input('promo_name',       sql.NVarChar, b.promo_name||null)
+      .input('sale_types',       sql.NVarChar, JSON.stringify(b.sale_types||[]))
+      .input('coupon_code',      sql.NVarChar, b.coupon_code||null)
+      .input('erp_code',         sql.NVarChar, b.erp_code||null)
+      .input('coupon_type',      sql.NVarChar, b.coupon_type||null)
+      .input('coupon_details',   sql.NVarChar, JSON.stringify(b.coupon_details||{}))
+      .input('start_date',       sql.NVarChar, b.start_date||null)
+      .input('start_time',       sql.NVarChar, b.start_time||null)
+      .input('expiry_type',      sql.NVarChar, b.expiry_type||'none')
+      .input('expiry_date',      sql.NVarChar, b.expiry_date||null)
+      .input('expiry_days',      sql.Int,      b.expiry_days||null)
+      .input('per_bill',         sql.Bit,      b.per_bill!==false?1:0)
+      .input('max_per_receipt',  sql.Int,      b.max_per_receipt||null)
+      .input('min_purchase_type',sql.NVarChar, b.min_purchase_type||'none')
+      .input('min_purchase_value',sql.NVarChar,b.min_purchase_value||null)
+      .input('can_combine',      sql.NVarChar, JSON.stringify(b.can_combine||[]))
+      .input('customer_groups',  sql.NVarChar, JSON.stringify(b.customer_groups||[]))
+      .input('pilot_store',      sql.NVarChar, b.pilot_store||null)
+      .input('contact_name',     sql.NVarChar, b.contact_name||null)
+      .input('test_date',        sql.NVarChar, b.test_date||null)
+      .input('test_time',        sql.NVarChar, b.test_time||null)
+      .input('attachment_name',  sql.NVarChar, b.attachment_name||null)
+      .input('status',           sql.NVarChar, 'received')
+      .input('created_by',       sql.Int,      request.user.id)
+      .query(`INSERT INTO service_requests
+        (brands,branch_scope,branches,promo_name,sale_types,coupon_code,erp_code,
+         coupon_type,coupon_details,start_date,start_time,expiry_type,expiry_date,expiry_days,
+         per_bill,max_per_receipt,min_purchase_type,min_purchase_value,can_combine,
+         customer_groups,pilot_store,contact_name,test_date,test_time,attachment_name,
+         status,created_by)
+        OUTPUT INSERTED.id
+        VALUES(@brands,@branch_scope,@branches,@promo_name,@sale_types,@coupon_code,@erp_code,
+               @coupon_type,@coupon_details,@start_date,@start_time,@expiry_type,@expiry_date,@expiry_days,
+               @per_bill,@max_per_receipt,@min_purchase_type,@min_purchase_value,@can_combine,
+               @customer_groups,@pilot_store,@contact_name,@test_date,@test_time,@attachment_name,
+               @status,@created_by)`);
+    res.json({ id: result.recordset[0].id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── PUT /api/service-requests/:id ─────────────────────────
+app.put('/api/service-requests/:id', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const b  = request.body;
+    await req()
+      .input('id',     sql.Int,      id)
+      .input('status', sql.NVarChar, b.status||null)
+      .input('note',   sql.NVarChar, b.note||null)
+      .input('assigned_to', sql.Int, b.assigned_to||null)
+      .query(`UPDATE service_requests SET
+        status=COALESCE(@status,status),
+        note=COALESCE(@note,note),
+        assigned_to=COALESCE(@assigned_to,assigned_to),
+        updated_at=GETDATE()
+        WHERE id=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── DELETE /api/service-requests/:id ──────────────────────
+app.delete('/api/service-requests/:id', authRequired, async (request, res) => {
+  try {
+    await req().input('id', sql.Int, parseInt(request.params.id))
+      .query('DELETE FROM service_requests WHERE id=@id');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════
 //  SHOP INFO — Migration (legacy 4-table schema)
 // ══════════════════════════════════════════════════════════
 async function ensureShopInfoTables() {
@@ -6194,6 +6338,7 @@ init().then(async () => {
   await ensureShopEntriesTable();
   await ensureShopKnowledgeTable();
   await ensureLineNotifyTable();
+  await ensureServiceRequestsTable();
 
   // Drop CHECK constraint on shifts.shift_type so 'dayoff' can be inserted
   try {
