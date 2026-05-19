@@ -1869,11 +1869,13 @@ textarea{resize:vertical;min-height:80px}
   <div class="page-datebar" style="margin-bottom:.75rem;flex-direction:column;align-items:flex-start;gap:.45rem">
     <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;width:100%">
       <div class="drb" id="svc-drb">
+        <button class="drb-btn" onclick="svcRange('today',this)">วันนี้</button>
+        <button class="drb-btn" onclick="svcRange('yesterday',this)">เมื่อวานนี้</button>
+        <button class="drb-btn" onclick="svcRange('thisweek',this)">สัปดาห์นี้</button>
         <button class="drb-btn active" onclick="svcRange('thismonth',this)">เดือนนี้</button>
         <button class="drb-btn" onclick="svcRange('lastmonth',this)">เดือนที่แล้ว</button>
         <button class="drb-btn" onclick="svcRange('7d',this)">7 วันที่แล้ว</button>
         <button class="drb-btn" onclick="svcRange('30d',this)">30 วันที่ผ่านมา</button>
-        <button class="drb-btn" onclick="svcRange('all',this)">ทั้งหมด</button>
         <button class="drb-btn" onclick="svcRange('custom',this)">กำหนดเอง</button>
       </div>
       <span style="color:var(--border)">|</span>
@@ -12932,14 +12934,6 @@ function svcParseJSON(str, def){
 
 // ── View toggle ───────────────────────────────────────────────────
 function svcRange(preset, btn){
-  if(preset==='all'){
-    document.querySelectorAll('#svc-drb .drb-btn').forEach(b=>b.classList.remove('active'));
-    if(btn) btn.classList.add('active');
-    document.getElementById('svc-custom-range').style.display='none';
-    document.getElementById('svc-date-from').value='';
-    document.getElementById('svc-date-to').value='';
-    svcLoadList(); return;
-  }
   _applyRange(preset, btn, 'svc-date-from', 'svc-date-to', 'svc-drb', 'svc-custom-range', svcLoadList);
 }
 
