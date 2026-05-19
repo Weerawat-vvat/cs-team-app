@@ -13382,8 +13382,10 @@ async function svcSaveDraft(){
 async function svcSubmit(){
   const payload=svcCollectPayload();
   if(!svcComboGetValues('svc-brands-combo').length){ alert('กรุณาเลือกแบรนด์อย่างน้อย 1 แบรนด์'); return; }
-  if(!payload.coupon_code){ alert('กรุณากรอกรหัสชุดคูปอง'); return; }
-  if(!payload.erp_code){ alert('กรุณากรอกรหัสทางบัญชี ERP'); return; }
+  if(_svcRequestType==='coupon'){
+    if(!payload.coupon_code){ alert('กรุณากรอกรหัสชุดคูปอง'); return; }
+    if(!payload.erp_code){ alert('กรุณากรอกรหัสทางบัญชี ERP'); return; }
+  }
   const url=_svcEditId?`/api/service-requests/${_svcEditId}`:'/api/service-requests';
   const method=_svcEditId?'PUT':'POST';
   const res=await api(url,{method,body:payload});
