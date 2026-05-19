@@ -438,6 +438,15 @@ textarea{resize:vertical;min-height:80px}
 .svc-combo-opt.sel{background:#eff6ff;color:#1d4ed8;font-weight:600}
 .svc-field-row{display:flex;align-items:center;gap:.5rem}
 .svc-unit{font-size:.8rem;color:#94a3b8;white-space:nowrap}
+/* inputs inside svc-card inherit global look */
+.svc-card input[type=text],.svc-card input[type=number],.svc-card input[type=date],.svc-card input[type=time],.svc-card select,.svc-card textarea{
+  padding:.45rem .7rem;border:1.5px solid var(--border);border-radius:8px;
+  font-size:.85rem;font-family:inherit;background:#fff;color:var(--text);transition:border-color .15s,box-shadow .15s;outline:none;
+}
+.svc-card input[type=text]:focus,.svc-card input[type=number]:focus,.svc-card input[type=date]:focus,.svc-card input[type=time]:focus,.svc-card select:focus,.svc-card textarea:focus{
+  border-color:var(--hd);box-shadow:0 0 0 3px #2563eb22;
+}
+.svc-card input[type=radio],.svc-card input[type=checkbox]{width:auto;padding:0;border:none;border-radius:0;box-shadow:none}
 .svc-list-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:.85rem 1rem;cursor:pointer;transition:box-shadow .15s,border-color .15s;display:flex;flex-direction:column;gap:.35rem}
 .svc-list-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.08);border-color:#93c5fd}
 .svc-status-badge{display:inline-block;padding:.12rem .55rem;border-radius:20px;font-size:.7rem;font-weight:700}
@@ -1858,11 +1867,11 @@ textarea{resize:vertical;min-height:80px}
         </div>
         <div class="form-group" style="margin:0">
           <label class="svc-lbl">ขอบเขตสาขา</label>
-          <div style="display:flex;gap:.75rem;margin-bottom:.4rem">
-            <label style="display:flex;align-items:center;gap:.35rem;font-size:.83rem;cursor:pointer">
+          <div style="display:flex;gap:.75rem;margin-bottom:.4rem;flex-wrap:nowrap">
+            <label style="display:flex;align-items:center;gap:.35rem;font-size:.83rem;cursor:pointer;white-space:nowrap">
               <input type="radio" name="svc-branch-scope" value="all" checked onchange="svcBranchScope('all')"> ทุกสาขา
             </label>
-            <label style="display:flex;align-items:center;gap:.35rem;font-size:.83rem;cursor:pointer">
+            <label style="display:flex;align-items:center;gap:.35rem;font-size:.83rem;cursor:pointer;white-space:nowrap">
               <input type="radio" name="svc-branch-scope" value="specific" onchange="svcBranchScope('specific')"> เฉพาะบางสาขา
             </label>
           </div>
@@ -1876,15 +1885,15 @@ textarea{resize:vertical;min-height:80px}
       <div class="svc-card">
         <div class="svc-section-head">ข้อมูลชุดโปรโมชัน</div>
 
-        <!-- Row: ชื่อ + ประเภทการขาย -->
-        <div style="display:grid;grid-template-columns:1fr auto;gap:.75rem;align-items:start;margin-bottom:.7rem">
-          <div>
+        <!-- Row: ชื่อ (full) + ประเภทการขาย (inline row) -->
+        <div style="display:flex;align-items:flex-end;gap:.75rem;margin-bottom:.7rem;flex-wrap:wrap">
+          <div style="flex:1;min-width:200px">
             <label class="svc-lbl">ชื่อชุดโปรโมชัน</label>
-            <input id="svc-promo-name" type="text" placeholder="ชื่อโปรโมชัน..."/>
+            <input id="svc-promo-name" type="text" style="width:100%" placeholder="ชื่อโปรโมชัน..."/>
           </div>
-          <div>
+          <div style="flex-shrink:0">
             <label class="svc-lbl">ประเภทการขาย</label>
-            <div style="display:flex;gap:.35rem;flex-wrap:wrap;padding-top:.15rem" id="svc-sale-types">
+            <div style="display:flex;gap:.35rem" id="svc-sale-types">
               <button type="button" class="svc-chip" data-val="dine_in"  onclick="svcToggleChip(this)">ทานที่ร้าน</button>
               <button type="button" class="svc-chip" data-val="takeaway" onclick="svcToggleChip(this)">ซื้อกลับบ้าน</button>
               <button type="button" class="svc-chip" data-val="delivery" onclick="svcToggleChip(this)">Delivery</button>
@@ -1897,15 +1906,15 @@ textarea{resize:vertical;min-height:80px}
           <div>
             <label class="svc-lbl">รหัสชุดคูปอง <span style="color:#ef4444">*</span></label>
             <div style="display:flex;gap:.35rem">
-              <input id="svc-coupon-code" type="text" style="font-family:monospace;flex:1;font-size:.82rem" placeholder="CPN-XXX-YYMM-001"/>
-              <button type="button" class="btn btn-sm" onclick="svcAutoCode('svc-coupon-code','CPN')" style="white-space:nowrap">Auto</button>
+              <input id="svc-coupon-code" type="text" style="font-family:monospace;flex:1;min-width:0;font-size:.82rem" placeholder="CPN-XXX-YYMM-001"/>
+              <button type="button" class="btn btn-sm" onclick="svcAutoCode('svc-coupon-code','CPN')" style="white-space:nowrap;flex-shrink:0">Auto</button>
             </div>
           </div>
           <div>
             <label class="svc-lbl">รหัสทางบัญชี ERP <span style="color:#ef4444">*</span></label>
             <div style="display:flex;gap:.35rem">
-              <input id="svc-erp-code" type="text" style="font-family:monospace;flex:1;font-size:.82rem" placeholder="ERP-XXX-YYMM-001"/>
-              <button type="button" class="btn btn-sm" onclick="svcAutoCode('svc-erp-code','ERP')" style="white-space:nowrap">Auto</button>
+              <input id="svc-erp-code" type="text" style="font-family:monospace;flex:1;min-width:0;font-size:.82rem" placeholder="ERP-XXX-YYMM-001"/>
+              <button type="button" class="btn btn-sm" onclick="svcAutoCode('svc-erp-code','ERP')" style="white-space:nowrap;flex-shrink:0">Auto</button>
             </div>
           </div>
         </div>
