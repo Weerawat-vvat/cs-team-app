@@ -81,6 +81,51 @@ tbody td{padding:.65rem .9rem;font-size:.83rem;color:var(--text);vertical-align:
 }
 .btn-edit-row:hover{border-color:var(--blue);color:var(--blue);background:#f0f9ff}
 .empty-row td{text-align:center;padding:3rem 1rem;color:var(--sub);font-size:.85rem}
+.btn-docs{
+  background:none;border:1.5px solid #bbf7d0;border-radius:7px;
+  padding:.22rem .6rem;font-size:.72rem;font-weight:700;cursor:pointer;
+  color:#15803d;font-family:inherit;transition:.15s;white-space:nowrap;background:#f0fdf4;
+}
+.btn-docs:hover{border-color:#10b981;background:#dcfce7}
+
+/* ── Doc viewer modal ── */
+.doc-overlay{
+  position:fixed;inset:0;background:#00000055;z-index:110;
+  display:none;align-items:flex-start;justify-content:center;
+  padding:1.5rem 1rem;overflow-y:auto;
+}
+.doc-overlay.open{display:flex}
+.doc-modal{
+  background:#fff;border-radius:16px;width:100%;max-width:560px;
+  box-shadow:0 20px 60px #0004;overflow:hidden;
+  animation:slideUp .2s ease;
+}
+.doc-hdr{
+  background:linear-gradient(135deg,#1e3a5f,#2563eb);
+  padding:.85rem 1.2rem;display:flex;align-items:center;justify-content:space-between;
+}
+.doc-hdr-info{color:#fff}
+.doc-hdr-jobno{font-size:.75rem;color:#93c5fd;margin-bottom:.1rem;font-family:monospace}
+.doc-hdr-title{font-size:.95rem;font-weight:700}
+.doc-body{padding:1rem 1.25rem;display:flex;flex-direction:column;gap:.85rem}
+.doc-stage-head{
+  font-size:.7rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  margin-bottom:.45rem;display:flex;align-items:center;gap:.35rem;
+  padding-bottom:.3rem;border-bottom:1.5px solid var(--border);
+}
+.doc-file{
+  display:flex;align-items:center;gap:.55rem;
+  background:#f8fafc;border:1px solid var(--border);border-radius:9px;
+  padding:.5rem .75rem;margin-bottom:.35rem;text-decoration:none;color:inherit;
+  transition:.12s;
+}
+.doc-file:hover{background:#eff6ff;border-color:#93c5fd}
+.doc-file-icon{font-size:1.35rem;flex-shrink:0}
+.doc-file-name{flex:1;font-size:.82rem;font-weight:600;color:#0369a1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.doc-file-size{font-size:.7rem;color:var(--sub);flex-shrink:0}
+.doc-file-dl{font-size:.78rem;color:#3b82f6;flex-shrink:0;font-weight:700}
+.doc-empty{font-size:.8rem;color:var(--sub);text-align:center;padding:1rem}
+.doc-footer{padding:.75rem 1.25rem;border-top:1px solid var(--border);background:#f8fafc;text-align:right}
 
 /* ── Modal overlay ── */
 .overlay{
@@ -287,7 +332,7 @@ tbody td{padding:.65rem .9rem;font-size:.83rem;color:var(--text);vertical-align:
 </div>
 
 <!-- ══════════════ FORM MODAL ══════════════ -->
-<div class="overlay" id="form-overlay" onclick="if(event.target===this)closeForm()">
+<div class="overlay" id="form-overlay">
   <div class="modal" id="form-modal">
 
     <!-- success screen -->
@@ -472,6 +517,25 @@ tbody td{padding:.65rem .9rem;font-size:.83rem;color:var(--text);vertical-align:
   </div><!-- /modal -->
 </div><!-- /overlay -->
 
+<!-- ══════════════ DOC VIEWER MODAL ══════════════ -->
+<div class="doc-overlay" id="doc-overlay" onclick="if(event.target===this)closeDocViewer()">
+  <div class="doc-modal">
+    <div class="doc-hdr">
+      <div class="doc-hdr-info">
+        <div class="doc-hdr-jobno" id="doc-hdr-jobno">JOB-2026-0001</div>
+        <div class="doc-hdr-title" id="doc-hdr-title">เอกสารประกอบ</div>
+      </div>
+      <button class="modal-close" onclick="closeDocViewer()">×</button>
+    </div>
+    <div class="doc-body" id="doc-body">
+      <div class="doc-empty">⏳ กำลังโหลด...</div>
+    </div>
+    <div class="doc-footer">
+      <button class="btn btn-ghost" onclick="closeDocViewer()" style="font-size:.82rem">✕ ปิด</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const params = new URLSearchParams(location.search);
 const TOKEN  = params.get('t') || '';
@@ -567,6 +631,11 @@ function renderTable(){
     const stypeCls = j.serve_type==='quick_sale'?'quick':'promo';
     const stypeLbl = j.serve_type==='quick_sale'?'⚡ ขายด่วน':'🎯 โปรฯ';
     const canEdit  = j.status==='received';
+    const hasDocs  = ['testing','delivered'].includes(j.status);
+    const actionCell = [
+      canEdit  ? `<button class="btn-edit-row" onclick="openEdit(${j.id},'${esc(j.job_no||'')}')">✏️ แก้ไข</button>` : '',
+      hasDocs  ? `<button class="btn-docs"     onclick="openDocViewer(${j.id},'${esc(j.job_no||'')}','${esc(j.title||'')}')">📄 เอกสาร</button>` : '',
+    ].filter(Boolean).join(' ');
     return `<tr>
       <td><span class="td-jobno">${esc(j.job_no||'—')}</span></td>
       <td>
@@ -577,7 +646,7 @@ function renderTable(){
       <td class="col-hide" style="font-size:.78rem;color:#475569;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(brs)}</td>
       <td><span class="badge ${sm.cls}">${sm.label}</span></td>
       <td class="col-hide" style="font-size:.78rem;color:var(--sub)">${dt}</td>
-      <td>${canEdit?`<button class="btn-edit-row" onclick="openEdit(${j.id},'${esc(j.job_no||'')}')">✏️ แก้ไข</button>`:''}</td>
+      <td style="white-space:nowrap">${actionCell}</td>
     </tr>`;
   }).join('');
 }
@@ -806,6 +875,66 @@ function resetForm(){
 }
 
 function esc(s){ const d=document.createElement('div');d.textContent=String(s);return d.innerHTML; }
+
+/* ══ DOC VIEWER ══════════════════════════════════════════ */
+async function openDocViewer(jobId, jobNo, title){
+  document.getElementById('doc-hdr-jobno').textContent  = jobNo;
+  document.getElementById('doc-hdr-title').textContent  = title || 'เอกสารประกอบ';
+  document.getElementById('doc-body').innerHTML = '<div class="doc-empty">⏳ กำลังโหลด...</div>';
+  document.getElementById('doc-overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  try {
+    const data = await fetch(`/api/public/project/${TOKEN}/jobs/${jobId}`).then(r=>r.json());
+    if(data.error){ document.getElementById('doc-body').innerHTML=`<div class="doc-empty">❌ ${esc(data.error)}</div>`; return; }
+    const atts = data.attachments || [];
+    const custFiles = atts.filter(f=>!f.stage);
+    const testFiles = atts.filter(f=>f.stage==='testing');
+    const delFiles  = atts.filter(f=>f.stage==='delivered');
+
+    const fmtSz = b => !b?'':(b<1048576?(b/1024).toFixed(1)+'KB':(b/1048576).toFixed(1)+'MB');
+    const fIcon = n => { const e=(n||'').split('.').pop().toLowerCase(); return e==='pdf'?'📄':['jpg','jpeg','png','gif'].includes(e)?'🖼️':['xlsx','xls'].includes(e)?'📊':'📎'; };
+    const renderFiles = (files, emptyMsg) => {
+      if(!files.length) return `<div style="font-size:.78rem;color:var(--sub);padding:.25rem 0">${emptyMsg||'ไม่มีไฟล์'}</div>`;
+      return files.map(f=>`
+        <a class="doc-file" href="${esc(f.file_path)}" target="_blank" download>
+          <span class="doc-file-icon">${fIcon(f.file_name)}</span>
+          <span class="doc-file-name">${esc(f.file_name)}</span>
+          <span class="doc-file-size">${fmtSz(f.file_size)}</span>
+          <span class="doc-file-dl">⬇</span>
+        </a>`).join('');
+    };
+
+    let html = '';
+
+    if(testFiles.length) html += `
+      <div>
+        <div class="doc-stage-head" style="color:#c2410c;border-color:#fed7aa">🧪 เอกสารทดสอบ / ขั้นตอนการใช้งาน</div>
+        ${renderFiles(testFiles)}
+      </div>`;
+
+    if(delFiles.length) html += `
+      <div>
+        <div class="doc-stage-head" style="color:#065f46;border-color:#86efac">✅ หลักฐานส่งมอบ</div>
+        ${renderFiles(delFiles)}
+      </div>`;
+
+    if(custFiles.length) html += `
+      <div>
+        <div class="doc-stage-head" style="color:#1d4ed8;border-color:#bfdbfe">📎 ไฟล์จากลูกค้า</div>
+        ${renderFiles(custFiles)}
+      </div>`;
+
+    if(!html) html = `<div class="doc-empty">📭 ยังไม่มีเอกสารในขณะนี้</div>`;
+    document.getElementById('doc-body').innerHTML = html;
+  } catch(e) {
+    document.getElementById('doc-body').innerHTML = '<div class="doc-empty">❌ เกิดข้อผิดพลาดในการโหลด</div>';
+  }
+}
+
+function closeDocViewer(){
+  document.getElementById('doc-overlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
 
 init();
 </script>

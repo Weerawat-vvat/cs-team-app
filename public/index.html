@@ -13526,15 +13526,6 @@ async function svcSaveDetail(id){
   const status = document.getElementById('svc-det-status')?.value;
   const note   = document.getElementById('svc-det-note')?.value||'';
 
-  // Validate proof files for testing / delivered
-  if(status==='testing'){
-    const hasPdf = _svcProofFiles.some(f=>/\.pdf$/i.test(f.name));
-    if(!hasPdf){ showToast('กรุณาแนบ PDF ขั้นตอนการใช้งาน ก่อนเปลี่ยนสถานะเป็น "กำลังทดสอบ"','error'); return; }
-  }
-  if(status==='delivered'){
-    if(!_svcProofFiles.length){ showToast('กรุณาแนบ Capture หลักฐานส่งมอบ ก่อนเปลี่ยนสถานะเป็น "ส่งมอบ"','error'); return; }
-  }
-
   // Upload proof files first (if any)
   if(_svcProofFiles.length){
     const fd = new FormData();

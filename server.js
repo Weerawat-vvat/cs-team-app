@@ -5829,7 +5829,7 @@ app.get('/api/public/project/:token/jobs/:id', async (request, res) => {
     if (!job) return res.status(404).json({ error: 'Job not found' });
     const attachments = (await req()
       .input('sid', sql.Int, id)
-      .query(`SELECT id, file_name, file_path, file_size FROM service_attachments WHERE service_request_id=@sid ORDER BY uploaded_at`))
+      .query(`SELECT id, file_name, file_path, file_size, mime_type, stage FROM service_attachments WHERE service_request_id=@sid ORDER BY uploaded_at`))
       .recordset;
     res.json({ ...job, attachments });
   } catch(e) { res.status(500).json({ error: e.message }); }
