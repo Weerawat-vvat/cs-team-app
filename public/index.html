@@ -12933,6 +12933,11 @@ async function svcOpenForm(id){
   _svcFiles  = [];
   svcResetForm();
   openModal('modal-svc-form');
+  // Auto-fill Request No. สำหรับรายการใหม่
+  if(!id){
+    const nr = await api('/api/service-requests/next-no');
+    if(nr?.no){ const el=document.getElementById('svc-request-no'); if(el) el.value=nr.no; }
+  }
   await svcInitCombos();
 }
 

@@ -5433,6 +5433,19 @@ async function ensureServiceRequestsTable() {
   } catch(e) { console.error('❌ service_requests error:', e.message); }
 }
 
+// ── GET /api/service-requests/next-no ─────────────────────
+app.get('/api/service-requests/next-no', authRequired, async (request, res) => {
+  try {
+    const year = new Date().getFullYear();
+    const result = await req().query(
+      `SELECT COUNT(*) AS cnt FROM service_requests WHERE YEAR(created_at) = ${year}`
+    );
+    const cnt = (result.recordset[0].cnt || 0) + 1;
+    const no  = `SVC-${year}-${String(cnt).padStart(4, '0')}`;
+    res.json({ no });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── GET /api/service-requests ──────────────────────────────
 app.get('/api/service-requests', authRequired, async (request, res) => {
   try {
