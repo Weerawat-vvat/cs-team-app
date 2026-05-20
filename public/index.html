@@ -2264,6 +2264,22 @@ textarea{resize:vertical;min-height:80px}
     <div id="fu-panel" style="width:0;min-width:0;background:#fff;border-left:1px solid #e2e8f0;display:flex;flex-direction:column;overflow:hidden;transition:width .22s ease">
       <div style="padding:.55rem .9rem;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:.5rem">
         <span id="fu-panel-title" style="font-size:.78rem;color:#94a3b8;flex:1"></span>
+        <div style="position:relative">
+          <button id="fu-move-btn" onclick="fuToggleMovePopover(_fuPanelId)" title="ย้ายไปยัง Board อื่น"
+            style="background:#f1f5f9;border:1px solid #e2e8f0;font-size:.7rem;cursor:pointer;color:#475569;padding:.2rem .5rem;border-radius:6px;font-weight:600;display:flex;align-items:center;gap:.25rem;transition:all .15s"
+            onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">
+            📦 ย้าย
+          </button>
+          <div id="fu-move-popover" style="display:none;position:absolute;top:calc(100% + 4px);right:0;width:240px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:9999;overflow:hidden">
+            <div style="padding:.5rem .7rem;border-bottom:1px solid #f1f5f9;font-size:.72rem;font-weight:700;color:#94a3b8;display:flex;align-items:center;justify-content:space-between">
+              <span>📦 ย้ายไปยัง Board</span>
+              <button onclick="fuCloseMovePopover()" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:.95rem;padding:0;line-height:1">×</button>
+            </div>
+            <div id="fu-move-popover-body" style="max-height:280px;overflow-y:auto;padding:.35rem 0">
+              <div style="padding:.5rem .7rem;color:#94a3b8;font-size:.78rem">กำลังโหลด...</div>
+            </div>
+          </div>
+        </div>
         <button onclick="if(confirm('ลบ Issue นี้?'))fuDeleteIssue(_fuPanelId)" title="ลบ Issue"
           style="background:none;border:none;font-size:.95rem;cursor:pointer;color:#94a3b8;padding:.1rem .3rem;border-radius:5px;transition:color .15s"
           onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#94a3b8'">🗑</button>
@@ -10427,6 +10443,90 @@ async function fuPollBadge() {
     // Orange tint if also has unread @mentions
     b.style.background = d.mentions > 0 ? '#f97316' : '#ef4444';
   } catch {}
+}
+
+// ══════════════════════════════════════════════════════════
+//  MOVE ISSUE TO ANOTHER BOARD
+// ══════════════════════════════════════════════════════════
+let _fuAllBoardsCache = null;
+
+function fuCloseMovePopover() {
+  const p = document.getElementById('fu-move-popover');
+  if (p) p.style.display = 'none';
+}
+
+async function fuToggleMovePopover(issueId) {
+  const p = document.getElementById('fu-move-popover');
+  if (!p) return;
+  if (p.style.display !== 'none') { p.style.display = 'none'; return; }
+  p.style.display = '';
+  // Load all boards (cached)
+  const body = document.getElementById('fu-move-popover-body');
+  if (!_fuAllBoardsCache) {
+    body.innerHTML = '<div style="padding:.5rem .7rem;color:#94a3b8;font-size:.78rem">กำลังโหลด...</div>';
+    _fuAllBoardsCache = await api('/api/fu/all-boards', { silent: true }).catch(() => []);
+  }
+  // Get current board_id of the issue
+  const issue = _fuIssues.find(i => i.id === issueId);
+  const curBoardId = issue?.board_id;
+  // Render folder → board list
+  if (!_fuAllBoardsCache?.length) {
+    body.innerHTML = '<div style="padding:.5rem .7rem;color:#94a3b8;font-size:.78rem">ไม่พบ Board</div>';
+    return;
+  }
+  body.innerHTML = _fuAllBoardsCache.map(f => `
+    <div>
+      <div style="padding:.28rem .7rem;font-size:.68rem;font-weight:700;color:${f.color||'#3b82f6'};background:#f8fafc;letter-spacing:.04em;text-transform:uppercase;display:flex;align-items:center;gap:.3rem">
+        <span>📁</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</span>
+      </div>
+      ${f.boards.map(b => {
+        const isCurrent = b.id === curBoardId;
+        return `<div onclick="${isCurrent ? '' : `fuMoveIssue(${issueId},${b.id},'${esc(b.name).replace(/'/g,"\\'")}','${esc(f.name).replace(/'/g,"\\'")}');fuCloseMovePopover()`}"
+          style="padding:.3rem .7rem .3rem 1.5rem;font-size:.78rem;cursor:${isCurrent?'default':'pointer'};
+                 color:${isCurrent?'#1d4ed8':'#334155'};font-weight:${isCurrent?'700':'400'};
+                 background:${isCurrent?'#eff6ff':''};display:flex;align-items:center;gap:.3rem;transition:background .1s"
+          onmouseover="if(!${isCurrent})this.style.background='#f1f5f9'"
+          onmouseout="this.style.background='${isCurrent?'#eff6ff':''}'">
+          <span style="font-size:.65rem">${isCurrent?'✓':'📋'}</span>
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${esc(b.name)}</span>
+          ${isCurrent?'<span style="font-size:.62rem;color:#1d4ed8;background:#dbeafe;padding:.04rem .3rem;border-radius:5px">ปัจจุบัน</span>':''}
+        </div>`;
+      }).join('')}
+    </div>`).join('');
+  // Close popover when clicking outside
+  setTimeout(() => {
+    function outsideClick(e) {
+      const btn = document.getElementById('fu-move-btn');
+      if (!p.contains(e.target) && !btn.contains(e.target)) {
+        p.style.display = 'none';
+        document.removeEventListener('click', outsideClick, true);
+      }
+    }
+    document.addEventListener('click', outsideClick, true);
+  }, 0);
+}
+
+async function fuMoveIssue(issueId, boardId, boardName, folderName) {
+  try {
+    const r = await api(`/api/fu/issues/${issueId}/move`, { method:'PATCH', body:{ board_id: boardId } });
+    if (!r?.ok) { showToast('❌ ย้าย Board ไม่สำเร็จ', 'error'); return; }
+    showToast(`✅ ย้ายไปยัง "${folderName} / ${boardName}" แล้ว`);
+    // Update local cache
+    const issue = _fuIssues.find(i => i.id === issueId);
+    if (issue) { issue.board_id = boardId; issue.board_name = boardName; }
+    // Clear board cache so sidebar reloads correctly
+    _fuAllBoardsCache = null;
+    // If the moved issue is in current board view, remove it from list
+    if (_fuBoardId && boardId !== _fuBoardId) {
+      _fuIssues = _fuIssues.filter(i => i.id !== issueId);
+      fuRender();
+      fuClosePanel();
+    } else {
+      fuRenderPanel();
+    }
+    fuLoadSidebar(); // Refresh sidebar issue counts
+    fuPollBadge();
+  } catch(e) { showToast('❌ ' + e.message, 'error'); }
 }
 
 // Stub: legacy openCreateFollowup called from Specialist page (modal still exists)

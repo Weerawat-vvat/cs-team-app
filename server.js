@@ -4692,6 +4692,46 @@ app.delete('/api/fu/boards/:id', authRequired, async (request, res) => {
 });
 
 // ══ FOLLOW UP v2 — ISSUES ══
+// Return all folders with their boards (for move-issue picker)
+app.get('/api/fu/all-boards', authRequired, async (request, res) => {
+  try {
+    const rows = (await req().query(`
+      SELECT f.id AS folder_id, f.name AS folder_name, f.color AS folder_color,
+             b.id AS board_id, b.name AS board_name
+      FROM fu_folders f
+      JOIN fu_boards b ON b.folder_id=f.id
+      ORDER BY f.created_at, b.created_at`)).recordset;
+    // Group by folder
+    const map = {};
+    for (const r of rows) {
+      if (!map[r.folder_id]) map[r.folder_id] = { id:r.folder_id, name:r.folder_name, color:r.folder_color, boards:[] };
+      map[r.folder_id].boards.push({ id:r.board_id, name:r.board_name });
+    }
+    res.json(Object.values(map));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Move issue to another board
+app.patch('/api/fu/issues/:id/move', authRequired, async (request, res) => {
+  try {
+    const id      = parseInt(request.params.id);
+    const boardId = parseInt(request.body.board_id);
+    if (!boardId) return res.status(400).json({ error: 'board_id required' });
+    // Get destination board name for activity log
+    const bRow = (await req().input('bid',sql.Int,boardId)
+      .query(`SELECT b.name AS bname, f.name AS fname FROM fu_boards b JOIN fu_folders f ON f.id=b.folder_id WHERE b.id=@bid`)).recordset[0];
+    if (!bRow) return res.status(404).json({ error: 'board not found' });
+    await req().input('id',sql.Int,id).input('bid',sql.Int,boardId)
+      .query(`UPDATE fu_issues SET board_id=@bid, updated_at=GETDATE() WHERE id=@id`);
+    // Activity log
+    await req().input('iid',sql.Int,id).input('uid',sql.Int,request.user.id)
+      .input('ct',sql.NVarChar,'ย้าย Board')
+      .input('nv',sql.NVarChar,`${bRow.fname} / ${bRow.bname}`)
+      .query(`INSERT INTO fu_activity(issue_id,user_id,content,new_val,created_at) VALUES(@iid,@uid,@ct,@nv,GETDATE())`);
+    res.json({ ok:true, board_name: bRow.bname, folder_name: bRow.fname });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/fu/boards/:bid/issues', authRequired, async (request, res) => {
   try {
     const rows = (await req().input('bid',sql.Int,parseInt(request.params.bid)).query(`
