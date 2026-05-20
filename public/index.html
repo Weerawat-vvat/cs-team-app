@@ -3544,7 +3544,12 @@ function showPage(name, btn) {
       loadSpecialist();
     }
   }
-  if (name === 'followup') { fuLoadSidebar(); }
+  if (name === 'followup') {
+    fuLoadSidebar();
+    // Mark mentions seen + re-poll to refresh badge after visiting
+    api('/api/fu/mentions/seen', { method:'POST', silent:true }).catch(()=>{});
+    setTimeout(fuPollBadge, 800);
+  }
   if (name === 'service')  {
     svcUpdateNavBadge(0); // clear badge when entering service page
     // init date range to "เดือนนี้" on first open
@@ -6850,9 +6855,9 @@ async function pollRepairMessages() {
       }
     }
 
-    // Received-status badge — count all jobs still in "received", stays until status changes
-    const receivedJobs = await api('/api/repair?status=received', { silent: true }).catch(() => null);
-    _rpReceivedCount = Array.isArray(receivedJobs) ? receivedJobs.length : _rpReceivedCount;
+    // Open-jobs badge — count ALL non-closed repair jobs (no date filter)
+    const badgeData = await api('/api/repair/badge', { silent: true }).catch(() => null);
+    _rpReceivedCount = badgeData?.open ?? _rpReceivedCount;
     rpUpdateReceivedBadge();
 
     // Message badge
@@ -10421,7 +10426,13 @@ async function fuPollBadge() {
   try {
     const d = await api('/api/fu/badge', { silent:true });
     const b = document.getElementById('followup-badge');
-    if (b) { b.textContent = d.mentions||0; b.style.display = d.mentions>0 ? '' : 'none'; }
+    if (!b) return;
+    // Show open issues count (stays until issues are done/cancelled — no date filter)
+    const total = d.open || 0;
+    if (total > 0) { b.textContent = total; b.style.display = ''; }
+    else b.style.display = 'none';
+    // Orange tint if also has unread @mentions
+    b.style.background = d.mentions > 0 ? '#f97316' : '#ef4444';
   } catch {}
 }
 
@@ -13230,8 +13241,9 @@ async function svcPollBadge() {
   try {
     const onPage = document.getElementById('page-service')?.classList.contains('active');
     if (onPage) { svcUpdateNavBadge(0); return; }
-    const rows = await api('/api/service-requests?status=received', { silent: true });
-    svcUpdateNavBadge(Array.isArray(rows) ? rows.length : 0);
+    // Count ALL open service jobs (not delivered/cancelled) — no date filter
+    const d = await api('/api/service-requests/badge', { silent: true });
+    svcUpdateNavBadge(d?.open ?? 0);
   } catch(e) {}
 }
 

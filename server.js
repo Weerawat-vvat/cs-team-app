@@ -2867,6 +2867,16 @@ app.get('/api/repair', authRequired, async (request, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// Lightweight badge: count all open (non-closed) repair jobs — no date filter
+app.get('/api/repair/badge', authRequired, async (request, res) => {
+  try {
+    const r = await req().query(
+      `SELECT COUNT(*) AS cnt FROM repair_jobs
+       WHERE status NOT IN ('returned','cancelled')`);
+    res.json({ open: r.recordset[0]?.cnt || 0 });
+  } catch(e) { res.json({ open: 0 }); }
+});
+
 // New repair jobs since last seen ID (for notification polling)
 app.get('/api/repair/new-since', authRequired, async (request, res) => {
   try {
@@ -4867,10 +4877,21 @@ app.delete('/api/fu/attachments/:id', authRequired, async (request, res) => {
 
 app.get('/api/fu/badge', authRequired, async (request, res) => {
   try {
-    const r = await req().input('uid',sql.Int,request.user.id)
-      .query(`SELECT COUNT(*) AS cnt FROM fu_mentions WHERE target_user_id=@uid AND seen=0`);
-    res.json({ mentions: r.recordset[0]?.cnt||0 });
-  } catch(e) { res.json({ mentions:0 }); }
+    const [mentionR, openR] = await Promise.all([
+      req().input('uid',sql.Int,request.user.id)
+        .query(`SELECT COUNT(*) AS cnt FROM fu_mentions WHERE target_user_id=@uid AND seen=0`),
+      req().input('uid',sql.Int,request.user.id)
+        .query(`SELECT COUNT(*) AS cnt FROM fu_issues i
+                INNER JOIN fu_boards b ON b.id=i.board_id
+                WHERE i.status NOT IN ('done','cancelled')
+                  AND (b.created_by=@uid OR i.assigned_to=@uid
+                    OR EXISTS(SELECT 1 FROM fu_board_members m WHERE m.board_id=b.id AND m.user_id=@uid))`)
+    ]);
+    res.json({
+      mentions: mentionR.recordset[0]?.cnt || 0,
+      open:     openR.recordset[0]?.cnt    || 0
+    });
+  } catch(e) { res.json({ mentions:0, open:0 }); }
 });
 
 app.post('/api/fu/mentions/seen', authRequired, async (request, res) => {
@@ -5540,6 +5561,16 @@ async function fixGarbledServiceAttachmentNames() {
     if (fixed > 0) console.log(`✅ Fixed ${fixed} garbled Thai filename(s) in service_attachments`);
   } catch (e) { console.warn('fixGarbledServiceAttachmentNames:', e.message); }
 }
+
+// ── GET /api/service-requests/badge — open jobs count (no date filter) ──
+app.get('/api/service-requests/badge', authRequired, async (request, res) => {
+  try {
+    const r = await req().query(
+      `SELECT COUNT(*) AS cnt FROM service_requests
+       WHERE status NOT IN ('delivered','cancelled')`);
+    res.json({ open: r.recordset[0]?.cnt || 0 });
+  } catch(e) { res.json({ open: 0 }); }
+});
 
 // ── GET /api/service-requests/next-job-no ─────────────────
 app.get('/api/service-requests/next-job-no', authRequired, async (request, res) => {
