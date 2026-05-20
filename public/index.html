@@ -6172,7 +6172,7 @@ function renderRepairTable() {
         <b style="color:var(--hd)">${j.job_no}</b>
         ${_needsAction.has(j.id)?'<span style="display:inline-block;width:9px;height:9px;background:#ef4444;border-radius:50%;margin-left:.35rem;vertical-align:middle;animation:pulse 1.5s infinite" title="รอตอบข้อความลูกค้า"></span>':''}
       </td>
-      <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.83rem">${escHtml(j.company_name||'—')}</td>
+      <td style="font-size:.83rem;word-break:break-word;min-width:120px">${escHtml(j.company_name||'—')}</td>
       <td style="font-size:.8rem">${escHtml(j.device_type||'—')} ${j.device_model?`<span style="color:var(--muted)">${escHtml(j.device_model)}</span>`:''}</td>
       <td style="font-size:.78rem;font-family:monospace">${escHtml(j.serial_no||'—')}</td>
       <td>${rpStatusBadge(j.status)}</td>
@@ -12485,7 +12485,7 @@ function renderIssueTopCustomers() {
       <span style="width:22px;text-align:center;font-size:${i<3?'.95rem':'.8rem'};flex-shrink:0">${medals[i]}</span>
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.2rem">
-          <span style="font-size:.82rem;font-weight:600;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px" title="${escHtml(c.customer_name)}">${escHtml(c.customer_name)}</span>
+          <span style="font-size:.82rem;font-weight:600;color:#1e293b;word-break:break-word">${escHtml(c.customer_name)}</span>
           <span style="font-size:.8rem;font-weight:700;color:${cntColors[i]};flex-shrink:0;margin-left:.5rem">${c.cnt.toLocaleString()} tickets</span>
         </div>
         <div style="background:#f1f5f9;border-radius:20px;height:6px;overflow:hidden">
