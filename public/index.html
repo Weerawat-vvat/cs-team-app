@@ -3904,7 +3904,7 @@ async function loadStaleIssues() {
       const st = FU_STATUS[i.status] || { label: i.status };
       const detail = (i.detail || '').slice(0, 60) + ((i.detail||'').length > 60 ? '…' : '');
       const boardInfo = [i.folder_name, i.board_name].filter(Boolean).join(' / ');
-      return `<div onclick="fuGoToBoard(${i.board_id})" style="display:flex;align-items:center;gap:.55rem;padding:.4rem .6rem;border-radius:7px;background:#fafafa;border:1px solid #f1f5f9;cursor:pointer;transition:background .15s" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#fafafa'">
+      return `<div onclick="fuGoToIssue(${i.board_id},${i.id},${i.folder_id||'null'})" style="display:flex;align-items:center;gap:.55rem;padding:.4rem .6rem;border-radius:7px;background:#fafafa;border:1px solid #f1f5f9;cursor:pointer;transition:background .15s" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#fafafa'">
         <span style="font-size:.78rem;font-weight:700;background:${bg};color:${col};padding:.15rem .45rem;border-radius:12px;white-space:nowrap;flex-shrink:0">${dot} ${d} วัน</span>
         <div style="flex:1;min-width:0">
           <div style="font-size:.8rem;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(detail || '(ไม่มีรายละเอียด)')}</div>
@@ -3920,14 +3920,28 @@ async function loadStaleIssues() {
 }
 
 function fuGoToBoard(boardId) {
+  fuGoToIssue(boardId, null, null);
+}
+
+// Navigate to Follow Up, select board, and open specific issue panel
+function fuGoToIssue(boardId, issueId, folderId) {
+  _fuPendingOpenIssueId = issueId || null;
   showPage('followup', document.getElementById('nav-btn-followup'));
-  // fuLoadSidebar is async — poll until board button appears then click
+
   let attempts = 0;
   const tryClick = () => {
+    // Expand folder first if not already open
+    if (folderId && !_fuExpanded.has(folderId)) {
+      fuToggleFolder(folderId);
+    }
     const btn = document.querySelector(`[data-board-id="${boardId}"]`);
     if (btn) { btn.click(); return; }
-    if (++attempts < 20) setTimeout(tryClick, 200);
-    else { _fuBoardId = boardId; fuLoadIssues(); }
+    if (++attempts < 25) setTimeout(tryClick, 200);
+    else {
+      // Fallback: load board directly
+      _fuBoardId = boardId;
+      fuLoadIssues();
+    }
   };
   setTimeout(tryClick, 300);
 }
@@ -9598,10 +9612,18 @@ function fuRender() {
 }
 
 // ── Issues Table ──────────────────────────────────────────
+let _fuPendingOpenIssueId = null; // set by fuGoToIssue — opens panel after load
+
 async function fuLoadIssues() {
   if (!_fuBoardId) return;
   _fuIssues = await api(`/api/fu/boards/${_fuBoardId}/issues`) || [];
   fuRender();
+  // Open pending issue panel (e.g. navigated from dashboard stale widget)
+  if (_fuPendingOpenIssueId) {
+    const pid = _fuPendingOpenIssueId;
+    _fuPendingOpenIssueId = null;
+    if (_fuIssues.find(i => i.id === pid)) fuOpenPanel(pid);
+  }
 }
 
 function fuIssueRow(issue, today) {
