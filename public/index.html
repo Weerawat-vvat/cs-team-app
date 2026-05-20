@@ -2234,7 +2234,7 @@ textarea{resize:vertical;min-height:80px}
             <option value="priority">จัดกลุ่มตาม ความสำคัญ</option>
           </select>
           <!-- Status filter (hidden — controlled by stat cards) -->
-          <select id="fu-status-filter" onchange="_fuStatusFilter=this.value;fuRender();fuRenderStatBar()" style="display:none">
+          <select id="fu-status-filter" style="display:none">
             <option value="">ทุกสถานะ</option>
             <option value="pending">⏳ รอดำเนินการ</option>
             <option value="in_progress">🔄 กำลังตรวจสอบ</option>
@@ -9479,7 +9479,7 @@ function fuSetView(v) {
   const sf = document.getElementById('fu-status-filter');
   if (tb) { tb.style.background = v==='table' ? '#1d4ed8' : 'transparent'; tb.style.color = v==='table' ? '#fff' : '#64748b'; }
   if (bb) { bb.style.background = v==='board' ? '#1d4ed8' : 'transparent'; bb.style.color = v==='board' ? '#fff' : '#64748b'; }
-  if (sf) sf.style.display = v==='table' ? '' : 'none';
+  // fu-status-filter select is permanently hidden — stat bar cards handle multi-select
   const gb = document.getElementById('fu-groupby'); if (gb) gb.style.display = v==='table' ? '' : 'none';
   const sq = document.getElementById('fu-search');  if (sq) sq.style.display = v==='table' ? '' : 'none';
   // Board view is full-width — close panel
