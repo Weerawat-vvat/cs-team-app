@@ -2339,56 +2339,129 @@ textarea{resize:vertical;min-height:80px}
   <!-- Tab 3: By Assignee -->
   <div id="fu-tab-3" style="display:none;height:calc(100vh - 100px);overflow:hidden;flex-direction:column">
     <!-- Filter bar -->
-    <div style="background:#fff;border-bottom:1px solid #e2e8f0;padding:.55rem 1rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;flex-shrink:0">
+    <div style="background:#f8fafc;border-bottom:2px solid #e2e8f0;padding:.6rem 1.1rem;display:flex;align-items:center;gap:.45rem;flex-shrink:0;flex-wrap:wrap">
+
       <!-- Search -->
-      <input id="fuba-search" type="text" placeholder="🔍 ค้นหาหัวข้อ / Category..."
-        oninput="fuRenderByAssignee()"
-        style="font-size:.75rem;padding:.3rem .6rem;border:1px solid #cbd5e1;border-radius:6px;width:200px;outline:none;font-family:inherit"/>
-      <!-- Status multi-select -->
-      <div style="position:relative" id="fuba-status-wrap">
-        <button id="fuba-status-btn" onclick="fubaToggleStatusDrop()"
-          style="font-size:.75rem;padding:.3rem .6rem;border:1px solid #cbd5e1;border-radius:6px;background:#fff;cursor:pointer;display:flex;align-items:center;gap:.35rem;min-width:115px;font-family:inherit;color:#374151">
-          <span id="fuba-status-label">ทุกสถานะ</span><span style="margin-left:auto;font-size:.6rem;color:#94a3b8">▼</span>
+      <div style="position:relative;flex:1;min-width:160px;max-width:220px">
+        <svg style="position:absolute;left:.55rem;top:50%;transform:translateY(-50%);width:13px;height:13px;color:#94a3b8;pointer-events:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input id="fuba-search" type="text" placeholder="ค้นหาหัวข้อ / Category..."
+          oninput="fuRenderByAssignee()"
+          style="width:100%;font-size:.76rem;padding:.38rem .6rem .38rem 1.8rem;border:1.5px solid #e2e8f0;border-radius:8px;outline:none;font-family:inherit;background:#fff;color:#1e293b;transition:border .15s;box-sizing:border-box"
+          onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'"/>
+      </div>
+
+      <!-- Divider -->
+      <div style="width:1px;height:22px;background:#e2e8f0;flex-shrink:0"></div>
+
+      <!-- Assignee multi-select -->
+      <div style="position:relative" id="fuba-assignee-wrap">
+        <button onclick="fubaToggleDrop('assignee')"
+          style="height:32px;font-size:.76rem;padding:0 .65rem;border:1.5px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;display:flex;align-items:center;gap:.4rem;font-family:inherit;color:#374151;white-space:nowrap;transition:border .15s"
+          onmouseover="this.style.borderColor='#94a3b8'" onmouseout="this.style.borderColor='#e2e8f0'">
+          <span style="font-size:.8rem">👤</span>
+          <span id="fuba-assignee-label">พนักงาน</span>
+          <svg style="width:10px;height:10px;color:#94a3b8;flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
         </button>
-        <div id="fuba-status-menu" style="display:none;position:absolute;top:calc(100% + 3px);left:0;min-width:160px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.1);z-index:9999;overflow:hidden">
-          <div onclick="fubaStatusAll()" id="fuba-sopt-all" style="padding:.35rem .7rem;font-size:.78rem;cursor:pointer;display:flex;align-items:center;gap:.5rem;border-bottom:1px solid #f1f5f9;font-weight:600;color:#374151" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''"><span>☑</span> ทุกสถานะ</div>
-          <div onclick="fubaStatusToggle('pending')"     id="fuba-sopt-pending"     style="padding:.32rem .7rem;font-size:.78rem;cursor:pointer;display:flex;align-items:center;gap:.5rem;color:#92400e" onmouseover="this.style.background='#fffbeb'" onmouseout="this.style.background=''"><span class="fuba-schk">☐</span> ⏳ รอดำเนินการ</div>
-          <div onclick="fubaStatusToggle('in_progress')" id="fuba-sopt-in_progress" style="padding:.32rem .7rem;font-size:.78rem;cursor:pointer;display:flex;align-items:center;gap:.5rem;color:#1e40af" onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background=''"><span class="fuba-schk">☐</span> 🔄 กำลังตรวจสอบ</div>
-          <div onclick="fubaStatusToggle('waiting')"     id="fuba-sopt-waiting"     style="padding:.32rem .7rem;font-size:.78rem;cursor:pointer;display:flex;align-items:center;gap:.5rem;color:#5b21b6" onmouseover="this.style.background='#f5f3ff'" onmouseout="this.style.background=''"><span class="fuba-schk">☐</span> ⏸️ รอข้อมูล</div>
-          <div onclick="fubaStatusToggle('resolved')"    id="fuba-sopt-resolved"    style="padding:.32rem .7rem;font-size:.78rem;cursor:pointer;display:flex;align-items:center;gap:.5rem;color:#166534" onmouseover="this.style.background='#f0fdf4'" onmouseout="this.style.background=''"><span class="fuba-schk">☐</span> ✅ แก้แล้ว</div>
-          <div onclick="fubaStatusToggle('cancelled')"   id="fuba-sopt-cancelled"   style="padding:.32rem .7rem;font-size:.78rem;cursor:pointer;display:flex;align-items:center;gap:.5rem;color:#64748b" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''"><span class="fuba-schk">☐</span> 🚫 ยกเลิก</div>
+        <div id="fuba-assignee-menu" style="display:none;position:absolute;top:calc(100% + 4px);left:0;min-width:180px;max-height:240px;overflow-y:auto;background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.1);z-index:9999">
+          <div id="fuba-assignee-opts"></div>
         </div>
       </div>
+
+      <!-- Status multi-select -->
+      <div style="position:relative" id="fuba-status-wrap">
+        <button onclick="fubaToggleDrop('status')"
+          style="height:32px;font-size:.76rem;padding:0 .65rem;border:1.5px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;display:flex;align-items:center;gap:.4rem;font-family:inherit;color:#374151;white-space:nowrap;transition:border .15s"
+          onmouseover="this.style.borderColor='#94a3b8'" onmouseout="this.style.borderColor='#e2e8f0'">
+          <span style="font-size:.8rem">🏷</span>
+          <span id="fuba-status-label">สถานะ</span>
+          <svg style="width:10px;height:10px;color:#94a3b8;flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div id="fuba-status-menu" style="display:none;position:absolute;top:calc(100% + 4px);left:0;min-width:170px;background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.1);z-index:9999;overflow:hidden">
+          <div onclick="fubaStatusAll()" id="fuba-sopt-all" style="padding:.38rem .75rem;font-size:.78rem;cursor:pointer;display:flex;align-items:center;gap:.5rem;border-bottom:1px solid #f1f5f9;color:#374151" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''"><span id="fuba-sopt-all-chk" style="font-size:.85rem">☑</span><span style="font-weight:600">ทุกสถานะ</span></div>
+          <div onclick="fubaStatusToggle('pending')"     id="fuba-sopt-pending"     style="padding:.35rem .75rem;font-size:.78rem;cursor:pointer;display:flex;align-items:center;gap:.5rem;color:#92400e" onmouseover="this.style.background='#fffbeb'" onmouseout="this.style.background=''"><span class="fuba-schk" style="font-size:.85rem">☐</span> ⏳ รอดำเนินการ</div>
+          <div onclick="fubaStatusToggle('in_progress')" id="fuba-sopt-in_progress" style="padding:.35rem .75rem;font-size:.78rem;cursor:pointer;display:flex;align-items:center;gap:.5rem;color:#1e40af" onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background=''"><span class="fuba-schk" style="font-size:.85rem">☐</span> 🔄 กำลังตรวจสอบ</div>
+          <div onclick="fubaStatusToggle('waiting')"     id="fuba-sopt-waiting"     style="padding:.35rem .75rem;font-size:.78rem;cursor:pointer;display:flex;align-items:center;gap:.5rem;color:#5b21b6" onmouseover="this.style.background='#f5f3ff'" onmouseout="this.style.background=''"><span class="fuba-schk" style="font-size:.85rem">☐</span> ⏸️ รอข้อมูล</div>
+          <div onclick="fubaStatusToggle('resolved')"    id="fuba-sopt-resolved"    style="padding:.35rem .75rem;font-size:.78rem;cursor:pointer;display:flex;align-items:center;gap:.5rem;color:#166534" onmouseover="this.style.background='#f0fdf4'" onmouseout="this.style.background=''"><span class="fuba-schk" style="font-size:.85rem">☐</span> ✅ แก้แล้ว</div>
+          <div onclick="fubaStatusToggle('cancelled')"   id="fuba-sopt-cancelled"   style="padding:.35rem .75rem;font-size:.78rem;cursor:pointer;display:flex;align-items:center;gap:.5rem;color:#64748b" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''"><span class="fuba-schk" style="font-size:.85rem">☐</span> 🚫 ยกเลิก</div>
+        </div>
+      </div>
+
       <!-- Priority -->
-      <select id="fuba-priority" onchange="fuRenderByAssignee()"
-        style="font-size:.75rem;padding:.3rem .5rem;border:1px solid #cbd5e1;border-radius:6px;background:#fff;font-family:inherit;color:#374151">
-        <option value="">ทุกความสำคัญ</option>
-        <option value="urgent">🔴 เร่งด่วน</option>
-        <option value="high">🟠 สูง</option>
-        <option value="normal">🟡 ปกติ</option>
-        <option value="low">🔵 ต่ำ</option>
+      <div style="position:relative" id="fuba-priority-wrap">
+        <button onclick="fubaToggleDrop('priority')"
+          style="height:32px;font-size:.76rem;padding:0 .65rem;border:1.5px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;display:flex;align-items:center;gap:.4rem;font-family:inherit;color:#374151;white-space:nowrap;transition:border .15s"
+          onmouseover="this.style.borderColor='#94a3b8'" onmouseout="this.style.borderColor='#e2e8f0'">
+          <span style="font-size:.8rem">⚡</span>
+          <span id="fuba-priority-label">ความสำคัญ</span>
+          <svg style="width:10px;height:10px;color:#94a3b8;flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div id="fuba-priority-menu" style="display:none;position:absolute;top:calc(100% + 4px);left:0;min-width:155px;background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.1);z-index:9999;overflow:hidden">
+          <div onclick="fubaPickPriority('')"       style="padding:.38rem .75rem;font-size:.78rem;cursor:pointer;display:flex;align-items:center;gap:.4rem;border-bottom:1px solid #f1f5f9;color:#374151;font-weight:600" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">ทุกความสำคัญ</div>
+          <div onclick="fubaPickPriority('urgent')" style="padding:.35rem .75rem;font-size:.78rem;cursor:pointer;color:#b91c1c" onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background=''">🔴 เร่งด่วน</div>
+          <div onclick="fubaPickPriority('high')"   style="padding:.35rem .75rem;font-size:.78rem;cursor:pointer;color:#c2410c" onmouseover="this.style.background='#fff7ed'" onmouseout="this.style.background=''">🟠 สูง</div>
+          <div onclick="fubaPickPriority('normal')" style="padding:.35rem .75rem;font-size:.78rem;cursor:pointer;color:#854d0e" onmouseover="this.style.background='#fefce8'" onmouseout="this.style.background=''">🟡 ปกติ</div>
+          <div onclick="fubaPickPriority('low')"    style="padding:.35rem .75rem;font-size:.78rem;cursor:pointer;color:#1d4ed8" onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background=''">🔵 ต่ำ</div>
+        </div>
+      </div>
+      <!-- hidden select for priority value -->
+      <select id="fuba-priority" onchange="fuRenderByAssignee()" style="display:none">
+        <option value="">ทุกความสำคัญ</option><option value="urgent">เร่งด่วน</option><option value="high">สูง</option><option value="normal">ปกติ</option><option value="low">ต่ำ</option>
       </select>
+
       <!-- Folder -->
-      <select id="fuba-folder" onchange="fuRenderByAssignee()"
-        style="font-size:.75rem;padding:.3rem .5rem;border:1px solid #cbd5e1;border-radius:6px;background:#fff;font-family:inherit;color:#374151;max-width:160px">
-        <option value="">ทุก Folder</option>
-      </select>
+      <div style="position:relative" id="fuba-folder-wrap">
+        <button onclick="fubaToggleDrop('folder')"
+          style="height:32px;font-size:.76rem;padding:0 .65rem;border:1.5px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;display:flex;align-items:center;gap:.4rem;font-family:inherit;color:#374151;white-space:nowrap;max-width:160px;transition:border .15s"
+          onmouseover="this.style.borderColor='#94a3b8'" onmouseout="this.style.borderColor='#e2e8f0'">
+          <span style="font-size:.8rem">📁</span>
+          <span id="fuba-folder-label" style="overflow:hidden;text-overflow:ellipsis;max-width:110px">Folder</span>
+          <svg style="width:10px;height:10px;color:#94a3b8;flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div id="fuba-folder-menu" style="display:none;position:absolute;top:calc(100% + 4px);left:0;min-width:180px;max-height:220px;overflow-y:auto;background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.1);z-index:9999;overflow:hidden">
+          <div id="fuba-folder-opts"></div>
+        </div>
+      </div>
+      <!-- hidden select for folder value -->
+      <select id="fuba-folder" onchange="fuRenderByAssignee()" style="display:none"><option value="">ทุก Folder</option></select>
+
       <!-- Stale -->
-      <select id="fuba-stale" onchange="fuRenderByAssignee()"
-        style="font-size:.75rem;padding:.3rem .5rem;border:1px solid #cbd5e1;border-radius:6px;background:#fff;font-family:inherit;color:#374151">
-        <option value="">ค้างนาน: ทั้งหมด</option>
-        <option value="7">⚠️ 7+ วัน</option>
-        <option value="14">🟠 14+ วัน</option>
-        <option value="30">🔴 30+ วัน</option>
+      <div style="position:relative" id="fuba-stale-wrap">
+        <button onclick="fubaToggleDrop('stale')"
+          style="height:32px;font-size:.76rem;padding:0 .65rem;border:1.5px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;display:flex;align-items:center;gap:.4rem;font-family:inherit;color:#374151;white-space:nowrap;transition:border .15s"
+          onmouseover="this.style.borderColor='#94a3b8'" onmouseout="this.style.borderColor='#e2e8f0'">
+          <span style="font-size:.8rem">🕐</span>
+          <span id="fuba-stale-label">ค้างนาน</span>
+          <svg style="width:10px;height:10px;color:#94a3b8;flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div id="fuba-stale-menu" style="display:none;position:absolute;top:calc(100% + 4px);left:0;min-width:155px;background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.1);z-index:9999;overflow:hidden">
+          <div onclick="fubaPickStale('')"   style="padding:.38rem .75rem;font-size:.78rem;cursor:pointer;border-bottom:1px solid #f1f5f9;color:#374151;font-weight:600" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">ทั้งหมด</div>
+          <div onclick="fubaPickStale('7')"  style="padding:.35rem .75rem;font-size:.78rem;cursor:pointer;color:#854d0e" onmouseover="this.style.background='#fefce8'" onmouseout="this.style.background=''">⚠️ 7+ วัน</div>
+          <div onclick="fubaPickStale('14')" style="padding:.35rem .75rem;font-size:.78rem;cursor:pointer;color:#c2410c" onmouseover="this.style.background='#fff7ed'" onmouseout="this.style.background=''">🟠 14+ วัน</div>
+          <div onclick="fubaPickStale('30')" style="padding:.35rem .75rem;font-size:.78rem;cursor:pointer;color:#b91c1c" onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background=''">🔴 30+ วัน</div>
+        </div>
+      </div>
+      <!-- hidden select for stale value -->
+      <select id="fuba-stale" onchange="fuRenderByAssignee()" style="display:none">
+        <option value=""></option><option value="7">7</option><option value="14">14</option><option value="30">30</option>
       </select>
-      <!-- Clear -->
+
+      <!-- Divider -->
+      <div style="width:1px;height:22px;background:#e2e8f0;flex-shrink:0"></div>
+
+      <!-- Active filters chips -->
+      <div id="fuba-active-chips" style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center"></div>
+
+      <!-- Clear all -->
       <button onclick="fubaClearFilters()" id="fuba-clear-btn"
-        style="display:none;font-size:.73rem;color:#b91c1c;background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;padding:.3rem .6rem;cursor:pointer;font-weight:600">
-        ✕ ล้าง
+        style="display:none;height:28px;font-size:.73rem;color:#b91c1c;background:#fef2f2;border:1.5px solid #fecaca;border-radius:7px;padding:0 .65rem;cursor:pointer;font-weight:600;white-space:nowrap;transition:background .15s"
+        onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='#fef2f2'">
+        ✕ ล้างทั้งหมด
       </button>
-      <!-- Result count -->
-      <span id="fuba-count" style="margin-left:auto;font-size:.73rem;color:#94a3b8"></span>
+
+      <!-- Count -->
+      <span id="fuba-count" style="margin-left:auto;font-size:.72rem;color:#94a3b8;white-space:nowrap;flex-shrink:0"></span>
     </div>
+
     <!-- Body -->
     <div id="fu-byassignee-body" style="flex:1;overflow-y:auto;padding:1rem;display:flex;flex-direction:column;gap:.75rem">
       <div style="color:#94a3b8;font-size:.85rem">กำลังโหลด...</div>
@@ -8901,12 +8974,24 @@ async function fuLoadByAssignee() {
   _fuByAssigneeMap = {};
   _fuByAssigneeData.forEach(r => { _fuByAssigneeMap[r.id] = r; });
 
-  // Populate folder dropdown
-  const folderSel = document.getElementById('fuba-folder');
-  if (folderSel) {
+  // Populate folder dropdown (custom)
+  const folderOpts = document.getElementById('fuba-folder-opts');
+  if (folderOpts) {
     const folders = [...new Set(_fuByAssigneeData.map(r => r.folder_name).filter(Boolean))].sort();
-    folderSel.innerHTML = '<option value="">ทุก Folder</option>' +
-      folders.map(f => `<option value="${escHtml(f)}">${escHtml(f)}</option>`).join('');
+    folderOpts.innerHTML = `<div onclick="fubaPickFolder('')" style="padding:.38rem .75rem;font-size:.78rem;cursor:pointer;border-bottom:1px solid #f1f5f9;color:#374151;font-weight:600" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">ทุก Folder</div>` +
+      folders.map(f => `<div onclick="fubaPickFolder('${esc(f).replace(/'/g,"\\'")}') " style="padding:.35rem .75rem;font-size:.78rem;cursor:pointer;color:#334155;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">📁 ${escHtml(f)}</div>`).join('');
+  }
+
+  // Populate assignee dropdown (custom)
+  const assigneeOpts = document.getElementById('fuba-assignee-opts');
+  if (assigneeOpts) {
+    const assignees = [...new Map(_fuByAssigneeData
+      .filter(r => r.assigned_to)
+      .map(r => [r.assigned_to, r.assignee_name || String(r.assigned_to)])
+    )].sort((a,b) => String(a[1]).localeCompare(String(b[1]),'th'));
+    assigneeOpts.innerHTML = `<div onclick="fubaAssigneeAll()" id="fuba-aopt-all" style="padding:.38rem .75rem;font-size:.78rem;cursor:pointer;display:flex;align-items:center;gap:.5rem;border-bottom:1px solid #f1f5f9;color:#374151;font-weight:600" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''"><span style="font-size:.85rem">☑</span> ทุกคน</div>` +
+      assignees.map(([id, name]) => `<div onclick="fubaAssigneeToggle('${esc(name).replace(/'/g,"\\'")}') " style="padding:.35rem .75rem;font-size:.78rem;cursor:pointer;display:flex;align-items:center;gap:.5rem;color:#334155" onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background=''"><span class="fuba-achk" data-name="${escHtml(name)}" style="font-size:.85rem">☐</span> ${escHtml(name)}</div>`).join('') +
+      `<div onclick="fubaAssigneeToggle('__unassigned__')" style="padding:.35rem .75rem;font-size:.78rem;cursor:pointer;display:flex;align-items:center;gap:.5rem;color:#92400e;border-top:1px solid #f1f5f9" onmouseover="this.style.background='#fffbeb'" onmouseout="this.style.background=''"><span class="fuba-achk" data-name="__unassigned__" style="font-size:.85rem">☐</span> ⚠️ ไม่ระบุ</div>`;
   }
 
   fuRenderByAssignee();
@@ -8917,26 +9002,24 @@ function fuRenderByAssignee() {
   if (!body) return;
 
   // Read filters
-  const q         = (document.getElementById('fuba-search')?.value || '').toLowerCase();
-  const priority  = document.getElementById('fuba-priority')?.value || '';
-  const folder    = document.getElementById('fuba-folder')?.value   || '';
-  const staleMin  = parseInt(document.getElementById('fuba-stale')?.value || '0');
-  const hasFilter = q || priority || folder || staleMin || _fubaStatusFilter.size;
-
-  // Show/hide clear button
-  const clrBtn = document.getElementById('fuba-clear-btn');
-  if (clrBtn) clrBtn.style.display = hasFilter ? '' : 'none';
+  const q        = (document.getElementById('fuba-search')?.value || '').toLowerCase();
+  const staleMin = parseInt(_fubaStale || '0');
 
   // Filter data
-  let filtered = _fuByAssigneeData.filter(r =>
-    (!_fubaStatusFilter.size || _fubaStatusFilter.has(r.status)) &&
-    (!priority  || r.priority    === priority) &&
-    (!folder    || r.folder_name === folder) &&
-    (!staleMin  || (r.days_stale || 0) >= staleMin) &&
-    (!q || (r.detail||'').toLowerCase().includes(q) ||
-           (r.category||'').toLowerCase().includes(q) ||
-           (r.board_name||'').toLowerCase().includes(q))
-  );
+  let filtered = _fuByAssigneeData.filter(r => {
+    if (_fubaStatusFilter.size && !_fubaStatusFilter.has(r.status)) return false;
+    if (_fubaPriority && r.priority !== _fubaPriority) return false;
+    if (_fubaFolder   && r.folder_name !== _fubaFolder) return false;
+    if (staleMin && (r.days_stale || 0) < staleMin) return false;
+    if (_fubaAssigneeFilter.size) {
+      const nameKey = r.assigned_to ? (r.assignee_name || String(r.assigned_to)) : '__unassigned__';
+      if (!_fubaAssigneeFilter.has(nameKey)) return false;
+    }
+    if (q && !(r.detail||'').toLowerCase().includes(q) &&
+             !(r.category||'').toLowerCase().includes(q) &&
+             !(r.board_name||'').toLowerCase().includes(q)) return false;
+    return true;
+  });
 
   // Update count
   const countEl = document.getElementById('fuba-count');
@@ -9047,40 +9130,50 @@ function fuRenderByAssignee() {
 }
 
 // ── Tab 3 filter controls ─────────────────────────────────
-function fubaToggleStatusDrop() {
-  const menu = document.getElementById('fuba-status-menu');
+let _fubaAssigneeFilter = new Set(); // multi-select assignee filter
+let _fubaPrivacyMode    = false;
+
+// Generic dropdown toggle with outside-click close
+function fubaToggleDrop(name) {
+  const menu = document.getElementById(`fuba-${name}-menu`);
   if (!menu) return;
-  if (menu.style.display === 'none') {
-    menu.style.display = '';
-    setTimeout(() => {
-      function outside(e) {
-        const wrap = document.getElementById('fuba-status-wrap');
-        if (wrap && !wrap.contains(e.target)) {
-          menu.style.display = 'none';
-          document.removeEventListener('click', outside, true);
-        }
+  const isOpen = menu.style.display !== 'none';
+  // Close all other open menus
+  ['assignee','status','priority','folder','stale'].forEach(n => {
+    const m = document.getElementById(`fuba-${n}-menu`);
+    if (m && n !== name) m.style.display = 'none';
+  });
+  if (isOpen) { menu.style.display = 'none'; return; }
+  menu.style.display = '';
+  setTimeout(() => {
+    function outside(e) {
+      const wrap = document.getElementById(`fuba-${name}-wrap`);
+      if (wrap && !wrap.contains(e.target)) {
+        menu.style.display = 'none';
+        document.removeEventListener('click', outside, true);
       }
-      document.addEventListener('click', outside, true);
-    }, 0);
-  } else { menu.style.display = 'none'; }
+    }
+    document.addEventListener('click', outside, true);
+  }, 0);
 }
 
+// Status multi-select
 function fubaStatusToggle(key) {
   if (_fubaStatusFilter.has(key)) _fubaStatusFilter.delete(key);
   else _fubaStatusFilter.add(key);
   fubaUpdateStatusUI();
+  fubaUpdateChips();
   fuRenderByAssignee();
 }
-
 function fubaStatusAll() {
   _fubaStatusFilter = new Set();
   fubaUpdateStatusUI();
+  fubaUpdateChips();
   fuRenderByAssignee();
 }
-
 function fubaUpdateStatusUI() {
-  const keys = ['pending','in_progress','waiting','resolved','cancelled'];
-  keys.forEach(k => {
+  const FU_SL = { pending:'รอดำเนินการ', in_progress:'กำลังตรวจสอบ', waiting:'รอข้อมูล', resolved:'แก้แล้ว', cancelled:'ยกเลิก' };
+  ['pending','in_progress','waiting','resolved','cancelled'].forEach(k => {
     const row = document.getElementById('fuba-sopt-' + k);
     if (!row) return;
     const chk = row.querySelector('.fuba-schk');
@@ -9088,25 +9181,118 @@ function fubaUpdateStatusUI() {
     if (chk) chk.textContent = active ? '☑' : '☐';
     row.style.fontWeight = active ? '700' : '400';
   });
-  const allRow = document.getElementById('fuba-sopt-all');
-  if (allRow) {
-    const sp = allRow.querySelector('span');
-    if (sp) sp.textContent = _fubaStatusFilter.size === 0 ? '☑' : '☐';
-    allRow.style.fontWeight = _fubaStatusFilter.size === 0 ? '700' : '400';
-  }
+  const allChk = document.getElementById('fuba-sopt-all-chk');
+  if (allChk) allChk.textContent = _fubaStatusFilter.size === 0 ? '☑' : '☐';
   const lbl = document.getElementById('fuba-status-label');
   if (!lbl) return;
-  const FU_SL = { pending:'รอดำเนินการ', in_progress:'กำลังตรวจสอบ', waiting:'รอข้อมูล', resolved:'แก้แล้ว', cancelled:'ยกเลิก' };
-  if (_fubaStatusFilter.size === 0)      { lbl.textContent = 'ทุกสถานะ'; lbl.style.color = '#374151'; }
+  if (_fubaStatusFilter.size === 0)      { lbl.textContent = 'สถานะ'; lbl.style.color = '#374151'; }
   else if (_fubaStatusFilter.size === 1) { lbl.textContent = FU_SL[[..._fubaStatusFilter][0]]||''; lbl.style.color = '#1d4ed8'; }
-  else                                    { lbl.textContent = `${_fubaStatusFilter.size} สถานะ`; lbl.style.color = '#1d4ed8'; }
+  else                                    { lbl.textContent = `สถานะ (${_fubaStatusFilter.size})`; lbl.style.color = '#1d4ed8'; }
+}
+
+// Assignee multi-select
+function fubaAssigneeToggle(name) {
+  if (_fubaAssigneeFilter.has(name)) _fubaAssigneeFilter.delete(name);
+  else _fubaAssigneeFilter.add(name);
+  fubaUpdateAssigneeUI();
+  fubaUpdateChips();
+  fuRenderByAssignee();
+}
+function fubaAssigneeAll() {
+  _fubaAssigneeFilter = new Set();
+  fubaUpdateAssigneeUI();
+  fubaUpdateChips();
+  fuRenderByAssignee();
+}
+function fubaUpdateAssigneeUI() {
+  // Update checkboxes in menu
+  document.querySelectorAll('.fuba-achk').forEach(el => {
+    const n = el.dataset.name;
+    el.textContent = _fubaAssigneeFilter.has(n) ? '☑' : '☐';
+    el.closest('div').style.fontWeight = _fubaAssigneeFilter.has(n) ? '700' : '400';
+  });
+  const lbl = document.getElementById('fuba-assignee-label');
+  if (!lbl) return;
+  if (_fubaAssigneeFilter.size === 0)      { lbl.textContent = 'พนักงาน'; lbl.style.color = '#374151'; }
+  else if (_fubaAssigneeFilter.size === 1) { lbl.textContent = [..._fubaAssigneeFilter][0]; lbl.style.color = '#1d4ed8'; }
+  else                                      { lbl.textContent = `${_fubaAssigneeFilter.size} คน`; lbl.style.color = '#1d4ed8'; }
+}
+
+// Priority single-select dropdown
+let _fubaPriority = '';
+function fubaPickPriority(val) {
+  _fubaPriority = val;
+  const PRI_LBL = { urgent:'เร่งด่วน', high:'สูง', normal:'ปกติ', low:'ต่ำ' };
+  const PRI_ICO = { urgent:'🔴', high:'🟠', normal:'🟡', low:'🔵' };
+  const lbl = document.getElementById('fuba-priority-label');
+  if (lbl) { lbl.textContent = val ? `${PRI_ICO[val]} ${PRI_LBL[val]}` : 'ความสำคัญ'; lbl.style.color = val ? '#1d4ed8' : '#374151'; }
+  const sel = document.getElementById('fuba-priority'); if (sel) sel.value = val;
+  document.getElementById('fuba-priority-menu').style.display = 'none';
+  fubaUpdateChips();
+  fuRenderByAssignee();
+}
+
+// Folder single-select dropdown
+let _fubaFolder = '';
+function fubaPickFolder(val) {
+  _fubaFolder = val;
+  const lbl = document.getElementById('fuba-folder-label');
+  if (lbl) { lbl.textContent = val || 'Folder'; lbl.style.color = val ? '#1d4ed8' : '#374151'; }
+  const sel = document.getElementById('fuba-folder'); if (sel) sel.value = val;
+  document.getElementById('fuba-folder-menu').style.display = 'none';
+  fubaUpdateChips();
+  fuRenderByAssignee();
+}
+
+// Stale single-select dropdown
+let _fubaStale = '';
+const _STALE_LBL = { '7':'⚠️ 7+ วัน', '14':'🟠 14+ วัน', '30':'🔴 30+ วัน' };
+function fubaPickStale(val) {
+  _fubaStale = val;
+  const lbl = document.getElementById('fuba-stale-label');
+  if (lbl) { lbl.textContent = val ? _STALE_LBL[val] : 'ค้างนาน'; lbl.style.color = val ? '#1d4ed8' : '#374151'; }
+  const sel = document.getElementById('fuba-stale'); if (sel) sel.value = val;
+  document.getElementById('fuba-stale-menu').style.display = 'none';
+  fubaUpdateChips();
+  fuRenderByAssignee();
+}
+
+// Active filter chips
+function fubaUpdateChips() {
+  const wrap = document.getElementById('fuba-active-chips');
+  const clrBtn = document.getElementById('fuba-clear-btn');
+  if (!wrap) return;
+  const FU_SL = { pending:'รอดำเนินการ', in_progress:'กำลังตรวจสอบ', waiting:'รอข้อมูล', resolved:'แก้แล้ว', cancelled:'ยกเลิก' };
+  const chips = [];
+  if (_fubaAssigneeFilter.size) [..._fubaAssigneeFilter].forEach(n => chips.push({ label:`👤 ${n}`, clear:()=>{ _fubaAssigneeFilter.delete(n); fubaUpdateAssigneeUI(); fubaUpdateChips(); fuRenderByAssignee(); } }));
+  if (_fubaStatusFilter.size)   [..._fubaStatusFilter].forEach(s => chips.push({ label: FU_SL[s]||s, clear:()=>{ _fubaStatusFilter.delete(s); fubaUpdateStatusUI(); fubaUpdateChips(); fuRenderByAssignee(); } }));
+  if (_fubaPriority)  chips.push({ label:document.getElementById('fuba-priority-label')?.textContent||_fubaPriority,  clear:()=>fubaPickPriority('') });
+  if (_fubaFolder)    chips.push({ label:`📁 ${_fubaFolder}`, clear:()=>fubaPickFolder('') });
+  if (_fubaStale)     chips.push({ label:_STALE_LBL[_fubaStale], clear:()=>fubaPickStale('') });
+  const q = document.getElementById('fuba-search')?.value;
+  if (q)              chips.push({ label:`"${q}"`, clear:()=>{ document.getElementById('fuba-search').value=''; fuRenderByAssignee(); fubaUpdateChips(); } });
+  wrap.innerHTML = chips.map((c,i) => `<span style="display:inline-flex;align-items:center;gap:.25rem;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:99px;font-size:.68rem;font-weight:600;padding:.12rem .5rem;cursor:default">
+    ${escHtml(c.label)}
+    <span onclick="(${c.clear.toString()})()" style="cursor:pointer;font-size:.75rem;opacity:.6;line-height:1" title="ลบ">×</span>
+  </span>`).join('');
+  if (clrBtn) clrBtn.style.display = chips.length ? '' : 'none';
 }
 
 function fubaClearFilters() {
   _fubaStatusFilter = new Set();
+  _fubaAssigneeFilter = new Set();
+  _fubaPriority = ''; _fubaFolder = ''; _fubaStale = '';
   fubaUpdateStatusUI();
-  const ids = ['fuba-search','fuba-priority','fuba-folder','fuba-stale'];
-  ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  fubaUpdateAssigneeUI();
+  ['fuba-priority-label','fuba-folder-label','fuba-stale-label'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.style.color = '#374151'; }
+  });
+  document.getElementById('fuba-priority-label').textContent = 'ความสำคัญ';
+  document.getElementById('fuba-folder-label').textContent = 'Folder';
+  document.getElementById('fuba-stale-label').textContent = 'ค้างนาน';
+  const s = document.getElementById('fuba-search'); if (s) s.value = '';
+  fubaUpdateChips();
   fuRenderByAssignee();
 }
 
