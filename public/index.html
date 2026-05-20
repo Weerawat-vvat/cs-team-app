@@ -2246,6 +2246,7 @@ textarea{resize:vertical;min-height:80px}
           <input id="fu-search" type="text" placeholder="🔍 ค้นหาหัวข้อ / Category / ผู้รับผิดชอบ..."
             oninput="_fuSearchQ=this.value.toLowerCase();fuRenderTable()"
             style="font-size:.75rem;padding:.3rem .6rem;border:1px solid #cbd5e1;border-radius:6px;width:220px;outline:none;font-family:inherit"/>
+          <button onclick="fuExportExcel()" title="Export ข้อมูลเป็น Excel" style="background:#16a34a;color:#fff;border:none;border-radius:7px;padding:.35rem .75rem;font-size:.8rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.3rem">📥 Excel</button>
           <button onclick="fuAddIssue()" style="background:#1d4ed8;color:#fff;border:none;border-radius:7px;padding:.35rem .85rem;font-size:.8rem;font-weight:700;cursor:pointer">+ Issue</button>
         </div>
       </div>
@@ -8598,7 +8599,7 @@ let _fuDragId     = null;
 let _fuCategories = [];
 let _fuExpanded   = new Set();
 let _fuGroupBy      = ''; // '' | 'category' | 'assigned_to_name' | 'priority' | 'status'
-let _fuStatusFilter = ''; // status filter — JS variable (source of truth, not DOM)
+let _fuStatusFilter = new Set(); // multi-select status filter — empty = show all
 
 // ── Tab switching ─────────────────────────────────────────
 async function fuJumpToBoard(boardId, boardName, folderId, status) {
@@ -8614,9 +8615,7 @@ async function fuJumpToBoard(boardId, boardName, folderId, status) {
   // 4. Select board — loads issues, renders with no filter (fuSelectBoard clears filter)
   await fuSelectBoard(boardId, boardName, folderId);
   // 5. NOW apply the status filter (issues are already loaded at this point)
-  _fuStatusFilter = status || '';
-  const sel = document.getElementById('fu-status-filter');
-  if (sel) sel.value = _fuStatusFilter;
+  _fuStatusFilter = status ? new Set([status]) : new Set();
   fuRender();
   fuRenderStatBar();
 }
@@ -9111,8 +9110,6 @@ function fuRenderStatBar() {
 
   const sm  = _fuSummaryCache.status || {};
   const sl  = _fuSummaryCache.stale  || {};
-  const cur = _fuStatusFilter;
-
   const total = Object.values(sm).reduce((a, b) => a + b, 0);
 
   const CARDS = [
@@ -9127,10 +9124,10 @@ function fuRenderStatBar() {
   const staleTotal = (sl.d7||0) + (sl.d14||0) + (sl.d30||0);
   const staleColor = sl.d30 ? '#b91c1c' : sl.d14 ? '#c2410c' : '#854d0e';
   const staleBg    = sl.d30 ? '#fee2e2' : sl.d14 ? '#ffedd5' : '#fef9c3';
-  const hasFilter  = cur !== '';
+  const hasFilter  = _fuStatusFilter.size > 0;
 
   bar.innerHTML = CARDS.map(c => {
-    const isActive = c.key === cur;
+    const isActive = c.key === '' ? !hasFilter : _fuStatusFilter.has(c.key);
     const isDim    = hasFilter && !isActive;
     const border   = isActive
       ? `2px solid ${c.col}`
@@ -9150,9 +9147,16 @@ function fuRenderStatBar() {
         <div style="font-size:1rem;font-weight:800;color:${c.col};line-height:1.1">${c.val}</div>
         <div style="font-size:.6rem;font-weight:600;color:${c.col};opacity:.7;white-space:nowrap;margin-top:.05rem">${c.label}</div>
       </div>
-      ${isActive ? `<span style="font-size:.6rem;background:${c.col};color:#fff;border-radius:20px;padding:.05rem .3rem;font-weight:700;margin-left:.1rem">✓</span>` : ''}
+      ${isActive && c.key !== '' ? `<span style="font-size:.6rem;background:${c.col};color:#fff;border-radius:20px;padding:.05rem .3rem;font-weight:700;margin-left:.1rem">✓</span>` : ''}
     </div>`;
   }).join('') +
+  (hasFilter ? `
+    <div onclick="fuFilterByStatus('')" title="ล้างตัวกรองทั้งหมด"
+      style="display:flex;align-items:center;gap:.3rem;background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;padding:.32rem .6rem;cursor:pointer;flex-shrink:0;transition:all .15s"
+      onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='#fef2f2'">
+      <span style="font-size:.85rem">✕</span>
+      <div style="font-size:.65rem;font-weight:700;color:#b91c1c;white-space:nowrap">ล้างตัวกรอง</div>
+    </div>` : '') +
 
   (staleTotal ? `
     <div style="display:flex;align-items:center;gap:.45rem;background:${staleBg};
@@ -9172,9 +9176,9 @@ function fuRenderStatBar() {
 }
 
 function fuFilterByStatus(status) {
-  _fuStatusFilter = (_fuStatusFilter === status) ? '' : status; // toggle off if same
-  const sel = document.getElementById('fu-status-filter');
-  if (sel) sel.value = _fuStatusFilter;
+  if (!status) { _fuStatusFilter = new Set(); }  // 'ทั้งหมด' clears all
+  else if (_fuStatusFilter.has(status)) { _fuStatusFilter.delete(status); }
+  else { _fuStatusFilter.add(status); }
   fuRenderStatBar();
   fuRender();
 }
@@ -9247,9 +9251,8 @@ async function fuSelectBoard(bid, name, fid) {
   _fuBoardId      = bid;
   _fuBoardName    = name;
   _fuSearchQ      = '';
-  _fuStatusFilter = '';  // clear filter when switching boards (fuJumpToBoard re-applies after load)
+  _fuStatusFilter = new Set();  // clear filter when switching boards
   const sq = document.getElementById('fu-search'); if (sq) sq.value = '';
-  const sf = document.getElementById('fu-status-filter'); if (sf) sf.value = '';
   if (!_fuBoards[fid]) _fuBoards[fid] = await api(`/api/fu/folders/${fid}/boards`) || [];
 
   // Breadcrumb: Folder > Board
@@ -9557,10 +9560,9 @@ function fuGroupColor(field, val) {
 }
 
 function fuRenderTable() {
-  const filter = _fuStatusFilter;
   const q = _fuSearchQ || '';
   let list = _fuIssues.filter(i =>
-    (!filter || i.status === filter) &&
+    (!_fuStatusFilter.size || _fuStatusFilter.has(i.status)) &&
     (!q || (i.detail||'').toLowerCase().includes(q) ||
            (i.category||'').toLowerCase().includes(q) ||
            (i.assigned_to_name||'').toLowerCase().includes(q) ||
@@ -9573,7 +9575,7 @@ function fuRenderTable() {
   if (!list.length) {
     wrap.innerHTML = `<div style="text-align:center;padding:3rem 1rem;color:#94a3b8">
       <div style="font-size:2rem;margin-bottom:.5rem">📌</div>
-      <div style="margin-bottom:.75rem">${filter ? 'ไม่มี Issue ในสถานะนี้' : 'ยังไม่มี Issue'}</div>
+      <div style="margin-bottom:.75rem">${_fuStatusFilter.size ? 'ไม่มี Issue ในสถานะที่เลือก' : 'ยังไม่มี Issue'}</div>
       <button onclick="fuAddIssue()" style="background:#1d4ed8;color:#fff;border:none;border-radius:7px;padding:.45rem 1.1rem;font-size:.82rem;font-weight:700;cursor:pointer">+ เพิ่ม Issue แรก</button>
     </div>`;
     return;
@@ -10527,6 +10529,58 @@ async function fuMoveIssue(issueId, boardId, boardName, folderName) {
     fuLoadSidebar(); // Refresh sidebar issue counts
     fuPollBadge();
   } catch(e) { showToast('❌ ' + e.message, 'error'); }
+}
+
+// ══════════════════════════════════════════════════════════
+//  EXCEL EXPORT (client-side CSV → Excel)
+// ══════════════════════════════════════════════════════════
+function fuExportExcel() {
+  // Use the same filter logic as fuRenderTable
+  const q = _fuSearchQ || '';
+  let list = _fuIssues.filter(i =>
+    (!_fuStatusFilter.size || _fuStatusFilter.has(i.status)) &&
+    (!q || (i.detail||'').toLowerCase().includes(q) ||
+           (i.category||'').toLowerCase().includes(q) ||
+           (i.assigned_to_name||'').toLowerCase().includes(q) ||
+           (i.note||'').toLowerCase().includes(q) ||
+           String(i.id||'').includes(q))
+  );
+
+  const FU_STATUS_LABEL = {
+    pending:'รอดำเนินการ', in_progress:'กำลังตรวจสอบ',
+    waiting:'รอข้อมูล', resolved:'แก้แล้ว', cancelled:'ยกเลิก'
+  };
+  const FU_PRI_LABEL = { low:'ต่ำ', normal:'ปกติ', high:'สูง', urgent:'เร่งด่วน' };
+
+  const headers = ['ID','หัวข้อ / รายละเอียดปัญหา','Note','Category','ความสำคัญ','สถานะ','ผู้รับผิดชอบ','สร้างโดย','Due Date','Issue URL','Board'];
+  const rows = list.map(i => [
+    i.id,
+    i.detail || '',
+    i.branch || '',
+    i.category || '',
+    FU_PRI_LABEL[i.priority] || i.priority || '',
+    FU_STATUS_LABEL[i.status] || i.status || '',
+    i.assigned_to_name || '',
+    i.created_by_name || '',
+    i.due_date ? i.due_date.split('T')[0] : '',
+    i.issue_url || '',
+    _fuBoardName || ''
+  ]);
+
+  // Build CSV with UTF-8 BOM (for Thai characters in Excel)
+  const escape = v => `"${String(v).replace(/"/g,'""')}"`;
+  const csvLines = [headers, ...rows].map(r => r.map(escape).join(','));
+  const csv = '﻿' + csvLines.join('\r\n');
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const date = new Date().toLocaleDateString('th-TH',{year:'2-digit',month:'2-digit',day:'2-digit'}).replace(/\//g,'-');
+  a.href     = url;
+  a.download = `FollowUp_${_fuBoardName||'export'}_${date}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast(`📥 Export ${list.length} รายการ เรียบร้อย`);
 }
 
 // Stub: legacy openCreateFollowup called from Specialist page (modal still exists)
