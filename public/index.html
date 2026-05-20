@@ -12097,7 +12097,9 @@ async function deleteSiEntry(id, label) {
 let _dashTab = 1;
 let _issData = null;
 let _issAllRows = [];
-let _issChartFilter = { type: null, value: null }; // 'category' | 'subject'
+// Drill-down: Level 1 = category (donut), Level 2 = subject (bar)
+let _issFilterCat     = null;  // ProblemType selected
+let _issFilterSubject = null;  // Subject selected (requires _issFilterCat)
 
 function switchDashTab(tab) {
   _dashTab = tab;
@@ -12114,7 +12116,8 @@ async function loadIssueAnalytics() {
   let qs = '/api/dashboard/issues?';
   if (dateFrom) qs += `dateFrom=${encodeURIComponent(dateFrom)}&`;
   if (dateTo)   qs += `dateTo=${encodeURIComponent(dateTo)}&`;
-  _issChartFilter = { type: null, value: null };
+  _issFilterCat = null;
+  _issFilterSubject = null;
   try {
     _issData = await api(qs);
     renderIssueKPI();
@@ -12126,36 +12129,60 @@ async function loadIssueAnalytics() {
   } catch(e) { console.error('[issue analytics]', e); }
 }
 
-function issSetFilter(type, value) {
-  const isToggle = _issChartFilter.type === type && _issChartFilter.value === value;
-  _issChartFilter = isToggle ? { type: null, value: null } : { type, value };
-
-  // Update filter badge
-  const badge = document.getElementById('iss-filter-badge');
-  const label = document.getElementById('iss-filter-label');
-  if (_issChartFilter.value) {
-    const icon = type === 'category' ? '🍩' : '📊';
-    label.textContent = `${icon} ${_issChartFilter.value}`;
-    badge.style.display = 'inline-flex';
+// ── Level 1: click donut → filter bar, reset subject, update customers+table
+function issClickCategory(cat) {
+  if (_issFilterCat === cat) {
+    // toggle off → clear everything
+    _issFilterCat = null;
+    _issFilterSubject = null;
   } else {
-    badge.style.display = 'none';
+    _issFilterCat = cat;
+    _issFilterSubject = null; // reset level 2 when level 1 changes
   }
-
-  // Re-render all dependent widgets
-  renderIssueBar();           // bar re-filters subjects
-  renderIssueTopCustomers();  // customers re-filters
-  renderIssueDonut();         // highlight selected segment
-  filterIssueTable();         // detail table
+  issUpdateBreadcrumb();
+  renderIssueDonut();          // highlight selected segment
+  renderIssueBar();            // show subjects of this category
+  renderIssueTopCustomers();   // top5 by category (subject not chosen yet)
+  filterIssueTable();
 }
 
+// ── Level 2: click bar → filter customers only
+function issClickSubject(subject) {
+  if (_issFilterSubject === subject) {
+    _issFilterSubject = null;  // toggle off
+  } else {
+    _issFilterSubject = subject;
+  }
+  issUpdateBreadcrumb();
+  renderIssueTopCustomers();   // top5 by this subject
+  filterIssueTable();
+}
+
+// ── Clear all filters
 function issClearFilter() {
-  _issChartFilter = { type: null, value: null };
-  const badge = document.getElementById('iss-filter-badge');
-  if (badge) badge.style.display = 'none';
+  _issFilterCat = null;
+  _issFilterSubject = null;
+  issUpdateBreadcrumb();
+  renderIssueDonut();
   renderIssueBar();
   renderIssueTopCustomers();
-  renderIssueDonut();
   filterIssueTable();
+}
+
+// ── Breadcrumb pill above customers + table
+function issUpdateBreadcrumb() {
+  const badge = document.getElementById('iss-filter-badge');
+  const label = document.getElementById('iss-filter-label');
+  if (!badge || !label) return;
+  if (!_issFilterCat && !_issFilterSubject) {
+    badge.style.display = 'none';
+    return;
+  }
+  let crumb = '';
+  if (_issFilterCat)     crumb += `🍩 ${_issFilterCat}`;
+  if (_issFilterSubject) crumb += ` › 📊 ${_issFilterSubject}`;
+  label.textContent = crumb;
+  badge.style.display = 'inline-flex';
 }
 
 function renderIssueKPI() {
@@ -12186,7 +12213,7 @@ function renderIssueDonut() {
   const palette  = ['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#06b6d4','#ec4899','#84cc16','#f97316','#6366f1','#94a3b8'];
 
   // Dim unselected segments when a category filter is active
-  const activeCat = _issChartFilter.type === 'category' ? _issChartFilter.value : null;
+  const activeCat = _issFilterCat;
   const bgColors = fullLabels.map((lbl, i) => {
     if (!activeCat) return palette[i] || '#94a3b8';
     return lbl === activeCat ? (palette[i] || '#94a3b8') : (palette[i] || '#94a3b8') + '40';
@@ -12211,14 +12238,13 @@ function renderIssueDonut() {
       responsive:true, maintainAspectRatio:false,
       onClick: (evt, elements) => {
         if (!elements.length) return;
-        issSetFilter('category', fullLabels[elements[0].index]);
+        issClickCategory(fullLabels[elements[0].index]);
       },
       plugins: {
         legend: {
           position:'right',
           labels:{ font:{size:10}, boxWidth:10, padding:5,
             generateLabels: (chart) => {
-              const ds = chart.data.datasets[0];
               return chart.data.labels.map((lbl, i) => ({
                 text: lbl,
                 fillStyle: palette[i] || '#94a3b8',
@@ -12231,7 +12257,7 @@ function renderIssueDonut() {
               }));
             }
           },
-          onClick: (evt, item) => issSetFilter('category', fullLabels[item.index])
+          onClick: (evt, item) => issClickCategory(fullLabels[item.index])
         },
         tooltip: { callbacks: { label: c => ` ${c.label}: ${c.raw} (${total?((c.raw/total)*100).toFixed(1):0}%)` } }
       }
@@ -12241,7 +12267,7 @@ function renderIssueDonut() {
 
 function renderIssueBar() {
   const { subjects, total } = _issData;
-  const activeCat = _issChartFilter.type === 'category' ? _issChartFilter.value : null;
+  const activeCat = _issFilterCat;
 
   // Filter by active category, then take top 15
   const pool   = activeCat ? subjects.filter(s => (s.category||'(ไม่ระบุ)') === activeCat) : subjects;
@@ -12272,21 +12298,29 @@ function renderIssueBar() {
   const labels     = top15.map(s => s.subject.length>28 ? s.subject.substring(0,28)+'…' : s.subject);
   const data       = top15.map(s => s.cnt);
 
-  // Color: highlight palette for filtered view, alternating for full view
+  // Color: highlight active subject, dim others; alternating when no filter
   const palette = ['#3b82f6','#6366f1','#8b5cf6','#06b6d4','#10b981','#f59e0b','#ef4444','#ec4899'];
   const bgColors = activeCat
-    ? top15.map((_,i) => palette[i % palette.length])
+    ? fullLabels.map((lbl, i) => {
+        const base = palette[i % palette.length];
+        if (!_issFilterSubject) return base;
+        return lbl === _issFilterSubject ? base : base + '40';
+      })
     : data.map((_,i) => i%2===0 ? '#3b82f6' : '#6366f1');
 
   if (ctx._chart) ctx._chart.destroy();
   ctx._chart = new Chart(ctx, {
     type:'bar',
-    data: { labels, datasets:[{ data, backgroundColor: bgColors, hoverBackgroundColor:'#1d4ed8', borderRadius:4, label:'tickets' }] },
+    data: { labels, datasets:[{ data, backgroundColor: bgColors, hoverBackgroundColor:'#1d4ed8', borderRadius:4, label:'tickets',
+      // bold border on selected subject
+      borderColor: fullLabels.map(lbl => _issFilterSubject && lbl === _issFilterSubject ? '#1e293b' : 'transparent'),
+      borderWidth: fullLabels.map(lbl => _issFilterSubject && lbl === _issFilterSubject ? 2 : 0)
+    }] },
     options: {
       indexAxis:'y', responsive:true, maintainAspectRatio:false,
       onClick: (evt, elements) => {
         if (!elements.length) return;
-        issSetFilter('subject', fullLabels[elements[0].index]);
+        issClickSubject(fullLabels[elements[0].index]);
       },
       plugins: {
         legend:{ display:false },
@@ -12348,13 +12382,11 @@ function renderIssueTable() {
 function filterIssueTable() {
   const q = (document.getElementById('iss-table-search')?.value||'').toLowerCase();
   let filtered = q ? _issAllRows.filter(s=>(s.subject||'').toLowerCase().includes(q)) : [..._issAllRows];
-  // Apply chart filter
-  if (_issChartFilter.value) {
-    if (_issChartFilter.type === 'category') {
-      filtered = filtered.filter(s => (s.category||'(ไม่ระบุ)') === _issChartFilter.value);
-    } else if (_issChartFilter.type === 'subject') {
-      filtered = filtered.filter(s => s.subject === _issChartFilter.value);
-    }
+  // Apply drill-down filters (subject takes priority)
+  if (_issFilterSubject) {
+    filtered = filtered.filter(s => s.subject === _issFilterSubject);
+  } else if (_issFilterCat) {
+    filtered = filtered.filter(s => (s.category||'(ไม่ระบุ)') === _issFilterCat);
   }
   const tbody = document.getElementById('iss-detail-tbody');
   if (!tbody) return;
@@ -12387,14 +12419,29 @@ function renderIssueTopCustomers() {
   const wrap = document.getElementById('iss-top-customers');
   if (!wrap) return;
 
-  const activeCat = _issChartFilter.type === 'category' ? _issChartFilter.value : null;
   let customers = [];
+  const detail  = _issData?.customers_detail || [];
 
-  if (activeCat && _issData?.customers_detail?.length) {
-    // Aggregate customers_detail filtered by category
+  if (_issFilterSubject) {
+    // Level 2: filter by subject — need subject-level customer data
+    // Derive from subjects × customers_detail: subject belongs to a category, filter detail by category then cross-ref
+    // Since we have customers_detail by category, approximate by category of selected subject
+    const subjectCat = _issData?.subjects?.find(s => s.subject === _issFilterSubject)?.category;
     const agg = {};
-    for (const row of _issData.customers_detail) {
-      if (row.category === activeCat) {
+    for (const row of detail) {
+      if (subjectCat && row.category === subjectCat) {
+        agg[row.customer_name] = (agg[row.customer_name] || 0) + row.cnt;
+      }
+    }
+    customers = Object.entries(agg)
+      .map(([customer_name, cnt]) => ({ customer_name, cnt }))
+      .sort((a,b) => b.cnt - a.cnt)
+      .slice(0,5);
+  } else if (_issFilterCat && detail.length) {
+    // Level 1: filter by category
+    const agg = {};
+    for (const row of detail) {
+      if (row.category === _issFilterCat) {
         agg[row.customer_name] = (agg[row.customer_name] || 0) + row.cnt;
       }
     }
@@ -12406,12 +12453,16 @@ function renderIssueTopCustomers() {
     customers = _issData?.customers || [];
   }
 
-  // Update card title to show filter context
+  // Update card title
   const titleEl = document.querySelector('#iss-top-customers')?.closest('.card')?.querySelector('.card-title');
   if (titleEl) {
-    titleEl.innerHTML = activeCat
-      ? `👑 Top 5 ลูกค้า &nbsp;<span style="background:#dbeafe;color:#1d4ed8;border-radius:20px;padding:.1rem .55rem;font-size:.72rem;font-weight:600">${escHtml(activeCat)}</span>`
-      : '👑 Top 5 ลูกค้าที่แจ้งปัญหามากสุด';
+    if (_issFilterSubject) {
+      titleEl.innerHTML = `👑 Top 5 ลูกค้า &nbsp;<span style="background:#ede9fe;color:#6d28d9;border-radius:20px;padding:.1rem .55rem;font-size:.72rem;font-weight:600">📊 ${escHtml(_issFilterSubject)}</span>`;
+    } else if (_issFilterCat) {
+      titleEl.innerHTML = `👑 Top 5 ลูกค้า &nbsp;<span style="background:#dbeafe;color:#1d4ed8;border-radius:20px;padding:.1rem .55rem;font-size:.72rem;font-weight:600">🍩 ${escHtml(_issFilterCat)}</span>`;
+    } else {
+      titleEl.innerHTML = '👑 Top 5 ลูกค้าที่แจ้งปัญหามากสุด';
+    }
   }
 
   if (!customers.length) {
