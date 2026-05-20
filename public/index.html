@@ -5773,11 +5773,9 @@ function applyUserContext() {
   if (isLead) {
     loadComplaintsBadge();
     pollRepairMessages();
-    // Init specialist badge (lightweight)
-    api('/api/specialist/badge', {silent:true}).then(d => {
-      const b = document.getElementById('specialist-badge');
-      if (b) { if(d?.pending>0){b.textContent=d.pending;b.style.display='';}else b.style.display='none'; }
-    });
+    // Specialist badge — all-time pending count, poll every 60s
+    spPollBadge();
+    setInterval(spPollBadge, 60000);
     // Poll every 60s for new customer messages
     clearInterval(_repairPollTimer);
     _repairPollTimer = setInterval(pollRepairMessages, 30000);
@@ -7970,9 +7968,7 @@ function renderSpecialistTable(list) {
   _s('sp-stat-inprog',  inprog);
   _s('sp-stat-resolved',resolved);
 
-  // Update badge
-  const badge = document.getElementById('specialist-badge');
-  if (badge) { if(pending>0){badge.textContent=pending;badge.style.display='';}else badge.style.display='none'; }
+  // Badge is managed by spPollBadge() via /api/specialist/badge (all-time count) — do not override here
 
   const tbody = document.getElementById('specialist-tbody');
   if (!tbody) return;
@@ -13232,6 +13228,16 @@ async function svcPollBadge() {
     // Count ALL open service jobs (not delivered/cancelled) — no date filter, always visible
     const d = await api('/api/service-requests/badge', { silent: true });
     svcUpdateNavBadge(d?.open ?? 0);
+  } catch(e) {}
+}
+
+async function spPollBadge() {
+  try {
+    const d = await api('/api/specialist/badge', { silent: true });
+    const b = document.getElementById('specialist-badge');
+    if (!b) return;
+    if (d?.pending > 0) { b.textContent = d.pending; b.style.display = ''; }
+    else b.style.display = 'none';
   } catch(e) {}
 }
 
