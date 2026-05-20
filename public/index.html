@@ -3551,7 +3551,6 @@ function showPage(name, btn) {
     setTimeout(fuPollBadge, 800);
   }
   if (name === 'service')  {
-    svcUpdateNavBadge(0); // clear badge when entering service page
     // init date range to "เดือนนี้" on first open
     const df = document.getElementById('svc-date-from');
     if(df && !df.value) svcRange('thismonth', document.querySelector('#svc-drb .drb-btn'));
@@ -13201,14 +13200,7 @@ async function svcLoadList(){
   _svcAllRows = Array.isArray(rows)?rows:[];
   svcRenderProjectSidebar();
 
-  // Update nav badge — count "received" jobs (งานใหม่ที่ยังไม่มีใครรับ)
-  const onPage = document.getElementById('page-service')?.classList.contains('active');
-  if (!onPage) {
-    // Only show badge when not currently on the service page
-    svcUpdateNavBadge(_svcAllRows.filter(r=>r.status==='received').length);
-  } else {
-    svcUpdateNavBadge(0);
-  }
+  // Badge is managed by svcPollBadge() via /api/service-requests/badge — do not clear here
 
   // Stats
   const all = _svcAllRows;
@@ -13239,9 +13231,7 @@ function svcUpdateNavBadge(count) {
 
 async function svcPollBadge() {
   try {
-    const onPage = document.getElementById('page-service')?.classList.contains('active');
-    if (onPage) { svcUpdateNavBadge(0); return; }
-    // Count ALL open service jobs (not delivered/cancelled) — no date filter
+    // Count ALL open service jobs (not delivered/cancelled) — no date filter, always visible
     const d = await api('/api/service-requests/badge', { silent: true });
     svcUpdateNavBadge(d?.open ?? 0);
   } catch(e) {}
