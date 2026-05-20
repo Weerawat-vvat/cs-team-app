@@ -12127,28 +12127,34 @@ async function loadIssueAnalytics() {
 }
 
 function issSetFilter(type, value) {
-  if (_issChartFilter.type === type && _issChartFilter.value === value) {
-    // toggle off
-    _issChartFilter = { type: null, value: null };
-  } else {
-    _issChartFilter = { type, value };
-  }
+  const isToggle = _issChartFilter.type === type && _issChartFilter.value === value;
+  _issChartFilter = isToggle ? { type: null, value: null } : { type, value };
+
+  // Update filter badge
   const badge = document.getElementById('iss-filter-badge');
   const label = document.getElementById('iss-filter-label');
   if (_issChartFilter.value) {
     const icon = type === 'category' ? '🍩' : '📊';
-    label.textContent = `${icon} ${value}`;
+    label.textContent = `${icon} ${_issChartFilter.value}`;
     badge.style.display = 'inline-flex';
   } else {
     badge.style.display = 'none';
   }
-  filterIssueTable();
+
+  // Re-render all dependent widgets
+  renderIssueBar();           // bar re-filters subjects
+  renderIssueTopCustomers();  // customers re-filters
+  renderIssueDonut();         // highlight selected segment
+  filterIssueTable();         // detail table
 }
 
 function issClearFilter() {
   _issChartFilter = { type: null, value: null };
   const badge = document.getElementById('iss-filter-badge');
   if (badge) badge.style.display = 'none';
+  renderIssueBar();
+  renderIssueTopCustomers();
+  renderIssueDonut();
   filterIssueTable();
 }
 
@@ -12178,24 +12184,54 @@ function renderIssueDonut() {
   const data     = top10.map(s => s.cnt);
   if (otherCnt > 0) { fullLabels.push('อื่นๆ'); labels.push('อื่นๆ'); data.push(otherCnt); }
   const palette  = ['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#06b6d4','#ec4899','#84cc16','#f97316','#6366f1','#94a3b8'];
+
+  // Dim unselected segments when a category filter is active
+  const activeCat = _issChartFilter.type === 'category' ? _issChartFilter.value : null;
+  const bgColors = fullLabels.map((lbl, i) => {
+    if (!activeCat) return palette[i] || '#94a3b8';
+    return lbl === activeCat ? (palette[i] || '#94a3b8') : (palette[i] || '#94a3b8') + '40';
+  });
+  const borderColors = fullLabels.map((lbl, i) => activeCat && lbl === activeCat ? '#1e293b' : '#fff');
+  const borderWidths = fullLabels.map((lbl) => activeCat && lbl === activeCat ? 3 : 1.5);
+  const offsets = fullLabels.map((lbl) => activeCat && lbl === activeCat ? 10 : 0);
+
   const ctx = document.getElementById('chart-iss-donut');
   if (!ctx) return;
   if (ctx._chart) ctx._chart.destroy();
   ctx._chart = new Chart(ctx, {
     type: 'doughnut',
-    data: { labels, datasets: [{ data, backgroundColor: palette, borderWidth: 2, borderColor: '#fff', hoverOffset: 6 }] },
+    data: { labels, datasets: [{ data,
+      backgroundColor: bgColors,
+      borderColor: borderColors,
+      borderWidth: borderWidths,
+      offset: offsets,
+      hoverOffset: 8
+    }] },
     options: {
       responsive:true, maintainAspectRatio:false,
       onClick: (evt, elements) => {
         if (!elements.length) return;
-        const idx = elements[0].index;
-        issSetFilter('category', fullLabels[idx]);
+        issSetFilter('category', fullLabels[elements[0].index]);
       },
       plugins: {
-        legend: { position:'right', labels:{ font:{size:10}, boxWidth:10, padding:5 },
-          onClick: (evt, item, legend) => {
-            issSetFilter('category', fullLabels[item.index]);
-          }
+        legend: {
+          position:'right',
+          labels:{ font:{size:10}, boxWidth:10, padding:5,
+            generateLabels: (chart) => {
+              const ds = chart.data.datasets[0];
+              return chart.data.labels.map((lbl, i) => ({
+                text: lbl,
+                fillStyle: palette[i] || '#94a3b8',
+                strokeStyle: '#fff',
+                lineWidth: 1,
+                hidden: false,
+                index: i,
+                fontColor: activeCat && fullLabels[i] !== activeCat ? '#c0c0c0' : '#374151',
+                fontStyle: activeCat && fullLabels[i] === activeCat ? 'bold' : 'normal'
+              }));
+            }
+          },
+          onClick: (evt, item) => issSetFilter('category', fullLabels[item.index])
         },
         tooltip: { callbacks: { label: c => ` ${c.label}: ${c.raw} (${total?((c.raw/total)*100).toFixed(1):0}%)` } }
       }
@@ -12205,29 +12241,56 @@ function renderIssueDonut() {
 
 function renderIssueBar() {
   const { subjects, total } = _issData;
-  const top15      = subjects.slice(0,15);
+  const activeCat = _issChartFilter.type === 'category' ? _issChartFilter.value : null;
+
+  // Filter by active category, then take top 15
+  const pool   = activeCat ? subjects.filter(s => (s.category||'(ไม่ระบุ)') === activeCat) : subjects;
+  const top15  = pool.slice(0,15);
+  const filtTotal = activeCat ? pool.reduce((a,s)=>a+s.cnt,0) : total;
+
+  if (!top15.length) {
+    const ctx2 = document.getElementById('chart-iss-bar');
+    if (ctx2) {
+      if (ctx2._chart) ctx2._chart.destroy();
+      ctx2._chart = null;
+    }
+    // Show placeholder
+    const wrap = document.getElementById('chart-iss-bar')?.parentElement;
+    if (wrap) wrap.innerHTML = `<div style="height:260px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:.85rem">ไม่มีหัวข้อในหมวด "${activeCat}"</div>`;
+    return;
+  }
+
+  // Restore canvas if it was replaced
+  let ctx = document.getElementById('chart-iss-bar');
+  if (!ctx) {
+    const wrap = document.querySelector('#dash-tab-issues .grid-2 .card:last-child > div');
+    if (wrap) { wrap.innerHTML = '<canvas id="chart-iss-bar" style="cursor:pointer"></canvas>'; ctx = document.getElementById('chart-iss-bar'); }
+    if (!ctx) return;
+  }
+
   const fullLabels = top15.map(s => s.subject);
   const labels     = top15.map(s => s.subject.length>28 ? s.subject.substring(0,28)+'…' : s.subject);
   const data       = top15.map(s => s.cnt);
-  const ctx = document.getElementById('chart-iss-bar');
-  if (!ctx) return;
+
+  // Color: highlight palette for filtered view, alternating for full view
+  const palette = ['#3b82f6','#6366f1','#8b5cf6','#06b6d4','#10b981','#f59e0b','#ef4444','#ec4899'];
+  const bgColors = activeCat
+    ? top15.map((_,i) => palette[i % palette.length])
+    : data.map((_,i) => i%2===0 ? '#3b82f6' : '#6366f1');
+
   if (ctx._chart) ctx._chart.destroy();
   ctx._chart = new Chart(ctx, {
     type:'bar',
-    data: { labels, datasets:[{ data,
-      backgroundColor: data.map((_,i) => i%2===0 ? '#3b82f6' : '#6366f1'),
-      hoverBackgroundColor: '#1d4ed8',
-      borderRadius:4, label:'tickets' }] },
+    data: { labels, datasets:[{ data, backgroundColor: bgColors, hoverBackgroundColor:'#1d4ed8', borderRadius:4, label:'tickets' }] },
     options: {
       indexAxis:'y', responsive:true, maintainAspectRatio:false,
       onClick: (evt, elements) => {
         if (!elements.length) return;
-        const idx = elements[0].index;
-        issSetFilter('subject', fullLabels[idx]);
+        issSetFilter('subject', fullLabels[elements[0].index]);
       },
       plugins: {
         legend:{ display:false },
-        tooltip:{ callbacks:{ label: c => ` ${c.raw} tickets (${total?((c.raw/total)*100).toFixed(1):0}%)` } }
+        tooltip:{ callbacks:{ label: c => ` ${c.raw} tickets (${filtTotal?((c.raw/filtTotal)*100).toFixed(1):0}%)` } }
       },
       scales: {
         x:{ beginAtZero:true, grid:{ color:'#f1f5f9' }, ticks:{ font:{size:10} } },
@@ -12323,14 +12386,50 @@ function filterIssueTable() {
 function renderIssueTopCustomers() {
   const wrap = document.getElementById('iss-top-customers');
   if (!wrap) return;
-  const customers = _issData?.customers || [];
+
+  const activeCat = _issChartFilter.type === 'category' ? _issChartFilter.value : null;
+  let customers = [];
+
+  if (activeCat && _issData?.customers_detail?.length) {
+    // Aggregate customers_detail filtered by category
+    const agg = {};
+    for (const row of _issData.customers_detail) {
+      if (row.category === activeCat) {
+        agg[row.customer_name] = (agg[row.customer_name] || 0) + row.cnt;
+      }
+    }
+    customers = Object.entries(agg)
+      .map(([customer_name, cnt]) => ({ customer_name, cnt }))
+      .sort((a,b) => b.cnt - a.cnt)
+      .slice(0,5);
+  } else {
+    customers = _issData?.customers || [];
+  }
+
+  // Update card title to show filter context
+  const titleEl = document.querySelector('#iss-top-customers')?.closest('.card')?.querySelector('.card-title');
+  if (titleEl) {
+    titleEl.innerHTML = activeCat
+      ? `👑 Top 5 ลูกค้า &nbsp;<span style="background:#dbeafe;color:#1d4ed8;border-radius:20px;padding:.1rem .55rem;font-size:.72rem;font-weight:600">${escHtml(activeCat)}</span>`
+      : '👑 Top 5 ลูกค้าที่แจ้งปัญหามากสุด';
+  }
+
   if (!customers.length) {
-    wrap.innerHTML = '<div style="color:var(--muted);font-size:.82rem;text-align:center;padding:.75rem">ไม่มีข้อมูล</div>';
+    wrap.innerHTML = `<div style="color:var(--muted);font-size:.82rem;text-align:center;padding:.75rem">ไม่มีข้อมูลลูกค้าในหมวดนี้</div>`;
     return;
   }
+
   const max = customers[0].cnt;
-  const rankStyles = ['#f59e0b','#94a3b8','#b45309','#64748b','#64748b'];
   const medals = ['🥇','🥈','🥉','4','5'];
+  const barGrads = [
+    'linear-gradient(90deg,#f59e0b,#fbbf24)',
+    'linear-gradient(90deg,#94a3b8,#cbd5e1)',
+    'linear-gradient(90deg,#b45309,#d97706)',
+    'linear-gradient(90deg,#3b82f6,#6366f1)',
+    'linear-gradient(90deg,#3b82f6,#6366f1)'
+  ];
+  const cntColors = ['#f59e0b','#94a3b8','#b45309','#64748b','#64748b'];
+
   wrap.innerHTML = customers.map((c,i) => {
     const pct = Math.round((c.cnt/max)*100);
     return `<div style="display:flex;align-items:center;gap:.65rem">
@@ -12338,10 +12437,10 @@ function renderIssueTopCustomers() {
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.2rem">
           <span style="font-size:.82rem;font-weight:600;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px" title="${escHtml(c.customer_name)}">${escHtml(c.customer_name)}</span>
-          <span style="font-size:.8rem;font-weight:700;color:${rankStyles[i]};flex-shrink:0;margin-left:.5rem">${c.cnt.toLocaleString()} tickets</span>
+          <span style="font-size:.8rem;font-weight:700;color:${cntColors[i]};flex-shrink:0;margin-left:.5rem">${c.cnt.toLocaleString()} tickets</span>
         </div>
         <div style="background:#f1f5f9;border-radius:20px;height:6px;overflow:hidden">
-          <div style="width:${pct}%;background:${i===0?'linear-gradient(90deg,#f59e0b,#fbbf24)':i===1?'linear-gradient(90deg,#94a3b8,#cbd5e1)':i===2?'linear-gradient(90deg,#b45309,#d97706)':'linear-gradient(90deg,#3b82f6,#6366f1)'};height:100%;border-radius:20px;transition:width .4s ease"></div>
+          <div style="width:${pct}%;background:${barGrads[i]};height:100%;border-radius:20px;transition:width .5s ease"></div>
         </div>
       </div>
     </div>`;
