@@ -12423,13 +12423,11 @@ function renderIssueTopCustomers() {
   const detail  = _issData?.customers_detail || [];
 
   if (_issFilterSubject) {
-    // Level 2: filter by subject — need subject-level customer data
-    // Derive from subjects × customers_detail: subject belongs to a category, filter detail by category then cross-ref
-    // Since we have customers_detail by category, approximate by category of selected subject
-    const subjectCat = _issData?.subjects?.find(s => s.subject === _issFilterSubject)?.category;
+    // Level 2: exact match by subject from customers_by_subject
+    const bySubject = _issData?.customers_by_subject || [];
     const agg = {};
-    for (const row of detail) {
-      if (subjectCat && row.category === subjectCat) {
+    for (const row of bySubject) {
+      if (row.subject === _issFilterSubject) {
         agg[row.customer_name] = (agg[row.customer_name] || 0) + row.cnt;
       }
     }

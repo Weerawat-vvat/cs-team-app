@@ -6345,7 +6345,7 @@ app.get('/api/dashboard/issues', authRequired, async (request, res) => {
     const s = dateFrom ? new Date(dateFrom) : new Date(new Date().setHours(0,0,0,0));
     const e = dateTo   ? new Date(new Date(dateTo).setHours(23,59,59,999)) : new Date(new Date().setHours(23,59,59,999));
 
-    const [subjectR, categoryR, heatmapR, totalR, customerR, custDetailR] = await Promise.all([
+    const [subjectR, categoryR, heatmapR, totalR, customerR, custDetailR, custSubjectR] = await Promise.all([
       extReq()
         .input('s', sql.DateTime, s).input('e', sql.DateTime, e)
         .query(`SELECT cl.Subject AS subject,
@@ -6393,16 +6393,28 @@ app.get('/api/dashboard/issues', authRequired, async (request, res) => {
                 LEFT JOIN ProblemType pt ON pt.ProblemTypeId=cl.ProblemTypeId
                 WHERE cl.Active=1 AND cl.ReceiveDate>=@s AND cl.ReceiveDate<=@e
                   AND cr.CompanyName IS NOT NULL AND LEN(LTRIM(cr.CompanyName))>0
-                GROUP BY cr.CompanyName, pt.ProblemTypeDetail`)
+                GROUP BY cr.CompanyName, pt.ProblemTypeDetail`),
+      extReq()
+        .input('s', sql.DateTime, s).input('e', sql.DateTime, e)
+        .query(`SELECT cr.CompanyName AS customer_name,
+                       cl.Subject AS subject,
+                       COUNT(*) AS cnt
+                FROM Calllog cl
+                INNER JOIN CustomerRegistration cr ON cr.RegistrationId=cl.RegistrationId
+                WHERE cl.Active=1 AND cl.ReceiveDate>=@s AND cl.ReceiveDate<=@e
+                  AND cr.CompanyName IS NOT NULL AND LEN(LTRIM(cr.CompanyName))>0
+                  AND cl.Subject IS NOT NULL AND LEN(LTRIM(cl.Subject))>0
+                GROUP BY cr.CompanyName, cl.Subject`)
     ]);
 
     res.json({
-      subjects:         subjectR.recordset,
-      categories:       categoryR.recordset,
-      heatmap:          heatmapR.recordset,
-      total:            totalR.recordset[0]?.cnt || 0,
-      customers:        customerR.recordset,
-      customers_detail: custDetailR.recordset
+      subjects:            subjectR.recordset,
+      categories:          categoryR.recordset,
+      heatmap:             heatmapR.recordset,
+      total:               totalR.recordset[0]?.cnt || 0,
+      customers:           customerR.recordset,
+      customers_detail:    custDetailR.recordset,
+      customers_by_subject: custSubjectR.recordset
     });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
