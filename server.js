@@ -6345,14 +6345,17 @@ app.get('/api/dashboard/issues', authRequired, async (request, res) => {
     const s = dateFrom ? new Date(dateFrom) : new Date(new Date().setHours(0,0,0,0));
     const e = dateTo   ? new Date(new Date(dateTo).setHours(23,59,59,999)) : new Date(new Date().setHours(23,59,59,999));
 
-    const [subjectR, categoryR, heatmapR, totalR] = await Promise.all([
+    const [subjectR, categoryR, heatmapR, totalR, customerR] = await Promise.all([
       extReq()
         .input('s', sql.DateTime, s).input('e', sql.DateTime, e)
-        .query(`SELECT cl.Subject AS subject, COUNT(*) AS cnt
+        .query(`SELECT cl.Subject AS subject,
+                       ISNULL(pt.ProblemTypeDetail,'(ไม่ระบุ)') AS category,
+                       COUNT(*) AS cnt
                 FROM Calllog cl
+                LEFT JOIN ProblemType pt ON pt.ProblemTypeId=cl.ProblemTypeId
                 WHERE cl.Active=1 AND cl.ReceiveDate>=@s AND cl.ReceiveDate<=@e
                   AND cl.Subject IS NOT NULL AND LEN(LTRIM(cl.Subject))>0
-                GROUP BY cl.Subject ORDER BY cnt DESC`),
+                GROUP BY cl.Subject, pt.ProblemTypeDetail ORDER BY cnt DESC`),
       extReq()
         .input('s', sql.DateTime, s).input('e', sql.DateTime, e)
         .query(`SELECT ISNULL(pt.ProblemTypeDetail,'(ไม่ระบุ)') AS category, COUNT(*) AS cnt
@@ -6371,14 +6374,23 @@ app.get('/api/dashboard/issues', authRequired, async (request, res) => {
       extReq()
         .input('s', sql.DateTime, s).input('e', sql.DateTime, e)
         .query(`SELECT COUNT(*) AS cnt FROM Calllog cl
-                WHERE cl.Active=1 AND cl.ReceiveDate>=@s AND cl.ReceiveDate<=@e`)
+                WHERE cl.Active=1 AND cl.ReceiveDate>=@s AND cl.ReceiveDate<=@e`),
+      extReq()
+        .input('s', sql.DateTime, s).input('e', sql.DateTime, e)
+        .query(`SELECT TOP 5 cr.CompanyName AS customer_name, COUNT(*) AS cnt
+                FROM Calllog cl
+                INNER JOIN CustomerRegistration cr ON cr.RegistrationId=cl.RegistrationId
+                WHERE cl.Active=1 AND cl.ReceiveDate>=@s AND cl.ReceiveDate<=@e
+                  AND cr.CompanyName IS NOT NULL AND LEN(LTRIM(cr.CompanyName))>0
+                GROUP BY cr.CompanyName ORDER BY cnt DESC`)
     ]);
 
     res.json({
       subjects:   subjectR.recordset,
       categories: categoryR.recordset,
       heatmap:    heatmapR.recordset,
-      total:      totalR.recordset[0]?.cnt || 0
+      total:      totalR.recordset[0]?.cnt || 0,
+      customers:  customerR.recordset
     });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

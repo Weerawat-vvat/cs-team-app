@@ -779,12 +779,26 @@ textarea{resize:vertical;min-height:80px}
     <!-- Charts row -->
     <div class="grid-2" style="grid-template-columns:1fr 2fr;margin-bottom:.75rem">
       <div class="card">
-        <div class="card-title">🍩 ประเภทปัญหา (ProblemType)</div>
-        <div style="position:relative;height:260px"><canvas id="chart-iss-donut"></canvas></div>
+        <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
+          <span>🍩 ประเภทปัญหา (ProblemType)</span>
+          <span style="font-size:.68rem;color:#94a3b8;font-weight:400">คลิกเพื่อ filter</span>
+        </div>
+        <div style="position:relative;height:260px"><canvas id="chart-iss-donut" style="cursor:pointer"></canvas></div>
       </div>
       <div class="card">
-        <div class="card-title">📊 Top 15 หัวข้อปัญหา</div>
-        <div style="position:relative;height:260px"><canvas id="chart-iss-bar"></canvas></div>
+        <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
+          <span>📊 Top 15 หัวข้อปัญหา</span>
+          <span style="font-size:.68rem;color:#94a3b8;font-weight:400">คลิกเพื่อ filter</span>
+        </div>
+        <div style="position:relative;height:260px"><canvas id="chart-iss-bar" style="cursor:pointer"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Top 5 Customers -->
+    <div class="card" style="margin-bottom:.75rem">
+      <div class="card-title">👑 Top 5 ลูกค้าที่แจ้งปัญหามากสุด</div>
+      <div id="iss-top-customers" style="display:flex;flex-direction:column;gap:.45rem;margin-top:.25rem">
+        <div style="color:var(--muted);font-size:.82rem;text-align:center;padding:.75rem">กำลังโหลด...</div>
       </div>
     </div>
 
@@ -837,8 +851,14 @@ textarea{resize:vertical;min-height:80px}
 
     <!-- Detail table -->
     <div class="card">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.65rem;flex-wrap:wrap;gap:.5rem">
-        <div class="card-title" style="margin:0">📋 รายละเอียดหัวข้อปัญหาทั้งหมด</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem;flex-wrap:wrap;gap:.5rem">
+        <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+          <div class="card-title" style="margin:0">📋 รายละเอียดหัวข้อปัญหาทั้งหมด</div>
+          <span id="iss-filter-badge" style="display:none;align-items:center;gap:.3rem;background:#dbeafe;color:#1d4ed8;border-radius:20px;padding:.15rem .55rem .15rem .45rem;font-size:.73rem;font-weight:600">
+            <span id="iss-filter-label"></span>
+            <span onclick="issClearFilter()" style="cursor:pointer;color:#3b82f6;font-size:.85rem;line-height:1;margin-left:.1rem" title="ล้าง filter">×</span>
+          </span>
+        </div>
         <input id="iss-table-search" type="text" placeholder="🔍 ค้นหาหัวข้อ..."
                oninput="filterIssueTable()"
                style="border:1px solid var(--border);border-radius:8px;padding:.32rem .7rem;font-size:.8rem;outline:none;min-width:220px"/>
@@ -12077,6 +12097,7 @@ async function deleteSiEntry(id, label) {
 let _dashTab = 1;
 let _issData = null;
 let _issAllRows = [];
+let _issChartFilter = { type: null, value: null }; // 'category' | 'subject'
 
 function switchDashTab(tab) {
   _dashTab = tab;
@@ -12093,6 +12114,7 @@ async function loadIssueAnalytics() {
   let qs = '/api/dashboard/issues?';
   if (dateFrom) qs += `dateFrom=${encodeURIComponent(dateFrom)}&`;
   if (dateTo)   qs += `dateTo=${encodeURIComponent(dateTo)}&`;
+  _issChartFilter = { type: null, value: null };
   try {
     _issData = await api(qs);
     renderIssueKPI();
@@ -12100,7 +12122,36 @@ async function loadIssueAnalytics() {
     renderIssueBar();
     renderIssueHeatmap();
     renderIssueTable();
+    renderIssueTopCustomers();
   } catch(e) { console.error('[issue analytics]', e); }
+}
+
+function issSetFilter(type, value) {
+  if (_issChartFilter.type === type && _issChartFilter.value === value) {
+    // toggle off
+    _issChartFilter = { type: null, value: null };
+  } else {
+    _issChartFilter = { type, value };
+  }
+  const badge = document.getElementById('iss-filter-badge');
+  const label = document.getElementById('iss-filter-label');
+  if (_issChartFilter.value) {
+    const icon = type === 'category' ? '🍩' : '📊';
+    label.textContent = `${icon} ${value}`;
+    badge.style.display = 'inline-flex';
+  } else {
+    badge.style.display = 'none';
+  }
+  filterIssueTable();
+  // scroll to table
+  document.getElementById('iss-detail-tbody')?.closest('.card')?.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+function issClearFilter() {
+  _issChartFilter = { type: null, value: null };
+  const badge = document.getElementById('iss-filter-badge');
+  if (badge) badge.style.display = 'none';
+  filterIssueTable();
 }
 
 function renderIssueKPI() {
@@ -12124,20 +12175,30 @@ function renderIssueDonut() {
   const { categories, total } = _issData;
   const top10    = categories.slice(0,10);
   const otherCnt = categories.slice(10).reduce((s,x)=>s+x.cnt,0);
+  const fullLabels = top10.map(s => s.category);
   const labels   = top10.map(s => s.category.length>22 ? s.category.substring(0,22)+'…' : s.category);
   const data     = top10.map(s => s.cnt);
-  if (otherCnt > 0) { labels.push('อื่นๆ'); data.push(otherCnt); }
+  if (otherCnt > 0) { fullLabels.push('อื่นๆ'); labels.push('อื่นๆ'); data.push(otherCnt); }
   const palette  = ['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#06b6d4','#ec4899','#84cc16','#f97316','#6366f1','#94a3b8'];
   const ctx = document.getElementById('chart-iss-donut');
   if (!ctx) return;
   if (ctx._chart) ctx._chart.destroy();
   ctx._chart = new Chart(ctx, {
     type: 'doughnut',
-    data: { labels, datasets: [{ data, backgroundColor: palette, borderWidth: 2, borderColor: '#fff' }] },
+    data: { labels, datasets: [{ data, backgroundColor: palette, borderWidth: 2, borderColor: '#fff', hoverOffset: 6 }] },
     options: {
       responsive:true, maintainAspectRatio:false,
+      onClick: (evt, elements) => {
+        if (!elements.length) return;
+        const idx = elements[0].index;
+        issSetFilter('category', fullLabels[idx]);
+      },
       plugins: {
-        legend: { position:'right', labels:{ font:{size:10}, boxWidth:10, padding:5 } },
+        legend: { position:'right', labels:{ font:{size:10}, boxWidth:10, padding:5 },
+          onClick: (evt, item, legend) => {
+            issSetFilter('category', fullLabels[item.index]);
+          }
+        },
         tooltip: { callbacks: { label: c => ` ${c.label}: ${c.raw} (${total?((c.raw/total)*100).toFixed(1):0}%)` } }
       }
     }
@@ -12146,17 +12207,26 @@ function renderIssueDonut() {
 
 function renderIssueBar() {
   const { subjects, total } = _issData;
-  const top15  = subjects.slice(0,15);
-  const labels = top15.map(s => s.subject.length>28 ? s.subject.substring(0,28)+'…' : s.subject);
-  const data   = top15.map(s => s.cnt);
+  const top15      = subjects.slice(0,15);
+  const fullLabels = top15.map(s => s.subject);
+  const labels     = top15.map(s => s.subject.length>28 ? s.subject.substring(0,28)+'…' : s.subject);
+  const data       = top15.map(s => s.cnt);
   const ctx = document.getElementById('chart-iss-bar');
   if (!ctx) return;
   if (ctx._chart) ctx._chart.destroy();
   ctx._chart = new Chart(ctx, {
     type:'bar',
-    data: { labels, datasets:[{ data, backgroundColor:'#3b82f6', borderRadius:4, label:'tickets' }] },
+    data: { labels, datasets:[{ data,
+      backgroundColor: data.map((_,i) => i%2===0 ? '#3b82f6' : '#6366f1'),
+      hoverBackgroundColor: '#1d4ed8',
+      borderRadius:4, label:'tickets' }] },
     options: {
       indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      onClick: (evt, elements) => {
+        if (!elements.length) return;
+        const idx = elements[0].index;
+        issSetFilter('subject', fullLabels[idx]);
+      },
       plugins: {
         legend:{ display:false },
         tooltip:{ callbacks:{ label: c => ` ${c.raw} tickets (${total?((c.raw/total)*100).toFixed(1):0}%)` } }
@@ -12216,7 +12286,15 @@ function renderIssueTable() {
 
 function filterIssueTable() {
   const q = (document.getElementById('iss-table-search')?.value||'').toLowerCase();
-  const filtered = q ? _issAllRows.filter(s=>(s.subject||'').toLowerCase().includes(q)) : _issAllRows;
+  let filtered = q ? _issAllRows.filter(s=>(s.subject||'').toLowerCase().includes(q)) : [..._issAllRows];
+  // Apply chart filter
+  if (_issChartFilter.value) {
+    if (_issChartFilter.type === 'category') {
+      filtered = filtered.filter(s => (s.category||'(ไม่ระบุ)') === _issChartFilter.value);
+    } else if (_issChartFilter.type === 'subject') {
+      filtered = filtered.filter(s => s.subject === _issChartFilter.value);
+    }
+  }
   const tbody = document.getElementById('iss-detail-tbody');
   if (!tbody) return;
   const total  = _issData?.total || 1;
@@ -12226,9 +12304,12 @@ function filterIssueTable() {
         const pct  = ((s.cnt/total)*100).toFixed(1);
         const barW = Math.round((s.cnt/maxCnt)*100);
         const rankColor = i===0?'#f59e0b':i===1?'#94a3b8':i===2?'#b45309':'var(--muted)';
+        const catBadge = _issChartFilter.type !== 'category' && s.category
+          ? `<span style="font-size:.67rem;background:#f1f5f9;color:#64748b;border-radius:4px;padding:.1rem .35rem;margin-left:.35rem">${escHtml(s.category)}</span>`
+          : '';
         return `<tr style="border-bottom:1px solid #f1f5f9;${i%2?'background:#fafafa':''}">
           <td style="padding:.4rem .75rem;color:${rankColor};font-weight:700;font-size:.78rem">${i+1}</td>
-          <td style="padding:.4rem .75rem;font-weight:${i<3?'700':'400'}">${escHtml(s.subject||'-')}</td>
+          <td style="padding:.4rem .75rem;font-weight:${i<3?'700':'400'}">${escHtml(s.subject||'-')}${catBadge}</td>
           <td style="padding:.4rem .75rem;text-align:right;font-weight:700;color:#2563eb">${s.cnt.toLocaleString()}</td>
           <td style="padding:.4rem .75rem;text-align:right;color:var(--muted)">${pct}%</td>
           <td style="padding:.4rem .75rem">
@@ -12238,7 +12319,35 @@ function filterIssueTable() {
           </td>
         </tr>`;
       }).join('')
-    : '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--muted)">ไม่พบหัวข้อที่ค้นหา</td></tr>';
+    : '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--muted)">ไม่พบข้อมูลที่ตรงกับ filter นี้</td></tr>';
+}
+
+function renderIssueTopCustomers() {
+  const wrap = document.getElementById('iss-top-customers');
+  if (!wrap) return;
+  const customers = _issData?.customers || [];
+  if (!customers.length) {
+    wrap.innerHTML = '<div style="color:var(--muted);font-size:.82rem;text-align:center;padding:.75rem">ไม่มีข้อมูล</div>';
+    return;
+  }
+  const max = customers[0].cnt;
+  const rankStyles = ['#f59e0b','#94a3b8','#b45309','#64748b','#64748b'];
+  const medals = ['🥇','🥈','🥉','4','5'];
+  wrap.innerHTML = customers.map((c,i) => {
+    const pct = Math.round((c.cnt/max)*100);
+    return `<div style="display:flex;align-items:center;gap:.65rem">
+      <span style="width:22px;text-align:center;font-size:${i<3?'.95rem':'.8rem'};flex-shrink:0">${medals[i]}</span>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.2rem">
+          <span style="font-size:.82rem;font-weight:600;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px" title="${escHtml(c.customer_name)}">${escHtml(c.customer_name)}</span>
+          <span style="font-size:.8rem;font-weight:700;color:${rankStyles[i]};flex-shrink:0;margin-left:.5rem">${c.cnt.toLocaleString()} tickets</span>
+        </div>
+        <div style="background:#f1f5f9;border-radius:20px;height:6px;overflow:hidden">
+          <div style="width:${pct}%;background:${i===0?'linear-gradient(90deg,#f59e0b,#fbbf24)':i===1?'linear-gradient(90deg,#94a3b8,#cbd5e1)':i===2?'linear-gradient(90deg,#b45309,#d97706)':'linear-gradient(90deg,#3b82f6,#6366f1)'};height:100%;border-radius:20px;transition:width .4s ease"></div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 /* ── Shop Info: Export CSV ── */
