@@ -3546,9 +3546,7 @@ function showPage(name, btn) {
   }
   if (name === 'followup') {
     fuLoadSidebar();
-    // Mark mentions seen + re-poll to refresh badge after visiting
-    api('/api/fu/mentions/seen', { method:'POST', silent:true }).catch(()=>{});
-    setTimeout(fuPollBadge, 800);
+    // Badge shows open issues count — stays visible regardless of being on this page
   }
   if (name === 'service')  {
     // init date range to "เดือนนี้" on first open
