@@ -8967,6 +8967,9 @@ async function fuLoadByAssignee() {
   if (!body) return;
   body.innerHTML = '<div style="color:#94a3b8;font-size:.85rem;padding:.5rem">กำลังโหลด...</div>';
 
+  // Ensure sidebar folders are loaded before building the folder dropdown
+  if (!_fuFolders.length) await fuLoadSidebar();
+
   const data = await api('/api/fu/by-assignee');
   if (!data) { body.innerHTML = '<div style="color:#ef4444">โหลดข้อมูลไม่ได้</div>'; return; }
 
