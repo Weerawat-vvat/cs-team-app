@@ -4880,12 +4880,8 @@ app.get('/api/fu/badge', authRequired, async (request, res) => {
     const [mentionR, openR] = await Promise.all([
       req().input('uid',sql.Int,request.user.id)
         .query(`SELECT COUNT(*) AS cnt FROM fu_mentions WHERE target_user_id=@uid AND seen=0`),
-      req().input('uid',sql.Int,request.user.id)
-        .query(`SELECT COUNT(*) AS cnt FROM fu_issues i
-                INNER JOIN fu_boards b ON b.id=i.board_id
-                WHERE i.status NOT IN ('done','cancelled')
-                  AND (b.created_by=@uid OR i.assigned_to=@uid
-                    OR EXISTS(SELECT 1 FROM fu_board_members m WHERE m.board_id=b.id AND m.user_id=@uid))`)
+      // Count ALL open issues team-wide (no date filter, no user filter) — stays until done/cancelled
+      req().query(`SELECT COUNT(*) AS cnt FROM fu_issues WHERE status NOT IN ('done','cancelled')`)
     ]);
     res.json({
       mentions: mentionR.recordset[0]?.cnt || 0,
