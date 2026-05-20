@@ -2233,15 +2233,46 @@ textarea{resize:vertical;min-height:80px}
             <option value="assigned_to_name">จัดกลุ่มตาม ผู้รับผิดชอบ</option>
             <option value="priority">จัดกลุ่มตาม ความสำคัญ</option>
           </select>
-          <!-- Status filter (hidden — controlled by stat cards) -->
-          <select id="fu-status-filter" style="display:none">
-            <option value="">ทุกสถานะ</option>
-            <option value="pending">⏳ รอดำเนินการ</option>
-            <option value="in_progress">🔄 กำลังตรวจสอบ</option>
-            <option value="waiting">⏸️ รอข้อมูล</option>
-            <option value="resolved">✅ แก้แล้ว</option>
-            <option value="cancelled">🚫 ยกเลิก</option>
-          </select>
+          <!-- Multi-select status dropdown -->
+          <div style="position:relative" id="fu-status-dd-wrap">
+            <button id="fu-status-dd-btn" onclick="fuToggleStatusDrop()"
+              style="font-size:.75rem;padding:.3rem .6rem;border:1px solid #cbd5e1;border-radius:6px;background:#fff;cursor:pointer;display:flex;align-items:center;gap:.35rem;min-width:120px;font-family:inherit;color:#374151">
+              <span id="fu-status-dd-label">ทุกสถานะ</span>
+              <span style="margin-left:auto;font-size:.6rem;color:#94a3b8">▼</span>
+            </button>
+            <div id="fu-status-dd-menu" style="display:none;position:absolute;top:calc(100% + 3px);left:0;min-width:160px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.1);z-index:9999;overflow:hidden">
+              <div onclick="fuStatusDdAll()" id="fu-status-opt-all"
+                style="padding:.35rem .7rem;font-size:.78rem;cursor:pointer;display:flex;align-items:center;gap:.5rem;border-bottom:1px solid #f1f5f9;font-weight:600;color:#374151"
+                onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+                <span style="font-size:.8rem">☑</span> ทุกสถานะ
+              </div>
+              <div onclick="fuStatusDdToggle('pending')" id="fu-status-opt-pending"
+                style="padding:.32rem .7rem;font-size:.78rem;cursor:pointer;display:flex;align-items:center;gap:.5rem;color:#92400e"
+                onmouseover="this.style.background='#fffbeb'" onmouseout="this.style.background=''">
+                <span class="fu-dd-chk">☐</span> ⏳ รอดำเนินการ
+              </div>
+              <div onclick="fuStatusDdToggle('in_progress')" id="fu-status-opt-in_progress"
+                style="padding:.32rem .7rem;font-size:.78rem;cursor:pointer;display:flex;align-items:center;gap:.5rem;color:#1e40af"
+                onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background=''">
+                <span class="fu-dd-chk">☐</span> 🔄 กำลังตรวจสอบ
+              </div>
+              <div onclick="fuStatusDdToggle('waiting')" id="fu-status-opt-waiting"
+                style="padding:.32rem .7rem;font-size:.78rem;cursor:pointer;display:flex;align-items:center;gap:.5rem;color:#5b21b6"
+                onmouseover="this.style.background='#f5f3ff'" onmouseout="this.style.background=''">
+                <span class="fu-dd-chk">☐</span> ⏸️ รอข้อมูล
+              </div>
+              <div onclick="fuStatusDdToggle('resolved')" id="fu-status-opt-resolved"
+                style="padding:.32rem .7rem;font-size:.78rem;cursor:pointer;display:flex;align-items:center;gap:.5rem;color:#166534"
+                onmouseover="this.style.background='#f0fdf4'" onmouseout="this.style.background=''">
+                <span class="fu-dd-chk">☐</span> ✅ แก้แล้ว
+              </div>
+              <div onclick="fuStatusDdToggle('cancelled')" id="fu-status-opt-cancelled"
+                style="padding:.32rem .7rem;font-size:.78rem;cursor:pointer;display:flex;align-items:center;gap:.5rem;color:#64748b"
+                onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+                <span class="fu-dd-chk">☐</span> 🚫 ยกเลิก
+              </div>
+            </div>
+          </div>
           <!-- Search (table only) -->
           <input id="fu-search" type="text" placeholder="🔍 ค้นหาหัวข้อ / Category / ผู้รับผิดชอบ..."
             oninput="_fuSearchQ=this.value.toLowerCase();fuRenderTable()"
@@ -2250,8 +2281,6 @@ textarea{resize:vertical;min-height:80px}
           <button onclick="fuAddIssue()" style="background:#1d4ed8;color:#fff;border:none;border-radius:7px;padding:.35rem .85rem;font-size:.8rem;font-weight:700;cursor:pointer">+ Issue</button>
         </div>
       </div>
-      <!-- Stat bar: status filter cards -->
-      <div id="fu-stat-bar" style="display:flex;gap:.45rem;padding:.5rem 1rem;background:#fff;border-bottom:1px solid #f1f5f9;overflow-x:auto;flex-shrink:0;align-items:center"></div>
       <!-- Content area (table or kanban) -->
       <div id="fu-content-area" style="flex:1;overflow:auto;padding:.75rem 1rem">
         <div id="fu-table-wrap">
@@ -8618,8 +8647,8 @@ async function fuJumpToBoard(boardId, boardName, folderId, status) {
   await fuSelectBoard(boardId, boardName, folderId);
   // 5. NOW apply the status filter (issues are already loaded at this point)
   _fuStatusFilter = status ? new Set([status]) : new Set();
+  fuUpdateStatusDdUI();
   fuRender();
-  fuRenderStatBar();
 }
 
 function fuSwitchTab(n) {
@@ -9178,11 +9207,84 @@ function fuRenderStatBar() {
 }
 
 function fuFilterByStatus(status) {
-  if (!status) { _fuStatusFilter = new Set(); }  // 'ทั้งหมด' clears all
+  if (!status) { _fuStatusFilter = new Set(); }
   else if (_fuStatusFilter.has(status)) { _fuStatusFilter.delete(status); }
   else { _fuStatusFilter.add(status); }
-  fuRenderStatBar();
   fuRender();
+}
+
+// ── Status multi-select dropdown ─────────────────────────
+const _fuStatusLabels = {
+  pending:'รอดำเนินการ', in_progress:'กำลังตรวจสอบ',
+  waiting:'รอข้อมูล', resolved:'แก้แล้ว', cancelled:'ยกเลิก'
+};
+
+function fuToggleStatusDrop() {
+  const menu = document.getElementById('fu-status-dd-menu');
+  if (!menu) return;
+  if (menu.style.display === 'none') {
+    menu.style.display = '';
+    fuUpdateStatusDdUI();
+    // close on outside click
+    setTimeout(() => {
+      function outside(e) {
+        const wrap = document.getElementById('fu-status-dd-wrap');
+        if (wrap && !wrap.contains(e.target)) {
+          menu.style.display = 'none';
+          document.removeEventListener('click', outside, true);
+        }
+      }
+      document.addEventListener('click', outside, true);
+    }, 0);
+  } else {
+    menu.style.display = 'none';
+  }
+}
+
+function fuStatusDdToggle(key) {
+  if (_fuStatusFilter.has(key)) _fuStatusFilter.delete(key);
+  else _fuStatusFilter.add(key);
+  fuUpdateStatusDdUI();
+  fuRender();
+}
+
+function fuStatusDdAll() {
+  _fuStatusFilter = new Set();
+  fuUpdateStatusDdUI();
+  fuRender();
+}
+
+function fuUpdateStatusDdUI() {
+  // Update checkboxes
+  ['pending','in_progress','waiting','resolved','cancelled'].forEach(k => {
+    const row = document.getElementById('fu-status-opt-' + k);
+    if (!row) return;
+    const chk = row.querySelector('.fu-dd-chk');
+    const active = _fuStatusFilter.has(k);
+    if (chk) chk.textContent = active ? '☑' : '☐';
+    row.style.fontWeight = active ? '700' : '400';
+  });
+  // "ทุกสถานะ" row
+  const allRow = document.getElementById('fu-status-opt-all');
+  if (allRow) {
+    const sp = allRow.querySelector('span');
+    if (sp) sp.textContent = _fuStatusFilter.size === 0 ? '☑' : '☐';
+    allRow.style.fontWeight = _fuStatusFilter.size === 0 ? '700' : '400';
+  }
+  // Update button label
+  const lbl = document.getElementById('fu-status-dd-label');
+  if (!lbl) return;
+  if (_fuStatusFilter.size === 0) {
+    lbl.textContent = 'ทุกสถานะ';
+    lbl.style.color = '#374151';
+  } else if (_fuStatusFilter.size === 1) {
+    const k = [..._fuStatusFilter][0];
+    lbl.textContent = _fuStatusLabels[k] || k;
+    lbl.style.color = '#1d4ed8';
+  } else {
+    lbl.textContent = `${_fuStatusFilter.size} สถานะ`;
+    lbl.style.color = '#1d4ed8';
+  }
 }
 
 // ── Sidebar ──────────────────────────────────────────────
@@ -9254,6 +9356,7 @@ async function fuSelectBoard(bid, name, fid) {
   _fuBoardName    = name;
   _fuSearchQ      = '';
   _fuStatusFilter = new Set();  // clear filter when switching boards
+  fuUpdateStatusDdUI();
   const sq = document.getElementById('fu-search'); if (sq) sq.value = '';
   if (!_fuBoards[fid]) _fuBoards[fid] = await api(`/api/fu/folders/${fid}/boards`) || [];
 
@@ -9478,10 +9581,9 @@ function fuSetView(v) {
   localStorage.setItem('fu_view', v);
   const tb = document.getElementById('fu-view-table');
   const bb = document.getElementById('fu-view-board');
-  const sf = document.getElementById('fu-status-filter');
   if (tb) { tb.style.background = v==='table' ? '#1d4ed8' : 'transparent'; tb.style.color = v==='table' ? '#fff' : '#64748b'; }
   if (bb) { bb.style.background = v==='board' ? '#1d4ed8' : 'transparent'; bb.style.color = v==='board' ? '#fff' : '#64748b'; }
-  // fu-status-filter select is permanently hidden — stat bar cards handle multi-select
+  const sd = document.getElementById('fu-status-dd-wrap'); if (sd) sd.style.display = v==='table' ? '' : 'none';
   const gb = document.getElementById('fu-groupby'); if (gb) gb.style.display = v==='table' ? '' : 'none';
   const sq = document.getElementById('fu-search');  if (sq) sq.style.display = v==='table' ? '' : 'none';
   // Board view is full-width — close panel
