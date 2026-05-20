@@ -8967,22 +8967,22 @@ async function fuLoadByAssignee() {
   if (!body) return;
   body.innerHTML = '<div style="color:#94a3b8;font-size:.85rem;padding:.5rem">กำลังโหลด...</div>';
 
-  // Ensure sidebar folders are loaded before building the folder dropdown
-  if (!_fuFolders.length) await fuLoadSidebar();
-
-  const data = await api('/api/fu/by-assignee');
+  // Fetch issues + full folder list in parallel
+  const [data, allFolders] = await Promise.all([
+    api('/api/fu/by-assignee'),
+    api('/api/fu/folders')
+  ]);
   if (!data) { body.innerHTML = '<div style="color:#ef4444">โหลดข้อมูลไม่ได้</div>'; return; }
 
   _fuByAssigneeData = data || [];
   _fuByAssigneeMap = {};
   _fuByAssigneeData.forEach(r => { _fuByAssigneeMap[r.id] = r; });
 
-  // Populate folder dropdown (custom)
+  // Populate folder dropdown (custom) — use full folder list from API
   const folderOpts = document.getElementById('fuba-folder-opts');
   if (folderOpts) {
-    // Use all folders from sidebar (_fuFolders) so every folder appears regardless of issue count
-    const folders = _fuFolders.length
-      ? _fuFolders.map(f => f.name).filter(Boolean).sort()
+    const folders = Array.isArray(allFolders)
+      ? allFolders.map(f => f.name).filter(Boolean).sort()
       : [...new Set(_fuByAssigneeData.map(r => r.folder_name).filter(Boolean))].sort();
     folderOpts.innerHTML = `<div onclick="fubaPickFolder('')" style="padding:.38rem .75rem;font-size:.78rem;cursor:pointer;border-bottom:1px solid #f1f5f9;color:#374151;font-weight:600" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">ทุก Folder</div>` +
       folders.map(f => `<div onclick="fubaPickFolder('${esc(f).replace(/'/g,"\\'")}') " style="padding:.35rem .75rem;font-size:.78rem;cursor:pointer;color:#334155;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">📁 ${escHtml(f)}</div>`).join('');
