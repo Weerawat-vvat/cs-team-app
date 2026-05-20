@@ -8977,7 +8977,10 @@ async function fuLoadByAssignee() {
   // Populate folder dropdown (custom)
   const folderOpts = document.getElementById('fuba-folder-opts');
   if (folderOpts) {
-    const folders = [...new Set(_fuByAssigneeData.map(r => r.folder_name).filter(Boolean))].sort();
+    // Use all folders from sidebar (_fuFolders) so every folder appears regardless of issue count
+    const folders = _fuFolders.length
+      ? _fuFolders.map(f => f.name).filter(Boolean).sort()
+      : [...new Set(_fuByAssigneeData.map(r => r.folder_name).filter(Boolean))].sort();
     folderOpts.innerHTML = `<div onclick="fubaPickFolder('')" style="padding:.38rem .75rem;font-size:.78rem;cursor:pointer;border-bottom:1px solid #f1f5f9;color:#374151;font-weight:600" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">ทุก Folder</div>` +
       folders.map(f => `<div onclick="fubaPickFolder('${esc(f).replace(/'/g,"\\'")}') " style="padding:.35rem .75rem;font-size:.78rem;cursor:pointer;color:#334155;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">📁 ${escHtml(f)}</div>`).join('');
   }
