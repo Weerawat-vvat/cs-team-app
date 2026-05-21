@@ -351,7 +351,7 @@ tbody td{padding:.65rem .9rem;font-size:.83rem;color:var(--text);vertical-align:
 
   <!-- Filter bar -->
   <div class="filter-bar">
-    <input id="tbl-search" type="text" placeholder="🔍 ชื่อผู้แจ้ง / Request No. / ชื่องาน" oninput="renderTable()"/>
+    <input id="tbl-search" type="text" placeholder="🔍 Job No. / Request No. / ชื่องาน / ผู้แจ้ง" oninput="renderTable()"/>
     <select id="stype-filter" onchange="renderTable()">
       <option value="">ทุกประเภท</option>
       <option value="promo_coupon">🎯 สร้างโปรฯ / คูปอง</option>
@@ -721,6 +721,7 @@ function renderTable(){
   let rows = _filter==='all' ? _jobs : _jobs.filter(j=>j.status===_filter);
   if(stypeF) rows = rows.filter(j=>j.serve_type===stypeF);
   if(search) rows = rows.filter(j=>
+    (j.job_no||'').toLowerCase().includes(search) ||
     (j.requester_name||'').toLowerCase().includes(search) ||
     (j.request_no||'').toLowerCase().includes(search) ||
     (j.title||'').toLowerCase().includes(search)
