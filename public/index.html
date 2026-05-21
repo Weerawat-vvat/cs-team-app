@@ -15113,7 +15113,7 @@ function openSwUpdateForm() {
   if (sel && _swuUsers.length) {
     sel.innerHTML = '<option value="">— เลือกผู้แจ้ง —</option>' +
       _swuUsers.map(u => `<option value="${u.id}">${escHtml(u.name||u.username)}</option>`).join('');
-    const me = _swuUsers.find(u => u.id === (_currentUser?.id));
+    const me = _swuUsers.find(u => u.id === (currentUser?.id));
     if (me) sel.value = me.id;
   }
   document.getElementById('modal-sw-update-form-title').textContent = '💿 แจ้งงานอัพเดท Software';
