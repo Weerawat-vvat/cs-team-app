@@ -248,8 +248,16 @@ app.use((req, res, next) => {
   next();
 });
 app.use(express.static(path.join(__dirname, 'public')));
-// Serve uploaded files
-app.use('/uploads', express.static(UPLOAD_DIR));
+// Serve uploaded files — force download for Office files so browser doesn't redirect to Office Online
+app.use('/uploads', (req, res, next) => {
+  const ext = path.extname(req.path).toLowerCase();
+  if (['.xlsx', '.xls', '.csv'].includes(ext)) {
+    const filename = path.basename(req.path);
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.setHeader('Content-Type', 'application/octet-stream');
+  }
+  next();
+}, express.static(UPLOAD_DIR));
 
 const req    = () => getPool().request();
 const extReq = () => getExtPool().request();
