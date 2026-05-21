@@ -8034,6 +8034,7 @@ async function saveCreateCase() {
       const shopName = document.getElementById('cc-shop-search').value || '';
       const spR = await api('/api/specialist', { method:'POST', silent:true, body: {
         calllog_id:       r.id,
+        registration_id:  parseInt(document.getElementById('cc-registration-id')?.value) || null,
         company_name:     shopName,
         subject:          body.subject || '',
         problem_type:     ptName,

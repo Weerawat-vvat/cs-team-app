@@ -5224,8 +5224,15 @@ app.put('/api/specialist/:id', authRequired, async (request, res) => {
             if (b.status === 'resolved') {
               const supportId = request.user.calluserid || null;
 
-              // 1) RegistrationId — ใช้จาก specialist_log ก่อน ถ้าไม่มีค่อยค้น
+              // 1) RegistrationId — priority: specialist_log → linked calllog → company name lookup
               let regId = cur.registration_id || null;
+              if (!regId && cur.calllog_id) {
+                try {
+                  const clRow = (await extReq().input('cid', sql.Int, cur.calllog_id)
+                    .query(`SELECT RegistrationId FROM Calllog WHERE CalllogId=@cid`)).recordset[0];
+                  if (clRow?.RegistrationId) regId = clRow.RegistrationId;
+                } catch {}
+              }
               if (!regId && cur.company_name) {
                 try {
                   const regRow = (await extReq().input('cn', sql.NVarChar, cur.company_name)
