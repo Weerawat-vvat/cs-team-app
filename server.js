@@ -126,6 +126,54 @@ const svcPubUpload = multer({
   }
 });
 
+// ── Error Log table ──────────────────────────────────────
+async function ensureErrorLogTable() {
+  await getPool().request().query(`
+    IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name='error_log')
+    CREATE TABLE error_log (
+      id         INT PRIMARY KEY IDENTITY,
+      source     NVARCHAR(100) NULL,
+      error_msg  NVARCHAR(MAX) NULL,
+      context    NVARCHAR(MAX) NULL,
+      ip         NVARCHAR(60)  NULL,
+      created_at DATETIME DEFAULT GETDATE()
+    )`);
+}
+
+async function logError(source, error_msg, context, ip) {
+  try {
+    await getPool().request()
+      .input('src', sql.NVarChar, source||null)
+      .input('msg', sql.NVarChar, String(error_msg||'').slice(0,2000))
+      .input('ctx', sql.NVarChar, context ? JSON.stringify(context).slice(0,2000) : null)
+      .input('ip',  sql.NVarChar, ip||null)
+      .query(`INSERT INTO error_log (source,error_msg,context,ip) VALUES(@src,@msg,@ctx,@ip)`);
+  } catch(e) { console.warn('logError failed:', e.message); }
+}
+
+// ── Error Log API ─────────────────────────────────────────
+app.get('/api/error-log', authRequired, async (request, res) => {
+  try {
+    const limit  = Math.min(parseInt(request.query.limit)||100, 500);
+    const source = request.query.source || null;
+    let where = source ? `WHERE source=@src` : '';
+    const rows = (await getPool().request()
+      .input('src', sql.NVarChar, source||'')
+      .query(`SELECT TOP(${limit}) id,source,error_msg,context,ip,created_at
+              FROM error_log ${where} ORDER BY created_at DESC`)).recordset;
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/error-log', authRequired, async (request, res) => {
+  try {
+    const days = parseInt(request.query.days) || 30;
+    await getPool().request().input('d', sql.Int, days)
+      .query(`DELETE FROM error_log WHERE created_at < DATEADD(day,-@d,GETDATE())`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── LINE Settings table ───────────────────────────────────
 async function ensureLineNotifyTable() {
   await getPool().request().query(`
@@ -6131,6 +6179,7 @@ app.post('/api/public/project/:token/submit', (req, res, next) => {
         ? 'ไฟล์ขนาดใหญ่เกินกำหนด (สูงสุด 15 MB ต่อไฟล์)'
         : (err.message || 'อัปโหลดไฟล์ไม่สำเร็จ');
       console.warn('[public submit upload error]', err.code, err.message);
+      logError('public_submit_upload', msg, { code: err.code }, req.ip);
       sendLineNotify(`\n⚠️ [Upload Error] ${msg}`, 'service_request').catch(()=>{});
       return res.status(400).json({ ok: false, error: msg });
     }
@@ -6221,8 +6270,12 @@ app.post('/api/public/project/:token/submit', (req, res, next) => {
     res.json({ ok: true, id: inserted.id, job_no: inserted.job_no });
   } catch(e) {
     console.error('[public submit error]', e.message, request.body);
-    // LINE notify admin on server error
     const b = request.body || {};
+    logError('public_submit', e.message, {
+      serve_type: b.serve_type, title: b.title,
+      requester_name: b.requester_name, brands: b.brands
+    }, request.ip);
+    // LINE notify admin on server error
     sendLineNotify(
       `\n⚠️ [Submit Error] ${b.requester_name||'unknown'}\nError: ${e.message}\nServe type: ${b.serve_type||'—'}\nTitle: ${b.title||'—'}`,
       'service_request'
@@ -7181,6 +7234,7 @@ init().then(async () => {
         ALTER TABLE app_users ADD calluserid INT NULL`);
   } catch(e) { console.warn('calluserid migration:', e.message); }
 
+  await ensureErrorLogTable();
   await ensureCustomerLinksTable();
   await ensureRepairTables();
   await ensureSpecialistTable();
