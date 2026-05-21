@@ -530,6 +530,12 @@ textarea{resize:vertical;min-height:80px}
       <span id="repair-new-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.62rem;padding:.02rem .38rem;font-weight:700"></span>
       <span id="repair-msg-badge" style="display:none;background:#f97316;color:#fff;border-radius:20px;font-size:.62rem;padding:.02rem .38rem;font-weight:700"></span>
     </button>
+    <!-- 4c. งานอัพเดท SW -->
+    <button class="s-tab" id="nav-btn-sw-update" onclick="showPage('sw-update',this)">
+      <svg class="s-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      งานอัพเดท SW
+      <span id="sw-update-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.62rem;padding:.02rem .38rem;font-weight:700"></span>
+    </button>
     <!-- 5. เครื่องมือ Support -->
     <div>
       <button class="s-tab" onclick="toggleToolsMenu(this)">
@@ -2568,6 +2574,80 @@ textarea{resize:vertical;min-height:80px}
   </div>
 </div>
 
+<!-- ═══════════════════ PAGE: SW UPDATE ═══════════════════ -->
+<div id="page-sw-update" class="page">
+  <div class="section-header" style="margin-bottom:.75rem">
+    <div class="section-title">💿 งานอัพเดท Software</div>
+    <div style="display:flex;gap:.5rem;align-items:center">
+      <button class="btn btn-primary btn-sm" onclick="openSwUpdateForm()">+ แจ้งงานอัพเดท</button>
+    </div>
+  </div>
+
+  <!-- Stat Bar -->
+  <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem">
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">📋 ทั้งหมด</span>
+      <span style="font-size:1.1rem;font-weight:800;color:var(--hd)" id="swu-stat-total">—</span>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">⏳ รอดำเนินการ</span>
+      <span style="font-size:1.1rem;font-weight:800;color:#b45309" id="swu-stat-pending">—</span>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">📅 นัดหมายแล้ว</span>
+      <span style="font-size:1.1rem;font-weight:800;color:#0369a1" id="swu-stat-scheduled">—</span>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">✅ เสร็จสิ้น</span>
+      <span style="font-size:1.1rem;font-weight:800;color:#16a34a" id="swu-stat-done">—</span>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="page-datebar" style="margin-bottom:.75rem;gap:.5rem;flex-wrap:wrap">
+    <select id="swu-filter-status" onchange="loadSwUpdate()">
+      <option value="">ทุกสถานะ</option>
+      <option value="pending">รอดำเนินการ</option>
+      <option value="scheduling">กำลังนัดหมาย</option>
+      <option value="scheduled">นัดหมายแล้ว</option>
+      <option value="updating">กำลังอัพเดท</option>
+      <option value="done">เสร็จสิ้น</option>
+      <option value="cancelled">ยกเลิก</option>
+    </select>
+    <select id="swu-filter-priority" onchange="loadSwUpdate()">
+      <option value="">ทุกระดับ</option>
+      <option value="urgent">เร่งด่วน</option>
+      <option value="high">สูง</option>
+      <option value="normal">ปกติ</option>
+      <option value="low">ต่ำ</option>
+    </select>
+    <input id="swu-search" type="text" placeholder="🔍 ค้นหาร้าน / รายละเอียด..." oninput="swuSearchDebounce()" style="min-width:200px;flex:1"/>
+    <button class="btn btn-ghost btn-sm" onclick="loadSwUpdate()">🔄</button>
+  </div>
+
+  <!-- Table -->
+  <div class="card" style="padding:.5rem 0">
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>#ID</th>
+          <th>ร้านค้า</th>
+          <th>รายละเอียด</th>
+          <th>เวอร์ชั่น</th>
+          <th>ความสำคัญ</th>
+          <th>สถานะ</th>
+          <th>วันรับแจ้ง</th>
+          <th>วันนัดหมาย</th>
+          <th>ผู้แจ้ง</th>
+          <th>Azure</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="swu-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════════ PAGE: SETTINGS ═══════════════════ -->
 <div id="page-settings" class="page">
   <div class="section-header" style="margin-bottom:.75rem">
@@ -3681,7 +3761,7 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 
 // click outside to close
 // Modals ที่ห้ามปิดเมื่อกด outside (ข้อมูลอาจหาย)
-const NO_BACKDROP_CLOSE = new Set(['modal-repair-link','modal-repair-form','modal-repair-detail','modal-person','modal-create-case','modal-edit-ticket-full','modal-specialist-detail','modal-assign-specialist','modal-add-sp','modal-edit-sp','modal-si-entry','modal-si-import','modal-fu-add-issue','modal-sk-entry']);
+const NO_BACKDROP_CLOSE = new Set(['modal-repair-link','modal-repair-form','modal-repair-detail','modal-person','modal-create-case','modal-edit-ticket-full','modal-specialist-detail','modal-assign-specialist','modal-add-sp','modal-edit-sp','modal-si-entry','modal-si-import','modal-fu-add-issue','modal-sk-entry','modal-sw-update-form']);
 
 document.querySelectorAll('.overlay').forEach(el => {
   el.addEventListener('click', e => {
@@ -3729,6 +3809,7 @@ function showPage(name, btn) {
     svcLoadProjects();
   }
   if (name === 'shopinfo') { loadShopInfo(); }
+  if (name === 'sw-update') { loadSwUpdate(); }
 }
 
 // ══════════════════════════════════════════════════════════
@@ -5973,6 +6054,9 @@ function applyUserContext() {
     // Follow Up badge
     fuPollBadge();
     setInterval(fuPollBadge, 60000);
+    // SW Update badge
+    swuUpdateBadge();
+    setInterval(swuUpdateBadge, 60000);
   }
 
   // Schedule: hide clear-week button for staff
@@ -14612,6 +14696,244 @@ async function svcUpdateStatus(id, newStatus){
   } else { alert('เกิดข้อผิดพลาด'); }
 }
 
+
+// ════════════════════════════════════════════════════════════════
+//  SW UPDATE PAGE
+// ════════════════════════════════════════════════════════════════
+
+const SWU_STATUS = {
+  pending:    { label: 'รอดำเนินการ',   color: '#b45309', bg: '#fef3c7' },
+  scheduling: { label: 'กำลังนัดหมาย',  color: '#7c3aed', bg: '#ede9fe' },
+  scheduled:  { label: 'นัดหมายแล้ว',   color: '#0369a1', bg: '#e0f2fe' },
+  updating:   { label: 'กำลังอัพเดท',   color: '#0891b2', bg: '#ecfeff' },
+  done:       { label: 'เสร็จสิ้น',      color: '#16a34a', bg: '#f0fdf4' },
+  cancelled:  { label: 'ยกเลิก',         color: '#9ca3af', bg: '#f3f4f6' },
+};
+const SWU_PRIORITY = {
+  urgent: { label: '🔴 เร่งด่วน', color: '#dc2626' },
+  high:   { label: '🟠 สูง',      color: '#ea580c' },
+  normal: { label: '🟡 ปกติ',     color: '#b45309' },
+  low:    { label: '⚪ ต่ำ',       color: '#9ca3af' },
+};
+
+let _swuData = [];
+let _swuSearchTimer = null;
+let _swuUsers = [];
+
+async function loadSwUpdate() {
+  if (!_swuUsers.length) {
+    const u = await api('/api/users');
+    _swuUsers = u || [];
+  }
+  const status   = document.getElementById('swu-filter-status')?.value || '';
+  const priority = document.getElementById('swu-filter-priority')?.value || '';
+  const q        = document.getElementById('swu-search')?.value?.trim() || '';
+  let url = '/api/sw-update?';
+  if (status)   url += `status=${encodeURIComponent(status)}&`;
+  if (priority) url += `priority=${encodeURIComponent(priority)}&`;
+  if (q)        url += `q=${encodeURIComponent(q)}&`;
+  _swuData = await api(url) || [];
+  renderSwUpdate();
+}
+
+function swuSearchDebounce() {
+  clearTimeout(_swuSearchTimer);
+  _swuSearchTimer = setTimeout(loadSwUpdate, 300);
+}
+
+function renderSwUpdate() {
+  const all = _swuData;
+  const totalEl = document.getElementById('swu-stat-total');
+  const pendEl  = document.getElementById('swu-stat-pending');
+  const schedEl = document.getElementById('swu-stat-scheduled');
+  const doneEl  = document.getElementById('swu-stat-done');
+  if (totalEl) totalEl.textContent = all.length;
+  if (pendEl)  pendEl.textContent  = all.filter(r => ['pending','scheduling'].includes(r.status)).length;
+  if (schedEl) schedEl.textContent = all.filter(r => r.status === 'scheduled').length;
+  if (doneEl)  doneEl.textContent  = all.filter(r => r.status === 'done').length;
+
+  const tbody = document.getElementById('swu-tbody');
+  if (!tbody) return;
+  if (!all.length) {
+    tbody.innerHTML = '<tr><td colspan="11" class="empty">ไม่พบข้อมูล</td></tr>';
+    return;
+  }
+  tbody.innerHTML = all.map((r) => {
+    const st  = SWU_STATUS[r.status]    || SWU_STATUS.pending;
+    const pri = SWU_PRIORITY[r.priority] || SWU_PRIORITY.normal;
+    const recv = r.received_date    ? new Date(r.received_date).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}) : '—';
+    const appt = r.appointment_date ? new Date(r.appointment_date).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}) : '—';
+    const ver  = r.version_recommend || '—';
+    return `<tr style="cursor:pointer" onclick="openSwUpdateDetail(${r.id})" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+      <td style="color:#94a3b8;font-size:.75rem">#${r.id}</td>
+      <td><div style="font-weight:600;font-size:.82rem">${escHtml(r.company_name||'—')}</div></td>
+      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.8rem">${escHtml(r.description||'—')}</td>
+      <td style="font-size:.78rem;white-space:nowrap">${escHtml(ver)}</td>
+      <td><span style="font-size:.75rem;font-weight:700;color:${pri.color}">${pri.label}</span></td>
+      <td><span style="background:${st.bg};color:${st.color};border-radius:20px;padding:.15rem .6rem;font-size:.73rem;font-weight:700;white-space:nowrap">${st.label}</span></td>
+      <td style="font-size:.78rem;white-space:nowrap">${recv}</td>
+      <td style="font-size:.78rem;white-space:nowrap">${appt}</td>
+      <td style="font-size:.78rem">${escHtml(r.reporter_name||'—')}</td>
+      <td style="font-size:.78rem">${r.azure_id ? `<a href="#" onclick="event.stopPropagation()" style="color:#0369a1">${escHtml(r.azure_id)}</a>` : '—'}</td>
+      <td>
+        <button class="btn btn-ghost btn-sm" style="font-size:.72rem;padding:.2rem .5rem" onclick="event.stopPropagation();openSwUpdateEdit(${r.id})">✏️</button>
+        <button class="btn btn-ghost btn-sm" style="font-size:.72rem;padding:.2rem .5rem;color:#dc2626" onclick="event.stopPropagation();deleteSwUpdate(${r.id})">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function openSwUpdateForm() {
+  document.getElementById('swu-edit-id').value = '';
+  document.getElementById('swu-company').value = '';
+  document.getElementById('swu-registration-id').value = '';
+  document.getElementById('swu-shop-selected').textContent = '';
+  document.getElementById('swu-shop-results').style.display = 'none';
+  document.getElementById('swu-received-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('swu-priority').value = 'normal';
+  document.getElementById('swu-status').value = 'pending';
+  document.getElementById('swu-description').value = '';
+  document.getElementById('swu-appointment-date').value = '';
+  document.getElementById('swu-azure-id').value = '';
+  document.getElementById('swu-version').value = '';
+  document.getElementById('swu-version-custom').value = '';
+  document.getElementById('swu-version-custom').style.display = 'none';
+  const sel = document.getElementById('swu-reporter');
+  if (sel && _swuUsers.length) {
+    sel.innerHTML = '<option value="">— เลือกผู้แจ้ง —</option>' +
+      _swuUsers.map(u => `<option value="${u.id}">${escHtml(u.name||u.username)}</option>`).join('');
+    const me = _swuUsers.find(u => u.id === (_currentUser?.id));
+    if (me) sel.value = me.id;
+  }
+  document.getElementById('modal-sw-update-form-title').textContent = '💿 แจ้งงานอัพเดท Software';
+  openModal('modal-sw-update-form');
+}
+
+function openSwUpdateEdit(id) {
+  const r = _swuData.find(x => x.id === id);
+  if (!r) return;
+  openSwUpdateForm();
+  document.getElementById('swu-edit-id').value = id;
+  document.getElementById('swu-company').value = r.company_name || '';
+  document.getElementById('swu-registration-id').value = r.registration_id || '';
+  if (r.company_name) document.getElementById('swu-shop-selected').textContent = '✅ ' + r.company_name;
+  document.getElementById('swu-received-date').value = r.received_date ? r.received_date.slice(0,10) : '';
+  document.getElementById('swu-priority').value = r.priority || 'normal';
+  document.getElementById('swu-status').value = r.status || 'pending';
+  document.getElementById('swu-description').value = r.description || '';
+  document.getElementById('swu-appointment-date').value = r.appointment_date ? r.appointment_date.slice(0,10) : '';
+  document.getElementById('swu-azure-id').value = r.azure_id || '';
+  const ver = r.version_recommend || '';
+  const vsel = document.getElementById('swu-version');
+  const vCustom = document.getElementById('swu-version-custom');
+  if (!ver || ver === 'latest' || ver === 'stable') {
+    vsel.value = ver;
+    vCustom.style.display = 'none';
+  } else {
+    vsel.value = 'custom';
+    vCustom.style.display = '';
+    vCustom.value = ver;
+  }
+  if (document.getElementById('swu-reporter') && r.reported_by) {
+    document.getElementById('swu-reporter').value = r.reported_by;
+  }
+  document.getElementById('modal-sw-update-form-title').textContent = '✏️ แก้ไขงาน #' + id;
+}
+
+async function openSwUpdateDetail(id) {
+  openSwUpdateEdit(id);
+}
+
+async function saveSwUpdateForm() {
+  const editId = document.getElementById('swu-edit-id').value;
+  const company = document.getElementById('swu-company').value.trim();
+  if (!company) { showToast('❌ กรุณาระบุร้านค้า', 'error'); return; }
+  const vsel = document.getElementById('swu-version').value;
+  const version_recommend = vsel === 'custom'
+    ? document.getElementById('swu-version-custom').value.trim() || null
+    : vsel || null;
+  const body = {
+    registration_id:  parseInt(document.getElementById('swu-registration-id').value) || null,
+    company_name:     company,
+    received_date:    document.getElementById('swu-received-date').value || null,
+    appointment_date: document.getElementById('swu-appointment-date').value || null,
+    priority:         document.getElementById('swu-priority').value || 'normal',
+    status:           document.getElementById('swu-status').value || 'pending',
+    description:      document.getElementById('swu-description').value.trim() || null,
+    azure_id:         document.getElementById('swu-azure-id').value.trim() || null,
+    version_recommend,
+    reported_by:      parseInt(document.getElementById('swu-reporter').value) || null,
+  };
+  try {
+    if (editId) {
+      await api(`/api/sw-update/${editId}`, { method:'PUT', body, silent:true });
+      showToast('✅ แก้ไขงานแล้ว', 'success');
+    } else {
+      await api('/api/sw-update', { method:'POST', body, silent:true });
+      showToast('✅ เพิ่มงานอัพเดท SW แล้ว', 'success');
+    }
+    closeModal('modal-sw-update-form');
+    loadSwUpdate();
+    swuUpdateBadge();
+  } catch(e) { showToast('❌ ' + e.message, 'error'); }
+}
+
+async function deleteSwUpdate(id) {
+  if (!confirm('ลบงานอัพเดท #' + id + '?')) return;
+  await api(`/api/sw-update/${id}`, { method:'DELETE', silent:true });
+  showToast('🗑 ลบแล้ว');
+  loadSwUpdate();
+  swuUpdateBadge();
+}
+
+let _swuShopTimer = null;
+function swuShopSearch() {
+  clearTimeout(_swuShopTimer);
+  _swuShopTimer = setTimeout(async () => {
+    const q = document.getElementById('swu-company')?.value?.trim() || '';
+    const res = document.getElementById('swu-shop-results');
+    if (!res) return;
+    if (q.length < 2) { res.style.display = 'none'; return; }
+    document.getElementById('swu-registration-id').value = '';
+    document.getElementById('swu-shop-selected').textContent = '';
+    const data = await api(`/api/repair/search-shop?q=${encodeURIComponent(q)}`);
+    if (!data || !data.length) { res.style.display = 'none'; return; }
+    res.style.display = '';
+    res.innerHTML = data.map(s => `
+      <div class="rp-shop-item" data-id="${s.RegistrationId}" data-name="${escHtml(s.CompanyName)}"
+        style="padding:.4rem .65rem;cursor:pointer;font-size:.8rem;border-bottom:1px solid #f1f5f9"
+        onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+        <div style="font-weight:600">${escHtml(s.CompanyName)}</div>
+        ${s.BranchName ? `<span style="font-size:.72rem;color:var(--muted)">${escHtml(s.BranchName)}</span>` : ''}
+      </div>`).join('');
+    res.querySelectorAll('.rp-shop-item').forEach(el => {
+      el.addEventListener('click', () => {
+        document.getElementById('swu-registration-id').value = el.dataset.id;
+        document.getElementById('swu-company').value = el.dataset.name;
+        document.getElementById('swu-shop-selected').textContent = '✅ เลือกแล้ว: ' + el.dataset.name;
+        res.style.display = 'none';
+      });
+    });
+  }, 300);
+}
+
+function swuVersionChange() {
+  const v = document.getElementById('swu-version').value;
+  const custom = document.getElementById('swu-version-custom');
+  if (custom) custom.style.display = v === 'custom' ? '' : 'none';
+}
+
+async function swuUpdateBadge() {
+  try {
+    const r = await api('/api/sw-update/badge', { silent: true });
+    const badge = document.getElementById('sw-update-badge');
+    if (badge) {
+      if (r?.count > 0) { badge.textContent = r.count; badge.style.display = ''; }
+      else badge.style.display = 'none';
+    }
+  } catch {}
+}
+
 </script>
 
 <!-- ══════════ SHOP INFO MODAL ══════════ -->
@@ -14815,6 +15137,105 @@ async function svcUpdateStatus(id, newStatus){
   <div style="display:flex;gap:.4rem;margin-top:.4rem">
     <button id="shift-pick-del" class="btn btn-sm" style="background:#fef2f2;color:#b91c1c;font-weight:700" onclick="deleteDragShift()">🗑 ลบ</button>
     <button class="btn btn-ghost btn-sm" onclick="cancelDragShift()">ยกเลิก</button>
+  </div>
+</div>
+
+<!-- ══ SW UPDATE FORM MODAL ══ -->
+<div class="overlay" id="modal-sw-update-form">
+  <div class="modal" style="max-width:620px;max-height:90vh;overflow-y:auto;padding:1.1rem 1.25rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
+      <div id="modal-sw-update-form-title" style="font-size:1rem;font-weight:800">💿 แจ้งงานอัพเดท Software</div>
+      <button class="modal-close" onclick="closeModal('modal-sw-update-form')">×</button>
+    </div>
+    <input type="hidden" id="swu-edit-id"/>
+
+    <!-- ร้านค้า -->
+    <div style="position:relative;margin-bottom:.6rem">
+      <label style="font-size:.75rem;font-weight:600;color:#475569;display:block;margin-bottom:.25rem">ร้านค้า <span style="color:#ef4444">*</span></label>
+      <input id="swu-company" type="text" placeholder="พิมพ์ชื่อร้านเพื่อค้นหา..." oninput="swuShopSearch()" autocomplete="off"
+        style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.38rem .65rem;font-size:.83rem;outline:none"/>
+      <div id="swu-shop-results" style="position:absolute;z-index:200;background:#fff;border:1px solid var(--border);border-radius:8px;max-height:180px;overflow-y:auto;width:100%;display:none;box-shadow:0 4px 12px #0002"></div>
+      <input type="hidden" id="swu-registration-id"/>
+      <div id="swu-shop-selected" style="font-size:.75rem;color:#16a34a;margin-top:.15rem"></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.5rem">
+      <!-- วันที่รับแจ้ง -->
+      <div>
+        <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">วันที่รับแจ้ง</label>
+        <input id="swu-received-date" type="date" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem"/>
+      </div>
+      <!-- ระดับความสำคัญ -->
+      <div>
+        <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">ระดับความสำคัญ</label>
+        <select id="swu-priority" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem;font-family:inherit">
+          <option value="urgent">🔴 เร่งด่วน</option>
+          <option value="high">🟠 สูง</option>
+          <option value="normal" selected>🟡 ปกติ</option>
+          <option value="low">⚪ ต่ำ</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- สถานะ -->
+    <div style="margin-bottom:.5rem">
+      <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">สถานะ</label>
+      <select id="swu-status" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem;font-family:inherit">
+        <option value="pending" selected>รอดำเนินการ</option>
+        <option value="scheduling">กำลังนัดหมาย</option>
+        <option value="scheduled">นัดหมายแล้ว</option>
+        <option value="updating">กำลังอัพเดท</option>
+        <option value="done">เสร็จสิ้น</option>
+        <option value="cancelled">ยกเลิก</option>
+      </select>
+    </div>
+
+    <!-- รายละเอียดของปัญหา -->
+    <div style="margin-bottom:.5rem">
+      <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">รายละเอียดของปัญหา</label>
+      <textarea id="swu-description" rows="3" placeholder="อธิบายรายละเอียดของปัญหา / เหตุผลที่ต้องอัพเดท..."
+        style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.35rem .6rem;font-size:.82rem;resize:vertical;font-family:inherit"></textarea>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.5rem">
+      <!-- วันที่นัดหมายลูกค้า -->
+      <div>
+        <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">วันที่นัดหมายลูกค้า</label>
+        <input id="swu-appointment-date" type="date" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem"/>
+      </div>
+      <!-- เลข Issue ID ใน Azure -->
+      <div>
+        <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">เลข Issue ID ใน Azure</label>
+        <input id="swu-azure-id" type="text" placeholder="เช่น AB#1234 (ถ้ามี)"
+          style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem;font-family:monospace"/>
+      </div>
+    </div>
+
+    <!-- เวอร์ชั่นที่แนะนำ -->
+    <div style="margin-bottom:.5rem">
+      <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">เวอร์ชั่นที่แนะนำ</label>
+      <select id="swu-version" onchange="swuVersionChange()" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem;font-family:inherit">
+        <option value="">— เลือกเวอร์ชั่น —</option>
+        <option value="latest">⭐ ล่าสุด (Latest)</option>
+        <option value="stable">✅ Stable</option>
+        <option value="custom">✏️ ระบุเอง</option>
+      </select>
+      <input id="swu-version-custom" type="text" placeholder="ระบุเวอร์ชั่นเอง เช่น v3.2.1"
+        style="display:none;margin-top:.35rem;width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem;font-family:monospace"/>
+    </div>
+
+    <!-- ผู้แจ้งอัพเดท -->
+    <div style="margin-bottom:.75rem">
+      <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">ผู้แจ้งอัพเดท</label>
+      <select id="swu-reporter" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem;font-family:inherit">
+        <option value="">— เลือกผู้แจ้ง —</option>
+      </select>
+    </div>
+
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="saveSwUpdateForm()">💾 บันทึก</button>
+      <button class="btn btn-ghost" onclick="closeModal('modal-sw-update-form')">ยกเลิก</button>
+    </div>
   </div>
 </div>
 
