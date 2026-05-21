@@ -5683,7 +5683,25 @@ app.post('/api/service-requests', authRequired, async (request, res) => {
         VALUES(@project_id,@job_no,@serve_type,@brands,@branches,@title,@request_no,@request_date,
                @requester_position,@requester_name,@period_start,@period_end,
                @objective,@condition,@attachment_name,@status,@created_by)`);
-    res.json({ id: result.recordset[0].id });
+    const newId = result.recordset[0].id;
+
+    // LINE notify
+    try {
+      const brands  = (() => { try { return (JSON.parse(b.brands||'[]')||[]).join(', '); } catch { return ''; } })();
+      const ps = b.period_start ? new Date(b.period_start).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}) : '';
+      const pe = b.period_end   ? new Date(b.period_end).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}) : '';
+      const period = (ps || pe) ? `\n📅 ช่วงเวลา: ${ps}${ps&&pe?' – ':''}${pe}` : '';
+      const msg = `\n📋 [งานบริการใหม่] #${newId}${b.job_no ? ` (${b.job_no})` : ''}` +
+        `\n📌 ประเภท: ${b.serve_type||'—'}` +
+        (b.title ? `\n📝 หัวข้อ: ${b.title}` : '') +
+        (brands  ? `\n🏷 แบรนด์: ${brands}` : '') +
+        (b.requester_name ? `\n👤 ผู้แจ้ง: ${b.requester_name}${b.requester_position ? ` (${b.requester_position})` : ''}` : '') +
+        period +
+        `\n✍️ บันทึกโดย: ${request.user.name || request.user.username || '—'}`;
+      await sendLineNotify(msg, 'service_request');
+    } catch(e) { console.warn('service_request line notify failed:', e.message); }
+
+    res.json({ id: newId });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -5925,6 +5943,21 @@ app.post('/api/public/project/:token/submit', svcPubUpload.array('files', 10), a
                   VALUES(@sid,@fn,@fp,@fs,@mt)`);
       }
     }
+    // LINE notify
+    try {
+      const brands  = (() => { try { return (JSON.parse(b.brands||'[]')||[]).join(', '); } catch { return b.brands||''; } })();
+      const ps = b.period_start ? new Date(b.period_start).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}) : '';
+      const pe = b.period_end   ? new Date(b.period_end).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}) : '';
+      const period = (ps || pe) ? `\n📅 ช่วงเวลา: ${ps}${ps&&pe?' – ':''}${pe}` : '';
+      const msg = `\n📋 [งานบริการใหม่] ${inserted.job_no}` +
+        `\n📌 ประเภท: ${b.serve_type||'—'}` +
+        (b.title ? `\n📝 หัวข้อ: ${b.title}` : '') +
+        (brands  ? `\n🏷 แบรนด์: ${brands}` : '') +
+        (b.requester_name ? `\n👤 ผู้แจ้ง: ${b.requester_name}${b.requester_position ? ` (${b.requester_position})` : ''}` : '') +
+        period;
+      await sendLineNotify(msg, 'service_request');
+    } catch(e) { console.warn('service_request (public) line notify failed:', e.message); }
+
     res.json({ ok: true, id: inserted.id, job_no: inserted.job_no });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
