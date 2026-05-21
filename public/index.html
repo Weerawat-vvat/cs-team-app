@@ -951,8 +951,14 @@ textarea{resize:vertical;min-height:80px}
 <div id="page-tickets" class="page">
   <div class="section-header" style="margin-bottom:.75rem">
     <div class="section-title">🎫 ติดตามเคส — Calllog</div>
-    <div style="display:flex;align-items:center;gap:.5rem">
+    <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
       <div style="font-size:.78rem;color:var(--muted)" id="tk-count-label"></div>
+      <button class="btn btn-ghost btn-sm" onclick="tkExportCSV()" title="Export ข้อมูลที่กรองอยู่เป็น CSV">
+        <svg style="width:13px;height:13px;margin-right:.3rem;vertical-align:middle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export
+      </button>
+      <button class="btn btn-ghost btn-sm" onclick="openModal('modal-tk-import')" title="Import Case จาก CSV">
+        <svg style="width:13px;height:13px;margin-right:.3rem;vertical-align:middle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Import
+      </button>
       <button class="btn btn-primary btn-sm" onclick="openCreateCaseModal()">➕ เปิด Case</button>
     </div>
   </div>
@@ -1221,6 +1227,95 @@ textarea{resize:vertical;min-height:80px}
           </thead>
           <tbody id="teams-tbody"></tbody>
         </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ MODAL: TICKET IMPORT ═══════════════════ -->
+<div class="overlay" id="modal-tk-import">
+  <div class="modal" style="max-width:760px;width:95%">
+    <div class="modal-title">📥 Import Case จาก CSV
+      <button class="modal-close" onclick="closeModal('modal-tk-import')">×</button>
+    </div>
+
+    <!-- Step indicator -->
+    <div style="display:flex;gap:0;margin-bottom:1rem;border-radius:8px;overflow:hidden;border:1px solid var(--border)">
+      <div id="tk-imp-step1-tab" style="flex:1;text-align:center;padding:.35rem;font-size:.76rem;font-weight:700;background:#eff6ff;color:#1d4ed8;border-right:1px solid var(--border)">① เตรียมไฟล์</div>
+      <div id="tk-imp-step2-tab" style="flex:1;text-align:center;padding:.35rem;font-size:.76rem;font-weight:600;background:#f8fafc;color:#94a3b8;border-right:1px solid var(--border)">② ตรวจสอบ</div>
+      <div id="tk-imp-step3-tab" style="flex:1;text-align:center;padding:.35rem;font-size:.76rem;font-weight:600;background:#f8fafc;color:#94a3b8">③ ผลลัพธ์</div>
+    </div>
+
+    <!-- Step 1: Prepare -->
+    <div id="tk-imp-step1">
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:.7rem .9rem;margin-bottom:.9rem">
+        <div style="font-size:.8rem;font-weight:700;color:#15803d;margin-bottom:.4rem">📋 รูปแบบไฟล์ CSV ที่รองรับ</div>
+        <div style="font-size:.76rem;color:#166534;line-height:1.7">
+          • ไฟล์ต้องเป็น <b>.csv</b> UTF-8 หรือ UTF-8 BOM<br>
+          • แถวแรกต้องเป็น Header ตามที่กำหนด<br>
+          • <b>ร้านค้า</b>, <b>วันที่รับแจ้ง</b>, <b>รายละเอียด</b>, <b>Agent</b> — จำเป็นต้องกรอก<br>
+          • วันที่รูปแบบ <code>YYYY-MM-DD</code> หรือ <code>DD/MM/YYYY</code>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:.7rem;margin-bottom:.9rem">
+        <button class="btn btn-ghost btn-sm" onclick="tkDownloadTemplate()" style="font-size:.78rem">
+          <svg style="width:13px;height:13px;margin-right:.25rem;vertical-align:middle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          ดาวน์โหลด Template
+        </button>
+        <span style="font-size:.74rem;color:var(--muted)">แก้ไขไฟล์ template แล้วอัพโหลดกลับมา</span>
+      </div>
+
+      <div id="tk-imp-dropzone"
+        style="border:2px dashed #cbd5e1;border-radius:10px;padding:2rem;text-align:center;cursor:pointer;transition:border .2s;background:#fafafa"
+        onclick="document.getElementById('tk-imp-file').click()"
+        ondragover="event.preventDefault();this.style.borderColor='#3b82f6';this.style.background='#eff6ff'"
+        ondragleave="this.style.borderColor='#cbd5e1';this.style.background='#fafafa'"
+        ondrop="tkImpDrop(event)">
+        <svg style="width:32px;height:32px;color:#94a3b8;margin-bottom:.5rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <div style="font-size:.82rem;color:#64748b;font-weight:600">คลิกหรือลากไฟล์ CSV มาวางที่นี่</div>
+        <div style="font-size:.72rem;color:#94a3b8;margin-top:.2rem">รองรับ .csv ขนาดไม่เกิน 2MB</div>
+        <input type="file" id="tk-imp-file" accept=".csv" style="display:none" onchange="tkImpReadFile(this.files[0])"/>
+      </div>
+      <div id="tk-imp-file-name" style="font-size:.76rem;color:#16a34a;margin-top:.4rem;text-align:center"></div>
+    </div>
+
+    <!-- Step 2: Preview -->
+    <div id="tk-imp-step2" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
+        <div id="tk-imp-preview-summary" style="font-size:.8rem;color:#374151"></div>
+        <button class="btn btn-ghost btn-sm" style="font-size:.74rem" onclick="tkImpReset()">← เลือกไฟล์ใหม่</button>
+      </div>
+      <div style="overflow-x:auto;max-height:340px;border:1px solid var(--border);border-radius:8px">
+        <table style="width:100%;border-collapse:collapse;font-size:.74rem">
+          <thead id="tk-imp-preview-head" style="position:sticky;top:0;background:#f8fafc;z-index:1"></thead>
+          <tbody id="tk-imp-preview-body"></tbody>
+        </table>
+      </div>
+      <div style="margin-top:.8rem;display:flex;gap:.5rem;justify-content:flex-end">
+        <button class="btn btn-ghost btn-sm" onclick="tkImpReset()">ยกเลิก</button>
+        <button class="btn btn-primary btn-sm" id="tk-imp-submit-btn" onclick="tkImpSubmit()">📥 Import ทั้งหมด</button>
+      </div>
+    </div>
+
+    <!-- Step 3: Result -->
+    <div id="tk-imp-step3" style="display:none">
+      <div id="tk-imp-result-summary" style="font-size:.85rem;font-weight:700;margin-bottom:.6rem"></div>
+      <div style="overflow-x:auto;max-height:360px;border:1px solid var(--border);border-radius:8px">
+        <table style="width:100%;border-collapse:collapse;font-size:.74rem">
+          <thead style="background:#f8fafc;position:sticky;top:0">
+            <tr>
+              <th style="padding:.35rem .6rem;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap">แถว</th>
+              <th style="padding:.35rem .6rem;text-align:left;border-bottom:1px solid var(--border)">ร้านค้า</th>
+              <th style="padding:.35rem .6rem;text-align:left;border-bottom:1px solid var(--border)">วันที่</th>
+              <th style="padding:.35rem .6rem;text-align:left;border-bottom:1px solid var(--border)">ผล</th>
+            </tr>
+          </thead>
+          <tbody id="tk-imp-result-body"></tbody>
+        </table>
+      </div>
+      <div style="margin-top:.8rem;text-align:right">
+        <button class="btn btn-primary btn-sm" onclick="closeModal('modal-tk-import');loadTickets()">✅ เสร็จสิ้น</button>
       </div>
     </div>
   </div>
@@ -3761,7 +3856,7 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 
 // click outside to close
 // Modals ที่ห้ามปิดเมื่อกด outside (ข้อมูลอาจหาย)
-const NO_BACKDROP_CLOSE = new Set(['modal-repair-link','modal-repair-form','modal-repair-detail','modal-person','modal-create-case','modal-edit-ticket-full','modal-specialist-detail','modal-assign-specialist','modal-add-sp','modal-edit-sp','modal-si-entry','modal-si-import','modal-fu-add-issue','modal-sk-entry','modal-sw-update-form']);
+const NO_BACKDROP_CLOSE = new Set(['modal-repair-link','modal-repair-form','modal-repair-detail','modal-person','modal-create-case','modal-edit-ticket-full','modal-specialist-detail','modal-assign-specialist','modal-add-sp','modal-edit-sp','modal-si-entry','modal-si-import','modal-fu-add-issue','modal-sk-entry','modal-sw-update-form','modal-tk-import']);
 
 document.querySelectorAll('.overlay').forEach(el => {
   el.addEventListener('click', e => {
@@ -5028,6 +5123,218 @@ async function initTicketFilters() {
       '<option value="">ทุกประเภทปัญหา</option>' +
       problemTypes.map(p => `<option value="${escHtml(p)}">${escHtml(p)}</option>`).join('');
   } catch {}
+}
+
+// ── Ticket Export ────────────────────────────────────────
+function tkExportCSV() {
+  if (!allTickets || !allTickets.length) { showToast('ไม่มีข้อมูลที่จะ Export', 'error'); return; }
+  const fmtDate = v => {
+    if (!v) return '';
+    const d = new Date(v);
+    return isNaN(d) ? '' : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  };
+  const fmtMin = m => {
+    if (!m) return '';
+    const h = Math.floor(m / 60), mn = m % 60;
+    return h ? `${h}ชม. ${mn}น.` : `${mn}น.`;
+  };
+  const esc = v => {
+    const s = String(v == null ? '' : v).replace(/"/g, '""');
+    return /[,"\n\r]/.test(s) ? `"${s}"` : s;
+  };
+  const headers = ['#ID','ร้านค้า','วันที่รับแจ้ง','วันที่ปิด','สถานะ','Agent','หัวข้อ','ประเภทปัญหา','รายละเอียด','วิธีแก้','ผู้แจ้ง','เบอร์โทร','วิธีแจ้ง','เวลาแก้ไข'];
+  const rows = allTickets.map(t => [
+    t.id, t.CompanyName, fmtDate(t.opened_at), fmtDate(t.CloseDate),
+    t.status, t.assigned_name, t.title || t.category, t.problem_type_detail,
+    t.description, t.Solution, t.InformName, t.InformTel, t.InformType,
+    fmtMin(t.TimeDiff_Minutes)
+  ].map(esc).join(','));
+  const csv = '﻿' + [headers.join(','), ...rows].join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  const today = new Date().toISOString().slice(0,10);
+  a.download = `calllog_export_${today}.csv`;
+  a.click();
+  showToast(`✅ Export ${allTickets.length} รายการ`);
+}
+
+// ── Ticket Import ────────────────────────────────────────
+const TK_IMP_HEADERS = ['ร้านค้า','วันที่รับแจ้ง','วันที่ปิด','ผู้แจ้ง','เบอร์โทร','วิธีแจ้ง','ประเภทปัญหา','หัวข้อ','รายละเอียด','วิธีแก้','Agent'];
+let _tkImpRows = [];
+
+function tkDownloadTemplate() {
+  const example = ['ร้านตัวอย่าง สาขา 1','2026-01-15','2026-01-15','สมชาย','0812345678','Phone','Known Error','Report','อธิบายปัญหา...','วิธีแก้ไข...','NattAgent'];
+  const csv = '﻿' + [TK_IMP_HEADERS.join(','), example.join(',')].join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'calllog_import_template.csv'; a.click();
+}
+
+function tkImpDrop(e) {
+  e.preventDefault();
+  const dz = document.getElementById('tk-imp-dropzone');
+  dz.style.borderColor = '#cbd5e1'; dz.style.background = '#fafafa';
+  const file = e.dataTransfer?.files?.[0];
+  if (file) tkImpReadFile(file);
+}
+
+function tkImpReadFile(file) {
+  if (!file) return;
+  if (!file.name.endsWith('.csv')) { showToast('❌ รองรับเฉพาะไฟล์ .csv', 'error'); return; }
+  if (file.size > 2 * 1024 * 1024) { showToast('❌ ไฟล์ใหญ่เกิน 2MB', 'error'); return; }
+  document.getElementById('tk-imp-file-name').textContent = `📄 ${file.name}`;
+  const reader = new FileReader();
+  reader.onload = e => {
+    let text = e.target.result;
+    if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1); // strip BOM
+    tkImpParse(text);
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function tkImpParseRow(line) {
+  const cols = []; let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') { if (inQ && line[i+1] === '"') { cur += '"'; i++; } else inQ = !inQ; }
+    else if (c === ',' && !inQ) { cols.push(cur.trim()); cur = ''; }
+    else cur += c;
+  }
+  cols.push(cur.trim()); return cols;
+}
+
+function tkImpParseDate(s) {
+  if (!s) return null;
+  s = s.trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  if (/^\d{2}\/\d{2}\/\d{4}/.test(s)) { const [d,m,y] = s.split('/'); return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`; }
+  return null;
+}
+
+function tkImpParse(text) {
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) { showToast('❌ ไฟล์ว่างหรือไม่มีข้อมูล', 'error'); return; }
+  const header = tkImpParseRow(lines[0]).map(h => h.replace(/^"|"$/g,'').trim());
+  // Map columns by header name
+  const idx = {};
+  TK_IMP_HEADERS.forEach(h => { const i = header.findIndex(x => x === h); idx[h] = i; });
+  const required = ['ร้านค้า','วันที่รับแจ้ง','รายละเอียด','Agent'];
+  _tkImpRows = [];
+  const errors = [];
+  for (let r = 1; r < lines.length; r++) {
+    const cols = tkImpParseRow(lines[r]);
+    const get = key => idx[key] >= 0 ? (cols[idx[key]] || '').trim() : '';
+    const row = {
+      _line:          r + 1,
+      company_name:   get('ร้านค้า'),
+      receive_date:   tkImpParseDate(get('วันที่รับแจ้ง')),
+      close_date:     tkImpParseDate(get('วันที่ปิด')),
+      inform_name:    get('ผู้แจ้ง'),
+      inform_tel:     get('เบอร์โทร'),
+      inform_type:    get('วิธีแจ้ง') || 'Phone',
+      problem_type:   get('ประเภทปัญหา'),
+      subject:        get('หัวข้อ'),
+      description:    get('รายละเอียด'),
+      solution:       get('วิธีแก้'),
+      agent_name:     get('Agent'),
+    };
+    const missing = required.filter(k => {
+      if (k === 'ร้านค้า') return !row.company_name;
+      if (k === 'วันที่รับแจ้ง') return !row.receive_date;
+      if (k === 'รายละเอียด') return !row.description;
+      if (k === 'Agent') return !row.agent_name;
+    });
+    row._errors = missing.length ? `ขาด: ${missing.join(', ')}` : null;
+    _tkImpRows.push(row);
+  }
+  tkImpShowPreview();
+}
+
+function tkImpShowPreview() {
+  const valid   = _tkImpRows.filter(r => !r._errors).length;
+  const invalid = _tkImpRows.length - valid;
+  document.getElementById('tk-imp-preview-summary').innerHTML =
+    `พบ <b>${_tkImpRows.length}</b> แถว — <span style="color:#16a34a">✅ ${valid} พร้อม Import</span>` +
+    (invalid ? ` <span style="color:#dc2626">❌ ${invalid} มีปัญหา</span>` : '');
+
+  document.getElementById('tk-imp-preview-head').innerHTML = `<tr>${
+    ['แถว','ร้านค้า','วันรับแจ้ง','วันปิด','Agent','รายละเอียด','สถานะ'].map(h =>
+      `<th style="padding:.32rem .55rem;border-bottom:2px solid var(--border);white-space:nowrap;font-size:.71rem;color:var(--muted)">${h}</th>`
+    ).join('')}</tr>`;
+
+  document.getElementById('tk-imp-preview-body').innerHTML = _tkImpRows.map(r => {
+    const rowBg = r._errors ? '#fff5f5' : '';
+    return `<tr style="background:${rowBg}">
+      <td style="padding:.28rem .55rem;border-bottom:1px solid #f1f5f9;color:#94a3b8;font-size:.7rem">${r._line}</td>
+      <td style="padding:.28rem .55rem;border-bottom:1px solid #f1f5f9;font-weight:600;white-space:nowrap">${escHtml(r.company_name||'—')}</td>
+      <td style="padding:.28rem .55rem;border-bottom:1px solid #f1f5f9;white-space:nowrap">${r.receive_date||'—'}</td>
+      <td style="padding:.28rem .55rem;border-bottom:1px solid #f1f5f9;white-space:nowrap">${r.close_date||'—'}</td>
+      <td style="padding:.28rem .55rem;border-bottom:1px solid #f1f5f9">${escHtml(r.agent_name||'—')}</td>
+      <td style="padding:.28rem .55rem;border-bottom:1px solid #f1f5f9;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(r.description||'')}</td>
+      <td style="padding:.28rem .55rem;border-bottom:1px solid #f1f5f9;white-space:nowrap">${r._errors
+        ? `<span style="color:#dc2626;font-size:.7rem">❌ ${escHtml(r._errors)}</span>`
+        : '<span style="color:#16a34a;font-size:.7rem">✅ OK</span>'}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('tk-imp-submit-btn').textContent = `📥 Import ${valid} รายการ`;
+  document.getElementById('tk-imp-submit-btn').disabled = valid === 0;
+  tkImpGoStep(2);
+}
+
+function tkImpGoStep(n) {
+  [1,2,3].forEach(i => {
+    document.getElementById(`tk-imp-step${i}`).style.display = i === n ? '' : 'none';
+    const tab = document.getElementById(`tk-imp-step${i}-tab`);
+    if (tab) {
+      tab.style.background = i === n ? '#eff6ff' : '#f8fafc';
+      tab.style.color = i === n ? '#1d4ed8' : '#94a3b8';
+      tab.style.fontWeight = i === n ? '700' : '600';
+    }
+  });
+}
+
+function tkImpReset() {
+  _tkImpRows = [];
+  document.getElementById('tk-imp-file').value = '';
+  document.getElementById('tk-imp-file-name').textContent = '';
+  tkImpGoStep(1);
+}
+
+async function tkImpSubmit() {
+  const validRows = _tkImpRows.filter(r => !r._errors);
+  if (!validRows.length) return;
+  const btn = document.getElementById('tk-imp-submit-btn');
+  btn.disabled = true; btn.textContent = '⏳ กำลัง Import...';
+  try {
+    const r = await api('/api/cases/import', { method:'POST', body: { rows: validRows }, silent: true });
+    const results = r?.results || [];
+    const ok  = results.filter(x => x.ok).length;
+    const err = results.filter(x => !x.ok).length;
+    document.getElementById('tk-imp-result-summary').innerHTML =
+      `Import เสร็จสิ้น — <span style="color:#16a34a">✅ สำเร็จ ${ok} รายการ</span>` +
+      (err ? ` <span style="color:#dc2626">❌ ล้มเหลว ${err} รายการ</span>` : '');
+    document.getElementById('tk-imp-result-body').innerHTML = results.map((res, i) => {
+      const row = validRows[i] || {};
+      return `<tr>
+        <td style="padding:.3rem .55rem;border-bottom:1px solid #f1f5f9;color:#94a3b8;font-size:.7rem">${row._line||i+1}</td>
+        <td style="padding:.3rem .55rem;border-bottom:1px solid #f1f5f9;font-size:.78rem">${escHtml(row.company_name||'')}</td>
+        <td style="padding:.3rem .55rem;border-bottom:1px solid #f1f5f9;font-size:.78rem">${row.receive_date||''}</td>
+        <td style="padding:.3rem .55rem;border-bottom:1px solid #f1f5f9;font-size:.78rem">
+          ${res.ok
+            ? `<span style="color:#16a34a;font-weight:700">✅ #${res.id}</span>`
+            : `<span style="color:#dc2626">❌ ${escHtml(res.error||'')}</span>`}
+        </td>
+      </tr>`;
+    }).join('');
+    tkImpGoStep(3);
+    if (ok > 0) showToast(`✅ Import สำเร็จ ${ok} รายการ`, 'success');
+  } catch(e) {
+    showToast('❌ ' + e.message, 'error');
+    btn.disabled = false;
+    btn.textContent = `📥 Import ${validRows.length} รายการ`;
+  }
 }
 
 let _tkSearchTimer = null;

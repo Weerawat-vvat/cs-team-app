@@ -1021,6 +1021,75 @@ app.post('/api/cases', authRequired, async (request, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Batch Import Cases ────────────────────────────────────
+app.post('/api/cases/import', authRequired, async (request, res) => {
+  if (!getExtPool()) return res.status(503).json({ error: 'LicenseDB not connected' });
+  const rows = request.body?.rows;
+  if (!Array.isArray(rows) || !rows.length) return res.status(400).json({ error: 'ไม่มีข้อมูล' });
+
+  // Pre-load lookup tables once
+  const [statusRows, userRows, ptRows] = await Promise.all([
+    extReq().query(`SELECT StatusId, StatusName FROM CallStatus`),
+    extReq().query(`SELECT UserId, UserName FROM Users WHERE Active=1`),
+    extReq().query(`SELECT ProblemTypeId, ProblemTypeDetail FROM ProblemType`),
+  ]);
+  const statusMap = {}; statusRows.recordset.forEach(r => { statusMap[r.StatusName.toLowerCase()] = r.StatusId; });
+  const userMap   = {}; userRows.recordset.forEach(r => { userMap[r.UserName.toLowerCase()] = r.UserId; });
+  const ptMap     = {}; ptRows.recordset.forEach(r => { ptMap[(r.ProblemTypeDetail||'').toLowerCase()] = r.ProblemTypeId; });
+
+  // Default status: first "close/complete" status, fallback to first available
+  const defaultStatusId = Object.entries(statusMap).find(([k]) => k.includes('close') || k.includes('complete'))?.[1]
+    || statusRows.recordset[0]?.StatusId || null;
+
+  const results = [];
+  for (const row of rows) {
+    try {
+      // Lookup RegistrationId by company name
+      const regRow = (await extReq().input('cn', sql.NVarChar, row.company_name)
+        .query(`SELECT TOP 1 RegistrationId FROM CustomerRegistration WHERE CompanyName=@cn AND Active=1`)).recordset[0];
+      if (!regRow) { results.push({ ok: false, error: `ไม่พบร้านค้า: ${row.company_name}` }); continue; }
+
+      // Lookup SupportId / UserId by agent name
+      const agentKey = (row.agent_name||'').toLowerCase();
+      const supportId = userMap[agentKey] || null;
+      if (!supportId) { results.push({ ok: false, error: `ไม่พบ Agent: ${row.agent_name}` }); continue; }
+
+      const ptKey  = (row.problem_type||'').toLowerCase();
+      const statusId = row.close_date ? defaultStatusId : (Object.entries(statusMap).find(([k]) => !k.includes('close') && !k.includes('complete'))?.[1] || null);
+      const solveType = ['Walk-in','Onsite'].includes(row.inform_type) ? 'Walk-in' : 'Remote';
+
+      const r = await extReq()
+        .input('rid',  sql.Int,      regRow.RegistrationId)
+        .input('rd',   sql.DateTime, row.receive_date ? new Date(row.receive_date) : new Date())
+        .input('cd',   sql.DateTime, row.close_date   ? new Date(row.close_date)   : null)
+        .input('desc', sql.NVarChar, row.description  || null)
+        .input('iname',sql.NVarChar, row.inform_name  || null)
+        .input('itel', sql.NVarChar, row.inform_tel   || null)
+        .input('itype',sql.NVarChar, row.inform_type  || 'Phone')
+        .input('sid',  sql.Int,      supportId)
+        .input('stid', sql.Int,      statusId)
+        .input('pid',  sql.Int,      12)
+        .input('ptid', sql.Int,      ptMap[ptKey]     || null)
+        .input('subj', sql.NVarChar, row.subject      || null)
+        .input('sol',  sql.NVarChar, row.solution     || null)
+        .input('uid',  sql.Int,      supportId)
+        .input('cbid', sql.Int,      row.close_date ? supportId : null)
+        .input('solvt',sql.NVarChar, solveType)
+        .query(`INSERT INTO Calllog
+          (RegistrationId,ReceiveDate,CloseDate,DueDate,CalllogDesc,InformName,InformTel,
+           InformType,SupportId,StatusId,ProjectId,ProblemTypeId,Subject,Solution,
+           SolveType,UserId,CloseById,Active,InsertDate,UpdateDate)
+          OUTPUT INSERTED.CalllogId AS id
+          VALUES(@rid,@rd,@cd,@cd,@desc,@iname,@itel,@itype,@sid,@stid,@pid,@ptid,
+                 @subj,@sol,@solvt,@uid,@cbid,1,GETDATE(),GETDATE())`);
+      results.push({ ok: true, id: r.recordset[0]?.id });
+    } catch(e) {
+      results.push({ ok: false, error: e.message });
+    }
+  }
+  res.json({ results });
+});
+
 app.get('/api/tickets/meta/statuses', async (_, res) => {
   try {
     if (!getExtPool()) return res.json([]);
