@@ -80,7 +80,7 @@ body{font-family:'Sarabun','Segoe UI',sans-serif;background:#f1f5f9;min-height:1
 /* ── Table ── */
 .tbl-wrap{background:#fff;border-radius:14px;border:1px solid var(--border);overflow-x:auto;box-shadow:0 1px 4px #0001}
 table{width:100%;border-collapse:collapse;table-layout:fixed;min-width:860px}
-colgroup .cw-jobno  {width:9%}
+colgroup .cw-jobno  {width:12%}
 colgroup .cw-reqno  {width:10%}
 colgroup .cw-title  {width:auto}
 colgroup .cw-person {width:10%}
@@ -98,9 +98,9 @@ thead th{
 tbody tr{border-bottom:1px solid #f1f5f9;transition:.1s}
 tbody tr:last-child{border-bottom:none}
 tbody tr:hover{background:#f8fbff}
-tbody td{padding:.65rem .9rem;font-size:.83rem;color:var(--text);vertical-align:middle;overflow:hidden}
+tbody td{padding:.65rem .9rem;font-size:.83rem;color:var(--text);vertical-align:middle}
 .td-jobno{font-family:monospace;font-size:.75rem;font-weight:700;color:#0369a1;background:#e0f2fe;padding:.12rem .5rem;border-radius:5px;white-space:nowrap}
-.td-title{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.td-title{font-weight:600;white-space:normal;word-break:break-word;line-height:1.35}
 .td-sub{font-size:.75rem;color:var(--sub);margin-top:.1rem}
 .badge{display:inline-flex;align-items:center;gap:.3rem;font-size:.72rem;font-weight:700;padding:.18rem .55rem;border-radius:20px;white-space:nowrap}
 .badge.received{background:#dbeafe;color:#1d4ed8}
@@ -745,7 +745,7 @@ function renderTable(){
     ].filter(Boolean).join(' ');
     return `<tr>
       <td><span class="td-jobno">${esc(j.job_no||'—')}</span></td>
-      <td class="col-hide" style="font-size:.76rem;color:#475569;white-space:nowrap">${esc(j.request_no||'—')}</td>
+      <td class="col-hide" style="font-size:.76rem;color:#475569">${esc(j.request_no||'—')}</td>
       <td>
         <div class="td-title" title="${esc(j.title||'')}">${esc(j.title||'(ไม่มีชื่อ)')}</div>
       </td>
