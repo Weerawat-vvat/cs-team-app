@@ -5894,7 +5894,7 @@ app.post('/api/service-requests', authRequired, async (request, res) => {
       const pe = b.period_end   ? new Date(b.period_end).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}) : '';
       const stypeLabel = SERVE_LABEL[b.serve_type] || b.serve_type || '—';
       const period = (ps || pe) ? `\nช่วงเวลา: ${ps}${ps&&pe?' – ':''}${pe}` : '';
-      const msg = `\n[งานบริการ] ${b.job_no||`#${newId}`}` +
+      const msg = `\n🔔[งานบริการ] ${b.job_no||`#${newId}`}` +
         `\nประเภท: ${stypeLabel}` +
         (b.title          ? `\nหัวข้อ: ${b.title}` : '') +
         (brands           ? `\nแบรนด์: ${brands}` : '') +
@@ -5912,6 +5912,12 @@ app.put('/api/service-requests/:id', authRequired, async (request, res) => {
   try {
     const id = parseInt(request.params.id);
     const b  = request.body;
+
+    // Fetch current job for notify context
+    const cur = (await req().input('id', sql.Int, id)
+      .query(`SELECT job_no, title, serve_type, requester_name, requester_position, status
+              FROM service_requests WHERE id=@id`)).recordset[0];
+
     await req()
       .input('id',          sql.Int,      id)
       .input('status',      sql.NVarChar, b.status||null)
@@ -5923,6 +5929,32 @@ app.put('/api/service-requests/:id', authRequired, async (request, res) => {
         assigned_to=COALESCE(@assigned_to,assigned_to),
         updated_at=GETDATE()
         WHERE id=@id`);
+
+    // LINE notify on status change
+    if (cur && b.status && b.status !== cur.status) {
+      try {
+        const STATUS_LABEL = {
+          received:'📥 รับเรื่องแล้ว', in_progress:'⚙️ กำลังดำเนินการ',
+          testing:'🧪 ทดสอบ', delivered:'✅ ส่งมอบแล้ว', cancelled:'❌ ยกเลิก',
+        };
+        const SERVE_LABEL = {
+          promo_coupon:'สร้างโปรฯ / คูปอง', quick_sale:'สร้างปุ่มขายด่วน',
+          edit_promo_coupon:'แก้ไขโปรฯ / คูปอง', edit_quick_sale:'แก้ไขปุ่มขายด่วน',
+          cancel_promo_coupon:'แจ้งยกเลิกโปรฯ / คูปอง', cancel_quick_sale:'แจ้งยกเลิกปุ่มขายด่วน',
+        };
+        const uname      = request.user.name || request.user.username || '—';
+        const statusLabel = STATUS_LABEL[b.status] || b.status;
+        const stypeLabel  = SERVE_LABEL[cur.serve_type] || cur.serve_type || '—';
+        const msg = `\n🔔[งานบริการ] ${cur.job_no||`#${id}`}` +
+          `\nสถานะ: ${statusLabel}` +
+          (cur.title          ? `\nหัวข้อ: ${cur.title}` : '') +
+          (stypeLabel         ? `\nประเภท: ${stypeLabel}` : '') +
+          (cur.requester_name ? `\nผู้แจ้ง: ${cur.requester_name}${cur.requester_position ? ` (${cur.requester_position})` : ''}` : '') +
+          `\nอัพเดทโดย: ${uname}`;
+        await sendLineNotify(msg, 'service_request');
+      } catch(e) { console.warn('service_request status notify failed:', e.message); }
+    }
+
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
