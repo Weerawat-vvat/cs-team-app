@@ -309,6 +309,21 @@ tbody td{padding:.65rem .9rem;font-size:.83rem;color:var(--text);vertical-align:
     </div>
   </div>
 
+  <!-- Serve-type filter -->
+  <div style="display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;padding:.35rem 0 .1rem">
+    <span style="font-size:.72rem;color:#94a3b8;font-weight:600;white-space:nowrap">ประเภท:</span>
+    <select id="stype-filter" onchange="renderTable()"
+      style="font-size:.76rem;border:1px solid #e2e8f0;border-radius:8px;padding:.28rem .55rem;background:#fff;color:#374151;cursor:pointer;outline:none">
+      <option value="">ทุกประเภท</option>
+      <option value="promo_coupon">🎯 สร้างโปรฯ / คูปอง</option>
+      <option value="quick_sale">⚡ สร้างปุ่มขายด่วน</option>
+      <option value="edit_promo_coupon">✏️ แก้ไขโปรฯ / คูปอง</option>
+      <option value="edit_quick_sale">✏️ แก้ไขปุ่มขายด่วน</option>
+      <option value="cancel_promo_coupon">🚫 ยกเลิกโปรฯ / คูปอง</option>
+      <option value="cancel_quick_sale">🚫 ยกเลิกปุ่มขายด่วน</option>
+    </select>
+  </div>
+
   <!-- Table -->
   <div class="tbl-wrap">
     <table>
@@ -376,8 +391,18 @@ tbody td{padding:.65rem .9rem;font-size:.83rem;color:var(--text);vertical-align:
               <label>Serve Type <span class="req">*</span></label>
               <select id="f-serve-type">
                 <option value="">— เลือกประเภทคำขอ —</option>
-                <option value="promo_coupon">🎯 สร้างโปรฯ / คูปอง</option>
-                <option value="quick_sale">⚡ สร้างปุ่มขายด่วน</option>
+                <optgroup label="สร้างใหม่">
+                  <option value="promo_coupon">🎯 สร้างโปรฯ / คูปอง</option>
+                  <option value="quick_sale">⚡ สร้างปุ่มขายด่วน</option>
+                </optgroup>
+                <optgroup label="แก้ไข">
+                  <option value="edit_promo_coupon">✏️ แก้ไขโปรฯ / คูปอง</option>
+                  <option value="edit_quick_sale">✏️ แก้ไขปุ่มขายด่วน</option>
+                </optgroup>
+                <optgroup label="ยกเลิก">
+                  <option value="cancel_promo_coupon">🚫 แจ้งยกเลิกโปรฯ / คูปอง</option>
+                  <option value="cancel_quick_sale">🚫 แจ้งยกเลิกปุ่มขายด่วน</option>
+                </optgroup>
               </select>
             </div>
           </div>
@@ -469,10 +494,6 @@ tbody td{padding:.65rem .9rem;font-size:.83rem;color:var(--text);vertical-align:
                 <span class="dash">→</span>
                 <input id="f-period-end" type="date"/>
               </div>
-            </div>
-            <div class="field">
-              <label>วัตถุประสงค์ / Objective</label>
-              <textarea id="f-objective" rows="3" placeholder="อธิบายวัตถุประสงค์..."></textarea>
             </div>
             <div class="field">
               <label>เงื่อนไข / Condition</label>
@@ -615,11 +636,22 @@ function setFilter(f, el){
 }
 
 /* ══ TABLE ═══════════════════════════════════════════════ */
+const STYPE_META = {
+  promo_coupon:       { label:'🎯 โปรฯ/คูปอง',   cls:'promo' },
+  quick_sale:         { label:'⚡ ขายด่วน',       cls:'quick' },
+  edit_promo_coupon:  { label:'✏️ แก้ไขโปรฯ',    cls:'promo' },
+  edit_quick_sale:    { label:'✏️ แก้ไขขายด่วน', cls:'quick' },
+  cancel_promo_coupon:{ label:'🚫 ยกเลิกโปรฯ',   cls:'promo' },
+  cancel_quick_sale:  { label:'🚫 ยกเลิกขายด่วน',cls:'quick' },
+};
+
 function renderTable(){
   const tbody = document.getElementById('job-tbody');
-  const rows = _filter==='all' ? _jobs : _jobs.filter(j=>j.status===_filter);
+  const stypeF = document.getElementById('stype-filter')?.value || '';
+  let rows = _filter==='all' ? _jobs : _jobs.filter(j=>j.status===_filter);
+  if(stypeF) rows = rows.filter(j=>j.serve_type===stypeF);
   if(!rows.length){
-    tbody.innerHTML=`<tr class="empty-row"><td colspan="7">📭 ยังไม่มีงาน${_filter!=='all'?' ในสถานะนี้':''}</td></tr>`;
+    tbody.innerHTML=`<tr class="empty-row"><td colspan="7">📭 ยังไม่มีงาน${_filter!=='all'?' ในสถานะนี้':''}${stypeF?' ในประเภทนี้':''}</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map(j=>{
@@ -628,8 +660,9 @@ function renderTable(){
     const dt  = j.request_date
       ? new Date(j.request_date).toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'})
       : new Date(j.created_at).toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'});
-    const stypeCls = j.serve_type==='quick_sale'?'quick':'promo';
-    const stypeLbl = j.serve_type==='quick_sale'?'⚡ ขายด่วน':'🎯 โปรฯ';
+    const stm = STYPE_META[j.serve_type] || { label: j.serve_type||'—', cls:'promo' };
+    const stypeCls = stm.cls;
+    const stypeLbl = stm.label;
     const canEdit  = j.status==='received';
     const hasDocs  = ['testing','delivered'].includes(j.status);
     const actionCell = [
@@ -689,7 +722,7 @@ async function openEdit(jobId, jobNo){
     document.getElementById('f-name').value             = data.requester_name||'';
     document.getElementById('f-period-start').value     = (data.period_start||'').slice(0,10);
     document.getElementById('f-period-end').value       = (data.period_end||'').slice(0,10);
-    document.getElementById('f-objective').value        = data.objective||'';
+    // objective removed
     document.getElementById('f-condition').value        = data.condition||'';
     _sel.brand  = tryParseArr(data.brands);
     _sel.branch = tryParseArr(data.branches);
@@ -839,7 +872,6 @@ async function submitForm(){
     fd.append('requester_name',     gv('f-name'));
     fd.append('period_start',       gv('f-period-start'));
     fd.append('period_end',         gv('f-period-end'));
-    fd.append('objective',          gv('f-objective'));
     fd.append('condition',          gv('f-condition'));
     if(_deletedFileIds.length) fd.append('delete_attachment_ids',_deletedFileIds.join(','));
     _newFiles.forEach(f=>fd.append('files',f));
@@ -869,7 +901,7 @@ function resetForm(){
   document.getElementById('existing-files-wrap').style.display='none';
   document.getElementById('existing-file-list').innerHTML='';
   ['f-serve-type','f-title','f-request-no','f-date',
-   'f-position','f-name','f-period-start','f-period-end','f-objective','f-condition']
+   'f-position','f-name','f-period-start','f-period-end','f-condition']
     .forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
   document.getElementById('edit-banner').style.display='none';
 }

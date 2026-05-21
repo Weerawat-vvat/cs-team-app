@@ -2113,8 +2113,18 @@ textarea{resize:vertical;min-height:80px}
             <label class="svc-lbl">Serve Type <span style="color:#ef4444">*</span></label>
             <select id="svc-serve-type" style="width:100%">
               <option value="">— เลือกประเภทคำขอ —</option>
-              <option value="promo_coupon">🎯 สร้างโปรฯ / คูปอง</option>
-              <option value="quick_sale">⚡ สร้างปุ่มขายด่วน</option>
+              <optgroup label="สร้างใหม่">
+                <option value="promo_coupon">🎯 สร้างโปรฯ / คูปอง</option>
+                <option value="quick_sale">⚡ สร้างปุ่มขายด่วน</option>
+              </optgroup>
+              <optgroup label="แก้ไข">
+                <option value="edit_promo_coupon">✏️ แก้ไขโปรฯ / คูปอง</option>
+                <option value="edit_quick_sale">✏️ แก้ไขปุ่มขายด่วน</option>
+              </optgroup>
+              <optgroup label="ยกเลิก">
+                <option value="cancel_promo_coupon">🚫 แจ้งยกเลิกโปรฯ / คูปอง</option>
+                <option value="cancel_quick_sale">🚫 แจ้งยกเลิกปุ่มขายด่วน</option>
+              </optgroup>
             </select>
           </div>
           <div>
@@ -2201,11 +2211,6 @@ textarea{resize:vertical;min-height:80px}
               <span style="color:#94a3b8;font-size:.85rem;flex-shrink:0;font-weight:600">→</span>
               <input id="svc-period-end" type="date" style="flex:1"/>
             </div>
-          </div>
-
-          <div>
-            <label class="svc-lbl">วัตถุประสงค์ / Objective</label>
-            <textarea id="svc-objective" rows="3" style="width:100%;resize:vertical" placeholder="อธิบายวัตถุประสงค์หลักของคำขอบริการนี้..."></textarea>
           </div>
 
           <div>
@@ -14536,7 +14541,7 @@ async function svcOpenForm(id){
 function svcResetForm(){
   ['svc-serve-type','svc-project-id','svc-job-no','svc-title','svc-request-no','svc-request-date',
    'svc-req-position','svc-req-name',
-   'svc-period-start','svc-period-end','svc-objective','svc-condition'
+   'svc-period-start','svc-period-end','svc-condition'
   ].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
   // Default date = today
   const today=new Date().toISOString().slice(0,10);
@@ -14672,7 +14677,6 @@ function svcCollectPayload(){
     requester_name:      gv('svc-req-name'),
     period_start:        gv('svc-period-start'),
     period_end:          gv('svc-period-end'),
-    objective:           gv('svc-objective'),
     condition:           gv('svc-condition'),
     attachment_name:     _svcFiles.map(f=>f.name).join(', ')||null,
   };
