@@ -6130,6 +6130,8 @@ app.post('/api/public/project/:token/submit', (req, res, next) => {
       const msg = err.code === 'LIMIT_FILE_SIZE'
         ? 'ไฟล์ขนาดใหญ่เกินกำหนด (สูงสุด 15 MB ต่อไฟล์)'
         : (err.message || 'อัปโหลดไฟล์ไม่สำเร็จ');
+      console.warn('[public submit upload error]', err.code, err.message);
+      sendLineNotify(`\n⚠️ [Upload Error] ${msg}`, 'service_request').catch(()=>{});
       return res.status(400).json({ ok: false, error: msg });
     }
     next();
@@ -6217,7 +6219,16 @@ app.post('/api/public/project/:token/submit', (req, res, next) => {
     } catch(e) { console.warn('service_request (public) line notify failed:', e.message); }
 
     res.json({ ok: true, id: inserted.id, job_no: inserted.job_no });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) {
+    console.error('[public submit error]', e.message, request.body);
+    // LINE notify admin on server error
+    const b = request.body || {};
+    sendLineNotify(
+      `\n⚠️ [Submit Error] ${b.requester_name||'unknown'}\nError: ${e.message}\nServe type: ${b.serve_type||'—'}\nTitle: ${b.title||'—'}`,
+      'service_request'
+    ).catch(()=>{});
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ── GET /api/public/project/:token/jobs/:id ─────────────────
