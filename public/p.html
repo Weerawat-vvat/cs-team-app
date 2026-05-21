@@ -309,9 +309,11 @@ tbody td{padding:.65rem .9rem;font-size:.83rem;color:var(--text);vertical-align:
     </div>
   </div>
 
-  <!-- Serve-type filter -->
-  <div style="display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;padding:.35rem 0 .1rem">
-    <span style="font-size:.72rem;color:#94a3b8;font-weight:600;white-space:nowrap">ประเภท:</span>
+  <!-- Filter bar -->
+  <div style="display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;padding:.4rem 0 .1rem">
+    <input id="tbl-search" type="text" placeholder="🔍 ชื่อผู้แจ้ง / Request No. ..."
+      oninput="renderTable()"
+      style="font-size:.76rem;border:1px solid #e2e8f0;border-radius:8px;padding:.28rem .65rem;background:#fff;color:#374151;outline:none;min-width:180px;flex:1;max-width:260px"/>
     <select id="stype-filter" onchange="renderTable()"
       style="font-size:.76rem;border:1px solid #e2e8f0;border-radius:8px;padding:.28rem .55rem;background:#fff;color:#374151;cursor:pointer;outline:none">
       <option value="">ทุกประเภท</option>
@@ -322,6 +324,14 @@ tbody td{padding:.65rem .9rem;font-size:.83rem;color:var(--text);vertical-align:
       <option value="cancel_promo_coupon">🚫 ยกเลิกโปรฯ / คูปอง</option>
       <option value="cancel_quick_sale">🚫 ยกเลิกปุ่มขายด่วน</option>
     </select>
+    <span style="font-size:.72rem;color:#94a3b8;white-space:nowrap">Period:</span>
+    <input id="period-from" type="date" onchange="renderTable()"
+      style="font-size:.74rem;border:1px solid #e2e8f0;border-radius:8px;padding:.26rem .45rem;background:#fff;color:#374151;outline:none"/>
+    <span style="font-size:.72rem;color:#94a3b8">–</span>
+    <input id="period-to" type="date" onchange="renderTable()"
+      style="font-size:.74rem;border:1px solid #e2e8f0;border-radius:8px;padding:.26rem .45rem;background:#fff;color:#374151;outline:none"/>
+    <button onclick="clearFilters()"
+      style="font-size:.72rem;border:1px solid #e2e8f0;border-radius:8px;padding:.28rem .6rem;background:#fff;color:#64748b;cursor:pointer;white-space:nowrap">✕ ล้าง</button>
   </div>
 
   <!-- Table -->
@@ -330,16 +340,18 @@ tbody td{padding:.65rem .9rem;font-size:.83rem;color:var(--text);vertical-align:
       <thead>
         <tr>
           <th>Job No.</th>
+          <th class="col-hide">Request No.</th>
           <th>ชื่อ / Title</th>
+          <th class="col-hide">ผู้แจ้ง</th>
+          <th class="col-hide">ช่วงเวลา</th>
           <th class="col-hide">ประเภท</th>
-          <th class="col-hide">แบรนด์</th>
           <th>สถานะ</th>
-          <th class="col-hide">วันที่</th>
+          <th class="col-hide">วันที่แจ้ง</th>
           <th></th>
         </tr>
       </thead>
       <tbody id="job-tbody">
-        <tr class="empty-row"><td colspan="7"><div class="loading">⏳ กำลังโหลด...</div></td></tr>
+        <tr class="empty-row"><td colspan="9"><div class="loading">⏳ กำลังโหลด...</div></td></tr>
       </tbody>
     </table>
   </div>
@@ -645,24 +657,40 @@ const STYPE_META = {
   cancel_quick_sale:  { label:'🚫 ยกเลิกขายด่วน',cls:'quick' },
 };
 
+function fmtDate(v){ if(!v) return '—'; const d=new Date(v); return isNaN(d)?'—':d.toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'}); }
+function fmtPeriod(ps,pe){
+  const s=ps?fmtDate(ps):'', e=pe?fmtDate(pe):'';
+  if(!s&&!e) return '—';
+  if(s===e) return s;
+  return s&&e?`${s} – ${e}`:s||e;
+}
+
 function renderTable(){
-  const tbody = document.getElementById('job-tbody');
+  const tbody  = document.getElementById('job-tbody');
   const stypeF = document.getElementById('stype-filter')?.value || '';
+  const search = (document.getElementById('tbl-search')?.value||'').trim().toLowerCase();
+  const pfrom  = document.getElementById('period-from')?.value || '';
+  const pto    = document.getElementById('period-to')?.value   || '';
+
   let rows = _filter==='all' ? _jobs : _jobs.filter(j=>j.status===_filter);
   if(stypeF) rows = rows.filter(j=>j.serve_type===stypeF);
+  if(search) rows = rows.filter(j=>
+    (j.requester_name||'').toLowerCase().includes(search) ||
+    (j.request_no||'').toLowerCase().includes(search) ||
+    (j.title||'').toLowerCase().includes(search)
+  );
+  if(pfrom) rows = rows.filter(j=> j.period_start && j.period_start >= pfrom);
+  if(pto)   rows = rows.filter(j=> j.period_end   && j.period_end   <= pto);
+
   if(!rows.length){
-    tbody.innerHTML=`<tr class="empty-row"><td colspan="7">📭 ยังไม่มีงาน${_filter!=='all'?' ในสถานะนี้':''}${stypeF?' ในประเภทนี้':''}</td></tr>`;
+    tbody.innerHTML=`<tr class="empty-row"><td colspan="9">📭 ยังไม่มีงานที่ตรงกับเงื่อนไข</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map(j=>{
     const sm  = STATUS_META[j.status]||STATUS_META.received;
-    const brs = tryParseArr(j.brands).join(', ')||'—';
-    const dt  = j.request_date
-      ? new Date(j.request_date).toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'})
-      : new Date(j.created_at).toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'});
     const stm = STYPE_META[j.serve_type] || { label: j.serve_type||'—', cls:'promo' };
-    const stypeCls = stm.cls;
-    const stypeLbl = stm.label;
+    const dt  = j.request_date ? fmtDate(j.request_date) : fmtDate(j.created_at);
+    const period = fmtPeriod(j.period_start, j.period_end);
     const canEdit  = j.status==='received';
     const hasDocs  = ['testing','delivered'].includes(j.status);
     const actionCell = [
@@ -671,17 +699,24 @@ function renderTable(){
     ].filter(Boolean).join(' ');
     return `<tr>
       <td><span class="td-jobno">${esc(j.job_no||'—')}</span></td>
+      <td class="col-hide" style="font-size:.76rem;color:#475569;white-space:nowrap">${esc(j.request_no||'—')}</td>
       <td>
         <div class="td-title" title="${esc(j.title||'')}">${esc(j.title||'(ไม่มีชื่อ)')}</div>
-        <div class="td-sub">${esc(j.requester_name||'—')}</div>
       </td>
-      <td class="col-hide"><span class="stype-chip ${stypeCls}">${stypeLbl}</span></td>
-      <td class="col-hide" style="font-size:.78rem;color:#475569;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(brs)}</td>
+      <td class="col-hide" style="font-size:.78rem;color:#374151;white-space:nowrap">${esc(j.requester_name||'—')}</td>
+      <td class="col-hide" style="font-size:.76rem;color:#475569;white-space:nowrap">${period}</td>
+      <td class="col-hide"><span class="stype-chip ${stm.cls}">${stm.label}</span></td>
       <td><span class="badge ${sm.cls}">${sm.label}</span></td>
       <td class="col-hide" style="font-size:.78rem;color:var(--sub)">${dt}</td>
       <td style="white-space:nowrap">${actionCell}</td>
     </tr>`;
   }).join('');
+}
+
+function clearFilters(){
+  ['tbl-search','period-from','period-to'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  const sf=document.getElementById('stype-filter'); if(sf) sf.value='';
+  renderTable();
 }
 
 function tryParseArr(s){ try{ return JSON.parse(s||'[]'); }catch{ return []; } }
