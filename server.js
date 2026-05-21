@@ -3165,6 +3165,108 @@ app.delete('/api/repair/attachments/:id', authRequired, async (request, res) => 
 // Search shop from LicenseDB
 
 // ══════════════════════════════════════════════════════════
+//  SW UPDATE JOBS
+// ══════════════════════════════════════════════════════════
+
+// GET /api/sw-update/badge — MUST be before /api/sw-update/:id
+app.get('/api/sw-update/badge', authRequired, async (request, res) => {
+  try {
+    const r = (await req()
+      .query(`SELECT COUNT(*) AS cnt FROM sw_update_jobs WHERE status NOT IN ('done','cancelled')`))
+      .recordset[0];
+    res.json({ count: r?.cnt || 0 });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/sw-update
+app.get('/api/sw-update', authRequired, async (request, res) => {
+  try {
+    const { status, priority, q } = request.query;
+    let where = 'WHERE 1=1';
+    const r = req();
+    if (status)   { where += ' AND j.status=@st';   r.input('st', sql.NVarChar, status); }
+    if (priority) { where += ' AND j.priority=@pr'; r.input('pr', sql.NVarChar, priority); }
+    if (q) {
+      where += ' AND (j.company_name LIKE @q OR j.description LIKE @q OR j.azure_id LIKE @q)';
+      r.input('q', sql.NVarChar, `%${q}%`);
+    }
+    const rows = (await r.query(`
+      SELECT j.*, e.name AS reporter_name
+      FROM sw_update_jobs j
+      LEFT JOIN app_users au ON au.id = j.reported_by
+      LEFT JOIN employees e  ON e.id  = au.employee_id
+      ${where}
+      ORDER BY j.created_at DESC
+    `)).recordset;
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/sw-update
+app.post('/api/sw-update', authRequired, async (request, res) => {
+  try {
+    const b = request.body;
+    const result = await req()
+      .input('rid',  sql.Int,      b.registration_id   || null)
+      .input('cn',   sql.NVarChar, b.company_name       || null)
+      .input('rd',   sql.Date,     b.received_date    ? new Date(b.received_date) : null)
+      .input('ad',   sql.Date,     b.appointment_date ? new Date(b.appointment_date) : null)
+      .input('pr',   sql.NVarChar, b.priority          || 'normal')
+      .input('st',   sql.NVarChar, b.status            || 'pending')
+      .input('desc', sql.NVarChar, b.description        || null)
+      .input('azid', sql.NVarChar, b.azure_id           || null)
+      .input('ver',  sql.NVarChar, b.version_recommend  || null)
+      .input('rb',   sql.Int,      b.reported_by        || null)
+      .input('cb',   sql.Int,      request.user.id)
+      .query(`INSERT INTO sw_update_jobs
+        (registration_id,company_name,received_date,appointment_date,
+         priority,status,description,azure_id,version_recommend,
+         reported_by,created_by)
+        OUTPUT INSERTED.id
+        VALUES(@rid,@cn,@rd,@ad,@pr,@st,@desc,@azid,@ver,@rb,@cb)`);
+    res.json({ id: result.recordset[0].id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT /api/sw-update/:id
+app.put('/api/sw-update/:id', authRequired, async (request, res) => {
+  try {
+    const b = request.body;
+    await req()
+      .input('id',   sql.Int,      parseInt(request.params.id))
+      .input('rid',  sql.Int,      b.registration_id   || null)
+      .input('cn',   sql.NVarChar, b.company_name       || null)
+      .input('rd',   sql.Date,     b.received_date    ? new Date(b.received_date) : null)
+      .input('ad',   sql.Date,     b.appointment_date ? new Date(b.appointment_date) : null)
+      .input('pr',   sql.NVarChar, b.priority          || 'normal')
+      .input('st',   sql.NVarChar, b.status            || 'pending')
+      .input('desc', sql.NVarChar, b.description        || null)
+      .input('azid', sql.NVarChar, b.azure_id           || null)
+      .input('ver',  sql.NVarChar, b.version_recommend  || null)
+      .input('rb',   sql.Int,      b.reported_by        || null)
+      .input('ub',   sql.Int,      request.user.id)
+      .query(`UPDATE sw_update_jobs SET
+        registration_id=@rid, company_name=@cn,
+        received_date=@rd, appointment_date=@ad,
+        priority=@pr, status=@st,
+        description=@desc, azure_id=@azid,
+        version_recommend=@ver, reported_by=@rb,
+        updated_at=GETDATE(), updated_by=@ub
+        WHERE id=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE /api/sw-update/:id
+app.delete('/api/sw-update/:id', authRequired, managerRequired, async (request, res) => {
+  try {
+    await req().input('id', sql.Int, parseInt(request.params.id))
+      .query('DELETE FROM sw_update_jobs WHERE id=@id');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════
 //  TEAMS (cs_team)
 // ══════════════════════════════════════════════════════════
 app.get('/api/teams', authRequired, async (request, res) => {
@@ -5578,6 +5680,32 @@ async function ensureServiceAttachmentsTable() {
   } catch(e) { console.error('❌ service_attachments error:', e.message); }
 }
 
+async function ensureSwUpdateTable() {
+  try {
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='sw_update_jobs' AND xtype='U')
+      CREATE TABLE sw_update_jobs (
+        id            INT PRIMARY KEY IDENTITY,
+        registration_id INT NULL,
+        company_name  NVARCHAR(255) NULL,
+        received_date DATE NULL,
+        appointment_date DATE NULL,
+        priority      NVARCHAR(20) DEFAULT 'normal',
+        status        NVARCHAR(30) DEFAULT 'pending',
+        description   NVARCHAR(MAX) NULL,
+        azure_id      NVARCHAR(100) NULL,
+        version_recommend NVARCHAR(200) NULL,
+        reported_by   INT NULL,
+        created_by    INT NULL,
+        created_at    DATETIME DEFAULT GETDATE(),
+        updated_at    DATETIME DEFAULT GETDATE(),
+        updated_by    INT NULL
+      )
+    `);
+    console.log('✅ sw_update_jobs table ready');
+  } catch(e) { console.error('❌ sw_update_jobs error:', e.message); }
+}
+
 // ── One-time migration: fix garbled Thai filenames in service_attachments ──
 async function fixGarbledServiceAttachmentNames() {
   try {
@@ -6925,6 +7053,7 @@ init().then(async () => {
   await ensureServiceRequestsTable();
   await ensureServiceProjectsTable();
   await ensureServiceAttachmentsTable();
+  await ensureSwUpdateTable();
   await fixGarbledServiceAttachmentNames();
 
   // Drop CHECK constraint on shifts.shift_type so 'dayoff' can be inserted
