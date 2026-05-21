@@ -6124,7 +6124,17 @@ app.get('/api/public/project/:token', async (request, res) => {
 
 // ── POST /api/public/project/:token/submit ──────────────────
 // Public: submit a new job into a project (no auth required)
-app.post('/api/public/project/:token/submit', svcPubUpload.array('files', 10), async (request, res) => {
+app.post('/api/public/project/:token/submit', (req, res, next) => {
+  svcPubUpload.array('files', 10)(req, res, err => {
+    if (err) {
+      const msg = err.code === 'LIMIT_FILE_SIZE'
+        ? 'ไฟล์ขนาดใหญ่เกินกำหนด (สูงสุด 15 MB ต่อไฟล์)'
+        : (err.message || 'อัปโหลดไฟล์ไม่สำเร็จ');
+      return res.status(400).json({ ok: false, error: msg });
+    }
+    next();
+  });
+}, async (request, res) => {
   try {
     const token = request.params.token;
     const proj = (await req()

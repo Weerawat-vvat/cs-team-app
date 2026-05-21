@@ -960,7 +960,9 @@ async function submitForm(){
 
     const url    = _editJobId ? `/api/public/project/${TOKEN}/jobs/${_editJobId}` : `/api/public/project/${TOKEN}/submit`;
     const method = _editJobId ? 'PUT' : 'POST';
-    const res    = await fetch(url,{method,body:fd}).then(r=>r.json());
+    const r = await fetch(url,{method,body:fd});
+    let res;
+    try { res = await r.json(); } catch { res = { ok: false, error: `Server error (HTTP ${r.status})` }; }
 
     if(res.ok){
       document.getElementById('suc-title').textContent  = _editJobId ? 'บันทึกการแก้ไขแล้ว!' : 'ส่งคำขอเรียบร้อยแล้ว!';
@@ -969,7 +971,7 @@ async function submitForm(){
       document.getElementById('success-screen').style.display='';
       refreshJobs();
     } else { alert('เกิดข้อผิดพลาด: '+(res.error||'unknown')); }
-  }catch(e){ alert('เกิดข้อผิดพลาด กรุณาลองใหม่'); }
+  }catch(e){ alert('เกิดข้อผิดพลาด: '+e.message); }
   btn.disabled=false;
   btn.textContent = _editJobId ? '💾 บันทึกการแก้ไข' : '📤 ส่งคำขอ';
 }
