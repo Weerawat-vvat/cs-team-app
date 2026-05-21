@@ -3416,7 +3416,7 @@ app.post('/api/auth/login', async (request, res) => {
       id: user.id, username: user.username, role: user.role,
       employee_id: user.employee_id, ext_username: user.ext_username,
       calluserid: user.calluserid || null,
-      name: user.name, team: user.team
+      name: user.name, nickname: user.nickname || null, team: user.team
     };
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '30d' });
     res.json({ token, user: payload });
@@ -5950,7 +5950,7 @@ app.put('/api/service-requests/:id', authRequired, async (request, res) => {
           edit_promo_coupon:'แก้ไขโปรฯ / คูปอง', edit_quick_sale:'แก้ไขปุ่มขายด่วน',
           cancel_promo_coupon:'แจ้งยกเลิกโปรฯ / คูปอง', cancel_quick_sale:'แจ้งยกเลิกปุ่มขายด่วน',
         };
-        const uname      = request.user.name || request.user.username || '—';
+        const uname      = request.user.nickname || request.user.name || request.user.username || '—';
         const statusLabel = STATUS_LABEL[b.status] || b.status;
         const stypeLabel  = SERVE_LABEL[cur.serve_type] || cur.serve_type || '—';
         const msg = `\n🔔[งานบริการ] ${cur.job_no||`#${id}`}` +
