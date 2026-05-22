@@ -15105,7 +15105,7 @@ function renderSwUpdate() {
       <td style="font-size:.78rem;white-space:nowrap">${recv}</td>
       <td style="font-size:.78rem;white-space:nowrap">${appt}</td>
       <td style="font-size:.78rem">${escHtml(r.reporter_name||'—')}</td>
-      <td style="font-size:.78rem">${r.azure_id ? `<a href="#" onclick="event.stopPropagation()" style="color:#0369a1">${escHtml(r.azure_id)}</a>` : '—'}</td>
+      <td style="font-size:.78rem">${r.azure_id ? (() => { const m = r.azure_id.match(/\/(\d+)\/?$/); const label = m ? m[1] : r.azure_id; const isUrl = r.azure_id.startsWith('http'); return isUrl ? `<a href="${escHtml(r.azure_id)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:#0369a1;font-weight:600;font-family:monospace">#${escHtml(label)}</a>` : `<span style="color:#0369a1;font-family:monospace">${escHtml(label)}</span>`; })() : '—'}</td>
       <td>
         <button class="btn btn-ghost btn-sm" style="font-size:.72rem;padding:.2rem .5rem" onclick="event.stopPropagation();openSwUpdateEdit(${r.id})">✏️</button>
         <button class="btn btn-ghost btn-sm" style="font-size:.72rem;padding:.2rem .5rem;color:#dc2626" onclick="event.stopPropagation();deleteSwUpdate(${r.id})">🗑</button>

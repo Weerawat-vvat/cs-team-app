@@ -3316,7 +3316,7 @@ app.get('/api/sw-update', authRequired, async (request, res) => {
       r.input('q', sql.NVarChar, `%${q}%`);
     }
     const rows = (await r.query(`
-      SELECT j.*, e.name AS reporter_name
+      SELECT j.*, ISNULL(e.nickname, e.name) AS reporter_name
       FROM sw_update_jobs j
       LEFT JOIN app_users au ON au.id = j.reported_by
       LEFT JOIN employees e  ON e.id  = au.employee_id
