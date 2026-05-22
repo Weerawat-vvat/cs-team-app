@@ -15107,10 +15107,28 @@ function renderSwUpdate() {
 function openSwUpdateForm(fuIssue = null) {
   document.getElementById('swu-edit-id').value = '';
   document.getElementById('swu-fu-issue-id').value = fuIssue?.id || '';
-  document.getElementById('swu-company').value = fuIssue?.company_name || '';
-  document.getElementById('swu-registration-id').value = fuIssue?.registration_id || '';
-  document.getElementById('swu-shop-selected').textContent = fuIssue?.company_name ? `✔ ${fuIssue.company_name}` : '';
+
+  // Shop name: when coming from Follow Up, use board_name or folder_name directly (no dialog)
+  const fuShopName = fuIssue ? (fuIssue.board_name || fuIssue.folder_name || '') : '';
+  const companyInput = document.getElementById('swu-company');
+  const shopSelected = document.getElementById('swu-shop-selected');
+  companyInput.value = fuShopName;
+  document.getElementById('swu-registration-id').value = '';
   document.getElementById('swu-shop-results').style.display = 'none';
+  if (fuShopName) {
+    companyInput.readOnly = true;
+    companyInput.style.background = '#f0fdf4';
+    companyInput.style.color = '#15803d';
+    companyInput.style.fontWeight = '600';
+    shopSelected.innerHTML = `<span style="color:#0891b2;font-size:.72rem">📋 ดึงจาก Follow Up อัตโนมัติ</span>`;
+  } else {
+    companyInput.readOnly = false;
+    companyInput.style.background = '';
+    companyInput.style.color = '';
+    companyInput.style.fontWeight = '';
+    shopSelected.textContent = '';
+  }
+
   document.getElementById('swu-received-date').value = new Date().toISOString().slice(0,10);
   document.getElementById('swu-priority').value = 'normal';
   document.getElementById('swu-status').value = 'pending';
@@ -15128,12 +15146,14 @@ function openSwUpdateForm(fuIssue = null) {
     if (me) sel.value = me.id;
   }
   document.getElementById('modal-sw-update-form-title').textContent =
-    fuIssue ? `💿 อัพเดท SW — FU #${fuIssue.id} ${fuIssue.company_name||''}` : '💿 แจ้งงานอัพเดท Software';
+    fuIssue ? `💿 อัพเดท SW — FU #${fuIssue.id} ${fuShopName}` : '💿 แจ้งงานอัพเดท Software';
   // Show FU link badge if linked
   const fuBadge = document.getElementById('swu-fu-badge');
   if (fuBadge) {
     fuBadge.style.display = fuIssue ? '' : 'none';
-    fuBadge.textContent = fuIssue ? `🔗 เชื่อมกับ Follow Up #${fuIssue.id}` : '';
+    fuBadge.innerHTML = fuIssue
+      ? `🔗 เชื่อมกับ Follow Up #${fuIssue.id}${fuShopName ? ` · <strong>${escHtml(fuShopName)}</strong>` : ''}`
+      : '';
   }
   openModal('modal-sw-update-form');
 }
