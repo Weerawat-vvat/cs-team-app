@@ -10728,7 +10728,10 @@ async function fuSaveField(id, field, val) {
     if (field === 'status') {
       fuLoadSidebarStats();
       // Auto-create SW Update job when set to แก้ไขแล้วรออัพเดท
-      if (val === 'fixed_waiting_update') fuCreateSwUpdate(issue);
+      if (val === 'fixed_waiting_update') {
+        fuClosePanel();           // close slide panel first
+        fuCreateSwUpdate(issue);  // then open SW Update form
+      }
     }
   }
 }
@@ -15108,8 +15111,8 @@ function openSwUpdateForm(fuIssue = null) {
   document.getElementById('swu-edit-id').value = '';
   document.getElementById('swu-fu-issue-id').value = fuIssue?.id || '';
 
-  // Shop name: when coming from Follow Up, use board_name or folder_name directly (no dialog)
-  const fuShopName = fuIssue ? (fuIssue.board_name || fuIssue.folder_name || '') : '';
+  // Shop name: when coming from Follow Up, use folder_name (shop) then board_name as fallback (no dialog)
+  const fuShopName = fuIssue ? (fuIssue.folder_name || fuIssue.board_name || '') : '';
   const companyInput = document.getElementById('swu-company');
   const shopSelected = document.getElementById('swu-shop-selected');
   companyInput.value = fuShopName;
@@ -15141,7 +15144,7 @@ function openSwUpdateForm(fuIssue = null) {
   const sel = document.getElementById('swu-reporter');
   if (sel && _swuUsers.length) {
     sel.innerHTML = '<option value="">— เลือกผู้แจ้ง —</option>' +
-      _swuUsers.map(u => `<option value="${u.id}">${escHtml(u.name||u.username)}</option>`).join('');
+      _swuUsers.map(u => `<option value="${u.id}">${escHtml(u.nickname||u.name||u.username)}</option>`).join('');
     const me = _swuUsers.find(u => u.id === (currentUser?.id));
     if (me) sel.value = me.id;
   }
