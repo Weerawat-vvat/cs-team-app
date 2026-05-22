@@ -15089,28 +15089,58 @@ function renderSwUpdate() {
     tbody.innerHTML = '<tr><td colspan="11" class="empty">ไม่พบข้อมูล</td></tr>';
     return;
   }
-  tbody.innerHTML = all.map((r) => {
-    const st  = SWU_STATUS[r.status]    || SWU_STATUS.pending;
-    const pri = SWU_PRIORITY[r.priority] || SWU_PRIORITY.normal;
-    const recv = r.received_date    ? new Date(r.received_date).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}) : '—';
-    const appt = r.appointment_date ? new Date(r.appointment_date).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}) : '—';
-    const ver  = r.version_recommend || '—';
-    return `<tr style="cursor:pointer" onclick="openSwUpdateDetail(${r.id})" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
-      <td style="color:#94a3b8;font-size:.75rem">#${r.id}</td>
-      <td><div style="font-weight:600;font-size:.82rem">${escHtml(r.company_name||'—')}</div></td>
-      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.8rem">${escHtml(r.description||'—')}</td>
-      <td style="font-size:.78rem;white-space:nowrap">${escHtml(ver)}</td>
-      <td><span style="font-size:.75rem;font-weight:700;color:${pri.color}">${pri.label}</span></td>
-      <td><span style="background:${st.bg};color:${st.color};border-radius:20px;padding:.15rem .6rem;font-size:.73rem;font-weight:700;white-space:nowrap">${st.label}</span></td>
-      <td style="font-size:.78rem;white-space:nowrap">${recv}</td>
-      <td style="font-size:.78rem;white-space:nowrap">${appt}</td>
-      <td style="font-size:.78rem">${escHtml(r.reporter_name||'—')}</td>
-      <td style="font-size:.78rem">${r.azure_id ? (() => { const m = r.azure_id.match(/\/(\d+)\/?$/); const label = m ? m[1] : r.azure_id; const isUrl = r.azure_id.startsWith('http'); return isUrl ? `<a href="${escHtml(r.azure_id)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:#0369a1;font-weight:600;font-family:monospace">#${escHtml(label)}</a>` : `<span style="color:#0369a1;font-family:monospace">${escHtml(label)}</span>`; })() : '—'}</td>
-      <td>
-        <button class="btn btn-ghost btn-sm" style="font-size:.72rem;padding:.2rem .5rem" onclick="event.stopPropagation();openSwUpdateEdit(${r.id})">✏️</button>
-        <button class="btn btn-ghost btn-sm" style="font-size:.72rem;padding:.2rem .5rem;color:#dc2626" onclick="event.stopPropagation();deleteSwUpdate(${r.id})">🗑</button>
+  // Group by company_name
+  const groups = [];
+  const groupMap = {};
+  all.forEach(r => {
+    const key = r.company_name || '—';
+    if (!groupMap[key]) { groupMap[key] = []; groups.push(key); }
+    groupMap[key].push(r);
+  });
+
+  const swuAzureCell = (azure_id) => {
+    if (!azure_id) return '—';
+    const m = azure_id.match(/\/(\d+)\/?$/);
+    const label = m ? m[1] : azure_id;
+    const isUrl = azure_id.startsWith('http');
+    return isUrl
+      ? `<a href="${escHtml(azure_id)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:#0369a1;font-weight:600;font-family:monospace">#${escHtml(label)}</a>`
+      : `<span style="color:#0369a1;font-family:monospace">${escHtml(label)}</span>`;
+  };
+
+  tbody.innerHTML = groups.map(shopName => {
+    const rows = groupMap[shopName];
+    const pendingCount = rows.filter(r => !['done','cancelled'].includes(r.status)).length;
+    const header = `<tr>
+      <td colspan="11" style="background:#f1f5f9;padding:.35rem .8rem;border-top:2px solid #e2e8f0;border-bottom:1px solid #e2e8f0">
+        <span style="font-weight:700;font-size:.82rem;color:#1e293b">🏪 ${escHtml(shopName)}</span>
+        <span style="margin-left:.6rem;font-size:.72rem;color:#64748b">${rows.length} งาน</span>
+        ${pendingCount ? `<span style="margin-left:.4rem;font-size:.7rem;background:#fef9c3;color:#854d0e;border-radius:10px;padding:.1rem .45rem;font-weight:600">${pendingCount} รอดำเนินการ</span>` : ''}
       </td>
     </tr>`;
+    const dataRows = rows.map(r => {
+      const st  = SWU_STATUS[r.status]    || SWU_STATUS.pending;
+      const pri = SWU_PRIORITY[r.priority] || SWU_PRIORITY.normal;
+      const recv = r.received_date    ? new Date(r.received_date).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}) : '—';
+      const appt = r.appointment_date ? new Date(r.appointment_date).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}) : '—';
+      const ver  = r.version_recommend || '—';
+      return `<tr style="cursor:pointer" onclick="openSwUpdateDetail(${r.id})" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+        <td style="color:#94a3b8;font-size:.75rem;padding-left:1.2rem">#${r.id}</td>
+        <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.8rem" colspan="2">${escHtml(r.description||'—')}</td>
+        <td style="font-size:.78rem;white-space:nowrap">${escHtml(ver)}</td>
+        <td><span style="font-size:.75rem;font-weight:700;color:${pri.color}">${pri.label}</span></td>
+        <td><span style="background:${st.bg};color:${st.color};border-radius:20px;padding:.15rem .6rem;font-size:.73rem;font-weight:700;white-space:nowrap">${st.label}</span></td>
+        <td style="font-size:.78rem;white-space:nowrap">${recv}</td>
+        <td style="font-size:.78rem;white-space:nowrap">${appt}</td>
+        <td style="font-size:.78rem">${escHtml(r.reporter_name||'—')}</td>
+        <td style="font-size:.78rem">${swuAzureCell(r.azure_id)}</td>
+        <td>
+          <button class="btn btn-ghost btn-sm" style="font-size:.72rem;padding:.2rem .5rem" onclick="event.stopPropagation();openSwUpdateEdit(${r.id})">✏️</button>
+          <button class="btn btn-ghost btn-sm" style="font-size:.72rem;padding:.2rem .5rem;color:#dc2626" onclick="event.stopPropagation();deleteSwUpdate(${r.id})">🗑</button>
+        </td>
+      </tr>`;
+    }).join('');
+    return header + dataRows;
   }).join('');
 }
 
