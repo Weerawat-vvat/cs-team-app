@@ -9142,11 +9142,12 @@ async function openSpecialistDetail(id) {
 //  ISSUE FOLLOW UP v2
 // ══════════════════════════════════════════════════════════
 const FU_STATUS = {
-  pending:     { label:'⏳ รอดำเนินการ',   color:'#f59e0b', bg:'#fffbeb' },
-  in_progress: { label:'🔄 กำลังตรวจสอบ',  color:'#3b82f6', bg:'#eff6ff' },
-  waiting:     { label:'⏸️ รอข้อมูล',       color:'#8b5cf6', bg:'#f5f3ff' },
-  resolved:    { label:'✅ แก้แล้ว',         color:'#22c55e', bg:'#f0fdf4' },
-  cancelled:   { label:'🚫 ยกเลิก',         color:'#94a3b8', bg:'#f8fafc' },
+  pending:              { label:'⏳ รอดำเนินการ',        color:'#f59e0b', bg:'#fffbeb' },
+  in_progress:          { label:'🔄 กำลังตรวจสอบ',       color:'#3b82f6', bg:'#eff6ff' },
+  waiting:              { label:'⏸️ รอ Release',          color:'#8b5cf6', bg:'#f5f3ff' },
+  fixed_waiting_update: { label:'💿 แก้ไขแล้วรออัพเดท', color:'#0891b2', bg:'#ecfeff' },
+  resolved:             { label:'✅ แก้แล้ว',              color:'#22c55e', bg:'#f0fdf4' },
+  cancelled:            { label:'🚫 ยกเลิก',              color:'#94a3b8', bg:'#f8fafc' },
 };
 const FU_PRIORITY = {
   urgent: { label:'🔴 เร่งด่วน', color:'#ef4444' },
@@ -10721,11 +10722,20 @@ async function fuSaveField(id, field, val) {
     issue[field] = val;
     if (field === 'assigned_to') { const emp = allEmployees.find(e=>e.id==val); issue.assigned_to_name = emp ? (emp.nickname||emp.name) : null; }
     if (field === 'category' && val && !_fuCategories.includes(val)) { _fuCategories.push(val); _fuCategories.sort(); }
-    if (!_fuPanelModal) fuRender(); // don't re-render Tab 1 when in modal mode
+    if (!_fuPanelModal) fuRender();
     if (_fuPanelId === id) fuRenderPanel();
     if (field === 'issue_url') showToast(val ? `🔗 บันทึก Issue URL แล้ว` : '✅ ล้าง Issue URL แล้ว');
-    if (field === 'status') fuLoadSidebarStats();
+    if (field === 'status') {
+      fuLoadSidebarStats();
+      // Auto-create SW Update job when set to แก้ไขแล้วรออัพเดท
+      if (val === 'fixed_waiting_update') fuCreateSwUpdate(issue);
+    }
   }
+}
+
+function fuCreateSwUpdate(issue) {
+  showToast('💿 เปิดฟอร์มสร้างงานอัพเดท SW...', 'info');
+  openSwUpdateForm(issue);
 }
 
 // ── Add Issue ─────────────────────────────────────────────
@@ -15094,19 +15104,20 @@ function renderSwUpdate() {
   }).join('');
 }
 
-function openSwUpdateForm() {
+function openSwUpdateForm(fuIssue = null) {
   document.getElementById('swu-edit-id').value = '';
-  document.getElementById('swu-company').value = '';
-  document.getElementById('swu-registration-id').value = '';
-  document.getElementById('swu-shop-selected').textContent = '';
+  document.getElementById('swu-fu-issue-id').value = fuIssue?.id || '';
+  document.getElementById('swu-company').value = fuIssue?.company_name || '';
+  document.getElementById('swu-registration-id').value = fuIssue?.registration_id || '';
+  document.getElementById('swu-shop-selected').textContent = fuIssue?.company_name ? `✔ ${fuIssue.company_name}` : '';
   document.getElementById('swu-shop-results').style.display = 'none';
   document.getElementById('swu-received-date').value = new Date().toISOString().slice(0,10);
   document.getElementById('swu-priority').value = 'normal';
   document.getElementById('swu-status').value = 'pending';
-  document.getElementById('swu-description').value = '';
+  document.getElementById('swu-description').value = fuIssue?.subject || '';
   document.getElementById('swu-appointment-date').value = '';
-  document.getElementById('swu-azure-id').value = '';
-  document.getElementById('swu-version').value = '';
+  document.getElementById('swu-azure-id').value = fuIssue?.issue_url || '';
+  document.getElementById('swu-version').value = 'latest';  // default Latest
   document.getElementById('swu-version-custom').value = '';
   document.getElementById('swu-version-custom').style.display = 'none';
   const sel = document.getElementById('swu-reporter');
@@ -15116,7 +15127,14 @@ function openSwUpdateForm() {
     const me = _swuUsers.find(u => u.id === (currentUser?.id));
     if (me) sel.value = me.id;
   }
-  document.getElementById('modal-sw-update-form-title').textContent = '💿 แจ้งงานอัพเดท Software';
+  document.getElementById('modal-sw-update-form-title').textContent =
+    fuIssue ? `💿 อัพเดท SW — FU #${fuIssue.id} ${fuIssue.company_name||''}` : '💿 แจ้งงานอัพเดท Software';
+  // Show FU link badge if linked
+  const fuBadge = document.getElementById('swu-fu-badge');
+  if (fuBadge) {
+    fuBadge.style.display = fuIssue ? '' : 'none';
+    fuBadge.textContent = fuIssue ? `🔗 เชื่อมกับ Follow Up #${fuIssue.id}` : '';
+  }
   openModal('modal-sw-update-form');
 }
 
@@ -15149,6 +15167,13 @@ function openSwUpdateEdit(id) {
     document.getElementById('swu-reporter').value = r.reported_by;
   }
   document.getElementById('modal-sw-update-form-title').textContent = '✏️ แก้ไขงาน #' + id;
+  // Preserve fu_issue_id if present
+  document.getElementById('swu-fu-issue-id').value = r.fu_issue_id || '';
+  const fuBadge = document.getElementById('swu-fu-badge');
+  if (fuBadge) {
+    fuBadge.style.display = r.fu_issue_id ? '' : 'none';
+    fuBadge.textContent   = r.fu_issue_id ? `🔗 เชื่อมกับ Follow Up #${r.fu_issue_id}` : '';
+  }
 }
 
 async function openSwUpdateDetail(id) {
@@ -15156,32 +15181,42 @@ async function openSwUpdateDetail(id) {
 }
 
 async function saveSwUpdateForm() {
-  const editId = document.getElementById('swu-edit-id').value;
-  const company = document.getElementById('swu-company').value.trim();
+  const editId    = document.getElementById('swu-edit-id').value;
+  const fuIssueId = parseInt(document.getElementById('swu-fu-issue-id').value) || null;
+  const company   = document.getElementById('swu-company').value.trim();
   if (!company) { showToast('❌ กรุณาระบุร้านค้า', 'error'); return; }
   const vsel = document.getElementById('swu-version').value;
   const version_recommend = vsel === 'custom'
     ? document.getElementById('swu-version-custom').value.trim() || null
     : vsel || null;
+  const newStatus = document.getElementById('swu-status').value || 'pending';
   const body = {
     registration_id:  parseInt(document.getElementById('swu-registration-id').value) || null,
     company_name:     company,
     received_date:    document.getElementById('swu-received-date').value || null,
     appointment_date: document.getElementById('swu-appointment-date').value || null,
     priority:         document.getElementById('swu-priority').value || 'normal',
-    status:           document.getElementById('swu-status').value || 'pending',
+    status:           newStatus,
     description:      document.getElementById('swu-description').value.trim() || null,
     azure_id:         document.getElementById('swu-azure-id').value.trim() || null,
     version_recommend,
     reported_by:      parseInt(document.getElementById('swu-reporter').value) || null,
+    fu_issue_id:      fuIssueId,
   };
   try {
     if (editId) {
-      await api(`/api/sw-update/${editId}`, { method:'PUT', body, silent:true });
+      const r = await api(`/api/sw-update/${editId}`, { method:'PUT', body, silent:true });
       showToast('✅ แก้ไขงานแล้ว', 'success');
+      // If SW done and was linked to FU → auto-refresh FU list
+      if (newStatus === 'done' && r?.fu_issue_id) {
+        const fuIssue = _fuIssues.find(i => i.id === r.fu_issue_id);
+        if (fuIssue) { fuIssue.status = 'resolved'; fuRender(); fuLoadSidebarStats(); }
+        showToast('✅ Follow Up #' + r.fu_issue_id + ' อัพเดทเป็น "แก้แล้ว" แล้ว', 'success');
+      }
     } else {
       await api('/api/sw-update', { method:'POST', body, silent:true });
-      showToast('✅ เพิ่มงานอัพเดท SW แล้ว', 'success');
+      const fuMsg = fuIssueId ? ` (เชื่อม FU #${fuIssueId})` : '';
+      showToast('✅ เพิ่มงานอัพเดท SW แล้ว' + fuMsg, 'success');
     }
     closeModal('modal-sw-update-form');
     loadSwUpdate();
@@ -15459,6 +15494,10 @@ async function swuUpdateBadge() {
       <button class="modal-close" onclick="closeModal('modal-sw-update-form')">×</button>
     </div>
     <input type="hidden" id="swu-edit-id"/>
+    <input type="hidden" id="swu-fu-issue-id"/>
+
+    <!-- FU link badge -->
+    <div id="swu-fu-badge" style="display:none;font-size:.75rem;font-weight:600;color:#0891b2;background:#ecfeff;border:1px solid #a5f3fc;border-radius:7px;padding:.3rem .7rem;margin-bottom:.6rem"></div>
 
     <!-- ร้านค้า -->
     <div style="position:relative;margin-bottom:.6rem">

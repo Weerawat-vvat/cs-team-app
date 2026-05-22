@@ -3342,13 +3342,14 @@ app.post('/api/sw-update', authRequired, async (request, res) => {
       .input('azid', sql.NVarChar, b.azure_id           || null)
       .input('ver',  sql.NVarChar, b.version_recommend  || null)
       .input('rb',   sql.Int,      b.reported_by        || null)
+      .input('fuid', sql.Int,      b.fu_issue_id        || null)
       .input('cb',   sql.Int,      request.user.id)
       .query(`INSERT INTO sw_update_jobs
         (registration_id,company_name,received_date,appointment_date,
          priority,status,description,azure_id,version_recommend,
-         reported_by,created_by)
+         reported_by,fu_issue_id,created_by)
         OUTPUT INSERTED.id
-        VALUES(@rid,@cn,@rd,@ad,@pr,@st,@desc,@azid,@ver,@rb,@cb)`);
+        VALUES(@rid,@cn,@rd,@ad,@pr,@st,@desc,@azid,@ver,@rb,@fuid,@cb)`);
     res.json({ id: result.recordset[0].id });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -3356,9 +3357,13 @@ app.post('/api/sw-update', authRequired, async (request, res) => {
 // PUT /api/sw-update/:id
 app.put('/api/sw-update/:id', authRequired, async (request, res) => {
   try {
-    const b = request.body;
+    const id = parseInt(request.params.id);
+    const b  = request.body;
+    // Fetch fu_issue_id before update (stored at creation)
+    const cur = (await req().input('id', sql.Int, id)
+      .query('SELECT fu_issue_id FROM sw_update_jobs WHERE id=@id')).recordset[0];
     await req()
-      .input('id',   sql.Int,      parseInt(request.params.id))
+      .input('id',   sql.Int,      id)
       .input('rid',  sql.Int,      b.registration_id   || null)
       .input('cn',   sql.NVarChar, b.company_name       || null)
       .input('rd',   sql.Date,     b.received_date    ? new Date(b.received_date) : null)
@@ -3378,7 +3383,15 @@ app.put('/api/sw-update/:id', authRequired, async (request, res) => {
         version_recommend=@ver, reported_by=@rb,
         updated_at=GETDATE(), updated_by=@ub
         WHERE id=@id`);
-    res.json({ ok: true });
+    // Auto-resolve linked Follow Up when SW Update is done
+    if (b.status === 'done' && cur?.fu_issue_id) {
+      try {
+        await req().input('fuid', sql.Int, cur.fu_issue_id)
+          .query(`UPDATE fu_issues SET status='resolved', updated_at=GETDATE()
+                  WHERE id=@fuid AND status NOT IN ('resolved','cancelled')`);
+      } catch(e) { console.warn('fu auto-resolve failed:', e.message); }
+    }
+    res.json({ ok: true, fu_issue_id: cur?.fu_issue_id || null });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -5827,6 +5840,9 @@ async function ensureSwUpdateTable() {
         updated_by    INT NULL
       )
     `);
+    // Add fu_issue_id link column
+    await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('sw_update_jobs') AND name='fu_issue_id')
+      ALTER TABLE sw_update_jobs ADD fu_issue_id INT NULL`);
     console.log('✅ sw_update_jobs table ready');
   } catch(e) { console.error('❌ sw_update_jobs error:', e.message); }
 }
