@@ -10737,6 +10737,13 @@ async function fuSaveField(id, field, val) {
 }
 
 function fuCreateSwUpdate(issue) {
+  // Check if a SW Update job already exists for this FU issue
+  const existing = _swuData.find(j => j.fu_issue_id === issue.id);
+  if (existing) {
+    showToast(`⚠️ มีงานอัพเดท SW #${existing.id} สำหรับ Follow Up นี้อยู่แล้ว`, 'warning');
+    openSwUpdateEdit(existing.id);  // open the existing job for review
+    return;
+  }
   showToast('💿 เปิดฟอร์มสร้างงานอัพเดท SW...', 'info');
   openSwUpdateForm(issue);
 }
@@ -15237,7 +15244,15 @@ async function saveSwUpdateForm() {
         showToast('✅ Follow Up #' + r.fu_issue_id + ' อัพเดทเป็น "แก้แล้ว" แล้ว', 'success');
       }
     } else {
-      await api('/api/sw-update', { method:'POST', body, silent:true });
+      const r = await api('/api/sw-update', { method:'POST', body, silent:true });
+      // Server returns 409 if a job already exists for this FU issue
+      if (r?.existing_id) {
+        closeModal('modal-sw-update-form');
+        showToast(`⚠️ มีงานอัพเดท SW #${r.existing_id} สำหรับ Follow Up นี้อยู่แล้ว`, 'warning');
+        await loadSwUpdate();
+        openSwUpdateEdit(r.existing_id);
+        return;
+      }
       const fuMsg = fuIssueId ? ` (เชื่อม FU #${fuIssueId})` : '';
       showToast('✅ เพิ่มงานอัพเดท SW แล้ว' + fuMsg, 'success');
     }

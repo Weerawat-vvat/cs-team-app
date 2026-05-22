@@ -3331,6 +3331,13 @@ app.get('/api/sw-update', authRequired, async (request, res) => {
 app.post('/api/sw-update', authRequired, async (request, res) => {
   try {
     const b = request.body;
+    // Guard: prevent duplicate SW Update for the same FU issue
+    if (b.fu_issue_id) {
+      const dup = (await req()
+        .input('fuid', sql.Int, b.fu_issue_id)
+        .query('SELECT id FROM sw_update_jobs WHERE fu_issue_id=@fuid')).recordset[0];
+      if (dup) return res.status(409).json({ error: `มีงานอัพเดท SW #${dup.id} สำหรับ Follow Up นี้อยู่แล้ว`, existing_id: dup.id });
+    }
     const result = await req()
       .input('rid',  sql.Int,      b.registration_id   || null)
       .input('cn',   sql.NVarChar, b.company_name       || null)
