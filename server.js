@@ -143,7 +143,7 @@ const newsUpload = multer({
   storage: newsStorage,
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    cb(null, /\.(jpg|jpeg|png|gif|webp|pdf|doc|docx|xlsx|xls)$/i.test(file.originalname));
+    cb(null, /\.(jpg|jpeg|png|gif|webp|pdf|html|htm|doc|docx|xlsx|xls)$/i.test(file.originalname));
   }
 });
 
@@ -317,13 +317,21 @@ app.use((req, res, next) => {
   next();
 });
 app.use(express.static(path.join(__dirname, 'public')));
-// Serve uploaded files — force download for Office files so browser doesn't redirect to Office Online
+// Serve uploaded files
+// - PDF/HTML: inline (browser opens them natively)
+// - Office files: force download (avoid redirect to Office Online)
 app.use('/uploads', (req, res, next) => {
   const ext = path.extname(req.path).toLowerCase();
-  if (['.xlsx', '.xls', '.csv'].includes(ext)) {
+  if (['.xlsx', '.xls', '.csv', '.doc', '.docx'].includes(ext)) {
     const filename = path.basename(req.path);
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
     res.setHeader('Content-Type', 'application/octet-stream');
+  } else if (ext === '.pdf') {
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline');
+  } else if (['.html', '.htm'].includes(ext)) {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Content-Disposition', 'inline');
   }
   next();
 }, express.static(UPLOAD_DIR));

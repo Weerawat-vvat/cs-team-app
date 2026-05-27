@@ -15539,21 +15539,53 @@ function newsRender() {
     const atts = n.attachments || [];
     const imgs  = atts.filter(a => /\.(jpg|jpeg|png|gif|webp)$/i.test(a.filename));
     const files = atts.filter(a => !/\.(jpg|jpeg|png|gif|webp)$/i.test(a.filename));
+
+    function newsFileIcon(fname) {
+      const e = (fname||'').split('.').pop().toLowerCase();
+      if (e === 'pdf')               return { icon:'📕', bg:'#fff1f2', border:'#fecdd3', color:'#be123c', badge:'PDF' };
+      if (e === 'html' || e === 'htm') return { icon:'🌐', bg:'#eff6ff', border:'#bfdbfe', color:'#1d4ed8', badge:'HTML' };
+      if (e === 'doc'  || e === 'docx') return { icon:'📝', bg:'#eff6ff', border:'#bfdbfe', color:'#1d4ed8', badge:'Word' };
+      if (e === 'xls'  || e === 'xlsx') return { icon:'📊', bg:'#f0fdf4', border:'#bbf7d0', color:'#15803d', badge:'Excel' };
+      return { icon:'📄', bg:'#f8fafc', border:'#e2e8f0', color:'#334155', badge: e.toUpperCase() };
+    }
+
+    function newsCanInline(fname) {
+      return /\.(pdf|html|htm)$/i.test(fname);
+    }
+
     let attHtml = '';
     if (imgs.length) {
-      attHtml += `<div style="display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.4rem">
-        ${imgs.map(a => `<a href="/uploads/news/${n.id}/${a.filename}" target="_blank" rel="noopener">
-          <img src="/uploads/news/${n.id}/${a.filename}" title="${escHtml(a.original_name)}"
-               style="width:70px;height:70px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0;cursor:pointer"/></a>`).join('')}
+      attHtml += `<div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.5rem">
+        ${imgs.map(a => {
+          const url = `/uploads/news/${n.id}/${a.filename}`;
+          return `<a href="${url}" target="_blank" rel="noopener" title="${escHtml(a.original_name)}"
+            style="display:block;position:relative;border-radius:8px;overflow:hidden;border:2px solid #e2e8f0;transition:border-color .15s;flex-shrink:0"
+            onmouseover="this.style.borderColor='#3b82f6'" onmouseout="this.style.borderColor='#e2e8f0'">
+            <img src="${url}" style="width:80px;height:80px;object-fit:cover;display:block"/>
+          </a>`;
+        }).join('')}
       </div>`;
     }
     if (files.length) {
-      attHtml += `<div style="display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.35rem">
+      attHtml += `<div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.45rem">
         ${files.map(a => {
-          const kb = a.file_size ? Math.round(a.file_size/1024) : '?';
-          return `<a href="/uploads/news/${n.id}/${a.filename}" target="_blank" rel="noopener"
-            style="display:inline-flex;align-items:center;gap:.25rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:.2rem .5rem;font-size:.75rem;color:#334155;text-decoration:none">
-            📄 ${escHtml(a.original_name)} <span style="color:#94a3b8">${kb}KB</span></a>`;
+          const url  = `/uploads/news/${n.id}/${a.filename}`;
+          const kb   = a.file_size ? (a.file_size >= 1048576 ? (a.file_size/1048576).toFixed(1)+'MB' : Math.round(a.file_size/1024)+'KB') : '';
+          const fi   = newsFileIcon(a.filename);
+          const hint = newsCanInline(a.filename) ? 'เปิดดูในแท็บใหม่' : 'ดาวน์โหลด';
+          return `<a href="${url}" target="_blank" rel="noopener" title="${escHtml(a.original_name)} — ${hint}"
+            style="display:inline-flex;align-items:center;gap:.4rem;background:${fi.bg};border:1.5px solid ${fi.border};border-radius:8px;padding:.35rem .65rem;text-decoration:none;transition:all .15s;max-width:240px"
+            onmouseover="this.style.filter='brightness(.95)';this.style.borderColor='${fi.color}'" onmouseout="this.style.filter='';this.style.borderColor='${fi.border}'">
+            <span style="font-size:1.1rem;flex-shrink:0">${fi.icon}</span>
+            <span style="display:flex;flex-direction:column;min-width:0;gap:.05rem">
+              <span style="font-size:.75rem;font-weight:700;color:${fi.color};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px">${escHtml(a.original_name)}</span>
+              <span style="display:flex;gap:.3rem;align-items:center">
+                <span style="font-size:.62rem;font-weight:700;color:#fff;background:${fi.color};border-radius:3px;padding:.01rem .3rem">${fi.badge}</span>
+                ${kb ? `<span style="font-size:.64rem;color:#94a3b8">${kb}</span>` : ''}
+                <span style="font-size:.64rem;color:${fi.color};opacity:.7">${newsCanInline(a.filename) ? '↗ เปิดดู' : '⬇ ดาวน์โหลด'}</span>
+              </span>
+            </span>
+          </a>`;
         }).join('')}
       </div>`;
     }
@@ -15561,10 +15593,18 @@ function newsRender() {
     // Links section
     const links = n.links || [];
     const linksHtml = links.length
-      ? `<div style="display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.4rem">
+      ? `<div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.45rem">
           ${links.map(l => `<a href="${escHtml(l.url)}" target="_blank" rel="noopener noreferrer"
-            style="display:inline-flex;align-items:center;gap:.2rem;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:6px;padding:.2rem .5rem;font-size:.75rem;text-decoration:none">
-            🔗 ${escHtml(l.label||l.url)}</a>`).join('')}
+            title="${escHtml(l.url)}"
+            style="display:inline-flex;align-items:center;gap:.35rem;background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:8px;padding:.35rem .65rem;text-decoration:none;transition:all .15s;max-width:280px"
+            onmouseover="this.style.background='#dbeafe';this.style.borderColor='#1d4ed8'" onmouseout="this.style.background='#eff6ff';this.style.borderColor='#bfdbfe'">
+            <span style="font-size:1rem;flex-shrink:0">🔗</span>
+            <span style="display:flex;flex-direction:column;min-width:0;gap:.05rem">
+              <span style="font-size:.76rem;font-weight:700;color:#1d4ed8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px">${escHtml(l.label||l.url)}</span>
+              ${l.label&&l.label!==l.url ? `<span style="font-size:.64rem;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px">${escHtml(l.url)}</span>` : ''}
+            </span>
+            <span style="font-size:.65rem;color:#1d4ed8;opacity:.6;flex-shrink:0">↗</span>
+          </a>`).join('')}
         </div>` : '';
 
     return `<div class="card" style="margin-bottom:.65rem;border-left:3px solid ${color};${n.pinned?'background:#fffbeb;':''}">
