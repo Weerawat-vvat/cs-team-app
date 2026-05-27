@@ -4555,6 +4555,16 @@ async function ensureSpecialistTable() {
             ALTER TABLE specialist_log ADD ${col} ${def}`);
       } catch {}
     }
+    // ── specialist_comments ────────────────────────────
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='specialist_comments' AND xtype='U')
+      CREATE TABLE specialist_comments (
+        id         INT PRIMARY KEY IDENTITY,
+        sp_id      INT NOT NULL,
+        user_id    INT NOT NULL,
+        body       NVARCHAR(MAX) NOT NULL,
+        created_at DATETIME DEFAULT GETDATE()
+      )`);
     console.log('✅ specialist_log table ready');
   } catch(e) { console.error('❌ specialist_log error:', e.message); }
 }
@@ -5650,6 +5660,46 @@ app.put('/api/specialist/:id', authRequired, async (request, res) => {
         } catch(e) { console.warn('reopen calllog failed:', e.message); }
       }
     }
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Specialist Comments ───────────────────────────────────
+app.get('/api/specialist/:id/comments', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const rows = (await req().input('id', sql.Int, id).query(`
+      SELECT c.id, c.body, c.created_at,
+             ISNULL(e.nickname, e.name) AS author_name
+      FROM specialist_comments c
+      LEFT JOIN app_users u ON u.id = c.user_id
+      LEFT JOIN employees e ON e.id  = u.employee_id
+      WHERE c.sp_id = @id
+      ORDER BY c.created_at ASC`)).recordset;
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/specialist/:id/comments', authRequired, async (request, res) => {
+  try {
+    const spId = parseInt(request.params.id);
+    const body = (request.body.body || '').trim();
+    if (!body) return res.status(400).json({ error: 'กรุณาใส่ข้อความ' });
+    const r = await req()
+      .input('spid', sql.Int,      spId)
+      .input('uid',  sql.Int,      request.user.id)
+      .input('body', sql.NVarChar, body)
+      .query(`INSERT INTO specialist_comments(sp_id,user_id,body) OUTPUT INSERTED.id VALUES(@spid,@uid,@body)`);
+    // bump updated_at on parent
+    await req().input('id', sql.Int, spId).query('UPDATE specialist_log SET updated_at=GETDATE() WHERE id=@id');
+    res.json({ id: r.recordset[0].id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/specialist/:id/comments/:cid', authRequired, leadRequired, async (request, res) => {
+  try {
+    const cid = parseInt(request.params.cid);
+    await req().input('cid', sql.Int, cid).query('DELETE FROM specialist_comments WHERE id=@cid');
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

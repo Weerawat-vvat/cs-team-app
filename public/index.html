@@ -8720,6 +8720,26 @@ function renderSpecialistTable(list) {
             </button>
           </div>`:''}
 
+          <!-- ── Tracking Comments ── -->
+          <div style="margin-top:.8rem;border-top:2px solid #ede9fe;padding-top:.7rem" onclick="event.stopPropagation()">
+            <div style="font-size:.7rem;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.55rem">
+              📝 บันทึกการติดตาม
+            </div>
+            <div id="sp-comments-${s.id}" style="display:flex;flex-direction:column;gap:.35rem;margin-bottom:.55rem">
+              <div style="color:#94a3b8;font-size:.76rem;font-style:italic">กำลังโหลด...</div>
+            </div>
+            <div style="display:flex;gap:.4rem;align-items:center">
+              <input id="sp-comment-inp-${s.id}" type="text"
+                placeholder="บันทึกการติดตาม / อัพเดทสถานะ... (Enter เพื่อส่ง)"
+                style="flex:1;border:1px solid #ddd8fe;border-radius:8px;padding:.32rem .6rem;font-size:.8rem;font-family:inherit;outline:none;transition:border .15s;background:#fff"
+                onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#ddd8fe'"
+                onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();spAddComment(${s.id})}"/>
+              <button onclick="spAddComment(${s.id})"
+                style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:.32rem .7rem;font-size:.78rem;font-weight:600;cursor:pointer;white-space:nowrap;transition:background .15s"
+                onmouseover="this.style.background='#6d28d9'" onmouseout="this.style.background='#7c3aed'">ส่ง</button>
+            </div>
+          </div>
+
         </div>
       </td>
     </tr>`;
@@ -8744,6 +8764,7 @@ function toggleSpDetail(id) {
   const isOpen = _spExpandedRows.has(id);
   if (row) row.style.display = isOpen ? '' : 'none';
   if (ind) ind.textContent = isOpen ? '▼' : '▶';
+  if (isOpen) spLoadComments(id);
 }
 
 async function spUpdateStatusInline(id, status) {
@@ -8770,6 +8791,52 @@ async function saveSpResolveInline(id) {
   if (r?.error) { showToast('❌ '+r.error,'error'); return; }
   showToast('✅ ปิดงาน Specialist แล้ว');
   loadSpecialist();
+}
+
+// ── Specialist Tracking Comments ─────────────────────────
+async function spLoadComments(spId) {
+  const wrap = document.getElementById(`sp-comments-${spId}`);
+  if (!wrap) return;
+  const data = await api(`/api/specialist/${spId}/comments`);
+  if (!data) { wrap.innerHTML = '<div style="color:#ef4444;font-size:.75rem">โหลดไม่ได้</div>'; return; }
+  wrap.innerHTML = spRenderComments(data, spId);
+}
+
+function spRenderComments(list, spId) {
+  if (!list.length) return '<div style="color:#a78bfa;font-size:.76rem;font-style:italic;padding:.15rem 0">ยังไม่มีบันทึก — เพิ่มบันทึกแรกได้เลย</div>';
+  const spLead = isLeadRole();
+  return list.map(c => {
+    const dt = new Date(c.created_at);
+    const dtStr = isNaN(dt) ? '' : dt.toLocaleString('th-TH', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    return `<div style="background:#faf5ff;border:1px solid #ede9fe;border-radius:8px;padding:.38rem .65rem;position:relative">
+      <div style="display:flex;align-items:center;gap:.45rem;margin-bottom:.2rem">
+        <span style="font-size:.72rem;font-weight:700;color:#7c3aed">${escHtml(c.author_name||'?')}</span>
+        <span style="font-size:.68rem;color:#a78bfa">${dtStr}</span>
+        ${spLead ? `<button onclick="spDeleteComment(${spId},${c.id})" title="ลบ"
+          style="margin-left:auto;background:none;border:none;color:#c4b5fd;cursor:pointer;font-size:.8rem;line-height:1;padding:0;transition:color .15s"
+          onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#c4b5fd'">✕</button>` : ''}
+      </div>
+      <div style="font-size:.8rem;color:#3b0764;white-space:pre-wrap;line-height:1.5">${escHtml(c.body)}</div>
+    </div>`;
+  }).join('');
+}
+
+async function spAddComment(spId) {
+  const inp = document.getElementById(`sp-comment-inp-${spId}`);
+  if (!inp) return;
+  const body = inp.value.trim();
+  if (!body) { inp.focus(); return; }
+  const r = await api(`/api/specialist/${spId}/comments`, { method:'POST', body:{ body }, silent:true });
+  if (r?.error) { showToast('❌ '+r.error,'error'); return; }
+  inp.value = '';
+  await spLoadComments(spId);
+}
+
+async function spDeleteComment(spId, cid) {
+  if (!confirm('ลบบันทึกนี้?')) return;
+  const r = await api(`/api/specialist/${spId}/comments/${cid}`, { method:'DELETE', silent:true });
+  if (r?.error) { showToast('❌ '+r.error,'error'); return; }
+  await spLoadComments(spId);
 }
 
 // Open Assign to Specialist from ticket page
