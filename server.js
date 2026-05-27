@@ -126,6 +126,27 @@ const svcPubUpload = multer({
   }
 });
 
+// ── News attachment upload config ────────────────────────
+const newsStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(UPLOAD_DIR, 'news', String(req.params.id || 'tmp'));
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const ext  = path.extname(file.originalname).toLowerCase();
+    const base = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9ก-๙_-]/g, '_').slice(0,80);
+    cb(null, `${Date.now()}_${base}${ext}`);
+  }
+});
+const newsUpload = multer({
+  storage: newsStorage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    cb(null, /\.(jpg|jpeg|png|gif|webp|pdf|doc|docx|xlsx|xls)$/i.test(file.originalname));
+  }
+});
+
 // ── Error Log table ──────────────────────────────────────
 async function ensureErrorLogTable() {
   await getPool().request().query(`
@@ -4997,6 +5018,27 @@ app.get('/api/fu/boards/:bid/issues', authRequired, async (request, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── GET single fu_issue by id ─────────────────────────────
+app.get('/api/fu/issues/:id', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const rows = (await req().input('id',sql.Int,id).query(`
+      SELECT i.*,
+        ISNULL(ea.nickname, ea.name) AS assigned_to_name,
+        ISNULL(ec.nickname, ec.name) AS created_by_name,
+        (SELECT COUNT(*) FROM fu_comments c WHERE c.issue_id=i.id) AS comment_count,
+        (SELECT TOP 1 c.created_at FROM fu_comments c WHERE c.issue_id=i.id ORDER BY c.created_at DESC) AS last_comment_at,
+        (SELECT TOP 1 c.body     FROM fu_comments c WHERE c.issue_id=i.id ORDER BY c.created_at DESC) AS last_comment_body
+      FROM fu_issues i
+      LEFT JOIN employees ea ON ea.id=i.assigned_to
+      LEFT JOIN app_users uc ON uc.id=i.created_by
+      LEFT JOIN employees ec ON ec.id=uc.employee_id
+      WHERE i.id=@id`)).recordset;
+    if (!rows.length) return res.status(404).json({ error: 'not found' });
+    res.json(rows[0]);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/fu/issues', authRequired, async (request, res) => {
   try {
     const b = request.body;
@@ -5188,7 +5230,7 @@ app.post('/api/fu/mentions/seen', authRequired, async (request, res) => {
 // ══ FOLLOW UP v2 — AZURE ISSUES (Tab 4) ══
 app.get('/api/fu/azure-items', authRequired, async (request, res) => {
   try {
-    // 1. Get all fu_issues with issue_url
+    // 1. ดึง fu_issues ที่มี issue_url จาก DB
     const localRows = (await req().query(`
       SELECT i.id, i.issue_url, i.priority AS fu_priority,
              b.id AS board_id, b.name AS board_name,
@@ -5202,78 +5244,104 @@ app.get('/api/fu/azure-items', authRequired, async (request, res) => {
 
     if (!localRows.length) return res.json([]);
 
-    // 2. Parse each issue_url to extract project + workItemId
+    // 2. Parse workItemId + project จาก URL
     const urlRegex = /infogrammer\/([^\/]+)\/_workitems\/edit\/(\d+)/;
     const parsed = localRows.map(row => {
       const m = urlRegex.exec(row.issue_url || '');
       return { ...row, project: m ? m[1] : null, workItemId: m ? parseInt(m[2], 10) : null };
     });
 
-    // 3. Group by project
-    const byProject = {};
-    parsed.forEach(r => {
-      if (!r.project || !r.workItemId) return;
-      if (!byProject[r.project]) byProject[r.project] = [];
-      byProject[r.project].push(r);
-    });
-
-    // 4. Batch-query Azure OData per project
     const pat = process.env.AZURE_DEVOPS_PAT || '';
-    const authHeader = 'Basic ' + Buffer.from(':' + pat).toString('base64');
-    const azureMap = {}; // workItemId → azure fields
+    const azureMap = {};
 
-    const httpsModule = require('https');
-    await Promise.all(Object.entries(byProject).map(async ([project, rows]) => {
-      const ids = rows.map(r => r.workItemId).join(',');
-      const qs = new URLSearchParams({
-        '$select': 'WorkItemId,Title,State,Custom_LevelofUrgency,Custom_ReleaseDate,Custom_ReleaseVersion',
-        '$expand': 'AssignedTo($select=UserName)',
-        '$filter': `WorkItemId in (${ids})`,
-      });
-      const url = `https://analytics.dev.azure.com/infogrammer/${encodeURIComponent(project)}/_odata/v3.0-preview/WorkItems?${qs}`;
-      try {
-        const data = await new Promise((resolve, reject) => {
-          const u = new URL(url);
-          const opts = { hostname: u.hostname, path: u.pathname + u.search, headers: { Authorization: authHeader, Accept: 'application/json' }, timeout: 10000 };
-          const reqAz = httpsModule.get(opts, resp => {
-            let body = '';
-            resp.on('data', chunk => { body += chunk; });
-            resp.on('end', () => {
-              try { resolve(JSON.parse(body)); }
-              catch(e) { console.error('Azure JSON parse error:', body.slice(0,200)); reject(e); }
-            });
+    if (!pat) {
+      console.warn('[Azure] AZURE_DEVOPS_PAT not set — work item details unavailable');
+    } else {
+      // 3. เรียก Azure Work Items REST API (ง่ายและเชื่อถือได้กว่า Analytics)
+      const authHeader = 'Basic ' + Buffer.from(':' + pat).toString('base64');
+      const httpsModule = require('https');
+
+      const fetchAz = (url) => new Promise((resolve, reject) => {
+        const u = new URL(url);
+        const opts = {
+          hostname: u.hostname,
+          path: u.pathname + u.search,
+          headers: { Authorization: authHeader, Accept: 'application/json' },
+          timeout: 15000,
+        };
+        const r = httpsModule.get(opts, resp => {
+          let body = '';
+          resp.on('data', c => { body += c; });
+          resp.on('end', () => {
+            try { resolve(JSON.parse(body)); }
+            catch(e) { console.error('[Azure] JSON parse error:', body.slice(0,200)); reject(e); }
           });
-          reqAz.on('timeout', () => { reqAz.destroy(); reject(new Error('Azure API timeout')); });
-          reqAz.on('error', reject);
         });
-        (data.value || []).forEach(item => {
-          azureMap[item.WorkItemId] = {
-            title: item.Title || null,
-            state: item.State || null,
-            levelOfUrgency: item.Custom_LevelofUrgency || null,
-            assignedTo: item.AssignedTo?.UserName || null,
-            releaseDate: item.Custom_ReleaseDate || null,
-            releaseVersion: item.Custom_ReleaseVersion || null,
-          };
-        });
-      } catch(e) {
-        console.error(`Azure OData error for project ${project}:`, e.message);
-      }
-    }));
+        r.on('timeout', () => { r.destroy(); reject(new Error('Azure timeout')); });
+        r.on('error', reject);
+      });
 
-    // 5. Merge and return
+      // ฟิลด์ที่ต้องการ (REST API ใช้ reference name)
+      const AZ_FIELDS = [
+        'System.Title',
+        'System.State',
+        'System.WorkItemType',
+        'System.AssignedTo',
+        'Custom.LevelofUrgency',
+        'Custom.ReleaseDate',
+        'Custom.ReleaseVersion',
+      ].join(',');
+
+      // เก็บ IDs ที่ unique และ valid ทั้งหมด
+      const allIds = [...new Set(parsed.filter(r => r.workItemId).map(r => r.workItemId))];
+
+      // Azure รองรับ max 200 IDs ต่อ request
+      const BATCH = 200;
+      for (let i = 0; i < allIds.length; i += BATCH) {
+        const batch = allIds.slice(i, i + BATCH);
+        try {
+          const url = `https://dev.azure.com/infogrammer/_apis/wit/workitems?ids=${batch.join(',')}&fields=${encodeURIComponent(AZ_FIELDS)}&api-version=7.0`;
+          const data = await fetchAz(url);
+          if (data.message) {
+            console.error('[Azure] API error:', data.message);
+            break;
+          }
+          (data.value || []).forEach(item => {
+            const f = item.fields || {};
+            const assigned = f['System.AssignedTo'];
+            azureMap[item.id] = {
+              title:          f['System.Title']        || null,
+              state:          f['System.State']        || null,
+              workItemType:   f['System.WorkItemType'] || null,
+              assignedTo:     typeof assigned === 'object'
+                                ? (assigned?.displayName || null)
+                                : (assigned || null),
+              levelOfUrgency: f['Custom.LevelofUrgency']  || null,
+              releaseDate:    f['Custom.ReleaseDate']      || null,
+              releaseVersion: f['Custom.ReleaseVersion']   || null,
+            };
+          });
+          console.log(`[Azure] Fetched batch ${i}–${i+batch.length}: ${Object.keys(azureMap).length} total mapped`);
+        } catch(e) {
+          console.error(`[Azure] Work Items API error (batch ${i}):`, e.message);
+        }
+      }
+    }
+
+    // 4. รวมข้อมูล DB + Azure แล้วส่งกลับ
     const result = parsed.map(r => ({
-      fu_id: r.id,
-      board_id: r.board_id,
-      board_name: r.board_name,
-      folder_id: r.folder_id,
+      fu_id:       r.id,
+      board_id:    r.board_id,
+      board_name:  r.board_name,
+      folder_id:   r.folder_id,
       folder_name: r.folder_name,
-      workItemId: r.workItemId,
-      project: r.project,
-      issue_url: r.issue_url,
-      ...(r.workItemId && azureMap[r.workItemId] ? azureMap[r.workItemId] : {
-        title: null, state: null, levelOfUrgency: null, assignedTo: null, releaseDate: null, releaseVersion: null
-      })
+      workItemId:  r.workItemId,
+      project:     r.project,
+      issue_url:   r.issue_url,
+      ...(r.workItemId && azureMap[r.workItemId]
+        ? azureMap[r.workItemId]
+        : { title: null, state: null, levelOfUrgency: null, workItemType: null,
+            assignedTo: null, releaseDate: null, releaseVersion: null }),
     }));
 
     res.json(result);
@@ -5437,7 +5505,7 @@ app.put('/api/specialist/:id', authRequired, async (request, res) => {
     }
     // Notify on status change
     if (b.status && b.status !== cur.status) {
-      const statusLabel = {pending:'รอดำเนินการ',in_progress:'กำลังดำเนินการ',assigned_to_programmer:'Assign to Programmer',resolved:'แก้ไขแล้ว',rejected:'ปฏิเสธ',cancelled:'ยกเลิก'};
+      const statusLabel = {pending:'รอดำเนินการ',in_progress:'กำลังดำเนินการ',need_more_info:'Need more information',assigned_to_programmer:'Assign to Programmer',resolved:'แก้ไขแล้ว',rejected:'ปฏิเสธ',cancelled:'ยกเลิก'};
       const uname = request.user.name || request.user.username;
       // Auto-close calllog when specialist marks resolved OR assigned_to_programmer
       if (['resolved','assigned_to_programmer'].includes(b.status) && getExtPool()) {
@@ -7241,6 +7309,193 @@ setInterval(() => {
   }
 }, 60000);
 
+// ── News / Announcements ─────────────────────────────────────────────────────
+async function ensureNewsTable() {
+  await getPool().request().query(`
+    IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name='news_posts')
+    CREATE TABLE news_posts (
+      id          INT PRIMARY KEY IDENTITY,
+      title       NVARCHAR(200) NOT NULL,
+      body        NVARCHAR(MAX) NOT NULL,
+      category    NVARCHAR(50)  DEFAULT N'ทั่วไป',
+      author_id   INT           NOT NULL,
+      author_name NVARCHAR(100) NOT NULL,
+      pinned      BIT           DEFAULT 0,
+      links       NVARCHAR(MAX) NULL,
+      created_at  DATETIME      DEFAULT GETDATE(),
+      updated_at  DATETIME      DEFAULT GETDATE()
+    )`);
+  // Add links column to existing tables that pre-date this migration
+  await getPool().request().query(`
+    IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('news_posts') AND name='links')
+      ALTER TABLE news_posts ADD links NVARCHAR(MAX) NULL`);
+  await getPool().request().query(`
+    IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name='news_attachments')
+    CREATE TABLE news_attachments (
+      id            INT PRIMARY KEY IDENTITY,
+      post_id       INT           NOT NULL,
+      filename      NVARCHAR(300) NOT NULL,
+      original_name NVARCHAR(300) NOT NULL,
+      file_size     INT,
+      mime_type     NVARCHAR(100),
+      created_by    INT,
+      created_at    DATETIME DEFAULT GETDATE()
+    )`);
+}
+
+app.get('/api/news', authRequired, async (req2, res) => {
+  try {
+    const rows = (await req().query(`
+      SELECT id, title, body, category, author_id, author_name, pinned, links,
+             created_at, updated_at,
+             CASE WHEN DATEDIFF(second, created_at, updated_at) > 60 THEN 1 ELSE 0 END AS is_edited
+      FROM news_posts
+      ORDER BY pinned DESC, created_at DESC`)).recordset;
+    if (rows.length) {
+      const ids = rows.map(r => parseInt(r.id)).join(',');
+      const atts = (await req().query(
+        `SELECT id,post_id,filename,original_name,file_size,mime_type FROM news_attachments WHERE post_id IN (${ids}) ORDER BY created_at`
+      )).recordset;
+      const byPost = {};
+      atts.forEach(a => { (byPost[a.post_id] = byPost[a.post_id]||[]).push(a); });
+      rows.forEach(r => {
+        r.attachments = byPost[r.id] || [];
+        try { r.links = r.links ? JSON.parse(r.links) : []; } catch { r.links = []; }
+      });
+    }
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/news', authRequired, leadRequired, async (request, res) => {
+  try {
+    const { title, body, category, links } = request.body;
+    if (!title || !body) return res.status(400).json({ error: 'title and body required' });
+    const u = request.user;
+    const linksJson = Array.isArray(links) ? JSON.stringify(links) : null;
+    const row = (await req()
+      .input('ti',  sql.NVarChar, String(title).slice(0,200))
+      .input('bo',  sql.NVarChar, String(body))
+      .input('ca',  sql.NVarChar, String(category||'ทั่วไป').slice(0,50))
+      .input('uid', sql.Int,      u.id)
+      .input('un',  sql.NVarChar, String(u.name||u.username||'').slice(0,100))
+      .input('lk',  sql.NVarChar, linksJson)
+      .query(`INSERT INTO news_posts (title,body,category,author_id,author_name,links)
+              OUTPUT INSERTED.id,INSERTED.title,INSERTED.body,INSERTED.category,
+                     INSERTED.author_id,INSERTED.author_name,INSERTED.pinned,
+                     INSERTED.links,INSERTED.created_at,INSERTED.updated_at
+              VALUES (@ti,@bo,@ca,@uid,@un,@lk)`)).recordset[0];
+    try { row.links = row.links ? JSON.parse(row.links) : []; } catch { row.links = []; }
+    row.attachments = [];
+    res.json(row);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/news/:id', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const u  = request.user;
+    const isLead = ['team_lead','manager','admin'].includes(u.role);
+    const ex = (await req().input('id', sql.Int, id)
+      .query('SELECT author_id FROM news_posts WHERE id=@id')).recordset[0];
+    if (!ex) return res.status(404).json({ error: 'Not found' });
+    if (!isLead && ex.author_id !== u.id)
+      return res.status(403).json({ error: 'Access denied' });
+    const { title, body, category, links } = request.body;
+    const linksJson = Array.isArray(links) ? JSON.stringify(links) : null;
+    await req()
+      .input('id', sql.Int,      id)
+      .input('ti', sql.NVarChar, String(title).slice(0,200))
+      .input('bo', sql.NVarChar, String(body))
+      .input('ca', sql.NVarChar, String(category||'ทั่วไป').slice(0,50))
+      .input('lk', sql.NVarChar, linksJson)
+      .query(`UPDATE news_posts SET title=@ti,body=@bo,category=@ca,links=@lk,updated_at=GETDATE() WHERE id=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/news/:id', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const u  = request.user;
+    const isLead = ['team_lead','manager','admin'].includes(u.role);
+    const ex = (await req().input('id', sql.Int, id)
+      .query('SELECT author_id FROM news_posts WHERE id=@id')).recordset[0];
+    if (!ex) return res.status(404).json({ error: 'Not found' });
+    if (!isLead && ex.author_id !== u.id)
+      return res.status(403).json({ error: 'Access denied' });
+    // Delete attachment files from disk
+    const atts = (await req().input('id', sql.Int, id)
+      .query('SELECT filename FROM news_attachments WHERE post_id=@id')).recordset;
+    for (const a of atts) {
+      const fp = path.join(UPLOAD_DIR, 'news', String(id), a.filename);
+      try { if (fs.existsSync(fp)) fs.unlinkSync(fp); } catch {}
+    }
+    await req().input('id', sql.Int, id).query('DELETE FROM news_attachments WHERE post_id=@id');
+    await req().input('id', sql.Int, id).query('DELETE FROM news_posts WHERE id=@id');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/news/:id/pin', authRequired, leadRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    await req().input('id', sql.Int, id)
+      .query('UPDATE news_posts SET pinned=CASE WHEN pinned=1 THEN 0 ELSE 1 END WHERE id=@id');
+    const row = (await req().input('id', sql.Int, id)
+      .query('SELECT pinned FROM news_posts WHERE id=@id')).recordset[0];
+    res.json({ pinned: row?.pinned || 0 });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/news/:id/attachments', authRequired, async (request, res) => {
+  try {
+    const rows = (await req().input('id', sql.Int, parseInt(request.params.id))
+      .query(`SELECT id,post_id,filename,original_name,file_size,mime_type,created_at
+              FROM news_attachments WHERE post_id=@id ORDER BY created_at`)).recordset;
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/news/:id/attachments', authRequired, newsUpload.array('files', 10), async (request, res) => {
+  try {
+    const postId = parseInt(request.params.id);
+    const files  = request.files || [];
+    const inserted = [];
+    for (const f of files) {
+      const r = (await req()
+        .input('pid', sql.Int,      postId)
+        .input('fn',  sql.NVarChar, f.filename)
+        .input('on',  sql.NVarChar, f.originalname)
+        .input('fs',  sql.Int,      f.size)
+        .input('mt',  sql.NVarChar, f.mimetype)
+        .input('cb',  sql.Int,      request.user.id)
+        .query(`INSERT INTO news_attachments(post_id,filename,original_name,file_size,mime_type,created_by)
+                OUTPUT INSERTED.id,INSERTED.post_id,INSERTED.filename,INSERTED.original_name,INSERTED.file_size,INSERTED.mime_type
+                VALUES(@pid,@fn,@on,@fs,@mt,@cb)`)).recordset[0];
+      inserted.push(r);
+    }
+    res.json({ ok: true, files: inserted });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/news/attachments/:id', authRequired, async (request, res) => {
+  try {
+    const id  = parseInt(request.params.id);
+    const u   = request.user;
+    const row = (await req().input('id', sql.Int, id)
+      .query('SELECT na.*, np.author_id AS post_author FROM news_attachments na JOIN news_posts np ON np.id=na.post_id WHERE na.id=@id')).recordset[0];
+    if (!row) return res.status(404).json({ error: 'Not found' });
+    const isLead = ['team_lead','manager','admin'].includes(u.role);
+    if (!isLead && row.post_author !== u.id)
+      return res.status(403).json({ error: 'Access denied' });
+    const fp = path.join(UPLOAD_DIR, 'news', String(row.post_id), row.filename);
+    try { if (fs.existsSync(fp)) fs.unlinkSync(fp); } catch {}
+    await req().input('id', sql.Int, id).query('DELETE FROM news_attachments WHERE id=@id');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 init().then(async () => {
   // Drop hardcoded team CHECK constraint so dynamic teams work
   try {
@@ -7272,6 +7527,7 @@ init().then(async () => {
   await ensureServiceProjectsTable();
   await ensureServiceAttachmentsTable();
   await ensureSwUpdateTable();
+  await ensureNewsTable();
   await fixGarbledServiceAttachmentNames();
 
   // Drop CHECK constraint on shifts.shift_type so 'dayoff' can be inserted

@@ -558,6 +558,12 @@ textarea{resize:vertical;min-height:80px}
       <svg class="s-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
       ประเมินทีม
     </button>
+    <!-- 8. ข่าวสาร -->
+    <button class="s-tab" id="nav-btn-news" onclick="showPage('news',this)">
+      <svg class="s-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
+      ข่าวสาร
+      <span id="news-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.62rem;padding:.02rem .38rem;font-weight:700"></span>
+    </button>
     <!-- 7. ร้องเรียน -->
     <button class="s-tab" id="nav-btn-complaints" onclick="showPage('complaints',this)" style="display:none">
       <svg class="s-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
@@ -2950,6 +2956,38 @@ textarea{resize:vertical;min-height:80px}
   </div>
 </div>
 
+<!-- ═══════════════════ PAGE: NEWS / ANNOUNCEMENTS ═══════════════════ -->
+<div id="page-news" class="page">
+  <div class="section-header" style="margin-bottom:.65rem">
+    <div class="section-title">📢 ข่าวสาร</div>
+    <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-primary btn-sm" id="news-create-btn" onclick="openNewsModal(null)" style="display:none">+ สร้างประกาศ</button>
+      <button class="btn btn-ghost btn-sm" onclick="loadNews()">🔄 รีเฟรช</button>
+    </div>
+  </div>
+
+  <!-- Filter bar -->
+  <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.75rem">
+    <input id="news-search" type="text" placeholder="🔍 ค้นหาข่าวสาร..."
+           oninput="newsRender()"
+           style="border:1px solid var(--border);border-radius:8px;padding:.38rem .75rem;font-size:.83rem;min-width:200px;outline:none;flex:1"/>
+    <select id="news-filter-cat" onchange="newsRender()"
+      style="border:1px solid var(--border);border-radius:8px;padding:.38rem .65rem;font-size:.83rem;font-family:inherit;outline:none;background:#fff">
+      <option value="">ทุกหมวด</option>
+      <option value="ทั่วไป">💬 ทั่วไป</option>
+      <option value="งานด่วน">🚨 งานด่วน</option>
+      <option value="อัพเดทระบบ">⚙️ อัพเดทระบบ</option>
+      <option value="HR">👥 HR</option>
+      <option value="อื่นๆ">📌 อื่นๆ</option>
+    </select>
+  </div>
+
+  <!-- News list -->
+  <div id="news-list">
+    <div style="text-align:center;color:var(--muted);padding:2rem;font-size:.9rem">กำลังโหลด...</div>
+  </div>
+</div>
+
 </main>
 
 <!-- ══════════ REPAIR MODALS ══════════ -->
@@ -3861,7 +3899,7 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 
 // click outside to close
 // Modals ที่ห้ามปิดเมื่อกด outside (ข้อมูลอาจหาย)
-const NO_BACKDROP_CLOSE = new Set(['modal-repair-link','modal-repair-form','modal-repair-detail','modal-person','modal-create-case','modal-edit-ticket-full','modal-specialist-detail','modal-assign-specialist','modal-add-sp','modal-edit-sp','modal-si-entry','modal-si-import','modal-fu-add-issue','modal-sk-entry','modal-sw-update-form','modal-tk-import']);
+const NO_BACKDROP_CLOSE = new Set(['modal-repair-link','modal-repair-form','modal-repair-detail','modal-person','modal-create-case','modal-edit-ticket-full','modal-specialist-detail','modal-assign-specialist','modal-add-sp','modal-edit-sp','modal-si-entry','modal-si-import','modal-fu-add-issue','modal-sk-entry','modal-sw-update-form','modal-tk-import','modal-news-form']);
 
 document.querySelectorAll('.overlay').forEach(el => {
   el.addEventListener('click', e => {
@@ -3910,6 +3948,7 @@ function showPage(name, btn) {
   }
   if (name === 'shopinfo') { loadShopInfo(); }
   if (name === 'sw-update') { loadSwUpdate(); }
+  if (name === 'news') { loadNews(); }
 }
 
 // ══════════════════════════════════════════════════════════
@@ -6350,6 +6389,8 @@ function applyUserContext() {
   const subjectsSub = document.getElementById('nav-sub-subjects');
   if (subjectsSub) subjectsSub.style.display = isManager ? '' : 'none';
   document.getElementById('nav-btn-complaints').style.display = isLead ? '' : 'none';
+  const newsCreateBtn = document.getElementById('news-create-btn');
+  if (newsCreateBtn) newsCreateBtn.style.display = isLead ? '' : 'none';
   if (isLead) {
     loadComplaintsBadge();
     pollRepairMessages();
@@ -6433,6 +6474,7 @@ async function tryAutoLogin() {
     loadTarget();
     loadDashboard();
     loadDashboardCharts();
+    loadNewsBadge();
     setInterval(updateClock, 1000);
   } catch(e) { console.error('[init] data load error (auth OK):', e); }
 }
@@ -6470,6 +6512,7 @@ async function doLogin() {
     loadTarget();
     loadDashboard();
     loadDashboardCharts();
+    loadNewsBadge();
   } catch (e) {
     errEl.textContent = 'ไม่สามารถเชื่อมต่อ server ได้';
     errEl.classList.add('show');
@@ -8473,8 +8516,8 @@ function resetCreateCase() {
 // ══════════════════════════════════════════════════════════
 //  SPECIALIST
 // ══════════════════════════════════════════════════════════
-const SP_STATUS = { pending:'⏳ รอดำเนินการ', in_progress:'🔄 กำลังดำเนินการ', assigned_to_programmer:'💻 Assign to Programmer', resolved:'✅ แก้ไขแล้ว', rejected:'❌ ปฏิเสธ', cancelled:'🚫 ยกเลิก' };
-const SP_STATUS_COLOR = { pending:'#fef3c7|#92400e', in_progress:'#dbeafe|#1d4ed8', assigned_to_programmer:'#f0f9ff|#0369a1', resolved:'#dcfce7|#15803d', rejected:'#fee2e2|#b91c1c', cancelled:'#f1f5f9|#475569' };
+const SP_STATUS = { pending:'⏳ รอดำเนินการ', in_progress:'🔄 กำลังดำเนินการ', need_more_info:'❓ Need more information', assigned_to_programmer:'💻 Assign to Programmer', resolved:'✅ แก้ไขแล้ว', rejected:'❌ ปฏิเสธ', cancelled:'🚫 ยกเลิก' };
+const SP_STATUS_COLOR = { pending:'#fef3c7|#92400e', in_progress:'#dbeafe|#1d4ed8', need_more_info:'#f3e8ff|#7c3aed', assigned_to_programmer:'#f0f9ff|#0369a1', resolved:'#dcfce7|#15803d', rejected:'#fee2e2|#b91c1c', cancelled:'#f1f5f9|#475569' };
 const SP_PRIORITY = { urgent:'🔴 Urgent', high:'🟠 High', normal:'🟡 Normal', low:'🟢 Low' };
 let _spSearchTimer = null;
 let _allSpecialist = [];
@@ -9843,18 +9886,22 @@ async function fuLoadAzureItems() {
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:.78rem;table-layout:fixed">
         <colgroup>
-          <col style="width:110px">
-          <col style="width:70px">
-          <col style="width:30%">
-          <col style="width:110px">
-          <col style="width:120px">
           <col style="width:100px">
-          <col style="width:110px">
+          <col style="width:52px">
+          <col style="width:62px">
+          <col style="width:26%">
+          <col style="width:95px">
+          <col style="width:105px">
+          <col style="width:100px">
+          <col style="width:85px">
+          <col style="width:95px">
         </colgroup>
         <thead><tr style="background:#f8fafc;border-bottom:1px solid #e2e8f0">
           <th style="padding:.35rem .6rem;text-align:left;color:#64748b;font-weight:600;font-size:.72rem">Level of Urgency</th>
-          <th style="padding:.35rem .6rem;text-align:left;color:#64748b;font-weight:600;font-size:.72rem">Work Item ID</th>
+          <th style="padding:.35rem .6rem;text-align:left;color:#64748b;font-weight:600;font-size:.72rem">FU #</th>
+          <th style="padding:.35rem .6rem;text-align:left;color:#64748b;font-weight:600;font-size:.72rem">Work Item</th>
           <th style="padding:.35rem .6rem;text-align:left;color:#64748b;font-weight:600;font-size:.72rem">Title</th>
+          <th style="padding:.35rem .6rem;text-align:left;color:#64748b;font-weight:600;font-size:.72rem">Work Item Type</th>
           <th style="padding:.35rem .6rem;text-align:left;color:#64748b;font-weight:600;font-size:.72rem">State</th>
           <th style="padding:.35rem .6rem;text-align:left;color:#64748b;font-weight:600;font-size:.72rem">Assigned To</th>
           <th style="padding:.35rem .6rem;text-align:left;color:#64748b;font-weight:600;font-size:.72rem">Release Date</th>
@@ -9864,17 +9911,23 @@ async function fuLoadAzureItems() {
     group.items.forEach((item, idx) => {
       const rowBg = idx % 2 ? '#fafafa' : '#fff';
       const url = item.issue_url || '';
-      const onRowClick = url ? `window.open(${JSON.stringify(url)},'_blank')` : '';
-      html += `<tr style="border-top:1px solid #f1f5f9;background:${rowBg};cursor:${url?'pointer':'default'}"
-          onclick="${onRowClick}"
+      html += `<tr style="border-top:1px solid #f1f5f9;background:${rowBg};cursor:pointer"
+          onclick="fuAzureOpenPanel(${item.fu_id})"
           onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background='${rowBg}'">
         <td style="padding:.35rem .6rem;vertical-align:middle">${urgencyBadge(item.levelOfUrgency)}</td>
         <td style="padding:.35rem .6rem;vertical-align:middle;white-space:nowrap">
-          ${url ? `<a href="${esc(url)}" target="_blank" onclick="event.stopPropagation()" style="color:#1d4ed8;font-weight:700;text-decoration:none">${item.workItemId||'—'}</a>` : (item.workItemId||'—')}
+          <button onclick="event.stopPropagation();fuAzureOpenPanel(${item.fu_id})"
+            style="font-family:monospace;font-size:.73rem;font-weight:700;color:#1d4ed8;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:.13rem .4rem;cursor:pointer;transition:all .15s"
+            onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background='#eff6ff'">#${item.fu_id}</button>
+        </td>
+        <td style="padding:.35rem .6rem;vertical-align:middle;white-space:nowrap">
+          ${url ? `<a href="${esc(url)}" target="_blank" onclick="event.stopPropagation()" style="color:#1d4ed8;font-weight:700;text-decoration:none;font-size:.74rem"
+            title="เปิดใน Azure DevOps">${item.workItemId||'—'} <span style="font-size:.6rem;opacity:.6">↗</span></a>` : `<span style="color:#94a3b8">${item.workItemId||'—'}</span>`}
         </td>
         <td style="padding:.35rem .6rem;vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(item.title||'')}">
           <span style="color:#1e293b;font-weight:600">${esc(item.title||'(ไม่มีชื่อ)')}</span>
         </td>
+        <td style="padding:.35rem .6rem;vertical-align:middle;font-size:.73rem;color:#475569;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(item.workItemType||'—')}</td>
         <td style="padding:.35rem .6rem;vertical-align:middle">${stateBadge(item.state)}</td>
         <td style="padding:.35rem .6rem;vertical-align:middle;font-size:.73rem;color:#475569;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(item.assignedTo||'—')}</td>
         <td style="padding:.35rem .6rem;vertical-align:middle;font-size:.73rem;color:#475569;white-space:nowrap">${fmtDate(item.releaseDate)}</td>
@@ -9886,6 +9939,18 @@ async function fuLoadAzureItems() {
   });
 
   body.innerHTML = html;
+}
+
+// ── Open fu-panel as modal from Azure Issues tab ───────────
+async function fuAzureOpenPanel(fuId) {
+  // Fetch full issue details
+  const issue = await api(`/api/fu/issues/${fuId}`);
+  if (!issue || issue.error) {
+    alert('โหลดข้อมูล Follow-up ไม่ได้');
+    return;
+  }
+  // Re-use existing modal mechanism (originally for Tab 3)
+  fuOpenPanelModal(issue);
 }
 
 let _fuSummaryCache = null; // { status:{}, stale:{} }
@@ -15348,6 +15413,287 @@ async function swuUpdateBadge() {
   } catch {}
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  NEWS / ANNOUNCEMENTS
+// ═══════════════════════════════════════════════════════════════
+let _newsData = [];
+let _newsModalLinks = [];      // [{url, label}]
+let _newsModalFiles = [];      // pending File objects
+let _newsModalExisting = [];   // existing news_attachments on edit
+
+async function loadNews() {
+  const list = document.getElementById('news-list');
+  if (!list) return;
+  list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-size:.9rem">กำลังโหลด...</div>';
+  const data = await api('/api/news', { silent: true });
+  if (!data || data.error) {
+    list.innerHTML = '<div style="text-align:center;color:#ef4444;padding:2rem">โหลดไม่สำเร็จ</div>';
+    return;
+  }
+  _newsData = Array.isArray(data) ? data : [];
+  localStorage.setItem('news_last_read', new Date().toISOString());
+  const badge = document.getElementById('news-badge');
+  if (badge) { badge.style.display = 'none'; badge.textContent = ''; }
+  newsRender();
+}
+
+function newsRender() {
+  const q    = (document.getElementById('news-search')?.value || '').toLowerCase();
+  const cat  = document.getElementById('news-filter-cat')?.value || '';
+  const list = document.getElementById('news-list');
+  if (!list) return;
+
+  const items = _newsData.filter(n => {
+    if (cat && n.category !== cat) return false;
+    if (q && !n.title.toLowerCase().includes(q) && !(n.body||'').toLowerCase().includes(q)) return false;
+    return true;
+  });
+
+  if (!items.length) {
+    list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:3rem;font-size:.9rem">ไม่มีข่าวสาร</div>';
+    return;
+  }
+
+  const isLead = isLeadRole();
+  const uid    = currentUser?.id;
+  const catColor = { 'งานด่วน':'#ef4444','อัพเดทระบบ':'#2563eb','HR':'#8b5cf6','ทั่วไป':'#64748b','อื่นๆ':'#f97316' };
+  const catEmoji = { 'งานด่วน':'🚨','อัพเดทระบบ':'⚙️','HR':'👥','ทั่วไป':'💬','อื่นๆ':'📌' };
+
+  list.innerHTML = items.map(n => {
+    const color   = catColor[n.category] || '#64748b';
+    const emoji   = catEmoji[n.category] || '💬';
+    const canEdit = isLead || n.author_id === uid;
+    const dt      = new Date(n.created_at).toLocaleDateString('th-TH', {day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    const hasMore = (n.body||'').length > 220;
+    const preview = hasMore ? escHtml((n.body||'').slice(0,220)) + '...' : '';
+    const fullHtml = escHtml(n.body||'').replace(/\n/g,'<br>');
+
+    // Attachments section
+    const atts = n.attachments || [];
+    const imgs  = atts.filter(a => /\.(jpg|jpeg|png|gif|webp)$/i.test(a.filename));
+    const files = atts.filter(a => !/\.(jpg|jpeg|png|gif|webp)$/i.test(a.filename));
+    let attHtml = '';
+    if (imgs.length) {
+      attHtml += `<div style="display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.4rem">
+        ${imgs.map(a => `<a href="/uploads/news/${n.id}/${a.filename}" target="_blank" rel="noopener">
+          <img src="/uploads/news/${n.id}/${a.filename}" title="${escHtml(a.original_name)}"
+               style="width:70px;height:70px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0;cursor:pointer"/></a>`).join('')}
+      </div>`;
+    }
+    if (files.length) {
+      attHtml += `<div style="display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.35rem">
+        ${files.map(a => {
+          const kb = a.file_size ? Math.round(a.file_size/1024) : '?';
+          return `<a href="/uploads/news/${n.id}/${a.filename}" target="_blank" rel="noopener"
+            style="display:inline-flex;align-items:center;gap:.25rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:.2rem .5rem;font-size:.75rem;color:#334155;text-decoration:none">
+            📄 ${escHtml(a.original_name)} <span style="color:#94a3b8">${kb}KB</span></a>`;
+        }).join('')}
+      </div>`;
+    }
+
+    // Links section
+    const links = n.links || [];
+    const linksHtml = links.length
+      ? `<div style="display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.4rem">
+          ${links.map(l => `<a href="${escHtml(l.url)}" target="_blank" rel="noopener noreferrer"
+            style="display:inline-flex;align-items:center;gap:.2rem;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:6px;padding:.2rem .5rem;font-size:.75rem;text-decoration:none">
+            🔗 ${escHtml(l.label||l.url)}</a>`).join('')}
+        </div>` : '';
+
+    return `<div class="card" style="margin-bottom:.65rem;border-left:3px solid ${color};${n.pinned?'background:#fffbeb;':''}">
+  <div style="display:flex;align-items:flex-start;gap:.5rem;flex-wrap:wrap">
+    <div style="flex:1;min-width:0">
+      ${n.pinned?'<span style="font-size:.65rem;font-weight:700;color:#d97706;background:#fef3c7;border-radius:4px;padding:.08rem .35rem;margin-right:.3rem">📌 ปักหมุด</span>':''}
+      <span style="font-size:.65rem;font-weight:700;color:#fff;background:${color};border-radius:4px;padding:.08rem .35rem">${emoji} ${escHtml(n.category)}</span>
+      <div style="font-size:.95rem;font-weight:700;color:#1e293b;margin-top:.3rem;line-height:1.3">${escHtml(n.title)}</div>
+    </div>
+    ${canEdit?`<div style="display:flex;gap:.25rem;flex-shrink:0">
+      ${isLead?`<button class="btn btn-ghost btn-sm" style="padding:.18rem .45rem;font-size:.7rem" onclick="toggleNewsPin(${n.id})" title="${n.pinned?'เอาออกจากปักหมุด':'ปักหมุด'}">${n.pinned?'📌':'📍'}</button>`:''}
+      <button class="btn btn-ghost btn-sm" style="padding:.18rem .45rem;font-size:.7rem" onclick="openNewsModal(${n.id})">✏️</button>
+      <button class="btn btn-ghost btn-sm" style="padding:.18rem .45rem;font-size:.7rem;color:#ef4444" onclick="deleteNews(${n.id})">🗑️</button>
+    </div>`:''}
+  </div>
+  <div style="margin-top:.5rem;font-size:.83rem;color:#374151;line-height:1.6">
+    ${hasMore
+      ? `<span id="news-prev-${n.id}">${preview}</span><button style="background:none;border:none;color:#2563eb;cursor:pointer;font-size:.78rem;padding:0 0 0 .25rem;font-family:inherit" onclick="newsExpand(${n.id},this)">อ่านต่อ</button><div id="news-full-${n.id}" style="display:none">${fullHtml}</div>`
+      : fullHtml}
+  </div>
+  ${attHtml}${linksHtml}
+  <div style="margin-top:.45rem;font-size:.73rem;color:var(--muted);display:flex;gap:.75rem;flex-wrap:wrap">
+    <span>👤 ${escHtml(n.author_name)}</span>
+    <span>🕐 ${dt}</span>
+    ${n.is_edited?'<span style="color:#94a3b8">(แก้ไขแล้ว)</span>':''}
+  </div>
+</div>`;
+  }).join('');
+}
+
+function newsExpand(id, btn) {
+  const prev = document.getElementById(`news-prev-${id}`);
+  const full = document.getElementById(`news-full-${id}`);
+  if (!full) return;
+  const open = full.style.display !== 'none';
+  full.style.display = open ? 'none' : '';
+  if (prev) prev.style.display = open ? '' : 'none';
+  if (btn)  btn.textContent    = open ? 'อ่านต่อ' : 'ย่อ';
+}
+
+async function toggleNewsPin(id) {
+  const r = await api(`/api/news/${id}/pin`, { method: 'PUT' });
+  if (r && r.pinned !== undefined) loadNews();
+}
+
+async function deleteNews(id) {
+  if (!confirm('ลบข่าวสารนี้?')) return;
+  await api(`/api/news/${id}`, { method: 'DELETE', silent: true });
+  loadNews();
+}
+
+// ── Modal: open ──────────────────────────────────────────
+function openNewsModal(id) {
+  const n = id ? _newsData.find(x => x.id === id) : null;
+  _newsModalLinks   = n?.links        ? n.links.map(l => ({...l})) : [];
+  _newsModalFiles   = [];
+  _newsModalExisting = n?.attachments ? [...n.attachments] : [];
+
+  document.getElementById('news-modal-id').value    = id || '';
+  document.getElementById('news-modal-title').value = n?.title    || '';
+  document.getElementById('news-modal-body').value  = n?.body     || '';
+  document.getElementById('news-modal-cat').value   = n?.category || 'ทั่วไป';
+  document.getElementById('news-link-url').value    = '';
+  document.getElementById('news-link-label').value  = '';
+  document.getElementById('news-modal-head').textContent = id ? '✏️ แก้ไขประกาศ' : '📢 สร้างประกาศใหม่';
+  newsRenderModalLinks();
+  newsRenderModalFiles();
+  openModal('modal-news-form');
+}
+
+// ── Modal: links ─────────────────────────────────────────
+function newsAddModalLink() {
+  const url   = document.getElementById('news-link-url').value.trim();
+  const label = document.getElementById('news-link-label').value.trim();
+  if (!url) return;
+  _newsModalLinks.push({ url, label: label || url });
+  document.getElementById('news-link-url').value   = '';
+  document.getElementById('news-link-label').value = '';
+  newsRenderModalLinks();
+}
+
+function newsRemoveModalLink(idx) {
+  _newsModalLinks.splice(idx, 1);
+  newsRenderModalLinks();
+}
+
+function newsRenderModalLinks() {
+  const el = document.getElementById('news-modal-links-list');
+  if (!el) return;
+  el.innerHTML = _newsModalLinks.length
+    ? _newsModalLinks.map((l, i) => `
+      <div style="display:flex;align-items:center;gap:.4rem;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:.28rem .55rem;font-size:.78rem;margin-bottom:.3rem">
+        <span>🔗</span>
+        <a href="${escHtml(l.url)}" target="_blank" rel="noopener"
+           style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#1d4ed8;text-decoration:none">${escHtml(l.label||l.url)}</a>
+        <button style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:.95rem;padding:0;line-height:1;flex-shrink:0" onclick="newsRemoveModalLink(${i})">×</button>
+      </div>`).join('')
+    : '<div style="color:#94a3b8;font-size:.75rem">ยังไม่มีลิงค์</div>';
+}
+
+// ── Modal: files ─────────────────────────────────────────
+function newsModalPickFiles(input) {
+  for (const f of input.files) _newsModalFiles.push(f);
+  input.value = '';
+  newsRenderModalFiles();
+}
+
+function newsModalRemovePending(idx) {
+  _newsModalFiles.splice(idx, 1);
+  newsRenderModalFiles();
+}
+
+async function newsModalDeleteExisting(aid) {
+  if (!confirm('ลบไฟล์นี้?')) return;
+  await api(`/api/news/attachments/${aid}`, { method: 'DELETE', silent: true });
+  _newsModalExisting = _newsModalExisting.filter(a => a.id !== aid);
+  newsRenderModalFiles();
+}
+
+function newsRenderModalFiles() {
+  const el = document.getElementById('news-modal-files-list');
+  if (!el) return;
+  let html = '';
+  const postId = document.getElementById('news-modal-id').value;
+  // existing files
+  for (const a of _newsModalExisting) {
+    const isImg = /\.(jpg|jpeg|png|gif|webp)$/i.test(a.filename);
+    const url   = `/uploads/news/${postId}/${a.filename}`;
+    const kb    = a.file_size ? Math.round(a.file_size/1024) : '?';
+    html += `<div style="display:flex;align-items:center;gap:.4rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:.28rem .55rem;font-size:.78rem;margin-bottom:.3rem">
+      ${isImg?`<img src="${url}" style="width:32px;height:32px;object-fit:cover;border-radius:4px;flex-shrink:0"/>`:'<span style="font-size:.9rem;flex-shrink:0">📄</span>'}
+      <a href="${url}" target="_blank" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#334155;text-decoration:none">${escHtml(a.original_name)}</a>
+      <span style="color:#94a3b8;font-size:.7rem;white-space:nowrap;flex-shrink:0">${kb}KB</span>
+      <button style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:.95rem;padding:0;line-height:1;flex-shrink:0" onclick="newsModalDeleteExisting(${a.id})">×</button>
+    </div>`;
+  }
+  // pending files
+  _newsModalFiles.forEach((f, i) => {
+    html += `<div style="display:flex;align-items:center;gap:.4rem;background:#fefce8;border:1px solid #fde68a;border-radius:6px;padding:.28rem .55rem;font-size:.78rem;margin-bottom:.3rem">
+      <span style="font-size:.9rem;flex-shrink:0">📎</span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#92400e">${escHtml(f.name)}</span>
+      <span style="color:#b45309;font-size:.7rem;white-space:nowrap;flex-shrink:0">รอบันทึก</span>
+      <button style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:.95rem;padding:0;line-height:1;flex-shrink:0" onclick="newsModalRemovePending(${i})">×</button>
+    </div>`;
+  });
+  el.innerHTML = html || '<div style="color:#94a3b8;font-size:.75rem">ยังไม่มีไฟล์แนบ</div>';
+}
+
+// ── Save ─────────────────────────────────────────────────
+async function saveNewsForm() {
+  const id    = document.getElementById('news-modal-id').value;
+  const title = document.getElementById('news-modal-title').value.trim();
+  const body  = document.getElementById('news-modal-body').value.trim();
+  const cat   = document.getElementById('news-modal-cat').value;
+  if (!title || !body) { alert('กรุณากรอกหัวข้อและเนื้อหา'); return; }
+
+  let postId = id;
+  if (id) {
+    await api(`/api/news/${id}`, { method: 'PUT', body: { title, body, category: cat, links: _newsModalLinks } });
+  } else {
+    const r = await api('/api/news', { method: 'POST', body: { title, body, category: cat, links: _newsModalLinks } });
+    postId = r?.id;
+  }
+
+  // Upload pending files
+  if (postId && _newsModalFiles.length > 0) {
+    const fd = new FormData();
+    for (const f of _newsModalFiles) fd.append('files', f);
+    const headers = {};
+    if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
+    try {
+      await fetch(`/api/news/${postId}/attachments`, { method: 'POST', headers, body: fd });
+    } catch(e) { console.warn('news file upload error:', e); }
+  }
+
+  _newsModalFiles = [];
+  closeModal('modal-news-form');
+  loadNews();
+}
+
+async function loadNewsBadge() {
+  try {
+    const data = await api('/api/news', { silent: true });
+    if (!Array.isArray(data) || !data.length) return;
+    const lastRead = localStorage.getItem('news_last_read');
+    const count = lastRead
+      ? data.filter(n => new Date(n.created_at) > new Date(lastRead)).length
+      : data.length;
+    const badge = document.getElementById('news-badge');
+    if (badge) {
+      if (count > 0) { badge.textContent = count > 9 ? '9+' : String(count); badge.style.display = ''; }
+      else badge.style.display = 'none';
+    }
+  } catch {}
+}
+
 </script>
 
 <!-- ══════════ SHOP INFO MODAL ══════════ -->
@@ -15653,6 +15999,76 @@ async function swuUpdateBadge() {
     <div class="btn-group">
       <button class="btn btn-primary" onclick="saveSwUpdateForm()">💾 บันทึก</button>
       <button class="btn btn-ghost" onclick="closeModal('modal-sw-update-form')">ยกเลิก</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ NEWS FORM MODAL ══════════ -->
+<div class="overlay" id="modal-news-form">
+  <div class="modal" style="max-width:600px;width:100%;padding:1.25rem;max-height:92vh;overflow-y:auto">
+    <div class="modal-title" style="margin-bottom:1rem">
+      <span id="news-modal-head">📢 สร้างประกาศใหม่</span>
+      <button class="modal-close" onclick="closeModal('modal-news-form')">×</button>
+    </div>
+    <input type="hidden" id="news-modal-id"/>
+
+    <!-- หัวข้อ -->
+    <div style="margin-bottom:.65rem">
+      <label style="font-size:.75rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">หัวข้อ *</label>
+      <input id="news-modal-title" type="text" placeholder="หัวข้อประกาศ..."
+             style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.38rem .65rem;font-size:.87rem;font-family:inherit;outline:none;box-sizing:border-box"/>
+    </div>
+
+    <!-- หมวดหมู่ -->
+    <div style="margin-bottom:.65rem">
+      <label style="font-size:.75rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">หมวดหมู่</label>
+      <select id="news-modal-cat"
+        style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.38rem .65rem;font-size:.85rem;font-family:inherit;outline:none;background:#fff">
+        <option value="ทั่วไป">💬 ทั่วไป</option>
+        <option value="งานด่วน">🚨 งานด่วน</option>
+        <option value="อัพเดทระบบ">⚙️ อัพเดทระบบ</option>
+        <option value="HR">👥 HR</option>
+        <option value="อื่นๆ">📌 อื่นๆ</option>
+      </select>
+    </div>
+
+    <!-- เนื้อหา -->
+    <div style="margin-bottom:.65rem">
+      <label style="font-size:.75rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">เนื้อหา *</label>
+      <textarea id="news-modal-body" rows="5" placeholder="เขียนเนื้อหาประกาศ..."
+        style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.38rem .65rem;font-size:.85rem;font-family:inherit;outline:none;resize:vertical;box-sizing:border-box"></textarea>
+    </div>
+
+    <!-- ลิงค์ URL -->
+    <div style="margin-bottom:.65rem">
+      <label style="font-size:.75rem;font-weight:600;color:#475569;display:block;margin-bottom:.35rem">🔗 ลิงค์ URL</label>
+      <div style="display:flex;gap:.4rem;margin-bottom:.35rem;flex-wrap:wrap">
+        <input id="news-link-url" type="url" placeholder="https://..."
+               style="flex:2;min-width:140px;border:1px solid var(--border);border-radius:7px;padding:.32rem .6rem;font-size:.82rem;font-family:inherit;outline:none"/>
+        <input id="news-link-label" type="text" placeholder="ชื่อลิงค์ (ถ้าไม่ใส่จะใช้ URL)"
+               style="flex:2;min-width:120px;border:1px solid var(--border);border-radius:7px;padding:.32rem .6rem;font-size:.82rem;font-family:inherit;outline:none"/>
+        <button class="btn btn-ghost btn-sm" onclick="newsAddModalLink()" style="flex-shrink:0">+ เพิ่ม</button>
+      </div>
+      <div id="news-modal-links-list"></div>
+    </div>
+
+    <!-- ไฟล์แนบ -->
+    <div style="margin-bottom:.75rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.35rem">
+        <label style="font-size:.75rem;font-weight:600;color:#475569">📎 ไฟล์แนบ</label>
+        <label class="btn btn-ghost btn-sm" style="cursor:pointer;margin:0">
+          + แนบไฟล์
+          <input type="file" id="news-modal-file-input" multiple
+                 accept="image/*,.pdf,.doc,.docx,.xlsx,.xls"
+                 style="display:none" onchange="newsModalPickFiles(this)"/>
+        </label>
+      </div>
+      <div id="news-modal-files-list"></div>
+    </div>
+
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="saveNewsForm()">💾 บันทึก</button>
+      <button class="btn btn-ghost" onclick="closeModal('modal-news-form')">ยกเลิก</button>
     </div>
   </div>
 </div>
