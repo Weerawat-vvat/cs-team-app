@@ -212,14 +212,18 @@ async function ensureLineNotifyTable() {
         name NVARCHAR(100) NOT NULL,
         group_id NVARCHAR(100) NOT NULL,
         events NVARCHAR(500) NULL,
+        serve_types NVARCHAR(500) NULL,
         active BIT DEFAULT 1,
         created_at DATETIME DEFAULT GETDATE()
       );
+    IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('line_notify_targets') AND name='serve_types')
+      ALTER TABLE line_notify_targets ADD serve_types NVARCHAR(500) NULL;
   `);
 }
 
 // ── Notification helpers ──────────────────────────────────
-async function sendLineNotify(message, eventType = null) {
+// opts: { serveType?: string }  — used to filter targets by serve_types when event=service_request
+async function sendLineNotify(message, eventType = null, opts = {}) {
   try {
     // Read channel token: DB first, fallback to env
     let token;
@@ -234,11 +238,11 @@ async function sendLineNotify(message, eventType = null) {
     let targets = [];
     try {
       targets = (await getPool().request()
-        .query(`SELECT id, name, group_id, events FROM line_notify_targets WHERE active=1`)).recordset;
+        .query(`SELECT id, name, group_id, events, serve_types FROM line_notify_targets WHERE active=1`)).recordset;
     } catch {
       // Fallback to legacy single group if table not ready
       const groupId = process.env.LINE_GROUP_ID;
-      if (groupId) targets = [{ name: 'default', group_id: groupId, events: null }];
+      if (groupId) targets = [{ name: 'default', group_id: groupId, events: null, serve_types: null }];
     }
 
     for (const target of targets) {
@@ -246,6 +250,11 @@ async function sendLineNotify(message, eventType = null) {
       if (eventType && target.events) {
         const allowed = target.events.split(',').map(e => e.trim());
         if (!allowed.includes(eventType)) continue;
+      }
+      // Filter by serve_types (only applies to service_request events)
+      if (eventType === 'service_request' && opts.serveType && target.serve_types) {
+        const allowedTypes = target.serve_types.split(',').map(s => s.trim()).filter(Boolean);
+        if (allowedTypes.length && !allowedTypes.includes(opts.serveType)) continue;
       }
       try {
         await axios.post('https://api.line.me/v2/bot/message/push',
@@ -6105,7 +6114,7 @@ app.post('/api/service-requests', authRequired, async (request, res) => {
         (brands           ? `\nแบรนด์: ${brands}` : '') +
         (b.requester_name ? `\nผู้แจ้ง: ${b.requester_name}${b.requester_position ? ` (${b.requester_position})` : ''}` : '') +
         period;
-      await sendLineNotify(msg, 'service_request');
+      await sendLineNotify(msg, 'service_request', { serveType: b.serve_type });
     } catch(e) { console.warn('service_request line notify failed:', e.message); }
 
     res.json({ id: newId });
@@ -6156,7 +6165,7 @@ app.put('/api/service-requests/:id', authRequired, async (request, res) => {
           (stypeLabel         ? `\nประเภท: ${stypeLabel}` : '') +
           (cur.requester_name ? `\nผู้แจ้ง: ${cur.requester_name}${cur.requester_position ? ` (${cur.requester_position})` : ''}` : '') +
           `\nอัพเดทโดย: ${uname}`;
-        await sendLineNotify(msg, 'service_request');
+        await sendLineNotify(msg, 'service_request', { serveType: cur.serve_type });
       } catch(e) { console.warn('service_request status notify failed:', e.message); }
     }
 
@@ -6413,7 +6422,7 @@ app.post('/api/public/project/:token/submit', (req, res, next) => {
         (brands           ? `\nแบรนด์: ${brands}` : '') +
         (b.requester_name ? `\nผู้แจ้ง: ${b.requester_name}${b.requester_position ? ` (${b.requester_position})` : ''}` : '') +
         period;
-      await sendLineNotify(msg, 'service_request');
+      await sendLineNotify(msg, 'service_request', { serveType: b.serve_type });
     } catch(e) { console.warn('service_request (public) line notify failed:', e.message); }
 
     res.json({ ok: true, id: inserted.id, job_no: inserted.job_no });
@@ -7216,15 +7225,17 @@ app.get('/api/settings/line/targets', authRequired, async (request, res) => {
 // POST /api/settings/line/targets
 app.post('/api/settings/line/targets', authRequired, async (request, res) => {
   try {
-    const { name, group_id, events } = request.body;
+    const { name, group_id, events, serve_types } = request.body;
     if (!name?.trim()) return res.status(400).json({ error: 'กรุณาระบุชื่อกลุ่ม' });
     if (!group_id?.trim()) return res.status(400).json({ error: 'กรุณาระบุ Group ID' });
-    const eventsStr = Array.isArray(events) ? events.join(',') : (events || null);
+    const eventsStr    = Array.isArray(events)      ? events.join(',')      : (events      || null);
+    const serveTypeStr = Array.isArray(serve_types) ? serve_types.join(',') : (serve_types || null);
     const r = await req()
-      .input('nm', sql.NVarChar, name.trim())
+      .input('nm',  sql.NVarChar, name.trim())
       .input('gid', sql.NVarChar, group_id.trim())
-      .input('ev', sql.NVarChar, eventsStr || null)
-      .query(`INSERT INTO line_notify_targets (name, group_id, events) OUTPUT INSERTED.id VALUES (@nm, @gid, @ev)`);
+      .input('ev',  sql.NVarChar, eventsStr || null)
+      .input('st',  sql.NVarChar, serveTypeStr || null)
+      .query(`INSERT INTO line_notify_targets (name, group_id, events, serve_types) OUTPUT INSERTED.id VALUES (@nm, @gid, @ev, @st)`);
     res.json({ id: r.recordset[0].id });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -7233,16 +7244,18 @@ app.post('/api/settings/line/targets', authRequired, async (request, res) => {
 app.put('/api/settings/line/targets/:id', authRequired, async (request, res) => {
   try {
     const id = parseInt(request.params.id);
-    const { name, group_id, events, active } = request.body;
-    const eventsStr = Array.isArray(events) ? events.join(',') : (events ?? null);
+    const { name, group_id, events, serve_types, active } = request.body;
+    const eventsStr    = Array.isArray(events)      ? events.join(',')      : (events      ?? null);
+    const serveTypeStr = Array.isArray(serve_types) ? serve_types.join(',') : (serve_types ?? null);
     await req()
-      .input('id', sql.Int, id)
-      .input('nm', sql.NVarChar, name?.trim() || null)
+      .input('id',  sql.Int,      id)
+      .input('nm',  sql.NVarChar, name?.trim() || null)
       .input('gid', sql.NVarChar, group_id?.trim() || null)
-      .input('ev', sql.NVarChar, eventsStr)
-      .input('act', sql.Bit, active !== undefined ? (active ? 1 : 0) : 1)
+      .input('ev',  sql.NVarChar, eventsStr)
+      .input('st',  sql.NVarChar, serveTypeStr)
+      .input('act', sql.Bit,      active !== undefined ? (active ? 1 : 0) : 1)
       .query(`UPDATE line_notify_targets SET name=COALESCE(@nm,name), group_id=COALESCE(@gid,group_id),
-              events=@ev, active=@act WHERE id=@id`);
+              events=@ev, serve_types=@st, active=@act WHERE id=@id`);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

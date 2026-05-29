@@ -7936,7 +7936,15 @@ const LINE_EVENTS = [
   { key: 'followup',         label: '📋 Follow Up ใหม่' },
   { key: 'followup_due',     label: '⏰ FU สรุปรายวัน (due/stale)' },
   { key: 'specialist',       label: '🎯 Specialist ใหม่' },
-  { key: 'service_request',  label: '📋 แจ้งงานบริการใหม่' },
+  { key: 'service_request',  label: '📋 แจ้งงานบริการ' },
+];
+const SERVE_TYPES = [
+  { key: 'promo_coupon',        label: '🎯 สร้างโปรฯ / คูปอง' },
+  { key: 'quick_sale',          label: '⚡ สร้างปุ่มขายด่วน' },
+  { key: 'edit_promo_coupon',   label: '✏️ แก้ไขโปรฯ / คูปอง' },
+  { key: 'edit_quick_sale',     label: '✏️ แก้ไขปุ่มขายด่วน' },
+  { key: 'cancel_promo_coupon', label: '🚫 ยกเลิกโปรฯ / คูปอง' },
+  { key: 'cancel_quick_sale',   label: '🚫 ยกเลิกปุ่มขายด่วน' },
 ];
 
 async function loadLineSettings() {
@@ -7988,19 +7996,32 @@ function renderLineTargets(targets) {
   }
   const rows = targets.map(t => {
     const evList = t.events ? t.events.split(',').map(e => e.trim()).filter(Boolean) : [];
+    const stList = t.serve_types ? t.serve_types.split(',').map(s => s.trim()).filter(Boolean) : [];
     const badges = evList.length
       ? evList.map(e => {
           const found = LINE_EVENTS.find(x => x.key === e);
           return `<span style="display:inline-block;background:#eff6ff;color:#1d4ed8;border-radius:4px;padding:1px 6px;font-size:.68rem;margin:1px">${found ? found.label : escHtml(e)}</span>`;
         }).join('')
       : '<span style="font-size:.72rem;color:var(--muted)">ทุกเหตุการณ์</span>';
+    // serve_type sub-badges (only show when service_request is in events or no event filter)
+    const hasServiceReq = !evList.length || evList.includes('service_request');
+    const stBadges = hasServiceReq && stList.length
+      ? `<div style="margin-top:.2rem;padding-left:.3rem;border-left:2px solid #bfdbfe">${
+          stList.map(s => {
+            const found = SERVE_TYPES.find(x => x.key === s);
+            return `<span style="display:inline-block;background:#f0f9ff;color:#0369a1;border-radius:4px;padding:1px 5px;font-size:.65rem;margin:1px">${found ? found.label : escHtml(s)}</span>`;
+          }).join('')
+        }</div>`
+      : (hasServiceReq && !stList.length && evList.includes('service_request'))
+        ? `<div style="margin-top:.2rem;padding-left:.3rem;border-left:2px solid #bfdbfe"><span style="font-size:.65rem;color:#94a3b8">ทุกประเภทงานบริการ</span></div>`
+        : '';
     const activeBadge = t.active
       ? '<span style="color:#22c55e;font-size:.75rem">● เปิด</span>'
       : '<span style="color:#94a3b8;font-size:.75rem">○ ปิด</span>';
     return `<tr>
       <td style="font-size:.8rem">${escHtml(t.name)}</td>
       <td style="font-size:.72rem;color:var(--muted);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(t.group_id)}">${escHtml(t.group_id)}</td>
-      <td style="font-size:.75rem">${badges}</td>
+      <td style="font-size:.75rem">${badges}${stBadges}</td>
       <td>${activeBadge}</td>
       <td>
         <button class="btn btn-sm" style="font-size:.72rem;padding:2px 8px;margin-right:2px" onclick="testLineTarget(${t.id},'${escHtml(t.name.replace(/'/g,"\\'"))}')">🔔 ทดสอบ</button>
@@ -8035,17 +8056,32 @@ function openLineTargetForm(target = null) {
   const wrap = document.getElementById('line-target-form-wrap');
   if (!wrap) return;
   const isEdit = target && target.id;
-  const evList = target?.events ? target.events.split(',').map(e => e.trim()) : [];
+  const evList = target?.events ? target.events.split(',').map(e => e.trim()).filter(Boolean) : [];
+  const stList = target?.serve_types ? target.serve_types.split(',').map(s => s.trim()).filter(Boolean) : [];
+  const hasServiceReq = !evList.length || evList.includes('service_request');
+
   const checkboxes = LINE_EVENTS.map(ev => `
     <label style="display:flex;align-items:center;gap:.4rem;font-size:.8rem;cursor:pointer;
                   background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:.4rem .65rem;
                   transition:background .15s">
       <input type="checkbox" name="line_event" value="${ev.key}"
         style="accent-color:#2563eb;width:14px;height:14px;flex-shrink:0"
+        onchange="lfToggleServeTypes()"
         ${evList.includes(ev.key) || (!isEdit && !evList.length) ? 'checked' : ''}>
       <span>${ev.label}</span>
     </label>
   `).join('');
+
+  const serveCheckboxes = SERVE_TYPES.map(st => `
+    <label style="display:flex;align-items:center;gap:.35rem;font-size:.77rem;cursor:pointer;
+                  background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;padding:.3rem .55rem">
+      <input type="checkbox" name="line_serve_type" value="${st.key}"
+        style="accent-color:#0369a1;width:13px;height:13px;flex-shrink:0"
+        ${stList.includes(st.key) ? 'checked' : ''}>
+      <span>${st.label}</span>
+    </label>
+  `).join('');
+
   wrap.style.display = '';
   wrap.innerHTML = `
     <div style="font-size:.88rem;font-weight:700;color:var(--hd);margin-bottom:1rem;padding-bottom:.5rem;border-bottom:1px solid #f1f5f9">
@@ -8070,6 +8106,16 @@ function openLineTargetForm(target = null) {
       </label>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.4rem">${checkboxes}</div>
     </div>
+    <!-- serve_type sub-filter (shown when service_request is checked) -->
+    <div id="lf-serve-wrap" style="margin-bottom:.75rem;${hasServiceReq ? '' : 'display:none'}">
+      <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:9px;padding:.65rem .8rem">
+        <div style="font-size:.73rem;font-weight:700;color:#0369a1;margin-bottom:.45rem">
+          📋 ประเภทงานบริการที่ต้องการรับแจ้งเตือน
+          <span style="font-weight:400;color:#94a3b8;font-size:.7rem">(ไม่เลือกเลย = รับทุกประเภท)</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.35rem">${serveCheckboxes}</div>
+      </div>
+    </div>
     <div style="display:flex;align-items:center;justify-content:space-between;padding-top:.6rem;border-top:1px solid #f1f5f9">
       <label style="display:flex;align-items:center;gap:.4rem;font-size:.82rem;cursor:pointer;color:#475569">
         <input id="lf-active" type="checkbox" style="accent-color:#16a34a;width:15px;height:15px" ${(!isEdit || target?.active) ? 'checked' : ''}>
@@ -8085,14 +8131,23 @@ function openLineTargetForm(target = null) {
   wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
+function lfToggleServeTypes() {
+  const hasServiceReq = [...document.querySelectorAll('input[name="line_event"]:checked')]
+    .some(c => c.value === 'service_request');
+  const noEvChecked = [...document.querySelectorAll('input[name="line_event"]:checked')].length === 0;
+  const sw = document.getElementById('lf-serve-wrap');
+  if (sw) sw.style.display = (hasServiceReq || noEvChecked) ? '' : 'none';
+}
+
 async function saveLineTarget(id = null) {
   const name = document.getElementById('lf-name')?.value?.trim();
   const group_id = document.getElementById('lf-gid')?.value?.trim();
   const active = document.getElementById('lf-active')?.checked ? 1 : 0;
   const checked = [...document.querySelectorAll('input[name="line_event"]:checked')].map(c => c.value);
+  const serveTypes = [...document.querySelectorAll('input[name="line_serve_type"]:checked')].map(c => c.value);
   if (!name) { showToast('กรุณาระบุชื่อกลุ่ม', 'error'); return; }
   if (!group_id) { showToast('กรุณาระบุ Group ID', 'error'); return; }
-  const body = { name, group_id, events: checked, active };
+  const body = { name, group_id, events: checked, serve_types: serveTypes, active };
   try {
     if (id) {
       await api(`/api/settings/line/targets/${id}`, { method: 'PUT', body });
