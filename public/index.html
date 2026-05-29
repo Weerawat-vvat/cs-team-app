@@ -7947,12 +7947,18 @@ const SERVE_TYPES = [
   { key: 'cancel_quick_sale',   label: '🚫 ยกเลิกปุ่มขายด่วน' },
 ];
 
+let _lineSvcProjects = [];  // cached for badge display
+
 async function loadLineSettings() {
   const wrap = document.getElementById('line-settings-inner');
   if (!wrap) return;
   wrap.innerHTML = '<p style="color:var(--muted);font-size:.8rem">กำลังโหลด...</p>';
   try {
-    const data = await api('/api/settings/line');
+    const [data, projs] = await Promise.all([
+      api('/api/settings/line'),
+      api('/api/service-projects').catch(() => []),
+    ]);
+    _lineSvcProjects = projs || [];
     wrap.innerHTML = `
       <!-- Token card -->
       <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:1rem;margin-bottom:1rem">
@@ -7997,14 +8003,26 @@ function renderLineTargets(targets) {
   const rows = targets.map(t => {
     const evList = t.events ? t.events.split(',').map(e => e.trim()).filter(Boolean) : [];
     const stList = t.serve_types ? t.serve_types.split(',').map(s => s.trim()).filter(Boolean) : [];
+    const piList = t.project_ids ? t.project_ids.split(',').map(s => s.trim()).filter(Boolean) : [];
     const badges = evList.length
       ? evList.map(e => {
           const found = LINE_EVENTS.find(x => x.key === e);
           return `<span style="display:inline-block;background:#eff6ff;color:#1d4ed8;border-radius:4px;padding:1px 6px;font-size:.68rem;margin:1px">${found ? found.label : escHtml(e)}</span>`;
         }).join('')
       : '<span style="font-size:.72rem;color:var(--muted)">ทุกเหตุการณ์</span>';
-    // serve_type sub-badges (only show when service_request is in events or no event filter)
     const hasServiceReq = !evList.length || evList.includes('service_request');
+    // project_ids badges — resolve names from cache
+    const piBadges = hasServiceReq && piList.length
+      ? `<div style="margin-top:.2rem;padding-left:.3rem;border-left:2px solid #fde68a">${
+          piList.map(pid => {
+            const proj = _lineSvcProjects.find(p => String(p.id) === pid);
+            return `<span style="display:inline-block;background:#fefce8;color:#92400e;border-radius:4px;padding:1px 5px;font-size:.65rem;margin:1px">📁 ${escHtml(proj ? proj.name : pid)}</span>`;
+          }).join('')
+        }</div>`
+      : (hasServiceReq && !piList.length && evList.includes('service_request'))
+        ? `<div style="margin-top:.2rem;padding-left:.3rem;border-left:2px solid #fde68a"><span style="font-size:.65rem;color:#94a3b8">ทุกโฟลเดอร์</span></div>`
+        : '';
+    // serve_type sub-badges (only show when service_request is in events or no event filter)
     const stBadges = hasServiceReq && stList.length
       ? `<div style="margin-top:.2rem;padding-left:.3rem;border-left:2px solid #bfdbfe">${
           stList.map(s => {
@@ -8021,7 +8039,7 @@ function renderLineTargets(targets) {
     return `<tr>
       <td style="font-size:.8rem">${escHtml(t.name)}</td>
       <td style="font-size:.72rem;color:var(--muted);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(t.group_id)}">${escHtml(t.group_id)}</td>
-      <td style="font-size:.75rem">${badges}${stBadges}</td>
+      <td style="font-size:.75rem">${badges}${piBadges}${stBadges}</td>
       <td>${activeBadge}</td>
       <td>
         <button class="btn btn-sm" style="font-size:.72rem;padding:2px 8px;margin-right:2px" onclick="testLineTarget(${t.id},'${escHtml(t.name.replace(/'/g,"\\'"))}')">🔔 ทดสอบ</button>
@@ -8052,13 +8070,19 @@ async function saveLineToken() {
   } catch(e) { showToast('บันทึกล้มเหลว: ' + e.message, 'error'); }
 }
 
-function openLineTargetForm(target = null) {
+async function openLineTargetForm(target = null) {
   const wrap = document.getElementById('line-target-form-wrap');
   if (!wrap) return;
   const isEdit = target && target.id;
   const evList = target?.events ? target.events.split(',').map(e => e.trim()).filter(Boolean) : [];
   const stList = target?.serve_types ? target.serve_types.split(',').map(s => s.trim()).filter(Boolean) : [];
+  const piList = target?.project_ids ? target.project_ids.split(',').map(s => s.trim()).filter(Boolean) : [];
   const hasServiceReq = !evList.length || evList.includes('service_request');
+
+  // Load service projects for project filter
+  let svcProjects = [];
+  try { svcProjects = await api('/api/service-projects') || []; } catch {}
+
 
   const checkboxes = LINE_EVENTS.map(ev => `
     <label style="display:flex;align-items:center;gap:.4rem;font-size:.8rem;cursor:pointer;
@@ -8079,6 +8103,16 @@ function openLineTargetForm(target = null) {
         style="accent-color:#0369a1;width:13px;height:13px;flex-shrink:0"
         ${stList.includes(st.key) ? 'checked' : ''}>
       <span>${st.label}</span>
+    </label>
+  `).join('');
+
+  const projCheckboxes = svcProjects.map(p => `
+    <label style="display:flex;align-items:center;gap:.35rem;font-size:.77rem;cursor:pointer;
+                  background:#fefce8;border:1px solid #fde68a;border-radius:6px;padding:.3rem .55rem">
+      <input type="checkbox" name="line_project_id" value="${p.id}"
+        style="accent-color:#d97706;width:13px;height:13px;flex-shrink:0"
+        ${piList.includes(String(p.id)) ? 'checked' : ''}>
+      <span>📁 ${escHtml(p.name)}</span>
     </label>
   `).join('');
 
@@ -8106,11 +8140,19 @@ function openLineTargetForm(target = null) {
       </label>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.4rem">${checkboxes}</div>
     </div>
-    <!-- serve_type sub-filter (shown when service_request is checked) -->
+    <!-- project filter (shown when service_request is checked) -->
     <div id="lf-serve-wrap" style="margin-bottom:.75rem;${hasServiceReq ? '' : 'display:none'}">
+      ${svcProjects.length ? `
+      <div style="background:#fefce8;border:1px solid #fde68a;border-radius:9px;padding:.65rem .8rem;margin-bottom:.5rem">
+        <div style="font-size:.73rem;font-weight:700;color:#92400e;margin-bottom:.45rem">
+          📁 โฟลเดอร์/โปรเจกต์ที่ต้องการรับแจ้งเตือน
+          <span style="font-weight:400;color:#94a3b8;font-size:.7rem">(ไม่เลือกเลย = รับทุกโฟลเดอร์)</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.35rem">${projCheckboxes}</div>
+      </div>` : ''}
       <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:9px;padding:.65rem .8rem">
         <div style="font-size:.73rem;font-weight:700;color:#0369a1;margin-bottom:.45rem">
-          📋 ประเภทงานบริการที่ต้องการรับแจ้งเตือน
+          📋 ประเภทงานบริการ
           <span style="font-weight:400;color:#94a3b8;font-size:.7rem">(ไม่เลือกเลย = รับทุกประเภท)</span>
         </div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.35rem">${serveCheckboxes}</div>
@@ -8145,9 +8187,10 @@ async function saveLineTarget(id = null) {
   const active = document.getElementById('lf-active')?.checked ? 1 : 0;
   const checked = [...document.querySelectorAll('input[name="line_event"]:checked')].map(c => c.value);
   const serveTypes = [...document.querySelectorAll('input[name="line_serve_type"]:checked')].map(c => c.value);
+  const projectIds = [...document.querySelectorAll('input[name="line_project_id"]:checked')].map(c => c.value);
   if (!name) { showToast('กรุณาระบุชื่อกลุ่ม', 'error'); return; }
   if (!group_id) { showToast('กรุณาระบุ Group ID', 'error'); return; }
-  const body = { name, group_id, events: checked, serve_types: serveTypes, active };
+  const body = { name, group_id, events: checked, serve_types: serveTypes, project_ids: projectIds, active };
   try {
     if (id) {
       await api(`/api/settings/line/targets/${id}`, { method: 'PUT', body });
