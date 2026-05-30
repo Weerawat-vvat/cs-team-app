@@ -456,23 +456,25 @@ app.get('/api/employees', authRequired, async (request, res) => {
     const { team, include_inactive } = request.query;
     const role = request.user?.role;
     const r = req();
-    let q = `SELECT id, name, nickname, team, role, phone, start_date, active, created_at
-             FROM employees`;
+    let q = `SELECT e.id, e.name, e.nickname, e.team, e.role, e.phone, e.start_date, e.active, e.created_at,
+                    au.id AS user_id
+             FROM employees e
+             LEFT JOIN app_users au ON au.employee_id = e.id AND au.active = 1`;
     const conds = [];
-    if (!include_inactive) conds.push('active=1');
+    if (!include_inactive) conds.push('e.active=1');
     // staff: only see themselves
     if (role === 'staff') {
-      conds.push('id=@myEmpId');
+      conds.push('e.id=@myEmpId');
       r.input('myEmpId', sql.Int, request.user.employee_id || 0);
     } else if (role === 'team_lead') {
       // team_lead: only their team
-      conds.push('team=@myTeam');
+      conds.push('e.team=@myTeam');
       r.input('myTeam', sql.NVarChar, request.user.team || '');
     } else if (team) {
-      conds.push('team=@team'); r.input('team', sql.NVarChar, team);
+      conds.push('e.team=@team'); r.input('team', sql.NVarChar, team);
     }
     if (conds.length) q += ' WHERE ' + conds.join(' AND ');
-    q += ' ORDER BY team, role DESC, id';
+    q += ' ORDER BY e.team, e.role DESC, e.id';
     res.json((await r.query(q)).recordset);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
