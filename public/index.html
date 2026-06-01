@@ -6068,13 +6068,17 @@ async function loadSpKpi() {
   const pad = n => String(n).padStart(2,'0');
   const defFrom = `${today.getFullYear()}-${pad(today.getMonth()+1)}-01`;
   const defTo   = `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
-  let url = `/api/kpi/specialist?dateFrom=${dfrom||defFrom}&dateTo=${dto||defTo}&`;
-  const data = await api(url);
-  if (!data) return;
-  _spKpiData = data.agents || [];
-  renderSpKpiStats(data);
-  renderSpKpiTable();
-  renderSpKpiCharts(data);
+  let url = `/api/kpi/specialist?dateFrom=${dfrom||defFrom}&dateTo=${dto||defTo}`;
+  try {
+    const data = await api(url);
+    if (!data) { showToast('⚠️ Specialist KPI: ไม่ได้รับข้อมูล', 'error'); return; }
+    if (data.error) { showToast('❌ ' + data.error, 'error'); return; }
+    _spKpiData = data.agents || [];
+    if (!_spKpiData.length) { showToast('⚠️ ไม่พบข้อมูล Specialist ในช่วงนี้', 'warning'); }
+    renderSpKpiStats(data);
+    renderSpKpiTable();
+    renderSpKpiCharts(data);
+  } catch(e) { showToast('❌ loadSpKpi error: ' + e.message, 'error'); }
 }
 
 function renderSpKpiStats(data) {
