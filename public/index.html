@@ -1154,7 +1154,7 @@ textarea{resize:vertical;min-height:80px}
   </div>
 
   <!-- Charts (compact 3-col) -->
-  <div class="grid-3" style="margin-bottom:.75rem">
+  <div id="kpi-charts-row1" class="grid-3" style="margin-bottom:.75rem">
     <div class="card">
       <div class="card-title" style="font-size:.82rem">📊 เคสต่อ Agent</div>
       <div style="position:relative;height:140px"><canvas id="chart-cases"></canvas></div>
@@ -1168,7 +1168,7 @@ textarea{resize:vertical;min-height:80px}
       <div style="position:relative;height:140px"><canvas id="chart-close-rate"></canvas></div>
     </div>
   </div>
-  <div class="grid-2" style="margin-bottom:.75rem">
+  <div id="kpi-charts-row2" class="grid-2" style="margin-bottom:.75rem">
     <div class="card">
       <div class="card-title" style="font-size:.82rem">⏱️ เวลาแก้ไขเฉลี่ย (นาที)</div>
       <div style="position:relative;height:130px"><canvas id="chart-resolve-time"></canvas></div>
@@ -1180,7 +1180,7 @@ textarea{resize:vertical;min-height:80px}
   </div>
 
   <!-- Table -->
-  <div class="card">
+  <div id="kpi-hd-table" class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:.6rem .85rem .4rem;border-bottom:1px solid #f1f5f9">
       <span style="font-size:.8rem;font-weight:600;color:#475569">📊 ตารางประเมินผล</span>
       <button onclick="exportKpiCsv()" style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:7px;padding:.28rem .75rem;font-size:.76rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.35rem;transition:all .15s"
@@ -6022,22 +6022,18 @@ function kpiRange(preset, btn) {
 let _kpiActiveTab = 'helpdesk';
 function kpiSwitchTab(tab) {
   _kpiActiveTab = tab;
-  const hdSections = ['kpi-stats','ai-forecast-box',document.querySelector('#page-kpi .grid-3'),document.querySelector('#page-kpi .grid-2'),document.querySelector('#page-kpi .card')].filter(Boolean);
 
   // toggle tab button styles
   const hd = document.getElementById('kpi-tab-hd');
   const sp = document.getElementById('kpi-tab-sp');
-  if (hd && sp) {
-    hd.style.color = tab==='helpdesk' ? '#2563eb' : '#94a3b8';
-    hd.style.borderBottomColor = tab==='helpdesk' ? '#2563eb' : 'transparent';
-    sp.style.color = tab==='specialist' ? '#7c3aed' : '#94a3b8';
-    sp.style.borderBottomColor = tab==='specialist' ? '#7c3aed' : 'transparent';
-  }
+  if (hd) { hd.style.color = tab==='helpdesk' ? '#2563eb' : '#94a3b8'; hd.style.borderBottomColor = tab==='helpdesk' ? '#2563eb' : 'transparent'; }
+  if (sp) { sp.style.color = tab==='specialist' ? '#7c3aed' : '#94a3b8'; sp.style.borderBottomColor = tab==='specialist' ? '#7c3aed' : 'transparent'; }
 
-  // show/hide helpdesk vs specialist sections
-  const hdOnlyEls = document.querySelectorAll('#kpi-stats, #ai-forecast-box, #page-kpi .grid-3, #page-kpi .grid-2, #page-kpi > .card');
-  hdOnlyEls.forEach(el => { el.style.display = tab==='helpdesk' ? '' : 'none'; });
-  document.getElementById('kpi-sp-section').style.display = tab==='specialist' ? '' : 'none';
+  // show/hide sections by explicit IDs to avoid mis-selecting specialist card
+  const hdIds = ['kpi-stats','ai-forecast-box','kpi-charts-row1','kpi-charts-row2','kpi-hd-table'];
+  hdIds.forEach(id => { const el=document.getElementById(id); if(el) el.style.display = tab==='helpdesk' ? '' : 'none'; });
+  const spSection = document.getElementById('kpi-sp-section');
+  if (spSection) spSection.style.display = tab==='specialist' ? '' : 'none';
 
   if (tab==='specialist') loadSpKpi();
 }

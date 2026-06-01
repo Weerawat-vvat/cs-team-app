@@ -1529,50 +1529,39 @@ app.get('/api/kpi/specialist', authRequired, async (request, res) => {
     let startDate = dateFrom ? new Date(dateFrom) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     let endDate   = dateTo   ? new Date(new Date(dateTo).getTime() + 86400000) : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1);
 
-    // Per-agent stats (by accepted_by = app_users.id)
+    // Per-agent stats — use assigned_to_user (employee.id) as primary key
+    // Fall back to accepted_by → app_users.employee_id if assigned_to_user is null
     const agents = (await req()
       .input('s', sql.DateTime, startDate)
       .input('e', sql.DateTime, endDate)
       .query(`
+        WITH base AS (
+          SELECT sl.*,
+            COALESCE(sl.assigned_to_user, au.employee_id) AS emp_id
+          FROM specialist_log sl
+          LEFT JOIN app_users au ON au.id = sl.accepted_by
+          WHERE sl.assigned_at >= @s AND sl.assigned_at < @e
+        )
         SELECT
-          ISNULL(ea.nickname, ea.name) AS name,
-          ea.team,
-          COUNT(sl.id)                              AS total_jobs,
-          SUM(CASE WHEN sl.status IN ('resolved','assigned_to_programmer') THEN 1 ELSE 0 END) AS resolved_jobs,
-          SUM(CASE WHEN sl.status IN ('pending','in_progress','need_more_info') THEN 1 ELSE 0 END) AS pending_jobs,
-          SUM(CASE WHEN sl.status = 'rejected'  THEN 1 ELSE 0 END) AS rejected_jobs,
-          AVG(CASE WHEN sl.resolved_at IS NOT NULL AND sl.accepted_at IS NOT NULL AND sl.resolved_at >= sl.accepted_at
-                   THEN DATEDIFF(minute, sl.accepted_at, sl.resolved_at) END) AS avg_resolve_min,
-          (SELECT TOP 1 sl2.problem_type FROM specialist_log sl2
-           WHERE sl2.accepted_by = sl.accepted_by AND sl2.assigned_at >= @s AND sl2.assigned_at < @e
-             AND sl2.problem_type IS NOT NULL
-           GROUP BY sl2.problem_type ORDER BY COUNT(*) DESC) AS top_problem_type
-        FROM specialist_log sl
-        LEFT JOIN app_users ua  ON ua.id  = sl.accepted_by
-        LEFT JOIN employees ea  ON ea.id  = ua.employee_id
-        WHERE sl.assigned_at >= @s AND sl.assigned_at < @e
-          AND sl.accepted_by IS NOT NULL
-        GROUP BY sl.accepted_by, ea.nickname, ea.name, ea.team
+          ISNULL(e.nickname, e.name) AS name,
+          e.team,
+          COUNT(b.id)                AS total_jobs,
+          SUM(CASE WHEN b.status IN ('resolved','assigned_to_programmer') THEN 1 ELSE 0 END) AS resolved_jobs,
+          SUM(CASE WHEN b.status IN ('pending','in_progress','need_more_info','need_info') THEN 1 ELSE 0 END) AS pending_jobs,
+          SUM(CASE WHEN b.status = 'rejected' THEN 1 ELSE 0 END) AS rejected_jobs,
+          AVG(CASE WHEN b.resolved_at IS NOT NULL AND b.assigned_at IS NOT NULL AND b.resolved_at >= b.assigned_at
+                   THEN DATEDIFF(minute, b.assigned_at, b.resolved_at) END) AS avg_resolve_min,
+          (SELECT TOP 1 b2.problem_type FROM base b2
+           WHERE b2.emp_id = b.emp_id AND b2.problem_type IS NOT NULL
+           GROUP BY b2.problem_type ORDER BY COUNT(*) DESC) AS top_problem_type
+        FROM base b
+        LEFT JOIN employees e ON e.id = b.emp_id
+        WHERE b.emp_id IS NOT NULL
+        GROUP BY b.emp_id, e.nickname, e.name, e.team
         ORDER BY total_jobs DESC
       `)).recordset;
 
-    // Team summary
-    const teamRows = (await req()
-      .input('s', sql.DateTime, startDate)
-      .input('e', sql.DateTime, endDate)
-      .query(`
-        SELECT ea.team,
-          COUNT(sl.id) AS total_jobs,
-          SUM(CASE WHEN sl.status IN ('resolved','assigned_to_programmer') THEN 1 ELSE 0 END) AS resolved_jobs,
-          SUM(CASE WHEN sl.status IN ('pending','in_progress','need_more_info') THEN 1 ELSE 0 END) AS pending_jobs
-        FROM specialist_log sl
-        LEFT JOIN app_users ua ON ua.id = sl.accepted_by
-        LEFT JOIN employees ea ON ea.id = ua.employee_id
-        WHERE sl.assigned_at >= @s AND sl.assigned_at < @e AND sl.accepted_by IS NOT NULL
-        GROUP BY ea.team ORDER BY total_jobs DESC
-      `)).recordset;
-
-    // Problem type distribution
+    // Problem type distribution (all jobs in range)
     const problemTypes = (await req()
       .input('s', sql.DateTime, startDate)
       .input('e', sql.DateTime, endDate)
@@ -1583,7 +1572,7 @@ app.get('/api/kpi/specialist', authRequired, async (request, res) => {
         GROUP BY problem_type ORDER BY cnt DESC
       `)).recordset;
 
-    res.json({ agents, teamRows, problemTypes });
+    res.json({ agents, problemTypes });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
