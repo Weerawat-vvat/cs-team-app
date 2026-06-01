@@ -1408,7 +1408,8 @@ app.get('/api/kpi', authRequired, async (request, res) => {
           SUM(CASE WHEN cs.StatusName LIKE '%close%' OR cs.StatusName LIKE '%complete%' THEN 1 ELSE 0 END) AS closed_cases,
           AVG(CASE WHEN cl.CloseDate IS NOT NULL AND cl.ReceiveDate IS NOT NULL AND cl.CloseDate >= cl.ReceiveDate
                    THEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate) END) AS avg_resolve_min,
-          AVG(CAST(cl.Stars AS FLOAT)) AS avg_stars,
+          AVG(CASE WHEN cl.Stars IS NOT NULL AND cl.Stars > 0 THEN CAST(cl.Stars AS FLOAT) END) AS avg_stars,
+          COUNT(CASE WHEN cl.Stars IS NOT NULL AND cl.Stars > 0 THEN 1 END) AS rated_count,
           SUM(CASE WHEN cs.StatusName NOT LIKE '%close%' AND cs.StatusName NOT LIKE '%complete%'
                         AND DATEDIFF(hour, cl.ReceiveDate, GETDATE()) > 24 THEN 1 ELSE 0 END) AS overdue_cases,
           MIN(cl.ReceiveDate) AS first_case,
