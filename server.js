@@ -1497,6 +1497,7 @@ app.get('/api/kpi', authRequired, async (request, res) => {
     // Build grade score map
     const gradeMap = {};
     d7.recordset.forEach(r => { gradeMap[r.UserName] = r; });
+    console.log('[KPI grade] d7 rows:', d7.recordset.length, '| sample keys:', Object.keys(gradeMap).slice(0,3), '| d1 sample UserName:', d1.recordset[0]?.UserName);
 
     // Build daily map per agent (for sparkline + consistency)
     const dailyMap = {};
