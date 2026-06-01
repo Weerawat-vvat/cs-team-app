@@ -1399,7 +1399,8 @@ app.get('/api/kpi', authRequired, async (request, res) => {
     const r5 = mkP(); const sc5 = appendScopeClause(r5, scope);
     const r6 = mk();  const sc6 = appendScopeClause(r6, scope);
 
-    const [d1, d2, d3, d4, d5, d6] = await Promise.all([
+    const r7 = mk();  const sc7 = appendScopeClause(r7, scope);
+    const [d1, d2, d3, d4, d5, d6, d7] = await Promise.all([
       // Main KPI per agent
       r1.query(`
         SELECT u.UserName,
@@ -1461,6 +1462,17 @@ app.get('/api/kpi', authRequired, async (request, res) => {
         WHERE cl.Active=1 AND cl.ReceiveDate >= @s AND cl.ReceiveDate < @e${sc6}
         GROUP BY u.UserName, CAST(cl.ReceiveDate AS DATE)
         ORDER BY u.UserName, day`),
+      // Grade score per agent: A=4, B=3, C=2, D=1, E/F=0
+      r7.query(`
+        SELECT u.UserName,
+          SUM(CASE s.Grade WHEN 'A' THEN 4 WHEN 'B' THEN 3 WHEN 'C' THEN 2 WHEN 'D' THEN 1 ELSE 0 END) AS total_score,
+          AVG(CAST(CASE s.Grade WHEN 'A' THEN 4 WHEN 'B' THEN 3 WHEN 'C' THEN 2 WHEN 'D' THEN 1 ELSE 0 END AS FLOAT)) AS avg_score,
+          COUNT(*) AS graded_cases
+        FROM Calllog cl
+        INNER JOIN Users u ON u.UserId = cl.SupportId
+        JOIN Subject s ON s.SubjectName = cl.Subject
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @s AND cl.ReceiveDate < @e${sc7}
+        GROUP BY u.UserName`),
     ]);
 
     // Build top problem type map
@@ -1481,6 +1493,10 @@ app.get('/api/kpi', authRequired, async (request, res) => {
     // Build prev period map
     const prevMap = {};
     d5.recordset.forEach(r => { prevMap[r.UserName] = r; });
+
+    // Build grade score map
+    const gradeMap = {};
+    d7.recordset.forEach(r => { gradeMap[r.UserName] = r; });
 
     // Build daily map per agent (for sparkline + consistency)
     const dailyMap = {};
@@ -1516,8 +1532,20 @@ app.get('/api/kpi', authRequired, async (request, res) => {
         // Daily sparkline data
         daily_counts: cnts,
         consistency_cv: cv,   // lower = more consistent
+        // Grade score (A=4,B=3,C=2,D=1,E/F=0)
+        grade_total_score: gradeMap[r.UserName]?.total_score ?? null,
+        grade_avg_score:   gradeMap[r.UserName]?.avg_score   ?? null,
+        grade_cases:       gradeMap[r.UserName]?.graded_cases ?? 0,
       };
     });
+
+    // Sort by avg grade score (desc), fallback to total_cases
+    result.sort((a, b) => {
+      const as = a.grade_avg_score ?? -1;
+      const bs = b.grade_avg_score ?? -1;
+      return bs !== as ? bs - as : (b.total_cases - a.total_cases);
+    });
+
     res.json({ agents: result, starsDist: d4.recordset });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
