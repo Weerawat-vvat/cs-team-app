@@ -6015,7 +6015,8 @@ function kpiRange(preset, btn) {
   _kpiDateFrom = iso(from); _kpiDateTo = iso(to);
   document.getElementById('kpi-date-from').value = _kpiDateFrom;
   document.getElementById('kpi-date-to').value   = _kpiDateTo;
-  loadKpi();
+  if (_kpiActiveTab === 'specialist') loadSpKpi();
+  else loadKpi();
 }
 
 // ── KPI Tab switcher ─────────────────────────────────────
@@ -6029,13 +6030,26 @@ function kpiSwitchTab(tab) {
   if (hd) { hd.style.color = tab==='helpdesk' ? '#2563eb' : '#94a3b8'; hd.style.borderBottomColor = tab==='helpdesk' ? '#2563eb' : 'transparent'; }
   if (sp) { sp.style.color = tab==='specialist' ? '#7c3aed' : '#94a3b8'; sp.style.borderBottomColor = tab==='specialist' ? '#7c3aed' : 'transparent'; }
 
-  // show/hide sections by explicit IDs to avoid mis-selecting specialist card
+  // hide team filter on specialist tab (not applicable)
+  const teamSel = document.getElementById('kpi-filter-team');
+  if (teamSel) teamSel.parentElement.style.display = tab==='helpdesk' ? '' : 'none';
+
+  // show/hide sections by explicit IDs
   const hdIds = ['kpi-stats','ai-forecast-box','kpi-charts-row1','kpi-charts-row2','kpi-hd-table'];
   hdIds.forEach(id => { const el=document.getElementById(id); if(el) el.style.display = tab==='helpdesk' ? '' : 'none'; });
   const spSection = document.getElementById('kpi-sp-section');
   if (spSection) spSection.style.display = tab==='specialist' ? '' : 'none';
 
-  if (tab==='specialist') loadSpKpi();
+  if (tab==='specialist') {
+    // ensure date range is set (default to this month if empty)
+    if (!_kpiDateFrom) {
+      const btn = document.querySelector('#kpi-drb .drb-btn.active') ||
+                  [...document.querySelectorAll('#kpi-drb .drb-btn')].find(b=>b.textContent.includes('เดือนนี้'));
+      if (btn) btn.click(); else kpiRange('thismonth', null);
+    } else {
+      loadSpKpi();
+    }
+  }
 }
 
 // ── Specialist KPI ────────────────────────────────────────
@@ -6044,9 +6058,12 @@ let _spKpiData = [];
 async function loadSpKpi() {
   const dfrom = document.getElementById('kpi-date-from')?.value || _kpiDateFrom;
   const dto   = document.getElementById('kpi-date-to')?.value   || _kpiDateTo;
-  let url = '/api/kpi/specialist?';
-  if (dfrom) url += `dateFrom=${dfrom}&`;
-  if (dto)   url += `dateTo=${dto}&`;
+  // default to this month if no date range set
+  const today = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const defFrom = `${today.getFullYear()}-${pad(today.getMonth()+1)}-01`;
+  const defTo   = `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
+  let url = `/api/kpi/specialist?dateFrom=${dfrom||defFrom}&dateTo=${dto||defTo}&`;
   const data = await api(url);
   if (!data) return;
   _spKpiData = data.agents || [];
