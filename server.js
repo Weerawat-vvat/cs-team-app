@@ -1529,37 +1529,55 @@ app.get('/api/kpi/specialist', authRequired, async (request, res) => {
     let startDate = dateFrom ? new Date(dateFrom) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     let endDate   = dateTo   ? new Date(new Date(dateTo).getTime() + 86400000) : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1);
 
-    // Per-agent stats — use assigned_to_user (employee.id) as primary key
-    // Fall back to accepted_by → app_users.employee_id if assigned_to_user is null
+    // Per-agent stats — no CTE, plain subquery
     const agents = (await req()
       .input('s', sql.DateTime, startDate)
       .input('e', sql.DateTime, endDate)
       .query(`
-        WITH base AS (
-          SELECT sl.*,
-            COALESCE(sl.assigned_to_user, au.employee_id) AS emp_id
+        SELECT
+          ISNULL(e.nickname, e.name)                  AS name,
+          e.team,
+          COUNT(sl.id)                                AS total_jobs,
+          SUM(CASE WHEN sl.status IN ('resolved','assigned_to_programmer') THEN 1 ELSE 0 END) AS resolved_jobs,
+          SUM(CASE WHEN sl.status IN ('pending','in_progress','need_more_info') THEN 1 ELSE 0 END) AS pending_jobs,
+          SUM(CASE WHEN sl.status = 'rejected' THEN 1 ELSE 0 END) AS rejected_jobs,
+          AVG(CASE WHEN sl.resolved_at IS NOT NULL AND sl.assigned_at IS NOT NULL
+                        AND sl.resolved_at >= sl.assigned_at
+                   THEN DATEDIFF(minute, sl.assigned_at, sl.resolved_at) END) AS avg_resolve_min,
+          COALESCE(sl.assigned_to_user, au.employee_id) AS emp_id
+        FROM specialist_log sl
+        LEFT JOIN app_users au ON au.id = sl.accepted_by
+        LEFT JOIN employees e  ON e.id  = COALESCE(sl.assigned_to_user, au.employee_id)
+        WHERE sl.assigned_at >= @s AND sl.assigned_at < @e
+          AND COALESCE(sl.assigned_to_user, au.employee_id) IS NOT NULL
+        GROUP BY COALESCE(sl.assigned_to_user, au.employee_id), e.nickname, e.name, e.team
+        ORDER BY total_jobs DESC
+      `)).recordset;
+
+    // top problem type per agent
+    const topProbRows = (await req()
+      .input('s', sql.DateTime, startDate)
+      .input('e', sql.DateTime, endDate)
+      .query(`
+        SELECT emp_id, problem_type FROM (
+          SELECT
+            COALESCE(sl.assigned_to_user, au.employee_id) AS emp_id,
+            sl.problem_type,
+            ROW_NUMBER() OVER (
+              PARTITION BY COALESCE(sl.assigned_to_user, au.employee_id)
+              ORDER BY COUNT(*) DESC
+            ) AS rn
           FROM specialist_log sl
           LEFT JOIN app_users au ON au.id = sl.accepted_by
           WHERE sl.assigned_at >= @s AND sl.assigned_at < @e
-        )
-        SELECT
-          ISNULL(e.nickname, e.name) AS name,
-          e.team,
-          COUNT(b.id)                AS total_jobs,
-          SUM(CASE WHEN b.status IN ('resolved','assigned_to_programmer') THEN 1 ELSE 0 END) AS resolved_jobs,
-          SUM(CASE WHEN b.status IN ('pending','in_progress','need_more_info','need_info') THEN 1 ELSE 0 END) AS pending_jobs,
-          SUM(CASE WHEN b.status = 'rejected' THEN 1 ELSE 0 END) AS rejected_jobs,
-          AVG(CASE WHEN b.resolved_at IS NOT NULL AND b.assigned_at IS NOT NULL AND b.resolved_at >= b.assigned_at
-                   THEN DATEDIFF(minute, b.assigned_at, b.resolved_at) END) AS avg_resolve_min,
-          (SELECT TOP 1 b2.problem_type FROM base b2
-           WHERE b2.emp_id = b.emp_id AND b2.problem_type IS NOT NULL
-           GROUP BY b2.problem_type ORDER BY COUNT(*) DESC) AS top_problem_type
-        FROM base b
-        LEFT JOIN employees e ON e.id = b.emp_id
-        WHERE b.emp_id IS NOT NULL
-        GROUP BY b.emp_id, e.nickname, e.name, e.team
-        ORDER BY total_jobs DESC
+            AND sl.problem_type IS NOT NULL
+            AND COALESCE(sl.assigned_to_user, au.employee_id) IS NOT NULL
+          GROUP BY COALESCE(sl.assigned_to_user, au.employee_id), sl.problem_type
+        ) t WHERE rn = 1
       `)).recordset;
+    const topProbMap = {};
+    topProbRows.forEach(r => { topProbMap[r.emp_id] = r.problem_type; });
+    agents.forEach(a => { a.top_problem_type = topProbMap[a.emp_id] || null; });
 
     // Problem type distribution (all jobs in range)
     const problemTypes = (await req()
