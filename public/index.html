@@ -1132,10 +1132,6 @@ textarea{resize:vertical;min-height:80px}
     <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
       <span style="font-size:.72rem;color:var(--muted)" id="kpi-stars-label">⭐ คะแนนเฉลี่ย</span>
       <span style="font-size:1.1rem;font-weight:800;color:#b45309" id="kpi-stat-stars">—</span>
-      <button id="kpi-est-stars-btn" onclick="kpiToggleEstStars()" title="คำนวณดาวจากเวลา+ผลงาน สำหรับ case ที่ไม่มีดาว"
-        style="font-size:.65rem;background:#fefce8;color:#92400e;border:1px solid #fde68a;border-radius:5px;padding:.1rem .4rem;cursor:pointer;font-weight:600;white-space:nowrap">
-        🔮 ประมาณ
-      </button>
     </div>
     <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
       <span style="font-size:.72rem;color:var(--muted)">🔴 ค้าง &gt;24ชม.</span>
@@ -1164,8 +1160,14 @@ textarea{resize:vertical;min-height:80px}
       <div style="position:relative;height:140px"><canvas id="chart-cases"></canvas></div>
     </div>
     <div class="card">
-      <div class="card-title" style="font-size:.82rem">⭐ คะแนนความพึงพอใจ</div>
-      <div style="position:relative;height:140px"><canvas id="chart-score"></canvas></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.35rem">
+        <div class="card-title" style="font-size:.82rem;margin:0">⭐ คะแนนความพึงพอใจ</div>
+        <button id="kpi-est-stars-btn" onclick="kpiToggleEstStars()" title="คำนวณดาวจากเวลาแก้ไข+ผลงาน สำหรับ case ที่ยังไม่มีดาว"
+          style="font-size:.65rem;background:#fefce8;color:#92400e;border:1px solid #fde68a;border-radius:5px;padding:.15rem .45rem;cursor:pointer;font-weight:600;white-space:nowrap;line-height:1.4">
+          🔮 คำนวณดาว
+        </button>
+      </div>
+      <div style="position:relative;height:130px"><canvas id="chart-score"></canvas></div>
     </div>
     <div class="card">
       <div class="card-title" style="font-size:.82rem">✅ อัตราปิดงาน (%)</div>
