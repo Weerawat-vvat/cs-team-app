@@ -1162,10 +1162,18 @@ textarea{resize:vertical;min-height:80px}
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.35rem">
         <div class="card-title" style="font-size:.82rem;margin:0">⭐ คะแนนความพึงพอใจ</div>
-        <button id="kpi-est-stars-btn" onclick="kpiToggleEstStars()" title="คำนวณดาวจากเวลาแก้ไข+ผลงาน สำหรับ case ที่ยังไม่มีดาว"
-          style="font-size:.65rem;background:#fefce8;color:#92400e;border:1px solid #fde68a;border-radius:5px;padding:.15rem .45rem;cursor:pointer;font-weight:600;white-space:nowrap;line-height:1.4">
-          🔮 คำนวณดาว
-        </button>
+        <div style="display:flex;gap:.3rem">
+          <button onclick="kpiToggleEstStars()" id="kpi-est-stars-toggle"
+            title="แสดงดาวประมาณใน chart (ไม่บันทึก)"
+            style="font-size:.62rem;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:5px;padding:.15rem .4rem;cursor:pointer;font-weight:600;white-space:nowrap">
+            👁 ดูประมาณ
+          </button>
+          <button onclick="kpiSaveEstStars(this)"
+            title="คำนวณดาวแล้วบันทึกลง Calllog เฉพาะรายการที่ยังไม่มีดาว"
+            style="font-size:.62rem;background:#fefce8;color:#92400e;border:1px solid #fde68a;border-radius:5px;padding:.15rem .4rem;cursor:pointer;font-weight:600;white-space:nowrap">
+            🔮 คำนวณ+บันทึก
+          </button>
+        </div>
       </div>
       <div style="position:relative;height:130px"><canvas id="chart-score"></canvas></div>
     </div>
@@ -6220,14 +6228,42 @@ function calcEstimatedStars(k) {
   return Math.max(1.0, Math.min(5.0, Math.round(score * 10) / 10));
 }
 
+async function kpiSaveEstStars(btn) {
+  const dfrom = document.getElementById('kpi-date-from')?.value || _kpiDateFrom;
+  const dto   = document.getElementById('kpi-date-to')?.value   || _kpiDateTo;
+  if (!dfrom || !dto) { showToast('⚠️ กรุณาเลือกช่วงวันที่ก่อน', 'warning'); return; }
+
+  // Preview
+  btn.disabled = true; btn.textContent = '⏳ กำลังตรวจ...';
+  const preview = await api(`/api/kpi/estimate-stars/preview?dateFrom=${dfrom}&dateTo=${dto}`).catch(()=>null);
+  btn.disabled = false; btn.textContent = '🔮 คำนวณ+บันทึก';
+
+  if (!preview) { showToast('❌ ไม่สามารถตรวจสอบได้', 'error'); return; }
+  if (preview.count === 0) { showToast('✅ ทุก case มีดาวครบแล้ว ไม่มีรายการที่ต้องคำนวณ'); return; }
+
+  if (!confirm(
+    `พบ ${preview.count} รายการที่ยังไม่มีดาว (${dfrom} – ${dto})\n\n` +
+    `สูตร: เร็ว≤30น. = 5★ | ≤2ชม. = 4★ | ≤8ชม. = 4★ | ≤24ชม. = 3★ | ช้ากว่า = 2★ | ยังไม่ปิด = 2★\n\n` +
+    `⚠️ จะเขียนลง Calllog.Stars ทันที (ไม่ย้อนกลับได้ง่าย)\nยืนยันไหมครับ?`
+  )) return;
+
+  btn.disabled = true; btn.textContent = '⏳ กำลังบันทึก...';
+  const r = await api('/api/kpi/estimate-stars', { method:'POST', body:{ dateFrom: dfrom, dateTo: dto } }).catch(()=>null);
+  btn.disabled = false; btn.textContent = '🔮 คำนวณ+บันทึก';
+
+  if (!r?.ok) { showToast('❌ บันทึกไม่สำเร็จ', 'error'); return; }
+  showToast(`✅ บันทึกดาวประมาณ ${r.updated} รายการแล้ว — รีโหลด KPI...`, 'success');
+  setTimeout(() => loadKpi(), 1200);
+}
+
 function kpiToggleEstStars() {
   _kpiUseEstStars = !_kpiUseEstStars;
-  const btn = document.getElementById('kpi-est-stars-btn');
+  const btn = document.getElementById('kpi-est-stars-toggle');
   const lbl = document.getElementById('kpi-stars-label');
   if (btn) {
-    btn.style.background = _kpiUseEstStars ? '#92400e' : '#fefce8';
-    btn.style.color      = _kpiUseEstStars ? '#fff'    : '#92400e';
-    btn.textContent      = _kpiUseEstStars ? '🔮 ประมาณ (เปิด)' : '🔮 ประมาณ';
+    btn.style.background = _kpiUseEstStars ? '#475569' : '#f1f5f9';
+    btn.style.color      = _kpiUseEstStars ? '#fff'    : '#475569';
+    btn.textContent      = _kpiUseEstStars ? '👁 ดูประมาณ (เปิด)' : '👁 ดูประมาณ';
   }
   if (lbl) lbl.textContent = _kpiUseEstStars ? '🔮 ดาวประมาณ' : '⭐ คะแนนเฉลี่ย';
   renderKpiTable();

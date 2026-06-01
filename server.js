@@ -1551,6 +1551,51 @@ app.get('/api/kpi', authRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Estimate Stars: preview count ────────────────────────
+app.get('/api/kpi/estimate-stars/preview', authRequired, managerRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
+    const { dateFrom, dateTo } = request.query;
+    const s = dateFrom ? new Date(dateFrom) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const e = dateTo   ? new Date(new Date(dateTo).getTime() + 86400000) : new Date();
+    const r = (await extReq()
+      .input('s', sql.DateTime, s).input('e', sql.DateTime, e)
+      .query(`SELECT COUNT(*) AS cnt FROM Calllog WHERE Active=1 AND Stars IS NULL AND ReceiveDate >= @s AND ReceiveDate < @e`)).recordset[0];
+    res.json({ count: r.cnt, dateFrom: s.toISOString().slice(0,10), dateTo: e.toISOString().slice(0,10) });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Estimate Stars: save to Calllog ──────────────────────
+// Formula: Stars = f(resolve time, close status) — only updates Stars IS NULL
+app.post('/api/kpi/estimate-stars', authRequired, managerRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
+    const { dateFrom, dateTo } = request.body;
+    const s = dateFrom ? new Date(dateFrom) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const e = dateTo   ? new Date(new Date(dateTo).getTime() + 86400000) : new Date();
+    const r = await extReq()
+      .input('s', sql.DateTime, s).input('e', sql.DateTime, e)
+      .query(`
+        UPDATE cl
+        SET cl.Stars = CASE
+          WHEN cs.StatusName NOT LIKE '%close%' AND cs.StatusName NOT LIKE '%complete%' THEN 2
+          WHEN cl.CloseDate IS NULL OR cl.ReceiveDate IS NULL THEN 3
+          WHEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate) <=   30 THEN 5
+          WHEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate) <=  120 THEN 4
+          WHEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate) <=  480 THEN 4
+          WHEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate) <= 1440 THEN 3
+          ELSE 2
+        END,
+        cl.UpdateDate = GETDATE()
+        FROM Calllog cl
+        INNER JOIN CallStatus cs ON cs.StatusId = cl.StatusId
+        WHERE cl.Active=1 AND cl.Stars IS NULL
+          AND cl.ReceiveDate >= @s AND cl.ReceiveDate < @e
+      `);
+    res.json({ ok: true, updated: r.rowsAffected?.[0] ?? 0 });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── Specialist KPI ───────────────────────────────────────
 app.get('/api/kpi/specialist', authRequired, async (request, res) => {
   try {
