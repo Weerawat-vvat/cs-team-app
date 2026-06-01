@@ -1497,7 +1497,6 @@ app.get('/api/kpi', authRequired, async (request, res) => {
     // Build grade score map
     const gradeMap = {};
     d7.recordset.forEach(r => { gradeMap[r.UserName] = r; });
-    console.log('[KPI grade] d7 rows:', d7.recordset.length, '| sample keys:', Object.keys(gradeMap).slice(0,3), '| d1 sample UserName:', d1.recordset[0]?.UserName);
 
     // Build daily map per agent (for sparkline + consistency)
     const dailyMap = {};
@@ -1540,11 +1539,11 @@ app.get('/api/kpi', authRequired, async (request, res) => {
       };
     });
 
-    // Sort by avg grade score (desc), fallback to total_cases
+    // Sort: primary = grade_total_score desc (must have ≥10 cases), fallback total_cases
     result.sort((a, b) => {
-      const as = a.grade_avg_score ?? -1;
-      const bs = b.grade_avg_score ?? -1;
-      return bs !== as ? bs - as : (b.total_cases - a.total_cases);
+      const aScore = (a.grade_cases >= 10 ? a.grade_total_score : null) ?? -1;
+      const bScore = (b.grade_cases >= 10 ? b.grade_total_score : null) ?? -1;
+      return bScore !== aScore ? bScore - aScore : (b.total_cases - a.total_cases);
     });
 
     res.json({ agents: result, starsDist: d4.recordset });
