@@ -6030,9 +6030,14 @@ function kpiSwitchTab(tab) {
   if (hd) { hd.style.color = tab==='helpdesk' ? '#2563eb' : '#94a3b8'; hd.style.borderBottomColor = tab==='helpdesk' ? '#2563eb' : 'transparent'; }
   if (sp) { sp.style.color = tab==='specialist' ? '#7c3aed' : '#94a3b8'; sp.style.borderBottomColor = tab==='specialist' ? '#7c3aed' : 'transparent'; }
 
-  // hide team filter on specialist tab (not applicable)
+  // hide team filter + separator on specialist tab (not applicable)
   const teamSel = document.getElementById('kpi-filter-team');
-  if (teamSel) teamSel.parentElement.style.display = tab==='helpdesk' ? '' : 'none';
+  if (teamSel) {
+    teamSel.style.display = tab==='helpdesk' ? '' : 'none';
+    // hide the | separator before it too
+    const prev = teamSel.previousElementSibling;
+    if (prev && prev.tagName === 'SPAN') prev.style.display = tab==='helpdesk' ? '' : 'none';
+  }
 
   // show/hide sections by explicit IDs
   const hdIds = ['kpi-stats','ai-forecast-box','kpi-charts-row1','kpi-charts-row2','kpi-hd-table'];
