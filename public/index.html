@@ -1077,6 +1077,18 @@ textarea{resize:vertical;min-height:80px}
     </div>
   </div>
 
+  <!-- Tab switcher -->
+  <div style="display:flex;gap:.35rem;margin-bottom:.85rem;border-bottom:2px solid #e2e8f0;padding-bottom:0">
+    <button id="kpi-tab-hd" onclick="kpiSwitchTab('helpdesk')"
+      style="padding:.45rem 1rem;font-size:.82rem;font-weight:700;border:none;background:none;cursor:pointer;color:#2563eb;border-bottom:2px solid #2563eb;margin-bottom:-2px;transition:all .15s">
+      📞 Helpdesk KPI
+    </button>
+    <button id="kpi-tab-sp" onclick="kpiSwitchTab('specialist')"
+      style="padding:.45rem 1rem;font-size:.82rem;font-weight:700;border:none;background:none;cursor:pointer;color:#94a3b8;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s">
+      🎯 Specialist KPI
+    </button>
+  </div>
+
   <!-- Date & Filter Bar (top — same as Dashboard/Tickets) -->
   <div class="page-datebar" style="flex-direction:column;align-items:flex-start;gap:.45rem">
     <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;width:100%">
@@ -1187,6 +1199,77 @@ textarea{resize:vertical;min-height:80px}
         </thead>
         <tbody id="kpi-tbody"></tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- ═══ Specialist KPI section (hidden by default) ═══ -->
+  <div id="kpi-sp-section" style="display:none">
+    <!-- Stat bar -->
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem" id="kpi-sp-stats">
+      <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+        <span style="font-size:.72rem;color:var(--muted)">📋 งานทั้งหมด</span>
+        <span style="font-size:1.1rem;font-weight:800;color:var(--hd)" id="sp-kpi-total">—</span>
+      </div>
+      <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+        <span style="font-size:.72rem;color:var(--muted)">✅ แก้ไขแล้ว%</span>
+        <span style="font-size:1.1rem;font-weight:800;color:#16a34a" id="sp-kpi-resolve-rate">—</span>
+      </div>
+      <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+        <span style="font-size:.72rem;color:var(--muted)">⏱️ เวลาเฉลี่ย</span>
+        <span style="font-size:1.1rem;font-weight:800;color:#7c3aed" id="sp-kpi-avg-time">—</span>
+      </div>
+      <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+        <span style="font-size:.72rem;color:var(--muted)">⏳ ค้างอยู่</span>
+        <span style="font-size:1.1rem;font-weight:800;color:#ef4444" id="sp-kpi-pending">—</span>
+      </div>
+      <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+        <span style="font-size:.72rem;color:var(--muted)">🏆 Top Specialist</span>
+        <span style="font-size:.9rem;font-weight:800;color:var(--accent)" id="sp-kpi-top">—</span>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="grid-2" style="margin-bottom:.75rem">
+      <div class="card">
+        <div class="card-title" style="font-size:.82rem">📋 งาน SP ต่อคน</div>
+        <div style="position:relative;height:140px"><canvas id="chart-sp-jobs"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="font-size:.82rem">⏱️ เวลาแก้ไขเฉลี่ย (นาที)</div>
+        <div style="position:relative;height:140px"><canvas id="chart-sp-time"></canvas></div>
+      </div>
+    </div>
+    <div class="grid-2" style="margin-bottom:.75rem">
+      <div class="card">
+        <div class="card-title" style="font-size:.82rem">✅ อัตราแก้ไข (%)</div>
+        <div style="position:relative;height:130px"><canvas id="chart-sp-resolve"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="font-size:.82rem">🏷️ ประเภทปัญหาหลัก</div>
+        <div style="position:relative;height:130px"><canvas id="chart-sp-problems"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:.6rem .85rem .4rem;border-bottom:1px solid #f1f5f9">
+        <span style="font-size:.8rem;font-weight:600;color:#475569">🎯 ตารางประเมิน Specialist</span>
+        <button onclick="exportSpKpiCsv()" style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:7px;padding:.28rem .75rem;font-size:.76rem;font-weight:600;cursor:pointer">
+          📥 Export CSV
+        </button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>พนักงาน</th><th>ทีม</th><th>งานทั้งหมด</th>
+              <th>✅ แก้แล้ว</th><th>แก้แล้ว%</th><th>⏳ ค้าง</th>
+              <th>⏱️ เวลาเฉลี่ย</th><th>ประเภทปัญหาหลัก</th>
+            </tr>
+          </thead>
+          <tbody id="sp-kpi-tbody"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>
@@ -5933,6 +6016,134 @@ function kpiRange(preset, btn) {
   document.getElementById('kpi-date-from').value = _kpiDateFrom;
   document.getElementById('kpi-date-to').value   = _kpiDateTo;
   loadKpi();
+}
+
+// ── KPI Tab switcher ─────────────────────────────────────
+let _kpiActiveTab = 'helpdesk';
+function kpiSwitchTab(tab) {
+  _kpiActiveTab = tab;
+  const hdSections = ['kpi-stats','ai-forecast-box',document.querySelector('#page-kpi .grid-3'),document.querySelector('#page-kpi .grid-2'),document.querySelector('#page-kpi .card')].filter(Boolean);
+
+  // toggle tab button styles
+  const hd = document.getElementById('kpi-tab-hd');
+  const sp = document.getElementById('kpi-tab-sp');
+  if (hd && sp) {
+    hd.style.color = tab==='helpdesk' ? '#2563eb' : '#94a3b8';
+    hd.style.borderBottomColor = tab==='helpdesk' ? '#2563eb' : 'transparent';
+    sp.style.color = tab==='specialist' ? '#7c3aed' : '#94a3b8';
+    sp.style.borderBottomColor = tab==='specialist' ? '#7c3aed' : 'transparent';
+  }
+
+  // show/hide helpdesk vs specialist sections
+  const hdOnlyEls = document.querySelectorAll('#kpi-stats, #ai-forecast-box, #page-kpi .grid-3, #page-kpi .grid-2, #page-kpi > .card');
+  hdOnlyEls.forEach(el => { el.style.display = tab==='helpdesk' ? '' : 'none'; });
+  document.getElementById('kpi-sp-section').style.display = tab==='specialist' ? '' : 'none';
+
+  if (tab==='specialist') loadSpKpi();
+}
+
+// ── Specialist KPI ────────────────────────────────────────
+let _spKpiData = [];
+
+async function loadSpKpi() {
+  const dfrom = document.getElementById('kpi-date-from')?.value || _kpiDateFrom;
+  const dto   = document.getElementById('kpi-date-to')?.value   || _kpiDateTo;
+  let url = '/api/kpi/specialist?';
+  if (dfrom) url += `dateFrom=${dfrom}&`;
+  if (dto)   url += `dateTo=${dto}&`;
+  const data = await api(url);
+  if (!data) return;
+  _spKpiData = data.agents || [];
+  renderSpKpiStats(data);
+  renderSpKpiTable();
+  renderSpKpiCharts(data);
+}
+
+function renderSpKpiStats(data) {
+  const agents = data.agents || [];
+  const total   = agents.reduce((s,a) => s + (a.total_jobs||0), 0);
+  const resolved = agents.reduce((s,a) => s + (a.resolved_jobs||0), 0);
+  const pending  = agents.reduce((s,a) => s + (a.pending_jobs||0), 0);
+  const withTime = agents.filter(a => a.avg_resolve_min != null);
+  const avgTime  = withTime.length ? withTime.reduce((s,a)=>s+a.avg_resolve_min,0)/withTime.length : null;
+  const top = agents.length ? agents[0] : null;
+
+  const _s = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
+  _s('sp-kpi-total', total);
+  _s('sp-kpi-resolve-rate', total ? Math.round(resolved/total*100)+'%' : '—');
+  _s('sp-kpi-avg-time', avgTime != null ? fmtMin(avgTime) : '—');
+  _s('sp-kpi-pending', pending);
+  _s('sp-kpi-top', top ? top.name : '—');
+}
+
+function renderSpKpiTable() {
+  const tbody = document.getElementById('sp-kpi-tbody');
+  if (!tbody) return;
+  if (!_spKpiData.length) { tbody.innerHTML='<tr><td colspan="8" class="empty">ไม่มีข้อมูล</td></tr>'; return; }
+  tbody.innerHTML = _spKpiData.map(a => {
+    const rate = a.total_jobs ? Math.round((a.resolved_jobs||0)/a.total_jobs*100) : 0;
+    const rateColor = rate>=80 ? '#16a34a' : rate>=50 ? '#b45309' : '#dc2626';
+    return `<tr>
+      <td><b>${escHtml(a.name||'—')}</b></td>
+      <td>${teamBadgeHtml(a.team||'')}</td>
+      <td><b style="color:var(--accent)">${a.total_jobs||0}</b></td>
+      <td style="color:#16a34a;font-weight:700">${a.resolved_jobs||0}</td>
+      <td><b style="color:${rateColor}">${rate}%</b></td>
+      <td style="color:#ef4444;font-weight:600">${a.pending_jobs||0}</td>
+      <td style="font-size:.8rem;white-space:nowrap">${a.avg_resolve_min!=null ? fmtMin(a.avg_resolve_min) : '—'}</td>
+      <td style="font-size:.75rem;color:#475569">${escHtml(a.top_problem_type||'—')}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderSpKpiCharts(data) {
+  const agents = data.agents || [];
+  const problems = data.problemTypes || [];
+  const names = agents.map(a => a.name || a.UserName || '?');
+  const BAR_OPTS = {responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{size:9}}},y:{ticks:{font:{size:9}}}}};
+
+  const mkBar = (id, labels, values, color) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el._chart) el._chart.destroy();
+    el._chart = new Chart(el, { type:'bar', data:{ labels, datasets:[{ data:values, backgroundColor:color, borderRadius:4 }] }, options:BAR_OPTS });
+  };
+
+  mkBar('chart-sp-jobs', names, agents.map(a=>a.total_jobs||0), '#6366f1');
+  mkBar('chart-sp-time', agents.filter(a=>a.avg_resolve_min!=null).map(a=>a.name||'?'),
+        agents.filter(a=>a.avg_resolve_min!=null).map(a=>Math.round(a.avg_resolve_min)), '#8b5cf6');
+  mkBar('chart-sp-resolve', names, agents.map(a=>a.total_jobs?Math.round((a.resolved_jobs||0)/a.total_jobs*100):0), '#22c55e');
+
+  // Problem type doughnut
+  const pelEl = document.getElementById('chart-sp-problems');
+  if (pelEl) {
+    if (pelEl._chart) pelEl._chart.destroy();
+    pelEl._chart = new Chart(pelEl, {
+      type:'doughnut',
+      data:{ labels: problems.map(p=>p.problem_type||'?'), datasets:[{ data: problems.map(p=>p.cnt), backgroundColor:['#6366f1','#8b5cf6','#a78bfa','#c4b5fd','#ddd6fe','#ede9fe','#f5f3ff','#7c3aed','#4f46e5','#4338ca'] }] },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'right', labels:{ font:{size:8}, boxWidth:10 } } } }
+    });
+  }
+}
+
+function exportSpKpiCsv() {
+  if (!_spKpiData.length) { showToast('ไม่มีข้อมูล','error'); return; }
+  const dfrom = document.getElementById('kpi-date-from')?.value || _kpiDateFrom || '';
+  const dto   = document.getElementById('kpi-date-to')?.value   || _kpiDateTo   || '';
+  const headers = ['ชื่อเล่น','ทีม','งานทั้งหมด','แก้แล้ว','แก้แล้ว%','ค้าง','เวลาเฉลี่ย(นาที)','ประเภทปัญหาหลัก'];
+  const rows = _spKpiData.map(a => {
+    const rate = a.total_jobs ? Math.round((a.resolved_jobs||0)/a.total_jobs*100) : 0;
+    return [a.name||'—', a.team||'—', a.total_jobs||0, a.resolved_jobs||0, rate+'%', a.pending_jobs||0,
+            a.avg_resolve_min!=null ? Math.round(a.avg_resolve_min) : '', a.top_problem_type||''];
+  });
+  const bom = '﻿';
+  const csv = bom + [headers,...rows].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+  const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `SpecialistKPI_${dfrom}_${dto}.csv`;
+  a.click();
+  showToast(`📥 Export ${_spKpiData.length} แถว`);
 }
 
 async function loadKpi() {
