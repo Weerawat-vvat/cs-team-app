@@ -3811,16 +3811,22 @@ let allKpi        = [];
 let allUsers      = [];
 let allTeams      = [];
 let nameMap       = {};  // ext_username → employee display name
+let teamMap       = {};  // ext_username → team
 
 function dn(username) {  // displayName: map LicenseDB username → real name
   if (!username) return username;
   return nameMap[username] || username;
 }
+function dt(username) {  // displayTeam: map LicenseDB username → team
+  if (!username) return '';
+  return teamMap[username] || '';
+}
 
 async function refreshNameMap() {
   try {
-    const m = await api('/api/name-map');
-    if (m && typeof m === 'object') Object.assign(nameMap, m);
+    const m = await api('/api/name-map/full');
+    if (m?.names) { Object.assign(nameMap, m.names); Object.assign(teamMap, m.teams); }
+    else if (m && typeof m === 'object') Object.assign(nameMap, m); // fallback
   } catch {}
 }
 
@@ -6295,7 +6301,7 @@ function exportKpiCsv() {
   const headers = ['ชื่อเล่น','ทีม','สถานะ','เคส (ช่วงนี้)','เคส (ช่วงก่อน)','แนวโน้ม','ปิดงาน%','เวลาเฉลี่ย (นาที)','Stars เฉลี่ย','ค้าง','ร้องเรียน','สม่ำเสมอ','คะแนนรวม','คะแนนเฉลี่ย/งาน'];
   const rows = allKpi.map(k => [
     k.name || k.UserName,
-    k.team || '',
+    k.team || dt(k.UserName) || '',
     caseDiffLabel(k),
     k.total_cases ?? '',
     k.prev_cases ?? '',
@@ -6410,7 +6416,7 @@ function renderKpiTable() {
       <td style="padding-left:.5rem">
         <span id="kpi-tog-${k.UserName}" style="font-size:.7rem;color:var(--muted);margin-right:.3rem">▶</span>
         <b>${k.name || dn(k.UserName)}</b>
-        <div>${teamBadgeHtml(k.team||'')}</div>
+        <div>${teamBadgeHtml(k.team || dt(k.UserName) || '')}</div>
       </td>
       <td><span style="font-size:.72rem;font-weight:700;color:${bandColor}" title="${bandLabel} (${caseDiff>0?'+':''}${k.prev_cases?Math.round(caseDiff):0}%)">${bandIcon} ${bandLabel}</span></td>
       <td>
