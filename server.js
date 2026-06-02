@@ -1580,30 +1580,28 @@ app.post('/api/kpi/estimate-stars', authRequired, managerRequired, async (reques
         SET cl.Stars = CASE
           -- ยังไม่ปิดงาน
           WHEN cs.StatusName NOT LIKE '%close%' AND cs.StatusName NOT LIKE '%complete%' THEN 2
-          -- ปิดงานแล้ว: ใช้ DueDate เป็น SLA reference
+          -- มี Subject.TimeToResolve → เทียบกับ SLA ของหัวข้อนั้นโดยตรง
+          WHEN cl.CloseDate IS NOT NULL AND s.TimeToResolve IS NOT NULL AND s.TimeToResolve > 0 THEN
+            CASE
+              WHEN DATEDIFF(minute,cl.ReceiveDate,cl.CloseDate) <= s.TimeToResolve          THEN 5
+              WHEN DATEDIFF(minute,cl.ReceiveDate,cl.CloseDate) <= s.TimeToResolve * 1.5    THEN 3
+              WHEN DATEDIFF(minute,cl.ReceiveDate,cl.CloseDate) <= s.TimeToResolve * 2      THEN 2
+              ELSE 1
+            END
+          -- ไม่มี Subject match → ใช้ DueDate
           WHEN cl.CloseDate IS NOT NULL AND cl.DueDate IS NOT NULL THEN
             CASE
-              -- ทันเวลา (CloseDate <= DueDate)
-              WHEN cl.CloseDate <= cl.DueDate THEN
-                CASE
-                  WHEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate) <=  30 THEN 5
-                  WHEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate) <= 120 THEN 4
-                  ELSE 3
-                END
-              -- เกิน SLA (CloseDate > DueDate)
-              ELSE
-                CASE
-                  WHEN DATEDIFF(minute, cl.DueDate, cl.CloseDate) <=  30 THEN 3
-                  WHEN DATEDIFF(minute, cl.DueDate, cl.CloseDate) <= 120 THEN 2
-                  ELSE 1
-                END
+              WHEN cl.CloseDate <= cl.DueDate                                                THEN 5
+              WHEN DATEDIFF(minute,cl.DueDate,cl.CloseDate) <= 30                           THEN 3
+              WHEN DATEDIFF(minute,cl.DueDate,cl.CloseDate) <= 120                          THEN 2
+              ELSE 1
             END
-          -- ไม่มี DueDate: fallback ดูเวลาแก้ไขล้วนๆ
+          -- Fallback: เวลาแก้ไขล้วนๆ
           WHEN cl.CloseDate IS NOT NULL THEN
             CASE
-              WHEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate) <=   30 THEN 5
-              WHEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate) <=  120 THEN 4
-              WHEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate) <=  480 THEN 3
+              WHEN DATEDIFF(minute,cl.ReceiveDate,cl.CloseDate) <=  30 THEN 5
+              WHEN DATEDIFF(minute,cl.ReceiveDate,cl.CloseDate) <= 120 THEN 4
+              WHEN DATEDIFF(minute,cl.ReceiveDate,cl.CloseDate) <= 480 THEN 3
               ELSE 2
             END
           ELSE 2
@@ -1611,6 +1609,7 @@ app.post('/api/kpi/estimate-stars', authRequired, managerRequired, async (reques
         cl.UpdateDate = GETDATE()
         FROM Calllog cl
         INNER JOIN CallStatus cs ON cs.StatusId = cl.StatusId
+        LEFT JOIN Subject s ON s.SubjectName = cl.Subject   -- join หัวข้อเพื่อได้ TimeToResolve
         WHERE cl.Active=1 AND cl.Stars IS NULL
           AND cl.ReceiveDate >= @s AND cl.ReceiveDate < @e
       `);
