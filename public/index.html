@@ -6416,16 +6416,16 @@ function renderKpiTable() {
       <td style="padding-left:.5rem">
         <span id="kpi-tog-${k.UserName}" style="font-size:.7rem;color:var(--muted);margin-right:.3rem">▶</span>
         <b>${k.name || dn(k.UserName)}</b>
-        <div>${teamBadgeHtml(k.team || dt(k.UserName) || '')}</div>
       </td>
+      <td>${teamBadgeHtml(k.team || dt(k.UserName) || '')}</td>
       <td><span style="font-size:.72rem;font-weight:700;color:${bandColor}" title="${bandLabel} (${caseDiff>0?'+':''}${k.prev_cases?Math.round(caseDiff):0}%)">${bandIcon} ${bandLabel}</span></td>
       <td>
         <div style="display:flex;align-items:center;gap:.3rem">
           <b style="color:var(--accent)">${k.total_cases}</b>
           ${trendArrow(k.total_cases, k.prev_cases)}
         </div>
-        ${sparkline(k.daily_counts)}
       </td>
+      <td>${sparkline(k.daily_counts)}</td>
       <td>
         <b style="color:${closeColor}">${k.close_rate}%</b>
         ${trendArrow(k.close_rate, k.prev_close)}
