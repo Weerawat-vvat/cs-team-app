@@ -3817,9 +3817,10 @@ function dn(username) {  // displayName: map LicenseDB username → real name
   if (!username) return username;
   return nameMap[username] || username;
 }
-function dt(username) {  // displayTeam: map LicenseDB username → team
+function dt(username) {  // displayTeam: map LicenseDB username → team (case-insensitive)
   if (!username) return '';
-  return teamMap[username] || '';
+  return teamMap[username] || teamMap[username.toLowerCase()] ||
+    teamMap[username[0].toUpperCase() + username.slice(1).toLowerCase()] || '';
 }
 
 async function refreshNameMap() {
