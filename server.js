@@ -1578,12 +1578,34 @@ app.post('/api/kpi/estimate-stars', authRequired, managerRequired, async (reques
       .query(`
         UPDATE cl
         SET cl.Stars = CASE
+          -- ยังไม่ปิดงาน
           WHEN cs.StatusName NOT LIKE '%close%' AND cs.StatusName NOT LIKE '%complete%' THEN 2
-          WHEN cl.CloseDate IS NULL OR cl.ReceiveDate IS NULL THEN 3
-          WHEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate) <=   30 THEN 5
-          WHEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate) <=  120 THEN 4
-          WHEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate) <=  480 THEN 4
-          WHEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate) <= 1440 THEN 3
+          -- ปิดงานแล้ว: ใช้ DueDate เป็น SLA reference
+          WHEN cl.CloseDate IS NOT NULL AND cl.DueDate IS NOT NULL THEN
+            CASE
+              -- ทันเวลา (CloseDate <= DueDate)
+              WHEN cl.CloseDate <= cl.DueDate THEN
+                CASE
+                  WHEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate) <=  30 THEN 5
+                  WHEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate) <= 120 THEN 4
+                  ELSE 3
+                END
+              -- เกิน SLA (CloseDate > DueDate)
+              ELSE
+                CASE
+                  WHEN DATEDIFF(minute, cl.DueDate, cl.CloseDate) <=  30 THEN 3
+                  WHEN DATEDIFF(minute, cl.DueDate, cl.CloseDate) <= 120 THEN 2
+                  ELSE 1
+                END
+            END
+          -- ไม่มี DueDate: fallback ดูเวลาแก้ไขล้วนๆ
+          WHEN cl.CloseDate IS NOT NULL THEN
+            CASE
+              WHEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate) <=   30 THEN 5
+              WHEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate) <=  120 THEN 4
+              WHEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate) <=  480 THEN 3
+              ELSE 2
+            END
           ELSE 2
         END,
         cl.UpdateDate = GETDATE()
