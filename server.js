@@ -1789,6 +1789,55 @@ app.get('/api/kpi/specialist', authRequired, async (request, res) => {
       a.prev_avg_min  = p.prev_avg_min  ?? null;
     });
 
+    // Grade score per specialist: query subject_id จาก app DB แล้ว join grade จาก ext DB
+    try {
+      if (getExtPool()) {
+        // step 1: ดึง (emp_id, subject_id) pairs จาก app DB
+        const spSubj = (await req()
+          .input('s', sql.DateTime, startDate)
+          .input('e', sql.DateTime, endDate)
+          .query(`
+            SELECT COALESCE(sl.assigned_to_user, au.employee_id) AS emp_id, sl.subject_id
+            FROM specialist_log sl
+            LEFT JOIN app_users au ON au.id = sl.accepted_by
+            WHERE sl.assigned_at >= @s AND sl.assigned_at < @e
+              AND sl.subject_id IS NOT NULL
+              AND COALESCE(sl.assigned_to_user, au.employee_id) IS NOT NULL
+          `)).recordset;
+
+        if (spSubj.length) {
+          // step 2: ดึง grade จาก ext DB ตาม SubjectId list
+          const uniqueIds = [...new Set(spSubj.map(r => r.subject_id))];
+          const inList = uniqueIds.map((_, i) => `@sid${i}`).join(',');
+          const qr = extReq();
+          uniqueIds.forEach((id, i) => qr.input(`sid${i}`, sql.Int, id));
+          const subjects = (await qr.query(
+            `SELECT SubjectId, Grade FROM Subject WHERE SubjectId IN (${inList})`
+          )).recordset;
+          const gradeBySubjId = {};
+          subjects.forEach(s => { gradeBySubjId[s.SubjectId] = s.Grade; });
+
+          // step 3: aggregate per emp_id
+          const gradeAgg = {};
+          spSubj.forEach(r => {
+            const grade = gradeBySubjId[r.subject_id];
+            if (!grade) return;
+            const pts = {A:4,B:3,C:2,D:1}[grade] || 0;
+            if (!pts) return;
+            if (!gradeAgg[r.emp_id]) gradeAgg[r.emp_id] = { sum: 0, cnt: 0 };
+            gradeAgg[r.emp_id].sum += pts;
+            gradeAgg[r.emp_id].cnt++;
+          });
+          agents.forEach(a => {
+            const g = gradeAgg[a.emp_id];
+            a.grade_total_score = g ? g.sum : null;
+            a.grade_avg_score   = g ? g.sum / g.cnt : null;
+            a.grade_cases       = g ? g.cnt : 0;
+          });
+        }
+      }
+    } catch(e) { console.warn('[sp-kpi] grade calc skipped:', e.message); }
+
     // Problem type distribution (all jobs in range)
     const problemTypes = (await req()
       .input('s', sql.DateTime, startDate)
