@@ -1708,6 +1708,9 @@ app.get('/api/kpi/specialist', authRequired, async (request, res) => {
     const { dateFrom, dateTo } = request.query;
     let startDate = dateFrom ? new Date(dateFrom) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     let endDate   = dateTo   ? new Date(new Date(dateTo).getTime() + 86400000) : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1);
+    const rangeMs   = endDate - startDate;
+    const prevEnd   = new Date(startDate);
+    const prevStart = new Date(startDate.getTime() - rangeMs);
 
     // Per-agent stats — no CTE, plain subquery
     const agents = (await req()
@@ -1758,6 +1761,33 @@ app.get('/api/kpi/specialist', authRequired, async (request, res) => {
     const topProbMap = {};
     topProbRows.forEach(r => { topProbMap[r.emp_id] = r.problem_type; });
     agents.forEach(a => { a.top_problem_type = topProbMap[a.emp_id] || null; });
+
+    // Previous period stats for trend comparison
+    const prevAgents = (await req()
+      .input('ps', sql.DateTime, prevStart)
+      .input('pe', sql.DateTime, prevEnd)
+      .query(`
+        SELECT
+          COALESCE(sl.assigned_to_user, au.employee_id) AS emp_id,
+          COUNT(sl.id) AS prev_total,
+          SUM(CASE WHEN sl.status IN ('resolved','assigned_to_programmer') THEN 1 ELSE 0 END) AS prev_resolved,
+          AVG(CASE WHEN sl.resolved_at IS NOT NULL AND sl.assigned_at IS NOT NULL
+                        AND sl.resolved_at >= sl.assigned_at
+                   THEN DATEDIFF(minute, sl.assigned_at, sl.resolved_at) END) AS prev_avg_min
+        FROM specialist_log sl
+        LEFT JOIN app_users au ON au.id = sl.accepted_by
+        WHERE sl.assigned_at >= @ps AND sl.assigned_at < @pe
+          AND COALESCE(sl.assigned_to_user, au.employee_id) IS NOT NULL
+        GROUP BY COALESCE(sl.assigned_to_user, au.employee_id)
+      `)).recordset;
+    const prevMap = {};
+    prevAgents.forEach(r => { prevMap[r.emp_id] = r; });
+    agents.forEach(a => {
+      const p = prevMap[a.emp_id] || {};
+      a.prev_total    = p.prev_total    || 0;
+      a.prev_resolved = p.prev_resolved || 0;
+      a.prev_avg_min  = p.prev_avg_min  ?? null;
+    });
 
     // Problem type distribution (all jobs in range)
     const problemTypes = (await req()

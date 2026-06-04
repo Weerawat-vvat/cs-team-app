@@ -1279,9 +1279,11 @@ textarea{resize:vertical;min-height:80px}
         <table>
           <thead>
             <tr>
-              <th>พนักงาน</th><th>ทีม</th><th>งานทั้งหมด</th>
-              <th>✅ แก้แล้ว</th><th>แก้แล้ว%</th><th>⏳ ค้าง</th>
-              <th>⏱️ เวลาเฉลี่ย</th><th>ประเภทปัญหาหลัก</th>
+              <th>พนักงาน</th><th>ทีม</th>
+              <th>สถานะ</th><th>งาน</th><th>แนวโน้ม</th>
+              <th>แก้แล้ว%</th><th>⏱️ เวลาเฉลี่ย</th>
+              <th>⏳ ค้าง</th><th>❌ ปฏิเสธ</th>
+              <th>ประเภทปัญหาหลัก</th>
             </tr>
           </thead>
           <tbody id="sp-kpi-tbody"></tbody>
@@ -6122,8 +6124,8 @@ function kpiSwitchTab(tab) {
   }
 
   // show/hide sections by explicit IDs
-  const hdIds = ['kpi-stats','ai-forecast-box','kpi-charts-row1','kpi-charts-row2','kpi-hd-table'];
-  hdIds.forEach(id => { const el=document.getElementById(id); if(el) el.style.display = tab==='helpdesk' ? '' : 'none'; });
+  const hdIds = { 'kpi-stats':'flex', 'ai-forecast-box':'', 'kpi-charts-row1':'grid', 'kpi-charts-row2':'grid', 'kpi-hd-table':'' };
+  Object.entries(hdIds).forEach(([id, showVal]) => { const el=document.getElementById(id); if(el) el.style.display = tab==='helpdesk' ? showVal : 'none'; });
   const spSection = document.getElementById('kpi-sp-section');
   if (spSection) spSection.style.display = tab==='specialist' ? '' : 'none';
 
@@ -6180,24 +6182,102 @@ function renderSpKpiStats(data) {
   _s('sp-kpi-top', top ? top.name : '—');
 }
 
+let _spDrillOpen = new Set();
+
 function renderSpKpiTable() {
   const tbody = document.getElementById('sp-kpi-tbody');
   if (!tbody) return;
-  if (!_spKpiData.length) { tbody.innerHTML='<tr><td colspan="8" class="empty">ไม่มีข้อมูล</td></tr>'; return; }
-  tbody.innerHTML = _spKpiData.map(a => {
+  if (!_spKpiData.length) { tbody.innerHTML='<tr><td colspan="10" class="empty">ไม่มีข้อมูล</td></tr>'; return; }
+
+  const trendArrow = (cur, prev, higherGood=true) => {
+    if (!prev) return '';
+    const d = cur - prev;
+    if (Math.abs(prev) < 0.01 || Math.abs(d/prev) < 0.05) return `<span style="color:#94a3b8;font-size:.7rem">→</span>`;
+    const up = d > 0;
+    const good = higherGood ? up : !up;
+    return `<span style="color:${good?'#16a34a':'#ef4444'};font-size:.75rem;font-weight:700">${up?'▲':'▼'}</span>`;
+  };
+
+  tbody.innerHTML = _spKpiData.map((a, idx) => {
     const rate = a.total_jobs ? Math.round((a.resolved_jobs||0)/a.total_jobs*100) : 0;
     const rateColor = rate>=80 ? '#16a34a' : rate>=50 ? '#b45309' : '#dc2626';
-    return `<tr>
-      <td><b>${escHtml(a.name||'—')}</b></td>
+    const prevRate  = a.prev_total ? Math.round((a.prev_resolved||0)/a.prev_total*100) : 0;
+
+    // สถานะ band
+    const jobDiff = a.prev_total > 0 ? (a.total_jobs - a.prev_total)/a.prev_total*100 : 0;
+    let bandIcon, bandColor, bandLabel;
+    if (!a.prev_total)        { bandIcon='🆕'; bandColor='#64748b'; bandLabel='ใหม่'; }
+    else if (jobDiff > 10)    { bandIcon='🟢'; bandColor='#16a34a'; bandLabel='เพิ่มขึ้น'; }
+    else if (jobDiff < -10)   { bandIcon='🔴'; bandColor='#dc2626'; bandLabel='ลดลง'; }
+    else                      { bandIcon='🟡'; bandColor='#b45309'; bandLabel='คงที่'; }
+
+    const rowId = `sp-drill-${idx}`;
+    const isOpen = _spDrillOpen.has(idx);
+
+    return `
+    <tr style="cursor:pointer" onclick="toggleSpDrill(${idx},this)">
+      <td style="padding-left:.5rem">
+        <span id="sp-tog-${idx}" style="font-size:.7rem;color:var(--muted);margin-right:.3rem">${isOpen?'▼':'▶'}</span>
+        <b>${escHtml(a.name||'—')}</b>
+      </td>
       <td>${teamBadgeHtml(a.team||'')}</td>
-      <td><b style="color:var(--accent)">${a.total_jobs||0}</b></td>
-      <td style="color:#16a34a;font-weight:700">${a.resolved_jobs||0}</td>
-      <td><b style="color:${rateColor}">${rate}%</b></td>
-      <td style="color:#ef4444;font-weight:600">${a.pending_jobs||0}</td>
-      <td style="font-size:.8rem;white-space:nowrap">${a.avg_resolve_min!=null ? fmtMin(a.avg_resolve_min) : '—'}</td>
+      <td><span style="font-size:.72rem;font-weight:700;color:${bandColor}">${bandIcon} ${bandLabel}</span></td>
+      <td>
+        <div style="display:flex;align-items:center;gap:.3rem">
+          <b style="color:var(--accent)">${a.total_jobs||0}</b>
+          ${trendArrow(a.total_jobs, a.prev_total)}
+        </div>
+      </td>
+      <td style="font-size:.75rem;color:#64748b">${a.prev_total ? a.prev_total + ' (ก่อน)' : '—'}</td>
+      <td>
+        <b style="color:${rateColor}">${rate}%</b>
+        ${trendArrow(rate, prevRate)}
+      </td>
+      <td style="font-size:.8rem;white-space:nowrap">
+        ${a.avg_resolve_min!=null ? fmtMin(a.avg_resolve_min) : '—'}
+        ${trendArrow(a.avg_resolve_min??0, a.prev_avg_min??0, false)}
+      </td>
+      <td><b style="color:${(a.pending_jobs||0)>0?'#ef4444':'#16a34a'}">${a.pending_jobs||0}</b></td>
+      <td><b style="color:${(a.rejected_jobs||0)>0?'#dc2626':'#94a3b8'}">${a.rejected_jobs||0}</b></td>
       <td style="font-size:.75rem;color:#475569">${escHtml(a.top_problem_type||'—')}</td>
+    </tr>
+    <tr id="${rowId}" style="display:${isOpen?'':'none'}">
+      <td colspan="10" style="padding:0;background:#f8fafc;border-left:3px solid #7c3aed">
+        <div id="sp-drill-content-${idx}" style="padding:.6rem 1rem;font-size:.8rem;color:var(--muted)">กำลังโหลด...</div>
+      </td>
     </tr>`;
   }).join('');
+}
+
+function toggleSpDrill(idx, rowEl) {
+  const drill = document.getElementById(`sp-drill-${idx}`);
+  const tog   = document.getElementById(`sp-tog-${idx}`);
+  if (!drill) return;
+  const isOpen = _spDrillOpen.has(idx);
+  if (isOpen) {
+    _spDrillOpen.delete(idx);
+    drill.style.display = 'none';
+    if (tog) tog.textContent = '▶';
+  } else {
+    _spDrillOpen.add(idx);
+    drill.style.display = '';
+    if (tog) tog.textContent = '▼';
+    // render drill-down content
+    const a = _spKpiData[idx];
+    const content = document.getElementById(`sp-drill-content-${idx}`);
+    if (content && a) {
+      content.innerHTML = `
+        <div style="display:flex;gap:1.5rem;flex-wrap:wrap;padding:.25rem 0">
+          <div><span style="color:var(--muted)">งานทั้งหมด: </span><b>${a.total_jobs||0}</b></div>
+          <div><span style="color:var(--muted)">แก้แล้ว: </span><b style="color:#16a34a">${a.resolved_jobs||0}</b></div>
+          <div><span style="color:var(--muted)">ค้างอยู่: </span><b style="color:${(a.pending_jobs||0)>0?'#ef4444':'#16a34a'}">${a.pending_jobs||0}</b></div>
+          <div><span style="color:var(--muted)">ปฏิเสธ: </span><b style="color:${(a.rejected_jobs||0)>0?'#dc2626':'#94a3b8'}">${a.rejected_jobs||0}</b></div>
+          <div><span style="color:var(--muted)">เวลาเฉลี่ย: </span><b style="color:#7c3aed">${a.avg_resolve_min!=null?fmtMin(a.avg_resolve_min):'—'}</b></div>
+          <div><span style="color:var(--muted)">ช่วงก่อนหน้า: </span><b>${a.prev_total||0} งาน</b></div>
+          <div><span style="color:var(--muted)">ประเภทปัญหาหลัก: </span><b style="color:#7c3aed">${escHtml(a.top_problem_type||'—')}</b></div>
+        </div>`;
+    }
+  }
 }
 
 function renderSpKpiCharts(data) {
