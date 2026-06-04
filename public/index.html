@@ -583,7 +583,6 @@ textarea{resize:vertical;min-height:80px}
         <button class="s-sub" id="nav-sub-subjects" onclick="navSettings('subjects',this)">หัวข้อ / ประเภทปัญหา</button>
         <button class="s-sub" id="nav-sub-users" onclick="navSettings('users',this)">จัดการ User</button>
         <button class="s-sub" id="nav-sub-line" onclick="navSettings('line',this)">LINE Notifications</button>
-        <button class="s-sub" id="nav-sub-kpi-targets" onclick="navSettings('kpi-targets',this)">🎯 เป้าหมาย KPI</button>
       </div>
     </div>
     <!-- hidden buttons for backward compat -->
@@ -2958,39 +2957,6 @@ textarea{resize:vertical;min-height:80px}
     <div id="line-settings-inner"><!-- populated by loadLineSettings --></div>
   </div>
 
-  <!-- KPI Targets tab -->
-  <div id="stab-content-kpi-targets" style="display:none">
-    <div style="max-width:480px">
-      <div style="font-size:.88rem;font-weight:600;color:#475569;margin-bottom:1rem">กำหนดเป้าหมาย Grade Score ต่อเดือน สำหรับคำนวณคะแนน KPI/SLA</div>
-      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:.75rem 1rem;margin-bottom:.65rem;font-size:.78rem;color:#15803d">
-        <b>สูตร:</b> KPI/SLA = (grade_total_score / target) × max_score · ไม่เกิน max
-        <br>Grade: A=4, B=3, C=2, D=1 · ผลรวมทุก ticket ในเดือน
-      </div>
-      <div id="kpi-targets-form">
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.75rem;margin-bottom:1rem">
-          <div class="form-group">
-            <label style="font-size:.8rem">🖥️ Helpdesk <span style="color:#94a3b8;font-weight:400">(max 80)</span></label>
-            <input type="number" id="kt-helpdesk" min="100" step="50" value="1500"
-              style="font-size:1rem;font-weight:700;text-align:center"/>
-            <div style="font-size:.7rem;color:#94a3b8;margin-top:.2rem">grade pts / เดือน</div>
-          </div>
-          <div class="form-group">
-            <label style="font-size:.8rem">🎯 Specialist KPI/SLA <span style="color:#94a3b8;font-weight:400">(max 35)</span></label>
-            <input type="number" id="kt-specialist" min="100" step="50" value="800"
-              style="font-size:1rem;font-weight:700;text-align:center"/>
-            <div style="font-size:.7rem;color:#94a3b8;margin-top:.2rem">grade pts / เดือน</div>
-          </div>
-          <div class="form-group">
-            <label style="font-size:.8rem">📞 Specialist ติดตามเคส <span style="color:#94a3b8;font-weight:400">(max 15)</span></label>
-            <input type="number" id="kt-specialist-ticket" min="100" step="50" value="500"
-              style="font-size:1rem;font-weight:700;text-align:center"/>
-            <div style="font-size:.7rem;color:#94a3b8;margin-top:.2rem">grade pts / เดือน</div>
-          </div>
-        </div>
-        <button class="btn btn-primary" onclick="saveKpiTargets()">💾 บันทึกเป้าหมาย</button>
-      </div>
-    </div>
-  </div>
 
   <!-- ProblemType tab -->
   <div id="stab-content-ptypes" style="display:none">
@@ -7403,7 +7369,6 @@ async function tryAutoLogin() {
     initKpiMonthFilter();
     initDateDefaults();
     loadTarget();
-    loadKpiTargets();
     loadDashboard();
     loadDashboardCharts();
     loadNewsBadge();
@@ -8835,21 +8800,11 @@ function navSettings(sub, btn) {
     document.getElementById('page-settings').classList.add('active');
     const title = document.getElementById('settings-page-title');
     if (title) title.textContent = '🔔 LINE Notifications';
-    ['schedule','users','subjects','ptypes','shifts','kpi-targets'].forEach(k => {
+    ['schedule','users','subjects','ptypes','shifts'].forEach(k => {
       const el = document.getElementById(`stab-content-${k}`); if (el) el.style.display = 'none';
     });
     document.getElementById('stab-content-line').style.display = '';
     loadLineSettings();
-  } else if (sub === 'kpi-targets') {
-    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-    document.getElementById('page-settings').classList.add('active');
-    const title = document.getElementById('settings-page-title');
-    if (title) title.textContent = '🎯 เป้าหมาย KPI';
-    ['schedule','users','subjects','ptypes','shifts','line'].forEach(k => {
-      const el = document.getElementById(`stab-content-${k}`); if (el) el.style.display = 'none';
-    });
-    document.getElementById('stab-content-kpi-targets').style.display = '';
-    loadKpiTargets();
   } else {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('page-settings').classList.add('active');
