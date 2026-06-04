@@ -6338,11 +6338,24 @@ function exportSpKpiCsv() {
   if (!_spKpiData.length) { showToast('ไม่มีข้อมูล','error'); return; }
   const dfrom = document.getElementById('kpi-date-from')?.value || _kpiDateFrom || '';
   const dto   = document.getElementById('kpi-date-to')?.value   || _kpiDateTo   || '';
-  const headers = ['ชื่อเล่น','ทีม','งานทั้งหมด','แก้แล้ว','แก้แล้ว%','ค้าง','เวลาเฉลี่ย(นาที)','ประเภทปัญหาหลัก'];
+  const headers = [
+    'ชื่อเล่น','ทีม','งานทั้งหมด','แก้แล้ว','แก้แล้ว%','ค้าง','ปฏิเสธ',
+    'เวลาเฉลี่ย(นาที)','งานช่วงก่อน','แก้แล้ว%ช่วงก่อน',
+    'ประเภทปัญหาหลัก','คะแนนรวม(pts)','คะแนนเฉลี่ย','Grade','งานที่นับเกรด'
+  ];
   const rows = _spKpiData.map(a => {
-    const rate = a.total_jobs ? Math.round((a.resolved_jobs||0)/a.total_jobs*100) : 0;
-    return [a.name||'—', a.team||'—', a.total_jobs||0, a.resolved_jobs||0, rate+'%', a.pending_jobs||0,
-            a.avg_resolve_min!=null ? Math.round(a.avg_resolve_min) : '', a.top_problem_type||''];
+    const rate     = a.total_jobs ? Math.round((a.resolved_jobs||0)/a.total_jobs*100) : 0;
+    const prevRate = a.prev_total  ? Math.round((a.prev_resolved||0)/a.prev_total*100)  : '';
+    const g        = a.grade_avg_score;
+    const gl       = g!=null ? (g>=3.5?'A':g>=2.5?'B':g>=1.5?'C':'D') : '';
+    return [
+      a.name||'—', a.team||'—',
+      a.total_jobs||0, a.resolved_jobs||0, rate+'%', a.pending_jobs||0, a.rejected_jobs||0,
+      a.avg_resolve_min!=null ? Math.round(a.avg_resolve_min) : '',
+      a.prev_total||0, prevRate ? prevRate+'%' : '',
+      a.top_problem_type||'',
+      a.grade_total_score ?? '', g!=null ? (+g).toFixed(2) : '', gl, a.grade_cases||0
+    ];
   });
   const bom = '﻿';
   const csv = bom + [headers,...rows].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
