@@ -8826,8 +8826,9 @@ function navSettings(sub, btn) {
     document.getElementById('page-settings').classList.add('active');
     const title = document.getElementById('settings-page-title');
     if (title) title.textContent = '⏰ กะ & วันหยุด';
-    ['schedule','users','subjects','ptypes','line'].forEach(k =>
-      document.getElementById(`stab-content-${k}`).style.display = 'none');
+    ['schedule','users','subjects','ptypes','line','kpi-targets'].forEach(k => {
+      const el = document.getElementById(`stab-content-${k}`); if (el) el.style.display = 'none';
+    });
     document.getElementById('stab-content-shifts').style.display = '';
     loadShiftSettings();
   } else if (sub === 'line') {
