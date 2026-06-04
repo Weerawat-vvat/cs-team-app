@@ -7145,11 +7145,14 @@ async function updateKpi() {
 // ── KPI Targets settings ──────────────────────────────────
 async function loadKpiTargets() {
   const data = await api('/api/kpi/targets').catch(()=>null);
-  if (!data) return;
+  if (!data || data.error) return;
   _kpiTargets = { ..._kpiTargets, ...data };
-  if (data.helpdesk)            document.getElementById('kt-helpdesk').value            = data.helpdesk.target_grade;
-  if (data.specialist)          document.getElementById('kt-specialist').value          = data.specialist.target_grade;
-  if (data.specialist_ticket)   document.getElementById('kt-specialist-ticket').value   = data.specialist_ticket.target_grade;
+  const hd  = document.getElementById('kt-helpdesk');
+  const sp  = document.getElementById('kt-specialist');
+  const spT = document.getElementById('kt-specialist-ticket');
+  if (hd  && data.helpdesk)           hd.value  = data.helpdesk.target_grade;
+  if (sp  && data.specialist)         sp.value  = data.specialist.target_grade;
+  if (spT && data.specialist_ticket)  spT.value = data.specialist_ticket.target_grade;
 }
 
 async function saveKpiTargets() {
@@ -7157,11 +7160,16 @@ async function saveKpiTargets() {
   const specialist         = +document.getElementById('kt-specialist').value;
   const specialist_ticket  = +document.getElementById('kt-specialist-ticket').value;
   if (!helpdesk || !specialist || !specialist_ticket) { showToast('⚠️ กรุณากรอกตัวเลขให้ครบ', 'warning'); return; }
-  await api('/api/kpi/targets', { method:'POST', body:{ helpdesk, specialist, specialist_ticket } });
-  _kpiTargets.helpdesk           = { target_grade: helpdesk };
-  _kpiTargets.specialist         = { target_grade: specialist };
-  _kpiTargets.specialist_ticket  = { target_grade: specialist_ticket };
-  showToast('✅ บันทึกเป้าหมายแล้ว', 'success');
+  try {
+    const res = await api('/api/kpi/targets', { method:'POST', body:{ helpdesk, specialist, specialist_ticket } });
+    if (!res || res.error) { showToast('❌ บันทึกไม่สำเร็จ: ' + (res?.error || 'ไม่ทราบสาเหตุ'), 'error'); return; }
+    _kpiTargets.helpdesk           = { target_grade: helpdesk };
+    _kpiTargets.specialist         = { target_grade: specialist };
+    _kpiTargets.specialist_ticket  = { target_grade: specialist_ticket };
+    showToast('✅ บันทึกเป้าหมายแล้ว', 'success');
+  } catch(e) {
+    showToast('❌ บันทึกไม่สำเร็จ: ' + e.message, 'error');
+  }
 }
 
 // ── Punctuality modal ─────────────────────────────────────
@@ -7395,6 +7403,7 @@ async function tryAutoLogin() {
     initKpiMonthFilter();
     initDateDefaults();
     loadTarget();
+    loadKpiTargets();
     loadDashboard();
     loadDashboardCharts();
     loadNewsBadge();
