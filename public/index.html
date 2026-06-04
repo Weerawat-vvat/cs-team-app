@@ -1147,6 +1147,14 @@ textarea{resize:vertical;min-height:80px}
       <span style="font-size:.72rem;color:var(--muted)">🏆 Top Agent</span>
       <span style="font-size:.9rem;font-weight:800;color:var(--accent)" id="kpi-stat-top">—</span>
     </div>
+    <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:#92400e">💪 TOP คนขยัน</span>
+      <span style="font-size:.9rem;font-weight:800;color:#b45309" id="kpi-stat-hardworker">—</span>
+    </div>
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:#166534">🧠 TOP คนเก่ง</span>
+      <span style="font-size:.9rem;font-weight:800;color:#15803d" id="kpi-stat-skilled">—</span>
+    </div>
   </div>
 
   <!-- AI Forecast -->
@@ -1242,6 +1250,14 @@ textarea{resize:vertical;min-height:80px}
       <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
         <span style="font-size:.72rem;color:var(--muted)">🏆 Top Specialist</span>
         <span style="font-size:.9rem;font-weight:800;color:var(--accent)" id="sp-kpi-top">—</span>
+      </div>
+      <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+        <span style="font-size:.72rem;color:#92400e">💪 TOP คนขยัน</span>
+        <span style="font-size:.9rem;font-weight:800;color:#b45309" id="sp-kpi-hardworker">—</span>
+      </div>
+      <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+        <span style="font-size:.72rem;color:#166534">🧠 TOP คนเก่ง</span>
+        <span style="font-size:.9rem;font-weight:800;color:#15803d" id="sp-kpi-skilled">—</span>
       </div>
     </div>
 
@@ -6173,14 +6189,19 @@ function renderSpKpiStats(data) {
   const pending  = agents.reduce((s,a) => s + (a.pending_jobs||0), 0);
   const withTime = agents.filter(a => a.avg_resolve_min != null);
   const avgTime  = withTime.length ? withTime.reduce((s,a)=>s+a.avg_resolve_min,0)/withTime.length : null;
-  const top = agents.length ? agents[0] : null;
+  const top        = agents.length ? agents[0] : null;
+  const hardworker = agents.length ? agents.reduce((a,b) => (b.total_jobs||0) > (a.total_jobs||0) ? b : a) : null;
+  const gradedSp   = agents.filter(a => (a.grade_cases||0) >= 5);
+  const skilled    = gradedSp.length ? gradedSp.reduce((a,b) => (b.grade_avg_score||0) > (a.grade_avg_score||0) ? b : a) : null;
 
   const _s = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
-  _s('sp-kpi-total', total);
+  _s('sp-kpi-total',      total);
   _s('sp-kpi-resolve-rate', total ? Math.round(resolved/total*100)+'%' : '—');
-  _s('sp-kpi-avg-time', avgTime != null ? fmtMin(avgTime) : '—');
-  _s('sp-kpi-pending', pending);
-  _s('sp-kpi-top', top ? top.name : '—');
+  _s('sp-kpi-avg-time',   avgTime != null ? fmtMin(avgTime) : '—');
+  _s('sp-kpi-pending',    pending);
+  _s('sp-kpi-top',        top ? top.name : '—');
+  _s('sp-kpi-hardworker', hardworker ? hardworker.name : '—');
+  _s('sp-kpi-skilled',    skilled ? skilled.name + ` (⌀${(+skilled.grade_avg_score).toFixed(2)})` : '—');
 }
 
 let _spDrillOpen = new Set();
@@ -6500,7 +6521,10 @@ function renderKpiTable() {
     const avgStars = withStar.length ? (+withStar.reduce((s,k) => s + (+getStars(k)), 0) / withStar.length).toFixed(1) : '—';
     const totalOverdue    = allKpi.reduce((s,k) => s + (k.overdue_cases||0), 0);
     const totalComplaints = allKpi.reduce((s,k) => s + (k.complaints||0), 0);
-    const top = allKpi.reduce((a,b) => (b.total_cases||0) > (a.total_cases||0) ? b : a);
+    const top        = allKpi.reduce((a,b) => (b.total_cases||0) > (a.total_cases||0) ? b : a);
+    const hardworker = top;
+    const gradedKpi  = allKpi.filter(k => k.grade_cases >= 10);
+    const skilled    = gradedKpi.length ? gradedKpi.reduce((a,b) => (b.grade_avg_score||0) > (a.grade_avg_score||0) ? b : a) : null;
     _sk('kpi-stat-avg',        avgCases);
     _sk('kpi-stat-close-rate', avgClose);
     _sk('kpi-stat-resolve',    avgResolve);
@@ -6508,8 +6532,10 @@ function renderKpiTable() {
     _sk('kpi-stat-overdue',    totalOverdue);
     _sk('kpi-stat-complaints', totalComplaints);
     _sk('kpi-stat-top',        top.name || dn(top.UserName) || '—');
+    _sk('kpi-stat-hardworker', hardworker.name || dn(hardworker.UserName) || '—');
+    _sk('kpi-stat-skilled',    skilled ? (skilled.name || dn(skilled.UserName)) + ` (⌀${(+skilled.grade_avg_score).toFixed(2)})` : '—');
   } else {
-    ['kpi-stat-avg','kpi-stat-close-rate','kpi-stat-resolve','kpi-stat-stars','kpi-stat-overdue','kpi-stat-complaints','kpi-stat-top'].forEach(id => _sk(id,'—'));
+    ['kpi-stat-avg','kpi-stat-close-rate','kpi-stat-resolve','kpi-stat-stars','kpi-stat-overdue','kpi-stat-complaints','kpi-stat-top','kpi-stat-hardworker','kpi-stat-skilled'].forEach(id => _sk(id,'—'));
   }
 
   const tbody = document.getElementById('kpi-tbody');
