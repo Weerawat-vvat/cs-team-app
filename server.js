@@ -1838,6 +1838,22 @@ app.get('/api/kpi/specialist', authRequired, async (request, res) => {
       }
     } catch(e) { console.warn('[sp-kpi] grade calc skipped:', e.message); }
 
+    // Expose ext_username per specialist (frontend will fetch Calllog grades via /api/kpi?team=specialist)
+    try {
+      const empIds = agents.map(a => a.emp_id).filter(Boolean);
+      if (empIds.length) {
+        const inList = empIds.map((_,i) => `@eid${i}`).join(',');
+        const qr2 = req();
+        empIds.forEach((id,i) => qr2.input(`eid${i}`, sql.Int, id));
+        const extUsers = (await qr2.query(
+          `SELECT employee_id, ext_username FROM app_users WHERE employee_id IN (${inList}) AND ext_username IS NOT NULL`
+        )).recordset;
+        const empToExt = {};
+        extUsers.forEach(r => { empToExt[r.employee_id] = r.ext_username; });
+        agents.forEach(a => { a.ext_username = empToExt[a.emp_id] || null; });
+      }
+    } catch(e) { console.warn('[sp-kpi] ext_username lookup skipped:', e.message); }
+
     // Problem type distribution (all jobs in range)
     const problemTypes = (await req()
       .input('s', sql.DateTime, startDate)
@@ -1849,7 +1865,18 @@ app.get('/api/kpi/specialist', authRequired, async (request, res) => {
         GROUP BY problem_type ORDER BY cnt DESC
       `)).recordset;
 
-    res.json({ agents, problemTypes });
+    // debug: test app_users lookup for specialist emp_ids
+    let _dbgExtUsers = [];
+    try {
+      const testIds = agents.slice(0,3).map(a=>a.emp_id).filter(Boolean);
+      if (testIds.length) {
+        const il = testIds.map((_,i)=>`@t${i}`).join(',');
+        const qt = req();
+        testIds.forEach((id,i) => qt.input(`t${i}`, sql.Int, id));
+        _dbgExtUsers = (await qt.query(`SELECT employee_id, ext_username FROM app_users WHERE employee_id IN (${il})`)).recordset;
+      }
+    } catch(dbgErr) { _dbgExtUsers = [{error: dbgErr.message}]; }
+    res.json({ agents, problemTypes, _dbg: { extUsers: _dbgExtUsers, empIds: agents.slice(0,3).map(a=>a.emp_id), hdErr: agents._hdErr } });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -1941,6 +1968,208 @@ app.post('/api/kpi/comment', authRequired, async (request, res) => {
         .input('recby', sql.Int,      recorded_by || null)
         .query(`INSERT INTO kpi_comments (ext_username,month,comment,recorded_by)
                 OUTPUT INSERTED.id VALUES (@u,@m,@cmt,@recby)`);
+      res.json({ id: result.recordset[0].id });
+    }
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /api/kpi/activities — fetch knowledge-sharing activities for a month ──
+app.get('/api/kpi/activities', authRequired, async (request, res) => {
+  try {
+    const { month } = request.query; // format: YYYY-MM
+    const monthStart = month + '-01';
+    const [y, m] = month.split('-').map(Number);
+    const nextMonth = m === 12 ? `${y+1}-01-01` : `${y}-${String(m+1).padStart(2,'0')}-01`;
+
+    // Auto-count KB articles from shop_knowledge per user this month
+    // Auto-count trainings from kpi_trainings per user this month
+    const [kbRows, trRows, fuRows] = await Promise.all([
+      req().input('ms', sql.Date, monthStart).input('me', sql.Date, nextMonth)
+        .query(`SELECT au.ext_username, COUNT(*) AS kb_count
+                FROM shop_knowledge k JOIN app_users au ON au.id = k.created_by
+                WHERE k.created_at >= @ms AND k.created_at < @me AND au.ext_username IS NOT NULL
+                GROUP BY au.ext_username`),
+      req().input('ms', sql.Date, monthStart).input('me', sql.Date, nextMonth)
+        .query(`SELECT trainer_ext, COUNT(*) AS tr_count
+                FROM kpi_trainings
+                WHERE trained_date >= @ms AND trained_date < @me
+                GROUP BY trainer_ext`),
+      req().input('ms', sql.Date, monthStart).input('me', sql.Date, nextMonth)
+        .query(`SELECT au.ext_username, COUNT(*) AS fu_count
+                FROM fu_issues i
+                JOIN employees e  ON e.id  = i.assigned_to
+                JOIN app_users au ON au.employee_id = e.id
+                WHERE i.status = 'resolved'
+                  AND COALESCE(i.fix_date, CAST(i.updated_at AS DATE)) >= @ms
+                  AND COALESCE(i.fix_date, CAST(i.updated_at AS DATE)) < @me
+                  AND au.ext_username IS NOT NULL
+                GROUP BY au.ext_username`)
+    ]);
+    const kbMap = {}, trMap = {}, fuMap = {};
+    kbRows.recordset.forEach(r => { kbMap[r.ext_username] = r.kb_count; });
+    trRows.recordset.forEach(r => { trMap[r.trainer_ext]  = r.tr_count; });
+    fuRows.recordset.forEach(r => { fuMap[r.ext_username] = r.fu_count; });
+
+    const result = await req()
+      .input('month', sql.Date, monthStart)
+      .query(`SELECT ext_username FROM kpi_activities WHERE month = @month`);
+
+    // Merge all sources
+    const allUsers = new Set([...Object.keys(kbMap), ...Object.keys(trMap), ...Object.keys(fuMap), ...result.recordset.map(r=>r.ext_username)]);
+    const merged = {};
+    allUsers.forEach(u => {
+      merged[u] = { ext_username: u, kb_articles: kbMap[u]||0, trainings: trMap[u]||0, fu_resolved: fuMap[u]||0 };
+    });
+
+    res.json(Object.values(merged));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /api/kpi/trainings — list training logs (filter by trainer + month) ───
+app.get('/api/kpi/trainings', authRequired, async (request, res) => {
+  try {
+    const { trainer, month } = request.query;
+    let where = '1=1';
+    const qr = req();
+    if (trainer) { qr.input('trainer', sql.NVarChar, trainer); where += ' AND trainer_ext=@trainer'; }
+    if (month) {
+      const [y, m] = month.split('-').map(Number);
+      const ms = `${y}-${String(m).padStart(2,'0')}-01`;
+      const me = m === 12 ? `${y+1}-01-01` : `${y}-${String(m+1).padStart(2,'0')}-01`;
+      qr.input('ms', sql.Date, ms).input('me', sql.Date, me);
+      where += ' AND trained_date >= @ms AND trained_date < @me';
+    }
+    const rows = (await qr.query(`
+      SELECT t.*, e.name AS created_by_name
+      FROM kpi_trainings t
+      LEFT JOIN employees e ON e.id = t.created_by
+      WHERE ${where}
+      ORDER BY trained_date DESC`)).recordset;
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── POST /api/kpi/trainings — add training log ────────────────────────────────
+app.post('/api/kpi/trainings', authRequired, async (request, res) => {
+  try {
+    const { trainer_ext, trained_date, topic, trainees, notes } = request.body;
+    if (!trainer_ext || !trained_date || !topic?.trim()) return res.status(400).json({ error: 'กรุณากรอกข้อมูลให้ครบ' });
+    const r = await req()
+      .input('tr',  sql.NVarChar, trainer_ext)
+      .input('dt',  sql.Date,     trained_date)
+      .input('tp',  sql.NVarChar, topic.trim())
+      .input('tn',  sql.NVarChar, trainees || null)
+      .input('nt',  sql.NVarChar, notes || null)
+      .input('cb',  sql.Int,      request.user.employee_id || null)
+      .query(`INSERT INTO kpi_trainings(trainer_ext,trained_date,topic,trainees,notes,created_by)
+              OUTPUT INSERTED.id VALUES(@tr,@dt,@tp,@tn,@nt,@cb)`);
+    res.json({ id: r.recordset[0].id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── DELETE /api/kpi/trainings/:id ─────────────────────────────────────────────
+app.delete('/api/kpi/trainings/:id', authRequired, managerRequired, async (request, res) => {
+  try {
+    await req().input('id', sql.Int, parseInt(request.params.id))
+      .query('DELETE FROM kpi_trainings WHERE id=@id');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /api/kpi/targets ──────────────────────────────────────────────────────
+app.get('/api/kpi/targets', authRequired, async (request, res) => {
+  try {
+    const rows = (await req().query('SELECT role_key, target_grade, label FROM kpi_targets')).recordset;
+    const map = {};
+    rows.forEach(r => { map[r.role_key] = r; });
+    res.json(map);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── POST /api/kpi/targets ─────────────────────────────────────────────────────
+app.post('/api/kpi/targets', authRequired, managerRequired, async (request, res) => {
+  try {
+    const updates = request.body; // { helpdesk: 1500, specialist: 800, ... }
+    for (const [role_key, target_grade] of Object.entries(updates)) {
+      await req()
+        .input('rk', sql.NVarChar, role_key)
+        .input('tg', sql.Int, +target_grade)
+        .query(`IF EXISTS (SELECT 1 FROM kpi_targets WHERE role_key=@rk)
+                  UPDATE kpi_targets SET target_grade=@tg, updated_at=GETDATE() WHERE role_key=@rk
+                ELSE
+                  INSERT INTO kpi_targets(role_key,target_grade) VALUES(@rk,@tg)`);
+    }
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /api/kpi/punctuality ──────────────────────────────────────────────────
+app.get('/api/kpi/punctuality', authRequired, async (request, res) => {
+  try {
+    const { month } = request.query;
+    const result = await req()
+      .input('month', sql.Date, month + '-01')
+      .query(`SELECT ext_username, score, recorded_by, e.name AS recorder_name, updated_at
+              FROM kpi_punctuality kp LEFT JOIN employees e ON e.id = kp.recorded_by
+              WHERE month = @month`);
+    res.json(result.recordset);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── POST /api/kpi/punctuality ─────────────────────────────────────────────────
+app.post('/api/kpi/punctuality', authRequired, managerRequired, async (request, res) => {
+  try {
+    const { ext_username, month, score, recorded_by } = request.body;
+    const monthDate = month + '-01';
+    const sc = Math.max(0, Math.min(10, +score || 0));
+    const existing = await req()
+      .input('u', sql.NVarChar, ext_username).input('m', sql.Date, monthDate)
+      .query('SELECT id FROM kpi_punctuality WHERE ext_username=@u AND month=@m');
+    if (existing.recordset[0]) {
+      await req()
+        .input('sc', sql.Int, sc).input('rec', sql.Int, recorded_by || null)
+        .input('id', sql.Int, existing.recordset[0].id)
+        .query('UPDATE kpi_punctuality SET score=@sc, recorded_by=@rec, updated_at=GETDATE() WHERE id=@id');
+      res.json({ id: existing.recordset[0].id, updated: true });
+    } else {
+      const r = await req()
+        .input('u', sql.NVarChar, ext_username).input('m', sql.Date, monthDate)
+        .input('sc', sql.Int, sc).input('rec', sql.Int, recorded_by || null)
+        .query(`INSERT INTO kpi_punctuality(ext_username,month,score,recorded_by) OUTPUT INSERTED.id VALUES(@u,@m,@sc,@rec)`);
+      res.json({ id: r.recordset[0].id });
+    }
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── POST /api/kpi/activities — upsert knowledge-sharing activities ────────────
+app.post('/api/kpi/activities', authRequired, managerRequired, async (request, res) => {
+  try {
+    const { ext_username, month, kb_articles, trainings, escalations_reduced, recorded_by } = request.body;
+    const monthDate = month + '-01';
+    const existing = await req()
+      .input('u', sql.NVarChar, ext_username).input('m', sql.Date, monthDate)
+      .query('SELECT id FROM kpi_activities WHERE ext_username=@u AND month=@m');
+    if (existing.recordset[0]) {
+      await req()
+        .input('kb',  sql.Int, kb_articles || 0)
+        .input('tr',  sql.Int, trainings || 0)
+        .input('esc', sql.Int, escalations_reduced || 0)
+        .input('rec', sql.Int, recorded_by || null)
+        .input('id',  sql.Int, existing.recordset[0].id)
+        .query(`UPDATE kpi_activities SET kb_articles=@kb, trainings=@tr,
+                escalations_reduced=@esc, recorded_by=@rec, updated_at=GETDATE()
+                WHERE id=@id`);
+      res.json({ id: existing.recordset[0].id, updated: true });
+    } else {
+      const result = await req()
+        .input('u',   sql.NVarChar, ext_username)
+        .input('m',   sql.Date,     monthDate)
+        .input('kb',  sql.Int,      kb_articles || 0)
+        .input('tr',  sql.Int,      trainings || 0)
+        .input('esc', sql.Int,      escalations_reduced || 0)
+        .input('rec', sql.Int,      recorded_by || null)
+        .query(`INSERT INTO kpi_activities (ext_username,month,kb_articles,trainings,escalations_reduced,recorded_by)
+                OUTPUT INSERTED.id VALUES (@u,@m,@kb,@tr,@esc,@rec)`);
       res.json({ id: result.recordset[0].id });
     }
   } catch (e) { res.status(500).json({ error: e.message }); }

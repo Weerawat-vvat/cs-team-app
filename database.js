@@ -106,6 +106,61 @@ async function init() {
       )
     `);
     await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='kpi_activities' AND xtype='U')
+      CREATE TABLE kpi_activities (
+        id               INT IDENTITY(1,1) PRIMARY KEY,
+        ext_username     NVARCHAR(100) NOT NULL,
+        month            DATE NOT NULL,
+        kb_articles      INT DEFAULT 0,
+        trainings        INT DEFAULT 0,
+        escalations_reduced INT DEFAULT 0,
+        recorded_by      INT REFERENCES employees(id),
+        updated_at       DATETIME DEFAULT GETDATE(),
+        UNIQUE (ext_username, month)
+      )
+    `);
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='kpi_targets' AND xtype='U')
+      BEGIN
+        CREATE TABLE kpi_targets (
+          id           INT IDENTITY(1,1) PRIMARY KEY,
+          role_key     NVARCHAR(50) NOT NULL UNIQUE,
+          target_grade INT NOT NULL DEFAULT 1500,
+          label        NVARCHAR(100),
+          updated_at   DATETIME DEFAULT GETDATE()
+        )
+        INSERT INTO kpi_targets(role_key,target_grade,label) VALUES
+          ('helpdesk',   1500, 'Helpdesk'),
+          ('specialist_ticket', 500, 'Specialist ติดตามเคส'),
+          ('specialist',  800, 'Specialist')
+      END
+    `);
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='kpi_punctuality' AND xtype='U')
+      CREATE TABLE kpi_punctuality (
+        id           INT IDENTITY(1,1) PRIMARY KEY,
+        ext_username NVARCHAR(100) NOT NULL,
+        month        DATE NOT NULL,
+        score        INT NOT NULL DEFAULT 0,
+        recorded_by  INT REFERENCES employees(id),
+        updated_at   DATETIME DEFAULT GETDATE(),
+        UNIQUE (ext_username, month)
+      )
+    `);
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='kpi_trainings' AND xtype='U')
+      CREATE TABLE kpi_trainings (
+        id           INT IDENTITY(1,1) PRIMARY KEY,
+        trainer_ext  NVARCHAR(100) NOT NULL,
+        trained_date DATE NOT NULL,
+        topic        NVARCHAR(300) NOT NULL,
+        trainees     NVARCHAR(500),
+        notes        NVARCHAR(1000),
+        created_by   INT REFERENCES employees(id),
+        created_at   DATETIME DEFAULT GETDATE()
+      )
+    `);
+    await pool.request().query(`
       IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='app_users' AND xtype='U')
       CREATE TABLE app_users (
         id            INT IDENTITY(1,1) PRIMARY KEY,
