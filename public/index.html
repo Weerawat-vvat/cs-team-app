@@ -583,6 +583,7 @@ textarea{resize:vertical;min-height:80px}
         <button class="s-sub" id="nav-sub-subjects" onclick="navSettings('subjects',this)">หัวข้อ / ประเภทปัญหา</button>
         <button class="s-sub" id="nav-sub-users" onclick="navSettings('users',this)">จัดการ User</button>
         <button class="s-sub" id="nav-sub-line" onclick="navSettings('line',this)">LINE Notifications</button>
+        <button class="s-sub" id="nav-sub-kpi-targets" onclick="navSettings('kpi-targets',this)">🎯 เป้าหมาย KPI</button>
       </div>
     </div>
     <!-- hidden buttons for backward compat -->
@@ -1143,13 +1144,17 @@ textarea{resize:vertical;min-height:80px}
       <span style="font-size:.72rem;color:var(--muted)">📣 ร้องเรียน</span>
       <span style="font-size:1.1rem;font-weight:800;color:#dc2626" id="kpi-stat-complaints">—</span>
     </div>
-    <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:#92400e">💪 TOP คนขยัน</span>
-      <span style="font-size:.9rem;font-weight:800;color:#b45309" id="kpi-stat-hardworker">—</span>
+    <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:#92400e">🥇 อันดับ 1</span>
+      <span style="font-size:.9rem;font-weight:800;color:#b45309" id="kpi-top1">—</span>
     </div>
-    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:#166534">🧠 TOP คนเก่ง</span>
-      <span style="font-size:.9rem;font-weight:800;color:#15803d" id="kpi-stat-skilled">—</span>
+    <div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:#475569">🥈 อันดับ 2</span>
+      <span style="font-size:.9rem;font-weight:800;color:#475569" id="kpi-top2">—</span>
+    </div>
+    <div style="background:#fff7ed;border:1px solid #fdba74;border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:#9a3412">🥉 อันดับ 3</span>
+      <span style="font-size:.9rem;font-weight:800;color:#9a3412" id="kpi-top3">—</span>
     </div>
   </div>
 
@@ -1213,9 +1218,12 @@ textarea{resize:vertical;min-height:80px}
         <thead>
           <tr>
             <th>พนักงาน</th><th>ทีม</th>
-            <th>สถานะ</th><th>เคส</th><th>แนวโน้ม</th><th>ปิดงาน%</th><th>เวลาเฉลี่ย</th>
-            <th>⭐ Stars</th><th>🔴 ค้าง</th><th>📣 ร้องเรียน</th><th>สม่ำเสมอ</th>
-            <th title="A=4,B=3,C=2,D=1 · ≥10เคสถึงนับ · เรียงตามคะแนนรวม">🏅 คะแนน<br><span style="font-size:.65rem;font-weight:400">รวม / ⌀/งาน</span></th>
+            <th>เคส</th><th>แนวโน้ม</th><th>ปิดงาน%</th><th>เวลาเฉลี่ย</th>
+            <th>⭐ Stars</th><th>🔴 ค้าง</th>
+            <th title="Efficiency Score → scale to 80">🎯 KPI/SLA<br><span style="font-size:.65rem;font-weight:400">/80</span></th>
+            <th title="KB article · 1 บทความ = 2.5 คะแนน · max 4">📚 ความรู้<br><span style="font-size:.65rem;font-weight:400">/10</span></th>
+            <th title="Manager กรอก 0-10">⏰ ตรงเวลา<br><span style="font-size:.65rem;font-weight:400">/10</span></th>
+            <th title="KPI/SLA + ความรู้ + ตรงเวลา">🏆 รวม<br><span style="font-size:.65rem;font-weight:400">/100</span></th>
           </tr>
         </thead>
         <tbody id="kpi-tbody"></tbody>
@@ -1243,13 +1251,17 @@ textarea{resize:vertical;min-height:80px}
         <span style="font-size:.72rem;color:var(--muted)">⏳ ค้างอยู่</span>
         <span style="font-size:1.1rem;font-weight:800;color:#ef4444" id="sp-kpi-pending">—</span>
       </div>
-      <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-        <span style="font-size:.72rem;color:#92400e">💪 TOP คนขยัน</span>
-        <span style="font-size:.9rem;font-weight:800;color:#b45309" id="sp-kpi-hardworker">—</span>
+      <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+        <span style="font-size:.72rem;color:#92400e">🥇 อันดับ 1</span>
+        <span style="font-size:.9rem;font-weight:800;color:#b45309" id="sp-top1">—</span>
       </div>
-      <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-        <span style="font-size:.72rem;color:#166534">🧠 TOP คนเก่ง</span>
-        <span style="font-size:.9rem;font-weight:800;color:#15803d" id="sp-kpi-skilled">—</span>
+      <div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+        <span style="font-size:.72rem;color:#475569">🥈 อันดับ 2</span>
+        <span style="font-size:.9rem;font-weight:800;color:#475569" id="sp-top2">—</span>
+      </div>
+      <div style="background:#fff7ed;border:1px solid #fdba74;border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+        <span style="font-size:.72rem;color:#9a3412">🥉 อันดับ 3</span>
+        <span style="font-size:.9rem;font-weight:800;color:#9a3412" id="sp-top3">—</span>
       </div>
     </div>
 
@@ -1288,11 +1300,16 @@ textarea{resize:vertical;min-height:80px}
           <thead>
             <tr>
               <th>พนักงาน</th><th>ทีม</th>
-              <th>สถานะ</th><th>งาน</th><th>แนวโน้ม</th>
+              <th>งาน</th><th>แนวโน้ม</th>
               <th>แก้แล้ว%</th><th>⏱️ เวลาเฉลี่ย</th>
-              <th>⏳ ค้าง</th><th>❌ ปฏิเสธ</th>
-              <th>ประเภทปัญหาหลัก</th>
-              <th title="A=4,B=3,C=2,D=1 · เรียงตามคะแนนรวม">🏅 คะแนน<br><span style="font-size:.65rem;font-weight:400">รวม / ⌀/งาน</span></th>
+              <th>⏳ ค้าง</th>
+              <th title="Specialist log grade score → scale to 35">🎯 KPI/SLA<br><span style="font-size:.65rem;font-weight:400">/35</span></th>
+              <th title="Calllog grade score (ติดตามเคส) → scale to 15">📞 ติดตามเคส<br><span style="font-size:.65rem;font-weight:400">/15</span></th>
+              <th title="KB article · 1 บทความ = 2.5 คะแนน">📚 ความรู้<br><span style="font-size:.65rem;font-weight:400">/10</span></th>
+              <th title="จำนวนครั้งสอน · 1 ครั้ง = 5 คะแนน">🧑‍🏫 เทรน<br><span style="font-size:.65rem;font-weight:400">/10</span></th>
+              <th title="fu_issues resolved ในเดือน · 1 ticket = 5 คะแนน">📋 Follow Up<br><span style="font-size:.65rem;font-weight:400">/20</span></th>
+              <th title="Manager กรอก 0-10">⏰ ตรงเวลา<br><span style="font-size:.65rem;font-weight:400">/10</span></th>
+              <th title="KPI/SLA + ความรู้ + เทรน + FU + ตรงเวลา">🏆 รวม<br><span style="font-size:.65rem;font-weight:400">/100</span></th>
             </tr>
           </thead>
           <tbody id="sp-kpi-tbody"></tbody>
@@ -2965,6 +2982,40 @@ textarea{resize:vertical;min-height:80px}
     <div id="line-settings-inner"><!-- populated by loadLineSettings --></div>
   </div>
 
+  <!-- KPI Targets tab -->
+  <div id="stab-content-kpi-targets" style="display:none">
+    <div style="max-width:480px">
+      <div style="font-size:.88rem;font-weight:600;color:#475569;margin-bottom:1rem">กำหนดเป้าหมาย Grade Score ต่อเดือน สำหรับคำนวณคะแนน KPI/SLA</div>
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:.75rem 1rem;margin-bottom:.65rem;font-size:.78rem;color:#15803d">
+        <b>สูตร:</b> KPI/SLA = (grade_total_score / target) × max_score · ไม่เกิน max
+        <br>Grade: A=4, B=3, C=2, D=1 · ผลรวมทุก ticket ในเดือน
+      </div>
+      <div id="kpi-targets-form">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.75rem;margin-bottom:1rem">
+          <div class="form-group">
+            <label style="font-size:.8rem">🖥️ Helpdesk <span style="color:#94a3b8;font-weight:400">(max 80)</span></label>
+            <input type="number" id="kt-helpdesk" min="100" step="50" value="1500"
+              style="font-size:1rem;font-weight:700;text-align:center"/>
+            <div style="font-size:.7rem;color:#94a3b8;margin-top:.2rem">grade pts / เดือน</div>
+          </div>
+          <div class="form-group">
+            <label style="font-size:.8rem">🎯 Specialist KPI/SLA <span style="color:#94a3b8;font-weight:400">(max 35)</span></label>
+            <input type="number" id="kt-specialist" min="100" step="50" value="800"
+              style="font-size:1rem;font-weight:700;text-align:center"/>
+            <div style="font-size:.7rem;color:#94a3b8;margin-top:.2rem">grade pts / เดือน</div>
+          </div>
+          <div class="form-group">
+            <label style="font-size:.8rem">📞 Specialist ติดตามเคส <span style="color:#94a3b8;font-weight:400">(max 15)</span></label>
+            <input type="number" id="kt-specialist-ticket" min="100" step="50" value="500"
+              style="font-size:1rem;font-weight:700;text-align:center"/>
+            <div style="font-size:.7rem;color:#94a3b8;margin-top:.2rem">grade pts / เดือน</div>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveKpiTargets()">💾 บันทึกเป้าหมาย</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ProblemType tab -->
   <div id="stab-content-ptypes" style="display:none">
     <div class="section-header" style="margin-bottom:.6rem">
@@ -3066,6 +3117,10 @@ textarea{resize:vertical;min-height:80px}
       style="padding:.45rem 1.1rem;font-size:.85rem;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:#94a3b8;margin-bottom:-2px;font-family:inherit;transition:all .15s">
       📖 สิ่งที่ควรรู้
     </button>
+    <button id="si-tab-btn-training" onclick="siSwitchTab('training')"
+      style="padding:.45rem 1.1rem;font-size:.85rem;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:#94a3b8;margin-bottom:-2px;font-family:inherit;transition:all .15s">
+      🧑‍🏫 เทรนนิ่ง
+    </button>
   </div>
 
   <!-- ── Tab 1: ข้อมูลรีโมท ── -->
@@ -3113,6 +3168,60 @@ textarea{resize:vertical;min-height:80px}
     <!-- Knowledge list -->
     <div id="sk-list">
       <div style="text-align:center;color:var(--muted);padding:2rem;font-size:.9rem">กำลังโหลด...</div>
+    </div>
+  </div>
+
+  <!-- ── Tab 3: เทรนนิ่ง ── -->
+  <div id="si-panel-training" style="display:none">
+    <!-- Filter bar -->
+    <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.75rem">
+      <select id="tr-filter-trainer" onchange="trLoad()"
+        style="border:1px solid var(--border);border-radius:8px;padding:.38rem .65rem;font-size:.83rem;font-family:inherit;outline:none;background:#fff;min-width:160px">
+        <option value="">ทุกคน</option>
+      </select>
+      <input id="tr-filter-month" type="month" onchange="trLoad()"
+        style="border:1px solid var(--border);border-radius:8px;padding:.38rem .65rem;font-size:.83rem;outline:none"/>
+      <button class="btn btn-primary btn-sm" onclick="trOpenAdd()">+ บันทึกการสอน</button>
+      <button class="btn btn-ghost btn-sm" onclick="trLoad()">🔄 รีเฟรช</button>
+    </div>
+    <!-- Summary chips -->
+    <div id="tr-summary" style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem"></div>
+    <!-- List -->
+    <div id="tr-list">
+      <div style="text-align:center;color:var(--muted);padding:2rem;font-size:.9rem">กำลังโหลด...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: เพิ่มบันทึกการสอน -->
+<div class="overlay" id="modal-tr-add" onclick="if(event.target===this)closeModal('modal-tr-add')">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-title">🧑‍🏫 บันทึกการสอนเพื่อนร่วมทีม <button class="modal-close" onclick="closeModal('modal-tr-add')">×</button></div>
+    <div class="grid-2">
+      <div class="form-group">
+        <label>ผู้สอน <span style="color:#ef4444">*</span></label>
+        <select id="tr-trainer" class="emp-select"></select>
+      </div>
+      <div class="form-group">
+        <label>วันที่สอน <span style="color:#ef4444">*</span></label>
+        <input type="date" id="tr-date"/>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>หัวข้อที่สอน <span style="color:#ef4444">*</span></label>
+      <input type="text" id="tr-topic" placeholder="เช่น วิธีปิดเคส, การใช้ระบบ Calllog"/>
+    </div>
+    <div class="form-group">
+      <label>ผู้เรียน (ชื่อ/ทีม)</label>
+      <input type="text" id="tr-trainees" placeholder="เช่น นิ, ทีม Helpdesk"/>
+    </div>
+    <div class="form-group">
+      <label>หมายเหตุ</label>
+      <input type="text" id="tr-notes" placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)"/>
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="trSave()">บันทึก</button>
+      <button class="btn btn-ghost" onclick="closeModal('modal-tr-add')">ยกเลิก</button>
     </div>
   </div>
 </div>
@@ -3685,6 +3794,52 @@ textarea{resize:vertical;min-height:80px}
       <button class="btn btn-primary" onclick="saveKpi()">บันทึก</button>
       <button class="btn btn-ghost" onclick="closeModal('modal-add-kpi')">ยกเลิก</button>
     </div>
+  </div>
+</div>
+
+<!-- Modal: Punctuality (เข้างานตรงต่อเวลา) -->
+<div class="overlay" id="modal-punct" onclick="if(event.target===this)closeModal('modal-punct')">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-title">⏰ เข้างานตรงต่อเวลา <button class="modal-close" onclick="closeModal('modal-punct')">×</button></div>
+    <input type="hidden" id="punct-username"/>
+    <input type="hidden" id="punct-month"/>
+    <div style="font-size:.82rem;color:#64748b;margin-bottom:.85rem" id="punct-label"></div>
+    <div class="form-group">
+      <label>คะแนน (0 – 10) <span style="font-size:.72rem;color:#94a3b8">· Manager กรอก</span></label>
+      <input type="number" id="punct-score" min="0" max="10" value="10"
+        style="font-size:1.4rem;font-weight:700;text-align:center;width:100px"/>
+    </div>
+    <div id="punct-quick-btns" style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.85rem"></div>
+    <div class="form-group">
+      <label>บันทึกโดย</label>
+      <select id="punct-recorder" class="emp-select"></select>
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="savePunct()">บันทึก</button>
+      <button class="btn btn-ghost" onclick="closeModal('modal-punct')">ยกเลิก</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Activities (ความรู้และการแชร์) — KB only -->
+<div class="overlay" id="modal-activities" onclick="if(event.target===this)closeModal('modal-activities')">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-title">📚 ความรู้และการแชร์ <button class="modal-close" onclick="closeModal('modal-activities')">×</button></div>
+    <div style="font-size:.82rem;color:#64748b;margin-bottom:1rem" id="act-label"></div>
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:1rem 1.2rem;text-align:center;margin-bottom:1rem">
+      <div style="font-size:.72rem;color:#15803d;font-weight:700;margin-bottom:.35rem">📝 KB Article เดือนนี้ <span style="background:#dcfce7;border-radius:10px;padding:1px 6px">🤖 Auto</span></div>
+      <div style="font-size:2.5rem;font-weight:800;color:#15803d;line-height:1" id="act-kb-disp">0</div>
+      <div style="font-size:.75rem;color:#64748b;margin-top:.3rem">บทความ</div>
+    </div>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:.75rem 1rem;text-align:center;margin-bottom:1.25rem">
+      <div style="font-size:.72rem;color:#475569;font-weight:600;margin-bottom:.2rem">คะแนนหมวดความรู้</div>
+      <div>
+        <span style="font-size:2rem;font-weight:800" id="act-preview-score">0</span>
+        <span style="font-size:.85rem;color:#94a3b8"> / 20</span>
+      </div>
+      <div style="font-size:.7rem;color:#94a3b8;margin-top:.2rem">1 บทความ = 5 คะแนน · สูงสุด 4 บทความ</div>
+    </div>
+    <button class="btn btn-ghost" style="width:100%" onclick="closeModal('modal-activities')">ปิด</button>
   </div>
 </div>
 
@@ -6156,17 +6311,38 @@ let _spKpiData = [];
 async function loadSpKpi() {
   const dfrom = document.getElementById('kpi-date-from')?.value || _kpiDateFrom;
   const dto   = document.getElementById('kpi-date-to')?.value   || _kpiDateTo;
-  // default to this month if no date range set
   const today = new Date();
   const pad = n => String(n).padStart(2,'0');
   const defFrom = `${today.getFullYear()}-${pad(today.getMonth()+1)}-01`;
   const defTo   = `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
-  let url = `/api/kpi/specialist?dateFrom=${dfrom||defFrom}&dateTo=${dto||defTo}`;
+  const from = dfrom||defFrom;
+  const month = from.slice(0,7);
+  const to = dto||defTo;
+  let url = `/api/kpi/specialist?dateFrom=${from}&dateTo=${to}`;
   try {
-    const data = await api(url);
+    const [data, acts, puncts, targets, hdData] = await Promise.all([
+      api(url),
+      api(`/api/kpi/activities?month=${month}`).catch(()=>[]),
+      api(`/api/kpi/punctuality?month=${month}`).catch(()=>[]),
+      api('/api/kpi/targets').catch(()=>null),
+      api(`/api/kpi?dateFrom=${from}&dateTo=${to}&team=specialist`).catch(()=>null)
+    ]);
+    if (targets) _kpiTargets = { ..._kpiTargets, ...targets };
     if (!data) { showToast('⚠️ Specialist KPI: ไม่ได้รับข้อมูล', 'error'); return; }
     if (data.error) { showToast('❌ ' + data.error, 'error'); return; }
     _spKpiData = data.agents || [];
+    // build map: ext_username → Calllog grade_total_score (ติดตามเคส)
+    const hdMap = {};
+    (hdData?.agents || []).forEach(a => { hdMap[a.UserName] = a; });
+    _spKpiData.forEach(a => {
+      const ext = a.ext_username;
+      const hd  = ext ? hdMap[ext] : null;
+      a.hd_grade_total = hd ? (hd.grade_total_score || 0) : 0;
+    });
+    _kpiActivitiesMap = _kpiActivitiesMap || {};
+    _kpiPunctMap      = _kpiPunctMap || {};
+    (acts   ||[]).forEach(a => { _kpiActivitiesMap[a.ext_username] = a; });
+    (puncts ||[]).forEach(p => { _kpiPunctMap[p.ext_username] = p.score; });
     if (!_spKpiData.length) { showToast('⚠️ ไม่พบข้อมูล Specialist ในช่วงนี้', 'warning'); }
     renderSpKpiStats(data);
     renderSpKpiTable();
@@ -6181,24 +6357,25 @@ function renderSpKpiStats(data) {
   const pending  = agents.reduce((s,a) => s + (a.pending_jobs||0), 0);
   const withTime = agents.filter(a => a.avg_resolve_min != null);
   const avgTime  = withTime.length ? withTime.reduce((s,a)=>s+a.avg_resolve_min,0)/withTime.length : null;
-  const top        = agents.length ? agents[0] : null;
-  const hardworker = agents.length ? agents.reduce((a,b) => (b.total_jobs||0) > (a.total_jobs||0) ? b : a) : null;
-  const gradedSp   = agents.filter(a => (a.grade_cases||0) >= 5);
-  const skilled    = gradedSp.length ? gradedSp.reduce((a,b) => {
+  const gradedSp = agents.filter(a => (a.grade_cases||0) >= 5);
+  const spTop3   = [...gradedSp].sort((a,b) => {
     const sa = calcEffScore(a.grade_total_score, a.grade_cases)?.final || 0;
     const sb = calcEffScore(b.grade_total_score, b.grade_cases)?.final || 0;
-    return sb > sa ? b : a;
-  }) : null;
+    return sb - sa;
+  }).slice(0,3);
+  const spMedals = ['🥇','🥈','🥉'];
 
   const _s = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
-  _s('sp-kpi-total',      total);
+  _s('sp-kpi-total',        total);
   _s('sp-kpi-resolve-rate', total ? Math.round(resolved/total*100)+'%' : '—');
-  _s('sp-kpi-avg-time',   avgTime != null ? fmtMin(avgTime) : '—');
-  _s('sp-kpi-pending',    pending);
-  _s('sp-kpi-top',        top ? top.name : '—');
-  _s('sp-kpi-hardworker', hardworker ? hardworker.name : '—');
-  const skillEff = skilled ? calcEffScore(skilled.grade_total_score, skilled.grade_cases) : null;
-  _s('sp-kpi-skilled', skilled ? `${skilled.name} (${skillEff?.final||'—'}/120)` : '—');
+  _s('sp-kpi-avg-time',     avgTime != null ? fmtMin(avgTime) : '—');
+  _s('sp-kpi-pending',      pending);
+  [1,2,3].forEach(i => {
+    const el = document.getElementById(`sp-top${i}`);
+    if (!el) return;
+    const a = spTop3[i-1];
+    el.textContent = a ? `${spMedals[i-1]} ${a.name} (${calcEffScore(a.grade_total_score,a.grade_cases)?.final||'—'})` : '—';
+  });
 }
 
 // Efficiency % + Volume Bonus (max 120)
@@ -6251,7 +6428,6 @@ function renderSpKpiTable() {
         <b>${escHtml(a.name||'—')}</b>
       </td>
       <td>${teamBadgeHtml(a.team||'')}</td>
-      <td><span style="font-size:.72rem;font-weight:700;color:${bandColor}">${bandIcon} ${bandLabel}</span></td>
       <td>
         <div style="display:flex;align-items:center;gap:.3rem">
           <b style="color:var(--accent)">${a.total_jobs||0}</b>
@@ -6268,20 +6444,58 @@ function renderSpKpiTable() {
         ${trendArrow(a.avg_resolve_min??0, a.prev_avg_min??0, false)}
       </td>
       <td><b style="color:${(a.pending_jobs||0)>0?'#ef4444':'#16a34a'}">${a.pending_jobs||0}</b></td>
-      <td><b style="color:${(a.rejected_jobs||0)>0?'#dc2626':'#94a3b8'}">${a.rejected_jobs||0}</b></td>
-      <td style="font-size:.75rem;color:#475569">${escHtml(a.top_problem_type||'—')}</td>
-      <td style="white-space:nowrap">
-        ${(() => {
-          const eff = calcEffScore(a.grade_total_score, a.grade_cases);
-          if (!eff || (a.grade_cases||0) < 5) return '<span style="color:#cbd5e1;font-size:.75rem" title="ต้องการ ≥5 งาน">—</span>';
-          return `<div style="font-weight:800;color:${eff.gc};font-size:.92rem">${eff.final} <span style="font-size:.65rem;color:#94a3b8">/ 120</span></div>
-                  <div style="font-size:.7rem;color:#64748b">Eff ${eff.qualityPct}% +${eff.volumeBonus}</div>
-                  <span style="font-size:.65rem;background:${eff.gc}22;color:${eff.gc};border-radius:4px;padding:1px 5px;font-weight:700">${eff.gl}</span>`;
+      ${(() => {
+          const ext   = a.UserName || a.ext_username || '';
+          const act   = _kpiActivitiesMap[ext];
+          const punct = _kpiPunctMap[ext] ?? null;
+          const dfrom = document.getElementById('kpi-date-from')?.value || _kpiDateFrom || '';
+          const month = dfrom.slice(0,7);
+          const kpiSla  = calcSpKpiSlaScore(a);
+          const ticket  = calcSpTicketScore(a);
+          const kb  = calcKbScore(act);
+          const tr  = calcTrainingScore(act);
+          const fu  = calcFuScore(act);
+          const pt  = punct ?? 0;
+          const total = kpiSla + ticket + kb + tr + fu + pt;
+          const tc = total >= 80 ? '#16a34a' : total >= 60 ? '#b45309' : '#94a3b8';
+          // KPI/SLA cell
+          const spTarget = _kpiTargets.specialist?.target_grade || 800;
+          const gs   = a.grade_total_score || 0;
+          const pct  = Math.min(Math.round(gs / spTarget * 100), 100);
+          const sc   = kpiSla >= 28 ? '#16a34a' : kpiSla >= 18 ? '#b45309' : '#94a3b8';
+          // ติดตามเคส cell
+          const tkTarget = _kpiTargets.specialist_ticket?.target_grade || 500;
+          const tgs  = a.hd_grade_total || 0;
+          const tpct = Math.min(Math.round(tgs / tkTarget * 100), 100);
+          const tsc  = ticket >= 12 ? '#16a34a' : ticket >= 8 ? '#b45309' : '#94a3b8';
+          return `
+          <td style="white-space:nowrap">
+            <div style="font-weight:800;color:${sc};font-size:.95rem">${kpiSla}<span style="font-size:.62rem;color:#94a3b8">/35</span></div>
+            <div style="font-size:.68rem;color:#64748b;margin-top:.1rem">${gs.toLocaleString()} <span style="color:#cbd5e1">/ ${spTarget.toLocaleString()}</span></div>
+            <div style="background:#e2e8f0;border-radius:4px;height:3px;width:56px;margin-top:2px">
+              <div style="background:${sc};height:3px;border-radius:4px;width:${pct}%"></div>
+            </div>
+          </td>
+          <td style="white-space:nowrap">
+            <div style="font-weight:800;color:${tsc};font-size:.95rem">${ticket}<span style="font-size:.62rem;color:#94a3b8">/15</span></div>
+            <div style="font-size:.68rem;color:#64748b;margin-top:.1rem">${tgs.toLocaleString()} <span style="color:#cbd5e1">/ ${tkTarget.toLocaleString()}</span></div>
+            <div style="background:#e2e8f0;border-radius:4px;height:3px;width:56px;margin-top:2px">
+              <div style="background:${tsc};height:3px;border-radius:4px;width:${tpct}%"></div>
+            </div>
+          </td>
+          <td>${scoreCell(kb, 10)}<div style="font-size:.65rem;color:#94a3b8">${act?.kb_articles||0} บทความ</div></td>
+          <td>${scoreCell(tr, 10)}<div style="font-size:.65rem;color:#94a3b8">${act?.trainings||0} ครั้ง</div></td>
+          <td>${scoreCell(fu, 20)}<div style="font-size:.65rem;color:#94a3b8">${act?.fu_resolved||0} ticket</div></td>
+          <td>
+            ${scoreCell(pt, 10)}
+            <button onclick="event.stopPropagation();openPunctModal('${ext}','${escHtml(a.name||ext)}','${month}')"
+              style="font-size:.62rem;padding:1px 5px;border-radius:4px;border:1px solid #e2e8f0;background:#f8fafc;cursor:pointer;color:#64748b;margin-top:2px">✏️</button>
+          </td>
+          <td><div style="font-weight:800;color:${tc};font-size:.95rem">${total}<span style="font-size:.62rem;color:#94a3b8">/100</span></div></td>`;
         })()}
-      </td>
     </tr>
     <tr id="${rowId}" style="display:${isOpen?'':'none'}">
-      <td colspan="11" style="padding:0;background:#f8fafc;border-left:3px solid #7c3aed">
+      <td colspan="14" style="padding:0;background:#f8fafc;border-left:3px solid #7c3aed">
         <div id="sp-drill-content-${idx}" style="padding:.6rem 1rem;font-size:.8rem;color:var(--muted)">กำลังโหลด...</div>
       </td>
     </tr>`;
@@ -6382,6 +6596,9 @@ function exportSpKpiCsv() {
   showToast(`📥 Export ${_spKpiData.length} แถว`);
 }
 
+let _kpiActivitiesMap = {}; // ext_username → activity record
+let _kpiPunctMap     = {}; // ext_username → punctuality score
+
 async function loadKpi() {
   const team    = document.getElementById('kpi-filter-team').value;
   const dfrom   = document.getElementById('kpi-date-from')?.value || _kpiDateFrom;
@@ -6390,11 +6607,63 @@ async function loadKpi() {
   if (dfrom) url += `dateFrom=${dfrom}&`;
   if (dto)   url += `dateTo=${dto}&`;
   if (team)  url += `team=${team}&`;
-  const data = await api(url);
+  const month = dfrom ? dfrom.slice(0,7) : null;
+  const [data, acts, puncts, targets] = await Promise.all([
+    api(url),
+    month ? api(`/api/kpi/activities?month=${month}`).catch(()=>[]) : Promise.resolve([]),
+    month ? api(`/api/kpi/punctuality?month=${month}`).catch(()=>[]) : Promise.resolve([]),
+    api('/api/kpi/targets').catch(()=>null)
+  ]);
+  if (targets) _kpiTargets = { ..._kpiTargets, ...targets };
   allKpi = data.agents || [];
   _kpiStarsDist = data.starsDist || [];
+  _kpiActivitiesMap = {};
+  _kpiPunctMap = {};
+  (acts    || []).forEach(a => { _kpiActivitiesMap[a.ext_username] = a; });
+  (puncts  || []).forEach(p => { _kpiPunctMap[p.ext_username] = p.score; });
   renderKpiTable();
   renderKpiCharts();
+}
+
+// ── KPI Scoring helpers ───────────────────────────────────
+let _kpiTargets = { helpdesk: { target_grade: 1500 }, specialist: { target_grade: 800 } };
+
+function calcKbScore(act)       { return Math.min(Math.round((act?.kb_articles||0) * 2.5), 10); }
+function calcTrainingScore(act) { return Math.min((act?.trainings||0) * 5, 10); }
+function calcFuScore(act)       { return Math.min((act?.fu_resolved||0) * 5, 20); }
+
+function calcHdKpiSlaScore(k) {
+  const target = _kpiTargets.helpdesk?.target_grade || 1500;
+  return Math.min(Math.round((k.grade_total_score || 0) / target * 80), 80);
+}
+
+function calcSpKpiSlaScore(sp) {
+  const target = _kpiTargets.specialist?.target_grade || 800;
+  return Math.min(Math.round((sp.grade_total_score || 0) / target * 35), 35);
+}
+
+function calcSpTicketScore(sp) {
+  const target = _kpiTargets.specialist_ticket?.target_grade || 500;
+  return Math.min(Math.round((sp.hd_grade_total || 0) / target * 15), 15);
+}
+
+function calcHdTotal(k, act, punct) {
+  return calcHdKpiSlaScore(k) + calcKbScore(act) + (punct||0);
+}
+
+function calcSpTotal(sp, act, punct) {
+  return calcSpKpiSlaScore(sp) + calcKbScore(act) + calcTrainingScore(act) + calcFuScore(act) + (punct||0);
+}
+
+function scoreCell(pts, max, label) {
+  const pct = max > 0 ? pts/max : 0;
+  const c = pct >= 0.8 ? '#16a34a' : pct >= 0.5 ? '#b45309' : '#94a3b8';
+  return `<div style="font-weight:800;color:${c};font-size:.85rem;white-space:nowrap">${pts}<span style="font-size:.62rem;color:#cbd5e1">/${max}</span></div>`;
+}
+
+// legacy alias
+function calcActivityScore(act) {
+  return { kb: act?.kb_articles||0, total: calcKbScore(act) };
 }
 
 let _kpiStarsDist = [];
@@ -6541,26 +6810,27 @@ function renderKpiTable() {
     const avgStars = withStar.length ? (+withStar.reduce((s,k) => s + (+getStars(k)), 0) / withStar.length).toFixed(1) : '—';
     const totalOverdue    = allKpi.reduce((s,k) => s + (k.overdue_cases||0), 0);
     const totalComplaints = allKpi.reduce((s,k) => s + (k.complaints||0), 0);
-    const top        = allKpi.reduce((a,b) => (b.total_cases||0) > (a.total_cases||0) ? b : a);
-    const hardworker = top;
-    const gradedKpi  = allKpi.filter(k => k.grade_cases >= 10);
-    const skilled    = gradedKpi.length ? gradedKpi.reduce((a,b) => {
+    const gradedKpi = allKpi.filter(k => k.grade_cases >= 10);
+    const top3 = [...gradedKpi].sort((a,b) => {
       const sa = calcEffScore(a.grade_total_score, a.grade_cases)?.final || 0;
       const sb = calcEffScore(b.grade_total_score, b.grade_cases)?.final || 0;
-      return sb > sa ? b : a;
-    }) : null;
+      return sb - sa;
+    }).slice(0,3);
+    const medals = ['🥇','🥈','🥉'];
     _sk('kpi-stat-avg',        avgCases);
     _sk('kpi-stat-close-rate', avgClose);
     _sk('kpi-stat-resolve',    avgResolve);
     _sk('kpi-stat-stars',      avgStars !== '—' ? `${avgStars}★` : '—');
     _sk('kpi-stat-overdue',    totalOverdue);
     _sk('kpi-stat-complaints', totalComplaints);
-    _sk('kpi-stat-top',        top.name || dn(top.UserName) || '—');
-    _sk('kpi-stat-hardworker', hardworker.name || dn(hardworker.UserName) || '—');
-    const hdSkillEff = skilled ? calcEffScore(skilled.grade_total_score, skilled.grade_cases) : null;
-    _sk('kpi-stat-skilled', skilled ? `${skilled.name||dn(skilled.UserName)} (${hdSkillEff?.final||'—'}/120)` : '—');
+    [1,2,3].forEach(i => {
+      const el = document.getElementById(`kpi-top${i}`);
+      if (!el) return;
+      const k = top3[i-1];
+      el.textContent = k ? `${medals[i-1]} ${k.name||dn(k.UserName)} (${calcEffScore(k.grade_total_score,k.grade_cases)?.final||'—'})` : '—';
+    });
   } else {
-    ['kpi-stat-avg','kpi-stat-close-rate','kpi-stat-resolve','kpi-stat-stars','kpi-stat-overdue','kpi-stat-complaints','kpi-stat-top','kpi-stat-hardworker','kpi-stat-skilled'].forEach(id => _sk(id,'—'));
+    ['kpi-stat-avg','kpi-stat-close-rate','kpi-stat-resolve','kpi-stat-stars','kpi-stat-overdue','kpi-stat-complaints','kpi-top1','kpi-top2','kpi-top3'].forEach(id => _sk(id,'—'));
   }
 
   const tbody = document.getElementById('kpi-tbody');
@@ -6621,7 +6891,6 @@ function renderKpiTable() {
         <b>${k.name || dn(k.UserName)}</b>
       </td>
       <td>${teamBadgeHtml(k.team || dt(k.UserName) || '')}</td>
-      <td><span style="font-size:.72rem;font-weight:700;color:${bandColor}" title="${bandLabel} (${caseDiff>0?'+':''}${k.prev_cases?Math.round(caseDiff):0}%)">${bandIcon} ${bandLabel}</span></td>
       <td>
         <div style="display:flex;align-items:center;gap:.3rem">
           <b style="color:var(--accent)">${k.total_cases}</b>
@@ -6642,17 +6911,35 @@ function renderKpiTable() {
         ${k.avg_stars && k.prev_stars ? trendArrow(+k.avg_stars, +k.prev_stars) : ''}
       </td>
       <td><b style="color:${k.overdue_cases>0?'#dc2626':'#16a34a'}">${k.overdue_cases||0}</b></td>
-      <td><b style="color:${k.complaints>0?'#dc2626':'#16a34a'}">${k.complaints||0}</b></td>
-      <td><span style="font-size:.72rem;font-weight:700;color:${consColor}" title="CV=${cv}%">${consLabel}</span></td>
-      <td style="white-space:nowrap">
-        ${(() => {
-          const eff = calcEffScore(k.grade_total_score, k.grade_cases);
-          if (!eff || (k.grade_cases||0) < 10) return '<span style="color:#cbd5e1;font-size:.75rem" title="ต้องการ ≥10 เคส">—</span>';
-          return `<div style="font-weight:800;color:${eff.gc};font-size:.92rem">${eff.final} <span style="font-size:.65rem;color:#94a3b8">/ 120</span></div>
-                  <div style="font-size:.7rem;color:#64748b">Eff ${eff.qualityPct}% +${eff.volumeBonus}</div>
-                  <span style="font-size:.65rem;background:${eff.gc}22;color:${eff.gc};border-radius:4px;padding:1px 5px;font-weight:700">${eff.gl}</span>`;
+      ${(() => {
+          const act   = _kpiActivitiesMap[k.UserName];
+          const punct = _kpiPunctMap[k.UserName] ?? null;
+          const month = (document.getElementById('kpi-date-from')?.value||_kpiDateFrom||'').slice(0,7);
+          const target  = _kpiTargets.helpdesk?.target_grade || 1500;
+          const kpiSla  = calcHdKpiSlaScore(k);
+          const gs      = k.grade_total_score || 0;
+          const kb      = calcKbScore(act);
+          const pt      = punct ?? 0;
+          const total   = kpiSla + kb + pt;
+          const tc = total >= 80 ? '#16a34a' : total >= 60 ? '#b45309' : '#94a3b8';
+          const sc = kpiSla >= 64 ? '#16a34a' : kpiSla >= 40 ? '#b45309' : '#94a3b8';
+          const pct = Math.min(Math.round(gs/target*100), 100);
+          return `
+          <td style="white-space:nowrap">
+            <div style="font-weight:800;color:${sc};font-size:.95rem">${kpiSla}<span style="font-size:.62rem;color:#94a3b8">/80</span></div>
+            <div style="font-size:.68rem;color:#64748b;margin-top:.1rem">${gs.toLocaleString()} <span style="color:#cbd5e1">/ ${target.toLocaleString()}</span></div>
+            <div style="background:#e2e8f0;border-radius:4px;height:3px;width:56px;margin-top:2px">
+              <div style="background:${sc};height:3px;border-radius:4px;width:${pct}%"></div>
+            </div>
+          </td>
+          <td>${scoreCell(kb, 10)}<div style="font-size:.65rem;color:#94a3b8">${act?.kb_articles||0} บทความ</div></td>
+          <td>
+            ${scoreCell(pt, 10)}
+            <button onclick="event.stopPropagation();openPunctModal('${k.UserName}','${k.name||k.UserName}','${month}')"
+              style="font-size:.62rem;padding:1px 5px;border-radius:4px;border:1px solid #e2e8f0;background:#f8fafc;cursor:pointer;color:#64748b;margin-top:2px">✏️</button>
+          </td>
+          <td><div style="font-weight:800;color:${tc};font-size:.95rem">${total}<span style="font-size:.62rem;color:#94a3b8">/100</span></div></td>`;
         })()}
-      </td>
     </tr>
     <tr class="kpi-drill" id="kpi-drill-${k.UserName}" style="display:none">
       <td colspan="12"><div id="kpi-drill-content-${k.UserName}"><div style="color:var(--muted);font-size:.82rem;padding:.25rem">กำลังโหลด...</div></div></td>
@@ -6888,6 +7175,71 @@ async function updateKpi() {
   });
   closeModal('modal-edit-kpi');
   loadKpi();
+}
+
+// ── KPI Targets settings ──────────────────────────────────
+async function loadKpiTargets() {
+  const data = await api('/api/kpi/targets').catch(()=>null);
+  if (!data) return;
+  _kpiTargets = { ..._kpiTargets, ...data };
+  if (data.helpdesk)            document.getElementById('kt-helpdesk').value            = data.helpdesk.target_grade;
+  if (data.specialist)          document.getElementById('kt-specialist').value          = data.specialist.target_grade;
+  if (data.specialist_ticket)   document.getElementById('kt-specialist-ticket').value   = data.specialist_ticket.target_grade;
+}
+
+async function saveKpiTargets() {
+  const helpdesk           = +document.getElementById('kt-helpdesk').value;
+  const specialist         = +document.getElementById('kt-specialist').value;
+  const specialist_ticket  = +document.getElementById('kt-specialist-ticket').value;
+  if (!helpdesk || !specialist || !specialist_ticket) { showToast('⚠️ กรุณากรอกตัวเลขให้ครบ', 'warning'); return; }
+  await api('/api/kpi/targets', { method:'POST', body:{ helpdesk, specialist, specialist_ticket } });
+  _kpiTargets.helpdesk           = { target_grade: helpdesk };
+  _kpiTargets.specialist         = { target_grade: specialist };
+  _kpiTargets.specialist_ticket  = { target_grade: specialist_ticket };
+  showToast('✅ บันทึกเป้าหมายแล้ว', 'success');
+}
+
+// ── Punctuality modal ─────────────────────────────────────
+function openPunctModal(username, name, month) {
+  document.getElementById('punct-username').value = username;
+  document.getElementById('punct-month').value    = month;
+  document.getElementById('punct-label').textContent = `${name}  ·  เดือน ${month}`;
+  const cur = _kpiPunctMap[username] ?? 10;
+  document.getElementById('punct-score').value = cur;
+  // quick-select buttons
+  document.getElementById('punct-quick-btns').innerHTML =
+    [10,9,8,7,6,5,4,3,2,1,0].map(v =>
+      `<button onclick="document.getElementById('punct-score').value=${v};document.querySelectorAll('#punct-quick-btns button').forEach(b=>b.style.background='#f8fafc');this.style.background='#dbeafe'"
+        style="padding:.22rem .6rem;border-radius:6px;border:1px solid #e2e8f0;background:${v===cur?'#dbeafe':'#f8fafc'};cursor:pointer;font-size:.78rem;font-weight:600">${v}</button>`
+    ).join('');
+  const sel = document.getElementById('punct-recorder');
+  const ref = document.getElementById('kpi-recorder');
+  if (ref) sel.innerHTML = ref.innerHTML;
+  openModal('modal-punct');
+}
+
+async function savePunct() {
+  const username    = document.getElementById('punct-username').value;
+  const month       = document.getElementById('punct-month').value;
+  const score       = +document.getElementById('punct-score').value;
+  const recorded_by = +document.getElementById('punct-recorder').value || null;
+  await api('/api/kpi/punctuality', { method:'POST', body:{ ext_username:username, month, score, recorded_by } });
+  _kpiPunctMap[username] = score;
+  showToast('✅ บันทึกแล้ว', 'success');
+  closeModal('modal-punct');
+  if (_kpiActiveTab === 'specialist') renderSpKpiTable(); else renderKpiTable();
+}
+
+// ── Activities modal (KB only) ────────────────────────────
+function openActivitiesModal(username, name, month) {
+  document.getElementById('act-label').textContent = `${name}  ·  เดือน ${month}`;
+  const act   = _kpiActivitiesMap[username];
+  const sc    = calcActivityScore(act);
+  const c     = sc.total >= 16 ? '#16a34a' : sc.total >= 8 ? '#b45309' : '#2563eb';
+  document.getElementById('act-kb-disp').textContent      = sc.kb;
+  document.getElementById('act-preview-score').textContent = sc.total;
+  document.getElementById('act-preview-score').style.color = c;
+  openModal('modal-activities');
 }
 
 // ══════════════════════════════════════════════════════════
@@ -8509,13 +8861,21 @@ function navSettings(sub, btn) {
     document.getElementById('page-settings').classList.add('active');
     const title = document.getElementById('settings-page-title');
     if (title) title.textContent = '🔔 LINE Notifications';
-    document.getElementById('stab-content-schedule').style.display = 'none';
-    document.getElementById('stab-content-users').style.display    = 'none';
-    document.getElementById('stab-content-subjects').style.display = 'none';
-    document.getElementById('stab-content-ptypes').style.display   = 'none';
-    document.getElementById('stab-content-shifts').style.display   = 'none';
-    document.getElementById('stab-content-line').style.display     = '';
+    ['schedule','users','subjects','ptypes','shifts','kpi-targets'].forEach(k => {
+      const el = document.getElementById(`stab-content-${k}`); if (el) el.style.display = 'none';
+    });
+    document.getElementById('stab-content-line').style.display = '';
     loadLineSettings();
+  } else if (sub === 'kpi-targets') {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-settings').classList.add('active');
+    const title = document.getElementById('settings-page-title');
+    if (title) title.textContent = '🎯 เป้าหมาย KPI';
+    ['schedule','users','subjects','ptypes','shifts','line'].forEach(k => {
+      const el = document.getElementById(`stab-content-${k}`); if (el) el.style.display = 'none';
+    });
+    document.getElementById('stab-content-kpi-targets').style.display = '';
+    loadKpiTargets();
   } else {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('page-settings').classList.add('active');
@@ -15227,23 +15587,104 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function siSwitchTab(tab) {
-  const remote    = document.getElementById('si-panel-remote');
-  const knowledge = document.getElementById('si-panel-knowledge');
-  const btnR = document.getElementById('si-tab-btn-remote');
-  const btnK = document.getElementById('si-tab-btn-knowledge');
-  if (tab === 'remote') {
-    remote.style.display    = '';
-    knowledge.style.display = 'none';
-    btnR.style.borderBottomColor = '#2563eb'; btnR.style.color = '#2563eb';
-    btnK.style.borderBottomColor = 'transparent'; btnK.style.color = '#94a3b8';
-  } else {
-    remote.style.display    = 'none';
-    knowledge.style.display = '';
-    btnR.style.borderBottomColor = 'transparent'; btnR.style.color = '#94a3b8';
-    btnK.style.borderBottomColor = '#2563eb'; btnK.style.color = '#2563eb';
-    skLoadBrandFilter();
-    skLoad();
+  ['remote','knowledge','training'].forEach(t => {
+    document.getElementById(`si-panel-${t}`).style.display = t === tab ? '' : 'none';
+    const btn = document.getElementById(`si-tab-btn-${t}`);
+    if (btn) { btn.style.borderBottomColor = t === tab ? '#2563eb' : 'transparent'; btn.style.color = t === tab ? '#2563eb' : '#94a3b8'; }
+  });
+  if (tab === 'knowledge') { skLoadBrandFilter(); skLoad(); }
+  if (tab === 'training')  { trInitFilter(); trLoad(); }
+}
+
+// ── Training log page ─────────────────────────────────────
+let _trData = [];
+
+async function trInitFilter() {
+  const sel = document.getElementById('tr-filter-trainer');
+  if (sel.options.length > 1) return; // already populated
+  const users = await api('/api/users').catch(()=>[]);
+  users.filter(u => u.ext_username).forEach(u => {
+    const o = document.createElement('option');
+    o.value = u.ext_username; o.textContent = u.name || u.ext_username;
+    sel.appendChild(o);
+  });
+  // default month to current
+  const now = new Date();
+  const m = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  if (!document.getElementById('tr-filter-month').value) document.getElementById('tr-filter-month').value = m;
+}
+
+async function trLoad() {
+  const trainer = document.getElementById('tr-filter-trainer').value;
+  const month   = document.getElementById('tr-filter-month').value;
+  let url = '/api/kpi/trainings?';
+  if (trainer) url += `trainer=${encodeURIComponent(trainer)}&`;
+  if (month)   url += `month=${month}&`;
+  const rows = await api(url).catch(()=>[]);
+  _trData = rows;
+  trRender(rows);
+}
+
+function trRender(rows) {
+  // Summary chips
+  const counts = {};
+  rows.forEach(r => { counts[r.trainer_ext] = (counts[r.trainer_ext]||0) + 1; });
+  document.getElementById('tr-summary').innerHTML = Object.entries(counts)
+    .sort((a,b) => b[1]-a[1])
+    .map(([u,c]) => `<span style="background:#dbeafe;color:#1e40af;border-radius:20px;padding:.2rem .7rem;font-size:.75rem;font-weight:700">🧑‍🏫 ${escHtml(u)} · ${c} ครั้ง</span>`).join('');
+
+  const list = document.getElementById('tr-list');
+  if (!rows.length) { list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem">ยังไม่มีบันทึก</div>'; return; }
+  list.innerHTML = rows.map(r => `
+    <div style="display:flex;align-items:flex-start;gap:.65rem;padding:.65rem .85rem;border-bottom:1px solid #f1f5f9">
+      <div style="width:36px;height:36px;background:#dbeafe;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0">🧑‍🏫</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;color:#1e293b;font-size:.88rem">${escHtml(r.topic)}</div>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.2rem;font-size:.74rem;color:#64748b">
+          <span>📅 ${r.trained_date?.slice(0,10)||''}</span>
+          <span style="color:#2563eb;font-weight:600">👤 ${escHtml(r.trainer_ext)}</span>
+          ${r.trainees ? `<span>👥 ${escHtml(r.trainees)}</span>` : ''}
+          ${r.notes    ? `<span>📝 ${escHtml(r.notes)}</span>`    : ''}
+        </div>
+        ${r.created_by_name ? `<div style="font-size:.68rem;color:#cbd5e1;margin-top:.15rem">บันทึกโดย ${escHtml(r.created_by_name)}</div>` : ''}
+      </div>
+      <button onclick="trDelete(${r.id})"
+        style="flex-shrink:0;font-size:.72rem;padding:2px 8px;border-radius:6px;border:1px solid #fecaca;background:#fff5f5;color:#dc2626;cursor:pointer">🗑️</button>
+    </div>`).join('');
+}
+
+function trOpenAdd() {
+  const now = new Date();
+  document.getElementById('tr-date').value     = now.toISOString().slice(0,10);
+  document.getElementById('tr-topic').value    = '';
+  document.getElementById('tr-trainees').value = '';
+  document.getElementById('tr-notes').value    = '';
+  const sel = document.getElementById('tr-trainer');
+  if (sel.options.length <= 1) {
+    sel.innerHTML = '<option value="">-- เลือกผู้สอน --</option>' +
+      allEmployees.filter(e => e.ext_username).map(e =>
+        `<option value="${escHtml(e.ext_username)}">${escHtml(e.name||e.ext_username)}</option>`).join('');
   }
+  openModal('modal-tr-add');
+}
+
+async function trSave() {
+  const trainer_ext  = document.getElementById('tr-trainer').value;
+  const trained_date = document.getElementById('tr-date').value;
+  const topic        = document.getElementById('tr-topic').value.trim();
+  const trainees     = document.getElementById('tr-trainees').value.trim();
+  const notes        = document.getElementById('tr-notes').value.trim();
+  if (!trainer_ext || !trained_date || !topic) { showToast('⚠️ กรุณากรอก ผู้สอน วันที่ และหัวข้อ', 'warning'); return; }
+  await api('/api/kpi/trainings', { method:'POST', body:{ trainer_ext, trained_date, topic, trainees, notes } });
+  showToast('✅ บันทึกแล้ว', 'success');
+  closeModal('modal-tr-add');
+  trLoad();
+}
+
+async function trDelete(id) {
+  if (!confirm('ลบรายการนี้?')) return;
+  await api(`/api/kpi/trainings/${id}`, { method:'DELETE' });
+  trLoad();
 }
 
 // ══════════════════════════════════════════════════════════════════
