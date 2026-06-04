@@ -579,6 +579,7 @@ textarea{resize:vertical;min-height:80px}
       </button>
       <div class="s-sub-menu" id="settings-sub">
         <button class="s-sub" id="nav-sub-schedule" onclick="navSettings('schedule',this)">ตารางงาน</button>
+        <button class="s-sub" id="nav-sub-shifts" onclick="navSettings('shifts',this)">กะ & วันหยุด</button>
         <button class="s-sub" id="nav-sub-subjects" onclick="navSettings('subjects',this)">หัวข้อ / ประเภทปัญหา</button>
         <button class="s-sub" id="nav-sub-users" onclick="navSettings('users',this)">จัดการ User</button>
         <button class="s-sub" id="nav-sub-line" onclick="navSettings('line',this)">LINE Notifications</button>
@@ -899,6 +900,7 @@ textarea{resize:vertical;min-height:80px}
     <div class="section-title">📅 ตารางกะ & วันหยุด</div>
     <div class="btn-group">
       <button id="btn-clear-shifts" class="btn btn-sm" style="background:#ef4444;color:#fff" onclick="clearWeekShifts()">🗑️ เครียตาราง</button>
+      <button class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="openPatternModal()">🗓️ กำหนดรูปแบบรายสัปดาห์</button>
       <button class="btn btn-sm" style="background:#0f172a;color:#fff" onclick="toggleScheduleView()">📅 <span id="schedule-view-label">มุมมองรายสัปดาห์</span></button>
     </div>
   </div>
@@ -1334,7 +1336,7 @@ textarea{resize:vertical;min-height:80px}
       <div class="tbl-wrap">
         <table>
           <thead>
-            <tr><th>#</th><th>ชื่อ (key)</th><th>ชื่อแสดงผล</th><th>สี</th><th>ลำดับ</th><th>สถานะ</th><th>จัดการ</th></tr>
+            <tr><th>#</th><th>ชื่อ (key)</th><th>ชื่อแสดงผล</th><th>สี</th><th>ลำดับ</th><th>สถานะ</th><th title="แสดงแท็บทีมในหน้าตารางกะ">📅 ตารางกะ</th><th>จัดการ</th></tr>
           </thead>
           <tbody id="teams-tbody"></tbody>
         </table>
@@ -2911,6 +2913,42 @@ textarea{resize:vertical;min-height:80px}
     </div>
   </div>
 
+  <!-- Shifts & Leave tab -->
+  <div id="stab-content-shifts" style="display:none">
+    <div class="grid-2" style="gap:1rem">
+      <!-- กะทำงาน -->
+      <div>
+        <div class="section-header" style="margin-bottom:.6rem">
+          <div style="font-size:.88rem;font-weight:700">⏰ กะทำงาน</div>
+          <button class="btn btn-primary btn-sm" onclick="openAddShiftModal('work')">+ เพิ่มกะ</button>
+        </div>
+        <div class="card" style="padding:.5rem 0">
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>key</th><th>ชื่อแสดง</th><th>เวลาเข้า</th><th>เวลาออก</th><th>สี</th><th></th></tr></thead>
+              <tbody id="shift-work-tbody"><tr><td colspan="6" class="empty">กำลังโหลด...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <!-- วันหยุด & ลา -->
+      <div>
+        <div class="section-header" style="margin-bottom:.6rem">
+          <div style="font-size:.88rem;font-weight:700">🏖️ วันหยุด & ลา</div>
+          <button class="btn btn-primary btn-sm" onclick="openAddShiftModal('leave')">+ เพิ่มประเภท</button>
+        </div>
+        <div class="card" style="padding:.5rem 0">
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>key</th><th>ชื่อแสดง</th><th>สี</th><th></th></tr></thead>
+              <tbody id="shift-leave-tbody"><tr><td colspan="4" class="empty">กำลังโหลด...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- LINE Notifications tab -->
   <div id="stab-content-line" style="display:none">
     <div id="line-settings-inner"><!-- populated by loadLineSettings --></div>
@@ -3810,6 +3848,7 @@ let _tkPerPage    = 50;  // rows per page
 let allKpi        = [];
 let allUsers      = [];
 let allTeams      = [];
+let allShiftTypes = [];
 let nameMap       = {};  // ext_username → employee display name
 let teamMap       = {};  // ext_username → team
 
@@ -4018,7 +4057,7 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 
 // click outside to close
 // Modals ที่ห้ามปิดเมื่อกด outside (ข้อมูลอาจหาย)
-const NO_BACKDROP_CLOSE = new Set(['modal-repair-link','modal-repair-form','modal-repair-detail','modal-person','modal-create-case','modal-edit-ticket-full','modal-specialist-detail','modal-assign-specialist','modal-add-sp','modal-edit-sp','modal-si-entry','modal-si-import','modal-fu-add-issue','modal-sk-entry','modal-sw-update-form','modal-tk-import','modal-news-form']);
+const NO_BACKDROP_CLOSE = new Set(['modal-repair-link','modal-repair-form','modal-repair-detail','modal-person','modal-create-case','modal-edit-ticket-full','modal-specialist-detail','modal-assign-specialist','modal-add-sp','modal-edit-sp','modal-si-entry','modal-si-import','modal-fu-add-issue','modal-sk-entry','modal-sw-update-form','modal-tk-import','modal-news-form','modal-weekly-pattern']);
 
 document.querySelectorAll('.overlay').forEach(el => {
   el.addEventListener('click', e => {
@@ -4582,6 +4621,23 @@ async function loadDashboardCharts() {
         order: 3
       },
     ];
+    // เส้นเฉลี่ยทีม = ยอดรวม ÷ จำนวน agent ที่ทำงาน ÷ จำนวนวัน
+    const totalTicketsThis = agentThis.reduce((s, r) => s + (r.cnt || 0), 0);
+    const activeAgentCount = agentThis.filter(r => (r.cnt || 0) > 0).length;
+    const teamAvgPerDay = activeAgentCount > 0 ? +(totalTicketsThis / activeAgentCount / daysThis).toFixed(2) : 0;
+    if (teamAvgPerDay > 0) {
+      barDatasets.push({
+        type: 'line',
+        label: `เฉลี่ยทีม (${teamAvgPerDay}/วัน)`,
+        data: topN.map(() => teamAvgPerDay),
+        borderColor: '#22c55e',
+        borderWidth: 2,
+        borderDash: [4, 3],
+        pointRadius: 0,
+        fill: false,
+        order: 1
+      });
+    }
     if (_tgt) {
       barDatasets.push({
         type: 'line',
@@ -4999,17 +5055,22 @@ function renderShiftTabs() {
   }
 
   // team_lead: only their team + remove "ทุกทีม" (no cross-team view)
+  // กรองเฉพาะทีมที่ show_in_schedule = true
   const visibleTeams = role === 'team_lead'
     ? allTeams.filter(t => t.name === currentUser.team)
-    : allTeams;
+    : allTeams.filter(t => t.show_in_schedule !== false && t.show_in_schedule !== 0);
 
-  const allBtn = role === 'team_lead' ? '' :
-    `<button class="tab ${shiftTeamFilter==='all'?'active':''}" onclick="setShiftTeam('all',this)">ทุกทีม</button>`;
-
-  tabs.innerHTML = allBtn + visibleTeams.map(t =>
-    `<button class="tab ${shiftTeamFilter===t.name?'active':''}" onclick="setShiftTeam('${t.name}',this)"
-       style="${shiftTeamFilter===t.name?`border-bottom-color:${t.color};color:${t.color}`:''}">${t.display_name}</button>`
+  const allOpt = role === 'team_lead' ? '' : `<option value="all">ทุกทีม</option>`;
+  const opts = allOpt + visibleTeams.map(t =>
+    `<option value="${t.name}" ${shiftTeamFilter===t.name?'selected':''}>${t.display_name}</option>`
   ).join('');
+  const selTeam = visibleTeams.find(t => t.name === shiftTeamFilter);
+  const borderColor = selTeam?.color || '#2563eb';
+  tabs.innerHTML = `<label style="font-size:.78rem;color:var(--muted);white-space:nowrap">ทีม:</label>
+    <select onchange="setShiftTeam(this.value)"
+      style="border:2px solid ${borderColor};border-radius:8px;padding:.3rem .75rem;font-size:.85rem;font-weight:600;color:${borderColor};background:#fff;cursor:pointer;outline:none;min-width:130px">
+      ${opts}
+    </select>`;
 }
 
 function changeWeek(dir) {
@@ -5035,10 +5096,9 @@ async function clearWeekShifts() {
   }
 }
 
-function setShiftTeam(t, btn) {
+function setShiftTeam(t) {
   shiftTeamFilter = t;
-  document.querySelectorAll('#schedule-tabs .tab').forEach(b => b.classList.remove('active'));
-  if (btn) { btn.classList.add('active'); }
+  renderShiftTabs();
   _scheduleView === 'month' ? loadScheduleMonth() : loadSchedule();
 }
 
@@ -6018,7 +6078,7 @@ function kpiRange(preset, btn) {
   document.querySelectorAll('#kpi-drb .drb-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
   const custom = document.getElementById('kpi-custom-range');
-  if (preset === 'custom') { custom.style.display = ''; return; }
+  if (preset === 'custom') { custom.style.display = 'flex'; return; }
   custom.style.display = 'none';
 
   const today = new Date();
@@ -6925,9 +6985,11 @@ async function doLogin() {
 //  TEAMS
 // ══════════════════════════════════════════════════════════
 async function loadTeams() {
-  allTeams = await api('/api/teams');
+  [allTeams, allShiftTypes] = await Promise.all([
+    api('/api/teams'),
+    api('/api/shift-types').catch(() => [])
+  ]);
   renderShiftTabs();
-  // Refresh team dropdowns in employees modal
   refreshTeamDropdowns();
 }
 
@@ -6960,18 +7022,26 @@ function refreshTeamDropdowns() {
 async function loadTeamsTab() {
   const tbody = document.getElementById('teams-tbody');
   if (!tbody) return;
-  tbody.innerHTML = allTeams.map(t => `
-    <tr>
+  tbody.innerHTML = allTeams.map(t => {
+    const inSched = t.show_in_schedule !== false && t.show_in_schedule !== 0;
+    return `<tr>
       <td>${t.id}</td>
       <td><code style="background:#f1f5f9;padding:.1rem .4rem;border-radius:4px">${t.name}</code></td>
       <td><b>${t.display_name}</b></td>
       <td><span style="display:inline-block;width:18px;height:18px;border-radius:4px;background:${t.color};vertical-align:middle;margin-right:.4rem"></span>${t.color}</td>
       <td>${t.sort_order}</td>
       <td><span class="badge" style="background:${t.active?'#dcfce7':'#f1f5f9'};color:${t.active?'#15803d':'#64748b'}">${t.active?'ใช้งาน':'ปิดใช้'}</span></td>
+      <td style="text-align:center">
+        <button onclick="toggleTeamSchedule(${t.id},${inSched?0:1})"
+          style="border:none;background:none;cursor:pointer;font-size:1.1rem;line-height:1" title="${inSched?'คลิกเพื่อซ่อน':'คลิกเพื่อแสดง'}">
+          ${inSched ? '✅' : '⬜'}
+        </button>
+      </td>
       <td>
         <button class="btn btn-ghost btn-sm" onclick="openEditTeam(${JSON.stringify(t).replace(/"/g,'&quot;')})">✏️ แก้ไข</button>
       </td>
-    </tr>`).join('') || '<tr><td colspan="7" class="empty">ยังไม่มีทีม</td></tr>';
+    </tr>`;
+  }).join('') || '<tr><td colspan="8" class="empty">ยังไม่มีทีม</td></tr>';
 }
 
 function openAddTeam() {
@@ -6999,6 +7069,19 @@ function openEditTeam(t) {
   document.getElementById('tm-active-wrap').style.display = '';
   document.getElementById('tm-active').value   = t.active ? '1' : '0';
   openModal('modal-team');
+}
+
+async function toggleTeamSchedule(id, val) {
+  const t = allTeams.find(t => t.id === id);
+  if (!t) return;
+  await api(`/api/teams/${id}`, { method: 'PUT', body: {
+    name: t.name, display_name: t.display_name, color: t.color,
+    sort_order: t.sort_order, active: t.active, show_in_schedule: val
+  }});
+  await loadTeams();
+  loadTeamsTab();
+  // rebuild schedule tabs ถ้าอยู่หน้าตารางกะ
+  if (typeof renderShiftTabs === 'function') renderShiftTabs();
 }
 
 async function saveTeam() {
@@ -8268,6 +8351,15 @@ function navSettings(sub, btn) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('page-users').classList.add('active');
     loadUsers();
+  } else if (sub === 'shifts') {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-settings').classList.add('active');
+    const title = document.getElementById('settings-page-title');
+    if (title) title.textContent = '⏰ กะ & วันหยุด';
+    ['schedule','users','subjects','ptypes','line'].forEach(k =>
+      document.getElementById(`stab-content-${k}`).style.display = 'none');
+    document.getElementById('stab-content-shifts').style.display = '';
+    loadShiftSettings();
   } else if (sub === 'line') {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('page-settings').classList.add('active');
@@ -8277,6 +8369,7 @@ function navSettings(sub, btn) {
     document.getElementById('stab-content-users').style.display    = 'none';
     document.getElementById('stab-content-subjects').style.display = 'none';
     document.getElementById('stab-content-ptypes').style.display   = 'none';
+    document.getElementById('stab-content-shifts').style.display   = 'none';
     document.getElementById('stab-content-line').style.display     = '';
     loadLineSettings();
   } else {
@@ -8327,6 +8420,133 @@ function loadSettings() {
   const title = document.getElementById('settings-page-title');
   if (title) title.textContent = '⚙️ หัวข้อ / ประเภทปัญหา';
   if (tab === 'ptypes') loadPTypes(); else loadSubjects();
+}
+
+// ══════════════════════════════════════════════════════════
+//  SHIFT SETTINGS
+// ══════════════════════════════════════════════════════════
+const WORK_SHIFT_KEYS  = ['morning','mid','afternoon','night'];
+const LEAVE_SHIFT_KEYS = ['dayoff','leave_personal','leave_office','leave_annual','leave_sick'];
+
+// Label สำหรับ leave types ที่อาจยังไม่มีใน DB
+const LEAVE_DEFAULTS = {
+  dayoff:          { name: 'หยุด (DayOFF)',       color_bg: '#fef2f2', color_text: '#b91c1c' },
+  leave_personal:  { name: 'ลากิจ (Personal)',     color_bg: '#fef9c3', color_text: '#854d0e' },
+  leave_office:    { name: 'หยุดออฟฟิศ (Office)',  color_bg: '#e0f2fe', color_text: '#0369a1' },
+  leave_annual:    { name: 'ลาพักร้อน (Vacation)', color_bg: '#f3e8ff', color_text: '#6b21a8' },
+  leave_sick:      { name: 'ลาป่วย (Sick)',         color_bg: '#fee2e2', color_text: '#991b1b' },
+};
+
+async function loadShiftSettings() {
+  const stypes = await api('/api/shift-types').catch(() => []);
+
+  // กะทำงาน — แสดงทุก key ที่ไม่ใช่ dayoff และไม่ใช่ leave_*
+  const workTbody = document.getElementById('shift-work-tbody');
+  const workTypes = stypes.filter(s => s.shift_key !== 'dayoff' && !s.shift_key.startsWith('leave_'));
+  workTbody.innerHTML = workTypes.length ? workTypes.map(s => `
+    <tr id="srow-${s.id}">
+      <td><code style="background:#f1f5f9;padding:.1rem .4rem;border-radius:4px;font-size:.75rem">${s.shift_key}</code></td>
+      <td><input value="${escHtml(s.name)}" id="sname-${s.id}" style="border:1px solid var(--border);border-radius:5px;padding:.22rem .5rem;font-size:.8rem;width:110px"/></td>
+      <td><input type="time" value="${s.start_time||''}" id="sstart-${s.id}" style="border:1px solid var(--border);border-radius:5px;padding:.22rem .4rem;font-size:.8rem;width:90px"/></td>
+      <td><input type="time" value="${s.end_time||''}" id="send-${s.id}" style="border:1px solid var(--border);border-radius:5px;padding:.22rem .4rem;font-size:.8rem;width:90px"/></td>
+      <td>
+        <span style="display:inline-flex;align-items:center;gap:.3rem">
+          <span style="background:${s.color_bg};color:${s.color_text};border-radius:5px;padding:.15rem .55rem;font-size:.75rem;font-weight:600">${escHtml(s.name)}</span>
+          <input type="color" value="${s.color_bg}" id="sbg-${s.id}" title="พื้นหลัง" style="width:24px;height:22px;border:none;padding:0;cursor:pointer;border-radius:3px"/>
+          <input type="color" value="${s.color_text}" id="sfg-${s.id}" title="ตัวอักษร" style="width:24px;height:22px;border:none;padding:0;cursor:pointer;border-radius:3px"/>
+        </span>
+      </td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-primary btn-sm" onclick="saveShiftType(${s.id})">💾</button>
+        <button class="btn btn-sm" style="background:#fee2e2;color:#b91c1c;margin-left:.3rem" onclick="deleteShiftType(${s.id},'${s.name}')">🗑️</button>
+      </td>
+    </tr>`).join('') : '<tr><td colspan="6" class="empty">ไม่พบข้อมูล</td></tr>';
+
+  // วันหยุด & ลา — แสดงทุก key ใน LEAVE_DEFAULTS
+  const leaveTbody = document.getElementById('shift-leave-tbody');
+  const leaveRows = LEAVE_SHIFT_KEYS.map(key => {
+    const s = stypes.find(x => x.shift_key === key);
+    const def = LEAVE_DEFAULTS[key];
+    if (!s) return `<tr><td colspan="4" style="font-size:.75rem;color:var(--muted);padding:.35rem .6rem">${def.name} <span style="color:#ef4444">(ยังไม่มีในระบบ)</span></td></tr>`;
+    return `<tr id="srow-${s.id}">
+      <td><code style="background:#f1f5f9;padding:.1rem .4rem;border-radius:4px;font-size:.75rem">${s.shift_key}</code></td>
+      <td><input value="${escHtml(s.name)}" id="sname-${s.id}" style="border:1px solid var(--border);border-radius:5px;padding:.22rem .5rem;font-size:.8rem;width:160px"/></td>
+      <td>
+        <span style="display:inline-flex;align-items:center;gap:.3rem">
+          <span style="background:${s.color_bg};color:${s.color_text};border-radius:5px;padding:.15rem .55rem;font-size:.75rem;font-weight:600">${escHtml(s.name)}</span>
+          <input type="color" value="${s.color_bg}" id="sbg-${s.id}" title="พื้นหลัง" style="width:24px;height:22px;border:none;padding:0;cursor:pointer;border-radius:3px"/>
+          <input type="color" value="${s.color_text}" id="sfg-${s.id}" title="ตัวอักษร" style="width:24px;height:22px;border:none;padding:0;cursor:pointer;border-radius:3px"/>
+        </span>
+      </td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-primary btn-sm" onclick="saveShiftType(${s.id})">💾</button>
+        <button class="btn btn-sm" style="background:#fee2e2;color:#b91c1c;margin-left:.3rem" onclick="deleteShiftType(${s.id},'${escHtml(s.name)}')">🗑️</button>
+      </td>
+    </tr>`;
+  }).join('');
+  leaveTbody.innerHTML = leaveRows || '<tr><td colspan="4" class="empty">ไม่พบข้อมูล</td></tr>';
+}
+
+let _addShiftMode = 'work';
+function openAddShiftModal(mode) {
+  _addShiftMode = mode;
+  document.getElementById('add-shift-title').textContent = mode === 'work' ? '+ เพิ่มกะทำงาน' : '+ เพิ่มประเภทวันหยุด/ลา';
+  document.getElementById('add-shift-key').value   = '';
+  document.getElementById('add-shift-name').value  = '';
+  document.getElementById('add-shift-start').value = '';
+  document.getElementById('add-shift-end').value   = '';
+  document.getElementById('add-shift-bg').value    = '#dcfce7';
+  document.getElementById('add-shift-fg').value    = '#166534';
+  document.getElementById('add-shift-time-row').style.display = mode === 'work' ? '' : 'none';
+  openModal('modal-add-shift-type');
+}
+
+async function saveNewShift() {
+  const body = {
+    shift_key:  document.getElementById('add-shift-key').value.trim().toLowerCase().replace(/\s+/g,'_'),
+    name:       document.getElementById('add-shift-name').value.trim(),
+    start_time: document.getElementById('add-shift-start').value || null,
+    end_time:   document.getElementById('add-shift-end').value   || null,
+    color_bg:   document.getElementById('add-shift-bg').value,
+    color_text: document.getElementById('add-shift-fg').value,
+    sort_order: _addShiftMode === 'leave' ? 90 : 10,
+  };
+  if (!body.shift_key || !body.name) { alert('กรุณากรอก key และชื่อ'); return; }
+  const errEl = document.getElementById('add-shift-err');
+  errEl.style.display = 'none';
+  const res = await api('/api/shift-types', { method: 'POST', body, silent: true });
+  if (res?.error) {
+    const isDup = res.error.toLowerCase().includes('duplicate') || res.error.toLowerCase().includes('unique');
+    errEl.textContent = isDup
+      ? `❌ Key "${body.shift_key}" มีอยู่แล้ว กรุณาใช้ชื่อ key อื่น`
+      : `❌ ${res.error}`;
+    errEl.style.display = 'block';
+    return;
+  }
+  closeModal('modal-add-shift-type');
+  showToast('เพิ่มสำเร็จ ✅');
+  loadShiftSettings();
+}
+
+async function deleteShiftType(id, name) {
+  if (!confirm(`ลบ "${name}" ?\n\nกะที่ถูกลบจะไม่ปรากฏในระบบอีก แต่ข้อมูลตารางที่บันทึกไปแล้วจะยังคงอยู่`)) return;
+  await api(`/api/shift-types/${id}`, { method: 'DELETE' });
+  showToast('ลบแล้ว');
+  loadShiftSettings();
+}
+
+async function saveShiftType(id) {
+  const body = {
+    name:       document.getElementById(`sname-${id}`)?.value?.trim(),
+    start_time: document.getElementById(`sstart-${id}`)?.value || null,
+    end_time:   document.getElementById(`send-${id}`)?.value   || null,
+    color_bg:   document.getElementById(`sbg-${id}`)?.value,
+    color_text: document.getElementById(`sfg-${id}`)?.value,
+  };
+  if (!body.name) { alert('กรุณากรอกชื่อกะ'); return; }
+  await api(`/api/shift-types/${id}`, { method: 'PUT', body });
+  showToast('บันทึกแล้ว ✅');
+  loadShiftSettings();
 }
 
 // ── LINE Notifications ────────────────────────────────────
@@ -9166,11 +9386,27 @@ function renderSpecialistTable(list) {
           </div>
 
           <!-- Specialist resolution -->
-          ${s.resolution_note?`
-          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:.5rem .85rem;margin-bottom:.55rem">
-            <div style="font-size:.68rem;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.22rem">✅ การแก้ไขของ Specialist</div>
-            <div style="font-size:.82rem;color:#14532d;white-space:pre-wrap;line-height:1.55">${escHtml(s.resolution_note)}</div>
-          </div>`:''}
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:.5rem .85rem;margin-bottom:.55rem" id="sp-res-box-${s.id}">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.22rem">
+              <div style="font-size:.68rem;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:.04em">✅ การแก้ไขของ Specialist</div>
+              ${spLead?`<button onclick="event.stopPropagation();spEditResolution(${s.id})"
+                style="background:none;border:none;cursor:pointer;font-size:.75rem;color:#15803d;padding:.1rem .35rem;border-radius:4px;line-height:1"
+                title="แก้ไขข้อความ">✏️</button>`:''}
+            </div>
+            <div id="sp-res-text-${s.id}" style="font-size:.82rem;color:#14532d;white-space:pre-wrap;line-height:1.55">${s.resolution_note?escHtml(s.resolution_note):'<span style="color:#86efac;font-style:italic">— ยังไม่มีบันทึกการแก้ไข —</span>'}</div>
+            <div id="sp-res-edit-${s.id}" style="display:none;margin-top:.4rem">
+              <textarea onclick="event.stopPropagation()" rows="3"
+                id="sp-res-input-${s.id}"
+                style="width:100%;border:1px solid #86efac;border-radius:6px;padding:.35rem .55rem;font-size:.8rem;font-family:inherit;resize:vertical;background:#fff"
+              >${s.resolution_note?escHtml(s.resolution_note):''}</textarea>
+              <div style="display:flex;gap:.4rem;margin-top:.3rem">
+                <button onclick="event.stopPropagation();spSaveResolution(${s.id})"
+                  style="background:#15803d;color:#fff;border:none;border-radius:6px;padding:.28rem .7rem;font-size:.75rem;font-weight:600;cursor:pointer">💾 บันทึก</button>
+                <button onclick="event.stopPropagation();spCancelResolution(${s.id})"
+                  style="background:#f1f5f9;color:#475569;border:none;border-radius:6px;padding:.28rem .7rem;font-size:.75rem;cursor:pointer">ยกเลิก</button>
+              </div>
+            </div>
+          </div>
           ${s.status!=='resolved'&&spLead?`
           <div style="margin-bottom:.55rem">
             <textarea id="sp-inline-note-${s.id}" rows="2"
@@ -9253,6 +9489,24 @@ async function spUpdateStatusInline(id, status) {
     _spExpandedRows.add(id);
     loadSpecialist();
   }
+}
+
+function spEditResolution(id) {
+  document.getElementById(`sp-res-text-${id}`).style.display = 'none';
+  document.getElementById(`sp-res-edit-${id}`).style.display = '';
+  document.getElementById(`sp-res-input-${id}`)?.focus();
+}
+function spCancelResolution(id) {
+  document.getElementById(`sp-res-text-${id}`).style.display = '';
+  document.getElementById(`sp-res-edit-${id}`).style.display = 'none';
+}
+async function spSaveResolution(id) {
+  const note = document.getElementById(`sp-res-input-${id}`)?.value.trim() || null;
+  const r = await api(`/api/specialist/${id}`, { method:'PUT', body:{ resolution_note: note }, silent:true });
+  if (r?.error) { showToast('❌ '+r.error,'error'); return; }
+  showToast('✅ บันทึกแล้ว');
+  const s = _allSpecialist.find(x=>x.id===id);
+  if (s) { s.resolution_note = note; _spExpandedRows.add(id); loadSpecialist(); }
 }
 
 async function saveSpResolveInline(id) {
@@ -9534,7 +9788,15 @@ async function openEditSp(id) {
   const ptSel = document.getElementById('spe-problem-type');
   ptSel.innerHTML = '<option value="">— เลือกประเภทปัญหา —</option>' +
     (_ccFormData?.problemTypes||[]).map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('');
-  ptSel.value = s.problem_type_id || '';
+
+  // หา problem_type_id จาก ID หรือ fallback จากชื่อ
+  let resolvedPtId = s.problem_type_id || '';
+  if (!resolvedPtId && s.problem_type) {
+    const match = (_ccFormData?.problemTypes||[]).find(p =>
+      p.name.toLowerCase() === s.problem_type.toLowerCase());
+    if (match) resolvedPtId = match.id;
+  }
+  ptSel.value = resolvedPtId;
 
   // Populate team dropdown
   const teamSel = document.getElementById('spe-team');
@@ -9543,7 +9805,15 @@ async function openEditSp(id) {
 
   // Filter subjects based on selected problem type then set value
   speFilterSubjects();
-  document.getElementById('spe-subject').value = s.subject_id || '';
+
+  // หา subject_id จาก ID หรือ fallback จากชื่อ
+  let resolvedSubjId = s.subject_id || '';
+  if (!resolvedSubjId && s.subject) {
+    const match = (_ccFormData?.subjects||[]).find(sub =>
+      sub.name.toLowerCase() === s.subject.toLowerCase());
+    if (match) resolvedSubjId = match.id;
+  }
+  document.getElementById('spe-subject').value = resolvedSubjId;
 
   // Fill fields
   document.getElementById('spe-company').value       = s.company_name || '';
@@ -13218,19 +13488,12 @@ async function loadScheduleMonth() {
   const lbl = document.getElementById('month-label');
   if (lbl) lbl.textContent = `${thMonths[m]} ${y + 543}`;
 
-  // Legend from SHIFT_META
+  // Legend from allShiftTypes
   const legendEl = document.getElementById('shift-month-legend');
   if (legendEl) {
-    const legendItems = [
-      { label:'เช้า',    bg:'#dcfce7', col:'#166534' },
-      { label:'กลางวัน', bg:'#dbeafe', col:'#1e40af' },
-      { label:'บ่าย',    bg:'#ffedd5', col:'#c2410c' },
-      { label:'ดึก',     bg:'#ede9fe', col:'#5b21b6' },
-      { label:'หยุด',    bg:'#fee2e2', col:'#b91c1c' },
-      { label:'ลา',      bg:'#1e293b', col:'#f1f5f9' },
-    ];
-    legendEl.innerHTML = legendItems.map(t =>
-      `<span style="background:${t.bg};color:${t.col};border-radius:5px;padding:.15rem .55rem;font-weight:600">${t.label}</span>`
+    const src = (allShiftTypes?.length ? allShiftTypes : []);
+    legendEl.innerHTML = src.map(t =>
+      `<span style="background:${t.color_bg};color:${t.color_text};border-radius:5px;padding:.15rem .55rem;font-weight:600">${escHtml(t.name)}</span>`
     ).join('');
   }
 
@@ -13279,7 +13542,10 @@ function renderMonthTable(shifts, year, month) {
     shiftMap[s.employee_id][dk] = s;
   });
 
-  let empsToShow = allEmployees.filter(e => e.active !== 0 && e.active !== false);
+  const schedTeamNames = new Set(allTeams
+    .filter(t => t.show_in_schedule !== false && t.show_in_schedule !== 0)
+    .map(t => t.name));
+  let empsToShow = allEmployees.filter(e => (e.active !== 0 && e.active !== false) && schedTeamNames.has(e.team));
   if (shiftTeamFilter !== 'all') empsToShow = empsToShow.filter(e => e.team === shiftTeamFilter);
   const teamOrder = allTeams.map(t => t.name);
   empsToShow.sort((a, b) => {
@@ -13392,20 +13658,21 @@ function _shiftDragEnd(event) {
   const delBtn = document.getElementById('shift-pick-del');
   document.getElementById('shift-pick-title').textContent =
     `${_dragEmpName} — ${_dragDates.length} วัน`;
-  // Render shift type buttons from SHIFT_META
-  const shiftOptions = [
-    { key:'morning',       label:'เช้า',     time:'08:00–17:00' },
-    { key:'morning2',      label:'เช้า 2',   time:'08:30–17:30' },
-    { key:'midday',        label:'กลาง',     time:'10:00–19:00' },
-    { key:'afternoon',     label:'บ่าย',     time:'12:00–21:00' },
-    { key:'night',         label:'ดึก',      time:'15:00–00:00' },
-    { key:'dayoff',        label:'หยุด',     time:'' },
-    { key:'leave_sick',    label:'ลา',       time:'' },
-  ];
-  document.getElementById('shift-pick-btns').innerHTML = shiftOptions.map(t =>
-    `<button class="btn btn-sm" style="background:${shiftBg(t.key)};color:${shiftColor(t.key)};font-weight:700"
-      onclick="confirmDragShift('${t.key}')">${t.label}${t.time ? ' ' + t.time : ''}</button>`
-  ).join('');
+  // Render shift type buttons from allShiftTypes (loaded from /api/shift-types)
+  const _stypes = (typeof allShiftTypes !== 'undefined' && allShiftTypes.length)
+    ? allShiftTypes
+    : [
+        { shift_key:'morning',  name:'เช้า',  start_time:'08:30', end_time:'17:30', color_bg:'#dcfce7', color_text:'#166534' },
+        { shift_key:'afternoon',name:'บ่าย',  start_time:'12:00', end_time:'21:00', color_bg:'#ffedd5', color_text:'#c2410c' },
+        { shift_key:'night',    name:'ดึก',   start_time:'15:00', end_time:'00:00', color_bg:'#ede9fe', color_text:'#5b21b6' },
+        { shift_key:'dayoff',   name:'หยุด',  start_time:null,    end_time:null,    color_bg:'#fee2e2', color_text:'#b91c1c' },
+      ];
+  document.getElementById('shift-pick-btns').innerHTML = _stypes.map(t => {
+    const timeStr = (t.start_time && t.end_time)
+      ? ` ${t.start_time.slice(0,5)}–${t.end_time.slice(0,5)}` : '';
+    return `<button class="btn btn-sm" style="background:${t.color_bg};color:${t.color_text};font-weight:700"
+      onclick="confirmDragShift('${t.shift_key}')">${escHtml(t.name)}${timeStr}</button>`;
+  }).join('');
   delBtn.style.display = Object.keys(_dragShiftIds).length > 0 ? '' : 'none';
   popup.style.display = 'block';
   const x = Math.min(event.clientX + 8, window.innerWidth  - 260);
@@ -13440,7 +13707,19 @@ async function deleteDragShift() {
 }
 
 function cancelDragShift()      { _closeShiftPickPopup(); _clearDragState(); }
-function _closeShiftPickPopup() { document.getElementById('shift-pick-popup').style.display = 'none'; }
+function _closeShiftPickPopup() {
+  const p = document.getElementById('shift-pick-popup');
+  if (p) p.style.display = 'none';
+  _clearDragState();
+}
+
+// ปิด popup เมื่อคลิกนอกกรอบ
+document.addEventListener('mousedown', e => {
+  const popup = document.getElementById('shift-pick-popup');
+  if (popup && popup.style.display !== 'none' && !popup.contains(e.target)) {
+    _closeShiftPickPopup();
+  }
+});
 function _clearDragState() {
   _dragCells.forEach(el => el.classList.remove('shift-drag-sel'));
   _dragEmpId = null; _dragEmpName = ''; _dragDates = []; _dragCells = []; _dragShiftIds = {};
@@ -16335,6 +16614,168 @@ async function loadNewsBadge() {
   } catch {}
 }
 
+// ══════════════════════════════════════════════════════════
+//  WEEKLY PATTERN GENERATOR
+// ══════════════════════════════════════════════════════════
+const PATTERN_DAYS = [
+  { dow: 1, label: 'จ' }, { dow: 2, label: 'อ' }, { dow: 3, label: 'พ' },
+  { dow: 4, label: 'พฤ' }, { dow: 5, label: 'ศ' }, { dow: 6, label: 'ส' }, { dow: 0, label: 'อา' }
+];
+
+let _patternEmployees = [];
+let _patternShiftTypes = [];
+
+async function openPatternModal() {
+  const now = new Date();
+  const monthInput = document.getElementById('pattern-month');
+  if (!monthInput.value) {
+    monthInput.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  }
+  document.getElementById('pattern-result-msg').textContent = '';
+
+  // load employees + shift types + existing month shifts in parallel
+  const monthVal = monthInput.value;
+  const [year, mon] = monthVal.split('-');
+  const [emps, stypes, existing] = await Promise.all([
+    api('/api/employees').catch(() => []),
+    api('/api/shift-types').catch(() => []),
+    api(`/api/shifts/month?year=${year}&month=${parseInt(mon)}`).catch(() => [])
+  ]);
+  _patternEmployees = emps.filter(e => e.active !== false);
+  _patternShiftTypes = stypes; // รวม dayoff ด้วย ไม่กรองออก
+  _patternExisting = buildPatternFromShifts(existing || []);
+
+  const sel = document.getElementById('pattern-team-filter');
+  const schedTeams = allTeams.filter(t => t.show_in_schedule !== false && t.show_in_schedule !== 0);
+  sel.innerHTML = '<option value="">ทุกทีม</option>' + schedTeams.map(t => `<option value="${t.name}">${t.display_name}</option>`).join('');
+
+  renderPatternTable();
+  openModal('modal-weekly-pattern');
+}
+
+// เมื่อเปลี่ยนเดือน reload existing patterns
+async function onPatternMonthChange() {
+  const monthVal = document.getElementById('pattern-month').value;
+  if (!monthVal) return;
+  const [year, mon] = monthVal.split('-');
+  const existing = await api(`/api/shifts/month?year=${year}&month=${parseInt(mon)}`).catch(() => []);
+  _patternExisting = buildPatternFromShifts(existing || []);
+  renderPatternTable();
+}
+
+// วิเคราะห์กะที่ใช้บ่อยที่สุดของแต่ละคนในแต่ละวันของสัปดาห์
+function buildPatternFromShifts(shifts) {
+  // { employee_id: { dow: { shift_type: count } } }
+  const freq = {};
+  for (const s of shifts) {
+    if (!s.employee_id || !s.shift_type) continue;
+    if (s.shift_type.startsWith('leave_')) continue;
+    const dow = new Date(s.shift_date).getDay();
+    if (!freq[s.employee_id]) freq[s.employee_id] = {};
+    if (!freq[s.employee_id][dow]) freq[s.employee_id][dow] = {};
+    freq[s.employee_id][dow][s.shift_type] = (freq[s.employee_id][dow][s.shift_type] || 0) + 1;
+  }
+  // flatten to { employee_id: { dow: most_common_shift_type } }
+  const pattern = {};
+  for (const [eid, dowMap] of Object.entries(freq)) {
+    pattern[eid] = {};
+    for (const [dow, counts] of Object.entries(dowMap)) {
+      pattern[eid][dow] = Object.entries(counts).sort((a,b) => b[1]-a[1])[0][0];
+    }
+  }
+  return pattern;
+}
+
+let _patternExisting = {};
+
+function renderPatternTable() {
+  const team = document.getElementById('pattern-team-filter').value;
+  const emps = team ? _patternEmployees.filter(e => e.team === team) : _patternEmployees;
+
+  // group by team
+  const grouped = {};
+  emps.forEach(e => {
+    const t = e.team || 'other';
+    if (!grouped[t]) grouped[t] = [];
+    grouped[t].push(e);
+  });
+
+  // build shift options HTML
+  const opts = `<option value="">—</option>` +
+    _patternShiftTypes.map(s => `<option value="${s.shift_key}">${s.name}</option>`).join('');
+
+  let html = `<table style="width:100%;border-collapse:collapse;font-size:.8rem">
+    <thead><tr style="background:#f1f5f9">
+      <th style="text-align:left;padding:.45rem .6rem;font-size:.72rem;color:#64748b;white-space:nowrap;border-bottom:2px solid #e2e8f0;min-width:110px">พนักงาน</th>
+      ${PATTERN_DAYS.map(d => `<th style="text-align:center;padding:.45rem .4rem;font-size:.72rem;color:#64748b;border-bottom:2px solid #e2e8f0;min-width:90px">${d.label}</th>`).join('')}
+    </tr></thead><tbody>`;
+
+  Object.entries(grouped).forEach(([team, members]) => {
+    html += `<tr><td colspan="${PATTERN_DAYS.length+1}" style="padding:.4rem .6rem;font-size:.72rem;font-weight:700;color:#7c3aed;background:#f5f3ff;border-top:1px solid #e2e8f0">${team}</td></tr>`;
+    members.forEach(emp => {
+      html += `<tr>
+        <td style="padding:.35rem .6rem;font-weight:600;color:#1e293b;border-bottom:1px solid #f1f5f9;white-space:nowrap">${emp.nickname || emp.name}</td>
+        ${PATTERN_DAYS.map(d => {
+          const pre = _patternExisting[emp.id]?.[d.dow] || '';
+          const colored = pre ? 'background:#f0fdf4;border-color:#86efac;' : '';
+          return `<td style="padding:.25rem .3rem;border-bottom:1px solid #f1f5f9;text-align:center">
+            <select data-emp="${emp.id}" data-dow="${d.dow}" style="width:85px;padding:.22rem .3rem;border:1px solid #e2e8f0;border-radius:5px;font-size:.75rem;${colored}">
+              ${`<option value="">—</option>` + _patternShiftTypes.map(s => `<option value="${s.shift_key}"${s.shift_key===pre?' selected':''}>${s.name}</option>`).join('')}
+            </select>
+          </td>`;
+        }).join('')}
+      </tr>`;
+    });
+  });
+
+  html += '</tbody></table>';
+  document.getElementById('pattern-table-wrap').innerHTML = html;
+}
+
+async function generateFromPattern() {
+  const month = document.getElementById('pattern-month').value;
+  if (!month) { alert('กรุณาเลือกเดือน'); return; }
+  const overwrite = document.getElementById('pattern-overwrite').checked;
+
+  // collect patterns from all selects
+  const patternMap = {};
+  document.querySelectorAll('#pattern-table-wrap select').forEach(sel => {
+    if (!sel.value) return;
+    const eid = sel.dataset.emp;
+    const dow  = Number(sel.dataset.dow);
+    if (!patternMap[eid]) patternMap[eid] = {};
+    patternMap[eid][dow] = sel.value;
+  });
+
+  const patterns = Object.entries(patternMap).map(([eid, days]) => ({
+    employee_id: Number(eid), days
+  }));
+
+  if (!patterns.length) {
+    document.getElementById('pattern-result-msg').innerHTML = '<span style="color:#ef4444">ยังไม่ได้กำหนดกะ กรุณาเลือกกะอย่างน้อย 1 ช่อง</span>';
+    return;
+  }
+
+  const btn = document.querySelector('#modal-weekly-pattern button[onclick="generateFromPattern()"]');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ กำลังเจน...'; }
+
+  try {
+    const res = await api('/api/shifts/bulk-generate', {
+      method: 'POST',
+      body: { month, patterns, overwrite }
+    });
+    const msg = `✅ เจนสำเร็จ ${res.generated} วัน` + (res.skipped ? ` (ข้าม ${res.skipped} วันที่มีอยู่แล้ว)` : '');
+    document.getElementById('pattern-result-msg').innerHTML = `<span style="color:#16a34a;font-weight:600">${msg}</span>`;
+    // reload schedule if currently viewing
+    if (typeof loadMonthShifts === 'function') loadMonthShifts();
+    if (typeof loadWeekShifts  === 'function') loadWeekShifts();
+  } catch(e) {
+    document.getElementById('pattern-result-msg').innerHTML = `<span style="color:#ef4444">❌ ${e.message}</span>`;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '✨ เจนตารางทั้งเดือน'; }
+  }
+}
+
 </script>
 
 <!-- ══════════ SHOP INFO MODAL ══════════ -->
@@ -16710,6 +17151,86 @@ async function loadNewsBadge() {
     <div class="btn-group">
       <button class="btn btn-primary" onclick="saveNewsForm()">💾 บันทึก</button>
       <button class="btn btn-ghost" onclick="closeModal('modal-news-form')">ยกเลิก</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ MODAL: ADD SHIFT TYPE ═══════════════════ -->
+<div class="overlay" id="modal-add-shift-type">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <div class="modal-title" id="add-shift-title">+ เพิ่มกะ</div>
+      <button class="modal-close" onclick="closeModal('modal-add-shift-type')">×</button>
+    </div>
+    <div class="form-group">
+      <label>Key (ภาษาอังกฤษ ไม่มีช่องว่าง) *</label>
+      <input id="add-shift-key" placeholder="เช่น morning2, leave_comp"/>
+    </div>
+    <div class="form-group">
+      <label>ชื่อแสดง *</label>
+      <input id="add-shift-name" placeholder="เช่น เช้าพิเศษ, ลาชดเชย"/>
+    </div>
+    <div id="add-shift-time-row" class="grid-2">
+      <div class="form-group"><label>เวลาเข้า</label><input type="time" id="add-shift-start"/></div>
+      <div class="form-group"><label>เวลาออก</label><input type="time" id="add-shift-end"/></div>
+    </div>
+    <div class="form-group">
+      <label>สี</label>
+      <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:.35rem">
+          <label style="font-size:.78rem;color:var(--muted)">พื้นหลัง</label>
+          <input type="color" id="add-shift-bg" value="#dcfce7" style="width:36px;height:28px;border:1px solid var(--border);border-radius:5px;cursor:pointer"/>
+        </div>
+        <div style="display:flex;align-items:center;gap:.35rem">
+          <label style="font-size:.78rem;color:var(--muted)">ตัวอักษร</label>
+          <input type="color" id="add-shift-fg" value="#166534" style="width:36px;height:28px;border:1px solid var(--border);border-radius:5px;cursor:pointer"/>
+        </div>
+      </div>
+    </div>
+    <div id="add-shift-err" style="display:none;background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;border-radius:7px;padding:.5rem .75rem;font-size:.82rem;margin-bottom:.5rem"></div>
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="saveNewShift()">💾 บันทึก</button>
+      <button class="btn btn-ghost" onclick="closeModal('modal-add-shift-type')">ยกเลิก</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ MODAL: WEEKLY PATTERN ═══════════════════ -->
+<div class="overlay" id="modal-weekly-pattern" style="z-index:3000">
+  <div class="modal" style="max-width:1100px;width:98vw;max-height:92vh;display:flex;flex-direction:column">
+    <div class="modal-header">
+      <div class="modal-title">🗓️ กำหนดรูปแบบกะรายสัปดาห์</div>
+      <button class="modal-close" onclick="closeModal('modal-weekly-pattern')">×</button>
+    </div>
+    <div style="padding:.75rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:1rem;flex-wrap:wrap;background:#f8fafc">
+      <div style="display:flex;align-items:center;gap:.4rem">
+        <label style="font-size:.78rem;color:var(--muted);white-space:nowrap">เดือน:</label>
+        <input type="month" id="pattern-month" style="border:1px solid var(--border);border-radius:6px;padding:.3rem .6rem;font-size:.82rem" onchange="onPatternMonthChange()"/>
+      </div>
+      <div style="display:flex;align-items:center;gap:.4rem">
+        <label style="font-size:.78rem;color:var(--muted);white-space:nowrap">ทีม:</label>
+        <select id="pattern-team-filter" style="border:1px solid var(--border);border-radius:6px;padding:.3rem .6rem;font-size:.82rem" onchange="renderPatternTable()">
+          <option value="">ทุกทีม</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:center;gap:.4rem">
+        <input type="checkbox" id="pattern-overwrite" style="width:14px;height:14px"/>
+        <label for="pattern-overwrite" style="font-size:.78rem;color:var(--muted)">เขียนทับกะที่มีอยู่แล้ว</label>
+      </div>
+      <button class="btn btn-sm" style="background:#7c3aed;color:#fff;margin-left:auto" onclick="generateFromPattern()">✨ เจนตารางทั้งเดือน</button>
+    </div>
+    <div style="padding:.6rem 1.25rem;font-size:.75rem;color:#64748b;background:#fffbeb;border-bottom:1px solid #fde68a">
+      💡 กำหนดกะที่แต่ละคนทำในแต่ละวันของสัปดาห์ — ระบบจะเจนทุกวันในเดือนที่เลือกอัตโนมัติ &nbsp;|&nbsp; เว้นว่าง = ไม่กำหนด (ข้ามวันนั้น)
+    </div>
+    <div style="flex:1;overflow:auto;padding:1rem 1.25rem">
+      <div id="pattern-table-wrap"></div>
+    </div>
+    <div style="padding:.75rem 1.25rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+      <div id="pattern-result-msg" style="font-size:.82rem"></div>
+      <div style="display:flex;gap:.5rem">
+        <button class="btn btn-ghost" onclick="closeModal('modal-weekly-pattern')">ปิด</button>
+        <button class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="generateFromPattern()">✨ เจนตารางทั้งเดือน</button>
+      </div>
     </div>
   </div>
 </div>

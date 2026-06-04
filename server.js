@@ -606,12 +606,41 @@ app.get('/api/shift-types', authRequired, async (_, res) => {
       IF NOT EXISTS (SELECT 1 FROM shift_types WHERE shift_key='leave_sick')
         INSERT INTO shift_types (shift_key,name,start_time,end_time,color_bg,color_text,sort_order)
         VALUES ('leave_sick',N'ลาป่วย',NULL,NULL,'#fee2e2','#991b1b',6);
+      IF NOT EXISTS (SELECT 1 FROM shift_types WHERE shift_key='leave_office')
+        INSERT INTO shift_types (shift_key,name,start_time,end_time,color_bg,color_text,sort_order)
+        VALUES ('leave_office',N'หยุดออฟฟิศ (Office)',NULL,NULL,'#e0f2fe','#0369a1',9);
       IF NOT EXISTS (SELECT 1 FROM shift_types WHERE shift_key='leave_annual')
         INSERT INTO shift_types (shift_key,name,start_time,end_time,color_bg,color_text,sort_order)
         VALUES ('leave_annual',N'ลาพักร้อน',NULL,NULL,'#f3e8ff','#6b21a8',7);
     `);
     const rows = (await req().query('SELECT * FROM shift_types ORDER BY sort_order')).recordset;
     res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/shift-types', authRequired, managerRequired, async (request, res) => {
+  try {
+    const { shift_key, name, start_time, end_time, color_bg, color_text, sort_order } = request.body;
+    if (!shift_key || !name) return res.status(400).json({ error: 'shift_key and name required' });
+    const result = await req()
+      .input('key',  sql.NVarChar, shift_key.toLowerCase().replace(/\s+/g,'_'))
+      .input('name', sql.NVarChar, name)
+      .input('st',   sql.NVarChar, start_time || null)
+      .input('et',   sql.NVarChar, end_time   || null)
+      .input('cbg',  sql.NVarChar, color_bg   || '#f1f5f9')
+      .input('ctxt', sql.NVarChar, color_text || '#475569')
+      .input('ord',  sql.Int,      sort_order || 99)
+      .query(`INSERT INTO shift_types (shift_key,name,start_time,end_time,color_bg,color_text,sort_order)
+              OUTPUT INSERTED.id VALUES (@key,@name,@st,@et,@cbg,@ctxt,@ord)`);
+    res.json({ id: result.recordset[0].id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/shift-types/:id', authRequired, managerRequired, async (request, res) => {
+  try {
+    await req().input('id', sql.Int, parseInt(request.params.id))
+      .query('DELETE FROM shift_types WHERE id=@id');
+    res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -737,6 +766,47 @@ app.delete('/api/shifts', authRequired, async (request, res) => {
       `DELETE s FROM shifts s JOIN employees e ON e.id = s.employee_id ${where}`
     );
     res.json({ ok: true, deleted: result.rowsAffected[0] });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Bulk generate shifts from weekly pattern for a whole month
+app.post('/api/shifts/bulk-generate', authRequired, managerRequired, async (request, res) => {
+  try {
+    const { month, patterns, overwrite } = request.body;
+    // month = 'YYYY-MM', patterns = [{employee_id, days: {0:'morning',1:'morning',...}}]
+    // days keys: 0=Sun,1=Mon,2=Tue,3=Wed,4=Thu,5=Fri,6=Sat (JS getDay())
+    if (!month || !Array.isArray(patterns) || !patterns.length)
+      return res.status(400).json({ error: 'month and patterns required' });
+
+    const [year, mon] = month.split('-').map(Number);
+    const daysInMonth = new Date(year, mon, 0).getDate();
+
+    let generated = 0, skipped = 0;
+    for (const { employee_id, days } of patterns) {
+      if (!employee_id || !days) continue;
+      for (let d = 1; d <= daysInMonth; d++) {
+        const date = new Date(year, mon - 1, d);
+        const dow  = date.getDay(); // 0=Sun…6=Sat
+        const stype = days[dow];
+        if (!stype) continue; // no pattern for this weekday → skip
+        const dateStr = date.toISOString().split('T')[0];
+
+        if (!overwrite) {
+          const ex = await req().input('eid', sql.Int, employee_id).input('dt', sql.Date, dateStr)
+            .query('SELECT id FROM shifts WHERE employee_id=@eid AND shift_date=@dt');
+          if (ex.recordset.length) { skipped++; continue; }
+        }
+        await req().input('eid', sql.Int, employee_id).input('dt', sql.Date, dateStr)
+          .query('DELETE FROM shifts WHERE employee_id=@eid AND shift_date=@dt');
+        await req()
+          .input('eid',   sql.Int,      employee_id)
+          .input('stype', sql.NVarChar, stype)
+          .input('dt',    sql.Date,     dateStr)
+          .query('INSERT INTO shifts (employee_id,shift_type,shift_date) VALUES (@eid,@stype,@dt)');
+        generated++;
+      }
+    }
+    res.json({ ok: true, generated, skipped });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -3668,17 +3738,19 @@ app.post('/api/teams', authRequired, managerRequired, async (request, res) => {
 });
 
 app.put('/api/teams/:id', authRequired, managerRequired, async (request, res) => {
-  const { name, display_name, color, sort_order, active } = request.body;
+  const { name, display_name, color, sort_order, active, show_in_schedule } = request.body;
   try {
     await req()
-      .input('name',         sql.NVarChar, name)
-      .input('display_name', sql.NVarChar, display_name)
-      .input('color',        sql.NVarChar, color      || '#2563eb')
-      .input('sort_order',   sql.Int,      sort_order || 0)
-      .input('active',       sql.Bit,      active     ?? 1)
-      .input('id',           sql.Int,      request.params.id)
+      .input('name',             sql.NVarChar, name)
+      .input('display_name',     sql.NVarChar, display_name)
+      .input('color',            sql.NVarChar, color      || '#2563eb')
+      .input('sort_order',       sql.Int,      sort_order || 0)
+      .input('active',           sql.Bit,      active     ?? 1)
+      .input('show_in_schedule', sql.Bit,      show_in_schedule ?? 1)
+      .input('id',               sql.Int,      request.params.id)
       .query(`UPDATE teams SET name=@name, display_name=@display_name,
-              color=@color, sort_order=@sort_order, active=@active WHERE id=@id`);
+              color=@color, sort_order=@sort_order, active=@active,
+              show_in_schedule=@show_in_schedule WHERE id=@id`);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -7795,6 +7867,13 @@ init().then(async () => {
   await ensureSwUpdateTable();
   await ensureNewsTable();
   await fixGarbledServiceAttachmentNames();
+
+  // Add show_in_schedule column to teams
+  try {
+    await getPool().request().query(`
+      IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('teams') AND name='show_in_schedule')
+        ALTER TABLE teams ADD show_in_schedule BIT NOT NULL DEFAULT 1`);
+  } catch(e) { console.warn('show_in_schedule migration:', e.message); }
 
   // Drop CHECK constraint on shifts.shift_type so 'dayoff' can be inserted
   try {
