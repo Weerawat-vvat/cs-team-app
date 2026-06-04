@@ -1144,18 +1144,6 @@ textarea{resize:vertical;min-height:80px}
       <span style="font-size:.72rem;color:var(--muted)">📣 ร้องเรียน</span>
       <span style="font-size:1.1rem;font-weight:800;color:#dc2626" id="kpi-stat-complaints">—</span>
     </div>
-    <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:#92400e">🥇 อันดับ 1</span>
-      <span style="font-size:.9rem;font-weight:800;color:#b45309" id="kpi-top1">—</span>
-    </div>
-    <div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:#475569">🥈 อันดับ 2</span>
-      <span style="font-size:.9rem;font-weight:800;color:#475569" id="kpi-top2">—</span>
-    </div>
-    <div style="background:#fff7ed;border:1px solid #fdba74;border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:#9a3412">🥉 อันดับ 3</span>
-      <span style="font-size:.9rem;font-weight:800;color:#9a3412" id="kpi-top3">—</span>
-    </div>
   </div>
 
   <!-- AI Forecast -->
@@ -1250,18 +1238,6 @@ textarea{resize:vertical;min-height:80px}
       <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
         <span style="font-size:.72rem;color:var(--muted)">⏳ ค้างอยู่</span>
         <span style="font-size:1.1rem;font-weight:800;color:#ef4444" id="sp-kpi-pending">—</span>
-      </div>
-      <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-        <span style="font-size:.72rem;color:#92400e">🥇 อันดับ 1</span>
-        <span style="font-size:.9rem;font-weight:800;color:#b45309" id="sp-top1">—</span>
-      </div>
-      <div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-        <span style="font-size:.72rem;color:#475569">🥈 อันดับ 2</span>
-        <span style="font-size:.9rem;font-weight:800;color:#475569" id="sp-top2">—</span>
-      </div>
-      <div style="background:#fff7ed;border:1px solid #fdba74;border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-        <span style="font-size:.72rem;color:#9a3412">🥉 อันดับ 3</span>
-        <span style="font-size:.9rem;font-weight:800;color:#9a3412" id="sp-top3">—</span>
       </div>
     </div>
 
@@ -6357,25 +6333,11 @@ function renderSpKpiStats(data) {
   const pending  = agents.reduce((s,a) => s + (a.pending_jobs||0), 0);
   const withTime = agents.filter(a => a.avg_resolve_min != null);
   const avgTime  = withTime.length ? withTime.reduce((s,a)=>s+a.avg_resolve_min,0)/withTime.length : null;
-  const gradedSp = agents.filter(a => (a.grade_cases||0) >= 5);
-  const spTop3   = [...gradedSp].sort((a,b) => {
-    const sa = calcEffScore(a.grade_total_score, a.grade_cases)?.final || 0;
-    const sb = calcEffScore(b.grade_total_score, b.grade_cases)?.final || 0;
-    return sb - sa;
-  }).slice(0,3);
-  const spMedals = ['🥇','🥈','🥉'];
-
   const _s = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
   _s('sp-kpi-total',        total);
   _s('sp-kpi-resolve-rate', total ? Math.round(resolved/total*100)+'%' : '—');
   _s('sp-kpi-avg-time',     avgTime != null ? fmtMin(avgTime) : '—');
   _s('sp-kpi-pending',      pending);
-  [1,2,3].forEach(i => {
-    const el = document.getElementById(`sp-top${i}`);
-    if (!el) return;
-    const a = spTop3[i-1];
-    el.textContent = a ? `${spMedals[i-1]} ${a.name} (${calcEffScore(a.grade_total_score,a.grade_cases)?.final||'—'})` : '—';
-  });
 }
 
 // Efficiency % + Volume Bonus (max 120)
@@ -6405,6 +6367,16 @@ function renderSpKpiTable() {
     return `<span style="color:${good?'#16a34a':'#ef4444'};font-size:.75rem;font-weight:700">${up?'▲':'▼'}</span>`;
   };
 
+  _spKpiData.sort((a, b) => {
+    const spScore = x => {
+      const ext = x.UserName || x.ext_username || '';
+      const act = _kpiActivitiesMap[ext];
+      return calcSpKpiSlaScore(x) + calcSpTicketScore(x) + calcKbScore(act) + calcTrainingScore(act) + calcFuScore(act) + (_kpiPunctMap[ext] ?? 0);
+    };
+    return spScore(b) - spScore(a);
+  });
+
+  const spMedals = ['🥇','🥈','🥉'];
   tbody.innerHTML = _spKpiData.map((a, idx) => {
     const rate = a.total_jobs ? Math.round((a.resolved_jobs||0)/a.total_jobs*100) : 0;
     const rateColor = rate>=80 ? '#16a34a' : rate>=50 ? '#b45309' : '#dc2626';
@@ -6425,7 +6397,7 @@ function renderSpKpiTable() {
     <tr style="cursor:pointer" onclick="toggleSpDrill(${idx},this)">
       <td style="padding-left:.5rem">
         <span id="sp-tog-${idx}" style="font-size:.7rem;color:var(--muted);margin-right:.3rem">${isOpen?'▼':'▶'}</span>
-        <b>${escHtml(a.name||'—')}</b>
+        ${idx < 3 ? `<span style="font-size:.9rem;margin-right:.2rem">${spMedals[idx]}</span>` : ''}<b>${escHtml(a.name||'—')}</b>
       </td>
       <td>${teamBadgeHtml(a.team||'')}</td>
       <td>
@@ -6810,25 +6782,12 @@ function renderKpiTable() {
     const avgStars = withStar.length ? (+withStar.reduce((s,k) => s + (+getStars(k)), 0) / withStar.length).toFixed(1) : '—';
     const totalOverdue    = allKpi.reduce((s,k) => s + (k.overdue_cases||0), 0);
     const totalComplaints = allKpi.reduce((s,k) => s + (k.complaints||0), 0);
-    const gradedKpi = allKpi.filter(k => k.grade_cases >= 10);
-    const top3 = [...gradedKpi].sort((a,b) => {
-      const sa = calcEffScore(a.grade_total_score, a.grade_cases)?.final || 0;
-      const sb = calcEffScore(b.grade_total_score, b.grade_cases)?.final || 0;
-      return sb - sa;
-    }).slice(0,3);
-    const medals = ['🥇','🥈','🥉'];
     _sk('kpi-stat-avg',        avgCases);
     _sk('kpi-stat-close-rate', avgClose);
     _sk('kpi-stat-resolve',    avgResolve);
     _sk('kpi-stat-stars',      avgStars !== '—' ? `${avgStars}★` : '—');
     _sk('kpi-stat-overdue',    totalOverdue);
     _sk('kpi-stat-complaints', totalComplaints);
-    [1,2,3].forEach(i => {
-      const el = document.getElementById(`kpi-top${i}`);
-      if (!el) return;
-      const k = top3[i-1];
-      el.textContent = k ? `${medals[i-1]} ${k.name||dn(k.UserName)} (${calcEffScore(k.grade_total_score,k.grade_cases)?.final||'—'})` : '—';
-    });
   } else {
     ['kpi-stat-avg','kpi-stat-close-rate','kpi-stat-resolve','kpi-stat-stars','kpi-stat-overdue','kpi-stat-complaints','kpi-top1','kpi-top2','kpi-top3'].forEach(id => _sk(id,'—'));
   }
@@ -6840,7 +6799,13 @@ function renderKpiTable() {
   }
   const dfrom = document.getElementById('kpi-date-from')?.value || '';
 
-  tbody.innerHTML = allKpi.map(k => {
+  const sortedKpi = [...allKpi].sort((a, b) => {
+    const scoreOf = k => calcHdKpiSlaScore(k) + calcKbScore(_kpiActivitiesMap[k.UserName]) + (_kpiPunctMap[k.UserName] ?? 0);
+    return scoreOf(b) - scoreOf(a);
+  });
+
+  const hdMedals = ['🥇','🥈','🥉'];
+  tbody.innerHTML = sortedKpi.map((k, idx) => {
     const closeColor = k.close_rate >= 80 ? '#16a34a' : k.close_rate >= 50 ? '#b45309' : '#dc2626';
     const starsVal   = _kpiUseEstStars ? calcEstimatedStars(k) : (k.avg_stars ?? null);
     const starDisp   = starsVal != null ? `${(+starsVal).toFixed(1)}★${_kpiUseEstStars && !k.avg_stars ? '<span style="font-size:.6rem;color:#92400e" title="ประมาณค่า">🔮</span>' : ''}` : '—';
@@ -6888,7 +6853,7 @@ function renderKpiTable() {
     <tr class="kpi-row-main" onclick="toggleKpiDrill('${k.UserName}','${dfrom}',this)">
       <td style="padding-left:.5rem">
         <span id="kpi-tog-${k.UserName}" style="font-size:.7rem;color:var(--muted);margin-right:.3rem">▶</span>
-        <b>${k.name || dn(k.UserName)}</b>
+        ${idx < 3 ? `<span style="font-size:.9rem;margin-right:.2rem">${hdMedals[idx]}</span>` : ''}<b>${k.name || dn(k.UserName)}</b>
       </td>
       <td>${teamBadgeHtml(k.team || dt(k.UserName) || '')}</td>
       <td>
