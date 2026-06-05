@@ -6403,7 +6403,9 @@ function renderSpKpiTable() {
     const spScore = x => {
       const ext = x.UserName || x.ext_username || '';
       const empId = String(x.emp_id || '');
-      const act = _kpiActivitiesMap[ext] || _kpiActivitiesMap[empId];
+      const _a1 = _kpiActivitiesMap[ext]   || {};
+      const _a2 = _kpiActivitiesMap[empId] || {};
+      const act  = { kb_articles: (_a1.kb_articles||0)+(_a2.kb_articles||0), trainings: (_a1.trainings||0)+(_a2.trainings||0), fu_resolved: (_a1.fu_resolved||0)+(_a2.fu_resolved||0) };
       return calcSpKpiSlaScore(x) + calcSpTicketScore(x) + calcKbScore(act) + calcTrainingScore(act) + calcFuScore(act) + (_kpiPunctMap[ext] ?? 0);
     };
     return spScore(b) - spScore(a);
@@ -6452,7 +6454,9 @@ function renderSpKpiTable() {
       ${(() => {
           const ext   = a.UserName || a.ext_username || '';
           const empId = String(a.emp_id || '');
-          const act   = _kpiActivitiesMap[ext] || _kpiActivitiesMap[empId];
+          const _a1 = _kpiActivitiesMap[ext]   || {};
+          const _a2 = _kpiActivitiesMap[empId] || {};
+          const act  = { kb_articles: (_a1.kb_articles||0)+(_a2.kb_articles||0), trainings: (_a1.trainings||0)+(_a2.trainings||0), fu_resolved: (_a1.fu_resolved||0)+(_a2.fu_resolved||0) };
           const punct = _kpiPunctMap[ext] ?? null;
           const dfrom = document.getElementById('kpi-date-from')?.value || _kpiDateFrom || '';
           const month = dfrom.slice(0,7);
