@@ -3187,9 +3187,25 @@ textarea{resize:vertical;min-height:80px}
       <label>หัวข้อที่สอน <span style="color:#ef4444">*</span></label>
       <input type="text" id="tr-topic" placeholder="เช่น วิธีปิดเคส, การใช้ระบบ Calllog"/>
     </div>
-    <div class="form-group">
+    <div class="form-group" style="position:relative">
       <label>ผู้เรียน <span style="font-size:.72rem;color:#94a3b8">(เลือกได้หลายคน)</span></label>
-      <select id="tr-trainees" multiple style="height:110px;border:1px solid var(--border);border-radius:8px;padding:.3rem;font-size:.83rem;width:100%;font-family:inherit"></select>
+      <!-- trigger button -->
+      <div id="tr-trainees-trigger" onclick="trTraineesToggle()"
+        style="border:1px solid var(--border);border-radius:8px;padding:.38rem .75rem;font-size:.83rem;cursor:pointer;min-height:34px;display:flex;align-items:center;flex-wrap:wrap;gap:.3rem;background:#fff;user-select:none">
+        <span id="tr-trainees-placeholder" style="color:#94a3b8">-- คลิกเพื่อเลือกผู้เรียน --</span>
+        <div id="tr-trainees-tags" style="display:contents"></div>
+      </div>
+      <!-- dropdown panel -->
+      <div id="tr-trainees-panel" style="display:none;position:absolute;z-index:999;left:0;right:0;top:100%;margin-top:2px;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px #0002;max-height:200px;overflow-y:auto">
+        <div style="padding:.35rem .6rem;border-bottom:1px solid #f1f5f9">
+          <input id="tr-trainees-search" type="text" placeholder="🔍 ค้นหาชื่อ..." oninput="trTraineesFilter()"
+            onclick="event.stopPropagation()"
+            style="width:100%;border:1px solid var(--border);border-radius:6px;padding:.28rem .6rem;font-size:.8rem;outline:none;font-family:inherit"/>
+        </div>
+        <div id="tr-trainees-list" style="padding:.25rem 0"></div>
+      </div>
+      <!-- hidden store -->
+      <input type="hidden" id="tr-trainees-value"/>
     </div>
     <div class="form-group">
       <label>หมายเหตุ</label>
@@ -15628,6 +15644,67 @@ function trRender(rows) {
     </div>`).join('');
 }
 
+// ── Custom multi-select for trainees ──────────────────────
+let trTraineesSelected = new Set();
+
+function trTraineesToggle() {
+  const panel = document.getElementById('tr-trainees-panel');
+  const isOpen = panel.style.display !== 'none';
+  if (isOpen) { panel.style.display = 'none'; return; }
+  trTraineesRenderList('');
+  panel.style.display = '';
+  document.getElementById('tr-trainees-search').focus();
+}
+
+function trTraineesRenderList(q) {
+  const list = document.getElementById('tr-trainees-list');
+  const emps = q ? allEmployees.filter(e => e.name.toLowerCase().includes(q.toLowerCase())) : allEmployees;
+  list.innerHTML = emps.map(e => {
+    const checked = trTraineesSelected.has(e.name);
+    return `<label style="display:flex;align-items:center;gap:.5rem;padding:.3rem .75rem;cursor:pointer;font-size:.83rem;${checked?'background:#f0f9ff':''}">
+      <input type="checkbox" ${checked?'checked':''} onchange="trTraineesToggleItem('${escHtml(e.name)}',this.checked)"
+        style="width:15px;height:15px;cursor:pointer;accent-color:#2563eb">
+      <span>${escHtml(e.name)}</span>
+      <span style="font-size:.72rem;color:#94a3b8">(${teamLabel(e.team||'')})</span>
+    </label>`;
+  }).join('') || '<div style="padding:.5rem .75rem;color:#94a3b8;font-size:.82rem">ไม่พบ</div>';
+}
+
+function trTraineesFilter() {
+  trTraineesRenderList(document.getElementById('tr-trainees-search').value);
+}
+
+function trTraineesToggleItem(name, checked) {
+  if (checked) trTraineesSelected.add(name); else trTraineesSelected.delete(name);
+  trTraineesRender();
+  trTraineesRenderList(document.getElementById('tr-trainees-search').value);
+}
+
+function trTraineesRender() {
+  const tags = document.getElementById('tr-trainees-tags');
+  const ph   = document.getElementById('tr-trainees-placeholder');
+  if (trTraineesSelected.size === 0) {
+    ph.style.display = ''; tags.innerHTML = ''; return;
+  }
+  ph.style.display = 'none';
+  tags.innerHTML = [...trTraineesSelected].map(n =>
+    `<span style="background:#dbeafe;color:#1d4ed8;border-radius:5px;padding:.1rem .45rem;font-size:.76rem;display:inline-flex;align-items:center;gap:.25rem">
+      ${escHtml(n)}
+      <span onclick="event.stopPropagation();trTraineesToggleItem('${escHtml(n)}',false)"
+        style="cursor:pointer;font-size:.85rem;color:#93c5fd;font-weight:700">×</span>
+    </span>`
+  ).join('');
+}
+
+// ปิด panel เมื่อคลิกนอก
+document.addEventListener('click', e => {
+  const wrap = document.getElementById('tr-trainees-trigger')?.closest('.form-group');
+  if (wrap && !wrap.contains(e.target)) {
+    const p = document.getElementById('tr-trainees-panel');
+    if (p) p.style.display = 'none';
+  }
+});
+
 function trOpenAdd() {
   const now = new Date();
   document.getElementById('tr-date').value  = now.toISOString().slice(0,10);
@@ -15641,12 +15718,11 @@ function trOpenAdd() {
   const myEmpId = currentUser?.employee_id;
   if (myEmpId) sel.value = myEmpId;
 
-  // ── ผู้เรียน: populate dropdown ──
-  const traineesSel = document.getElementById('tr-trainees');
-  traineesSel.innerHTML = allEmployees.map(e =>
-    `<option value="${escHtml(e.name)}">${escHtml(e.name)} (${teamLabel(e.team||'')})</option>`
-  ).join('');
-  [...traineesSel.options].forEach(o => o.selected = false);
+  // ── ผู้เรียน: reset custom multi-select ──
+  trTraineesSelected = new Set();
+  trTraineesRender();
+  document.getElementById('tr-trainees-search').value = '';
+  document.getElementById('tr-trainees-panel').style.display = 'none';
 
   openModal('modal-tr-add');
 }
@@ -15655,8 +15731,7 @@ async function trSave() {
   const trainer_ext  = document.getElementById('tr-trainer').value;
   const trained_date = document.getElementById('tr-date').value;
   const topic        = document.getElementById('tr-topic').value.trim();
-  const traineesSel  = document.getElementById('tr-trainees');
-  const trainees     = [...traineesSel.selectedOptions].map(o => o.value).join(', ');
+  const trainees = [...trTraineesSelected].join(', ');
   const notes        = document.getElementById('tr-notes').value.trim();
   if (!trainer_ext || !trained_date || !topic) { showToast('⚠️ กรุณากรอก ผู้สอน วันที่ และหัวข้อ', 'warning'); return; }
   await api('/api/kpi/trainings', { method:'POST', body:{ trainer_ext, trained_date, topic, trainees, notes } });
