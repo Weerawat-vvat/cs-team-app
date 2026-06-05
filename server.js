@@ -1973,28 +1973,36 @@ app.post('/api/kpi/comment', authRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── GET /api/kpi/activities — fetch knowledge-sharing activities for a month ──
+// ── GET /api/kpi/activities — fetch knowledge-sharing activities for a date range ──
 app.get('/api/kpi/activities', authRequired, async (request, res) => {
   try {
-    const { month } = request.query; // format: YYYY-MM
-    const monthStart = month + '-01';
-    const [y, m] = month.split('-').map(Number);
-    const nextMonth = m === 12 ? `${y+1}-01-01` : `${y}-${String(m+1).padStart(2,'0')}-01`;
+    const { month, dateFrom, dateTo } = request.query;
+    // รองรับทั้ง dateFrom/dateTo และ month
+    let ms, me;
+    if (dateFrom && dateTo) {
+      ms = dateFrom;
+      // me = วันถัดจาก dateTo เพื่อให้ dateTo inclusive
+      const d = new Date(dateTo); d.setDate(d.getDate() + 1);
+      me = d.toISOString().slice(0, 10);
+    } else {
+      const ym = month || new Date().toISOString().slice(0, 7);
+      ms = ym + '-01';
+      const [y, m2] = ym.split('-').map(Number);
+      me = m2 === 12 ? `${y+1}-01-01` : `${y}-${String(m2+1).padStart(2,'0')}-01`;
+    }
 
-    // Auto-count KB articles from shop_knowledge per user this month
-    // Auto-count trainings from kpi_trainings per user this month
     const [kbRows, trRows, fuRows] = await Promise.all([
-      req().input('ms', sql.Date, monthStart).input('me', sql.Date, nextMonth)
+      req().input('ms', sql.Date, ms).input('me', sql.Date, me)
         .query(`SELECT au.ext_username, COUNT(*) AS kb_count
                 FROM shop_knowledge k JOIN app_users au ON au.id = k.created_by
                 WHERE k.created_at >= @ms AND k.created_at < @me AND au.ext_username IS NOT NULL
                 GROUP BY au.ext_username`),
-      req().input('ms', sql.Date, monthStart).input('me', sql.Date, nextMonth)
+      req().input('ms', sql.Date, ms).input('me', sql.Date, me)
         .query(`SELECT trainer_ext, COUNT(*) AS tr_count
                 FROM kpi_trainings
                 WHERE trained_date >= @ms AND trained_date < @me
                 GROUP BY trainer_ext`),
-      req().input('ms', sql.Date, monthStart).input('me', sql.Date, nextMonth)
+      req().input('ms', sql.Date, ms).input('me', sql.Date, me)
         .query(`SELECT au.ext_username, COUNT(*) AS fu_count
                 FROM fu_issues i
                 JOIN employees e  ON e.id  = i.assigned_to

@@ -6330,7 +6330,7 @@ async function loadSpKpi() {
   try {
     const [data, acts, puncts, targets, hdData] = await Promise.all([
       api(url),
-      api(`/api/kpi/activities?month=${month}`).catch(()=>[]),
+      api(`/api/kpi/activities?dateFrom=${from}&dateTo=${to}`).catch(()=>[]),
       api(`/api/kpi/punctuality?month=${month}`).catch(()=>[]),
       api('/api/kpi/targets').catch(()=>null),
       api(`/api/kpi?dateFrom=${from}&dateTo=${to}&team=specialist`).catch(()=>null)
@@ -6620,7 +6620,7 @@ async function loadKpi() {
   const month = dfrom ? dfrom.slice(0,7) : null;
   const [data, acts, puncts, targets] = await Promise.all([
     api(url),
-    month ? api(`/api/kpi/activities?month=${month}`).catch(()=>[]) : Promise.resolve([]),
+    dfrom ? api(`/api/kpi/activities?dateFrom=${dfrom}&dateTo=${dto||dfrom}`).catch(()=>[]) : Promise.resolve([]),
     month ? api(`/api/kpi/punctuality?month=${month}`).catch(()=>[]) : Promise.resolve([]),
     api('/api/kpi/targets').catch(()=>null)
   ]);
