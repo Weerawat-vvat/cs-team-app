@@ -3188,8 +3188,8 @@ textarea{resize:vertical;min-height:80px}
       <input type="text" id="tr-topic" placeholder="เช่น วิธีปิดเคส, การใช้ระบบ Calllog"/>
     </div>
     <div class="form-group">
-      <label>ผู้เรียน (ชื่อ/ทีม)</label>
-      <input type="text" id="tr-trainees" placeholder="เช่น นิ, ทีม Helpdesk"/>
+      <label>ผู้เรียน <span style="font-size:.72rem;color:#94a3b8">(เลือกได้หลายคน)</span></label>
+      <select id="tr-trainees" multiple style="height:110px;border:1px solid var(--border);border-radius:8px;padding:.3rem;font-size:.83rem;width:100%;font-family:inherit"></select>
     </div>
     <div class="form-group">
       <label>หมายเหตุ</label>
@@ -15630,16 +15630,24 @@ function trRender(rows) {
 
 function trOpenAdd() {
   const now = new Date();
-  document.getElementById('tr-date').value     = now.toISOString().slice(0,10);
-  document.getElementById('tr-topic').value    = '';
-  document.getElementById('tr-trainees').value = '';
-  document.getElementById('tr-notes').value    = '';
+  document.getElementById('tr-date').value  = now.toISOString().slice(0,10);
+  document.getElementById('tr-topic').value = '';
+  document.getElementById('tr-notes').value = '';
+
+  // ── ผู้สอน: populate & default เป็น user ที่ login ──
   const sel = document.getElementById('tr-trainer');
-  if (sel.options.length <= 1) {
-    sel.innerHTML = '<option value="">-- เลือกผู้สอน --</option>' +
-      allEmployees.filter(e => e.ext_username).map(e =>
-        `<option value="${escHtml(e.ext_username)}">${escHtml(e.name||e.ext_username)}</option>`).join('');
-  }
+  sel.innerHTML = '<option value="">-- เลือกผู้สอน --</option>' +
+    allEmployees.map(e => `<option value="${e.id}">${escHtml(e.name)} (${teamLabel(e.team||'')})</option>`).join('');
+  const myEmpId = currentUser?.employee_id;
+  if (myEmpId) sel.value = myEmpId;
+
+  // ── ผู้เรียน: populate dropdown ──
+  const traineesSel = document.getElementById('tr-trainees');
+  traineesSel.innerHTML = allEmployees.map(e =>
+    `<option value="${escHtml(e.name)}">${escHtml(e.name)} (${teamLabel(e.team||'')})</option>`
+  ).join('');
+  [...traineesSel.options].forEach(o => o.selected = false);
+
   openModal('modal-tr-add');
 }
 
@@ -15647,7 +15655,8 @@ async function trSave() {
   const trainer_ext  = document.getElementById('tr-trainer').value;
   const trained_date = document.getElementById('tr-date').value;
   const topic        = document.getElementById('tr-topic').value.trim();
-  const trainees     = document.getElementById('tr-trainees').value.trim();
+  const traineesSel  = document.getElementById('tr-trainees');
+  const trainees     = [...traineesSel.selectedOptions].map(o => o.value).join(', ');
   const notes        = document.getElementById('tr-notes').value.trim();
   if (!trainer_ext || !trained_date || !topic) { showToast('⚠️ กรุณากรอก ผู้สอน วันที่ และหัวข้อ', 'warning'); return; }
   await api('/api/kpi/trainings', { method:'POST', body:{ trainer_ext, trained_date, topic, trainees, notes } });
