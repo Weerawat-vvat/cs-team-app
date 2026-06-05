@@ -6493,6 +6493,8 @@ async function ensureServiceRequestsTable() {
     await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='period_end') ALTER TABLE service_requests ADD period_end DATE NULL`);
     await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='objective') ALTER TABLE service_requests ADD objective NVARCHAR(MAX) NULL`);
     await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='project_id') ALTER TABLE service_requests ADD project_id INT NULL`);
+    await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='requester_phone') ALTER TABLE service_requests ADD requester_phone NVARCHAR(50) NULL`);
+    await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='requester_line_id') ALTER TABLE service_requests ADD requester_line_id NVARCHAR(200) NULL`);
     console.log('✅ service_requests table ready');
   } catch(e) { console.error('❌ service_requests error:', e.message); }
 }
@@ -6656,6 +6658,8 @@ app.post('/api/service-requests', authRequired, async (request, res) => {
       .input('request_date',       sql.Date,     b.request_date?new Date(b.request_date):null)
       .input('requester_position', sql.NVarChar, b.requester_position||null)
       .input('requester_name',     sql.NVarChar, b.requester_name||null)
+      .input('requester_phone',    sql.NVarChar, b.requester_phone||null)
+      .input('requester_line_id',  sql.NVarChar, b.requester_line_id||null)
       .input('period_start',       sql.Date,     b.period_start?new Date(b.period_start):null)
       .input('period_end',         sql.Date,     b.period_end?new Date(b.period_end):null)
       .input('objective',          sql.NVarChar, b.objective||null)
@@ -6665,11 +6669,11 @@ app.post('/api/service-requests', authRequired, async (request, res) => {
       .input('created_by',         sql.Int,      request.user.id)
       .query(`INSERT INTO service_requests
         (project_id,job_no,serve_type,brands,branches,title,request_no,request_date,
-         requester_position,requester_name,period_start,period_end,
+         requester_position,requester_name,requester_phone,requester_line_id,period_start,period_end,
          objective,condition,attachment_name,status,created_by)
         OUTPUT INSERTED.id
         VALUES(@project_id,@job_no,@serve_type,@brands,@branches,@title,@request_no,@request_date,
-               @requester_position,@requester_name,@period_start,@period_end,
+               @requester_position,@requester_name,@requester_phone,@requester_line_id,@period_start,@period_end,
                @objective,@condition,@attachment_name,@status,@created_by)`);
     const newId = result.recordset[0].id;
 
@@ -6896,8 +6900,8 @@ app.get('/api/public/project/:token', async (request, res) => {
     const jobs = (await req()
       .input('pid', sql.Int, proj.id)
       .query(`SELECT id, job_no, request_no, title, serve_type, status, request_date,
-                     requester_name, requester_position, brands, branches,
-                     period_start, period_end, objective, condition, created_at
+                     requester_name, requester_position, requester_phone, requester_line_id,
+                     brands, branches, period_start, period_end, objective, condition, created_at
               FROM service_requests
               WHERE project_id=@pid
               ORDER BY created_at DESC`)).recordset;
@@ -6949,6 +6953,8 @@ app.post('/api/public/project/:token/submit', (req, res, next) => {
       .input('request_date',      sql.Date,     b.request_date?new Date(b.request_date):new Date())
       .input('requester_position',sql.NVarChar, b.requester_position||null)
       .input('requester_name',    sql.NVarChar, b.requester_name||null)
+      .input('requester_phone',   sql.NVarChar, b.requester_phone||null)
+      .input('requester_line_id', sql.NVarChar, b.requester_line_id||null)
       .input('period_start',      sql.Date,     b.period_start?new Date(b.period_start):null)
       .input('period_end',        sql.Date,     b.period_end?new Date(b.period_end):null)
       .input('objective',         sql.NVarChar, b.objective||null)
@@ -6956,10 +6962,12 @@ app.post('/api/public/project/:token/submit', (req, res, next) => {
       .input('status',            sql.NVarChar, 'received')
       .query(`INSERT INTO service_requests
         (project_id,job_no,serve_type,brands,branches,title,request_no,request_date,
-         requester_position,requester_name,period_start,period_end,objective,condition,status)
+         requester_position,requester_name,requester_phone,requester_line_id,
+         period_start,period_end,objective,condition,status)
         OUTPUT INSERTED.id, INSERTED.job_no
         VALUES(@project_id,@job_no,@serve_type,@brands,@branches,@title,@request_no,@request_date,
-               @requester_position,@requester_name,@period_start,@period_end,@objective,@condition,@status)`);
+               @requester_position,@requester_name,@requester_phone,@requester_line_id,
+               @period_start,@period_end,@objective,@condition,@status)`);
     const inserted = result.recordset[0];
 
     // Handle file uploads

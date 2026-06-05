@@ -16463,9 +16463,11 @@ async function svcOpenDetail(id){
       <!-- 2. Team -->
       <div class="svc-card">
         <div class="svc-section-head">👥 ผู้ขอ / Team</div>
-        <div style="font-size:.84rem;display:grid;grid-template-columns:1fr 2fr;gap:.35rem .8rem">
+        <div style="font-size:.84rem;display:grid;grid-template-columns:1fr 1fr;gap:.35rem .8rem">
           <div><b>ตำแหน่ง:</b> ${escHtml(r.requester_position||'—')}</div>
           <div><b>ชื่อ-สกุล:</b> ${escHtml(r.requester_name||'—')}</div>
+          <div><b>📞 เบอร์โทร:</b> ${r.requester_phone ? `<a href="tel:${escHtml(r.requester_phone)}" style="color:#2563eb">${escHtml(r.requester_phone)}</a>` : '—'}</div>
+          <div><b>💬 LINE ID:</b> ${escHtml(r.requester_line_id||'—')}</div>
         </div>
       </div>
 

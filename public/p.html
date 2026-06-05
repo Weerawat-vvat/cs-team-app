@@ -538,6 +538,16 @@ tbody td{padding:.65rem .9rem;font-size:.83rem;color:var(--text);vertical-align:
                 <input id="f-name" type="text" placeholder="ผู้รับผิดชอบ"/>
               </div>
             </div>
+            <div class="row-2">
+              <div class="field">
+                <label>เบอร์โทร <span class="req">*</span></label>
+                <input id="f-phone" type="tel" placeholder="08X-XXXXXXX"/>
+              </div>
+              <div class="field">
+                <label>LINE ID <span class="req">*</span></label>
+                <input id="f-line-id" type="text" placeholder="@line_id หรือ ชื่อ LINE"/>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -802,6 +812,8 @@ async function openEdit(jobId, jobNo){
     document.getElementById('f-date').value             = (data.request_date||'').slice(0,10);
     document.getElementById('f-position').value         = data.requester_position||'';
     document.getElementById('f-name').value             = data.requester_name||'';
+    document.getElementById('f-phone').value            = data.requester_phone||'';
+    document.getElementById('f-line-id').value          = data.requester_line_id||'';
     document.getElementById('f-period-start').value     = (data.period_start||'').slice(0,10);
     document.getElementById('f-period-end').value       = (data.period_end||'').slice(0,10);
     // objective removed
@@ -938,6 +950,8 @@ async function submitForm(){
   if(!gv('f-title'))              { alert('กรุณาระบุชื่อ / Title'); return; }
   if(!gv('f-date'))               { alert('กรุณาระบุวันที่'); return; }
   if(!gv('f-name'))               { alert('กรุณาระบุชื่อ-สกุลผู้ขอ'); return; }
+  if(!gv('f-phone'))              { alert('กรุณาระบุเบอร์โทร'); return; }
+  if(!gv('f-line-id'))            { alert('กรุณาระบุ LINE ID'); return; }
   if(!gv('f-period-start')||!gv('f-period-end')){ alert('กรุณาระบุช่วงเวลา Period'); return; }
 
   const btn=document.getElementById('submit-btn');
@@ -952,6 +966,8 @@ async function submitForm(){
     fd.append('request_date',       gv('f-date'));
     fd.append('requester_position', gv('f-position'));
     fd.append('requester_name',     gv('f-name'));
+    fd.append('requester_phone',    gv('f-phone'));
+    fd.append('requester_line_id',  gv('f-line-id'));
     fd.append('period_start',       gv('f-period-start'));
     fd.append('period_end',         gv('f-period-end'));
     fd.append('condition',          gv('f-condition'));
