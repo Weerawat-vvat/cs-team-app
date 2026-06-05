@@ -3790,6 +3790,22 @@ textarea{resize:vertical;min-height:80px}
 </div>
 
 <!-- Modal: Punctuality (เข้างานตรงต่อเวลา) -->
+<!-- Modal: HR Password Guard -->
+<div class="overlay" id="modal-hr-password">
+  <div class="modal" style="max-width:320px;text-align:center">
+    <div class="modal-title" style="justify-content:center">🔒 ยืนยันตัวตน HR</div>
+    <div style="font-size:.83rem;color:#64748b;margin-bottom:1rem">กรุณาใส่รหัสผ่านเพื่อแก้ไขคะแนนตรงเวลา</div>
+    <input type="password" id="hr-password-input" placeholder="รหัสผ่าน"
+      onkeydown="if(event.key==='Enter')hrPasswordConfirm()"
+      style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.45rem .75rem;font-size:.9rem;text-align:center;margin-bottom:.75rem;font-family:inherit"/>
+    <div id="hr-password-error" style="color:#dc2626;font-size:.78rem;margin-bottom:.5rem;display:none">❌ รหัสผ่านไม่ถูกต้อง</div>
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="hrPasswordConfirm()">✅ ยืนยัน</button>
+      <button class="btn btn-ghost" onclick="hrPasswordCancel()">ยกเลิก</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="modal-punct" onclick="if(event.target===this)closeModal('modal-punct')">
   <div class="modal" style="max-width:380px">
     <div class="modal-title">⏰ เข้างานตรงต่อเวลา <button class="modal-close" onclick="closeModal('modal-punct')">×</button></div>
@@ -4215,7 +4231,7 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 
 // click outside to close
 // Modals ที่ห้ามปิดเมื่อกด outside (ข้อมูลอาจหาย)
-const NO_BACKDROP_CLOSE = new Set(['modal-repair-link','modal-repair-form','modal-repair-detail','modal-person','modal-create-case','modal-edit-ticket-full','modal-specialist-detail','modal-assign-specialist','modal-add-sp','modal-edit-sp','modal-si-entry','modal-si-import','modal-fu-add-issue','modal-sk-entry','modal-sw-update-form','modal-tk-import','modal-news-form','modal-weekly-pattern','modal-tr-add']);
+const NO_BACKDROP_CLOSE = new Set(['modal-repair-link','modal-repair-form','modal-repair-detail','modal-person','modal-create-case','modal-edit-ticket-full','modal-specialist-detail','modal-assign-specialist','modal-add-sp','modal-edit-sp','modal-si-entry','modal-si-import','modal-fu-add-issue','modal-sk-entry','modal-sw-update-form','modal-tk-import','modal-news-form','modal-weekly-pattern','modal-tr-add','modal-hr-password']);
 
 document.querySelectorAll('.overlay').forEach(el => {
   el.addEventListener('click', e => {
@@ -7188,8 +7204,45 @@ async function saveKpiTargets() {
   }
 }
 
-// ── Punctuality modal ─────────────────────────────────────
+// ── Punctuality modal — HR password guard ─────────────────
+let _punctAuthed = false;          // reset เมื่อ reload หน้า
+let _punctPending = null;          // {username, name, month} รอ auth
+
 function openPunctModal(username, name, month) {
+  if (!_punctAuthed) {
+    _punctPending = { username, name, month };
+    document.getElementById('hr-password-input').value = '';
+    document.getElementById('hr-password-error').style.display = 'none';
+    openModal('modal-hr-password');
+    setTimeout(() => document.getElementById('hr-password-input').focus(), 100);
+    return;
+  }
+  _openPunctModalInner(username, name, month);
+}
+
+function hrPasswordConfirm() {
+  const val = document.getElementById('hr-password-input').value;
+  if (val !== 'hr@2026') {
+    document.getElementById('hr-password-error').style.display = '';
+    document.getElementById('hr-password-input').value = '';
+    document.getElementById('hr-password-input').focus();
+    return;
+  }
+  _punctAuthed = true;
+  closeModal('modal-hr-password');
+  if (_punctPending) {
+    const { username, name, month } = _punctPending;
+    _punctPending = null;
+    _openPunctModalInner(username, name, month);
+  }
+}
+
+function hrPasswordCancel() {
+  _punctPending = null;
+  closeModal('modal-hr-password');
+}
+
+function _openPunctModalInner(username, name, month) {
   document.getElementById('punct-username').value = username;
   document.getElementById('punct-month').value    = month;
   document.getElementById('punct-label').textContent = `${name}  ·  เดือน ${month}`;
