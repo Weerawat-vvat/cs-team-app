@@ -2019,7 +2019,7 @@ app.get('/api/kpi/activities', authRequired, async (request, res) => {
     fuRows.recordset.forEach(r => { fuMap[r.ext_username] = r.fu_count; });
 
     const result = await req()
-      .input('month', sql.Date, monthStart)
+      .input('month', sql.Date, ms)
       .query(`SELECT ext_username FROM kpi_activities WHERE month = @month`);
 
     // Merge all sources
