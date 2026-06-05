@@ -1990,11 +1990,10 @@ app.get('/api/kpi/activities', authRequired, async (request, res) => {
                 WHERE k.created_at >= @ms AND k.created_at < @me AND au.ext_username IS NOT NULL
                 GROUP BY au.ext_username`),
       req().input('ms', sql.Date, monthStart).input('me', sql.Date, nextMonth)
-        .query(`SELECT COALESCE(au.ext_username, t.trainer_ext) AS trainer_ext, COUNT(*) AS tr_count
-                FROM kpi_trainings t
-                LEFT JOIN app_users au ON au.employee_id = TRY_CAST(t.trainer_ext AS INT)
-                WHERE t.trained_date >= @ms AND t.trained_date < @me
-                GROUP BY COALESCE(au.ext_username, t.trainer_ext)`),
+        .query(`SELECT trainer_ext, COUNT(*) AS tr_count
+                FROM kpi_trainings
+                WHERE trained_date >= @ms AND trained_date < @me
+                GROUP BY trainer_ext`),
       req().input('ms', sql.Date, monthStart).input('me', sql.Date, nextMonth)
         .query(`SELECT au.ext_username, COUNT(*) AS fu_count
                 FROM fu_issues i

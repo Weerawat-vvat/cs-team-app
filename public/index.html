@@ -6402,7 +6402,8 @@ function renderSpKpiTable() {
   _spKpiData.sort((a, b) => {
     const spScore = x => {
       const ext = x.UserName || x.ext_username || '';
-      const act = _kpiActivitiesMap[ext];
+      const empId = String(x.emp_id || '');
+      const act = _kpiActivitiesMap[ext] || _kpiActivitiesMap[empId];
       return calcSpKpiSlaScore(x) + calcSpTicketScore(x) + calcKbScore(act) + calcTrainingScore(act) + calcFuScore(act) + (_kpiPunctMap[ext] ?? 0);
     };
     return spScore(b) - spScore(a);
@@ -6450,7 +6451,8 @@ function renderSpKpiTable() {
       <td><b style="color:${(a.pending_jobs||0)>0?'#ef4444':'#16a34a'}">${a.pending_jobs||0}</b></td>
       ${(() => {
           const ext   = a.UserName || a.ext_username || '';
-          const act   = _kpiActivitiesMap[ext];
+          const empId = String(a.emp_id || '');
+          const act   = _kpiActivitiesMap[ext] || _kpiActivitiesMap[empId];
           const punct = _kpiPunctMap[ext] ?? null;
           const dfrom = document.getElementById('kpi-date-from')?.value || _kpiDateFrom || '';
           const month = dfrom.slice(0,7);
