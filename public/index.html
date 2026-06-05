@@ -3219,6 +3219,24 @@ textarea{resize:vertical;min-height:80px}
 </div>
 
 <!-- ═══════════════════ PAGE: NEWS / ANNOUNCEMENTS ═══════════════════ -->
+<!-- ── News Announcement Popup ── -->
+<div id="news-announce-backdrop" onclick="newsAnnounceAck()" style="display:none;position:fixed;inset:0;background:#0004;z-index:500;transition:opacity .3s"></div>
+<div id="news-announce-popup" style="display:none;position:fixed;bottom:0;left:50%;transform:translateX(-50%) translateY(100%);width:min(520px,96vw);background:#fff;border-radius:16px 16px 0 0;box-shadow:0 -8px 40px #0003;z-index:501;transition:transform .4s cubic-bezier(.22,1,.36,1);padding:1.25rem 1.4rem 1.5rem;max-height:75vh;overflow-y:auto">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:.85rem">
+    <div style="display:flex;align-items:center;gap:.55rem">
+      <span id="news-announce-cat-badge" style="font-size:.72rem;font-weight:700;padding:.2rem .6rem;border-radius:20px;background:#dbeafe;color:#1e40af">📢 ข่าวสาร</span>
+      <span style="font-size:.7rem;color:#94a3b8" id="news-announce-date"></span>
+    </div>
+    <button onclick="newsAnnounceAck()" style="background:none;border:none;font-size:1.3rem;color:#94a3b8;cursor:pointer;line-height:1;padding:0">×</button>
+  </div>
+  <div style="font-size:1rem;font-weight:700;color:#1e293b;margin-bottom:.55rem" id="news-announce-title"></div>
+  <div style="font-size:.84rem;color:#475569;line-height:1.6;margin-bottom:1rem;white-space:pre-wrap" id="news-announce-body"></div>
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:.75rem">
+    <span style="font-size:.72rem;color:#cbd5e1" id="news-announce-more"></span>
+    <button onclick="newsAnnounceAck()" class="btn btn-primary" style="min-width:120px">✅ รับทราบ</button>
+  </div>
+</div>
+
 <div id="page-news" class="page">
   <div class="section-header" style="margin-bottom:.65rem">
     <div class="section-title">📢 ข่าวสาร</div>
@@ -7456,6 +7474,7 @@ async function tryAutoLogin() {
     initDateDefaults();
     loadTarget();
     loadKpiTargets();
+    setTimeout(checkNewsAnnouncement, 1500);
     loadDashboard();
     loadDashboardCharts();
     loadNewsBadge();
@@ -17332,6 +17351,84 @@ async function loadNewsBadge() {
       else badge.style.display = 'none';
     }
   } catch {}
+}
+
+// ── News Announcement Popup ───────────────────────────────
+async function checkNewsAnnouncement() {
+  try {
+    const data = await api('/api/news', { silent: true });
+    if (!Array.isArray(data) || !data.length) return;
+
+    // เรียง: pinned ก่อน แล้วตาม created_at ล่าสุด
+    const sorted = [...data].sort((a,b) => {
+      if ((b.pinned||0) !== (a.pinned||0)) return (b.pinned||0) - (a.pinned||0);
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
+    const latest = sorted[0];
+    if (!latest) return;
+
+    const today    = new Date().toISOString().slice(0,10);
+    const ackId    = localStorage.getItem('news_ack_id');
+    const ackDate  = localStorage.getItem('news_ack_date');
+
+    // แสดงถ้า: ยังไม่เคย ack หรือ news ใหม่กว่าที่ ack หรือ ack เมื่อวานหรือก่อนหน้า
+    const isNew   = !ackId || String(latest.id) !== ackId;
+    const isToday = ackDate === today;
+    if (isNew || !isToday) {
+      _newsAnnounceLatest = latest;
+      _showNewsAnnounce(latest, sorted.length);
+    }
+  } catch {}
+}
+
+let _newsAnnounceLatest = null;
+
+function _showNewsAnnounce(n, total) {
+  const CAT_STYLE = {
+    '📢 ทั่วไป':       { bg:'#dbeafe', col:'#1e40af' },
+    '🚨 งานด่วน':      { bg:'#fee2e2', col:'#b91c1c' },
+    '⚙️ อัพเดทระบบ':  { bg:'#ede9fe', col:'#5b21b6' },
+    '👥 HR':           { bg:'#dcfce7', col:'#166534' },
+    '📌 อื่นๆ':        { bg:'#fef3c7', col:'#92400e' },
+  };
+  const s = CAT_STYLE[n.category] || { bg:'#f1f5f9', col:'#475569' };
+  const badge = document.getElementById('news-announce-cat-badge');
+  badge.textContent = n.category || '📢 ข่าวสาร';
+  badge.style.background = s.bg; badge.style.color = s.col;
+
+  document.getElementById('news-announce-date').textContent =
+    new Date(n.created_at).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'});
+  document.getElementById('news-announce-title').textContent = n.title || '';
+  // แสดง body สูงสุด 300 ตัวอักษร
+  const body = n.body || '';
+  document.getElementById('news-announce-body').textContent =
+    body.length > 300 ? body.slice(0,300) + '…' : body;
+  document.getElementById('news-announce-more').textContent =
+    total > 1 ? `มีข่าวสารทั้งหมด ${total} รายการ` : '';
+
+  const backdrop = document.getElementById('news-announce-backdrop');
+  const popup    = document.getElementById('news-announce-popup');
+  backdrop.style.display = '';
+  popup.style.display = '';
+  // slide ขึ้น
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      popup.style.transform = 'translateX(-50%) translateY(0)';
+      backdrop.style.opacity = '1';
+    });
+  });
+}
+
+function newsAnnounceAck() {
+  if (_newsAnnounceLatest) {
+    localStorage.setItem('news_ack_id',   String(_newsAnnounceLatest.id));
+    localStorage.setItem('news_ack_date', new Date().toISOString().slice(0,10));
+  }
+  const backdrop = document.getElementById('news-announce-backdrop');
+  const popup    = document.getElementById('news-announce-popup');
+  popup.style.transform = 'translateX(-50%) translateY(100%)';
+  backdrop.style.opacity = '0';
+  setTimeout(() => { popup.style.display='none'; backdrop.style.display='none'; }, 400);
 }
 
 // ══════════════════════════════════════════════════════════
