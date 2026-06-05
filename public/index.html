@@ -3231,8 +3231,8 @@ textarea{resize:vertical;min-height:80px}
   </div>
   <div style="font-size:1rem;font-weight:700;color:#1e293b;margin-bottom:.55rem" id="news-announce-title"></div>
   <div style="font-size:.84rem;color:#475569;line-height:1.6;margin-bottom:1rem;white-space:pre-wrap" id="news-announce-body"></div>
-  <div style="display:flex;align-items:center;justify-content:space-between;gap:.75rem">
-    <span style="font-size:.72rem;color:#cbd5e1" id="news-announce-more"></span>
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap">
+    <button onclick="newsAnnounceRead()" style="background:none;border:none;color:#2563eb;cursor:pointer;font-size:.83rem;font-weight:600;padding:0;text-decoration:underline">📖 อ่านรายละเอียด →</button>
     <button onclick="newsAnnounceAck()" class="btn btn-primary" style="min-width:120px">✅ รับทราบ</button>
   </div>
 </div>
@@ -17162,7 +17162,7 @@ function newsRender() {
           </a>`).join('')}
         </div>` : '';
 
-    return `<div class="card" style="margin-bottom:.65rem;border-left:3px solid ${color};${n.pinned?'background:#fffbeb;':''}">
+    return `<div class="card" id="news-item-${n.id}" style="margin-bottom:.65rem;border-left:3px solid ${color};${n.pinned?'background:#fffbeb;':''}transition:background .4s">
   <div style="display:flex;align-items:flex-start;gap:.5rem;flex-wrap:wrap">
     <div style="flex:1;min-width:0">
       ${n.pinned?'<span style="font-size:.65rem;font-weight:700;color:#d97706;background:#fef3c7;border-radius:4px;padding:.08rem .35rem;margin-right:.3rem">📌 ปักหมุด</span>':''}
@@ -17432,6 +17432,29 @@ function newsAnnounceAck() {
   popup.style.transform = 'translateX(-50%) translateY(100%)';
   backdrop.style.opacity = '0';
   setTimeout(() => { popup.style.display='none'; backdrop.style.display='none'; }, 400);
+}
+
+function newsAnnounceRead() {
+  const newsId = _newsAnnounceLatest?.id;
+  newsAnnounceAck();
+  // ไปหน้าข่าวสาร
+  const navBtn = document.getElementById('nav-btn-news');
+  showPage('news', navBtn);
+  loadNews();
+  // หลังโหลดเสร็จ scroll และ expand ข่าวที่ต้องการ
+  if (newsId) {
+    setTimeout(() => {
+      const el = document.getElementById(`news-item-${newsId}`);
+      if (el) {
+        el.scrollIntoView({ behavior:'smooth', block:'center' });
+        el.style.background = '#fffbeb';
+        setTimeout(() => { el.style.background = ''; }, 2000);
+      }
+      // expand ถ้ามีปุ่มอ่านต่อ
+      const expandBtn = el?.querySelector('[onclick*="newsExpand"]');
+      if (expandBtn) newsExpand(newsId, expandBtn);
+    }, 600);
+  }
 }
 
 // ══════════════════════════════════════════════════════════
