@@ -7475,6 +7475,8 @@ async function tryAutoLogin() {
     loadTarget();
     loadKpiTargets();
     setTimeout(checkNewsAnnouncement, 1500);
+    // เช็คข่าวสารทุก 1 ชม. — โผล่อัตโนมัติถ้าเป็นวันใหม่แม้ไม่ refresh
+    setInterval(checkNewsAnnouncement, 60 * 60 * 1000);
     loadDashboard();
     loadDashboardCharts();
     loadNewsBadge();
