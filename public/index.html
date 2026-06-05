@@ -6347,8 +6347,8 @@ async function loadSpKpi() {
       const hd  = ext ? hdMap[ext] : null;
       a.hd_grade_total = hd ? (hd.grade_total_score || 0) : 0;
     });
-    _kpiActivitiesMap = _kpiActivitiesMap || {};
-    _kpiPunctMap      = _kpiPunctMap || {};
+    _kpiActivitiesMap = {};
+    _kpiPunctMap      = {};
     (acts   ||[]).forEach(a => { _kpiActivitiesMap[a.ext_username] = a; });
     (puncts ||[]).forEach(p => { _kpiPunctMap[p.ext_username] = p.score; });
     if (!_spKpiData.length) { showToast('⚠️ ไม่พบข้อมูล Specialist ในช่วงนี้', 'warning'); }
