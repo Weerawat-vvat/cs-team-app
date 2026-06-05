@@ -382,10 +382,7 @@ function leadRequired(request, res, next) {
 
 async function getScopedUsernames(user) {
   if (!user) return null;
-  if (['manager', 'admin'].includes(user.role)) return undefined; // no restriction
-  if (user.role === 'staff') {
-    return user.ext_username ? [user.ext_username] : null;
-  }
+  if (['manager', 'admin', 'staff'].includes(user.role)) return undefined; // no restriction
   if (user.role === 'team_lead') {
     const rows = (await req()
       .input('tm', sql.NVarChar, user.team)
@@ -462,11 +459,7 @@ app.get('/api/employees', authRequired, async (request, res) => {
              LEFT JOIN app_users au ON au.employee_id = e.id AND au.active = 1`;
     const conds = [];
     if (!include_inactive) conds.push('e.active=1');
-    // staff: only see themselves
-    if (role === 'staff') {
-      conds.push('e.id=@myEmpId');
-      r.input('myEmpId', sql.Int, request.user.employee_id || 0);
-    } else if (role === 'team_lead') {
+    if (role === 'team_lead') {
       // team_lead: only their team
       conds.push('e.team=@myTeam');
       r.input('myTeam', sql.NVarChar, request.user.team || '');
@@ -545,10 +538,7 @@ app.get('/api/shifts', authRequired, async (request, res) => {
     let q = `SELECT s.*, e.name, e.team, e.role
              FROM shifts s JOIN employees e ON e.id=s.employee_id
              WHERE e.active=1 AND s.shift_date BETWEEN @s AND @e`;
-    if (role === 'staff') {
-      q += ' AND e.id=@myEmpId';
-      r.input('myEmpId', sql.Int, request.user.employee_id || 0);
-    } else if (role === 'team_lead') {
+    if (role === 'team_lead') {
       q += ' AND e.team=@myTeam';
       r.input('myTeam', sql.NVarChar, request.user.team || '');
     } else if (team) {
@@ -674,10 +664,7 @@ app.get('/api/shifts/month', authRequired, async (request, res) => {
     let q = `SELECT s.*, e.name, e.team, e.role
              FROM shifts s JOIN employees e ON e.id=s.employee_id
              WHERE e.active=1 AND s.shift_date BETWEEN @s AND @e`;
-    if (role === 'staff') {
-      q += ' AND e.id=@myEmpId';
-      r.input('myEmpId', sql.Int, request.user.employee_id || 0);
-    } else if (role === 'team_lead') {
+    if (role === 'team_lead') {
       q += ' AND e.team=@myTeam';
       r.input('myTeam', sql.NVarChar, request.user.team || '');
     } else if (team) {
@@ -833,10 +820,7 @@ app.get('/api/leave-requests', authRequired, async (request, res) => {
     const role = request.user?.role;
     const r = req();
     let where = '';
-    if (role === 'staff') {
-      where = ' WHERE lr.employee_id=@myEmpId';
-      r.input('myEmpId', sql.Int, request.user.employee_id || 0);
-    } else if (role === 'team_lead') {
+    if (role === 'team_lead') {
       where = ' WHERE e.team=@myTeam';
       r.input('myTeam', sql.NVarChar, request.user.team || '');
     }
@@ -2290,11 +2274,7 @@ app.get('/api/kpi/history', authRequired, async (request, res) => {
     const role = request.user?.role;
     let scopeClause = '';
     const r = extReq().input('months', sql.Int, parseInt(months));
-    if (role === 'staff') {
-      if (!request.user.ext_username) return res.json([]);
-      r.input('_ku0', sql.NVarChar, request.user.ext_username);
-      scopeClause = ' AND u.UserName = @_ku0';
-    } else if (role === 'team_lead') {
+    if (role === 'team_lead') {
       const rows = (await req().input('tm', sql.NVarChar, request.user.team || '')
         .query(`SELECT DISTINCT au.ext_username FROM app_users au
                 JOIN employees e ON e.id=au.employee_id
