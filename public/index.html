@@ -7401,8 +7401,9 @@ function applyUserContext() {
 
   // Nav: Users tab — manager/admin only (staff ไม่เห็น)
   document.getElementById('nav-btn-users').style.display = isManager ? '' : 'none';
-  // Settings group — ซ่อนสำหรับ staff เท่านั้น
-  document.getElementById('nav-settings-group').style.display = isLead ? '' : 'none';
+  // Settings group — เฉพาะ team_lead และ manager เท่านั้น
+  const canSettings = role === 'manager' || role === 'team_lead';
+  document.getElementById('nav-settings-group').style.display = canSettings ? '' : 'none';
   // Hide users/subjects sub-item for non-managers
   const usersSub = document.getElementById('nav-sub-users');
   if (usersSub) usersSub.style.display = isManager ? '' : 'none';
