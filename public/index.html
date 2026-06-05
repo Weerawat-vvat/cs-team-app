@@ -17406,8 +17406,8 @@ function _showNewsAnnounce(n, total) {
   const body = n.body || '';
   document.getElementById('news-announce-body').textContent =
     body.length > 300 ? body.slice(0,300) + '…' : body;
-  document.getElementById('news-announce-more').textContent =
-    total > 1 ? `มีข่าวสารทั้งหมด ${total} รายการ` : '';
+  const moreEl = document.getElementById('news-announce-more');
+  if (moreEl) moreEl.textContent = total > 1 ? `มีข่าวสารทั้งหมด ${total} รายการ` : '';
 
   const backdrop = document.getElementById('news-announce-backdrop');
   const popup    = document.getElementById('news-announce-popup');
