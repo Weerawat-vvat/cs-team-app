@@ -2067,6 +2067,24 @@ app.post('/api/kpi/trainings', authRequired, async (request, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── PUT /api/kpi/trainings/:id ────────────────────────────────────────────────
+app.put('/api/kpi/trainings/:id', authRequired, async (request, res) => {
+  try {
+    const { trainer_ext, trained_date, topic, trainees, notes } = request.body;
+    if (!trainer_ext || !trained_date || !topic?.trim()) return res.status(400).json({ error: 'กรุณากรอกข้อมูลให้ครบ' });
+    await req()
+      .input('id',           sql.Int,       parseInt(request.params.id))
+      .input('trainer_ext',  sql.NVarChar,  trainer_ext)
+      .input('trained_date', sql.Date,      trained_date)
+      .input('topic',        sql.NVarChar,  topic.trim())
+      .input('trainees',     sql.NVarChar,  trainees || null)
+      .input('notes',        sql.NVarChar,  notes || null)
+      .query(`UPDATE kpi_trainings SET trainer_ext=@trainer_ext, trained_date=@trained_date,
+              topic=@topic, trainees=@trainees, notes=@notes WHERE id=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── DELETE /api/kpi/trainings/:id ─────────────────────────────────────────────
 app.delete('/api/kpi/trainings/:id', authRequired, managerRequired, async (request, res) => {
   try {

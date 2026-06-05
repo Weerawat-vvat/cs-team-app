@@ -15589,6 +15589,7 @@ function siSwitchTab(tab) {
 
 // ── Training log page ─────────────────────────────────────
 let _trData = [];
+let _trEditId = null;
 
 async function trInitFilter() {
   const sel = document.getElementById('tr-filter-trainer');
@@ -15639,8 +15640,12 @@ function trRender(rows) {
         </div>
         ${r.created_by_name ? `<div style="font-size:.68rem;color:#cbd5e1;margin-top:.15rem">บันทึกโดย ${escHtml(r.created_by_name)}</div>` : ''}
       </div>
-      <button onclick="trDelete(${r.id})"
-        style="flex-shrink:0;font-size:.72rem;padding:2px 8px;border-radius:6px;border:1px solid #fecaca;background:#fff5f5;color:#dc2626;cursor:pointer">🗑️</button>
+      <div style="display:flex;gap:.35rem;flex-shrink:0">
+        <button onclick="trOpenEdit(${r.id})"
+          style="font-size:.72rem;padding:2px 8px;border-radius:6px;border:1px solid #bfdbfe;background:#eff6ff;color:#2563eb;cursor:pointer">✏️</button>
+        <button onclick="trDelete(${r.id})"
+          style="font-size:.72rem;padding:2px 8px;border-radius:6px;border:1px solid #fecaca;background:#fff5f5;color:#dc2626;cursor:pointer">🗑️</button>
+      </div>
     </div>`).join('');
 }
 
@@ -15724,6 +15729,8 @@ function trOpenAdd() {
   document.getElementById('tr-trainees-search').value = '';
   document.getElementById('tr-trainees-panel').style.display = 'none';
 
+  _trEditId = null;
+  document.querySelector('#modal-tr-add .modal-title').firstChild.textContent = '🧑‍🏫 บันทึกการสอนเพื่อนร่วมทีม ';
   openModal('modal-tr-add');
 }
 
@@ -15731,13 +15738,46 @@ async function trSave() {
   const trainer_ext  = document.getElementById('tr-trainer').value;
   const trained_date = document.getElementById('tr-date').value;
   const topic        = document.getElementById('tr-topic').value.trim();
-  const trainees = [...trTraineesSelected].join(', ');
+  const trainees     = [...trTraineesSelected].join(', ');
   const notes        = document.getElementById('tr-notes').value.trim();
   if (!trainer_ext || !trained_date || !topic) { showToast('⚠️ กรุณากรอก ผู้สอน วันที่ และหัวข้อ', 'warning'); return; }
-  await api('/api/kpi/trainings', { method:'POST', body:{ trainer_ext, trained_date, topic, trainees, notes } });
-  showToast('✅ บันทึกแล้ว', 'success');
+  if (_trEditId) {
+    await api(`/api/kpi/trainings/${_trEditId}`, { method:'PUT', body:{ trainer_ext, trained_date, topic, trainees, notes } });
+    showToast('✅ แก้ไขแล้ว', 'success');
+  } else {
+    await api('/api/kpi/trainings', { method:'POST', body:{ trainer_ext, trained_date, topic, trainees, notes } });
+    showToast('✅ บันทึกแล้ว', 'success');
+  }
+  _trEditId = null;
   closeModal('modal-tr-add');
   trLoad();
+}
+
+function trOpenEdit(id) {
+  const r = _trData.find(x => x.id === id);
+  if (!r) return;
+  _trEditId = id;
+
+  // populate trainer
+  const sel = document.getElementById('tr-trainer');
+  sel.innerHTML = '<option value="">-- เลือกผู้สอน --</option>' +
+    allEmployees.map(e => `<option value="${e.id}">${escHtml(e.name)} (${teamLabel(e.team||'')})</option>`).join('');
+  // match by name since trainer_ext may be id or name
+  const matchEmp = allEmployees.find(e => String(e.id) === String(r.trainer_ext) || e.name === r.trainer_ext);
+  if (matchEmp) sel.value = matchEmp.id;
+
+  document.getElementById('tr-date').value  = r.trained_date?.slice(0,10) || '';
+  document.getElementById('tr-topic').value = r.topic || '';
+  document.getElementById('tr-notes').value = r.notes || '';
+
+  // restore trainees selection
+  trTraineesSelected = new Set(r.trainees ? r.trainees.split(',').map(s => s.trim()).filter(Boolean) : []);
+  trTraineesRender();
+  document.getElementById('tr-trainees-search').value = '';
+  document.getElementById('tr-trainees-panel').style.display = 'none';
+
+  document.querySelector('#modal-tr-add .modal-title').firstChild.textContent = '✏️ แก้ไขบันทึกการสอน ';
+  openModal('modal-tr-add');
 }
 
 async function trDelete(id) {
