@@ -5222,12 +5222,6 @@ function renderShiftTabs() {
   if (!tabs) return;
   const role = currentUser?.role;
 
-  if (role === 'staff') {
-    // staff: no team tabs — they only see themselves
-    tabs.innerHTML = `<span style="font-size:.8rem;color:var(--muted);padding:.25rem .5rem">📋 ตารางกะของฉัน</span>`;
-    return;
-  }
-
   // team_lead: only their team + remove "ทุกทีม" (no cross-team view)
   // กรองเฉพาะทีมที่ show_in_schedule = true
   const visibleTeams = role === 'team_lead'
@@ -7384,62 +7378,45 @@ function applyUserContext() {
   const isAdmin   = role === 'admin';
   const isManager = ['manager','admin'].includes(role);
   const isLead    = ['team_lead','manager','admin'].includes(role);
+  // staff ตอนนี้เห็นทุกอย่างยกเว้น settings
+  const canSeeAll = role !== 'staff' || true; // staff เห็นหมด
 
-  // Nav: Users tab — manager/admin only
-  document.getElementById('nav-btn-users').style.display    = isManager ? '' : 'none';
-  // Settings group visible to team_lead+
+  // Nav: Users tab — manager/admin only (staff ไม่เห็น)
+  document.getElementById('nav-btn-users').style.display = isManager ? '' : 'none';
+  // Settings group — ซ่อนสำหรับ staff เท่านั้น
   document.getElementById('nav-settings-group').style.display = isLead ? '' : 'none';
-  // Hide users sub-item for non-managers
+  // Hide users/subjects sub-item for non-managers
   const usersSub = document.getElementById('nav-sub-users');
   if (usersSub) usersSub.style.display = isManager ? '' : 'none';
   const subjectsSub = document.getElementById('nav-sub-subjects');
   if (subjectsSub) subjectsSub.style.display = isManager ? '' : 'none';
-  document.getElementById('nav-btn-complaints').style.display = isLead ? '' : 'none';
+  // ร้องเรียน — staff เห็นได้
+  document.getElementById('nav-btn-complaints').style.display = '';
   const newsCreateBtn = document.getElementById('news-create-btn');
   if (newsCreateBtn) newsCreateBtn.style.display = isLead ? '' : 'none';
-  if (isLead) {
-    loadComplaintsBadge();
-    pollRepairMessages();
-    // Specialist badge — all-time pending count, poll every 60s
-    spPollBadge();
-    setInterval(spPollBadge, 60000);
-    // Poll every 60s for new customer messages
-    clearInterval(_repairPollTimer);
-    _repairPollTimer = setInterval(pollRepairMessages, 30000);
-    // Service badge poll
-    svcPollBadge();
-    clearInterval(_svcBadgePollTimer);
-    _svcBadgePollTimer = setInterval(svcPollBadge, 60000);
-    // Follow Up badge
-    fuPollBadge();
-    setInterval(fuPollBadge, 60000);
-    // SW Update badge
-    swuUpdateBadge();
-    setInterval(swuUpdateBadge, 60000);
-  }
+  // badges & polls — ทุก role
+  loadComplaintsBadge();
+  pollRepairMessages();
+  spPollBadge();
+  setInterval(spPollBadge, 60000);
+  clearInterval(_repairPollTimer);
+  _repairPollTimer = setInterval(pollRepairMessages, 30000);
+  svcPollBadge();
+  clearInterval(_svcBadgePollTimer);
+  _svcBadgePollTimer = setInterval(svcPollBadge, 60000);
+  fuPollBadge();
+  setInterval(fuPollBadge, 60000);
+  swuUpdateBadge();
+  setInterval(swuUpdateBadge, 60000);
 
   // Schedule: hide clear-week button for staff
   const clearShiftBtn = document.getElementById('btn-clear-shifts');
   if (clearShiftBtn) clearShiftBtn.style.display = isLead ? '' : 'none';
 
-  // Staff: hide team filter dropdowns across all pages
-  if (role === 'staff') {
-    ['dash-filter-team','tk-filter-team','kpi-filter-team'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.closest('label,span,div.page-datebar > label')?.parentElement
-               ? (el.style.display = 'none', el.previousElementSibling?.style && (el.previousElementSibling.style.display = 'none'))
-               : (el.style.display = 'none');
-    });
-  }
-
   // Dashboard scope badge
   const badge = document.getElementById('dash-scope-badge');
   if (badge) {
-    if (role === 'staff') {
-      badge.textContent = `👤 งานของฉัน`;
-      badge.style.display = '';
-      badge.style.background = '#f0fdf4'; badge.style.color = '#15803d';
-    } else if (role === 'team_lead') {
+    if (role === 'team_lead') {
       badge.textContent = `👥 ทีม: ${currentUser.team || '—'}`;
       badge.style.display = '';
       badge.style.background = '#dbeafe'; badge.style.color = '#1e40af';
