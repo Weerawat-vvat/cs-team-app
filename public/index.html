@@ -4199,12 +4199,27 @@ const SHIFT_META = {
 const LEAVE_SHIFT_TYPES = new Set(['leave_sick','leave_personal','leave_annual']);
 
 function shiftLabel(s, withTime) {
+  // ดึงจาก allShiftTypes (settings) ก่อน fallback ไป SHIFT_META
+  if (allShiftTypes?.length) {
+    const t = allShiftTypes.find(t => t.shift_key === s);
+    if (t) {
+      if (withTime && t.start_time && t.end_time)
+        return `${t.name} ${t.start_time.slice(0,5)}–${t.end_time.slice(0,5)}`;
+      return t.name;
+    }
+  }
   const m = SHIFT_META[s];
   if (!m) return s || '—';
   return withTime && m.time ? `${m.label} (${m.time})` : m.label;
 }
-function shiftBg(s)    { return SHIFT_META[s]?.bg  || '#f1f5f9'; }
-function shiftColor(s) { return SHIFT_META[s]?.col || '#334155'; }
+function shiftBg(s) {
+  if (allShiftTypes?.length) { const t = allShiftTypes.find(t => t.shift_key === s); if (t) return t.color_bg; }
+  return SHIFT_META[s]?.bg || '#f1f5f9';
+}
+function shiftColor(s) {
+  if (allShiftTypes?.length) { const t = allShiftTypes.find(t => t.shift_key === s); if (t) return t.color_text; }
+  return SHIFT_META[s]?.col || '#334155';
+}
 function statusLabel(s) {
   return {open:'Open', in_progress:'In Progress', waiting_vendor:'Waiting Vendor', closed:'Closed'}[s] || s;
 }
@@ -14129,15 +14144,14 @@ function renderMonthTable(shifts, year, month) {
         const bg  = shiftBg(s.shift_type);
         const col = shiftColor(s.shift_type);
         const lbl = shiftLabel(s.shift_type);
+        const cellDiv = `<div style="background:${bg};color:${col};border-radius:4px;padding:.12rem .2rem;font-weight:700;font-size:.68rem;text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:52px" title="${lbl}">${lbl}</div>`;
         if (canEdit) {
           rows += `<td style="padding:.15rem .1rem;background:${cellBg};cursor:pointer"
             onmousedown="shiftCellDown(${emp.id},'${esc(mDispN)}','${iso}',${shiftId},this,event)"
             onmouseover="shiftCellOver(${emp.id},'${iso}',${shiftId},this)"
-            ondragstart="return false">
-            <div style="background:${bg};color:${col};border-radius:4px;padding:.12rem .2rem;font-weight:700;font-size:.68rem;text-align:center">${lbl}</div>
-          </td>`;
+            ondragstart="return false">${cellDiv}</td>`;
         } else {
-          rows += `<td style="padding:.15rem .1rem;background:${cellBg}"><div style="background:${bg};color:${col};border-radius:4px;padding:.12rem .2rem;font-weight:700;font-size:.68rem;text-align:center">${lbl}</div></td>`;
+          rows += `<td style="padding:.15rem .1rem;background:${cellBg}">${cellDiv}</td>`;
         }
       } else {
         if (canEdit) {
@@ -14235,26 +14249,26 @@ function _shiftDragEnd(event) {
 }
 
 async function confirmDragShift(shiftType) {
-  _closeShiftPickPopup();
+  // capture state ก่อน เพราะ _closeShiftPickPopup จะ _clearDragState ล้างทิ้ง
   const dates = [..._dragDates], empId = _dragEmpId;
+  _closeShiftPickPopup();
   let ok = 0;
   for (const date of dates) {
     try { await api('/api/shifts', { method:'POST', silent:true, body:{ employee_id:empId, shift_type:shiftType, shift_date:date }}); ok++; }
     catch {}
   }
-  _clearDragState();
   showToast(`✅ บันทึกกะแล้ว ${ok}/${dates.length} วัน`, 'success');
   _scheduleView === 'month' ? loadScheduleMonth() : loadSchedule();
 }
 
 async function deleteDragShift() {
-  _closeShiftPickPopup();
+  // capture state ก่อน เพราะ _closeShiftPickPopup จะ _clearDragState ล้างทิ้ง
   const ids = Object.values(_dragShiftIds);
+  _closeShiftPickPopup();
   let ok = 0;
   for (const id of ids) {
     try { await api(`/api/shifts/${id}`, { method:'DELETE', silent:true }); ok++; } catch {}
   }
-  _clearDragState();
   showToast(`🗑 ลบกะแล้ว ${ok} วัน`, 'success');
   _scheduleView === 'month' ? loadScheduleMonth() : loadSchedule();
 }
@@ -14267,11 +14281,17 @@ function _closeShiftPickPopup() {
 }
 
 // ปิด popup เมื่อคลิกนอกกรอบ
+// ถ้า user คลิก shift cell → แค่ซ่อน popup ไว้ก่อน ไม่ clear drag state
+// เพราะ shiftCellDown (onmousedown บน cell) วิ่งก่อน แล้ว listener นี้วิ่งทีหลัง
+// การ clear drag state ตรงนี้จะทำลาย state ที่ shiftCellDown เพิ่งตั้ง
 document.addEventListener('mousedown', e => {
   const popup = document.getElementById('shift-pick-popup');
-  if (popup && popup.style.display !== 'none' && !popup.contains(e.target)) {
-    _closeShiftPickPopup();
-  }
+  if (!popup || popup.style.display === 'none') return;
+  if (popup.contains(e.target)) return;
+  popup.style.display = 'none';
+  // ถ้า click บน shift cell (มี onmousedown="shiftCellDown...") ให้ shiftCellDown จัดการ state เอง
+  const isShiftCell = !!e.target.closest('[onmousedown^="shiftCellDown"]');
+  if (!isShiftCell) _clearDragState();
 });
 function _clearDragState() {
   _dragCells.forEach(el => el.classList.remove('shift-drag-sel'));
