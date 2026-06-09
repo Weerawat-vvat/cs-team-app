@@ -5419,11 +5419,13 @@ app.get('/api/public/board/:token/data', async (request, res) => {
     const issues = (await req().input('bid', sql.Int, row.board_id)
       .query(`SELECT i.id, i.detail AS title, i.branch, i.status, i.priority, i.category,
                      i.note, i.due_date, i.issue_url, i.created_at, i.updated_at,
-                     ISNULL(e.nickname, e.name) AS assigned_to_name
+                     ISNULL(e.nickname, e.name) AS assigned_to_name,
+                     (SELECT COUNT(*) FROM fu_comments c WHERE c.issue_id = i.id) AS comment_count
               FROM fu_issues i
               LEFT JOIN employees e ON e.id = i.assigned_to
               WHERE i.board_id=@bid
               ORDER BY i.created_at DESC`)).recordset;
+    res.set('Cache-Control', 'no-store');
     res.json({ board_name: row.board_name, folder_name: row.folder_name, issues });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

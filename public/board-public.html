@@ -479,6 +479,7 @@ async function loadComments(issueId) {
     const body = document.getElementById('dm-comments-body');
     if (body) body.innerHTML = `<div class="no-comments" style="color:#fca5a5">โหลด comment ไม่สำเร็จ</div>`;
   }
+}
 
 function closeDetail() {
   document.getElementById('detail-modal').style.display = 'none';
@@ -557,7 +558,6 @@ function renderBoard(issues) {
       : cards.map(i => {
           const p  = PRIO_CFG[i.priority] || PRIO_CFG.normal;
           const dm = i.due_date ? dueMeta(i.due_date) : null;
-          const hasDetail = (i.note && i.note.trim()) || (i.branch && i.branch.trim()) || i.issue_url;
           return `<div class="card" onclick="openDetail(${i.id})">
             <div class="card-id">#${i.id}</div>
             <div class="card-title">${esc(i.title)}</div>
@@ -567,7 +567,9 @@ function renderBoard(issues) {
               ${i.assigned_to_name ? `<span class="assignee">👤 ${esc(i.assigned_to_name)}</span>` : ''}
             </div>
             ${dm ? `<div class="card-due ${dm.cls}">📅 ${dm.label}</div>` : ''}
-            <div class="card-hint">👆 คลิกดูรายละเอียด</div>
+            <div class="card-hint">
+              ${i.comment_count > 0 ? `💬 ${i.comment_count} · ` : ''}คลิกดูรายละเอียด
+            </div>
           </div>`;
         }).join('');
     return `<div class="col">
