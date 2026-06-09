@@ -5,225 +5,523 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Board — CS Team</title>
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', 'Noto Sans Thai', sans-serif; background: #f1f5f9; color: #1e293b; min-height: 100vh; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', 'Noto Sans Thai', sans-serif; background: #f8fafc; color: #1e293b; min-height: 100vh; }
 
-  .header {
-    background: #1e293b; color: #fff; padding: .75rem 1.25rem;
-    display: flex; align-items: center; gap: .75rem; position: sticky; top: 0; z-index: 10;
-    box-shadow: 0 2px 8px rgba(0,0,0,.18);
-  }
-  .header-logo { font-size: 1.15rem; font-weight: 800; letter-spacing: -.5px; }
-  .header-sep  { color: #475569; }
-  .header-folder { font-size: .82rem; color: #94a3b8; }
-  .header-board  { font-size: .95rem; font-weight: 700; }
-  .header-badge  {
-    margin-left: auto; background: #3b82f6; color: #fff; font-size: .72rem;
-    font-weight: 700; border-radius: 20px; padding: .15rem .65rem;
-  }
-  .header-readonly {
-    font-size: .7rem; color: #64748b; background: #334155;
-    border-radius: 20px; padding: .15rem .6rem;
-  }
+/* ── Header ── */
+.header {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  color: #fff; padding: .85rem 1.5rem;
+  display: flex; align-items: center; gap: .75rem;
+  position: sticky; top: 0; z-index: 50;
+  box-shadow: 0 2px 12px rgba(0,0,0,.2);
+}
+.header-logo { font-size: 1.05rem; font-weight: 800; display: flex; align-items: center; gap: .4rem; }
+.header-sep  { color: #334155; }
+.header-folder { font-size: .8rem; color: #64748b; }
+.header-board  { font-size: .95rem; font-weight: 700; }
+.header-right  { margin-left: auto; display: flex; align-items: center; gap: .55rem; }
+.badge-count { background: #3b82f6; color: #fff; font-size: .7rem; font-weight: 700; border-radius: 20px; padding: .18rem .65rem; }
+.badge-readonly { font-size: .68rem; color: #475569; background: #1e293b; border: 1px solid #334155; border-radius: 20px; padding: .15rem .6rem; }
+.refresh-btn { background: none; border: 1px solid #334155; color: #94a3b8; border-radius: 8px; padding: .25rem .55rem; font-size: .72rem; cursor: pointer; font-family: inherit; transition: all .15s; }
+.refresh-btn:hover { border-color: #64748b; color: #e2e8f0; }
 
-  .board-wrap {
-    display: flex; gap: 1rem; padding: 1.25rem;
-    overflow-x: auto; align-items: flex-start; min-height: calc(100vh - 56px);
-  }
+/* ── Summary bar ── */
+.summary-bar {
+  background: #fff; border-bottom: 1px solid #e2e8f0;
+  padding: .7rem 1.5rem; display: flex; gap: .75rem; flex-wrap: wrap; align-items: center;
+}
+.stat-chip {
+  display: flex; align-items: center; gap: .4rem;
+  background: #f8fafc; border: 1.5px solid transparent; border-radius: 10px;
+  padding: .35rem .75rem; cursor: pointer; transition: all .15s; user-select: none;
+}
+.stat-chip:hover { border-color: #cbd5e1; background: #f1f5f9; }
+.stat-chip.active { border-color: currentColor; background: #fff; }
+.stat-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.stat-label { font-size: .75rem; font-weight: 600; }
+.stat-num { font-size: .82rem; font-weight: 800; }
+.stat-sep { width: 1px; height: 24px; background: #e2e8f0; margin: 0 .1rem; }
 
-  .col {
-    background: #fff; border-radius: 12px; min-width: 260px; max-width: 280px;
-    flex-shrink: 0; box-shadow: 0 1px 4px rgba(0,0,0,.07);
-    display: flex; flex-direction: column;
-  }
-  .col-header {
-    padding: .7rem .9rem .55rem;
-    border-bottom: 1px solid #f1f5f9;
-    display: flex; align-items: center; gap: .5rem;
-  }
-  .col-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-  .col-name { font-weight: 700; font-size: .82rem; flex: 1; }
-  .col-cnt  { font-size: .72rem; background: #f1f5f9; color: #64748b; font-weight: 700;
-               border-radius: 20px; padding: .1rem .45rem; }
+/* ── Filter bar ── */
+.filter-bar {
+  background: #fff; border-bottom: 1px solid #e2e8f0;
+  padding: .65rem 1.5rem; display: flex; gap: .6rem; align-items: center; flex-wrap: wrap;
+}
+.search-wrap {
+  display: flex; align-items: center; gap: .5rem;
+  background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 9px;
+  padding: .35rem .7rem; flex: 1; min-width: 200px; max-width: 360px;
+  transition: border-color .15s;
+}
+.search-wrap:focus-within { border-color: #3b82f6; background: #fff; }
+.search-wrap svg { color: #94a3b8; flex-shrink: 0; }
+.search-wrap input { border: none; background: none; outline: none; font-family: inherit; font-size: .82rem; color: #1e293b; width: 100%; }
+.search-wrap input::placeholder { color: #94a3b8; }
 
-  .col-body { padding: .6rem .7rem; display: flex; flex-direction: column; gap: .5rem; overflow-y: auto; max-height: 72vh; }
+.filter-select {
+  background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 9px;
+  padding: .35rem .65rem; font-family: inherit; font-size: .78rem; color: #374151;
+  cursor: pointer; outline: none; transition: border-color .15s; min-width: 120px;
+}
+.filter-select:focus { border-color: #3b82f6; background: #fff; }
 
-  .card {
-    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
-    padding: .6rem .75rem; cursor: default;
-  }
-  .card:hover { background: #f1f5f9; }
-  .card-id   { font-size: .68rem; color: #94a3b8; margin-bottom: .2rem; }
-  .card-title { font-size: .82rem; font-weight: 600; line-height: 1.35; margin-bottom: .4rem; }
-  .card-meta  { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+.clear-btn {
+  background: none; border: 1.5px solid #e2e8f0; border-radius: 9px;
+  padding: .33rem .7rem; font-family: inherit; font-size: .76rem; font-weight: 600;
+  color: #64748b; cursor: pointer; transition: all .15s; white-space: nowrap;
+}
+.clear-btn:hover { border-color: #f87171; color: #dc2626; background: #fef2f2; }
 
-  .badge {
-    display: inline-block; font-size: .68rem; font-weight: 700;
-    border-radius: 20px; padding: .1rem .45rem;
-  }
-  .badge-cat   { background: #eff6ff; color: #1d4ed8; }
-  .badge-prio-high   { background: #fef2f2; color: #b91c1c; }
-  .badge-prio-medium { background: #fff7ed; color: #c2410c; }
-  .badge-prio-low    { background: #f0fdf4; color: #15803d; }
-  .badge-prio-critical { background: #7f1d1d; color: #fef2f2; }
+.result-count { font-size: .75rem; color: #64748b; margin-left: auto; white-space: nowrap; }
 
-  .assignee { font-size: .72rem; color: #475569; display: flex; align-items: center; gap: .25rem; }
-  .assignee::before { content: '👤'; font-size: .65rem; }
+/* ── View tab ── */
+.view-tabs {
+  background: #fff; border-bottom: 1px solid #e2e8f0;
+  padding: 0 1.5rem; display: flex; gap: 0;
+}
+.view-tab {
+  padding: .55rem 1rem; font-size: .8rem; font-weight: 600; color: #64748b;
+  border: none; background: none; cursor: pointer; font-family: inherit;
+  border-bottom: 2.5px solid transparent; transition: all .15s;
+}
+.view-tab.active { color: #1d4ed8; border-bottom-color: #1d4ed8; }
+.view-tab:hover:not(.active) { color: #374151; background: #f8fafc; }
 
-  .empty-col { padding: .75rem; text-align: center; color: #cbd5e1; font-size: .78rem; }
+/* ── Board view ── */
+.board-wrap {
+  display: flex; gap: 1rem; padding: 1.25rem 1.5rem;
+  overflow-x: auto; align-items: flex-start; min-height: calc(100vh - 180px);
+}
+.col {
+  background: #fff; border-radius: 12px; min-width: 270px; max-width: 290px;
+  flex-shrink: 0; box-shadow: 0 1px 4px rgba(0,0,0,.06), 0 0 0 1px rgba(0,0,0,.04);
+  display: flex; flex-direction: column;
+}
+.col-header {
+  padding: .75rem .9rem .55rem;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex; align-items: center; gap: .5rem;
+}
+.col-stripe { width: 3px; height: 18px; border-radius: 3px; flex-shrink: 0; }
+.col-name { font-weight: 700; font-size: .82rem; flex: 1; }
+.col-cnt { font-size: .7rem; background: #f1f5f9; color: #64748b; font-weight: 700; border-radius: 20px; padding: .1rem .5rem; min-width: 22px; text-align: center; }
+.col-body { padding: .6rem .7rem; display: flex; flex-direction: column; gap: .5rem; overflow-y: auto; max-height: 68vh; }
 
-  /* Table view toggle */
-  .view-toggle {
-    position: fixed; bottom: 1.25rem; right: 1.25rem;
-    background: #1e293b; color: #fff; border: none; border-radius: 30px;
-    padding: .55rem 1.1rem; font-size: .8rem; font-weight: 700; cursor: pointer;
-    box-shadow: 0 4px 16px rgba(0,0,0,.22); display: flex; align-items: center; gap: .4rem;
-    font-family: inherit; transition: background .15s;
-  }
-  .view-toggle:hover { background: #334155; }
+/* ── Card ── */
+.card {
+  background: #fdfdfd; border: 1px solid #e8edf3; border-radius: 10px;
+  padding: .65rem .8rem; cursor: default; transition: box-shadow .12s, border-color .12s;
+}
+.card:hover { border-color: #cbd5e1; box-shadow: 0 2px 8px rgba(0,0,0,.07); }
+.card-id { font-size: .65rem; color: #b0bac6; margin-bottom: .18rem; font-weight: 600; letter-spacing: .02em; }
+.card-title { font-size: .82rem; font-weight: 600; line-height: 1.4; margin-bottom: .45rem; color: #1e293b; }
+.card-meta { display: flex; align-items: center; gap: .35rem; flex-wrap: wrap; }
+.card-due { font-size: .67rem; color: #94a3b8; margin-top: .3rem; display: flex; align-items: center; gap: .22rem; }
+.card-due.overdue { color: #ef4444; font-weight: 600; }
+.card-due.soon    { color: #f59e0b; font-weight: 600; }
 
-  /* Table view */
-  .table-wrap { padding: 1rem 1.25rem; display: none; }
-  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.07); }
-  th { background: #1e293b; color: #94a3b8; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; padding: .55rem .85rem; text-align: left; }
-  td { padding: .55rem .85rem; font-size: .8rem; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
-  tr:last-child td { border-bottom: none; }
-  tr:hover td { background: #f8fafc; }
-  .td-title { font-weight: 600; max-width: 340px; }
-  .td-id    { color: #94a3b8; font-size: .72rem; white-space: nowrap; }
+/* ── Badges ── */
+.badge { display: inline-flex; align-items: center; font-size: .67rem; font-weight: 700; border-radius: 20px; padding: .1rem .5rem; }
+.badge-cat      { background: #eff6ff; color: #1d4ed8; }
+.badge-p-urgent { background: #450a0a; color: #fca5a5; }
+.badge-p-high   { background: #fef2f2; color: #b91c1c; }
+.badge-p-normal { background: #f1f5f9; color: #475569; }
+.badge-p-low    { background: #f0fdf4; color: #15803d; }
+.assignee { font-size: .7rem; color: #64748b; display: flex; align-items: center; gap: .22rem; }
 
-  /* Loading / Error */
-  .center { display: flex; align-items: center; justify-content: center; height: 60vh; }
-  .spinner { width: 36px; height: 36px; border: 3px solid #e2e8f0; border-top-color: #3b82f6; border-radius: 50%; animation: spin .7s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .error-box { background: #fef2f2; border: 1px solid #fca5a5; border-radius: 10px; padding: 1.5rem 2rem; text-align: center; color: #b91c1c; }
+/* ── Empty state ── */
+.empty-col  { padding: 1rem .75rem; text-align: center; color: #cbd5e1; font-size: .78rem; }
+.empty-page { display: flex; flex-direction: column; align-items: center; justify-content: center;
+              min-height: 40vh; gap: .75rem; color: #94a3b8; }
+.empty-page-icon { font-size: 2.8rem; opacity: .4; }
+.empty-page-msg  { font-size: .88rem; font-weight: 600; }
+.empty-page-sub  { font-size: .78rem; }
+
+/* ── Table view ── */
+.table-wrap { padding: 1rem 1.5rem; display: none; }
+.tbl-outer  { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.06), 0 0 0 1px rgba(0,0,0,.04); }
+table  { width: 100%; border-collapse: collapse; }
+th { background: #0f172a; color: #64748b; font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; padding: .55rem .9rem; text-align: left; }
+td { padding: .55rem .9rem; font-size: .8rem; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #fafbfc; }
+.td-id    { color: #94a3b8; font-size: .7rem; white-space: nowrap; font-weight: 600; }
+.td-title { font-weight: 600; }
+.td-status { white-space: nowrap; }
+
+/* ── Status pill (table) ── */
+.status-pill { display: inline-flex; align-items: center; gap: .3rem; font-size: .72rem; font-weight: 700; border-radius: 20px; padding: .18rem .55rem; }
+
+/* ── Loading / Error ── */
+.center { display: flex; align-items: center; justify-content: center; min-height: 50vh; }
+.spinner { width: 36px; height: 36px; border: 3px solid #e2e8f0; border-top-color: #3b82f6; border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.error-box { background: #fef2f2; border: 1px solid #fca5a5; border-radius: 12px; padding: 2rem 2.5rem; text-align: center; color: #b91c1c; max-width: 400px; }
+.error-box-icon { font-size: 2rem; margin-bottom: .5rem; }
+
+/* Mobile */
+@media(max-width:600px){
+  .header { padding: .7rem 1rem; }
+  .filter-bar, .summary-bar { padding: .6rem 1rem; }
+  .board-wrap { padding: 1rem; }
+  .view-tabs { padding: 0 1rem; }
+}
 </style>
 </head>
 <body>
 
+<!-- Header -->
 <div class="header">
   <span class="header-logo">📋 CS Board</span>
   <span class="header-sep">/</span>
-  <span class="header-folder" id="hdr-folder">—</span>
-  <span class="header-sep">/</span>
+  <span class="header-folder" id="hdr-folder"></span>
+  <span class="header-sep" id="hdr-sep" style="display:none">/</span>
   <span class="header-board" id="hdr-board">กำลังโหลด…</span>
-  <span class="header-badge" id="hdr-count" style="display:none"></span>
-  <span class="header-readonly">อ่านอย่างเดียว</span>
+  <div class="header-right">
+    <span class="badge-count" id="hdr-count" style="display:none"></span>
+    <button class="refresh-btn" onclick="reloadData()" title="รีเฟรชข้อมูล">↻ รีเฟรช</button>
+    <span class="badge-readonly">👁 อ่านอย่างเดียว</span>
+  </div>
+</div>
+
+<!-- Summary stat chips -->
+<div class="summary-bar" id="summary-bar" style="display:none">
+  <div class="stat-chip" id="chip-all" onclick="setStatusFilter(null)" style="color:#1e293b">
+    <div class="stat-dot" style="background:#94a3b8"></div>
+    <span class="stat-label">ทั้งหมด</span>
+    <span class="stat-num" id="cnt-all">0</span>
+  </div>
+  <div class="stat-sep"></div>
+  <div class="stat-chip" id="chip-pending" onclick="setStatusFilter('pending')" style="color:#92400e">
+    <div class="stat-dot" style="background:#f59e0b"></div>
+    <span class="stat-label">รอดำเนินการ</span>
+    <span class="stat-num" id="cnt-pending">0</span>
+  </div>
+  <div class="stat-chip" id="chip-in_progress" onclick="setStatusFilter('in_progress')" style="color:#1e40af">
+    <div class="stat-dot" style="background:#3b82f6"></div>
+    <span class="stat-label">กำลังดำเนินการ</span>
+    <span class="stat-num" id="cnt-in_progress">0</span>
+  </div>
+  <div class="stat-chip" id="chip-waiting" onclick="setStatusFilter('waiting')" style="color:#5b21b6">
+    <div class="stat-dot" style="background:#8b5cf6"></div>
+    <span class="stat-label">รอข้อมูล</span>
+    <span class="stat-num" id="cnt-waiting">0</span>
+  </div>
+  <div class="stat-chip" id="chip-resolved" onclick="setStatusFilter('resolved')" style="color:#166534">
+    <div class="stat-dot" style="background:#22c55e"></div>
+    <span class="stat-label">แก้ไขแล้ว</span>
+    <span class="stat-num" id="cnt-resolved">0</span>
+  </div>
+  <div class="stat-chip" id="chip-cancelled" onclick="setStatusFilter('cancelled')" style="color:#475569">
+    <div class="stat-dot" style="background:#94a3b8"></div>
+    <span class="stat-label">ยกเลิก</span>
+    <span class="stat-num" id="cnt-cancelled">0</span>
+  </div>
+</div>
+
+<!-- Filter bar -->
+<div class="filter-bar" id="filter-bar" style="display:none">
+  <!-- Search -->
+  <div class="search-wrap">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <input type="text" id="search-input" placeholder="ค้นหาหัวข้อ, category, ผู้รับผิดชอบ…" oninput="applyFilters()">
+  </div>
+
+  <!-- Priority filter -->
+  <select class="filter-select" id="filter-prio" onchange="applyFilters()">
+    <option value="">ความสำคัญทั้งหมด</option>
+    <option value="urgent">🔴 เร่งด่วน</option>
+    <option value="high">สูง</option>
+    <option value="normal">ปกติ</option>
+    <option value="low">ต่ำ</option>
+  </select>
+
+  <!-- Category filter (dynamic) -->
+  <select class="filter-select" id="filter-cat" onchange="applyFilters()">
+    <option value="">Category ทั้งหมด</option>
+  </select>
+
+  <!-- Clear -->
+  <button class="clear-btn" onclick="clearFilters()" id="clear-btn" style="display:none">✕ ล้างตัวกรอง</button>
+
+  <span class="result-count" id="result-count"></span>
+</div>
+
+<!-- View tabs -->
+<div class="view-tabs" id="view-tabs" style="display:none">
+  <button class="view-tab active" id="tab-board" onclick="setView('board')">🟦 บอร์ด</button>
+  <button class="view-tab" id="tab-table" onclick="setView('table')">📋 ตาราง</button>
 </div>
 
 <!-- Board view -->
-<div class="board-wrap" id="board-view">
+<div id="board-view">
   <div class="center"><div class="spinner"></div></div>
 </div>
 
 <!-- Table view -->
 <div class="table-wrap" id="table-view">
-  <table id="tbl">
-    <thead><tr>
-      <th>#</th><th>หัวข้อ</th><th>สถานะ</th><th>ความสำคัญ</th><th>Category</th><th>ผู้รับผิดชอบ</th>
-    </tr></thead>
-    <tbody id="tbl-body"></tbody>
-  </table>
+  <div class="tbl-outer">
+    <table>
+      <thead><tr>
+        <th>#</th>
+        <th>หัวข้อ / รายละเอียด</th>
+        <th>สถานะ</th>
+        <th>ความสำคัญ</th>
+        <th>Category</th>
+        <th>ผู้รับผิดชอบ</th>
+        <th>Due Date</th>
+      </tr></thead>
+      <tbody id="tbl-body"></tbody>
+    </table>
+  </div>
 </div>
 
-<button class="view-toggle" id="view-btn" onclick="toggleView()">🟦 Switch to Table</button>
-
 <script>
+// ── Config ────────────────────────────────────────────────────────────────
 const STATUS_CONFIG = [
-  { key:'open',           label:'เปิดใหม่',        color:'#3b82f6' },
-  { key:'in_progress',    label:'กำลังดำเนินการ',  color:'#f59e0b' },
-  { key:'waiting',        label:'รอ',               color:'#8b5cf6' },
-  { key:'resolved',       label:'แก้ไขแล้ว',       color:'#22c55e' },
-  { key:'cancelled',      label:'ยกเลิก',           color:'#94a3b8' },
+  { key:'pending',     label:'รอดำเนินการ',    color:'#f59e0b', bg:'#fffbeb', text:'#92400e' },
+  { key:'in_progress', label:'กำลังดำเนินการ', color:'#3b82f6', bg:'#eff6ff', text:'#1e40af' },
+  { key:'waiting',     label:'รอข้อมูล',       color:'#8b5cf6', bg:'#f5f3ff', text:'#5b21b6' },
+  { key:'resolved',    label:'แก้ไขแล้ว',      color:'#22c55e', bg:'#f0fdf4', text:'#166534' },
+  { key:'cancelled',   label:'ยกเลิก',          color:'#94a3b8', bg:'#f8fafc', text:'#475569' },
 ];
-const PRIO_CLASS = { critical:'badge-prio-critical', high:'badge-prio-high', medium:'badge-prio-medium', low:'badge-prio-low' };
-const PRIO_LABEL = { critical:'🔴 Critical', high:'สูง', medium:'ปานกลาง', low:'ต่ำ' };
+const PRIO_CFG = {
+  urgent: { label:'🔴 เร่งด่วน', cls:'badge-p-urgent' },
+  high:   { label:'สูง',         cls:'badge-p-high'   },
+  normal: { label:'ปกติ',        cls:'badge-p-normal' },
+  low:    { label:'ต่ำ',         cls:'badge-p-low'    },
+};
 
-let _view = 'board', _issues = [];
+// ── State ─────────────────────────────────────────────────────────────────
+let _issues = [], _filtered = [], _view = 'board';
+let _statusFilter = null, _prioFilter = '', _catFilter = '', _searchQ = '';
 
-function toggleView() {
-  _view = _view === 'board' ? 'table' : 'board';
-  document.getElementById('board-view').style.display = _view === 'board' ? 'flex' : 'none';
-  document.getElementById('table-view').style.display = _view === 'table' ? 'block' : 'none';
-  document.getElementById('view-btn').textContent = _view === 'board' ? '📋 Switch to Table' : '🟦 Switch to Board';
+// ── Utils ─────────────────────────────────────────────────────────────────
+function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function dueMeta(due) {
+  if (!due) return null;
+  const d = new Date(due), now = new Date();
+  now.setHours(0,0,0,0); d.setHours(0,0,0,0);
+  const diff = Math.round((d - now) / 86400000);
+  if (diff < 0)  return { cls:'overdue', label:`เกินกำหนด ${Math.abs(diff)} วัน` };
+  if (diff === 0) return { cls:'soon',    label:'ครบกำหนดวันนี้' };
+  if (diff <= 3)  return { cls:'soon',    label:`อีก ${diff} วัน` };
+  return { cls:'', label: d.toLocaleDateString('th-TH',{day:'numeric',month:'short'}) };
 }
 
-function escHtml(s) {
-  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+// ── Filtering ─────────────────────────────────────────────────────────────
+function applyFilters() {
+  _searchQ   = document.getElementById('search-input').value.toLowerCase().trim();
+  _prioFilter= document.getElementById('filter-prio').value;
+  _catFilter = document.getElementById('filter-cat').value;
+
+  _filtered = _issues.filter(i => {
+    if (_statusFilter && i.status !== _statusFilter) return false;
+    if (_prioFilter   && i.priority !== _prioFilter)  return false;
+    if (_catFilter    && i.category !== _catFilter)    return false;
+    if (_searchQ) {
+      const hay = [(i.title||''),(i.category||''),(i.assigned_to_name||''),(i.branch||'')].join(' ').toLowerCase();
+      if (!hay.includes(_searchQ)) return false;
+    }
+    return true;
+  });
+
+  const hasFilter = _statusFilter || _prioFilter || _catFilter || _searchQ;
+  document.getElementById('clear-btn').style.display = hasFilter ? '' : 'none';
+  document.getElementById('result-count').textContent =
+    hasFilter ? `แสดง ${_filtered.length} / ${_issues.length} รายการ` : `${_issues.length} รายการ`;
+
+  // Highlight active status chip
+  document.querySelectorAll('.stat-chip').forEach(c => c.classList.remove('active'));
+  const activeId = _statusFilter ? `chip-${_statusFilter}` : 'chip-all';
+  const activeChip = document.getElementById(activeId);
+  if (activeChip) activeChip.classList.add('active');
+
+  render();
+}
+
+function setStatusFilter(key) {
+  _statusFilter = key;
+  applyFilters();
+}
+
+function clearFilters() {
+  _statusFilter = null; _prioFilter = ''; _catFilter = ''; _searchQ = '';
+  document.getElementById('search-input').value = '';
+  document.getElementById('filter-prio').value = '';
+  document.getElementById('filter-cat').value = '';
+  applyFilters();
+}
+
+// ── View toggle ───────────────────────────────────────────────────────────
+function setView(v) {
+  _view = v;
+  document.getElementById('board-view').style.display  = v === 'board' ? '' : 'none';
+  document.getElementById('table-view').style.display  = v === 'table' ? 'block' : 'none';
+  document.getElementById('tab-board').classList.toggle('active', v === 'board');
+  document.getElementById('tab-table').classList.toggle('active', v === 'table');
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────
+function render() {
+  if (_view === 'board') renderBoard(_filtered);
+  else renderTable(_filtered);
 }
 
 function renderBoard(issues) {
   const bv = document.getElementById('board-view');
+  if (!issues.length) {
+    bv.innerHTML = `<div style="width:100%;padding:3rem 1rem">
+      <div class="empty-page">
+        <div class="empty-page-icon">🔍</div>
+        <div class="empty-page-msg">ไม่พบรายการที่ตรงกัน</div>
+        <div class="empty-page-sub">ลองเปลี่ยน filter หรือคำค้นหา</div>
+      </div></div>`;
+    return;
+  }
   const byStatus = {};
-  issues.forEach(i => {
-    if (!byStatus[i.status]) byStatus[i.status] = [];
-    byStatus[i.status].push(i);
-  });
+  issues.forEach(i => { (byStatus[i.status] = byStatus[i.status] || []).push(i); });
 
-  bv.innerHTML = STATUS_CONFIG.map(sc => {
+  bv.innerHTML = `<div class="board-wrap">` + STATUS_CONFIG.map(sc => {
     const cards = byStatus[sc.key] || [];
     const cardHtml = cards.length === 0
-      ? `<div class="empty-col">ไม่มี issue</div>`
-      : cards.map(i => `
-        <div class="card">
-          <div class="card-id">#${i.id}</div>
-          <div class="card-title">${escHtml(i.title)}</div>
-          <div class="card-meta">
-            ${i.priority ? `<span class="badge ${PRIO_CLASS[i.priority]||'badge-prio-low'}">${escHtml(PRIO_LABEL[i.priority]||i.priority)}</span>` : ''}
-            ${i.category ? `<span class="badge badge-cat">${escHtml(i.category)}</span>` : ''}
-            ${i.assigned_to_name ? `<span class="assignee">${escHtml(i.assigned_to_name)}</span>` : ''}
-          </div>
-        </div>`).join('');
+      ? `<div class="empty-col">ว่างอยู่</div>`
+      : cards.map(i => {
+          const p = PRIO_CFG[i.priority] || PRIO_CFG.normal;
+          const dm = i.due_date ? dueMeta(i.due_date) : null;
+          return `<div class="card">
+            <div class="card-id">#${i.id}</div>
+            <div class="card-title">${esc(i.title)}</div>
+            <div class="card-meta">
+              ${i.priority && i.priority !== 'normal' ? `<span class="badge ${p.cls}">${p.label}</span>` : ''}
+              ${i.category ? `<span class="badge badge-cat">${esc(i.category)}</span>` : ''}
+              ${i.assigned_to_name ? `<span class="assignee">👤 ${esc(i.assigned_to_name)}</span>` : ''}
+            </div>
+            ${dm ? `<div class="card-due ${dm.cls}">📅 ${dm.label}</div>` : ''}
+          </div>`;
+        }).join('');
 
     return `<div class="col">
       <div class="col-header">
-        <div class="col-dot" style="background:${sc.color}"></div>
+        <div class="col-stripe" style="background:${sc.color}"></div>
         <div class="col-name">${sc.label}</div>
         <div class="col-cnt">${cards.length}</div>
       </div>
       <div class="col-body">${cardHtml}</div>
     </div>`;
-  }).join('');
+  }).join('') + `</div>`;
 }
 
 function renderTable(issues) {
-  document.getElementById('tbl-body').innerHTML = issues.map(i => `
-    <tr>
+  const tbody = document.getElementById('tbl-body');
+  if (!issues.length) {
+    tbody.innerHTML = `<tr><td colspan="7" style="padding:3rem;text-align:center;color:#94a3b8">
+      <div style="font-size:1.8rem;margin-bottom:.5rem">🔍</div>
+      ไม่พบรายการที่ตรงกัน</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = issues.map(i => {
+    const sc  = STATUS_CONFIG.find(s => s.key === i.status) || { label: i.status, color:'#94a3b8', bg:'#f8fafc', text:'#475569' };
+    const p   = PRIO_CFG[i.priority] || PRIO_CFG.normal;
+    const dm  = i.due_date ? dueMeta(i.due_date) : null;
+    const dueHtml = dm
+      ? `<span style="font-size:.72rem;font-weight:600;color:${dm.cls==='overdue'?'#ef4444':dm.cls==='soon'?'#f59e0b':'#64748b'}">${dm.label}</span>`
+      : '—';
+    return `<tr>
       <td class="td-id">#${i.id}</td>
-      <td class="td-title">${escHtml(i.title)}</td>
-      <td>${STATUS_CONFIG.find(s=>s.key===i.status)?.label || i.status}</td>
-      <td>${i.priority ? `<span class="badge ${PRIO_CLASS[i.priority]||''}">${escHtml(PRIO_LABEL[i.priority]||i.priority)}</span>` : '—'}</td>
-      <td>${i.category ? `<span class="badge badge-cat">${escHtml(i.category)}</span>` : '—'}</td>
-      <td>${escHtml(i.assigned_to_name||'—')}</td>
-    </tr>`).join('');
+      <td class="td-title">${esc(i.title)}</td>
+      <td class="td-status">
+        <span class="status-pill" style="background:${sc.bg};color:${sc.text}">
+          <span style="width:6px;height:6px;border-radius:50%;background:${sc.color};display:inline-block"></span>
+          ${sc.label}
+        </span>
+      </td>
+      <td>${i.priority ? `<span class="badge ${p.cls}">${p.label}</span>` : '—'}</td>
+      <td>${i.category ? `<span class="badge badge-cat">${esc(i.category)}</span>` : '—'}</td>
+      <td style="font-size:.78rem;color:#475569">${i.assigned_to_name ? `👤 ${esc(i.assigned_to_name)}` : '—'}</td>
+      <td>${dueHtml}</td>
+    </tr>`;
+  }).join('');
 }
 
-async function init() {
+// ── Summary stats ─────────────────────────────────────────────────────────
+function updateSummary(issues) {
+  const counts = {};
+  STATUS_CONFIG.forEach(s => counts[s.key] = 0);
+  issues.forEach(i => { if (counts[i.status] !== undefined) counts[i.status]++; });
+  document.getElementById('cnt-all').textContent = issues.length;
+  STATUS_CONFIG.forEach(s => {
+    const el = document.getElementById('cnt-' + s.key);
+    if (el) el.textContent = counts[s.key];
+  });
+  document.getElementById('chip-all').classList.add('active');
+}
+
+// ── Category dropdown ─────────────────────────────────────────────────────
+function buildCatFilter(issues) {
+  const cats = [...new Set(issues.map(i => i.category).filter(Boolean))].sort();
+  const sel = document.getElementById('filter-cat');
+  sel.innerHTML = '<option value="">Category ทั้งหมด</option>' +
+    cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+}
+
+// ── Load ──────────────────────────────────────────────────────────────────
+async function loadData() {
   const token = location.pathname.split('/public/board/')[1];
-  if (!token) { showError('ไม่พบ token'); return; }
+  if (!token) { showError('ไม่พบ token ในลิงค์'); return; }
   try {
     const res = await fetch(`/api/public/board/${token}/data`);
-    if (!res.ok) { const e = await res.json(); showError(e.error || 'ลิงค์ไม่ถูกต้องหรือหมดอายุ'); return; }
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      showError(e.error || `โหลดไม่ได้ (${res.status})`); return;
+    }
     const data = await res.json();
     _issues = data.issues || [];
-    document.getElementById('hdr-folder').textContent = data.folder_name || '';
-    document.getElementById('hdr-board').textContent  = data.board_name  || '';
-    document.title = `${data.board_name} — CS Board`;
+    _filtered = [..._issues];
+
+    // Header
+    const folder = data.folder_name || '';
+    document.getElementById('hdr-folder').textContent = folder;
+    document.getElementById('hdr-sep').style.display = folder ? '' : 'none';
+    document.getElementById('hdr-board').textContent = data.board_name || 'Board';
+    document.title = `${data.board_name || 'Board'} — CS Board`;
     const cnt = document.getElementById('hdr-count');
-    cnt.textContent = `${_issues.length} issues`;
-    cnt.style.display = '';
-    renderBoard(_issues);
-    renderTable(_issues);
-  } catch(e) { showError('โหลดข้อมูลไม่สำเร็จ'); }
+    cnt.textContent = `${_issues.length} issues`; cnt.style.display = '';
+
+    // Show UI
+    document.getElementById('summary-bar').style.display = '';
+    document.getElementById('filter-bar').style.display = '';
+    document.getElementById('view-tabs').style.display = '';
+
+    updateSummary(_issues);
+    buildCatFilter(_issues);
+    document.getElementById('result-count').textContent = `${_issues.length} รายการ`;
+    renderBoard(_filtered);
+
+  } catch(e) { showError('โหลดข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'); }
+}
+
+async function reloadData() {
+  document.getElementById('board-view').innerHTML = '<div class="center"><div class="spinner"></div></div>';
+  document.getElementById('table-view').style.display = 'none';
+  clearFilters();
+  await loadData();
 }
 
 function showError(msg) {
   document.getElementById('board-view').innerHTML =
-    `<div class="center" style="width:100%"><div class="error-box">❌ ${escHtml(msg)}</div></div>`;
-  document.getElementById('view-btn').style.display = 'none';
+    `<div class="center" style="width:100%;padding:2rem">
+      <div class="error-box">
+        <div class="error-box-icon">😞</div>
+        <div style="font-weight:700;margin-bottom:.4rem">ไม่สามารถโหลดข้อมูลได้</div>
+        <div style="font-size:.8rem;color:#dc2626">${esc(msg)}</div>
+      </div>
+    </div>`;
 }
 
-init();
+loadData();
 </script>
 </body>
 </html>
