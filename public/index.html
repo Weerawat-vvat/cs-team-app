@@ -1310,6 +1310,34 @@ textarea{resize:vertical;min-height:80px}
       <div class="section-title" style="font-size:1rem">พนักงานทั้งหมด</div>
       <button class="btn btn-primary btn-sm" onclick="openAddPerson()">+ เพิ่มคนใหม่</button>
     </div>
+
+    <!-- Filter bar -->
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.75rem">
+      <input id="ppl-search" type="text" placeholder="🔍 ค้นหาชื่อ / ชื่อเล่น / username…"
+        style="flex:1;min-width:180px;max-width:280px;padding:.35rem .65rem;border:1px solid var(--border);border-radius:8px;font-size:.82rem;font-family:inherit"
+        oninput="filterPeople()">
+      <select id="ppl-filter-team" onchange="filterPeople()"
+        style="padding:.35rem .55rem;border:1px solid var(--border);border-radius:8px;font-size:.82rem;font-family:inherit">
+        <option value="">ทุกทีม</option>
+      </select>
+      <select id="ppl-filter-status" onchange="filterPeople()"
+        style="padding:.35rem .55rem;border:1px solid var(--border);border-radius:8px;font-size:.82rem;font-family:inherit">
+        <option value="">ทุกสถานะ</option>
+        <option value="active">ทำงาน</option>
+        <option value="inactive">ออกแล้ว</option>
+      </select>
+      <select id="ppl-filter-role" onchange="filterPeople()"
+        style="padding:.35rem .55rem;border:1px solid var(--border);border-radius:8px;font-size:.82rem;font-family:inherit">
+        <option value="">ทุกบทบาท</option>
+        <option value="staff">Staff</option>
+        <option value="team_lead">Team Lead</option>
+        <option value="department_head">Dept. Head</option>
+        <option value="manager">Manager</option>
+        <option value="admin">Admin</option>
+      </select>
+      <span id="ppl-count" style="font-size:.78rem;color:var(--muted);white-space:nowrap"></span>
+    </div>
+
     <div class="card">
       <div class="tbl-wrap">
         <table>
@@ -4793,8 +4821,17 @@ async function loadDashboardCharts() {
   // ── 2. Agent Grouped Bar (this month vs last month) ──────
   if (dashCharts.bar) { dashCharts.bar.destroy(); dashCharts.bar = null; }
   const ctxBar = document.getElementById('chart-agent-compare');
-  if (ctxBar && agentThis.length) {
-    const topN   = agentThis.slice(0, 12);
+  if (ctxBar && (agentThis.length || agentLast.length)) {
+    // รวม username จากทั้ง 2 ช่วง ไม่ตัดแค่ top N
+    // เรียงตาม ticket ช่วงนี้ (มากสุดก่อน) แล้วตามด้วยคนที่มีแค่ช่วงก่อน
+    const allUsers = [...new Set([
+      ...agentThis.map(r => r.UserName),
+      ...agentLast.map(r => r.UserName)
+    ])];
+    const thisMap2 = Object.fromEntries(agentThis.map(r => [r.UserName, r.cnt || 0]));
+    allUsers.sort((a, b) => (thisMap2[b] || 0) - (thisMap2[a] || 0));
+    const topN = allUsers.map(u => ({ UserName: u, cnt: thisMap2[u] || 0 }));
+
     const _tgt   = parseInt(document.getElementById('dash-target')?.value) || 0;
 
     // Format short date label e.g. "1 เม.ย." using th-TH locale
@@ -4858,6 +4895,12 @@ async function loadDashboardCharts() {
         order: 1
       });
     }
+    // ปรับ height ตามจำนวน agent (ขั้นต่ำ 200px, เพิ่ม 16px ต่อคนถ้าเกิน 12)
+    const barH = Math.max(200, topN.length > 12 ? 200 + (topN.length - 12) * 16 : 200);
+    const barWrap = ctxBar.closest('[style*="height"]') || ctxBar.parentElement;
+    if (barWrap) barWrap.style.height = barH + 'px';
+    ctxBar.style.height = barH + 'px';
+
     dashCharts.bar = new Chart(ctxBar, {
       type: 'bar',
       data: { labels: topN.map(r => dn(r.UserName)), datasets: barDatasets },
@@ -13479,6 +13522,8 @@ function viewComplaintTickets(companyName) {
   }, 200);
 }
 
+let _peopleEmps = [], _peopleUserByEmpId = {};
+
 async function loadPeople() {
   // Load employees (incl. inactive) and user accounts in parallel
   const [emps, users] = await Promise.all([
@@ -13488,17 +13533,54 @@ async function loadPeople() {
   allEmployees = emps.filter(e => e.active); // keep active list for other selects
   fillEmpSelects();
 
-  const userByEmpId = {};
-  users.forEach(u => { if (u.employee_id) userByEmpId[u.employee_id] = u; });
+  _peopleUserByEmpId = {};
+  users.forEach(u => { if (u.employee_id) _peopleUserByEmpId[u.employee_id] = u; });
+  _peopleEmps = emps;
 
+  // Populate team filter dropdown
+  const teamSel = document.getElementById('ppl-filter-team');
+  if (teamSel) {
+    const teams = [...new Set(emps.map(e => e.team).filter(Boolean))];
+    teamSel.innerHTML = '<option value="">ทุกทีม</option>' +
+      allTeams.filter(t => teams.includes(t.name))
+              .map(t => `<option value="${t.name}">${t.display_name || t.name}</option>`).join('');
+  }
+
+  renderPeopleTable(emps);
+}
+
+function filterPeople() {
+  const q      = (document.getElementById('ppl-search')?.value || '').toLowerCase().trim();
+  const team   = document.getElementById('ppl-filter-team')?.value || '';
+  const status = document.getElementById('ppl-filter-status')?.value || '';
+  const role   = document.getElementById('ppl-filter-role')?.value || '';
+
+  const filtered = _peopleEmps.filter(e => {
+    const u = _peopleUserByEmpId[e.id];
+    if (team   && e.team !== team) return false;
+    if (status === 'active'   && !e.active) return false;
+    if (status === 'inactive' &&  e.active) return false;
+    if (role   && u?.role !== role) return false;
+    if (q) {
+      const hay = [e.name, e.nickname, u?.username, u?.ext_username].filter(Boolean).join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  renderPeopleTable(filtered);
+}
+
+function renderPeopleTable(emps) {
   const roleLbl = { staff:'Staff', team_lead:'Team Lead', department_head:'Dept. Head', manager:'Manager', admin:'Admin' };
   const tbody = document.getElementById('people-tbody');
+  const countEl = document.getElementById('ppl-count');
+  if (countEl) countEl.textContent = `${emps.length} คน`;
   if (!emps.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty">ยังไม่มีพนักงาน</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">ไม่พบพนักงานที่ตรงเงื่อนไข</td></tr>';
     return;
   }
   tbody.innerHTML = emps.map(e => {
-    const u = userByEmpId[e.id];
+    const u = _peopleUserByEmpId[e.id];
     return `<tr style="${!e.active ? 'opacity:.55;background:#fafafa' : ''}">
       <td>
         <div style="font-weight:600">${e.name}</div>
