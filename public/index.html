@@ -17160,8 +17160,8 @@ function renderSwUpdate() {
       const ver  = r.version_recommend || '—';
       return `<tr style="cursor:pointer" onclick="openSwUpdateDetail(${r.id})" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
         <td style="color:#94a3b8;font-size:.75rem;padding-left:1.2rem">#${r.id}</td>
-        <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.8rem" colspan="2">${escHtml(r.description||'—')}</td>
-        <td style="font-size:.78rem;white-space:nowrap">${escHtml(ver)}</td>
+        <td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.82rem;font-weight:500" colspan="2" title="${escHtml(r.description||'')}">${escHtml(r.description||'—')}</td>
+        <td style="font-size:.75rem;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#475569" title="${escHtml(ver)}">${escHtml(ver)}</td>
         <td><span style="font-size:.75rem;font-weight:700;color:${pri.color}">${pri.label}</span></td>
         <td><span style="background:${st.bg};color:${st.color};border-radius:20px;padding:.15rem .6rem;font-size:.73rem;font-weight:700;white-space:nowrap">${st.label}</span></td>
         <td style="font-size:.78rem;white-space:nowrap">${recv}</td>
