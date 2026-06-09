@@ -16,156 +16,165 @@ body { font-family: 'Segoe UI', 'Noto Sans Thai', sans-serif; background: #f8faf
   position: sticky; top: 0; z-index: 50;
   box-shadow: 0 2px 12px rgba(0,0,0,.2);
 }
-.header-logo { font-size: 1.05rem; font-weight: 800; display: flex; align-items: center; gap: .4rem; }
-.header-sep  { color: #334155; }
-.header-folder { font-size: .8rem; color: #64748b; }
-.header-board  { font-size: .95rem; font-weight: 700; }
-.header-right  { margin-left: auto; display: flex; align-items: center; gap: .55rem; }
-.badge-count { background: #3b82f6; color: #fff; font-size: .7rem; font-weight: 700; border-radius: 20px; padding: .18rem .65rem; }
-.badge-readonly { font-size: .68rem; color: #475569; background: #1e293b; border: 1px solid #334155; border-radius: 20px; padding: .15rem .6rem; }
-.refresh-btn { background: none; border: 1px solid #334155; color: #94a3b8; border-radius: 8px; padding: .25rem .55rem; font-size: .72rem; cursor: pointer; font-family: inherit; transition: all .15s; }
+.header-logo  { font-size: 1.05rem; font-weight: 800; }
+.header-sep   { color: #334155; }
+.header-folder{ font-size: .8rem; color: #64748b; }
+.header-board { font-size: .95rem; font-weight: 700; }
+.header-right { margin-left: auto; display: flex; align-items: center; gap: .55rem; }
+.badge-count  { background: #3b82f6; color: #fff; font-size: .7rem; font-weight: 700; border-radius: 20px; padding: .18rem .65rem; }
+.badge-readonly{ font-size: .68rem; color: #475569; background: #1e293b; border: 1px solid #334155; border-radius: 20px; padding: .15rem .6rem; }
+.refresh-btn  { background: none; border: 1px solid #334155; color: #94a3b8; border-radius: 8px; padding: .25rem .55rem; font-size: .72rem; cursor: pointer; font-family: inherit; transition: all .15s; }
 .refresh-btn:hover { border-color: #64748b; color: #e2e8f0; }
 
 /* ── Summary bar ── */
-.summary-bar {
-  background: #fff; border-bottom: 1px solid #e2e8f0;
-  padding: .7rem 1.5rem; display: flex; gap: .75rem; flex-wrap: wrap; align-items: center;
-}
-.stat-chip {
-  display: flex; align-items: center; gap: .4rem;
-  background: #f8fafc; border: 1.5px solid transparent; border-radius: 10px;
-  padding: .35rem .75rem; cursor: pointer; transition: all .15s; user-select: none;
-}
-.stat-chip:hover { border-color: #cbd5e1; background: #f1f5f9; }
-.stat-chip.active { border-color: currentColor; background: #fff; }
-.stat-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.stat-label { font-size: .75rem; font-weight: 600; }
-.stat-num { font-size: .82rem; font-weight: 800; }
-.stat-sep { width: 1px; height: 24px; background: #e2e8f0; margin: 0 .1rem; }
+.summary-bar { background:#fff; border-bottom:1px solid #e2e8f0; padding:.7rem 1.5rem; display:flex; gap:.75rem; flex-wrap:wrap; align-items:center; }
+.stat-chip { display:flex; align-items:center; gap:.4rem; background:#f8fafc; border:1.5px solid transparent; border-radius:10px; padding:.35rem .75rem; cursor:pointer; transition:all .15s; user-select:none; }
+.stat-chip:hover  { border-color:#cbd5e1; background:#f1f5f9; }
+.stat-chip.active { border-color:currentColor; background:#fff; }
+.stat-dot   { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.stat-label { font-size:.75rem; font-weight:600; }
+.stat-num   { font-size:.82rem; font-weight:800; }
+.stat-sep   { width:1px; height:24px; background:#e2e8f0; margin:0 .1rem; }
 
 /* ── Filter bar ── */
-.filter-bar {
-  background: #fff; border-bottom: 1px solid #e2e8f0;
-  padding: .65rem 1.5rem; display: flex; gap: .6rem; align-items: center; flex-wrap: wrap;
-}
-.search-wrap {
-  display: flex; align-items: center; gap: .5rem;
-  background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 9px;
-  padding: .35rem .7rem; flex: 1; min-width: 200px; max-width: 360px;
-  transition: border-color .15s;
-}
-.search-wrap:focus-within { border-color: #3b82f6; background: #fff; }
-.search-wrap svg { color: #94a3b8; flex-shrink: 0; }
-.search-wrap input { border: none; background: none; outline: none; font-family: inherit; font-size: .82rem; color: #1e293b; width: 100%; }
-.search-wrap input::placeholder { color: #94a3b8; }
+.filter-bar { background:#fff; border-bottom:1px solid #e2e8f0; padding:.65rem 1.5rem; display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; }
+.search-wrap { display:flex; align-items:center; gap:.5rem; background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:9px; padding:.35rem .7rem; flex:1; min-width:200px; max-width:360px; transition:border-color .15s; }
+.search-wrap:focus-within { border-color:#3b82f6; background:#fff; }
+.search-wrap svg { color:#94a3b8; flex-shrink:0; }
+.search-wrap input { border:none; background:none; outline:none; font-family:inherit; font-size:.82rem; color:#1e293b; width:100%; }
+.search-wrap input::placeholder { color:#94a3b8; }
+.filter-select { background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:9px; padding:.35rem .65rem; font-family:inherit; font-size:.78rem; color:#374151; cursor:pointer; outline:none; transition:border-color .15s; min-width:120px; }
+.filter-select:focus { border-color:#3b82f6; background:#fff; }
+.clear-btn { background:none; border:1.5px solid #e2e8f0; border-radius:9px; padding:.33rem .7rem; font-family:inherit; font-size:.76rem; font-weight:600; color:#64748b; cursor:pointer; transition:all .15s; white-space:nowrap; }
+.clear-btn:hover { border-color:#f87171; color:#dc2626; background:#fef2f2; }
+.result-count { font-size:.75rem; color:#64748b; margin-left:auto; white-space:nowrap; }
 
-.filter-select {
-  background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 9px;
-  padding: .35rem .65rem; font-family: inherit; font-size: .78rem; color: #374151;
-  cursor: pointer; outline: none; transition: border-color .15s; min-width: 120px;
-}
-.filter-select:focus { border-color: #3b82f6; background: #fff; }
-
-.clear-btn {
-  background: none; border: 1.5px solid #e2e8f0; border-radius: 9px;
-  padding: .33rem .7rem; font-family: inherit; font-size: .76rem; font-weight: 600;
-  color: #64748b; cursor: pointer; transition: all .15s; white-space: nowrap;
-}
-.clear-btn:hover { border-color: #f87171; color: #dc2626; background: #fef2f2; }
-
-.result-count { font-size: .75rem; color: #64748b; margin-left: auto; white-space: nowrap; }
-
-/* ── View tab ── */
-.view-tabs {
-  background: #fff; border-bottom: 1px solid #e2e8f0;
-  padding: 0 1.5rem; display: flex; gap: 0;
-}
-.view-tab {
-  padding: .55rem 1rem; font-size: .8rem; font-weight: 600; color: #64748b;
-  border: none; background: none; cursor: pointer; font-family: inherit;
-  border-bottom: 2.5px solid transparent; transition: all .15s;
-}
-.view-tab.active { color: #1d4ed8; border-bottom-color: #1d4ed8; }
-.view-tab:hover:not(.active) { color: #374151; background: #f8fafc; }
+/* ── View tabs ── */
+.view-tabs { background:#fff; border-bottom:1px solid #e2e8f0; padding:0 1.5rem; display:flex; }
+.view-tab { padding:.55rem 1rem; font-size:.8rem; font-weight:600; color:#64748b; border:none; background:none; cursor:pointer; font-family:inherit; border-bottom:2.5px solid transparent; transition:all .15s; }
+.view-tab.active { color:#1d4ed8; border-bottom-color:#1d4ed8; }
+.view-tab:hover:not(.active) { color:#374151; background:#f8fafc; }
 
 /* ── Board view ── */
-.board-wrap {
-  display: flex; gap: 1rem; padding: 1.25rem 1.5rem;
-  overflow-x: auto; align-items: flex-start; min-height: calc(100vh - 180px);
-}
-.col {
-  background: #fff; border-radius: 12px; min-width: 270px; max-width: 290px;
-  flex-shrink: 0; box-shadow: 0 1px 4px rgba(0,0,0,.06), 0 0 0 1px rgba(0,0,0,.04);
-  display: flex; flex-direction: column;
-}
-.col-header {
-  padding: .75rem .9rem .55rem;
-  border-bottom: 1px solid #f1f5f9;
-  display: flex; align-items: center; gap: .5rem;
-}
-.col-stripe { width: 3px; height: 18px; border-radius: 3px; flex-shrink: 0; }
-.col-name { font-weight: 700; font-size: .82rem; flex: 1; }
-.col-cnt { font-size: .7rem; background: #f1f5f9; color: #64748b; font-weight: 700; border-radius: 20px; padding: .1rem .5rem; min-width: 22px; text-align: center; }
-.col-body { padding: .6rem .7rem; display: flex; flex-direction: column; gap: .5rem; overflow-y: auto; max-height: 68vh; }
+.board-wrap { display:flex; gap:1rem; padding:1.25rem 1.5rem; overflow-x:auto; align-items:flex-start; min-height:calc(100vh - 200px); }
+.col { background:#fff; border-radius:12px; min-width:270px; max-width:290px; flex-shrink:0; box-shadow:0 1px 4px rgba(0,0,0,.06),0 0 0 1px rgba(0,0,0,.04); display:flex; flex-direction:column; }
+.col-header { padding:.75rem .9rem .55rem; border-bottom:1px solid #f1f5f9; display:flex; align-items:center; gap:.5rem; }
+.col-stripe { width:3px; height:18px; border-radius:3px; flex-shrink:0; }
+.col-name   { font-weight:700; font-size:.82rem; flex:1; }
+.col-cnt    { font-size:.7rem; background:#f1f5f9; color:#64748b; font-weight:700; border-radius:20px; padding:.1rem .5rem; min-width:22px; text-align:center; }
+.col-body   { padding:.6rem .7rem; display:flex; flex-direction:column; gap:.5rem; overflow-y:auto; max-height:68vh; }
 
 /* ── Card ── */
-.card {
-  background: #fdfdfd; border: 1px solid #e8edf3; border-radius: 10px;
-  padding: .65rem .8rem; cursor: default; transition: box-shadow .12s, border-color .12s;
-}
-.card:hover { border-color: #cbd5e1; box-shadow: 0 2px 8px rgba(0,0,0,.07); }
-.card-id { font-size: .65rem; color: #b0bac6; margin-bottom: .18rem; font-weight: 600; letter-spacing: .02em; }
-.card-title { font-size: .82rem; font-weight: 600; line-height: 1.4; margin-bottom: .45rem; color: #1e293b; }
-.card-meta { display: flex; align-items: center; gap: .35rem; flex-wrap: wrap; }
-.card-due { font-size: .67rem; color: #94a3b8; margin-top: .3rem; display: flex; align-items: center; gap: .22rem; }
-.card-due.overdue { color: #ef4444; font-weight: 600; }
-.card-due.soon    { color: #f59e0b; font-weight: 600; }
+.card { background:#fdfdfd; border:1px solid #e8edf3; border-radius:10px; padding:.65rem .8rem; cursor:pointer; transition:box-shadow .12s,border-color .12s,transform .1s; }
+.card:hover { border-color:#93c5fd; box-shadow:0 3px 12px rgba(59,130,246,.1); transform:translateY(-1px); }
+.card-id    { font-size:.65rem; color:#b0bac6; margin-bottom:.18rem; font-weight:600; letter-spacing:.02em; }
+.card-title { font-size:.82rem; font-weight:600; line-height:1.4; margin-bottom:.45rem; color:#1e293b; }
+.card-meta  { display:flex; align-items:center; gap:.35rem; flex-wrap:wrap; }
+.card-due   { font-size:.67rem; color:#94a3b8; margin-top:.3rem; display:flex; align-items:center; gap:.22rem; }
+.card-due.overdue { color:#ef4444; font-weight:600; }
+.card-due.soon    { color:#f59e0b; font-weight:600; }
+.card-hint  { font-size:.65rem; color:#cbd5e1; margin-top:.35rem; display:flex; align-items:center; gap:.2rem; }
 
 /* ── Badges ── */
-.badge { display: inline-flex; align-items: center; font-size: .67rem; font-weight: 700; border-radius: 20px; padding: .1rem .5rem; }
-.badge-cat      { background: #eff6ff; color: #1d4ed8; }
-.badge-p-urgent { background: #450a0a; color: #fca5a5; }
-.badge-p-high   { background: #fef2f2; color: #b91c1c; }
-.badge-p-normal { background: #f1f5f9; color: #475569; }
-.badge-p-low    { background: #f0fdf4; color: #15803d; }
-.assignee { font-size: .7rem; color: #64748b; display: flex; align-items: center; gap: .22rem; }
+.badge        { display:inline-flex; align-items:center; font-size:.67rem; font-weight:700; border-radius:20px; padding:.1rem .5rem; }
+.badge-cat    { background:#eff6ff; color:#1d4ed8; }
+.badge-p-urgent { background:#450a0a; color:#fca5a5; }
+.badge-p-high   { background:#fef2f2; color:#b91c1c; }
+.badge-p-normal { background:#f1f5f9; color:#475569; }
+.badge-p-low    { background:#f0fdf4; color:#15803d; }
+.assignee     { font-size:.7rem; color:#64748b; display:flex; align-items:center; gap:.22rem; }
 
 /* ── Empty state ── */
-.empty-col  { padding: 1rem .75rem; text-align: center; color: #cbd5e1; font-size: .78rem; }
-.empty-page { display: flex; flex-direction: column; align-items: center; justify-content: center;
-              min-height: 40vh; gap: .75rem; color: #94a3b8; }
-.empty-page-icon { font-size: 2.8rem; opacity: .4; }
-.empty-page-msg  { font-size: .88rem; font-weight: 600; }
-.empty-page-sub  { font-size: .78rem; }
+.empty-col  { padding:1rem .75rem; text-align:center; color:#cbd5e1; font-size:.78rem; }
+.empty-page { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:40vh; gap:.75rem; color:#94a3b8; }
+.empty-page-icon { font-size:2.8rem; opacity:.4; }
+.empty-page-msg  { font-size:.88rem; font-weight:600; }
+.empty-page-sub  { font-size:.78rem; }
 
 /* ── Table view ── */
-.table-wrap { padding: 1rem 1.5rem; display: none; }
-.tbl-outer  { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.06), 0 0 0 1px rgba(0,0,0,.04); }
-table  { width: 100%; border-collapse: collapse; }
-th { background: #0f172a; color: #64748b; font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; padding: .55rem .9rem; text-align: left; }
-td { padding: .55rem .9rem; font-size: .8rem; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
-tr:last-child td { border-bottom: none; }
-tr:hover td { background: #fafbfc; }
-.td-id    { color: #94a3b8; font-size: .7rem; white-space: nowrap; font-weight: 600; }
-.td-title { font-weight: 600; }
-.td-status { white-space: nowrap; }
+.table-wrap { padding:1rem 1.5rem; display:none; }
+.tbl-outer  { background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,.06),0 0 0 1px rgba(0,0,0,.04); }
+table  { width:100%; border-collapse:collapse; }
+th { background:#0f172a; color:#64748b; font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; padding:.55rem .9rem; text-align:left; }
+td { padding:.55rem .9rem; font-size:.8rem; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+tr:last-child td { border-bottom:none; }
+.tbl-row { cursor:pointer; }
+.tbl-row:hover td { background:#f0f7ff; }
+.td-id     { color:#94a3b8; font-size:.7rem; white-space:nowrap; font-weight:600; }
+.td-title  { font-weight:600; }
+.td-status { white-space:nowrap; }
+.status-pill { display:inline-flex; align-items:center; gap:.3rem; font-size:.72rem; font-weight:700; border-radius:20px; padding:.18rem .55rem; }
 
-/* ── Status pill (table) ── */
-.status-pill { display: inline-flex; align-items: center; gap: .3rem; font-size: .72rem; font-weight: 700; border-radius: 20px; padding: .18rem .55rem; }
+/* ── Detail Modal ── */
+.modal-overlay {
+  position:fixed; inset:0; background:rgba(15,23,42,.55); z-index:200;
+  display:flex; align-items:center; justify-content:center; padding:1rem;
+  backdrop-filter:blur(4px); animation:fadeIn .15s ease;
+}
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+.modal-box {
+  background:#fff; border-radius:16px; width:100%; max-width:600px; max-height:90vh;
+  display:flex; flex-direction:column;
+  box-shadow:0 24px 64px rgba(0,0,0,.22);
+  animation:slideUp .18s ease;
+}
+@keyframes slideUp { from{transform:translateY(16px);opacity:0} to{transform:translateY(0);opacity:1} }
 
-/* ── Loading / Error ── */
-.center { display: flex; align-items: center; justify-content: center; min-height: 50vh; }
-.spinner { width: 36px; height: 36px; border: 3px solid #e2e8f0; border-top-color: #3b82f6; border-radius: 50%; animation: spin .7s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-.error-box { background: #fef2f2; border: 1px solid #fca5a5; border-radius: 12px; padding: 2rem 2.5rem; text-align: center; color: #b91c1c; max-width: 400px; }
-.error-box-icon { font-size: 2rem; margin-bottom: .5rem; }
+.modal-header {
+  padding:1.1rem 1.25rem .9rem;
+  border-bottom:1px solid #f1f5f9;
+  display:flex; align-items:flex-start; gap:.75rem;
+}
+.modal-id   { font-size:.7rem; font-weight:700; color:#94a3b8; letter-spacing:.05em; white-space:nowrap; margin-top:.18rem; }
+.modal-title{ font-size:1.05rem; font-weight:800; color:#0f172a; line-height:1.35; flex:1; }
+.modal-close{ background:none; border:none; font-size:1.4rem; cursor:pointer; color:#94a3b8; line-height:1; padding:.1rem .3rem; border-radius:6px; flex-shrink:0; transition:color .12s,background .12s; }
+.modal-close:hover { color:#1e293b; background:#f1f5f9; }
 
-/* Mobile */
+.modal-body { padding:1rem 1.25rem; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:1rem; }
+
+/* Status + priority row */
+.modal-pills { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+.modal-status-pill { display:inline-flex; align-items:center; gap:.35rem; font-size:.78rem; font-weight:700; border-radius:20px; padding:.28rem .75rem; }
+.modal-prio-badge { font-size:.78rem; font-weight:700; border-radius:20px; padding:.25rem .65rem; }
+
+/* Metadata grid */
+.meta-grid { display:grid; grid-template-columns:1fr 1fr; gap:.6rem; }
+.meta-item { background:#f8fafc; border-radius:10px; padding:.6rem .8rem; }
+.meta-label { font-size:.68rem; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.05em; margin-bottom:.2rem; }
+.meta-value { font-size:.82rem; font-weight:600; color:#1e293b; }
+.meta-value.muted { color:#64748b; font-weight:500; }
+
+/* Description box */
+.desc-box { background:#f8fafc; border-radius:10px; padding:.75rem .9rem; }
+.desc-label { font-size:.68rem; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.05em; margin-bottom:.4rem; }
+.desc-text { font-size:.85rem; line-height:1.65; color:#374151; white-space:pre-wrap; word-break:break-word; }
+
+/* Issue URL */
+.issue-url-btn {
+  display:inline-flex; align-items:center; gap:.4rem;
+  background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;
+  border-radius:8px; padding:.38rem .75rem; font-size:.78rem; font-weight:600;
+  text-decoration:none; transition:all .15s;
+}
+.issue-url-btn:hover { background:#dbeafe; border-color:#93c5fd; }
+
+.modal-footer { padding:.75rem 1.25rem; border-top:1px solid #f1f5f9; display:flex; justify-content:flex-end; }
+.btn-close-modal { background:#f1f5f9; color:#374151; border:none; border-radius:9px; padding:.45rem 1.2rem; font-size:.82rem; font-weight:600; cursor:pointer; font-family:inherit; transition:background .12s; }
+.btn-close-modal:hover { background:#e2e8f0; }
+
+/* Loading / Error */
+.center { display:flex; align-items:center; justify-content:center; min-height:50vh; }
+.spinner { width:36px; height:36px; border:3px solid #e2e8f0; border-top-color:#3b82f6; border-radius:50%; animation:spin .7s linear infinite; }
+@keyframes spin { to{transform:rotate(360deg)} }
+.error-box { background:#fef2f2; border:1px solid #fca5a5; border-radius:12px; padding:2rem 2.5rem; text-align:center; color:#b91c1c; max-width:400px; }
+
 @media(max-width:600px){
-  .header { padding: .7rem 1rem; }
-  .filter-bar, .summary-bar { padding: .6rem 1rem; }
-  .board-wrap { padding: 1rem; }
-  .view-tabs { padding: 0 1rem; }
+  .header,.filter-bar,.summary-bar { padding:.7rem 1rem; }
+  .board-wrap { padding:1rem; }
+  .view-tabs { padding:0 1rem; }
+  .meta-grid { grid-template-columns:1fr; }
+  .modal-box { border-radius:14px 14px 0 0; max-height:95vh; position:fixed; bottom:0; left:0; right:0; border-radius:16px 16px 0 0; }
+  .modal-overlay { align-items:flex-end; padding:0; }
 }
 </style>
 </head>
@@ -180,55 +189,32 @@ tr:hover td { background: #fafbfc; }
   <span class="header-board" id="hdr-board">กำลังโหลด…</span>
   <div class="header-right">
     <span class="badge-count" id="hdr-count" style="display:none"></span>
-    <button class="refresh-btn" onclick="reloadData()" title="รีเฟรชข้อมูล">↻ รีเฟรช</button>
+    <button class="refresh-btn" onclick="reloadData()">↻ รีเฟรช</button>
     <span class="badge-readonly">👁 อ่านอย่างเดียว</span>
   </div>
 </div>
 
-<!-- Summary stat chips -->
+<!-- Summary chips -->
 <div class="summary-bar" id="summary-bar" style="display:none">
-  <div class="stat-chip" id="chip-all" onclick="setStatusFilter(null)" style="color:#1e293b">
+  <div class="stat-chip active" id="chip-all" onclick="setStatusFilter(null)" style="color:#1e293b">
     <div class="stat-dot" style="background:#94a3b8"></div>
     <span class="stat-label">ทั้งหมด</span>
     <span class="stat-num" id="cnt-all">0</span>
   </div>
   <div class="stat-sep"></div>
-  <div class="stat-chip" id="chip-pending" onclick="setStatusFilter('pending')" style="color:#92400e">
-    <div class="stat-dot" style="background:#f59e0b"></div>
-    <span class="stat-label">รอดำเนินการ</span>
-    <span class="stat-num" id="cnt-pending">0</span>
-  </div>
-  <div class="stat-chip" id="chip-in_progress" onclick="setStatusFilter('in_progress')" style="color:#1e40af">
-    <div class="stat-dot" style="background:#3b82f6"></div>
-    <span class="stat-label">กำลังดำเนินการ</span>
-    <span class="stat-num" id="cnt-in_progress">0</span>
-  </div>
-  <div class="stat-chip" id="chip-waiting" onclick="setStatusFilter('waiting')" style="color:#5b21b6">
-    <div class="stat-dot" style="background:#8b5cf6"></div>
-    <span class="stat-label">รอข้อมูล</span>
-    <span class="stat-num" id="cnt-waiting">0</span>
-  </div>
-  <div class="stat-chip" id="chip-resolved" onclick="setStatusFilter('resolved')" style="color:#166534">
-    <div class="stat-dot" style="background:#22c55e"></div>
-    <span class="stat-label">แก้ไขแล้ว</span>
-    <span class="stat-num" id="cnt-resolved">0</span>
-  </div>
-  <div class="stat-chip" id="chip-cancelled" onclick="setStatusFilter('cancelled')" style="color:#475569">
-    <div class="stat-dot" style="background:#94a3b8"></div>
-    <span class="stat-label">ยกเลิก</span>
-    <span class="stat-num" id="cnt-cancelled">0</span>
-  </div>
+  <div class="stat-chip" id="chip-pending"     onclick="setStatusFilter('pending')"     style="color:#92400e"><div class="stat-dot" style="background:#f59e0b"></div><span class="stat-label">รอดำเนินการ</span><span class="stat-num" id="cnt-pending">0</span></div>
+  <div class="stat-chip" id="chip-in_progress" onclick="setStatusFilter('in_progress')" style="color:#1e40af"><div class="stat-dot" style="background:#3b82f6"></div><span class="stat-label">กำลังดำเนินการ</span><span class="stat-num" id="cnt-in_progress">0</span></div>
+  <div class="stat-chip" id="chip-waiting"     onclick="setStatusFilter('waiting')"     style="color:#5b21b6"><div class="stat-dot" style="background:#8b5cf6"></div><span class="stat-label">รอข้อมูล</span><span class="stat-num" id="cnt-waiting">0</span></div>
+  <div class="stat-chip" id="chip-resolved"    onclick="setStatusFilter('resolved')"    style="color:#166534"><div class="stat-dot" style="background:#22c55e"></div><span class="stat-label">แก้ไขแล้ว</span><span class="stat-num" id="cnt-resolved">0</span></div>
+  <div class="stat-chip" id="chip-cancelled"   onclick="setStatusFilter('cancelled')"   style="color:#475569"><div class="stat-dot" style="background:#94a3b8"></div><span class="stat-label">ยกเลิก</span><span class="stat-num" id="cnt-cancelled">0</span></div>
 </div>
 
 <!-- Filter bar -->
 <div class="filter-bar" id="filter-bar" style="display:none">
-  <!-- Search -->
   <div class="search-wrap">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
     <input type="text" id="search-input" placeholder="ค้นหาหัวข้อ, category, ผู้รับผิดชอบ…" oninput="applyFilters()">
   </div>
-
-  <!-- Priority filter -->
   <select class="filter-select" id="filter-prio" onchange="applyFilters()">
     <option value="">ความสำคัญทั้งหมด</option>
     <option value="urgent">🔴 เร่งด่วน</option>
@@ -236,15 +222,10 @@ tr:hover td { background: #fafbfc; }
     <option value="normal">ปกติ</option>
     <option value="low">ต่ำ</option>
   </select>
-
-  <!-- Category filter (dynamic) -->
   <select class="filter-select" id="filter-cat" onchange="applyFilters()">
     <option value="">Category ทั้งหมด</option>
   </select>
-
-  <!-- Clear -->
   <button class="clear-btn" onclick="clearFilters()" id="clear-btn" style="display:none">✕ ล้างตัวกรอง</button>
-
   <span class="result-count" id="result-count"></span>
 </div>
 
@@ -264,33 +245,74 @@ tr:hover td { background: #fafbfc; }
   <div class="tbl-outer">
     <table>
       <thead><tr>
-        <th>#</th>
-        <th>หัวข้อ / รายละเอียด</th>
-        <th>สถานะ</th>
-        <th>ความสำคัญ</th>
-        <th>Category</th>
-        <th>ผู้รับผิดชอบ</th>
-        <th>Due Date</th>
+        <th>#</th><th>หัวข้อ / รายละเอียด</th><th>สถานะ</th>
+        <th>ความสำคัญ</th><th>Category</th><th>ผู้รับผิดชอบ</th><th>Due Date</th>
       </tr></thead>
       <tbody id="tbl-body"></tbody>
     </table>
   </div>
 </div>
 
+<!-- ── Detail Modal ── -->
+<div class="modal-overlay" id="detail-modal" style="display:none" onclick="if(event.target===this)closeDetail()">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span class="modal-id" id="dm-id"></span>
+      <span class="modal-title" id="dm-title"></span>
+      <button class="modal-close" onclick="closeDetail()">×</button>
+    </div>
+    <div class="modal-body">
+      <!-- Status + Priority -->
+      <div class="modal-pills" id="dm-pills"></div>
+
+      <!-- Meta grid: assignee, category, due date, created -->
+      <div class="meta-grid" id="dm-meta"></div>
+
+      <!-- Description / รายละเอียด -->
+      <div id="dm-note-wrap" style="display:none">
+        <div class="desc-box">
+          <div class="desc-label">รายละเอียดปัญหา</div>
+          <div class="desc-text" id="dm-note"></div>
+        </div>
+      </div>
+
+      <!-- Branch / Note เพิ่มเติม -->
+      <div id="dm-branch-wrap" style="display:none">
+        <div class="desc-box" style="background:#fffbf0;border:1px solid #fde68a">
+          <div class="desc-label" style="color:#92400e">Note / รายละเอียดเพิ่มเติม</div>
+          <div class="desc-text" id="dm-branch" style="color:#451a03"></div>
+        </div>
+      </div>
+
+      <!-- Issue URL -->
+      <div id="dm-url-wrap" style="display:none">
+        <div class="desc-label" style="margin-bottom:.4rem">🔗 Issue / Work Item</div>
+        <a id="dm-url" href="#" target="_blank" rel="noopener" class="issue-url-btn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          <span id="dm-url-label"></span>
+        </a>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-close-modal" onclick="closeDetail()">ปิด</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── Config ────────────────────────────────────────────────────────────────
-const STATUS_CONFIG = [
-  { key:'pending',     label:'รอดำเนินการ',    color:'#f59e0b', bg:'#fffbeb', text:'#92400e' },
-  { key:'in_progress', label:'กำลังดำเนินการ', color:'#3b82f6', bg:'#eff6ff', text:'#1e40af' },
-  { key:'waiting',     label:'รอข้อมูล',       color:'#8b5cf6', bg:'#f5f3ff', text:'#5b21b6' },
-  { key:'resolved',    label:'แก้ไขแล้ว',      color:'#22c55e', bg:'#f0fdf4', text:'#166534' },
-  { key:'cancelled',   label:'ยกเลิก',          color:'#94a3b8', bg:'#f8fafc', text:'#475569' },
+const STATUS_CFG = [
+  { key:'pending',     label:'⏳ รอดำเนินการ',    color:'#f59e0b', bg:'#fffbeb', text:'#92400e' },
+  { key:'in_progress', label:'🔄 กำลังดำเนินการ', color:'#3b82f6', bg:'#eff6ff', text:'#1e40af' },
+  { key:'waiting',     label:'⏸️ รอข้อมูล',       color:'#8b5cf6', bg:'#f5f3ff', text:'#5b21b6' },
+  { key:'resolved',    label:'✅ แก้ไขแล้ว',      color:'#22c55e', bg:'#f0fdf4', text:'#166534' },
+  { key:'cancelled',   label:'🚫 ยกเลิก',          color:'#94a3b8', bg:'#f8fafc', text:'#475569' },
 ];
 const PRIO_CFG = {
   urgent: { label:'🔴 เร่งด่วน', cls:'badge-p-urgent' },
-  high:   { label:'สูง',         cls:'badge-p-high'   },
-  normal: { label:'ปกติ',        cls:'badge-p-normal' },
-  low:    { label:'ต่ำ',         cls:'badge-p-low'    },
+  high:   { label:'🟠 สูง',      cls:'badge-p-high'   },
+  normal: { label:'🟡 ปกติ',     cls:'badge-p-normal' },
+  low:    { label:'🔵 ต่ำ',      cls:'badge-p-low'    },
 };
 
 // ── State ─────────────────────────────────────────────────────────────────
@@ -305,24 +327,99 @@ function dueMeta(due) {
   const d = new Date(due), now = new Date();
   now.setHours(0,0,0,0); d.setHours(0,0,0,0);
   const diff = Math.round((d - now) / 86400000);
-  if (diff < 0)  return { cls:'overdue', label:`เกินกำหนด ${Math.abs(diff)} วัน` };
+  if (diff < 0)   return { cls:'overdue', label:`เกินกำหนด ${Math.abs(diff)} วัน` };
   if (diff === 0) return { cls:'soon',    label:'ครบกำหนดวันนี้' };
   if (diff <= 3)  return { cls:'soon',    label:`อีก ${diff} วัน` };
-  return { cls:'', label: d.toLocaleDateString('th-TH',{day:'numeric',month:'short'}) };
+  return { cls:'', label: d.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}) };
 }
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'});
+}
+
+// ── Detail Modal ──────────────────────────────────────────────────────────
+function openDetail(id) {
+  const issue = _issues.find(i => i.id === id);
+  if (!issue) return;
+
+  const sc = STATUS_CFG.find(s => s.key === issue.status) || { label: issue.status, color:'#94a3b8', bg:'#f8fafc', text:'#475569' };
+  const pc = PRIO_CFG[issue.priority] || PRIO_CFG.normal;
+  const dm = issue.due_date ? dueMeta(issue.due_date) : null;
+
+  document.getElementById('dm-id').textContent    = `#${issue.id}`;
+  document.getElementById('dm-title').textContent = issue.title || '(ไม่มีหัวข้อ)';
+
+  // Pills
+  document.getElementById('dm-pills').innerHTML =
+    `<span class="modal-status-pill" style="background:${sc.bg};color:${sc.text}">${sc.label}</span>` +
+    (issue.priority ? `<span class="modal-prio-badge badge ${pc.cls}">${pc.label}</span>` : '') +
+    (issue.category ? `<span class="badge badge-cat">${esc(issue.category)}</span>` : '');
+
+  // Meta grid
+  const metaItems = [
+    { label:'ผู้รับผิดชอบ', value: issue.assigned_to_name ? `👤 ${issue.assigned_to_name}` : null, empty:'ยังไม่ระบุ' },
+    { label:'Due Date',
+      value: dm ? `<span style="font-weight:700;color:${dm.cls==='overdue'?'#ef4444':dm.cls==='soon'?'#f59e0b':'#1e293b'}">${dm.label}</span>` : null,
+      empty:'ไม่ระบุ', html:true },
+    { label:'สร้างเมื่อ', value: fmtDate(issue.created_at) },
+    { label:'อัพเดตล่าสุด', value: fmtDate(issue.updated_at) },
+  ];
+  document.getElementById('dm-meta').innerHTML = metaItems.map(m => {
+    const v = m.value || `<span class="muted">${m.empty||'—'}</span>`;
+    return `<div class="meta-item">
+      <div class="meta-label">${m.label}</div>
+      <div class="meta-value">${m.html ? v : esc(m.value||'') || `<span class="muted">${m.empty||'—'}</span>`}</div>
+    </div>`;
+  }).join('');
+
+  // Note (รายละเอียดปัญหา)
+  const noteWrap = document.getElementById('dm-note-wrap');
+  if (issue.note && issue.note.trim()) {
+    document.getElementById('dm-note').textContent = issue.note;
+    noteWrap.style.display = '';
+  } else noteWrap.style.display = 'none';
+
+  // Branch (Note เพิ่มเติม)
+  const branchWrap = document.getElementById('dm-branch-wrap');
+  if (issue.branch && issue.branch.trim()) {
+    document.getElementById('dm-branch').textContent = issue.branch;
+    branchWrap.style.display = '';
+  } else branchWrap.style.display = 'none';
+
+  // Issue URL
+  const urlWrap = document.getElementById('dm-url-wrap');
+  if (issue.issue_url && issue.issue_url.trim()) {
+    const href = issue.issue_url.trim();
+    document.getElementById('dm-url').href = href;
+    const urlLabel = href.length > 60 ? href.slice(0,57)+'…' : href;
+    document.getElementById('dm-url-label').textContent = urlLabel;
+    urlWrap.style.display = '';
+  } else urlWrap.style.display = 'none';
+
+  document.getElementById('detail-modal').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function closeDetail() {
+  document.getElementById('detail-modal').style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDetail(); });
 
 // ── Filtering ─────────────────────────────────────────────────────────────
 function applyFilters() {
-  _searchQ   = document.getElementById('search-input').value.toLowerCase().trim();
-  _prioFilter= document.getElementById('filter-prio').value;
-  _catFilter = document.getElementById('filter-cat').value;
+  _searchQ    = document.getElementById('search-input').value.toLowerCase().trim();
+  _prioFilter = document.getElementById('filter-prio').value;
+  _catFilter  = document.getElementById('filter-cat').value;
 
   _filtered = _issues.filter(i => {
-    if (_statusFilter && i.status !== _statusFilter) return false;
-    if (_prioFilter   && i.priority !== _prioFilter)  return false;
+    if (_statusFilter && i.status   !== _statusFilter) return false;
+    if (_prioFilter   && i.priority !== _prioFilter)   return false;
     if (_catFilter    && i.category !== _catFilter)    return false;
     if (_searchQ) {
-      const hay = [(i.title||''),(i.category||''),(i.assigned_to_name||''),(i.branch||'')].join(' ').toLowerCase();
+      const hay = [(i.title||''),(i.category||''),(i.assigned_to_name||''),(i.note||''),(i.branch||'')].join(' ').toLowerCase();
       if (!hay.includes(_searchQ)) return false;
     }
     return true;
@@ -333,65 +430,56 @@ function applyFilters() {
   document.getElementById('result-count').textContent =
     hasFilter ? `แสดง ${_filtered.length} / ${_issues.length} รายการ` : `${_issues.length} รายการ`;
 
-  // Highlight active status chip
   document.querySelectorAll('.stat-chip').forEach(c => c.classList.remove('active'));
-  const activeId = _statusFilter ? `chip-${_statusFilter}` : 'chip-all';
-  const activeChip = document.getElementById(activeId);
-  if (activeChip) activeChip.classList.add('active');
+  const chip = document.getElementById(_statusFilter ? `chip-${_statusFilter}` : 'chip-all');
+  if (chip) chip.classList.add('active');
 
   render();
 }
 
-function setStatusFilter(key) {
-  _statusFilter = key;
-  applyFilters();
-}
+function setStatusFilter(key) { _statusFilter = key; applyFilters(); }
 
 function clearFilters() {
   _statusFilter = null; _prioFilter = ''; _catFilter = ''; _searchQ = '';
   document.getElementById('search-input').value = '';
-  document.getElementById('filter-prio').value = '';
-  document.getElementById('filter-cat').value = '';
+  document.getElementById('filter-prio').value  = '';
+  document.getElementById('filter-cat').value   = '';
   applyFilters();
 }
 
 // ── View toggle ───────────────────────────────────────────────────────────
 function setView(v) {
   _view = v;
-  document.getElementById('board-view').style.display  = v === 'board' ? '' : 'none';
-  document.getElementById('table-view').style.display  = v === 'table' ? 'block' : 'none';
+  document.getElementById('board-view').style.display = v === 'board' ? '' : 'none';
+  document.getElementById('table-view').style.display = v === 'table' ? 'block' : 'none';
   document.getElementById('tab-board').classList.toggle('active', v === 'board');
   document.getElementById('tab-table').classList.toggle('active', v === 'table');
 }
 
 // ── Render ─────────────────────────────────────────────────────────────────
-function render() {
-  if (_view === 'board') renderBoard(_filtered);
-  else renderTable(_filtered);
-}
+function render() { _view === 'board' ? renderBoard(_filtered) : renderTable(_filtered); }
 
 function renderBoard(issues) {
   const bv = document.getElementById('board-view');
   if (!issues.length) {
-    bv.innerHTML = `<div style="width:100%;padding:3rem 1rem">
-      <div class="empty-page">
-        <div class="empty-page-icon">🔍</div>
-        <div class="empty-page-msg">ไม่พบรายการที่ตรงกัน</div>
-        <div class="empty-page-sub">ลองเปลี่ยน filter หรือคำค้นหา</div>
-      </div></div>`;
+    bv.innerHTML = `<div style="width:100%;padding:3rem 1rem"><div class="empty-page">
+      <div class="empty-page-icon">🔍</div>
+      <div class="empty-page-msg">ไม่พบรายการที่ตรงกัน</div>
+      <div class="empty-page-sub">ลองเปลี่ยน filter หรือคำค้นหา</div>
+    </div></div>`;
     return;
   }
   const byStatus = {};
   issues.forEach(i => { (byStatus[i.status] = byStatus[i.status] || []).push(i); });
 
-  bv.innerHTML = `<div class="board-wrap">` + STATUS_CONFIG.map(sc => {
+  bv.innerHTML = `<div class="board-wrap">` + STATUS_CFG.map(sc => {
     const cards = byStatus[sc.key] || [];
-    const cardHtml = cards.length === 0
-      ? `<div class="empty-col">ว่างอยู่</div>`
+    const cardHtml = !cards.length ? `<div class="empty-col">ว่างอยู่</div>`
       : cards.map(i => {
-          const p = PRIO_CFG[i.priority] || PRIO_CFG.normal;
+          const p  = PRIO_CFG[i.priority] || PRIO_CFG.normal;
           const dm = i.due_date ? dueMeta(i.due_date) : null;
-          return `<div class="card">
+          const hasDetail = (i.note && i.note.trim()) || (i.branch && i.branch.trim()) || i.issue_url;
+          return `<div class="card" onclick="openDetail(${i.id})">
             <div class="card-id">#${i.id}</div>
             <div class="card-title">${esc(i.title)}</div>
             <div class="card-meta">
@@ -400,9 +488,9 @@ function renderBoard(issues) {
               ${i.assigned_to_name ? `<span class="assignee">👤 ${esc(i.assigned_to_name)}</span>` : ''}
             </div>
             ${dm ? `<div class="card-due ${dm.cls}">📅 ${dm.label}</div>` : ''}
+            <div class="card-hint">👆 คลิกดูรายละเอียด</div>
           </div>`;
         }).join('');
-
     return `<div class="col">
       <div class="col-header">
         <div class="col-stripe" style="background:${sc.color}"></div>
@@ -417,27 +505,18 @@ function renderBoard(issues) {
 function renderTable(issues) {
   const tbody = document.getElementById('tbl-body');
   if (!issues.length) {
-    tbody.innerHTML = `<tr><td colspan="7" style="padding:3rem;text-align:center;color:#94a3b8">
-      <div style="font-size:1.8rem;margin-bottom:.5rem">🔍</div>
-      ไม่พบรายการที่ตรงกัน</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" style="padding:3rem;text-align:center;color:#94a3b8"><div style="font-size:1.8rem;margin-bottom:.5rem">🔍</div>ไม่พบรายการที่ตรงกัน</td></tr>`;
     return;
   }
   tbody.innerHTML = issues.map(i => {
-    const sc  = STATUS_CONFIG.find(s => s.key === i.status) || { label: i.status, color:'#94a3b8', bg:'#f8fafc', text:'#475569' };
-    const p   = PRIO_CFG[i.priority] || PRIO_CFG.normal;
-    const dm  = i.due_date ? dueMeta(i.due_date) : null;
-    const dueHtml = dm
-      ? `<span style="font-size:.72rem;font-weight:600;color:${dm.cls==='overdue'?'#ef4444':dm.cls==='soon'?'#f59e0b':'#64748b'}">${dm.label}</span>`
-      : '—';
-    return `<tr>
+    const sc = STATUS_CFG.find(s => s.key === i.status) || { label:i.status, color:'#94a3b8', bg:'#f8fafc', text:'#475569' };
+    const p  = PRIO_CFG[i.priority] || PRIO_CFG.normal;
+    const dm = i.due_date ? dueMeta(i.due_date) : null;
+    const dueHtml = dm ? `<span style="font-size:.72rem;font-weight:600;color:${dm.cls==='overdue'?'#ef4444':dm.cls==='soon'?'#f59e0b':'#64748b'}">${dm.label}</span>` : '—';
+    return `<tr class="tbl-row" onclick="openDetail(${i.id})">
       <td class="td-id">#${i.id}</td>
       <td class="td-title">${esc(i.title)}</td>
-      <td class="td-status">
-        <span class="status-pill" style="background:${sc.bg};color:${sc.text}">
-          <span style="width:6px;height:6px;border-radius:50%;background:${sc.color};display:inline-block"></span>
-          ${sc.label}
-        </span>
-      </td>
+      <td class="td-status"><span class="status-pill" style="background:${sc.bg};color:${sc.text}"><span style="width:6px;height:6px;border-radius:50%;background:${sc.color};display:inline-block"></span>${sc.label}</span></td>
       <td>${i.priority ? `<span class="badge ${p.cls}">${p.label}</span>` : '—'}</td>
       <td>${i.category ? `<span class="badge badge-cat">${esc(i.category)}</span>` : '—'}</td>
       <td style="font-size:.78rem;color:#475569">${i.assigned_to_name ? `👤 ${esc(i.assigned_to_name)}` : '—'}</td>
@@ -449,22 +528,16 @@ function renderTable(issues) {
 // ── Summary stats ─────────────────────────────────────────────────────────
 function updateSummary(issues) {
   const counts = {};
-  STATUS_CONFIG.forEach(s => counts[s.key] = 0);
+  STATUS_CFG.forEach(s => counts[s.key] = 0);
   issues.forEach(i => { if (counts[i.status] !== undefined) counts[i.status]++; });
   document.getElementById('cnt-all').textContent = issues.length;
-  STATUS_CONFIG.forEach(s => {
-    const el = document.getElementById('cnt-' + s.key);
-    if (el) el.textContent = counts[s.key];
-  });
-  document.getElementById('chip-all').classList.add('active');
+  STATUS_CFG.forEach(s => { const el = document.getElementById('cnt-' + s.key); if (el) el.textContent = counts[s.key]; });
 }
 
-// ── Category dropdown ─────────────────────────────────────────────────────
 function buildCatFilter(issues) {
   const cats = [...new Set(issues.map(i => i.category).filter(Boolean))].sort();
-  const sel = document.getElementById('filter-cat');
-  sel.innerHTML = '<option value="">Category ทั้งหมด</option>' +
-    cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  document.getElementById('filter-cat').innerHTML =
+    '<option value="">Category ทั้งหมด</option>' + cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
 }
 
 // ── Load ──────────────────────────────────────────────────────────────────
@@ -473,33 +546,27 @@ async function loadData() {
   if (!token) { showError('ไม่พบ token ในลิงค์'); return; }
   try {
     const res = await fetch(`/api/public/board/${token}/data`);
-    if (!res.ok) {
-      const e = await res.json().catch(() => ({}));
-      showError(e.error || `โหลดไม่ได้ (${res.status})`); return;
-    }
+    if (!res.ok) { const e = await res.json().catch(()=>({})); showError(e.error || `โหลดไม่ได้ (${res.status})`); return; }
     const data = await res.json();
-    _issues = data.issues || [];
+    _issues   = data.issues || [];
     _filtered = [..._issues];
 
-    // Header
     const folder = data.folder_name || '';
     document.getElementById('hdr-folder').textContent = folder;
-    document.getElementById('hdr-sep').style.display = folder ? '' : 'none';
-    document.getElementById('hdr-board').textContent = data.board_name || 'Board';
+    document.getElementById('hdr-sep').style.display  = folder ? '' : 'none';
+    document.getElementById('hdr-board').textContent  = data.board_name || 'Board';
     document.title = `${data.board_name || 'Board'} — CS Board`;
     const cnt = document.getElementById('hdr-count');
     cnt.textContent = `${_issues.length} issues`; cnt.style.display = '';
 
-    // Show UI
     document.getElementById('summary-bar').style.display = '';
-    document.getElementById('filter-bar').style.display = '';
-    document.getElementById('view-tabs').style.display = '';
+    document.getElementById('filter-bar').style.display  = '';
+    document.getElementById('view-tabs').style.display   = '';
 
     updateSummary(_issues);
     buildCatFilter(_issues);
     document.getElementById('result-count').textContent = `${_issues.length} รายการ`;
     renderBoard(_filtered);
-
   } catch(e) { showError('โหลดข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'); }
 }
 
@@ -512,13 +579,11 @@ async function reloadData() {
 
 function showError(msg) {
   document.getElementById('board-view').innerHTML =
-    `<div class="center" style="width:100%;padding:2rem">
-      <div class="error-box">
-        <div class="error-box-icon">😞</div>
-        <div style="font-weight:700;margin-bottom:.4rem">ไม่สามารถโหลดข้อมูลได้</div>
-        <div style="font-size:.8rem;color:#dc2626">${esc(msg)}</div>
-      </div>
-    </div>`;
+    `<div class="center" style="width:100%;padding:2rem"><div class="error-box">
+      <div style="font-size:2rem;margin-bottom:.5rem">😞</div>
+      <div style="font-weight:700;margin-bottom:.4rem">ไม่สามารถโหลดข้อมูลได้</div>
+      <div style="font-size:.8rem">${esc(msg)}</div>
+    </div></div>`;
 }
 
 loadData();
