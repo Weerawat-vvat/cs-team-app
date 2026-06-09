@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Board — CS Team</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', 'Noto Sans Thai', sans-serif; background: #f1f5f9; color: #1e293b; min-height: 100vh; }
+
+  .header {
+    background: #1e293b; color: #fff; padding: .75rem 1.25rem;
+    display: flex; align-items: center; gap: .75rem; position: sticky; top: 0; z-index: 10;
+    box-shadow: 0 2px 8px rgba(0,0,0,.18);
+  }
+  .header-logo { font-size: 1.15rem; font-weight: 800; letter-spacing: -.5px; }
+  .header-sep  { color: #475569; }
+  .header-folder { font-size: .82rem; color: #94a3b8; }
+  .header-board  { font-size: .95rem; font-weight: 700; }
+  .header-badge  {
+    margin-left: auto; background: #3b82f6; color: #fff; font-size: .72rem;
+    font-weight: 700; border-radius: 20px; padding: .15rem .65rem;
+  }
+  .header-readonly {
+    font-size: .7rem; color: #64748b; background: #334155;
+    border-radius: 20px; padding: .15rem .6rem;
+  }
+
+  .board-wrap {
+    display: flex; gap: 1rem; padding: 1.25rem;
+    overflow-x: auto; align-items: flex-start; min-height: calc(100vh - 56px);
+  }
+
+  .col {
+    background: #fff; border-radius: 12px; min-width: 260px; max-width: 280px;
+    flex-shrink: 0; box-shadow: 0 1px 4px rgba(0,0,0,.07);
+    display: flex; flex-direction: column;
+  }
+  .col-header {
+    padding: .7rem .9rem .55rem;
+    border-bottom: 1px solid #f1f5f9;
+    display: flex; align-items: center; gap: .5rem;
+  }
+  .col-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .col-name { font-weight: 700; font-size: .82rem; flex: 1; }
+  .col-cnt  { font-size: .72rem; background: #f1f5f9; color: #64748b; font-weight: 700;
+               border-radius: 20px; padding: .1rem .45rem; }
+
+  .col-body { padding: .6rem .7rem; display: flex; flex-direction: column; gap: .5rem; overflow-y: auto; max-height: 72vh; }
+
+  .card {
+    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+    padding: .6rem .75rem; cursor: default;
+  }
+  .card:hover { background: #f1f5f9; }
+  .card-id   { font-size: .68rem; color: #94a3b8; margin-bottom: .2rem; }
+  .card-title { font-size: .82rem; font-weight: 600; line-height: 1.35; margin-bottom: .4rem; }
+  .card-meta  { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+
+  .badge {
+    display: inline-block; font-size: .68rem; font-weight: 700;
+    border-radius: 20px; padding: .1rem .45rem;
+  }
+  .badge-cat   { background: #eff6ff; color: #1d4ed8; }
+  .badge-prio-high   { background: #fef2f2; color: #b91c1c; }
+  .badge-prio-medium { background: #fff7ed; color: #c2410c; }
+  .badge-prio-low    { background: #f0fdf4; color: #15803d; }
+  .badge-prio-critical { background: #7f1d1d; color: #fef2f2; }
+
+  .assignee { font-size: .72rem; color: #475569; display: flex; align-items: center; gap: .25rem; }
+  .assignee::before { content: '👤'; font-size: .65rem; }
+
+  .empty-col { padding: .75rem; text-align: center; color: #cbd5e1; font-size: .78rem; }
+
+  /* Table view toggle */
+  .view-toggle {
+    position: fixed; bottom: 1.25rem; right: 1.25rem;
+    background: #1e293b; color: #fff; border: none; border-radius: 30px;
+    padding: .55rem 1.1rem; font-size: .8rem; font-weight: 700; cursor: pointer;
+    box-shadow: 0 4px 16px rgba(0,0,0,.22); display: flex; align-items: center; gap: .4rem;
+    font-family: inherit; transition: background .15s;
+  }
+  .view-toggle:hover { background: #334155; }
+
+  /* Table view */
+  .table-wrap { padding: 1rem 1.25rem; display: none; }
+  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.07); }
+  th { background: #1e293b; color: #94a3b8; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; padding: .55rem .85rem; text-align: left; }
+  td { padding: .55rem .85rem; font-size: .8rem; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #f8fafc; }
+  .td-title { font-weight: 600; max-width: 340px; }
+  .td-id    { color: #94a3b8; font-size: .72rem; white-space: nowrap; }
+
+  /* Loading / Error */
+  .center { display: flex; align-items: center; justify-content: center; height: 60vh; }
+  .spinner { width: 36px; height: 36px; border: 3px solid #e2e8f0; border-top-color: #3b82f6; border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .error-box { background: #fef2f2; border: 1px solid #fca5a5; border-radius: 10px; padding: 1.5rem 2rem; text-align: center; color: #b91c1c; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <span class="header-logo">📋 CS Board</span>
+  <span class="header-sep">/</span>
+  <span class="header-folder" id="hdr-folder">—</span>
+  <span class="header-sep">/</span>
+  <span class="header-board" id="hdr-board">กำลังโหลด…</span>
+  <span class="header-badge" id="hdr-count" style="display:none"></span>
+  <span class="header-readonly">อ่านอย่างเดียว</span>
+</div>
+
+<!-- Board view -->
+<div class="board-wrap" id="board-view">
+  <div class="center"><div class="spinner"></div></div>
+</div>
+
+<!-- Table view -->
+<div class="table-wrap" id="table-view">
+  <table id="tbl">
+    <thead><tr>
+      <th>#</th><th>หัวข้อ</th><th>สถานะ</th><th>ความสำคัญ</th><th>Category</th><th>ผู้รับผิดชอบ</th>
+    </tr></thead>
+    <tbody id="tbl-body"></tbody>
+  </table>
+</div>
+
+<button class="view-toggle" id="view-btn" onclick="toggleView()">🟦 Switch to Table</button>
+
+<script>
+const STATUS_CONFIG = [
+  { key:'open',           label:'เปิดใหม่',        color:'#3b82f6' },
+  { key:'in_progress',    label:'กำลังดำเนินการ',  color:'#f59e0b' },
+  { key:'waiting',        label:'รอ',               color:'#8b5cf6' },
+  { key:'resolved',       label:'แก้ไขแล้ว',       color:'#22c55e' },
+  { key:'cancelled',      label:'ยกเลิก',           color:'#94a3b8' },
+];
+const PRIO_CLASS = { critical:'badge-prio-critical', high:'badge-prio-high', medium:'badge-prio-medium', low:'badge-prio-low' };
+const PRIO_LABEL = { critical:'🔴 Critical', high:'สูง', medium:'ปานกลาง', low:'ต่ำ' };
+
+let _view = 'board', _issues = [];
+
+function toggleView() {
+  _view = _view === 'board' ? 'table' : 'board';
+  document.getElementById('board-view').style.display = _view === 'board' ? 'flex' : 'none';
+  document.getElementById('table-view').style.display = _view === 'table' ? 'block' : 'none';
+  document.getElementById('view-btn').textContent = _view === 'board' ? '📋 Switch to Table' : '🟦 Switch to Board';
+}
+
+function escHtml(s) {
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderBoard(issues) {
+  const bv = document.getElementById('board-view');
+  const byStatus = {};
+  issues.forEach(i => {
+    if (!byStatus[i.status]) byStatus[i.status] = [];
+    byStatus[i.status].push(i);
+  });
+
+  bv.innerHTML = STATUS_CONFIG.map(sc => {
+    const cards = byStatus[sc.key] || [];
+    const cardHtml = cards.length === 0
+      ? `<div class="empty-col">ไม่มี issue</div>`
+      : cards.map(i => `
+        <div class="card">
+          <div class="card-id">#${i.id}</div>
+          <div class="card-title">${escHtml(i.title)}</div>
+          <div class="card-meta">
+            ${i.priority ? `<span class="badge ${PRIO_CLASS[i.priority]||'badge-prio-low'}">${escHtml(PRIO_LABEL[i.priority]||i.priority)}</span>` : ''}
+            ${i.category ? `<span class="badge badge-cat">${escHtml(i.category)}</span>` : ''}
+            ${i.assigned_to_name ? `<span class="assignee">${escHtml(i.assigned_to_name)}</span>` : ''}
+          </div>
+        </div>`).join('');
+
+    return `<div class="col">
+      <div class="col-header">
+        <div class="col-dot" style="background:${sc.color}"></div>
+        <div class="col-name">${sc.label}</div>
+        <div class="col-cnt">${cards.length}</div>
+      </div>
+      <div class="col-body">${cardHtml}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderTable(issues) {
+  document.getElementById('tbl-body').innerHTML = issues.map(i => `
+    <tr>
+      <td class="td-id">#${i.id}</td>
+      <td class="td-title">${escHtml(i.title)}</td>
+      <td>${STATUS_CONFIG.find(s=>s.key===i.status)?.label || i.status}</td>
+      <td>${i.priority ? `<span class="badge ${PRIO_CLASS[i.priority]||''}">${escHtml(PRIO_LABEL[i.priority]||i.priority)}</span>` : '—'}</td>
+      <td>${i.category ? `<span class="badge badge-cat">${escHtml(i.category)}</span>` : '—'}</td>
+      <td>${escHtml(i.assigned_to_name||'—')}</td>
+    </tr>`).join('');
+}
+
+async function init() {
+  const token = location.pathname.split('/public/board/')[1];
+  if (!token) { showError('ไม่พบ token'); return; }
+  try {
+    const res = await fetch(`/api/public/board/${token}/data`);
+    if (!res.ok) { const e = await res.json(); showError(e.error || 'ลิงค์ไม่ถูกต้องหรือหมดอายุ'); return; }
+    const data = await res.json();
+    _issues = data.issues || [];
+    document.getElementById('hdr-folder').textContent = data.folder_name || '';
+    document.getElementById('hdr-board').textContent  = data.board_name  || '';
+    document.title = `${data.board_name} — CS Board`;
+    const cnt = document.getElementById('hdr-count');
+    cnt.textContent = `${_issues.length} issues`;
+    cnt.style.display = '';
+    renderBoard(_issues);
+    renderTable(_issues);
+  } catch(e) { showError('โหลดข้อมูลไม่สำเร็จ'); }
+}
+
+function showError(msg) {
+  document.getElementById('board-view').innerHTML =
+    `<div class="center" style="width:100%"><div class="error-box">❌ ${escHtml(msg)}</div></div>`;
+  document.getElementById('view-btn').style.display = 'none';
+}
+
+init();
+</script>
+</body>
+</html>

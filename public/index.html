@@ -2530,6 +2530,7 @@ textarea{resize:vertical;min-height:80px}
           <input id="fu-search" type="text" placeholder="🔍 ค้นหาหัวข้อ / Category / ผู้รับผิดชอบ..."
             oninput="_fuSearchQ=this.value.toLowerCase();fuRenderTable()"
             style="font-size:.75rem;padding:.3rem .6rem;border:1px solid #cbd5e1;border-radius:6px;width:220px;outline:none;font-family:inherit"/>
+          <button onclick="fuShareBoard()" id="fu-share-btn" title="แชร์ลิงค์ภายนอก (อ่านอย่างเดียว)" style="background:#7c3aed;color:#fff;border:none;border-radius:7px;padding:.35rem .75rem;font-size:.8rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.3rem">🔗 แชร์</button>
           <button onclick="fuExportExcel()" title="Export ข้อมูลเป็น Excel" style="background:#16a34a;color:#fff;border:none;border-radius:7px;padding:.35rem .75rem;font-size:.8rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.3rem">📥 Excel</button>
           <button onclick="fuAddIssue()" style="background:#1d4ed8;color:#fff;border:none;border-radius:7px;padding:.35rem .85rem;font-size:.8rem;font-weight:700;cursor:pointer">+ Issue</button>
         </div>
@@ -12928,6 +12929,28 @@ async function fuMoveIssue(issueId, boardId, boardName, folderName) {
 // ══════════════════════════════════════════════════════════
 //  EXCEL EXPORT (client-side CSV → Excel)
 // ══════════════════════════════════════════════════════════
+async function fuShareBoard() {
+  if (!_fuCurrentBoardId) return;
+  try {
+    const btn = document.getElementById('fu-share-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳…'; }
+    const data = await api(`/api/fu/boards/${_fuCurrentBoardId}/share-token`, { method: 'POST' });
+    const url = `${window.location.origin}/public/board/${data.token}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast('✅ คัดลอกลิงค์แล้ว! เปิดในแท็บใหม่ได้เลย', 'success');
+    } catch {
+      // fallback: show modal with URL to copy manually
+      prompt('คัดลอกลิงค์นี้:', url);
+    }
+  } catch(e) {
+    showToast('❌ ไม่สามารถสร้างลิงค์ได้', 'error');
+  } finally {
+    const btn = document.getElementById('fu-share-btn');
+    if (btn) { btn.disabled = false; btn.innerHTML = '🔗 แชร์'; }
+  }
+}
+
 function fuExportExcel() {
   // Use the same filter logic as fuRenderTable
   const q = _fuSearchQ || '';

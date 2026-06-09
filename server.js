@@ -5356,9 +5356,80 @@ async function ensureFollowupV2Tables() {
     try { await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('fu_folders') AND name='group_name') ALTER TABLE fu_folders ADD group_name NVARCHAR(255) NULL`); } catch(e2) {}
     try { await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('fu_issues') AND name='sp_ref') ALTER TABLE fu_issues ADD sp_ref INT NULL`); } catch(e2) {}
     try { await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('fu_issues') AND name='issue_url') ALTER TABLE fu_issues ADD issue_url NVARCHAR(500) NULL`); } catch(e2) {}
+
+    // Share tokens for public board view
+    await req().query(`IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='fu_board_tokens' AND xtype='U')
+      CREATE TABLE fu_board_tokens (
+        id INT PRIMARY KEY IDENTITY,
+        board_id INT NOT NULL UNIQUE,
+        token NVARCHAR(64) NOT NULL UNIQUE,
+        created_by INT,
+        created_at DATETIME DEFAULT GETDATE()
+      )`);
+
     console.log('✅ Follow Up v2 tables ready');
   } catch(e) { console.error('❌ Follow Up v2 tables error:', e.message); }
 }
+
+// ══ FOLLOW UP v2 — BOARD SHARE TOKEN ══════════════════════
+// POST /api/fu/boards/:id/share-token  → get or create public share token
+app.post('/api/fu/boards/:id/share-token', authRequired, async (request, res) => {
+  try {
+    const boardId = parseInt(request.params.id);
+    if (!boardId) return res.status(400).json({ error: 'invalid board id' });
+    // Check board exists
+    const board = (await req().input('bid', sql.Int, boardId)
+      .query(`SELECT id, name FROM fu_boards WHERE id=@bid`)).recordset[0];
+    if (!board) return res.status(404).json({ error: 'board not found' });
+    // Get or create token
+    let row = (await req().input('bid', sql.Int, boardId)
+      .query(`SELECT token FROM fu_board_tokens WHERE board_id=@bid`)).recordset[0];
+    if (!row) {
+      const token = crypto.randomBytes(24).toString('hex');
+      await req().input('bid', sql.Int, boardId)
+        .input('tok', sql.NVarChar, token)
+        .input('uid', sql.Int, request.user.id)
+        .query(`INSERT INTO fu_board_tokens (board_id, token, created_by) VALUES (@bid,@tok,@uid)`);
+      row = { token };
+    }
+    res.json({ token: row.token, board_name: board.name });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE /api/fu/boards/:id/share-token  → revoke token
+app.delete('/api/fu/boards/:id/share-token', authRequired, async (request, res) => {
+  try {
+    const boardId = parseInt(request.params.id);
+    await req().input('bid', sql.Int, boardId)
+      .query(`DELETE FROM fu_board_tokens WHERE board_id=@bid`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/public/board/:token/data  → public board issues (no auth)
+app.get('/api/public/board/:token/data', async (request, res) => {
+  try {
+    const row = (await req().input('tok', sql.NVarChar, request.params.token)
+      .query(`SELECT t.board_id, b.name AS board_name, f.name AS folder_name
+              FROM fu_board_tokens t
+              JOIN fu_boards b ON b.id=t.board_id
+              JOIN fu_folders f ON f.id=b.folder_id
+              WHERE t.token=@tok`)).recordset[0];
+    if (!row) return res.status(404).json({ error: 'invalid or expired link' });
+    const issues = (await req().input('bid', sql.Int, row.board_id)
+      .query(`SELECT i.id, i.title, i.status, i.priority, i.category,
+                     i.assigned_to_name, i.created_at, i.updated_at, i.description
+              FROM fu_issues i
+              WHERE i.board_id=@bid AND i.deleted_at IS NULL
+              ORDER BY i.created_at DESC`)).recordset;
+    res.json({ board_name: row.board_name, folder_name: row.folder_name, issues });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /public/board/:token  → serve public HTML page
+app.get('/public/board/:token', (req2, res) => {
+  res.sendFile(require('path').join(__dirname, 'public', 'board-public.html'));
+});
 
 // ══ FOLLOW UP v2 — SUMMARY (sidebar stats) ══
 app.get('/api/fu/summary', authRequired, async (request, res) => {
