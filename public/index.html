@@ -630,7 +630,7 @@ textarea{resize:vertical;min-height:80px}
       </div>
       <span style="color:var(--border)">|</span>
       <label style="font-size:.78rem;color:var(--muted);white-space:nowrap">ทีม:</label>
-      <select id="dash-filter-team" onchange="loadDashboard();loadDashboardCharts()" style="max-width:130px">
+      <select id="dash-filter-team" onchange="loadDashboardAll()" style="max-width:130px">
         <option value="">ทุกทีม</option>
       </select>
       <span style="color:var(--border)">|</span>
@@ -644,7 +644,7 @@ textarea{resize:vertical;min-height:80px}
       <input type="date" id="dash-date-from" style="max-width:130px"/>
       <span style="color:var(--muted);font-size:.8rem">ถึง</span>
       <input type="date" id="dash-date-to" style="max-width:130px"/>
-      <button class="btn btn-sm btn-primary" onclick="loadDashboard();loadDashboardCharts();if(_dashTab===2)loadIssueAnalytics()">ค้นหา</button>
+      <button class="btn btn-sm btn-primary" onclick="loadDashboardAll()">ค้นหา</button>
     </div>
   </div>
 
@@ -4121,7 +4121,7 @@ function _applyRange(preset, btn, fromId, toId, drbId, customId, loadFn) {
 function dashRange(preset, btn) {
   _dashPreset = preset;
   _applyRange(preset, btn, 'dash-date-from', 'dash-date-to', 'dash-drb', 'dash-custom-range',
-    () => { loadDashboard(); loadDashboardCharts(); if(_dashTab===2) loadIssueAnalytics(); });
+    () => { loadDashboardAll(); });
 }
 function tkRange(preset, btn) {
   _applyRange(preset, btn, 'tk-date-from', 'tk-date-to', 'tk-drb', 'tk-custom-range', loadTickets);
@@ -4310,7 +4310,7 @@ function showPage(name, btn) {
   document.querySelectorAll('.s-tab').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
   if (btn) btn.classList.add('active');
-  if (name === 'dashboard') { loadDashboard(); loadDashboardCharts(); }
+  if (name === 'dashboard') { loadDashboardAll(); }
   if (name === 'schedule')  _applyScheduleView();
   if (name === 'tickets')   loadTickets();
   if (name === 'kpi')       loadKpi();
@@ -4489,6 +4489,14 @@ async function dashRefreshOnShift() {
     showToast('✅ รีเฟรชข้อมูลกะแล้ว');
   }
   if (btn) { btn.style.opacity = ''; btn.style.pointerEvents = ''; }
+}
+
+// wrapper ที่ใช้แทน loadDashboard();loadDashboardCharts() ทุกที่
+// เมื่อ preset=today → await loadDashboard ก่อนเพื่อให้ _onShiftExtUsernames พร้อม
+async function loadDashboardAll() {
+  await loadDashboard();
+  await loadDashboardCharts();
+  if (_dashTab === 2) loadIssueAnalytics();
 }
 
 async function loadDashboard() {
