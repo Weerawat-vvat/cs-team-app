@@ -1676,6 +1676,38 @@ textarea{resize:vertical;min-height:80px}
 <div id="fu-panel-backdrop" onclick="fuClosePanelModal()" style="display:none;position:fixed;inset:0;z-index:9050;background:rgba(15,23,42,.45)"></div>
 
 <!-- Add Issue Modal (Follow-up) -->
+<!-- ── Follow-up: Import CSV modal ── -->
+<div class="overlay" id="modal-fu-import" onclick="if(event.target===this)closeModal('modal-fu-import')">
+  <div class="modal" style="max-width:820px;width:95vw;padding:1.2rem;max-height:88vh;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem;flex-shrink:0">
+      <div style="font-size:1rem;font-weight:800">📤 Import Issues จาก CSV</div>
+      <button onclick="closeModal('modal-fu-import')" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#94a3b8;line-height:1">×</button>
+    </div>
+
+    <!-- Info bar -->
+    <div id="fu-import-info" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:.6rem .9rem;font-size:.78rem;color:#1e40af;margin-bottom:.75rem;flex-shrink:0">
+      กำลังรอไฟล์…
+    </div>
+
+    <!-- Preview table -->
+    <div style="flex:1;overflow:auto;border:1px solid #e2e8f0;border-radius:8px;min-height:120px">
+      <table style="width:100%;border-collapse:collapse;font-size:.78rem" id="fu-import-preview-tbl">
+        <thead id="fu-import-preview-head" style="position:sticky;top:0;background:#f8fafc;z-index:1"></thead>
+        <tbody id="fu-import-preview-body"></tbody>
+      </table>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:.6rem;margin-top:.85rem;flex-shrink:0">
+      <span id="fu-import-stats" style="font-size:.78rem;color:#64748b;flex:1"></span>
+      <button onclick="closeModal('modal-fu-import')" style="background:#f1f5f9;color:#374151;border:none;border-radius:7px;padding:.45rem 1rem;font-size:.82rem;font-weight:600;cursor:pointer">ยกเลิก</button>
+      <button id="fu-import-confirm-btn" onclick="fuConfirmImport()" disabled
+        style="background:#ea580c;color:#fff;border:none;border-radius:7px;padding:.45rem 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer;opacity:.5">
+        ✅ Import ทั้งหมด
+      </button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="modal-fu-add-issue">
   <div class="modal" style="max-width:500px;padding:1.2rem">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
@@ -2532,6 +2564,8 @@ textarea{resize:vertical;min-height:80px}
             style="font-size:.75rem;padding:.3rem .6rem;border:1px solid #cbd5e1;border-radius:6px;width:220px;outline:none;font-family:inherit"/>
           <button onclick="fuShareBoard()" id="fu-share-btn" title="แชร์ลิงค์ภายนอก (อ่านอย่างเดียว)" style="background:#7c3aed;color:#fff;border:none;border-radius:7px;padding:.35rem .75rem;font-size:.8rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.3rem">🔗 แชร์</button>
           <button onclick="fuExportExcel()" title="Export ข้อมูลเป็น Excel" style="background:#16a34a;color:#fff;border:none;border-radius:7px;padding:.35rem .75rem;font-size:.8rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.3rem">📥 Excel</button>
+          <button onclick="document.getElementById('fu-import-file').click()" title="Import Issues จากไฟล์ CSV" style="background:#ea580c;color:#fff;border:none;border-radius:7px;padding:.35rem .75rem;font-size:.8rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.3rem">📤 Import</button>
+          <input type="file" id="fu-import-file" accept=".csv,.tsv,text/csv" style="display:none" onchange="fuImportCSV(this)">
           <button onclick="fuAddIssue()" style="background:#1d4ed8;color:#fff;border:none;border-radius:7px;padding:.35rem .85rem;font-size:.8rem;font-weight:700;cursor:pointer">+ Issue</button>
         </div>
       </div>
@@ -12929,12 +12963,180 @@ async function fuMoveIssue(issueId, boardId, boardName, folderName) {
 // ══════════════════════════════════════════════════════════
 //  EXCEL EXPORT (client-side CSV → Excel)
 // ══════════════════════════════════════════════════════════
+// ── Follow-up: Import CSV ──────────────────────────────────────────────────
+let _fuImportRows = [];
+
+function fuImportCSV(input) {
+  const file = input.files[0];
+  input.value = ''; // reset so same file can be re-selected
+  if (!file) return;
+  if (!_fuBoardId) { showToast('❌ เลือก Board ก่อน', 'error'); return; }
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    let text = e.target.result;
+    // Strip UTF-8 BOM
+    if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+    _fuImportRows = fuParseCSVText(text);
+    fuShowImportPreview(_fuImportRows);
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function fuParseCSVText(text) {
+  // Robust CSV parser (handles quoted fields with embedded commas/newlines)
+  const rows = [];
+  let cur = '', inQ = false, fields = [];
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i], nx = text[i+1];
+    if (inQ) {
+      if (ch === '"' && nx === '"') { cur += '"'; i++; }
+      else if (ch === '"') inQ = false;
+      else cur += ch;
+    } else {
+      if (ch === '"') { inQ = true; }
+      else if (ch === ',') { fields.push(cur); cur = ''; }
+      else if (ch === '\r' && nx === '\n') { fields.push(cur); cur = ''; rows.push(fields); fields = []; i++; }
+      else if (ch === '\n' || ch === '\r') { fields.push(cur); cur = ''; rows.push(fields); fields = []; }
+      else cur += ch;
+    }
+  }
+  if (cur || fields.length) { fields.push(cur); rows.push(fields); }
+  // Remove trailing empty row
+  if (rows.length && rows[rows.length-1].every(c => !c.trim())) rows.pop();
+  return rows;
+}
+
+const FU_IMPORT_PRI_MAP = {
+  'ต่ำ':'low','low':'low',
+  'ปกติ':'normal','normal':'normal',
+  'สูง':'high','high':'high',
+  'เร่งด่วน':'urgent','urgent':'urgent',
+  'critical':'urgent'
+};
+
+function fuShowImportPreview(rows) {
+  if (!rows.length) { showToast('❌ ไม่พบข้อมูลในไฟล์', 'error'); return; }
+
+  // Detect if first row is header
+  const KNOWN_HEADERS = ['id','หัวข้อ','detail','รายละเอียด','category','ความสำคัญ','note'];
+  const firstRow = rows[0].map(c => c.toLowerCase().trim());
+  const hasHeader = KNOWN_HEADERS.some(h => firstRow.some(c => c.includes(h)));
+  const header = hasHeader ? rows[0] : null;
+  const dataRows = hasHeader ? rows.slice(1) : rows;
+
+  // Map column indices from header (fallback to export format: ID,หัวข้อ,Note,Category,ความสำคัญ,สถานะ,ผู้รับผิดชอบ,สร้างโดย,DueDate,IssueURL,Board)
+  let colDetail = 1, colNote = 2, colCat = 3, colPri = 4, colDue = 8, colUrl = 9;
+  if (header) {
+    header.forEach((h, i) => {
+      const hl = h.toLowerCase().trim();
+      if (hl.includes('หัวข้อ') || hl.includes('detail') || hl.includes('รายละเอียด')) colDetail = i;
+      else if (hl === 'note') colNote = i;
+      else if (hl.includes('category') || hl.includes('cat')) colCat = i;
+      else if (hl.includes('ความสำคัญ') || hl.includes('priority')) colPri = i;
+      else if (hl.includes('due') || hl.includes('วันครบ')) colDue = i;
+      else if (hl.includes('url') || hl.includes('issue_url')) colUrl = i;
+    });
+  }
+
+  // Build preview data
+  const PSTATUS_COL = header ? header.findIndex(h => h.toLowerCase().includes('สถานะ')) : 5;
+  const valid = [], invalid = [];
+  dataRows.forEach((row, idx) => {
+    const detail = (row[colDetail] || '').trim();
+    if (!detail) { invalid.push(idx + (hasHeader ? 2 : 1)); return; }
+    valid.push({
+      _row: idx + (hasHeader ? 2 : 1),
+      detail,
+      note:     (row[colNote] || '').trim(),
+      category: (row[colCat]  || '').trim(),
+      priority: FU_IMPORT_PRI_MAP[(row[colPri]||'').trim().toLowerCase()] || 'normal',
+      due_date: (row[colDue]  || '').trim() || null,
+      issue_url:(row[colUrl]  || '').trim() || null,
+    });
+  });
+
+  _fuImportRows = valid;
+
+  // Render info
+  const infoEl = document.getElementById('fu-import-info');
+  infoEl.style.background = valid.length ? '#f0fdf4' : '#fef2f2';
+  infoEl.style.borderColor = valid.length ? '#bbf7d0' : '#fca5a5';
+  infoEl.style.color = valid.length ? '#166534' : '#b91c1c';
+  infoEl.textContent = `พบข้อมูล ${valid.length} รายการที่จะ import` +
+    (invalid.length ? ` | ข้ามแถวที่ไม่มีหัวข้อ: ${invalid.join(', ')}` : '') +
+    ` → Board: ${_fuBoardName || _fuBoardId}`;
+
+  // Render preview table
+  const escH = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const PHEAD = ['#','หัวข้อ / รายละเอียด','Category','ความสำคัญ','Due Date','Note'];
+  const PRI_BADGE = { low:'#dcfce7;color:#166534', normal:'#f1f5f9;color:#374151', high:'#fef2f2;color:#b91c1c', urgent:'#7f1d1d;color:#fef2f2' };
+  const PRI_TH = { low:'ต่ำ', normal:'ปกติ', high:'สูง', urgent:'เร่งด่วน' };
+
+  document.getElementById('fu-import-preview-head').innerHTML =
+    `<tr>${PHEAD.map(h=>`<th style="padding:.4rem .6rem;text-align:left;font-size:.72rem;color:#64748b;font-weight:700;border-bottom:2px solid #e2e8f0">${h}</th>`).join('')}</tr>`;
+
+  document.getElementById('fu-import-preview-body').innerHTML = valid.slice(0,200).map((r,i) => {
+    const bgs = PRI_BADGE[r.priority] || PRI_BADGE.normal;
+    return `<tr style="border-bottom:1px solid #f1f5f9">
+      <td style="padding:.3rem .6rem;color:#94a3b8;font-size:.72rem">${i+1}</td>
+      <td style="padding:.3rem .6rem;font-size:.78rem;font-weight:600;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(r.detail)}</td>
+      <td style="padding:.3rem .6rem;font-size:.75rem">${r.category ? `<span style="background:#eff6ff;color:#1d4ed8;border-radius:20px;padding:.1rem .45rem;font-size:.7rem;font-weight:700">${escH(r.category)}</span>` : '—'}</td>
+      <td style="padding:.3rem .6rem"><span style="background:${bgs};border-radius:20px;padding:.1rem .45rem;font-size:.7rem;font-weight:700">${PRI_TH[r.priority]||r.priority}</span></td>
+      <td style="padding:.3rem .6rem;font-size:.75rem;color:#475569">${r.due_date||'—'}</td>
+      <td style="padding:.3rem .6rem;font-size:.75rem;color:#64748b;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(r.note)||'—'}</td>
+    </tr>`;
+  }).join('') + (valid.length > 200 ? `<tr><td colspan="6" style="padding:.5rem .6rem;color:#94a3b8;font-size:.75rem;text-align:center">… แสดง 200/${valid.length} รายการ</td></tr>` : '');
+
+  // Stats
+  document.getElementById('fu-import-stats').textContent =
+    valid.length ? `${valid.length} รายการพร้อม import` : 'ไม่มีรายการที่ valid';
+
+  // Enable/disable confirm button
+  const btn = document.getElementById('fu-import-confirm-btn');
+  btn.disabled = !valid.length;
+  btn.style.opacity = valid.length ? '1' : '.5';
+  btn.style.cursor  = valid.length ? 'pointer' : 'not-allowed';
+
+  openModal('modal-fu-import');
+}
+
+async function fuConfirmImport() {
+  if (!_fuImportRows.length) return;
+  if (!_fuBoardId) { showToast('❌ เลือก Board ก่อน','error'); return; }
+
+  const btn = document.getElementById('fu-import-confirm-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ กำลัง import…';
+
+  let ok = 0, fail = 0;
+  for (const row of _fuImportRows) {
+    try {
+      await api('/api/fu/issues', {
+        method: 'POST', silent: true,
+        body: { board_id: _fuBoardId, detail: row.detail,
+                note: row.note || null, category: row.category || null,
+                priority: row.priority, due_date: row.due_date || null,
+                issue_url: row.issue_url || null }
+      });
+      ok++;
+    } catch { fail++; }
+    btn.textContent = `⏳ ${ok}/${_fuImportRows.length}…`;
+  }
+
+  closeModal('modal-fu-import');
+  _fuImportRows = [];
+  if (ok) { showToast(`✅ Import สำเร็จ ${ok} รายการ${fail?' (ล้มเหลว '+fail+')':''}`, 'success'); }
+  else    { showToast(`❌ Import ล้มเหลวทั้งหมด (${fail} รายการ)`, 'error'); }
+  fuLoadIssues();
+}
+
 async function fuShareBoard() {
-  if (!_fuCurrentBoardId) return;
+  if (!_fuBoardId) return;
   try {
     const btn = document.getElementById('fu-share-btn');
     if (btn) { btn.disabled = true; btn.textContent = '⏳…'; }
-    const data = await api(`/api/fu/boards/${_fuCurrentBoardId}/share-token`, { method: 'POST' });
+    const data = await api(`/api/fu/boards/${_fuBoardId}/share-token`, { method: 'POST' });
     const url = `${window.location.origin}/public/board/${data.token}`;
     try {
       await navigator.clipboard.writeText(url);
