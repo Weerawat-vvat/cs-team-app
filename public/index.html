@@ -1090,6 +1090,10 @@ textarea{resize:vertical;min-height:80px}
       style="padding:.45rem 1rem;font-size:.82rem;font-weight:700;border:none;background:none;cursor:pointer;color:#94a3b8;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s">
       🎯 Specialist KPI
     </button>
+    <button id="kpi-tab-score" onclick="kpiSwitchTab('score')"
+      style="padding:.45rem 1rem;font-size:.82rem;font-weight:700;border:none;background:none;cursor:pointer;color:#94a3b8;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s">
+      🏆 คะแนนรายเดือน
+    </button>
   </div>
 
   <!-- Date & Filter Bar (top — same as Dashboard/Tickets) -->
@@ -1592,6 +1596,42 @@ textarea{resize:vertical;min-height:80px}
       </button>
     </div>
   </div>
+  </div>
+
+  <!-- ═══ Monthly KPI Score section ═══ -->
+  <div id="kpi-score-section" style="display:none">
+    <!-- Controls -->
+    <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-bottom:.85rem">
+      <div style="display:flex;align-items:center;gap:.3rem;background:#fff;border:1px solid var(--border);border-radius:9px;padding:.35rem .65rem;box-shadow:0 1px 3px #0001">
+        <button onclick="kpiScoreChangeMonth(-1)" style="background:none;border:none;cursor:pointer;font-size:1rem;color:var(--muted);padding:0 .2rem;line-height:1">‹</button>
+        <span id="kpi-score-month-label" style="font-family:monospace;font-size:.82rem;font-weight:600;min-width:90px;text-align:center">—</span>
+        <button onclick="kpiScoreChangeMonth(1)" style="background:none;border:none;cursor:pointer;font-size:1rem;color:var(--muted);padding:0 .2rem;line-height:1">›</button>
+      </div>
+      <div style="display:flex;gap:0;background:#f1f5f9;border-radius:8px;padding:2px">
+        <button id="kscore-tab-hd" onclick="kpiScoreTeam('helpdesk')"
+          style="padding:.3rem .85rem;font-size:.78rem;font-weight:700;border:none;cursor:pointer;border-radius:6px;background:#2563eb;color:#fff;transition:all .15s">
+          📞 Helpdesk
+        </button>
+        <button id="kscore-tab-sp" onclick="kpiScoreTeam('specialist')"
+          style="padding:.3rem .85rem;font-size:.78rem;font-weight:700;border:none;cursor:pointer;border-radius:6px;background:transparent;color:#64748b;transition:all .15s">
+          🎯 Specialist
+        </button>
+      </div>
+      <button onclick="loadKpiMonthlyScores()" style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:8px;padding:.35rem .85rem;font-size:.78rem;font-weight:600;cursor:pointer">
+        🔄 รีโหลด
+      </button>
+      <div id="kpi-score-loading" style="display:none;font-size:.78rem;color:var(--muted)">⏳ กำลังโหลด...</div>
+    </div>
+
+    <!-- Summary stats -->
+    <div id="kpi-score-stats" style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem"></div>
+
+    <!-- Rank table -->
+    <div style="background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 1px 3px #0001">
+      <div id="kpi-score-body">
+        <div style="padding:2.5rem;text-align:center;color:var(--muted);font-size:.88rem">เลือกเดือนและกดรีโหลด</div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -6419,13 +6459,22 @@ function kpiSwitchTab(tab) {
   }
 
   // show/hide sections by explicit IDs
-  const hdIds = { 'kpi-stats':'flex', 'ai-forecast-box':'', 'kpi-charts-row1':'grid', 'kpi-charts-row2':'grid', 'kpi-hd-table':'' };
-  Object.entries(hdIds).forEach(([id, showVal]) => { const el=document.getElementById(id); if(el) el.style.display = tab==='helpdesk' ? showVal : 'none'; });
+  const isScore = tab === 'score';
+  const isHd    = tab === 'helpdesk';
+  const hdIds = { 'kpi-stats':'flex', 'ai-forecast-box':'', 'kpi-charts-row1':'grid', 'kpi-charts-row2':'grid', 'kpi-hd-table':'', 'kpi-drb':'' };
+  Object.entries(hdIds).forEach(([id, showVal]) => { const el=document.getElementById(id); if(el) el.style.display = isHd ? showVal : 'none'; });
   const spSection = document.getElementById('kpi-sp-section');
   if (spSection) spSection.style.display = tab==='specialist' ? '' : 'none';
+  const scoreSection = document.getElementById('kpi-score-section');
+  if (scoreSection) scoreSection.style.display = isScore ? '' : 'none';
+  // hide date bar for score tab
+  const datebar = document.querySelector('#page-kpi .page-datebar');
+  if (datebar) datebar.style.display = isScore ? 'none' : '';
+
+  const sc = document.getElementById('kpi-tab-score');
+  if (sc) { sc.style.color = isScore ? '#b45309' : '#94a3b8'; sc.style.borderBottomColor = isScore ? '#f59e0b' : 'transparent'; }
 
   if (tab==='specialist') {
-    // ensure date range is set (default to this month if empty)
     if (!_kpiDateFrom) {
       const btn = document.querySelector('#kpi-drb .drb-btn.active') ||
                   [...document.querySelectorAll('#kpi-drb .drb-btn')].find(b=>b.textContent.includes('เดือนนี้'));
@@ -6434,6 +6483,7 @@ function kpiSwitchTab(tab) {
       loadSpKpi();
     }
   }
+  if (isScore && !_kpiScoreData) loadKpiMonthlyScores();
 }
 
 // ── Specialist KPI ────────────────────────────────────────
@@ -6773,6 +6823,217 @@ function calcHdKpiSlaScore(k) {
 function calcSpKpiSlaScore(sp) {
   const target = _kpiTargets.specialist?.target_grade || 800;
   return Math.min(Math.round((sp.grade_total_score || 0) / target * 35), 35);
+}
+
+// ══════════════════════════════════════════════════════════
+//  KPI MONTHLY SCORES
+// ══════════════════════════════════════════════════════════
+let _kpiScoreMonth = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; })();
+let _kpiScoreTeam  = 'helpdesk';
+let _kpiScoreData  = null;
+
+const MONTH_TH_SHORT = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+
+function kpiScoreMonthLabel(ym) {
+  const [y, m] = ym.split('-').map(Number);
+  return `${MONTH_TH_SHORT[m-1]} ${y + 543}`;
+}
+
+function kpiScoreChangeMonth(delta) {
+  const [y, m] = _kpiScoreMonth.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  _kpiScoreMonth = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  const el = document.getElementById('kpi-score-month-label');
+  if (el) el.textContent = kpiScoreMonthLabel(_kpiScoreMonth);
+  _kpiScoreData = null;
+  loadKpiMonthlyScores();
+}
+
+function kpiScoreTeam(team) {
+  _kpiScoreTeam = team;
+  const hd = document.getElementById('kscore-tab-hd');
+  const sp = document.getElementById('kscore-tab-sp');
+  if (hd) { hd.style.background = team==='helpdesk' ? '#2563eb' : 'transparent'; hd.style.color = team==='helpdesk' ? '#fff' : '#64748b'; }
+  if (sp) { sp.style.background = team==='specialist' ? '#7c3aed' : 'transparent'; sp.style.color = team==='specialist' ? '#fff' : '#64748b'; }
+  _kpiScoreData = null;
+  loadKpiMonthlyScores();
+}
+
+async function loadKpiMonthlyScores() {
+  const el = document.getElementById('kpi-score-month-label');
+  if (el) el.textContent = kpiScoreMonthLabel(_kpiScoreMonth);
+  const loading = document.getElementById('kpi-score-loading');
+  if (loading) loading.style.display = '';
+  try {
+    const data = await api(`/api/kpi/monthly-scores?month=${_kpiScoreMonth}&team=${_kpiScoreTeam}`);
+    _kpiScoreData = data;
+    renderKpiScoreTable(data);
+  } catch(e) {
+    const body = document.getElementById('kpi-score-body');
+    if (body) body.innerHTML = `<div style="padding:2rem;text-align:center;color:#ef4444;font-size:.85rem">❌ ${e.message||'โหลดไม่ได้'}</div>`;
+  } finally {
+    if (loading) loading.style.display = 'none';
+  }
+}
+
+function kpiScoreGrade(score) {
+  if (score >= 90) return 'A';
+  if (score >= 75) return 'B';
+  if (score >= 60) return 'C';
+  return 'D';
+}
+
+function kpiScoreGradeStyle(g) {
+  const map = {
+    A: 'background:#ecfdf5;color:#059669;border:1.5px solid #a7f3d0',
+    B: 'background:#eff6ff;color:#2563eb;border:1.5px solid #bfdbfe',
+    C: 'background:#fffbeb;color:#d97706;border:1.5px solid #fde68a',
+    D: 'background:#fef2f2;color:#dc2626;border:1.5px solid #fecaca',
+  };
+  return map[g] || map.D;
+}
+
+function kpiScoreBarColor(pct) {
+  if (pct >= .9)  return 'linear-gradient(90deg,#10b981,#34d399)';
+  if (pct >= .75) return 'linear-gradient(90deg,#3b82f6,#60a5fa)';
+  if (pct >= .6)  return 'linear-gradient(90deg,#f59e0b,#fbbf24)';
+  return 'linear-gradient(90deg,#ef4444,#f87171)';
+}
+
+let _kpiScoreExpanded = null;
+
+function kpiScoreToggle(empId) {
+  _kpiScoreExpanded = _kpiScoreExpanded === empId ? null : empId;
+  renderKpiScoreTable(_kpiScoreData);
+}
+
+function renderKpiScoreTable(data) {
+  const statsEl = document.getElementById('kpi-score-stats');
+  const bodyEl  = document.getElementById('kpi-score-body');
+  if (!data || !data.length) {
+    if (bodyEl) bodyEl.innerHTML = '<div style="padding:2.5rem;text-align:center;color:#94a3b8;font-size:.88rem">ไม่พบข้อมูลในเดือนนี้</div>';
+    if (statsEl) statsEl.innerHTML = '';
+    return;
+  }
+
+  // Stats
+  const totals = data.map(e => e.total);
+  const avg    = totals.reduce((a,b)=>a+b,0) / totals.length;
+  const max    = Math.max(...totals);
+  const gc     = {A:0,B:0,C:0,D:0};
+  totals.forEach(s => gc[kpiScoreGrade(s)]++);
+  if (statsEl) statsEl.innerHTML = [
+    `<div style="background:#fff;border:1px solid var(--border);border-radius:9px;padding:.4rem .85rem;display:flex;align-items:center;gap:.4rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.7rem;color:var(--muted)">👥 พนักงาน</span>
+      <span style="font-size:1.05rem;font-weight:800;color:var(--navy)">${data.length}</span>
+    </div>`,
+    `<div style="background:#fff;border:1px solid var(--border);border-radius:9px;padding:.4rem .85rem;display:flex;align-items:center;gap:.4rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.7rem;color:var(--muted)">📊 เฉลี่ย</span>
+      <span style="font-size:1.05rem;font-weight:800;color:#2563eb">${avg.toFixed(1)}</span>
+    </div>`,
+    `<div style="background:#fff;border:1px solid var(--border);border-radius:9px;padding:.4rem .85rem;display:flex;align-items:center;gap:.4rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.7rem;color:var(--muted)">🏆 สูงสุด</span>
+      <span style="font-size:1.05rem;font-weight:800;color:#059669">${max}</span>
+    </div>`,
+    ...Object.entries(gc).filter(([,v])=>v>0).map(([g,v]) => {
+      const s = kpiScoreGradeStyle(g);
+      return `<div style="background:#fff;border:1px solid var(--border);border-radius:9px;padding:.4rem .85rem;display:flex;align-items:center;gap:.4rem;box-shadow:0 1px 3px #0001">
+        <span style="font-size:.72rem;font-weight:700;font-family:monospace;${s};border-radius:5px;padding:.05rem .35rem">${g}</span>
+        <span style="font-size:1.05rem;font-weight:800;color:var(--navy)">${v} คน</span>
+      </div>`;
+    })
+  ].join('');
+
+  const isHd = _kpiScoreTeam === 'helpdesk';
+  const KPI_DEF = isHd ? [
+    { key:'satisfaction', label:'คะแนนความพึงพอใจ', icon:'⭐', max:5,  rawKey:'avg_stars',         rawLabel:'ดาวเฉลี่ย' },
+    { key:'no_backlog',   label:'ไม่มีงานค้าง',      icon:'✅', max:5,  rawKey:'overdue_cases',     rawLabel:'ticket ค้าง' },
+    { key:'knowledge',    label:'แชร์ความรู้',         icon:'📚', max:10, rawKey:'kb_articles',       rawLabel:'บทความ' },
+    { key:'punctuality',  label:'การตรงต่อเวลา',       icon:'⏰', max:10, rawKey:'punctuality_score', rawLabel:'HR กรอก' },
+    { key:'general',      label:'คะแนนงานทั่วไป',     icon:'📋', max:60, rawKey:'grade_pts',         rawLabel:'grade pts' },
+    { key:'sw_update',    label:'งานอัพเดท SW',         icon:'💿', max:10, rawKey:'sw_done',           rawLabel:'งาน done' },
+  ] : [
+    { key:'no_backlog',  label:'ไม่มีงานค้าง',    icon:'✅', max:5,  rawKey:'pending_jobs',      rawLabel:'งานค้าง' },
+    { key:'knowledge',   label:'แชร์ความรู้',       icon:'📚', max:5,  rawKey:'kb_articles',       rawLabel:'บทความ' },
+    { key:'punctuality', label:'การตรงต่อเวลา',     icon:'⏰', max:5,  rawKey:'punctuality_score', rawLabel:'HR กรอก' },
+    { key:'training',    label:'เทรนนิ่ง',           icon:'🎓', max:10, rawKey:'tr_count',          rawLabel:'ครั้ง' },
+    { key:'general',     label:'คะแนนงานทั่วไป',   icon:'📋', max:10, rawKey:'hd_grade_pts',      rawLabel:'grade pts' },
+    { key:'agent',       label:'คะแนนงาน Agent',    icon:'🎯', max:35, rawKey:'sp_grade_pts',      rawLabel:'grade pts' },
+    { key:'followup',    label:'Follow up',           icon:'🔁', max:20, rawKey:'fu_resolved',       rawLabel:'งาน resolved' },
+    { key:'sw_update',   label:'งานอัพเดท SW',       icon:'💿', max:10, rawKey:'sw_done',           rawLabel:'งาน done' },
+  ];
+
+  // Header
+  let html = `<div style="display:grid;grid-template-columns:32px 1fr 200px 80px 58px;gap:0;padding:.5rem 1rem;background:#f8fafc;border-bottom:1.5px solid var(--border);font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">
+    <div>#</div><div>พนักงาน</div><div>คะแนนรวม</div><div>คะแนน</div><div>เกรด</div>
+  </div>`;
+
+  data.forEach((emp, idx) => {
+    const g    = kpiScoreGrade(emp.total);
+    const pct  = emp.total / 100;
+    const rankCls = idx===0 ? '#f59e0b' : idx===1 ? '#94a3b8' : idx===2 ? '#cd7c2e' : '#cbd5e1';
+    const isExp = _kpiScoreExpanded === emp.emp_id;
+
+    // Detail rows
+    let detailHtml = '';
+    if (isExp) {
+      const cols = KPI_DEF.map(k => {
+        const earned = emp.scores[k.key] || 0;
+        const kpct   = k.max > 0 ? earned / k.max : 0;
+        const raw    = emp.raw?.[k.rawKey] ?? '—';
+        const barClr = kpct >= .8 ? '#10b981' : kpct >= .6 ? '#3b82f6' : kpct >= .4 ? '#f59e0b' : '#ef4444';
+        return `<div style="background:#fff;border:1px solid #e2e8f0;border-radius:9px;padding:.6rem .8rem;display:flex;flex-direction:column;gap:.3rem">
+          <div style="display:flex;align-items:center;gap:.4rem">
+            <span style="font-size:.85rem">${k.icon}</span>
+            <span style="font-size:.78rem;font-weight:700;color:#1e293b;flex:1">${k.label}</span>
+            <span style="font-family:monospace;font-size:.75rem;font-weight:600;color:#1e293b">${earned}<span style="color:#94a3b8;font-size:.65rem">/${k.max}</span></span>
+          </div>
+          <div style="height:5px;background:#f1f5f9;border-radius:99px;overflow:hidden">
+            <div style="height:100%;width:${Math.round(kpct*100)}%;background:${barClr};border-radius:99px;transition:width .5s"></div>
+          </div>
+          <div style="font-size:.66rem;color:#94a3b8">${k.rawLabel}: ${typeof raw==='number'?raw.toFixed?.(raw%1?1:0):raw : raw}</div>
+        </div>`;
+      }).join('');
+
+      detailHtml = `<div style="background:#f7faff;border-top:1px solid #e0eeff;padding:.85rem 1rem">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.5rem">${cols}</div>
+        <div style="margin-top:.65rem;display:flex;align-items:center;gap:.75rem;font-size:.75rem;color:#64748b;border-top:1px solid #e0eeff;padding-top:.55rem">
+          <span style="font-weight:700;color:#1e293b">คะแนนรวม</span>
+          <span style="font-family:monospace;font-size:1rem;font-weight:700;color:#1e293b">${emp.total} <span style="font-size:.65rem;color:#94a3b8">/ 100</span></span>
+          <span>·</span>
+          <span style="font-family:monospace;font-weight:700;font-size:.85rem;${kpiScoreGradeStyle(g)};border-radius:6px;padding:.1rem .45rem">เกรด ${g}</span>
+          <span style="margin-left:auto">${kpiScoreMonthLabel(_kpiScoreMonth)}</span>
+        </div>
+      </div>`;
+    }
+
+    html += `<div style="border-bottom:1px solid #f1f5f9">
+      <div style="display:grid;grid-template-columns:32px 1fr 200px 80px 58px;align-items:center;padding:.75rem 1rem;cursor:pointer;transition:background .12s${isExp?';background:#f0f7ff':''}"
+           onclick="kpiScoreToggle(${emp.emp_id})" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='${isExp?'#f0f7ff':''}'">
+        <div style="font-family:monospace;font-size:.75rem;font-weight:600;color:${rankCls}">${idx+1}</div>
+        <div>
+          <div style="font-size:.875rem;font-weight:700;color:#0f172a">${escHtml(emp.name)}</div>
+          <div style="font-size:.7rem;color:#94a3b8">${escHtml(emp.team)}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:.22rem">
+          <div style="height:7px;background:#f1f5f9;border-radius:99px;overflow:hidden">
+            <div style="height:100%;width:${Math.round(pct*100)}%;background:${kpiScoreBarColor(pct)};border-radius:99px;transition:width .5s"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between">
+            <span style="font-family:monospace;font-size:.73rem;font-weight:600;color:#0f172a">${emp.total}</span>
+            <span style="font-size:.67rem;color:#94a3b8">${Math.round(pct*100)}%</span>
+          </div>
+        </div>
+        <div style="text-align:center">
+          <span style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;font-family:monospace;font-size:.95rem;font-weight:500;${kpiScoreGradeStyle(g)}">${g}</span>
+        </div>
+        <div style="text-align:right;font-size:.62rem;color:#94a3b8">${isExp?'▲':'▼'}</div>
+      </div>
+      ${detailHtml}
+    </div>`;
+  });
+
+  if (bodyEl) bodyEl.innerHTML = html;
 }
 
 function calcSpTicketScore(sp) {

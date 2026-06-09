@@ -2300,6 +2300,214 @@ app.get('/api/kpi/history', authRequired, async (request, res) => {
 });
 
 // ══════════════════════════════════════════════════════════
+//  KPI MONTHLY SCORES — คะแนน KPI รายเดือน
+// ══════════════════════════════════════════════════════════
+app.get('/api/kpi/monthly-scores', authRequired, async (request, res) => {
+  try {
+    const { month, team } = request.query;
+    if (!month || !/^\d{4}-\d{2}$/.test(month)) return res.status(400).json({ error: 'Invalid month' });
+    const ms = new Date(month + '-01');
+    const me = new Date(new Date(month + '-01').setMonth(ms.getMonth() + 1));
+
+    // ── targets ──
+    const targets = { helpdesk: 1500, specialist: 800, specialist_ticket: 500, sw_update: 20 };
+    try {
+      (await req().query('SELECT role_key, target_grade FROM kpi_targets')).recordset
+        .forEach(r => { targets[r.role_key] = r.target_grade; });
+    } catch(e) {}
+
+    // ── employees ──
+    const teamName = team === 'specialist' ? 'Specialist' : 'Helpdesk';
+    const emps = (await req().input('team', sql.NVarChar, teamName).query(`
+      SELECT e.id AS emp_id, ISNULL(e.nickname, e.name) AS name, e.team,
+             au.ext_username, au.id AS user_id
+      FROM employees e
+      LEFT JOIN app_users au ON au.employee_id = e.id AND au.active = 1
+      WHERE e.team = @team AND e.active = 1
+      ORDER BY e.name
+    `)).recordset;
+    if (!emps.length) return res.json([]);
+
+    const byEmpId  = {};
+    const byExt    = {};
+    const empIds   = [], userIds = [], extNames = [];
+    emps.forEach(e => {
+      byEmpId[e.emp_id] = { ...e };
+      if (e.ext_username) byExt[e.ext_username] = e.emp_id;
+      empIds.push(e.emp_id);
+      if (e.user_id)     userIds.push(e.user_id);
+      if (e.ext_username) extNames.push(e.ext_username);
+    });
+
+    const inI = (arr, pre, r) => { arr.forEach((v,i) => r.input(`${pre}${i}`, sql.Int, v)); return arr.map((_,i)=>`@${pre}${i}`).join(','); };
+    const inS = (arr, pre, r) => { arr.forEach((v,i) => r.input(`${pre}${i}`, sql.NVarChar, v)); return arr.map((_,i)=>`@${pre}${i}`).join(','); };
+
+    // ── KB articles ──
+    if (userIds.length) {
+      const r1 = req().input('ms', sql.DateTime, ms).input('me', sql.DateTime, me);
+      const il = inI(userIds, 'u', r1);
+      (await r1.query(`SELECT created_by AS uid, COUNT(*) AS n FROM shop_knowledge WHERE created_by IN (${il}) AND created_at>=@ms AND created_at<@me GROUP BY created_by`))
+        .recordset.forEach(r => { const e = emps.find(e => e.user_id === r.uid); if (e) byEmpId[e.emp_id].kb_articles = r.n; });
+    }
+
+    // ── Punctuality (HR กรอก) ──
+    if (extNames.length) {
+      const r2 = req().input('month', sql.Date, ms);
+      const il = inS(extNames, 'ex', r2);
+      (await r2.query(`SELECT ext_username, score FROM kpi_punctuality WHERE month=@month AND ext_username IN (${il})`))
+        .recordset.forEach(r => { const eid = byExt[r.ext_username]; if (eid) byEmpId[eid].punctuality_score = r.score; });
+    }
+
+    // ── SW Update jobs done (reported_by) ──
+    if (userIds.length) {
+      const r3 = req().input('ms', sql.DateTime, ms).input('me', sql.DateTime, me);
+      const il = inI(userIds, 'rby', r3);
+      (await r3.query(`SELECT reported_by AS uid, COUNT(*) AS n FROM sw_update_jobs WHERE status='done' AND updated_at>=@ms AND updated_at<@me AND reported_by IN (${il}) GROUP BY reported_by`))
+        .recordset.forEach(r => { const e = emps.find(e => e.user_id === r.uid); if (e) byEmpId[e.emp_id].sw_done = r.n; });
+    }
+
+    if (team === 'specialist') {
+      // ── Specialist pending jobs ──
+      if (empIds.length) {
+        const r4 = req().input('ms', sql.DateTime, ms).input('me', sql.DateTime, me);
+        const il = inI(empIds, 'eid', r4);
+        (await r4.query(`
+          SELECT COALESCE(sl.assigned_to_user, au.employee_id) AS eid,
+                 SUM(CASE WHEN sl.status IN ('pending','in_progress','need_more_info') THEN 1 ELSE 0 END) AS n
+          FROM specialist_log sl LEFT JOIN app_users au ON au.id=sl.accepted_by
+          WHERE sl.assigned_at>=@ms AND sl.assigned_at<@me
+            AND COALESCE(sl.assigned_to_user, au.employee_id) IN (${il})
+          GROUP BY COALESCE(sl.assigned_to_user, au.employee_id)`))
+          .recordset.forEach(r => { if (byEmpId[r.eid]) byEmpId[r.eid].pending_jobs = r.n; });
+      }
+
+      // ── Specialist agent grade pts (specialist_log + Subject) ──
+      if (empIds.length) {
+        try {
+          const r5 = req().input('ms', sql.DateTime, ms).input('me', sql.DateTime, me);
+          const il = inI(empIds, 'eid2', r5);
+          const spSubj = (await r5.query(`
+            SELECT COALESCE(sl.assigned_to_user, au.employee_id) AS eid, sl.subject_id
+            FROM specialist_log sl LEFT JOIN app_users au ON au.id=sl.accepted_by
+            WHERE sl.assigned_at>=@ms AND sl.assigned_at<@me AND sl.subject_id IS NOT NULL
+              AND COALESCE(sl.assigned_to_user, au.employee_id) IN (${il})`)).recordset;
+          if (spSubj.length && getExtPool()) {
+            const uids = [...new Set(spSubj.map(r => r.subject_id))];
+            const re = extReq();
+            uids.forEach((id,i) => re.input(`sid${i}`, sql.Int, id));
+            const gmap = {};
+            (await re.query(`SELECT SubjectId, Grade FROM Subject WHERE SubjectId IN (${uids.map((_,i)=>`@sid${i}`).join(',')})`))
+              .recordset.forEach(s => { gmap[s.SubjectId] = s.Grade; });
+            const agg = {};
+            spSubj.forEach(r => {
+              const pts = {A:4,B:3,C:2,D:1}[gmap[r.subject_id]] || 0;
+              if (pts) agg[r.eid] = (agg[r.eid] || 0) + pts;
+            });
+            Object.entries(agg).forEach(([eid, pts]) => { if (byEmpId[+eid]) byEmpId[+eid].sp_grade_pts = pts; });
+          }
+        } catch(e) { console.warn('[kpi-monthly] sp grade:', e.message); }
+      }
+
+      // ── ติดตามเคส grade pts (Calllog via ext_username) ──
+      if (extNames.length && getExtPool()) {
+        try {
+          const r6 = extReq().input('ms', sql.DateTime, ms).input('me', sql.DateTime, me);
+          const il = inS(extNames, 'ex2', r6);
+          (await r6.query(`
+            SELECT u.UserName,
+              SUM(CASE s.Grade WHEN 'A' THEN 4 WHEN 'B' THEN 3 WHEN 'C' THEN 2 WHEN 'D' THEN 1 ELSE 0 END) AS pts
+            FROM Calllog cl INNER JOIN Users u ON u.UserId=cl.SupportId LEFT JOIN Subject s ON s.SubjectId=cl.SubjectId
+            WHERE cl.Active=1 AND cl.ReceiveDate>=@ms AND cl.ReceiveDate<@me AND u.UserName IN (${il})
+            GROUP BY u.UserName`))
+            .recordset.forEach(r => { const eid = byExt[r.UserName]; if (eid) byEmpId[eid].hd_grade_pts = r.pts || 0; });
+        } catch(e) { console.warn('[kpi-monthly] hd grade for sp:', e.message); }
+      }
+
+      // ── Training (trainer_ext) ──
+      if (extNames.length) {
+        const r7 = req().input('ms', sql.Date, ms).input('me', sql.Date, me);
+        const il = inS(extNames, 'ex3', r7);
+        (await r7.query(`SELECT trainer_ext, COUNT(*) AS n FROM kpi_trainings WHERE trained_date>=@ms AND trained_date<@me AND trainer_ext IN (${il}) GROUP BY trainer_ext`))
+          .recordset.forEach(r => { const eid = byExt[r.trainer_ext]; if (eid) byEmpId[eid].tr_count = r.n; });
+      }
+
+      // ── FU issues resolved ──
+      if (empIds.length) {
+        const r8 = req().input('ms', sql.DateTime, ms).input('me', sql.DateTime, me);
+        const il = inI(empIds, 'eid3', r8);
+        (await r8.query(`SELECT assigned_to AS eid, COUNT(*) AS n FROM fu_issues WHERE status='resolved' AND updated_at>=@ms AND updated_at<@me AND assigned_to IN (${il}) GROUP BY assigned_to`))
+          .recordset.forEach(r => { if (byEmpId[r.eid]) byEmpId[r.eid].fu_resolved = r.n; });
+      }
+
+      // ── Calculate Specialist scores ──
+      const spTgt = targets.specialist || 800;
+      const tkTgt = targets.specialist_ticket || 500;
+      const swTgt = targets.sw_update || 20;
+      return res.json(emps.map(e => {
+        const d = byEmpId[e.emp_id];
+        const no_backlog  = Math.max(0, 5 - (d.pending_jobs  || 0));
+        const knowledge   = Math.min(Math.round((d.kb_articles || 0) * 1.25), 5);
+        const punctuality = Math.min(+(d.punctuality_score || 0), 5);
+        const training    = Math.min((d.tr_count || 0) * 5, 10);
+        const general     = Math.min(Math.round((d.hd_grade_pts || 0) / tkTgt * 10), 10);
+        const agent       = Math.min(Math.round((d.sp_grade_pts || 0) / spTgt * 35), 35);
+        const followup    = Math.min((d.fu_resolved || 0) * 5, 20);
+        const sw_update   = Math.min(Math.round((d.sw_done || 0) / swTgt * 10), 10);
+        const total = no_backlog + knowledge + punctuality + training + general + agent + followup + sw_update;
+        return { emp_id: e.emp_id, name: e.name, team: e.team,
+          raw: { pending_jobs: d.pending_jobs||0, kb_articles: d.kb_articles||0, punctuality_score: d.punctuality_score||0,
+                 tr_count: d.tr_count||0, hd_grade_pts: d.hd_grade_pts||0, sp_grade_pts: d.sp_grade_pts||0,
+                 fu_resolved: d.fu_resolved||0, sw_done: d.sw_done||0 },
+          scores: { no_backlog, knowledge, punctuality, training, general, agent, followup, sw_update }, total };
+      }).sort((a,b) => b.total - a.total));
+    }
+
+    // ── Helpdesk: Calllog data ──
+    if (extNames.length && getExtPool()) {
+      try {
+        const r9 = extReq().input('ms', sql.DateTime, ms).input('me', sql.DateTime, me);
+        const il = inS(extNames, 'ex4', r9);
+        (await r9.query(`
+          SELECT u.UserName,
+            AVG(CASE WHEN cl.Stars IS NOT NULL AND cl.Stars>0 THEN CAST(cl.Stars AS FLOAT) END) AS avg_stars,
+            SUM(CASE WHEN cs.StatusName NOT LIKE '%close%' AND cs.StatusName NOT LIKE '%complete%'
+                          AND DATEDIFF(hour, cl.ReceiveDate, GETDATE())>24 THEN 1 ELSE 0 END) AS overdue,
+            SUM(CASE s.Grade WHEN 'A' THEN 4 WHEN 'B' THEN 3 WHEN 'C' THEN 2 WHEN 'D' THEN 1 ELSE 0 END) AS grade_pts
+          FROM Calllog cl
+          INNER JOIN Users u ON u.UserId=cl.SupportId
+          INNER JOIN CallStatus cs ON cs.StatusId=cl.StatusId
+          LEFT JOIN Subject s ON s.SubjectId=cl.SubjectId
+          WHERE cl.Active=1 AND cl.ReceiveDate>=@ms AND cl.ReceiveDate<@me AND u.UserName IN (${il})
+          GROUP BY u.UserName`))
+          .recordset.forEach(r => {
+            const eid = byExt[r.UserName];
+            if (eid) { byEmpId[eid].avg_stars = r.avg_stars; byEmpId[eid].overdue_cases = r.overdue || 0; byEmpId[eid].grade_pts = r.grade_pts || 0; }
+          });
+      } catch(e) { console.warn('[kpi-monthly] hd calllog:', e.message); }
+    }
+
+    // ── Calculate Helpdesk scores ──
+    const hdTgt = targets.helpdesk || 1500;
+    const swTgt = targets.sw_update || 20;
+    return res.json(emps.map(e => {
+      const d = byEmpId[e.emp_id];
+      const satisfaction = Math.min(+(d.avg_stars || 0).toFixed(1), 5);
+      const no_backlog   = Math.max(0, 5 - (d.overdue_cases || 0));
+      const knowledge    = Math.min(Math.round((d.kb_articles || 0) * 2.5), 10);
+      const punctuality  = Math.min(+(d.punctuality_score || 0), 10);
+      const general      = Math.min(Math.round((d.grade_pts || 0) / hdTgt * 60), 60);
+      const sw_update    = Math.min(Math.round((d.sw_done || 0) / swTgt * 10), 10);
+      const total = satisfaction + no_backlog + knowledge + punctuality + general + sw_update;
+      return { emp_id: e.emp_id, name: e.name, team: e.team,
+        raw: { avg_stars: d.avg_stars||0, overdue_cases: d.overdue_cases||0, kb_articles: d.kb_articles||0,
+               punctuality_score: d.punctuality_score||0, grade_pts: d.grade_pts||0, sw_done: d.sw_done||0 },
+        scores: { satisfaction, no_backlog, knowledge, punctuality, general, sw_update }, total };
+    }).sort((a,b) => b.total - a.total));
+
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════
 //  DASHBOARD — Calllog (LicenseDB) + shifts/leaves (cs_team)
 // ══════════════════════════════════════════════════════════
 app.get('/api/dashboard', authRequired, async (_, res) => {
