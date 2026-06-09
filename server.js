@@ -5417,10 +5417,12 @@ app.get('/api/public/board/:token/data', async (request, res) => {
               WHERE t.token=@tok`)).recordset[0];
     if (!row) return res.status(404).json({ error: 'invalid or expired link' });
     const issues = (await req().input('bid', sql.Int, row.board_id)
-      .query(`SELECT i.id, i.title, i.status, i.priority, i.category,
-                     i.assigned_to_name, i.created_at, i.updated_at, i.description
+      .query(`SELECT i.id, i.detail AS title, i.branch, i.status, i.priority, i.category,
+                     i.note, i.due_date, i.issue_url, i.created_at, i.updated_at,
+                     ISNULL(e.nickname, e.name) AS assigned_to_name
               FROM fu_issues i
-              WHERE i.board_id=@bid AND i.deleted_at IS NULL
+              LEFT JOIN employees e ON e.id = i.assigned_to
+              WHERE i.board_id=@bid
               ORDER BY i.created_at DESC`)).recordset;
     res.json({ board_name: row.board_name, folder_name: row.folder_name, issues });
   } catch(e) { res.status(500).json({ error: e.message }); }
