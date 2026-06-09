@@ -162,6 +162,21 @@ tr:last-child td { border-bottom:none; }
 .btn-close-modal { background:#f1f5f9; color:#374151; border:none; border-radius:9px; padding:.45rem 1.2rem; font-size:.82rem; font-weight:600; cursor:pointer; font-family:inherit; transition:background .12s; }
 .btn-close-modal:hover { background:#e2e8f0; }
 
+/* ── Comments ── */
+.comments-section { border-top:1px solid #f1f5f9; padding-top:.9rem; }
+.comments-title { font-size:.72rem; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; margin-bottom:.75rem; display:flex; align-items:center; gap:.4rem; }
+.comments-title .cnt-badge { background:#f1f5f9; color:#475569; font-size:.7rem; font-weight:700; border-radius:20px; padding:.05rem .45rem; }
+.comment-item { display:flex; gap:.65rem; margin-bottom:.85rem; }
+.comment-item:last-child { margin-bottom:0; }
+.avatar { width:30px; height:30px; border-radius:50%; background:linear-gradient(135deg,#3b82f6,#8b5cf6); color:#fff; font-size:.75rem; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.comment-bubble { flex:1; }
+.comment-meta { font-size:.7rem; color:#94a3b8; margin-bottom:.22rem; display:flex; align-items:center; gap:.4rem; }
+.comment-author { font-weight:700; color:#475569; }
+.comment-body { background:#f8fafc; border:1px solid #e8edf3; border-radius:0 10px 10px 10px; padding:.55rem .75rem; font-size:.82rem; line-height:1.6; color:#374151; white-space:pre-wrap; word-break:break-word; }
+.comments-loading { display:flex; align-items:center; gap:.5rem; color:#94a3b8; font-size:.8rem; padding:.5rem 0; }
+.mini-spinner { width:16px; height:16px; border:2px solid #e2e8f0; border-top-color:#3b82f6; border-radius:50%; animation:spin .6s linear infinite; flex-shrink:0; }
+.no-comments { text-align:center; color:#cbd5e1; font-size:.78rem; padding:.75rem 0; }
+
 /* Loading / Error */
 .center { display:flex; align-items:center; justify-content:center; min-height:50vh; }
 .spinner { width:36px; height:36px; border:3px solid #e2e8f0; border-top-color:#3b82f6; border-radius:50%; animation:spin .7s linear infinite; }
@@ -292,6 +307,16 @@ tr:last-child td { border-bottom:none; }
           <span id="dm-url-label"></span>
         </a>
       </div>
+
+      <!-- Comments -->
+      <div class="comments-section">
+        <div class="comments-title">
+          💬 Comments <span class="cnt-badge" id="dm-comment-cnt"></span>
+        </div>
+        <div id="dm-comments-body">
+          <div class="comments-loading"><div class="mini-spinner"></div> กำลังโหลด…</div>
+        </div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn-close-modal" onclick="closeDetail()">ปิด</button>
@@ -397,9 +422,63 @@ function openDetail(id) {
     urlWrap.style.display = '';
   } else urlWrap.style.display = 'none';
 
+  // Reset comments
+  document.getElementById('dm-comment-cnt').textContent = '';
+  document.getElementById('dm-comments-body').innerHTML =
+    `<div class="comments-loading"><div class="mini-spinner"></div> กำลังโหลด…</div>`;
+
   document.getElementById('detail-modal').style.display = 'flex';
   document.body.style.overflow = 'hidden';
+
+  // Load comments async (don't await — show modal immediately)
+  loadComments(id);
 }
+
+async function loadComments(issueId) {
+  const token = location.pathname.split('/public/board/')[1];
+  try {
+    const res = await fetch(`/api/public/board/${token}/issues/${issueId}/comments`);
+    if (!res.ok) throw new Error('load failed');
+    const comments = await res.json();
+
+    const cntEl = document.getElementById('dm-comment-cnt');
+    if (cntEl) cntEl.textContent = comments.length;
+
+    const body = document.getElementById('dm-comments-body');
+    if (!body) return;
+
+    if (!comments.length) {
+      body.innerHTML = `<div class="no-comments">ยังไม่มี comment</div>`;
+      return;
+    }
+
+    const AVATAR_COLORS = ['#3b82f6','#8b5cf6','#ec4899','#f59e0b','#14b8a6','#ef4444','#22c55e'];
+    const colorMap = {};
+    let colorIdx = 0;
+
+    body.innerHTML = comments.map(c => {
+      const name = c.user_name || 'ไม่ระบุ';
+      if (!colorMap[name]) colorMap[name] = AVATAR_COLORS[colorIdx++ % AVATAR_COLORS.length];
+      const avatarColor = colorMap[name];
+      const avatarChar  = (c.avatar_char || name.charAt(0) || '?').toUpperCase();
+      const dt = new Date(c.created_at);
+      const timeStr = dt.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}) +
+                      ' · ' + dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+      return `<div class="comment-item">
+        <div class="avatar" style="background:${avatarColor}">${esc(avatarChar)}</div>
+        <div class="comment-bubble">
+          <div class="comment-meta">
+            <span class="comment-author">${esc(name)}</span>
+            <span>${timeStr}</span>
+          </div>
+          <div class="comment-body">${esc(c.body)}</div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch {
+    const body = document.getElementById('dm-comments-body');
+    if (body) body.innerHTML = `<div class="no-comments" style="color:#fca5a5">โหลด comment ไม่สำเร็จ</div>`;
+  }
 
 function closeDetail() {
   document.getElementById('detail-modal').style.display = 'none';

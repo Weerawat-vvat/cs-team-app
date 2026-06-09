@@ -5428,6 +5428,31 @@ app.get('/api/public/board/:token/data', async (request, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// GET /api/public/board/:token/issues/:id/comments  → public comments (no auth)
+app.get('/api/public/board/:token/issues/:id/comments', async (request, res) => {
+  try {
+    const tok = request.params.token;
+    const iid = parseInt(request.params.id);
+    // Verify token exists and issue belongs to that board
+    const tokenRow = (await req().input('tok', sql.NVarChar, tok)
+      .query(`SELECT board_id FROM fu_board_tokens WHERE token=@tok`)).recordset[0];
+    if (!tokenRow) return res.status(404).json({ error: 'invalid token' });
+    const issueRow = (await req().input('iid', sql.Int, iid).input('bid', sql.Int, tokenRow.board_id)
+      .query(`SELECT id FROM fu_issues WHERE id=@iid AND board_id=@bid`)).recordset[0];
+    if (!issueRow) return res.status(404).json({ error: 'issue not found' });
+    const comments = (await req().input('id', sql.Int, iid).query(`
+      SELECT c.id, c.body, c.created_at,
+             ISNULL(e.nickname, e.name) AS user_name,
+             LEFT(UPPER(ISNULL(e.nickname, e.name)), 1) AS avatar_char
+      FROM fu_comments c
+      LEFT JOIN app_users au ON au.id = c.user_id
+      LEFT JOIN employees e  ON e.id  = au.employee_id
+      WHERE c.issue_id = @id
+      ORDER BY c.created_at ASC`)).recordset;
+    res.json(comments);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // GET /public/board/:token  → serve public HTML page
 app.get('/public/board/:token', (req2, res) => {
   res.sendFile(require('path').join(__dirname, 'public', 'board-public.html'));
