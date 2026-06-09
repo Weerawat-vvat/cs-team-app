@@ -4071,6 +4071,7 @@ let allTeams      = [];
 let allShiftTypes = [];
 let nameMap       = {};  // ext_username → employee display name
 let teamMap       = {};  // ext_username → team
+let _onShiftExtUsernames = new Set(); // ext_username ของคนที่ออนกะวันนี้
 
 function dn(username) {  // displayName: map LicenseDB username → real name
   if (!username) return username;
@@ -4495,6 +4496,11 @@ async function loadDashboard() {
   if (!d || !d.serverTime) return;
   if (d.nameMap) Object.assign(nameMap, d.nameMap);
 
+  // เก็บ ext_username ของคนที่ออนกะวันนี้ เพื่อ filter chart
+  _onShiftExtUsernames = new Set(
+    (d.onShift || []).map(e => e.ext_username).filter(Boolean)
+  );
+
   // Server time
   document.getElementById('dash-time').textContent =
     'อัปเดต: ' + parseDbDate(d.serverTime).toLocaleTimeString('th-TH');
@@ -4824,13 +4830,17 @@ async function loadDashboardCharts() {
   if (ctxBar && (agentThis.length || agentLast.length)) {
     // รวม username จากทั้ง 2 ช่วง ไม่ตัดแค่ top N
     // เรียงตาม ticket ช่วงนี้ (มากสุดก่อน) แล้วตามด้วยคนที่มีแค่ช่วงก่อน
-    const allUsers = [...new Set([
+    let allChartUsers = [...new Set([
       ...agentThis.map(r => r.UserName),
       ...agentLast.map(r => r.UserName)
     ])];
+    // ถ้าดู "วันนี้" และมีข้อมูล on-shift → แสดงเฉพาะคนออนกะวันนี้
+    if (_dashPreset === 'today' && _onShiftExtUsernames.size > 0) {
+      allChartUsers = allChartUsers.filter(u => _onShiftExtUsernames.has(u));
+    }
     const thisMap2 = Object.fromEntries(agentThis.map(r => [r.UserName, r.cnt || 0]));
-    allUsers.sort((a, b) => (thisMap2[b] || 0) - (thisMap2[a] || 0));
-    const topN = allUsers.map(u => ({ UserName: u, cnt: thisMap2[u] || 0 }));
+    allChartUsers.sort((a, b) => (thisMap2[b] || 0) - (thisMap2[a] || 0));
+    const topN = allChartUsers.map(u => ({ UserName: u, cnt: thisMap2[u] || 0 }));
 
     const _tgt   = parseInt(document.getElementById('dash-target')?.value) || 0;
 

@@ -2396,8 +2396,10 @@ app.get('/api/dashboard', authRequired, async (_, res) => {
     const shiftReq = req().input('today', sql.Date, today);
     currentShifts.forEach((s,i) => shiftReq.input(`st${i}`, sql.NVarChar, s));
     const onShift = (await shiftReq.query(`
-      SELECT s.shift_type, e.id AS employee_id, e.name, e.nickname, e.team, e.role
+      SELECT s.shift_type, e.id AS employee_id, e.name, e.nickname, e.team, e.role,
+             au.ext_username
       FROM shifts s JOIN employees e ON e.id=s.employee_id
+      LEFT JOIN app_users au ON au.employee_id = e.id AND au.active = 1
       WHERE s.shift_date=@today AND s.shift_type IN (${shiftIn})
         AND s.status='scheduled' AND e.active=1
       ORDER BY e.team, s.shift_type`)).recordset;
