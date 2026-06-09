@@ -6980,7 +6980,8 @@ function renderKpiScoreTable(data) {
       const cols = KPI_DEF.map(k => {
         const earned = emp.scores[k.key] || 0;
         const kpct   = k.max > 0 ? earned / k.max : 0;
-        const raw    = emp.raw?.[k.rawKey] ?? '—';
+        const rawVal = emp.raw ? emp.raw[k.rawKey] : undefined;
+        const rawFmt = (rawVal === undefined || rawVal === null) ? '—' : (typeof rawVal === 'number' ? (rawVal % 1 ? rawVal.toFixed(1) : rawVal) : rawVal);
         const barClr = kpct >= .8 ? '#10b981' : kpct >= .6 ? '#3b82f6' : kpct >= .4 ? '#f59e0b' : '#ef4444';
         return `<div style="background:#fff;border:1px solid #e2e8f0;border-radius:9px;padding:.6rem .8rem;display:flex;flex-direction:column;gap:.3rem">
           <div style="display:flex;align-items:center;gap:.4rem">
@@ -6991,7 +6992,7 @@ function renderKpiScoreTable(data) {
           <div style="height:5px;background:#f1f5f9;border-radius:99px;overflow:hidden">
             <div style="height:100%;width:${Math.round(kpct*100)}%;background:${barClr};border-radius:99px;transition:width .5s"></div>
           </div>
-          <div style="font-size:.66rem;color:#94a3b8">${k.rawLabel}: ${typeof raw==='number'?raw.toFixed?.(raw%1?1:0):raw : raw}</div>
+          <div style="font-size:.66rem;color:#94a3b8">${k.rawLabel}: ${rawFmt}</div>
         </div>`;
       }).join('');
 
