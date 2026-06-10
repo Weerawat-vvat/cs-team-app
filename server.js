@@ -3229,6 +3229,14 @@ app.post('/api/public/complaint/direct', publicUpload.array('attachments', 5), a
     if (!company_name?.trim()) return res.status(400).json({ error: 'กรุณาระบุชื่อร้าน / บริษัท' });
     if (!message?.trim())      return res.status(400).json({ error: 'กรุณาระบุข้อความร้องเรียน' });
 
+    // Ensure optional columns exist (idempotent)
+    await req().query(`
+      IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='ticket_complaints' AND COLUMN_NAME='contact_name')
+        ALTER TABLE ticket_complaints ADD contact_name NVARCHAR(200) NULL;
+      IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='ticket_complaints' AND COLUMN_NAME='contact_phone')
+        ALTER TABLE ticket_complaints ADD contact_phone NVARCHAR(50) NULL;
+    `);
+
     // Ensure complaint_attachments table exists
     await req().query(`
       IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='complaint_attachments')
