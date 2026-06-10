@@ -3931,10 +3931,6 @@ textarea{resize:vertical;min-height:80px}
         style="font-size:1.4rem;font-weight:700;text-align:center;width:100px"/>
     </div>
     <div id="punct-quick-btns" style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.85rem"></div>
-    <div class="form-group">
-      <label>บันทึกโดย</label>
-      <select id="punct-recorder" class="emp-select"></select>
-    </div>
     <div class="btn-group">
       <button class="btn btn-primary" onclick="savePunct()">บันทึก</button>
       <button class="btn btn-ghost" onclick="closeModal('modal-punct')">ยกเลิก</button>
@@ -4909,9 +4905,10 @@ async function loadDashboardCharts() {
       ...agentThis.map(r => r.UserName),
       ...agentLast.map(r => r.UserName)
     ])];
-    // ถ้าดู "วันนี้" และมีข้อมูล on-shift → แสดงเฉพาะคนออนกะวันนี้
+    // ถ้าดู "วันนี้" และมีข้อมูล on-shift → แสดงเฉพาะคนออนกะวันนี้ (case-insensitive)
     if (_dashPreset === 'today' && _onShiftExtUsernames.size > 0) {
-      allChartUsers = allChartUsers.filter(u => _onShiftExtUsernames.has(u));
+      const onShiftLower = new Set([..._onShiftExtUsernames].map(s => s.toLowerCase()));
+      allChartUsers = allChartUsers.filter(u => onShiftLower.has(u.toLowerCase()));
     }
     const thisMap2 = Object.fromEntries(agentThis.map(r => [r.UserName, r.cnt || 0]));
     allChartUsers.sort((a, b) => (thisMap2[b] || 0) - (thisMap2[a] || 0));
@@ -7688,9 +7685,6 @@ function _openPunctModalInner(username, name, month) {
       `<button onclick="document.getElementById('punct-score').value=${v};document.querySelectorAll('#punct-quick-btns button').forEach(b=>b.style.background='#f8fafc');this.style.background='#dbeafe'"
         style="padding:.22rem .6rem;border-radius:6px;border:1px solid #e2e8f0;background:${v===cur?'#dbeafe':'#f8fafc'};cursor:pointer;font-size:.78rem;font-weight:600">${v}</button>`
     ).join('');
-  const sel = document.getElementById('punct-recorder');
-  const ref = document.getElementById('kpi-recorder');
-  if (ref) sel.innerHTML = ref.innerHTML;
   openModal('modal-punct');
 }
 
@@ -7698,8 +7692,7 @@ async function savePunct() {
   const username    = document.getElementById('punct-username').value;
   const month       = document.getElementById('punct-month').value;
   const score       = +document.getElementById('punct-score').value;
-  const recorded_by = +document.getElementById('punct-recorder').value || null;
-  await api('/api/kpi/punctuality', { method:'POST', body:{ ext_username:username, month, score, recorded_by } });
+  await api('/api/kpi/punctuality', { method:'POST', body:{ ext_username:username, month, score } });
   _kpiPunctMap[username] = score;
   showToast('✅ บันทึกแล้ว', 'success');
   closeModal('modal-punct');
