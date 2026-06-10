@@ -1975,7 +1975,7 @@ app.get('/api/kpi/activities', authRequired, async (request, res) => {
       me = m2 === 12 ? `${y+1}-01-01` : `${y}-${String(m2+1).padStart(2,'0')}-01`;
     }
 
-    const [kbRows, trRows, fuRows] = await Promise.all([
+    const [kbRows, trRows, fuRows, swRows] = await Promise.all([
       req().input('ms', sql.Date, ms).input('me', sql.Date, me)
         .query(`SELECT au.ext_username, COUNT(*) AS kb_count
                 FROM shop_knowledge k JOIN app_users au ON au.id = k.created_by
@@ -1995,22 +1995,31 @@ app.get('/api/kpi/activities', authRequired, async (request, res) => {
                   AND COALESCE(i.fix_date, CAST(i.updated_at AS DATE)) >= @ms
                   AND COALESCE(i.fix_date, CAST(i.updated_at AS DATE)) < @me
                   AND au.ext_username IS NOT NULL
+                GROUP BY au.ext_username`),
+      req().input('ms', sql.Date, ms).input('me', sql.Date, me)
+        .query(`SELECT au.ext_username, COUNT(DISTINCT j.id) AS sw_count
+                FROM sw_update_jobs j
+                JOIN sw_update_assignees a ON a.job_id = j.id
+                JOIN app_users au ON au.id = a.user_id
+                WHERE j.status = 'done' AND j.updated_at >= @ms AND j.updated_at < @me
+                  AND au.ext_username IS NOT NULL
                 GROUP BY au.ext_username`)
     ]);
-    const kbMap = {}, trMap = {}, fuMap = {};
+    const kbMap = {}, trMap = {}, fuMap = {}, swMap = {};
     kbRows.recordset.forEach(r => { kbMap[r.ext_username] = r.kb_count; });
     trRows.recordset.forEach(r => { trMap[r.trainer_ext]  = r.tr_count; });
     fuRows.recordset.forEach(r => { fuMap[r.ext_username] = r.fu_count; });
+    swRows.recordset.forEach(r => { swMap[r.ext_username] = r.sw_count; });
 
     const result = await req()
       .input('month', sql.Date, ms)
       .query(`SELECT ext_username FROM kpi_activities WHERE month = @month`);
 
     // Merge all sources
-    const allUsers = new Set([...Object.keys(kbMap), ...Object.keys(trMap), ...Object.keys(fuMap), ...result.recordset.map(r=>r.ext_username)]);
+    const allUsers = new Set([...Object.keys(kbMap), ...Object.keys(trMap), ...Object.keys(fuMap), ...Object.keys(swMap), ...result.recordset.map(r=>r.ext_username)]);
     const merged = {};
     allUsers.forEach(u => {
-      merged[u] = { ext_username: u, kb_articles: kbMap[u]||0, trainings: trMap[u]||0, fu_resolved: fuMap[u]||0 };
+      merged[u] = { ext_username: u, kb_articles: kbMap[u]||0, trainings: trMap[u]||0, fu_resolved: fuMap[u]||0, sw_done: swMap[u]||0 };
     });
 
     res.json(Object.values(merged));
@@ -2358,11 +2367,11 @@ app.get('/api/kpi/monthly-scores', authRequired, async (request, res) => {
         .recordset.forEach(r => { const eid = byExt[r.ext_username]; if (eid) byEmpId[eid].punctuality_score = r.score; });
     }
 
-    // ── SW Update jobs done (reported_by) ──
+    // ── SW Update jobs done (via assignees table) ──
     if (userIds.length) {
       const r3 = req().input('ms', sql.DateTime, ms).input('me', sql.DateTime, me);
-      const il = inI(userIds, 'rby', r3);
-      (await r3.query(`SELECT reported_by AS uid, COUNT(*) AS n FROM sw_update_jobs WHERE status='done' AND updated_at>=@ms AND updated_at<@me AND reported_by IN (${il}) GROUP BY reported_by`))
+      const il = inI(userIds, 'uid', r3);
+      (await r3.query(`SELECT a.user_id AS uid, COUNT(DISTINCT j.id) AS n FROM sw_update_jobs j JOIN sw_update_assignees a ON a.job_id=j.id WHERE j.status='done' AND j.updated_at>=@ms AND j.updated_at<@me AND a.user_id IN (${il}) GROUP BY a.user_id`))
         .recordset.forEach(r => { const e = emps.find(e => e.user_id === r.uid); if (e) byEmpId[e.emp_id].sw_done = r.n; });
     }
 
@@ -3162,6 +3171,27 @@ app.get('/api/public/track/:token', async (request, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// Multer for public file uploads (complaints & repair)
+const publicUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const dir = path.join(UPLOAD_DIR, 'tmp');
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    },
+    filename: (req, file, cb) => {
+      const ext  = path.extname(file.originalname);
+      const base = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9ก-๙_-]/g, '_');
+      cb(null, `${Date.now()}_${base}${ext}`);
+    }
+  }),
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = /jpeg|jpg|png|gif|pdf/;
+    cb(null, allowed.test(path.extname(file.originalname).toLowerCase()));
+  }
+});
+
 // PUBLIC — submit complaint (no auth)
 app.post('/api/public/complaint', async (request, res) => {
   try {
@@ -3193,20 +3223,58 @@ app.post('/api/public/complaint', async (request, res) => {
 });
 
 // PUBLIC — submit complaint direct (no token, no auth)
-app.post('/api/public/complaint/direct', async (request, res) => {
+app.post('/api/public/complaint/direct', publicUpload.array('attachments', 5), async (request, res) => {
   try {
     const { company_name, contact_name, contact_phone, email, message } = request.body;
     if (!company_name?.trim()) return res.status(400).json({ error: 'กรุณาระบุชื่อร้าน / บริษัท' });
     if (!message?.trim())      return res.status(400).json({ error: 'กรุณาระบุข้อความร้องเรียน' });
-    await req()
+
+    // Ensure complaint_attachments table exists
+    await req().query(`
+      IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='complaint_attachments')
+      CREATE TABLE complaint_attachments (
+        id           INT IDENTITY PRIMARY KEY,
+        complaint_id INT NOT NULL,
+        file_type    NVARCHAR(10),
+        file_name    NVARCHAR(500),
+        file_path    NVARCHAR(1000),
+        file_size    INT,
+        created_at   DATETIME DEFAULT GETDATE()
+      )`);
+
+    const result = await req()
       .input('cn',   sql.NVarChar, company_name.trim())
       .input('cname',sql.NVarChar, contact_name?.trim() || null)
       .input('ctel', sql.NVarChar, contact_phone || null)
       .input('em',   sql.NVarChar, email || null)
       .input('msg',  sql.NVarChar, message.trim())
       .query(`INSERT INTO ticket_complaints (company_name, contact_name, contact_phone, email, message)
+              OUTPUT INSERTED.id
               VALUES (@cn, @cname, @ctel, @em, @msg)`);
-    await sendLineNotify(`\n📣 [ร้องเรียนใหม่] ${company_name.trim()}${contact_name?` | ${contact_name.trim()}`:''}${contact_phone?` | ${contact_phone}`:''}\n"${message.trim().substring(0,100)}${message.trim().length>100?'…':''}"`, 'complaint');
+
+    const newId = result.recordset[0].id;
+
+    // Save uploaded files
+    if (request.files?.length) {
+      const dir = path.join(UPLOAD_DIR, `complaint_${newId}`);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      for (const file of request.files) {
+        const newPath = path.join(dir, file.filename);
+        fs.renameSync(file.path, newPath);
+        const relPath = `/uploads/complaint_${newId}/${file.filename}`;
+        const ftype = /pdf/.test(path.extname(file.originalname).toLowerCase()) ? 'pdf' : 'image';
+        await req()
+          .input('cid', sql.Int,      newId)
+          .input('ft',  sql.NVarChar, ftype)
+          .input('fn',  sql.NVarChar, file.originalname)
+          .input('fp',  sql.NVarChar, relPath)
+          .input('fs',  sql.Int,      file.size)
+          .query(`INSERT INTO complaint_attachments (complaint_id,file_type,file_name,file_path,file_size)
+                  VALUES (@cid,@ft,@fn,@fp,@fs)`);
+      }
+    }
+
+    await sendLineNotify(`\n📣 [ร้องเรียนใหม่] ${company_name.trim()}${contact_name?` | ${contact_name.trim()}`:''}${contact_phone?` | ${contact_phone}`:''}\n"${message.trim().substring(0,100)}${message.trim().length>100?'…':''}"${request.files?.length?`\n📎 แนบไฟล์ ${request.files.length} ไฟล์`:''}`, 'complaint');
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -3236,7 +3304,20 @@ app.get('/api/complaints', authRequired, async (request, res) => {
       FROM ticket_complaints tc
       LEFT JOIN employees au ON au.id = tc.resolved_by
       ORDER BY tc.created_at DESC`);
-    res.json(result.recordset);
+    const complaints = result.recordset;
+
+    // Attach files if table exists
+    try {
+      const attResult = await req().query(`SELECT * FROM complaint_attachments ORDER BY created_at`);
+      const attMap = {};
+      for (const a of attResult.recordset) {
+        if (!attMap[a.complaint_id]) attMap[a.complaint_id] = [];
+        attMap[a.complaint_id].push(a);
+      }
+      for (const c of complaints) c.attachments = attMap[c.id] || [];
+    } catch { for (const c of complaints) c.attachments = []; }
+
+    res.json(complaints);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -3614,25 +3695,6 @@ app.get('/api/public/repairs-by-token/:token', async (request, res) => {
 
 // Customer message from tracking page (no auth)
 // PUBLIC — Customer submits new repair request (no auth, supports file upload)
-const publicUpload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => {
-      const dir = path.join(UPLOAD_DIR, 'tmp');
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      cb(null, dir);
-    },
-    filename: (req, file, cb) => {
-      const ext  = path.extname(file.originalname);
-      const base = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9ก-๙_-]/g, '_');
-      cb(null, `${Date.now()}_${base}${ext}`);
-    }
-  }),
-  limits: { fileSize: 20 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const allowed = /jpeg|jpg|png|gif|pdf/;
-    cb(null, allowed.test(path.extname(file.originalname).toLowerCase()));
-  }
-});
 
 app.post('/api/public/repair/submit', publicUpload.array('attachments', 5), async (request, res) => {
   try {
@@ -4146,6 +4208,23 @@ app.get('/api/sw-update', authRequired, async (request, res) => {
       ${where}
       ORDER BY j.created_at DESC
     `)).recordset;
+    // Attach assignees to each row
+    if (rows.length) {
+      const ids = rows.map(r => r.id).join(',');
+      const assigneeRows = (await req().query(`
+        SELECT a.job_id, a.user_id, ISNULL(e2.nickname, e2.name) AS name
+        FROM sw_update_assignees a
+        JOIN app_users au2 ON au2.id = a.user_id
+        LEFT JOIN employees e2 ON e2.id = au2.employee_id
+        WHERE a.job_id IN (${ids})
+      `)).recordset;
+      const aMap = {};
+      assigneeRows.forEach(a => {
+        if (!aMap[a.job_id]) aMap[a.job_id] = [];
+        aMap[a.job_id].push({ user_id: a.user_id, name: a.name });
+      });
+      rows.forEach(r => { r.assignees = aMap[r.id] || []; });
+    }
     res.json(rows);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -4213,6 +4292,17 @@ app.put('/api/sw-update/:id', authRequired, async (request, res) => {
         version_recommend=@ver, reported_by=@rb,
         updated_at=GETDATE(), updated_by=@ub
         WHERE id=@id`);
+    // Save assignees (replace all)
+    if (Array.isArray(b.assignees)) {
+      await req().input('jid', sql.Int, id).query(`DELETE FROM sw_update_assignees WHERE job_id=@jid`);
+      for (const uid of b.assignees) {
+        if (!uid) continue;
+        try {
+          await req().input('jid', sql.Int, id).input('uid', sql.Int, uid)
+            .query(`INSERT INTO sw_update_assignees (job_id, user_id) VALUES (@jid, @uid)`);
+        } catch(e) { /* ignore duplicate */ }
+      }
+    }
     // Auto-resolve linked Follow Up when SW Update is done
     if (b.status === 'done' && cur?.fu_issue_id) {
       try {
@@ -6874,6 +6964,21 @@ async function ensureSwUpdateTable() {
     // Add fu_issue_id link column
     await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('sw_update_jobs') AND name='fu_issue_id')
       ALTER TABLE sw_update_jobs ADD fu_issue_id INT NULL`);
+    // Create sw_update_assignees table for multiple assignees per job
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='sw_update_assignees' AND xtype='U')
+      CREATE TABLE sw_update_assignees (
+        id       INT PRIMARY KEY IDENTITY,
+        job_id   INT NOT NULL,
+        user_id  INT NOT NULL,
+        created_at DATETIME DEFAULT GETDATE()
+      )
+    `);
+    // Add unique constraint if not exists
+    await req().query(`
+      IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('sw_update_assignees') AND name='UQ_sw_assignees_job_user')
+        ALTER TABLE sw_update_assignees ADD CONSTRAINT UQ_sw_assignees_job_user UNIQUE (job_id, user_id)
+    `);
     console.log('✅ sw_update_jobs table ready');
   } catch(e) { console.error('❌ sw_update_jobs error:', e.message); }
 }

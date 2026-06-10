@@ -47,6 +47,19 @@ textarea{resize:vertical;min-height:130px;line-height:1.55}
 .char-count{font-size:.72rem;color:#94a3b8;text-align:right;margin-top:.2rem}
 .char-count.near{color:#f59e0b}
 .char-count.over{color:#dc2626}
+
+.upload-zone{border:2px dashed #fca5a5;border-radius:9px;padding:1.1rem;text-align:center;cursor:pointer;transition:border .15s,background .15s;background:#fff}
+.upload-zone:hover,.upload-zone.drag-over{border-color:#dc2626;background:#fef2f2}
+.upload-zone input[type=file]{display:none}
+.upload-zone-icon{font-size:1.8rem;line-height:1}
+.upload-zone-text{font-size:.8rem;color:#64748b;margin-top:.35rem}
+.upload-zone-text b{color:#dc2626}
+.upload-zone-hint{font-size:.72rem;color:#94a3b8;margin-top:.2rem}
+.preview-list{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.65rem}
+.preview-item{position:relative;width:72px;height:72px;border-radius:7px;overflow:hidden;border:1px solid #fecaca;background:#fef2f2}
+.preview-item img{width:100%;height:100%;object-fit:cover}
+.preview-item .pdf-icon{display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:1.5rem}
+.preview-item .rm-btn{position:absolute;top:2px;right:2px;background:rgba(220,38,38,.85);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;line-height:18px;text-align:center;padding:0}
 </style>
 </head>
 <body>
@@ -109,6 +122,17 @@ textarea{resize:vertical;min-height:130px;line-height:1.55}
           <textarea id="inp-message" placeholder="โปรดอธิบายปัญหาหรือข้อร้องเรียนของท่านอย่างละเอียด..." oninput="updateCharCount()" maxlength="2000"></textarea>
           <div class="char-count" id="char-count">0 / 2000</div>
         </div>
+        <div class="form-group">
+          <label>แนบรูปภาพ / เอกสาร <span style="color:#94a3b8;font-weight:400">(ไม่บังคับ สูงสุด 5 ไฟล์)</span></label>
+          <div class="upload-zone" id="upload-zone" onclick="document.getElementById('inp-files').click()"
+               ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+            <input type="file" id="inp-files" multiple accept="image/*,.pdf" onchange="onFilesChange(this.files)"/>
+            <div class="upload-zone-icon">📎</div>
+            <div class="upload-zone-text"><b>คลิกเพื่อเลือกไฟล์</b> หรือลากวางที่นี่</div>
+            <div class="upload-zone-hint">รองรับ JPG, PNG, GIF, PDF • ไม่เกิน 20 MB ต่อไฟล์</div>
+          </div>
+          <div class="preview-list" id="preview-list"></div>
+        </div>
       </div>
     </div>
 
@@ -129,11 +153,52 @@ textarea{resize:vertical;min-height:130px;line-height:1.55}
 </div>
 
 <script>
+let selectedFiles = [];
+
 function updateCharCount() {
   const len = document.getElementById('inp-message').value.length;
   const el  = document.getElementById('char-count');
   el.textContent = `${len} / 2000`;
   el.className = 'char-count' + (len > 1800 ? ' over' : len > 1500 ? ' near' : '');
+}
+
+function onFilesChange(files) {
+  addFiles(Array.from(files));
+  document.getElementById('inp-files').value = '';
+}
+
+function onDragOver(e) { e.preventDefault(); document.getElementById('upload-zone').classList.add('drag-over'); }
+function onDragLeave(e) { document.getElementById('upload-zone').classList.remove('drag-over'); }
+function onDrop(e) {
+  e.preventDefault();
+  document.getElementById('upload-zone').classList.remove('drag-over');
+  addFiles(Array.from(e.dataTransfer.files));
+}
+
+function addFiles(files) {
+  for (const f of files) {
+    if (selectedFiles.length >= 5) { showErr('แนบได้สูงสุด 5 ไฟล์'); break; }
+    if (f.size > 20 * 1024 * 1024) { showErr(`ไฟล์ ${f.name} ใหญ่เกิน 20 MB`); continue; }
+    if (!/\.(jpe?g|png|gif|pdf)$/i.test(f.name)) { showErr(`ไฟล์ ${f.name} ไม่รองรับ`); continue; }
+    selectedFiles.push(f);
+  }
+  renderPreviews();
+}
+
+function removeFile(idx) {
+  selectedFiles.splice(idx, 1);
+  renderPreviews();
+}
+
+function renderPreviews() {
+  const list = document.getElementById('preview-list');
+  list.innerHTML = selectedFiles.map((f, i) => {
+    const isPdf = /\.pdf$/i.test(f.name);
+    const thumb = isPdf
+      ? `<div class="pdf-icon" title="${f.name}">📄</div>`
+      : `<img src="${URL.createObjectURL(f)}" alt="${f.name}" title="${f.name}"/>`;
+    return `<div class="preview-item">${thumb}<button class="rm-btn" onclick="removeFile(${i})" title="ลบ">✕</button></div>`;
+  }).join('');
 }
 
 async function submitComplaint() {
@@ -152,18 +217,15 @@ async function submitComplaint() {
 
   try {
     const fullMsg = (type ? `[${typeLabel(type)}] ` : '') + msg;
+    const fd = new FormData();
+    fd.append('company_name',  company);
+    fd.append('contact_name',  name  || '');
+    fd.append('contact_phone', phone || '');
+    fd.append('email',         email || '');
+    fd.append('message',       fullMsg);
+    for (const f of selectedFiles) fd.append('attachments', f);
 
-    const r = await fetch('/api/public/complaint/direct', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        company_name:  company,
-        contact_name:  name  || null,
-        contact_phone: phone || null,
-        email:         email || null,
-        message:       fullMsg
-      })
-    });
+    const r = await fetch('/api/public/complaint/direct', { method: 'POST', body: fd });
     const d = await r.json();
     if (!r.ok) { showErr(d.error || 'ส่งไม่สำเร็จ กรุณาลองใหม่'); return; }
 
@@ -188,6 +250,8 @@ function typeLabel(v) {
 function resetForm() {
   ['inp-company','inp-name','inp-phone','inp-email','inp-message'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('inp-type').value = '';
+  selectedFiles = [];
+  renderPreviews();
   updateCharCount();
   document.getElementById('submit-err').style.display = 'none';
   document.getElementById('form-box').style.display = '';

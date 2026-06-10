@@ -1211,11 +1211,13 @@ textarea{resize:vertical;min-height:80px}
           <tr>
             <th>พนักงาน</th><th>ทีม</th>
             <th>เคส</th><th>แนวโน้ม</th><th>ปิดงาน%</th><th>เวลาเฉลี่ย</th>
-            <th>⭐ Stars</th><th>🔴 ค้าง</th>
-            <th title="Efficiency Score → scale to 80">🎯 KPI/SLA<br><span style="font-size:.65rem;font-weight:400">/80</span></th>
+            <th title="avg stars → max 5">⭐ พึงพอใจ<br><span style="font-size:.65rem;font-weight:400">/5</span></th>
+            <th title="5 - จำนวนงานค้าง (min 0)">✅ ไม่ค้าง<br><span style="font-size:.65rem;font-weight:400">/5</span></th>
+            <th title="grade_pts/target × 60">📋 งานทั่วไป<br><span style="font-size:.65rem;font-weight:400">/60</span></th>
             <th title="KB article · 1 บทความ = 2.5 คะแนน · max 4">📚 ความรู้<br><span style="font-size:.65rem;font-weight:400">/10</span></th>
             <th title="Manager กรอก 0-10">⏰ ตรงเวลา<br><span style="font-size:.65rem;font-weight:400">/10</span></th>
-            <th title="KPI/SLA + ความรู้ + ตรงเวลา">🏆 รวม<br><span style="font-size:.65rem;font-weight:400">/100</span></th>
+            <th title="งาน SW Update ที่ done / target × 10">💿 SW<br><span style="font-size:.65rem;font-weight:400">/10</span></th>
+            <th title="พึงพอใจ + ไม่ค้าง + งานทั่วไป + ความรู้ + ตรงเวลา + SW">🏆 รวม<br><span style="font-size:.65rem;font-weight:400">/100</span></th>
           </tr>
         </thead>
         <tbody id="kpi-tbody"></tbody>
@@ -1283,13 +1285,15 @@ textarea{resize:vertical;min-height:80px}
               <th>งาน</th><th>แนวโน้ม</th>
               <th>แก้แล้ว%</th><th>⏱️ เวลาเฉลี่ย</th>
               <th>⏳ ค้าง</th>
-              <th title="Specialist log grade score → scale to 35">🎯 KPI/SLA<br><span style="font-size:.65rem;font-weight:400">/35</span></th>
-              <th title="Calllog grade score (ติดตามเคส) → scale to 15">📞 ติดตามเคส<br><span style="font-size:.65rem;font-weight:400">/15</span></th>
-              <th title="KB article · 1 บทความ = 2.5 คะแนน">📚 ความรู้<br><span style="font-size:.65rem;font-weight:400">/10</span></th>
-              <th title="จำนวนครั้งสอน · 1 ครั้ง = 5 คะแนน">🧑‍🏫 เทรน<br><span style="font-size:.65rem;font-weight:400">/10</span></th>
-              <th title="fu_issues resolved ในเดือน · 1 ticket = 5 คะแนน">📋 Follow Up<br><span style="font-size:.65rem;font-weight:400">/20</span></th>
-              <th title="Manager กรอก 0-10">⏰ ตรงเวลา<br><span style="font-size:.65rem;font-weight:400">/10</span></th>
-              <th title="KPI/SLA + ความรู้ + เทรน + FU + ตรงเวลา">🏆 รวม<br><span style="font-size:.65rem;font-weight:400">/100</span></th>
+              <th title="5 - จำนวนงานค้าง (min 0)">✅ ไม่ค้าง<br><span style="font-size:.65rem;font-weight:400">/5</span></th>
+              <th title="Specialist log grade pts / target × 35">🎯 งาน Agent<br><span style="font-size:.65rem;font-weight:400">/35</span></th>
+              <th title="Calllog grade pts (ติดตามเคส) / target × 10">📋 งานทั่วไป<br><span style="font-size:.65rem;font-weight:400">/10</span></th>
+              <th title="KB article · max 5 คะแนน">📚 ความรู้<br><span style="font-size:.65rem;font-weight:400">/5</span></th>
+              <th title="จำนวนครั้งสอน · 1 ครั้ง = 5 คะแนน">🧑‍🏫 เทรนนิ่ง<br><span style="font-size:.65rem;font-weight:400">/10</span></th>
+              <th title="fu_issues resolved ในเดือน · 1 ticket = 5 คะแนน · max 20">📞 Follow Up<br><span style="font-size:.65rem;font-weight:400">/20</span></th>
+              <th title="Manager กรอก 0-5">⏰ ตรงเวลา<br><span style="font-size:.65rem;font-weight:400">/5</span></th>
+              <th title="sw_done / target × 10">💿 SW<br><span style="font-size:.65rem;font-weight:400">/10</span></th>
+              <th title="ไม่ค้าง + Agent + ทั่วไป + ความรู้ + เทรน + FU + ตรงเวลา + SW">🏆 รวม<br><span style="font-size:.65rem;font-weight:400">/100</span></th>
             </tr>
           </thead>
           <tbody id="sp-kpi-tbody"></tbody>
@@ -1620,6 +1624,8 @@ textarea{resize:vertical;min-height:80px}
     </div>
   </div>
   </div>
+
+</div><!-- /modal-create-case -->
 
 <!-- ═══════════════════ PAGE: SPECIALIST ═══════════════════ -->
 <div id="page-specialist" class="page">
@@ -4691,7 +4697,7 @@ async function loadStaleIssues() {
   const bodyEl  = document.getElementById('dash-stale-body');
   if (!chipsEl || !bodyEl) return;
 
-  if (!issues || issues.length === 0) {
+  if (!issues || !Array.isArray(issues) || issues.length === 0) {
     chipsEl.innerHTML = '';
     bodyEl.innerHTML = `<div style="color:#22c55e;font-size:.82rem;padding:.3rem">✅ ไม่มีงานค้างนาน — ดีมาก!</div>`;
     return;
@@ -6447,8 +6453,11 @@ function kpiSwitchTab(tab) {
   // show/hide sections by explicit IDs
   const isScore = tab === 'score';
   const isHd    = tab === 'helpdesk';
-  const hdIds = { 'kpi-stats':'flex', 'ai-forecast-box':'', 'kpi-charts-row1':'grid', 'kpi-charts-row2':'grid', 'kpi-hd-table':'', 'kpi-drb':'' };
+  const hdIds = { 'kpi-stats':'flex', 'ai-forecast-box':'', 'kpi-charts-row1':'grid', 'kpi-charts-row2':'grid', 'kpi-hd-table':'' };
   Object.entries(hdIds).forEach(([id, showVal]) => { const el=document.getElementById(id); if(el) el.style.display = isHd ? showVal : 'none'; });
+  // date range bar: show for helpdesk & specialist, hide for score only
+  const drb = document.getElementById('kpi-drb');
+  if (drb) drb.style.display = isScore ? 'none' : '';
   const spSection = document.getElementById('kpi-sp-section');
   if (spSection) spSection.style.display = tab==='specialist' ? '' : 'none';
   const scoreSection = document.getElementById('kpi-score-section');
@@ -6547,7 +6556,7 @@ let _spDrillOpen = new Set();
 function renderSpKpiTable() {
   const tbody = document.getElementById('sp-kpi-tbody');
   if (!tbody) return;
-  if (!_spKpiData.length) { tbody.innerHTML='<tr><td colspan="10" class="empty">ไม่มีข้อมูล</td></tr>'; return; }
+  if (!_spKpiData.length) { tbody.innerHTML='<tr><td colspan="16" class="empty">ไม่มีข้อมูล</td></tr>'; return; }
 
   const trendArrow = (cur, prev, higherGood=true) => {
     if (!prev) return '';
@@ -6564,8 +6573,19 @@ function renderSpKpiTable() {
       const empId = String(x.emp_id || '');
       const _a1 = _kpiActivitiesMap[ext]   || {};
       const _a2 = _kpiActivitiesMap[empId] || {};
-      const act  = { kb_articles: (_a1.kb_articles||0)+(_a2.kb_articles||0), trainings: (_a1.trainings||0)+(_a2.trainings||0), fu_resolved: (_a1.fu_resolved||0)+(_a2.fu_resolved||0) };
-      return calcSpKpiSlaScore(x) + calcSpTicketScore(x) + calcKbScore(act) + calcTrainingScore(act) + calcFuScore(act) + (_kpiPunctMap[ext] ?? 0);
+      const act  = { kb_articles: (_a1.kb_articles||0)+(_a2.kb_articles||0), trainings: (_a1.trainings||0)+(_a2.trainings||0), fu_resolved: (_a1.fu_resolved||0)+(_a2.fu_resolved||0), sw_done: (_a1.sw_done||0)+(_a2.sw_done||0) };
+      const spTgt = _kpiTargets.specialist?.target_grade || 120;
+      const tkTgt = _kpiTargets.specialist_ticket?.target_grade || 700;
+      const swTgt = _kpiTargets.specialist?.target_sw || 10;
+      const noBacklog = Math.max(0, 5 - (x.pending_jobs||0));
+      const agent = Math.min((x.grade_total_score||0)/spTgt*35, 35);
+      const general = Math.min((x.hd_grade_total||0)/tkTgt*10, 10);
+      const kb = Math.min((act.kb_articles||0)*1.25, 5);
+      const tr = calcTrainingScore(act);
+      const fu = calcFuScore(act);
+      const pt = Math.min(_kpiPunctMap[ext] ?? 0, 5);
+      const sw = Math.min((act.sw_done||0)/swTgt*10, 10);
+      return noBacklog + agent + general + kb + tr + fu + pt + sw;
     };
     return spScore(b) - spScore(a);
   });
@@ -6615,56 +6635,66 @@ function renderSpKpiTable() {
           const empId = String(a.emp_id || '');
           const _a1 = _kpiActivitiesMap[ext]   || {};
           const _a2 = _kpiActivitiesMap[empId] || {};
-          const act  = { kb_articles: (_a1.kb_articles||0)+(_a2.kb_articles||0), trainings: (_a1.trainings||0)+(_a2.trainings||0), fu_resolved: (_a1.fu_resolved||0)+(_a2.fu_resolved||0) };
+          const act  = { kb_articles: (_a1.kb_articles||0)+(_a2.kb_articles||0), trainings: (_a1.trainings||0)+(_a2.trainings||0), fu_resolved: (_a1.fu_resolved||0)+(_a2.fu_resolved||0), sw_done: (_a1.sw_done||0)+(_a2.sw_done||0) };
           const punct = _kpiPunctMap[ext] ?? null;
           const dfrom = document.getElementById('kpi-date-from')?.value || _kpiDateFrom || '';
           const month = dfrom.slice(0,7);
-          const kpiSla  = calcSpKpiSlaScore(a);
-          const ticket  = calcSpTicketScore(a);
-          const kb  = calcKbScore(act);
-          const tr  = calcTrainingScore(act);
-          const fu  = calcFuScore(act);
-          const pt  = punct ?? 0;
-          const total = kpiSla + ticket + kb + tr + fu + pt;
-          const tc = total >= 80 ? '#16a34a' : total >= 60 ? '#b45309' : '#94a3b8';
-          // KPI/SLA cell
-          const spTarget = _kpiTargets.specialist?.target_grade || 800;
-          const gs   = a.grade_total_score || 0;
-          const pct  = Math.min(Math.round(gs / spTarget * 100), 100);
-          const sc   = kpiSla >= 28 ? '#16a34a' : kpiSla >= 18 ? '#b45309' : '#94a3b8';
-          // ติดตามเคส cell
-          const tkTarget = _kpiTargets.specialist_ticket?.target_grade || 500;
-          const tgs  = a.hd_grade_total || 0;
-          const tpct = Math.min(Math.round(tgs / tkTarget * 100), 100);
-          const tsc  = ticket >= 12 ? '#16a34a' : ticket >= 8 ? '#b45309' : '#94a3b8';
+          // Targets
+          const spTgt = _kpiTargets.specialist?.target_grade || 120;
+          const tkTgt = _kpiTargets.specialist_ticket?.target_grade || 700;
+          const swTgt = _kpiTargets.specialist?.target_sw || 10;
+          // New KPI formula
+          const noBacklog = Math.max(0, 5 - (a.pending_jobs||0));
+          const gs    = a.grade_total_score || 0;
+          const agent = Math.round(Math.min(gs/spTgt*35, 35) * 10) / 10;
+          const tgs   = a.hd_grade_total || 0;
+          const general = Math.round(Math.min(tgs/tkTgt*10, 10) * 10) / 10;
+          const kb    = Math.round(Math.min((act.kb_articles||0)*1.25, 5) * 10) / 10;
+          const tr    = calcTrainingScore(act);
+          const fu    = calcFuScore(act);
+          const pt    = Math.min(punct ?? 0, 5);
+          const sw    = Math.round(Math.min((act.sw_done||0)/swTgt*10, 10) * 10) / 10;
+          const total = Math.round((noBacklog + agent + general + kb + tr + fu + pt + sw) * 10) / 10;
+          const tc = total >= 90 ? '#16a34a' : total >= 75 ? '#2563eb' : total >= 60 ? '#b45309' : '#dc2626';
+          const mkBar = (score, max, color) => {
+            const w = Math.min(Math.round(score/max*52), 52);
+            return `<div style="background:#e2e8f0;border-radius:4px;height:3px;width:52px;margin-top:2px"><div style="background:${color};height:3px;border-radius:4px;width:${w}px"></div></div>`;
+          };
+          const agentC   = agent >= 28 ? '#16a34a' : agent >= 18 ? '#b45309' : '#94a3b8';
+          const generalC = general >= 8 ? '#16a34a' : general >= 5 ? '#b45309' : '#94a3b8';
           return `
           <td style="white-space:nowrap">
-            <div style="font-weight:800;color:${sc};font-size:.95rem">${kpiSla}<span style="font-size:.62rem;color:#94a3b8">/35</span></div>
-            <div style="font-size:.68rem;color:#64748b;margin-top:.1rem">${gs.toLocaleString()} <span style="color:#cbd5e1">/ ${spTarget.toLocaleString()}</span></div>
-            <div style="background:#e2e8f0;border-radius:4px;height:3px;width:56px;margin-top:2px">
-              <div style="background:${sc};height:3px;border-radius:4px;width:${pct}%"></div>
-            </div>
+            <div style="font-weight:800;color:${noBacklog>=5?'#16a34a':noBacklog>=3?'#b45309':'#dc2626'};font-size:.9rem">${noBacklog}<span style="font-size:.62rem;color:#94a3b8">/5</span></div>
+            <div style="font-size:.65rem;color:#64748b">${a.pending_jobs||0} งานค้าง</div>
+            ${mkBar(noBacklog, 5, noBacklog>=5?'#16a34a':noBacklog>=3?'#b45309':'#dc2626')}
           </td>
           <td style="white-space:nowrap">
-            <div style="font-weight:800;color:${tsc};font-size:.95rem">${ticket}<span style="font-size:.62rem;color:#94a3b8">/15</span></div>
-            <div style="font-size:.68rem;color:#64748b;margin-top:.1rem">${tgs.toLocaleString()} <span style="color:#cbd5e1">/ ${tkTarget.toLocaleString()}</span></div>
-            <div style="background:#e2e8f0;border-radius:4px;height:3px;width:56px;margin-top:2px">
-              <div style="background:${tsc};height:3px;border-radius:4px;width:${tpct}%"></div>
-            </div>
+            <div style="font-weight:800;color:${agentC};font-size:.9rem">${agent}<span style="font-size:.62rem;color:#94a3b8">/35</span></div>
+            <div style="font-size:.65rem;color:#64748b">${gs.toLocaleString()} / ${spTgt.toLocaleString()}</div>
+            ${mkBar(agent, 35, agentC)}
           </td>
-          <td>${scoreCell(kb, 10)}<div style="font-size:.65rem;color:#94a3b8">${act?.kb_articles||0} บทความ</div></td>
-          <td>${scoreCell(tr, 10)}<div style="font-size:.65rem;color:#94a3b8">${act?.trainings||0} ครั้ง</div></td>
-          <td>${scoreCell(fu, 20)}<div style="font-size:.65rem;color:#94a3b8">${act?.fu_resolved||0} ticket</div></td>
+          <td style="white-space:nowrap">
+            <div style="font-weight:800;color:${generalC};font-size:.9rem">${general}<span style="font-size:.62rem;color:#94a3b8">/10</span></div>
+            <div style="font-size:.65rem;color:#64748b">${tgs.toLocaleString()} / ${tkTgt.toLocaleString()}</div>
+            ${mkBar(general, 10, generalC)}
+          </td>
+          <td>${scoreCell(kb, 5)}<div style="font-size:.65rem;color:#94a3b8">${act.kb_articles||0} บทความ</div></td>
+          <td>${scoreCell(tr, 10)}<div style="font-size:.65rem;color:#94a3b8">${act.trainings||0} ครั้ง</div></td>
+          <td>${scoreCell(fu, 20)}<div style="font-size:.65rem;color:#94a3b8">${act.fu_resolved||0} ticket</div></td>
           <td>
-            ${scoreCell(pt, 10)}
+            ${scoreCell(pt, 5)}
             <button onclick="event.stopPropagation();openPunctModal('${ext}','${escHtml(a.name||ext)}','${month}')"
               style="font-size:.62rem;padding:1px 5px;border-radius:4px;border:1px solid #e2e8f0;background:#f8fafc;cursor:pointer;color:#64748b;margin-top:2px">✏️</button>
+          </td>
+          <td style="white-space:nowrap;text-align:center">
+            <div style="font-weight:700;color:${sw>=8?'#16a34a':sw>=4?'#b45309':'#94a3b8'};font-size:.9rem">${sw}</div>
+            <div style="font-size:.65rem;color:#94a3b8">${act.sw_done||0} งาน</div>
           </td>
           <td><div style="font-weight:800;color:${tc};font-size:.95rem">${total}<span style="font-size:.62rem;color:#94a3b8">/100</span></div></td>`;
         })()}
     </tr>
     <tr id="${rowId}" style="display:${isOpen?'':'none'}">
-      <td colspan="14" style="padding:0;background:#f8fafc;border-left:3px solid #7c3aed">
+      <td colspan="16" style="padding:0;background:#f8fafc;border-left:3px solid #7c3aed">
         <div id="sp-drill-content-${idx}" style="padding:.6rem 1rem;font-size:.8rem;color:var(--muted)">กำลังโหลด...</div>
       </td>
     </tr>`;
@@ -7203,13 +7233,24 @@ function renderKpiTable() {
 
   const tbody = document.getElementById('kpi-tbody');
   if (allKpi.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" class="empty"><div class="icon">📊</div>ไม่พบข้อมูล</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="13" class="empty"><div class="icon">📊</div>ไม่พบข้อมูล</td></tr>';
     return;
   }
   const dfrom = document.getElementById('kpi-date-from')?.value || '';
 
   const sortedKpi = [...allKpi].sort((a, b) => {
-    const scoreOf = k => calcHdKpiSlaScore(k) + calcKbScore(_kpiActivitiesMap[k.UserName]) + (_kpiPunctMap[k.UserName] ?? 0);
+    const scoreOf = k => {
+      const act = _kpiActivitiesMap[k.UserName];
+      const target = _kpiTargets.helpdesk?.target_grade || 1500;
+      const swTarget = _kpiTargets.helpdesk?.target_sw || 10;
+      const sat = Math.min(+(k.avg_stars||0), 5);
+      const noBacklog = Math.max(0, 5 - (k.overdue_cases||0));
+      const general = Math.min((k.grade_total_score||0)/target*60, 60);
+      const kb = calcKbScore(act);
+      const pt = _kpiPunctMap[k.UserName] ?? 0;
+      const sw = Math.min((act?.sw_done||0)/swTarget*10, 10);
+      return sat + noBacklog + general + kb + pt + sw;
+    };
     return scoreOf(b) - scoreOf(a);
   });
 
@@ -7280,31 +7321,43 @@ function renderKpiTable() {
         ${fmtMin(k.avg_resolve_min)}
         ${trendArrow(k.avg_resolve_min, k.prev_resolve, false)}
       </td>
-      <td style="color:#b45309;font-weight:700">
-        ${starDisp}
-        ${k.avg_stars && k.prev_stars ? trendArrow(+k.avg_stars, +k.prev_stars) : ''}
-      </td>
-      <td><b style="color:${k.overdue_cases>0?'#dc2626':'#16a34a'}">${k.overdue_cases||0}</b></td>
       ${(() => {
-          const act   = _kpiActivitiesMap[k.UserName];
-          const punct = _kpiPunctMap[k.UserName] ?? null;
-          const month = (document.getElementById('kpi-date-from')?.value||_kpiDateFrom||'').slice(0,7);
-          const target  = _kpiTargets.helpdesk?.target_grade || 1500;
-          const kpiSla  = calcHdKpiSlaScore(k);
-          const gs      = k.grade_total_score || 0;
-          const kb      = calcKbScore(act);
-          const pt      = punct ?? 0;
-          const total   = kpiSla + kb + pt;
-          const tc = total >= 80 ? '#16a34a' : total >= 60 ? '#b45309' : '#94a3b8';
-          const sc = kpiSla >= 64 ? '#16a34a' : kpiSla >= 40 ? '#b45309' : '#94a3b8';
+          const act      = _kpiActivitiesMap[k.UserName];
+          const punct    = _kpiPunctMap[k.UserName] ?? null;
+          const month    = (document.getElementById('kpi-date-from')?.value||_kpiDateFrom||'').slice(0,7);
+          const target   = _kpiTargets.helpdesk?.target_grade || 1500;
+          const swTarget = _kpiTargets.helpdesk?.target_sw || 10;
+          const gs       = k.grade_total_score || 0;
+          // New KPI formula columns
+          const sat      = Math.round(Math.min(+(k.avg_stars||0), 5) * 10) / 10;
+          const noBacklog = Math.max(0, 5 - (k.overdue_cases||0));
+          const general  = Math.round(Math.min(gs/target*60, 60) * 10) / 10;
+          const kb       = calcKbScore(act);
+          const pt       = punct ?? 0;
+          const sw       = Math.round(Math.min((act?.sw_done||0)/swTarget*10, 10) * 10) / 10;
+          const total    = Math.round((sat + noBacklog + general + kb + pt + sw) * 10) / 10;
+          const tc  = total >= 90 ? '#16a34a' : total >= 75 ? '#2563eb' : total >= 60 ? '#b45309' : '#dc2626';
+          const gc  = general >= 48 ? '#16a34a' : general >= 30 ? '#b45309' : '#94a3b8';
           const pct = Math.min(Math.round(gs/target*100), 100);
+          const mkBar = (score, max, color) => {
+            const w = Math.min(Math.round(score/max*52), 52);
+            return `<div style="background:#e2e8f0;border-radius:4px;height:3px;width:52px;margin-top:2px"><div style="background:${color};height:3px;border-radius:4px;width:${w}px"></div></div>`;
+          };
           return `
           <td style="white-space:nowrap">
-            <div style="font-weight:800;color:${sc};font-size:.95rem">${kpiSla}<span style="font-size:.62rem;color:#94a3b8">/80</span></div>
-            <div style="font-size:.68rem;color:#64748b;margin-top:.1rem">${gs.toLocaleString()} <span style="color:#cbd5e1">/ ${target.toLocaleString()}</span></div>
-            <div style="background:#e2e8f0;border-radius:4px;height:3px;width:56px;margin-top:2px">
-              <div style="background:${sc};height:3px;border-radius:4px;width:${pct}%"></div>
-            </div>
+            <div style="font-weight:800;color:${sat>=4?'#16a34a':sat>=2?'#b45309':'#dc2626'};font-size:.9rem">${sat}<span style="font-size:.62rem;color:#94a3b8">/5</span></div>
+            <div style="font-size:.65rem;color:#64748b">${(+(k.avg_stars||0)).toFixed(1)} ★ เฉลี่ย</div>
+            ${mkBar(sat, 5, sat>=4?'#16a34a':sat>=2?'#b45309':'#dc2626')}
+          </td>
+          <td style="white-space:nowrap">
+            <div style="font-weight:800;color:${noBacklog>=5?'#16a34a':noBacklog>=3?'#b45309':'#dc2626'};font-size:.9rem">${noBacklog}<span style="font-size:.62rem;color:#94a3b8">/5</span></div>
+            <div style="font-size:.65rem;color:#64748b">${k.overdue_cases||0} งานค้าง</div>
+            ${mkBar(noBacklog, 5, noBacklog>=5?'#16a34a':noBacklog>=3?'#b45309':'#dc2626')}
+          </td>
+          <td style="white-space:nowrap">
+            <div style="font-weight:800;color:${gc};font-size:.9rem">${general}<span style="font-size:.62rem;color:#94a3b8">/60</span></div>
+            <div style="font-size:.65rem;color:#64748b">${gs.toLocaleString()} / ${target.toLocaleString()}</div>
+            ${mkBar(general, 60, gc)}
           </td>
           <td>${scoreCell(kb, 10)}<div style="font-size:.65rem;color:#94a3b8">${act?.kb_articles||0} บทความ</div></td>
           <td>
@@ -7312,11 +7365,15 @@ function renderKpiTable() {
             <button onclick="event.stopPropagation();openPunctModal('${k.UserName}','${k.name||k.UserName}','${month}')"
               style="font-size:.62rem;padding:1px 5px;border-radius:4px;border:1px solid #e2e8f0;background:#f8fafc;cursor:pointer;color:#64748b;margin-top:2px">✏️</button>
           </td>
+          <td style="white-space:nowrap;text-align:center">
+            <div style="font-weight:700;color:${sw>=8?'#16a34a':sw>=4?'#b45309':'#94a3b8'};font-size:.9rem">${sw}</div>
+            <div style="font-size:.65rem;color:#94a3b8">${act?.sw_done||0} งาน</div>
+          </td>
           <td><div style="font-weight:800;color:${tc};font-size:.95rem">${total}<span style="font-size:.62rem;color:#94a3b8">/100</span></div></td>`;
         })()}
     </tr>
     <tr class="kpi-drill" id="kpi-drill-${k.UserName}" style="display:none">
-      <td colspan="12"><div id="kpi-drill-content-${k.UserName}"><div style="color:var(--muted);font-size:.82rem;padding:.25rem">กำลังโหลด...</div></div></td>
+      <td colspan="13"><div id="kpi-drill-content-${k.UserName}"><div style="color:var(--muted);font-size:.82rem;padding:.25rem">กำลังโหลด...</div></div></td>
     </tr>`;
   }).join('');
 }
@@ -13854,7 +13911,13 @@ async function loadComplaints() {
           ${c.contact_phone?`<div style="font-size:.72rem;color:var(--muted)">📞 ${escHtml(c.contact_phone)}</div>`:''}
         </td>
         <td style="font-size:.8rem">${c.ticket_id ? `<b style="color:var(--hd)">#${c.ticket_id}</b>` : '<span style="color:var(--muted)">—</span>'}</td>
-        <td style="font-size:.8rem;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(c.message)}">${escHtml(c.message)}</td>
+        <td style="font-size:.8rem;max-width:220px">
+          <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(c.message)}">${escHtml(c.message)}</div>
+          ${c.attachments?.length ? `<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:4px">${c.attachments.map(a => a.file_type==='pdf'
+            ? `<a href="${a.file_path}" target="_blank" title="${escHtml(a.file_name)}" style="display:flex;align-items:center;gap:2px;font-size:.7rem;color:#dc2626;text-decoration:none;background:#fef2f2;border:1px solid #fecaca;border-radius:4px;padding:1px 5px">📄 PDF</a>`
+            : `<a href="${a.file_path}" target="_blank" title="${escHtml(a.file_name)}"><img src="${a.file_path}" style="width:36px;height:36px;object-fit:cover;border-radius:4px;border:1px solid #fecaca" onerror="this.style.display='none'"/></a>`
+          ).join('')}</div>` : ''}
+        </td>
         <td style="font-size:.75rem;white-space:nowrap">${fmtDate(c.created_at)}</td>
         <td style="white-space:nowrap">
           <div style="display:flex;align-items:center;gap:.4rem">
@@ -17414,7 +17477,10 @@ function renderSwUpdate() {
         <td><span style="background:${st.bg};color:${st.color};border-radius:20px;padding:.15rem .6rem;font-size:.73rem;font-weight:700;white-space:nowrap">${st.label}</span></td>
         <td style="font-size:.78rem;white-space:nowrap">${recv}</td>
         <td style="font-size:.78rem;white-space:nowrap">${appt}</td>
-        <td style="font-size:.78rem">${escHtml(r.reporter_name||'—')}</td>
+        <td style="font-size:.78rem">
+          ${escHtml(r.reporter_name||'—')}
+          ${r.assignees && r.assignees.length ? `<div style="font-size:.7rem;color:#6366f1;margin-top:.1rem">👥 ${r.assignees.map(a=>escHtml(a.name||'')).join(', ')}</div>` : ''}
+        </td>
         <td style="font-size:.78rem">${swuAzureCell(r.azure_id)}</td>
         <td>
           <button class="btn btn-ghost btn-sm" style="font-size:.72rem;padding:.2rem .5rem" onclick="event.stopPropagation();openSwUpdateEdit(${r.id})">✏️</button>
@@ -17477,6 +17543,8 @@ function openSwUpdateForm(fuIssue = null) {
       ? `🔗 เชื่อมกับ Follow Up #${fuIssue.id}${fuShopName ? ` · <strong>${escHtml(fuShopName)}</strong>` : ''}`
       : '';
   }
+  swuRenderAssigneeCheckboxes([]);
+  swuToggleAssigneesSection();
   openModal('modal-sw-update-form');
 }
 
@@ -17516,10 +17584,41 @@ function openSwUpdateEdit(id) {
     fuBadge.style.display = r.fu_issue_id ? '' : 'none';
     fuBadge.textContent   = r.fu_issue_id ? `🔗 เชื่อมกับ Follow Up #${r.fu_issue_id}` : '';
   }
+  // Load assignees checkboxes
+  const checkedIds = (r.assignees || []).map(a => a.user_id);
+  swuRenderAssigneeCheckboxes(checkedIds);
+  swuToggleAssigneesSection();
 }
 
 async function openSwUpdateDetail(id) {
   openSwUpdateEdit(id);
+}
+
+function swuToggleAssigneesSection() {
+  const st = document.getElementById('swu-status')?.value;
+  const sec = document.getElementById('swu-assignees-section');
+  if (!sec) return;
+  sec.style.display = (st === 'done') ? '' : 'none';
+  if (st === 'done') swuRenderAssigneeCheckboxes();
+}
+
+function swuRenderAssigneeCheckboxes(checkedIds = []) {
+  const container = document.getElementById('swu-assignees-list');
+  if (!container || !_swuUsers.length) return;
+  container.innerHTML = _swuUsers.map(u => {
+    const uid = u.id;
+    const name = escHtml(u.nickname || u.name || u.username);
+    const checked = checkedIds.includes(uid) ? 'checked' : '';
+    return `<label style="display:flex;align-items:center;gap:.3rem;font-size:.8rem;cursor:pointer;white-space:nowrap">
+      <input type="checkbox" value="${uid}" ${checked} style="cursor:pointer" class="swu-assignee-cb">
+      ${name}
+    </label>`;
+  }).join('');
+}
+
+function swuGetCheckedAssignees() {
+  return Array.from(document.querySelectorAll('.swu-assignee-cb:checked'))
+    .map(cb => parseInt(cb.value));
 }
 
 async function saveSwUpdateForm() {
@@ -17544,6 +17643,7 @@ async function saveSwUpdateForm() {
     version_recommend,
     reported_by:      parseInt(document.getElementById('swu-reporter').value) || null,
     fu_issue_id:      fuIssueId,
+    assignees:        newStatus === 'done' ? swuGetCheckedAssignees() : undefined,
   };
   try {
     if (editId) {
@@ -18464,7 +18564,7 @@ async function generateFromPattern() {
     <!-- สถานะ -->
     <div style="margin-bottom:.5rem">
       <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">สถานะ</label>
-      <select id="swu-status" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem;font-family:inherit">
+      <select id="swu-status" onchange="swuToggleAssigneesSection()" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem;font-family:inherit">
         <option value="pending" selected>รอดำเนินการ</option>
         <option value="scheduling">กำลังนัดหมาย</option>
         <option value="scheduled">นัดหมายแล้ว</option>
@@ -18509,11 +18609,17 @@ async function generateFromPattern() {
     </div>
 
     <!-- ผู้แจ้งอัพเดท -->
-    <div style="margin-bottom:.75rem">
+    <div style="margin-bottom:.6rem">
       <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">ผู้แจ้งอัพเดท</label>
       <select id="swu-reporter" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem;font-family:inherit">
         <option value="">— เลือกผู้แจ้ง —</option>
       </select>
+    </div>
+
+    <!-- ผู้ดำเนินการ (แสดงเมื่อสถานะ = done) -->
+    <div id="swu-assignees-section" style="display:none;margin-bottom:.75rem;border:1px solid #bfdbfe;border-radius:9px;padding:.65rem .75rem;background:#eff6ff">
+      <label style="font-size:.75rem;font-weight:700;color:#1d4ed8;display:block;margin-bottom:.45rem">👥 ผู้ดำเนินการ (นับ KPI SW Update)</label>
+      <div id="swu-assignees-list" style="display:flex;flex-wrap:wrap;gap:.35rem .75rem;max-height:160px;overflow-y:auto"></div>
     </div>
 
     <div class="btn-group">
