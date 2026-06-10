@@ -3162,7 +3162,7 @@ textarea{resize:vertical;min-height:80px}
     <div class="tbl-wrap">
       <table>
         <thead><tr>
-          <th>#</th><th>ร้านค้า</th><th>ผู้ติดต่อ</th><th>เคส</th><th>ข้อความ</th><th>วันที่</th><th>สถานะการดำเนินการ</th>
+          <th>#</th><th>ร้านค้า</th><th>ผู้ติดต่อ</th><th>เคส</th><th>ข้อความ</th><th>ไฟล์แนบ</th><th>วันที่</th><th>สถานะการดำเนินการ</th>
         </tr></thead>
         <tbody id="complaints-tbody">
           <tr><td colspan="8" class="empty">กำลังโหลด...</td></tr>
@@ -13911,12 +13911,14 @@ async function loadComplaints() {
           ${c.contact_phone?`<div style="font-size:.72rem;color:var(--muted)">📞 ${escHtml(c.contact_phone)}</div>`:''}
         </td>
         <td style="font-size:.8rem">${c.ticket_id ? `<b style="color:var(--hd)">#${c.ticket_id}</b>` : '<span style="color:var(--muted)">—</span>'}</td>
-        <td style="font-size:.8rem;max-width:220px">
-          <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(c.message)}">${escHtml(c.message)}</div>
-          ${c.attachments?.length ? `<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:4px">${c.attachments.map(a => a.file_type==='pdf'
-            ? `<a href="${a.file_path}" target="_blank" title="${escHtml(a.file_name)}" style="display:flex;align-items:center;gap:2px;font-size:.7rem;color:#dc2626;text-decoration:none;background:#fef2f2;border:1px solid #fecaca;border-radius:4px;padding:1px 5px">📄 PDF</a>`
-            : `<a href="${a.file_path}" target="_blank" title="${escHtml(a.file_name)}"><img src="${a.file_path}" style="width:36px;height:36px;object-fit:cover;border-radius:4px;border:1px solid #fecaca" onerror="this.style.display='none'"/></a>`
-          ).join('')}</div>` : ''}
+        <td style="font-size:.8rem;max-width:260px">
+          <div style="white-space:pre-wrap;word-break:break-word;line-height:1.5">${escHtml(c.message)}</div>
+        </td>
+        <td style="font-size:.8rem;min-width:80px">
+          ${c.attachments?.length ? `<div style="display:flex;flex-wrap:wrap;gap:4px">${c.attachments.map(a => a.file_type==='pdf'
+            ? `<a href="${a.file_path}" target="_blank" title="${escHtml(a.file_name)}" style="display:flex;align-items:center;gap:2px;font-size:.7rem;color:#dc2626;text-decoration:none;background:#fef2f2;border:1px solid #fecaca;border-radius:4px;padding:2px 6px">📄 PDF</a>`
+            : `<a href="${a.file_path}" target="_blank" title="${escHtml(a.file_name)}"><img src="${a.file_path}" style="width:48px;height:48px;object-fit:cover;border-radius:5px;border:1px solid #fecaca" onerror="this.style.display='none'"/></a>`
+          ).join('')}</div>` : `<span style="color:var(--muted)">—</span>`}
         </td>
         <td style="font-size:.75rem;white-space:nowrap">${fmtDate(c.created_at)}</td>
         <td style="white-space:nowrap">
