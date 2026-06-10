@@ -4132,14 +4132,27 @@ let allKpi        = [];
 let allUsers      = [];
 let allTeams      = [];
 let allShiftTypes = [];
-let nameMap       = {};  // ext_username → employee display name
+let nameMap       = {};  // ext_username → display name (nickname)
 let teamMap       = {};  // ext_username → team
+let nameMapById   = {};  // employee_id  → { name, team, ext_username }
 let _onShiftExtUsernames = new Set(); // ext_username ของคนที่ออนกะวันนี้
 
-function dn(username) {  // displayName: map LicenseDB username → real name
-  if (!username) return username;
-  return nameMap[username] || username;
+// dn(username | id) — แสดงชื่อเล่น ใช้ได้ทั้ง ext_username (string) และ employee_id (number)
+function dn(usernameOrId) {
+  if (!usernameOrId && usernameOrId !== 0) return usernameOrId;
+  const asNum = Number(usernameOrId);
+  if (!isNaN(asNum) && asNum > 0 && nameMapById[asNum]) return nameMapById[asNum].name;
+  if (nameMap[usernameOrId]) return nameMap[usernameOrId];
+  // case-insensitive fallback สำหรับ username จาก LicenseDB
+  const lower = String(usernameOrId).toLowerCase();
+  const key = Object.keys(nameMap).find(k => k.toLowerCase() === lower);
+  return key ? nameMap[key] : usernameOrId;
 }
+// dnById(id) — shortcut เมื่อรู้ว่าเป็น employee_id
+function dnById(id) { return nameMapById[id]?.name || String(id); }
+// dtById(id) — team จาก employee_id
+function dtById(id) { return nameMapById[id]?.team || ''; }
+
 function dt(username) {  // displayTeam: map LicenseDB username → team (case-insensitive)
   if (!username) return '';
   return teamMap[username] || teamMap[username.toLowerCase()] ||
@@ -4149,7 +4162,11 @@ function dt(username) {  // displayTeam: map LicenseDB username → team (case-i
 async function refreshNameMap() {
   try {
     const m = await api('/api/name-map/full');
-    if (m?.names) { Object.assign(nameMap, m.names); Object.assign(teamMap, m.teams); }
+    if (m?.names) {
+      Object.assign(nameMap, m.names);
+      Object.assign(teamMap, m.teams);
+      if (m.byId) Object.assign(nameMapById, m.byId);
+    }
     else if (m && typeof m === 'object') Object.assign(nameMap, m); // fallback
   } catch {}
 }
@@ -4501,7 +4518,7 @@ async function dashRefreshOnShift() {
   if (btn) { btn.style.opacity = '.4'; btn.style.pointerEvents = 'none'; }
   const d = await api('/api/dashboard');
   if (d && d.serverTime) {
-    if (d.nameMap) Object.assign(nameMap, d.nameMap);
+    if (d.nameMap) { Object.assign(nameMap, d.nameMap); if (d.nameMapById) Object.assign(nameMapById, d.nameMapById); }
     // Re-render only the OnShift section
     const ONSHIFT_TEAMS = ['helpdesk', 'specialist', 'war_room'];
     const SHIFT_ORDER   = ['morning', 'morning2', 'midday', 'mid', 'afternoon', 'night'];
@@ -4774,7 +4791,7 @@ async function loadDashboardCharts() {
   if (_team) _qs += `team=${encodeURIComponent(_team)}&`;
   try { data = await api(_qs); } catch { return; }
   if (!data) return;
-  if (data.nameMap) Object.assign(nameMap, data.nameMap);
+  if (data.nameMap) { Object.assign(nameMap, data.nameMap); if (data.nameMapById) Object.assign(nameMapById, data.nameMapById); }
 
   const { catStats = [], agentThis = [], agentLast = [], agentCat = [],
           dailyTrend = [], hourlyStats = [], dowStats = [], catDailyTrend = [],

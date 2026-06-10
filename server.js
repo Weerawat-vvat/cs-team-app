@@ -1407,13 +1407,17 @@ app.get('/api/name-map', authRequired, async (_, res) => {
 app.get('/api/name-map/full', authRequired, async (_, res) => {
   try {
     const rows = (await req().query(`
-      SELECT au.ext_username, ISNULL(e.nickname, e.name) AS display_name, e.team
+      SELECT e.id, au.ext_username, ISNULL(e.nickname, e.name) AS display_name, e.team
       FROM app_users au JOIN employees e ON e.id = au.employee_id
       WHERE au.ext_username IS NOT NULL AND au.active = 1 AND e.active = 1
     `)).recordset;
-    const names = {}, teams = {};
-    rows.forEach(r => { names[r.ext_username] = r.display_name; teams[r.ext_username] = r.team || ''; });
-    res.json({ names, teams });
+    const names = {}, teams = {}, byId = {};
+    rows.forEach(r => {
+      names[r.ext_username] = r.display_name;
+      teams[r.ext_username] = r.team || '';
+      byId[r.id] = { name: r.display_name, team: r.team || '', ext_username: r.ext_username };
+    });
+    res.json({ names, teams, byId });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -2664,14 +2668,17 @@ app.get('/api/dashboard', authRequired, async (_, res) => {
       .query(`SELECT lr.*, e.name AS emp_name, e.team
               FROM leave_requests lr JOIN employees e ON e.id=lr.employee_id
               WHERE lr.status='pending' ORDER BY lr.leave_date`)).recordset;
-    // Build ext_username → employee name map
+    // Build ext_username → display name + id → { name, ext_username } maps
     const nameMapRows = (await req().query(`
-      SELECT au.ext_username, ISNULL(e.nickname, e.name) AS display_name
+      SELECT e.id, au.ext_username, ISNULL(e.nickname, e.name) AS display_name
       FROM app_users au JOIN employees e ON e.id = au.employee_id
       WHERE au.ext_username IS NOT NULL AND au.active = 1 AND e.active = 1
     `)).recordset;
-    const nameMap = {};
-    nameMapRows.forEach(r => { nameMap[r.ext_username] = r.display_name; });
+    const nameMap = {}, nameMapById = {};
+    nameMapRows.forEach(r => {
+      nameMap[r.ext_username] = r.display_name;
+      nameMapById[r.id] = { name: r.display_name, ext_username: r.ext_username };
+    });
 
     res.json({
       ticketsToday, overdueTickets, ticketStats,
@@ -2679,7 +2686,7 @@ app.get('/api/dashboard', authRequired, async (_, res) => {
       currentShifts, serverTime: now.toISOString(),
       extConnected: !!ext,
       dailyTrend, monthTotal, lastMonthTotal, totalYear, closedThisMonth,
-      todayTotal, weekTotal, weekStart, nameMap, shiftTaskCounts
+      todayTotal, weekTotal, weekStart, nameMap, nameMapById, shiftTaskCounts
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -4619,14 +4626,17 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
           AND (cs.StatusName LIKE '%close%' OR cs.StatusName LIKE '%ปิด%' OR cs.StatusName LIKE '%complete%')${sc11}`),
     ]);
 
-    // Build ext_username → employee name map
+    // Build ext_username → display name + id → { name, ext_username } maps
     const nameMapRows = (await req().query(`
-      SELECT au.ext_username, ISNULL(e.nickname, e.name) AS display_name
+      SELECT e.id, au.ext_username, ISNULL(e.nickname, e.name) AS display_name
       FROM app_users au JOIN employees e ON e.id = au.employee_id
       WHERE au.ext_username IS NOT NULL AND au.active = 1 AND e.active = 1
     `)).recordset;
-    const nameMap = {};
-    nameMapRows.forEach(r => { nameMap[r.ext_username] = r.display_name; });
+    const nameMap = {}, nameMapById = {};
+    nameMapRows.forEach(r => {
+      nameMap[r.ext_username] = r.display_name;
+      nameMapById[r.id] = { name: r.display_name, ext_username: r.ext_username };
+    });
 
     const fmt = d => d.toISOString().split('T')[0];
     res.json({
@@ -4641,7 +4651,7 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
       closedThis:      d9.recordset[0]?.cnt || 0,
       hourlyAgentGrid: d10.recordset,
       closedLast:      d11.recordset[0]?.cnt || 0,
-      nameMap,
+      nameMap, nameMapById,
       daysThis,
       daysPrev:  daysThis,
       thisFrom:  msStr,
