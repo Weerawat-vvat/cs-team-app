@@ -192,6 +192,60 @@ async function init() {
           ('repair',      'Repair',      '#ca8a04', 3)
       END
     `);
+    // ── Pod Assign system ─────────────────────────────────
+    // pods — ทีมย่อย (Pod) ที่มีหัวหน้า + ภูมิภาค
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='pods' AND xtype='U')
+      CREATE TABLE pods (
+        id               INT IDENTITY(1,1) PRIMARY KEY,
+        code             NVARCHAR(20)  NOT NULL UNIQUE,        -- 'BKK-1'
+        display_name     NVARCHAR(100) NOT NULL,              -- 'Pod BKK-1'
+        region           NVARCHAR(20)  NOT NULL DEFAULT 'BKK',-- 'BKK' | 'CM'
+        lead_employee_id INT REFERENCES employees(id),        -- ★ หัวหน้า
+        color            NVARCHAR(20)  DEFAULT '#1d4ed8',
+        sort_order       INT           DEFAULT 0,
+        active           BIT           DEFAULT 1,
+        created_at       DATETIME      DEFAULT GETDATE()
+      )
+    `);
+    // pod_members — สมาชิกใน Pod (lead/junior/member)
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='pod_members' AND xtype='U')
+      CREATE TABLE pod_members (
+        id          INT IDENTITY(1,1) PRIMARY KEY,
+        pod_id      INT NOT NULL REFERENCES pods(id),
+        employee_id INT NOT NULL REFERENCES employees(id),
+        role_in_pod NVARCHAR(20) NOT NULL DEFAULT 'member',   -- lead | junior | member
+        active      BIT DEFAULT 1,
+        assigned_at DATETIME DEFAULT GETDATE()
+      )
+    `);
+    // customers — กลุ่มลูกค้าที่ assign ให้ Pod
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='customers' AND xtype='U')
+      CREATE TABLE customers (
+        id         INT IDENTITY(1,1) PRIMARY KEY,
+        name       NVARCHAR(255) NOT NULL,
+        branches   INT DEFAULT 0,                             -- จำนวนสาขา
+        pod_id     INT NULL REFERENCES pods(id),              -- Pod ที่ assign (null = ยังไม่ assign)
+        priority   NVARCHAR(20) DEFAULT 'normal',             -- normal | vip | secret
+        note       NVARCHAR(1000),
+        active     BIT DEFAULT 1,
+        created_at DATETIME DEFAULT GETDATE()
+      )
+    `);
+    // customer_assignments — ประวัติการย้าย Pod ของลูกค้า
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='customer_assignments' AND xtype='U')
+      CREATE TABLE customer_assignments (
+        id            INT IDENTITY(1,1) PRIMARY KEY,
+        customer_id   INT NOT NULL REFERENCES customers(id),
+        pod_id        INT REFERENCES pods(id),
+        assigned_by   INT REFERENCES employees(id),
+        assigned_at   DATETIME DEFAULT GETDATE(),
+        unassigned_at DATETIME NULL
+      )
+    `);
     console.log('✅ Migrations done');
   } catch (err) {
     console.error('❌ Migration error:', err.message);

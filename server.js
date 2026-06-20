@@ -2967,6 +2967,13 @@ async function ensureCustomerLinksTable() {
                      AND is_nullable=0)
           ALTER TABLE ticket_complaints ALTER COLUMN ticket_id INT NULL`);
     } catch {}
+    // Link complaints to a customer (Pod Assign system)
+    try {
+      await req().query(`
+        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+                       WHERE TABLE_NAME='ticket_complaints' AND COLUMN_NAME='customer_id')
+          ALTER TABLE ticket_complaints ADD customer_id INT NULL`);
+    } catch {}
   } catch(e) { console.error('customer tables error:', e.message); }
 }
 
@@ -4389,6 +4396,292 @@ app.delete('/api/teams/:id', authRequired, managerRequired, async (request, res)
     await req().input('id', sql.Int, request.params.id)
       .query('UPDATE teams SET active=0 WHERE id=@id');
     res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════
+//  POD ASSIGN — pods / members / customers (cs_team)
+// ══════════════════════════════════════════════════════════
+
+// ── Pods ──────────────────────────────────────────────────
+app.get('/api/pods', authRequired, async (request, res) => {
+  try {
+    const result = await req().query(`
+      SELECT p.id, p.code, p.display_name, p.region, p.lead_employee_id,
+             p.color, p.sort_order, p.active, p.created_at,
+             e.name AS lead_name, e.nickname AS lead_nickname,
+             (SELECT COUNT(*) FROM pod_members pm WHERE pm.pod_id=p.id AND pm.active=1)            AS member_count,
+             (SELECT COUNT(*) FROM customers c WHERE c.pod_id=p.id AND c.active=1)                 AS customer_count,
+             (SELECT ISNULL(SUM(c.branches),0) FROM customers c WHERE c.pod_id=p.id AND c.active=1) AS total_branches
+      FROM pods p
+      LEFT JOIN employees e ON e.id = p.lead_employee_id
+      WHERE p.active=1
+      ORDER BY p.sort_order, p.code`);
+    res.json(result.recordset);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/pods', authRequired, managerRequired, async (request, res) => {
+  const { code, display_name, region, lead_employee_id, color, sort_order } = request.body;
+  if (!code || !display_name) return res.status(400).json({ error: 'code and display_name required' });
+  try {
+    const result = await req()
+      .input('code',         sql.NVarChar, code)
+      .input('display_name', sql.NVarChar, display_name)
+      .input('region',       sql.NVarChar, region || 'BKK')
+      .input('lead',         sql.Int,      lead_employee_id || null)
+      .input('color',        sql.NVarChar, color || '#1d4ed8')
+      .input('sort_order',   sql.Int,      sort_order || 0)
+      .query(`INSERT INTO pods (code, display_name, region, lead_employee_id, color, sort_order)
+              OUTPUT INSERTED.id
+              VALUES (@code, @display_name, @region, @lead, @color, @sort_order)`);
+    res.json({ id: result.recordset[0].id });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/pods/:id', authRequired, managerRequired, async (request, res) => {
+  const { code, display_name, region, lead_employee_id, color, sort_order, active } = request.body;
+  try {
+    await req()
+      .input('code',         sql.NVarChar, code)
+      .input('display_name', sql.NVarChar, display_name)
+      .input('region',       sql.NVarChar, region || 'BKK')
+      .input('lead',         sql.Int,      lead_employee_id || null)
+      .input('color',        sql.NVarChar, color || '#1d4ed8')
+      .input('sort_order',   sql.Int,      sort_order || 0)
+      .input('active',       sql.Bit,      active ?? 1)
+      .input('id',           sql.Int,      request.params.id)
+      .query(`UPDATE pods SET code=@code, display_name=@display_name, region=@region,
+              lead_employee_id=@lead, color=@color, sort_order=@sort_order, active=@active
+              WHERE id=@id`);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/pods/:id', authRequired, managerRequired, async (request, res) => {
+  try {
+    await req().input('id', sql.Int, request.params.id)
+      .query('UPDATE pods SET active=0 WHERE id=@id');
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Pod members ───────────────────────────────────────────
+app.get('/api/pods/:id/members', authRequired, async (request, res) => {
+  try {
+    const result = await req().input('pid', sql.Int, request.params.id)
+      .query(`SELECT pm.id, pm.pod_id, pm.employee_id, pm.role_in_pod, pm.assigned_at,
+                     e.name, e.nickname, e.team
+              FROM pod_members pm
+              JOIN employees e ON e.id = pm.employee_id
+              WHERE pm.pod_id=@pid AND pm.active=1
+              ORDER BY CASE pm.role_in_pod WHEN 'lead' THEN 0 WHEN 'junior' THEN 1 ELSE 2 END, e.name`);
+    res.json(result.recordset);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/pods/:id/members', authRequired, managerRequired, async (request, res) => {
+  const { employee_id, role_in_pod } = request.body;
+  if (!employee_id) return res.status(400).json({ error: 'employee_id required' });
+  try {
+    const result = await req()
+      .input('pid',  sql.Int,      request.params.id)
+      .input('eid',  sql.Int,      employee_id)
+      .input('role', sql.NVarChar, role_in_pod || 'member')
+      .query(`INSERT INTO pod_members (pod_id, employee_id, role_in_pod)
+              OUTPUT INSERTED.id VALUES (@pid, @eid, @role)`);
+    res.json({ id: result.recordset[0].id });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/pod-members/:id', authRequired, managerRequired, async (request, res) => {
+  try {
+    await req().input('id', sql.Int, request.params.id)
+      .query('UPDATE pod_members SET active=0 WHERE id=@id');
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Board data — pods + lead + all members, each with today's work status
+app.get('/api/pods/board', authRequired, async (request, res) => {
+  try {
+    const pods = (await req().query(`
+      SELECT p.id, p.code, p.display_name, p.region, p.lead_employee_id,
+             p.color, p.sort_order
+      FROM pods p WHERE p.active=1 ORDER BY p.sort_order, p.code`)).recordset;
+    const members = (await req().query(`
+      SELECT pm.pod_id, pm.employee_id, pm.role_in_pod, e.name, e.nickname
+      FROM pod_members pm JOIN employees e ON e.id=pm.employee_id
+      WHERE pm.active=1 AND e.active=1`)).recordset;
+    // lead employees (in case lead is not a pod_member row)
+    const leads = (await req().query(`
+      SELECT p.id AS pod_id, e.id AS employee_id, e.name, e.nickname
+      FROM pods p JOIN employees e ON e.id=p.lead_employee_id WHERE p.active=1`)).recordset;
+    // today's shifts → work status + shift time per employee
+    const shifts = (await req().query(`
+      SELECT s.employee_id, s.shift_type, st.name AS shift_name,
+             CASE WHEN st.start_time IS NOT NULL AND st.end_time IS NOT NULL
+                  THEN CONVERT(varchar(5), st.start_time, 108) + N'–' + CONVERT(varchar(5), st.end_time, 108)
+                  ELSE NULL END AS shift_time
+      FROM shifts s
+      LEFT JOIN shift_types st ON st.shift_key = s.shift_type
+      WHERE s.shift_date = CAST(GETDATE() AS DATE)`)).recordset;
+    const shiftMap = {};
+    shifts.forEach(s => { shiftMap[s.employee_id] = s; });
+    const statusOf = (eid) => {
+      const s = shiftMap[eid];
+      if (!s) return 'none';                                  // not scheduled today
+      if (s.shift_type === 'dayoff' || String(s.shift_type).startsWith('leave_')) return 'off';
+      return 'work';                                          // any work shift
+    };
+    const shiftInfo = (eid) => {
+      const s = shiftMap[eid];
+      return s ? { shift_type: s.shift_type, shift_name: s.shift_name, shift_time: s.shift_time } : {};
+    };
+    const byPod = {};
+    pods.forEach(p => { byPod[p.id] = { ...p, lead_status: null, members: [] }; });
+    leads.forEach(l => {
+      const pod = byPod[l.pod_id]; if (!pod) return;
+      pod.lead_status = statusOf(l.employee_id);
+      pod.lead_name = l.name; pod.lead_nickname = l.nickname;
+    });
+    const seen = {}; // pod_id|emp dedupe (lead may also be a member row)
+    members.forEach(m => {
+      const pod = byPod[m.pod_id]; if (!pod) return;
+      const key = m.pod_id + '|' + m.employee_id;
+      if (seen[key]) return; seen[key] = 1;
+      const isLead = m.employee_id === pod.lead_employee_id || m.role_in_pod === 'lead';
+      pod.members.push({
+        employee_id: m.employee_id, name: m.name, nickname: m.nickname,
+        role_in_pod: isLead ? 'lead' : m.role_in_pod, status: statusOf(m.employee_id),
+        ...shiftInfo(m.employee_id),
+      });
+    });
+    // ensure lead shows in members list even if no pod_members row
+    leads.forEach(l => {
+      const pod = byPod[l.pod_id]; if (!pod) return;
+      const key = l.pod_id + '|' + l.employee_id;
+      if (seen[key]) return; seen[key] = 1;
+      pod.members.unshift({
+        employee_id: l.employee_id, name: l.name, nickname: l.nickname,
+        role_in_pod: 'lead', status: statusOf(l.employee_id),
+        ...shiftInfo(l.employee_id),
+      });
+    });
+    // sort: lead first, then junior, then member
+    const rank = { lead:0, junior:1, member:2 };
+    Object.values(byPod).forEach(p => p.members.sort((a,b)=>(rank[a.role_in_pod]??3)-(rank[b.role_in_pod]??3)));
+    res.json(pods.map(p => byPod[p.id]));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Customers ─────────────────────────────────────────────
+app.get('/api/customers', authRequired, async (request, res) => {
+  try {
+    const { pod_id } = request.query;
+    const r = req();
+    let where = 'c.active=1';
+    if (pod_id === 'none')      where += ' AND c.pod_id IS NULL';
+    else if (pod_id)          { where += ' AND c.pod_id=@pid'; r.input('pid', sql.Int, pod_id); }
+    const result = await r.query(`
+      SELECT c.id, c.name, c.branches, c.pod_id, c.priority, c.note, c.created_at,
+             p.code AS pod_code, p.display_name AS pod_name, p.color AS pod_color
+      FROM customers c
+      LEFT JOIN pods p ON p.id = c.pod_id
+      WHERE ${where}
+      ORDER BY c.name`);
+    res.json(result.recordset);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/customers', authRequired, managerRequired, async (request, res) => {
+  const { name, branches, pod_id, priority, note } = request.body;
+  if (!name) return res.status(400).json({ error: 'name required' });
+  try {
+    const result = await req()
+      .input('name',     sql.NVarChar, name)
+      .input('branches', sql.Int,      branches || 0)
+      .input('pod_id',   sql.Int,      pod_id || null)
+      .input('priority', sql.NVarChar, priority || 'normal')
+      .input('note',     sql.NVarChar, note || null)
+      .query(`INSERT INTO customers (name, branches, pod_id, priority, note)
+              OUTPUT INSERTED.id VALUES (@name, @branches, @pod_id, @priority, @note)`);
+    const id = result.recordset[0].id;
+    if (pod_id) {
+      await req()
+        .input('cid', sql.Int, id)
+        .input('pid', sql.Int, pod_id)
+        .input('by',  sql.Int, request.user?.employee_id || null)
+        .query(`INSERT INTO customer_assignments (customer_id, pod_id, assigned_by)
+                VALUES (@cid, @pid, @by)`);
+    }
+    res.json({ id });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/customers/:id', authRequired, managerRequired, async (request, res) => {
+  const { name, branches, priority, note } = request.body;
+  try {
+    await req()
+      .input('name',     sql.NVarChar, name)
+      .input('branches', sql.Int,      branches || 0)
+      .input('priority', sql.NVarChar, priority || 'normal')
+      .input('note',     sql.NVarChar, note || null)
+      .input('id',       sql.Int,      request.params.id)
+      .query(`UPDATE customers SET name=@name, branches=@branches,
+              priority=@priority, note=@note WHERE id=@id`);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Assign / move a customer to a pod (logs history)
+app.put('/api/customers/:id/assign', authRequired, managerRequired, async (request, res) => {
+  const { pod_id } = request.body;
+  try {
+    const cid = request.params.id;
+    await req()
+      .input('pod_id', sql.Int, pod_id || null)
+      .input('id',     sql.Int, cid)
+      .query('UPDATE customers SET pod_id=@pod_id WHERE id=@id');
+    // close previous open assignment, then open a new one
+    await req().input('cid', sql.Int, cid)
+      .query(`UPDATE customer_assignments SET unassigned_at=GETDATE()
+              WHERE customer_id=@cid AND unassigned_at IS NULL`);
+    if (pod_id) {
+      await req()
+        .input('cid', sql.Int, cid)
+        .input('pid', sql.Int, pod_id)
+        .input('by',  sql.Int, request.user?.employee_id || null)
+        .query(`INSERT INTO customer_assignments (customer_id, pod_id, assigned_by)
+                VALUES (@cid, @pid, @by)`);
+    }
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/customers/:id', authRequired, managerRequired, async (request, res) => {
+  try {
+    await req().input('id', sql.Int, request.params.id)
+      .query('UPDATE customers SET active=0 WHERE id=@id');
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Complaint history for one customer (by customer_id, or matched company_name)
+app.get('/api/customers/:id/complaints', authRequired, async (request, res) => {
+  try {
+    const cust = (await req().input('id', sql.Int, request.params.id)
+      .query('SELECT id, name FROM customers WHERE id=@id')).recordset[0];
+    if (!cust) return res.status(404).json({ error: 'customer not found' });
+    const result = await req()
+      .input('cid', sql.Int,      cust.id)
+      .input('nm',  sql.NVarChar, cust.name)
+      .query(`SELECT id, ticket_id, company_name, contact_name, contact_phone, email,
+                     message, status, created_at, resolved_at
+              FROM ticket_complaints
+              WHERE customer_id=@cid OR company_name=@nm
+              ORDER BY created_at DESC`);
+    res.json(result.recordset);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

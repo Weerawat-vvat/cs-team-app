@@ -498,6 +498,11 @@ textarea{resize:vertical;min-height:80px}
       <svg class="s-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
       Dashboard
     </button>
+    <!-- Pod & ลูกค้า -->
+    <button class="s-tab" id="nav-btn-pods" onclick="showPage('pods',this)">
+      <svg class="s-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Pod &amp; ลูกค้า
+    </button>
     <!-- 2. ติดตามเคส -->
     <button class="s-tab" id="nav-btn-tickets" onclick="showPage('tickets',this)">
       <svg class="s-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
@@ -3172,6 +3177,165 @@ textarea{resize:vertical;min-height:80px}
   </div>
 </div>
 
+<!-- ═══════════════════ PAGE: POD & CUSTOMERS ═══════════════════ -->
+<div id="page-pods" class="page">
+  <div class="section-header" style="margin-bottom:.75rem">
+    <div class="section-title">🗂️ โครงสร้าง Pod &amp; การ Assign ลูกค้า</div>
+    <div class="btn-group" id="pod-actions">
+      <button class="btn btn-sm" style="background:#1d4ed8;color:#fff" onclick="openPodForm()">➕ สร้าง Pod</button>
+      <button class="btn btn-sm" style="background:#16a34a;color:#fff" onclick="openCustForm()">➕ เพิ่มลูกค้า</button>
+      <button class="btn btn-sm btn-ghost" onclick="loadPods()">🔄 รีเฟรช</button>
+    </div>
+  </div>
+  <div style="display:flex;gap:1rem;align-items:center;font-size:.72rem;color:#64748b;margin-bottom:.6rem;flex-wrap:wrap">
+    <span style="font-weight:600">สถานะวันนี้:</span>
+    <span style="display:flex;align-items:center;gap:.3rem"><span style="width:9px;height:9px;border-radius:50%;background:#16a34a;display:inline-block"></span>ทำงาน</span>
+    <span style="display:flex;align-items:center;gap:.3rem"><span style="width:9px;height:9px;border-radius:50%;background:#dc2626;display:inline-block"></span>หยุด / ลา</span>
+    <span style="display:flex;align-items:center;gap:.3rem"><span style="width:9px;height:9px;border-radius:50%;background:#cbd5e1;display:inline-block"></span>ยังไม่จัดกะ</span>
+    <span style="margin-left:auto;color:#94a3b8">★ = หัวหน้า · ดับเบิลคลิกแถบหัว Pod เพื่อแก้ไข</span>
+  </div>
+  <div id="pods-board" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.6rem;align-items:start">
+    <div class="empty" style="padding:2rem">กำลังโหลด...</div>
+  </div>
+</div>
+
+<!-- MODAL: Pod form -->
+<div class="overlay" id="modal-pod-form">
+  <div class="modal" style="max-width:480px;padding:1.2rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
+      <div style="font-size:1rem;font-weight:800" id="pod-form-title">➕ สร้าง Pod</div>
+      <button class="modal-close" onclick="closeModal('modal-pod-form')">×</button>
+    </div>
+    <input type="hidden" id="pod-id"/>
+    <div class="grid-2">
+      <div class="form-group">
+        <label>รหัส Pod <span style="color:#ef4444">*</span></label>
+        <input id="pod-code" placeholder="เช่น BKK-1" style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.88rem;font-family:inherit;outline:none"/>
+      </div>
+      <div class="form-group">
+        <label>ภูมิภาค</label>
+        <select id="pod-region" style="width:100%" onchange="podRegionColor()">
+          <option value="BKK">กทม (BKK)</option>
+          <option value="CM">เชียงใหม่ (CM)</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>ชื่อแสดง <span style="color:#ef4444">*</span></label>
+      <input id="pod-name" placeholder="เช่น Pod BKK-1" style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.88rem;font-family:inherit;outline:none"/>
+    </div>
+    <div class="grid-2">
+      <div class="form-group">
+        <label>หัวหน้า Pod (★)</label>
+        <select id="pod-lead" class="emp-select" style="width:100%"></select>
+      </div>
+      <div class="form-group">
+        <label>สี / ลำดับ</label>
+        <div style="display:flex;gap:.4rem;align-items:center">
+          <input id="pod-color" type="color" value="#1d4ed8" style="width:44px;height:38px;padding:2px;border:1.5px solid var(--border);border-radius:8px"/>
+          <input id="pod-sort" type="number" value="0" title="ลำดับ" style="flex:1;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.88rem;font-family:inherit;outline:none"/>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;gap:.5rem;margin-top:.75rem">
+      <button class="btn btn-ghost btn-sm" id="pod-del-btn" style="color:#dc2626;display:none" onclick="deletePod()">🗑️ ลบ Pod</button>
+      <div style="display:flex;gap:.5rem;margin-left:auto">
+        <button class="btn btn-ghost" onclick="closeModal('modal-pod-form')">ยกเลิก</button>
+        <button class="btn btn-primary" onclick="savePod()">บันทึก</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Pod members -->
+<div class="overlay" id="modal-pod-members">
+  <div class="modal" style="max-width:520px;padding:1.2rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
+      <div style="font-size:1rem;font-weight:800" id="pod-mem-title">👥 สมาชิก Pod</div>
+      <button class="modal-close" onclick="closeModal('modal-pod-members')">×</button>
+    </div>
+    <input type="hidden" id="pod-mem-podid"/>
+    <div id="pod-mem-list" style="margin-bottom:.85rem"></div>
+    <div style="background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:.65rem .85rem">
+      <div style="font-size:.72rem;font-weight:700;color:#64748b;margin-bottom:.45rem">เพิ่มสมาชิก</div>
+      <div style="display:flex;gap:.4rem;align-items:center">
+        <select id="pod-mem-emp" class="emp-select" style="flex:2"></select>
+        <select id="pod-mem-role" style="flex:1">
+          <option value="member">สมาชิก</option>
+          <option value="junior">Junior</option>
+          <option value="lead">หัวหน้า</option>
+        </select>
+        <button class="btn btn-sm btn-primary" onclick="addPodMember()">เพิ่ม</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Customer form -->
+<div class="overlay" id="modal-cust-form">
+  <div class="modal" style="max-width:460px;padding:1.2rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
+      <div style="font-size:1rem;font-weight:800" id="cust-form-title">➕ เพิ่มกลุ่มลูกค้า</div>
+      <button class="modal-close" onclick="closeModal('modal-cust-form')">×</button>
+    </div>
+    <input type="hidden" id="cust-id"/>
+    <div class="form-group">
+      <label>ชื่อกลุ่มลูกค้า <span style="color:#ef4444">*</span></label>
+      <input id="cust-name" placeholder="เช่น KAMU TEA" style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.88rem;font-family:inherit;outline:none"/>
+    </div>
+    <div class="grid-2">
+      <div class="form-group">
+        <label>จำนวนสาขา</label>
+        <input id="cust-branches" type="number" value="0" min="0" style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.88rem;font-family:inherit;outline:none"/>
+      </div>
+      <div class="form-group">
+        <label>ระดับความสำคัญ</label>
+        <select id="cust-priority" style="width:100%">
+          <option value="normal">ปกติ</option>
+          <option value="vip">VIP / ตัวแดง</option>
+          <option value="secret">ลับ (Top Secret)</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group" id="cust-pod-wrap">
+      <label>Assign เข้า Pod</label>
+      <select id="cust-pod" style="width:100%"></select>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:.75rem">
+      <button class="btn btn-ghost" onclick="closeModal('modal-cust-form')">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="saveCust()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Customer detail (assign + complaint history) -->
+<div class="overlay" id="modal-cust-detail">
+  <div class="modal" style="max-width:560px;max-height:90vh;overflow-y:auto;padding:1.2rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
+      <div style="font-size:1.05rem;font-weight:800" id="cust-detail-name">—</div>
+      <button class="modal-close" onclick="closeModal('modal-cust-detail')">×</button>
+    </div>
+    <div id="cust-detail-meta" style="font-size:.8rem;color:#64748b;margin-bottom:.85rem"></div>
+    <div class="grid-2" id="cust-detail-controls">
+      <div class="form-group">
+        <label>ย้ายไป Pod</label>
+        <select id="cust-detail-pod" style="width:100%" onchange="reassignCust()"></select>
+      </div>
+      <div class="form-group">
+        <label>การจัดการ</label>
+        <div style="display:flex;gap:.4rem">
+          <button class="btn btn-sm btn-ghost" onclick="editCustFromDetail()" style="flex:1">✏️ แก้ไข</button>
+          <button class="btn btn-sm btn-ghost" style="color:#dc2626" onclick="deleteCust()">🗑️</button>
+        </div>
+      </div>
+    </div>
+    <div style="border-top:1px solid var(--border);margin-top:.5rem;padding-top:.75rem">
+      <div style="font-size:.82rem;font-weight:700;color:#334155;margin-bottom:.5rem">📋 ประวัติคอมเพลน <span id="cust-cmp-count" style="color:#94a3b8;font-weight:400"></span></div>
+      <div id="cust-cmp-list"><div class="empty" style="padding:1rem">กำลังโหลด...</div></div>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════════ PAGE: SHOP INFO ═══════════════════ -->
 <div id="page-shopinfo" class="page">
   <div class="section-header" style="margin-bottom:.65rem">
@@ -4373,7 +4537,7 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 
 // click outside to close
 // Modals ที่ห้ามปิดเมื่อกด outside (ข้อมูลอาจหาย)
-const NO_BACKDROP_CLOSE = new Set(['modal-repair-link','modal-repair-form','modal-repair-detail','modal-person','modal-create-case','modal-edit-ticket-full','modal-specialist-detail','modal-assign-specialist','modal-add-sp','modal-edit-sp','modal-si-entry','modal-si-import','modal-fu-add-issue','modal-sk-entry','modal-sw-update-form','modal-tk-import','modal-news-form','modal-weekly-pattern','modal-tr-add','modal-hr-password']);
+const NO_BACKDROP_CLOSE = new Set(['modal-repair-link','modal-repair-form','modal-repair-detail','modal-person','modal-create-case','modal-edit-ticket-full','modal-specialist-detail','modal-assign-specialist','modal-add-sp','modal-edit-sp','modal-si-entry','modal-si-import','modal-fu-add-issue','modal-sk-entry','modal-sw-update-form','modal-tk-import','modal-news-form','modal-weekly-pattern','modal-tr-add','modal-hr-password','modal-pod-form','modal-cust-form','modal-pod-members','modal-cust-detail']);
 
 document.querySelectorAll('.overlay').forEach(el => {
   el.addEventListener('click', e => {
@@ -4423,6 +4587,240 @@ function showPage(name, btn) {
   if (name === 'shopinfo') { loadShopInfo(); }
   if (name === 'sw-update') { loadSwUpdate(); }
   if (name === 'news') { loadNews(); }
+  if (name === 'pods') { loadPods(); }
+}
+
+// ══════════════════════════════════════════════════════════
+//  POD ASSIGN — pods / members / customers
+// ══════════════════════════════════════════════════════════
+let _pods = [], _custByPod = {};
+const POD_PRIO = { normal:'', vip:'🔴', secret:'🔒' };
+
+async function loadPods() {
+  if (typeof allEmployees === 'undefined' || !allEmployees?.length) {
+    try { await loadEmployees(); } catch {}
+  }
+  const canManage = isManagerRole();
+  document.getElementById('pod-actions').style.display = canManage ? '' : 'none';
+  _pods = await api('/api/pods/board');
+  let custs = await api('/api/customers');
+  if (!Array.isArray(_pods)) _pods = [];
+  if (!Array.isArray(custs)) custs = [];
+  _custByPod = {};
+  custs.forEach(c => { const k = c.pod_id || 'none'; (_custByPod[k] = _custByPod[k] || []).push(c); });
+  renderPodBoard(canManage);
+}
+
+// today work-status dot
+const POD_STATUS = {
+  work: { c:'#16a34a', t:'ทำงานวันนี้' },
+  off:  { c:'#dc2626', t:'หยุด / ลา' },
+  none: { c:'#cbd5e1', t:'ยังไม่จัดกะ' },
+};
+function statusDot(s){ const m = POD_STATUS[s]||POD_STATUS.none; return `<span title="${m.t}" style="width:9px;height:9px;border-radius:50%;background:${m.c};flex-shrink:0;display:inline-block"></span>`; }
+
+function renderPodBoard(canManage) {
+  const board = document.getElementById('pods-board');
+  const cols = _pods.map(p => {
+    const list = _custByPod[p.id] || [];
+    const totalBr = list.reduce((s,c) => s + (c.branches||0), 0);
+    const chips = list.map(c => {
+      const vip = c.priority === 'vip', secret = c.priority === 'secret';
+      const col = vip ? '#dc2626' : (secret ? '#7c3aed' : '#334155');
+      return `<div onclick="openCustDetail(${c.id})" style="display:flex;justify-content:space-between;gap:.4rem;align-items:center;cursor:pointer;font-size:.78rem;padding:.3rem .5rem;border-radius:7px;background:#f8fafc;border:1px solid transparent" onmouseover="this.style.borderColor='#cbd5e1'" onmouseout="this.style.borderColor='transparent'">
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${col};font-weight:${vip||secret?600:400}">${POD_PRIO[c.priority]||''} ${esc(c.name)}</span>
+        <span style="color:#94a3b8;font-size:.72rem;flex-shrink:0">${c.branches||0}</span>
+      </div>`;
+    }).join('') || `<div style="font-size:.74rem;color:#cbd5e1;padding:.3rem .5rem">ยังไม่มีลูกค้า</div>`;
+    // members + today status
+    const mem = p.members || [];
+    const working = mem.filter(m => m.status === 'work').length;
+    const memRows = mem.map(m => {
+      const timeTxt = m.status==='work' ? (m.shift_time || m.shift_name || '') : (m.status==='off' ? (m.shift_name || 'หยุด') : '');
+      const timeCol = m.status==='off' ? '#dc2626' : '#16a34a';
+      return `<div style="display:flex;align-items:center;gap:.4rem;font-size:.77rem;padding:.12rem .1rem">
+        ${statusDot(m.status)}
+        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${m.status==='off'?'color:#94a3b8;text-decoration:line-through':''}">${m.role_in_pod==='lead'?'★ ':''}${esc(m.nickname || m.name)}</span>
+        ${timeTxt?`<span style="font-size:.64rem;color:${timeCol};flex-shrink:0;white-space:nowrap">${esc(timeTxt)}</span>`:''}
+      </div>`;
+    }).join('') || `<div style="font-size:.74rem;color:#cbd5e1;padding:.2rem .1rem">ยังไม่มีสมาชิก</div>`;
+    // critical indicator
+    let pill = '';
+    if (mem.length) {
+      const crit = working === 0;
+      pill = `<span style="font-size:.68rem;font-weight:700;padding:.08rem .4rem;border-radius:20px;background:${crit?'#dc2626':'rgba(255,255,255,.28)'};color:#fff">${crit?'⚠ ไม่มีคนวันนี้':`ทำงาน ${working}/${mem.length}`}</span>`;
+    }
+    const manageLink = canManage ? `<div onclick="openPodMembers(${p.id})" style="font-size:.68rem;color:#64748b;cursor:pointer;padding:.2rem .1rem;text-align:right">＋ จัดการสมาชิก</div>` : '';
+    return `<div style="min-width:0;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:#fff;display:flex;flex-direction:column">
+      <div ${canManage?`ondblclick="openPodForm(${p.id})" title="ดับเบิลคลิกเพื่อแก้ไข Pod"`:''} style="background:${p.color||'#1d4ed8'};color:#fff;padding:.5rem .6rem;${canManage?'cursor:pointer':''}">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:.4rem">
+          <div style="font-size:.85rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.display_name)}</div>${pill}
+        </div>
+      </div>
+      <div style="padding:.45rem .5rem;display:flex;flex-direction:column;gap:.1rem;border-bottom:1px solid var(--border)">
+        ${memRows}${manageLink}
+      </div>
+      <div style="padding:.45rem;display:flex;flex-direction:column;gap:.3rem;flex:1">
+        <div style="font-size:.66rem;color:#94a3b8;font-weight:600;padding:0 .1rem">ลูกค้า</div>${chips}
+      </div>
+      <div style="padding:.4rem .6rem;border-top:1px solid var(--border);background:#f8fafc;display:flex;justify-content:space-between;font-size:.76rem;font-weight:700">
+        <span>รวมสาขา</span><span>${totalBr}</span>
+      </div>
+    </div>`;
+  }).join('');
+  const unassigned = _custByPod['none'] || [];
+  const unCol = unassigned.length ? `<div style="min-width:0;border:1px dashed #cbd5e1;border-radius:10px;overflow:hidden;background:#fff;display:flex;flex-direction:column">
+      <div style="background:#94a3b8;color:#fff;padding:.5rem .6rem"><div style="font-size:.85rem;font-weight:700">ยังไม่ assign</div><div style="font-size:.74rem;opacity:.9;margin-top:.1rem">${unassigned.length} ราย</div></div>
+      <div style="padding:.45rem;display:flex;flex-direction:column;gap:.3rem;flex:1">${unassigned.map(c=>`<div onclick="openCustDetail(${c.id})" style="cursor:pointer;font-size:.78rem;padding:.3rem .5rem;border-radius:7px;background:#f8fafc;display:flex;justify-content:space-between"><span>${esc(c.name)}</span><span style="color:#94a3b8">${c.branches||0}</span></div>`).join('')}</div>
+    </div>` : '';
+  board.innerHTML = (cols || '') + unCol || `<div class="empty" style="padding:2rem">ยังไม่มี Pod — กด "สร้าง Pod" เพื่อเริ่ม</div>`;
+}
+
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function podSelectOptions(sel){ return _pods.map(p=>`<option value="${p.id}"${p.id==sel?' selected':''}>${esc(p.display_name)}</option>`).join(''); }
+
+// ── Pod form ──
+function podRegionColor(){
+  const r = document.getElementById('pod-region').value;
+  const c = document.getElementById('pod-color');
+  if (!document.getElementById('pod-id').value) c.value = r === 'CM' ? '#16a34a' : '#1d4ed8';
+}
+function openPodForm(id){
+  const p = id ? _pods.find(x=>x.id===id) : null;
+  document.getElementById('pod-id').value = p ? p.id : '';
+  document.getElementById('pod-code').value = p ? p.code : '';
+  document.getElementById('pod-region').value = p ? p.region : 'BKK';
+  document.getElementById('pod-name').value = p ? p.display_name : '';
+  document.getElementById('pod-color').value = p ? (p.color||'#1d4ed8') : '#1d4ed8';
+  document.getElementById('pod-sort').value = p ? (p.sort_order||0) : 0;
+  document.getElementById('pod-form-title').textContent = p ? '✏️ แก้ไข Pod' : '➕ สร้าง Pod';
+  document.getElementById('pod-del-btn').style.display = p ? '' : 'none';
+  const leadSel = document.getElementById('pod-lead');
+  leadSel.innerHTML = '<option value="">— ไม่ระบุ —</option>' + allEmployees.map(e=>`<option value="${e.id}">${esc(e.nickname || e.name)}</option>`).join('');
+  if (p && p.lead_employee_id) leadSel.value = p.lead_employee_id;
+  openModal('modal-pod-form');
+}
+async function savePod(){
+  const id = document.getElementById('pod-id').value;
+  const body = {
+    code: document.getElementById('pod-code').value.trim(),
+    display_name: document.getElementById('pod-name').value.trim(),
+    region: document.getElementById('pod-region').value,
+    lead_employee_id: document.getElementById('pod-lead').value || null,
+    color: document.getElementById('pod-color').value,
+    sort_order: parseInt(document.getElementById('pod-sort').value)||0,
+  };
+  if (!body.code || !body.display_name) return alert('กรุณากรอกรหัส Pod และชื่อแสดง');
+  if (id) await api('/api/pods/'+id, {method:'PUT', body});
+  else    await api('/api/pods', {method:'POST', body});
+  closeModal('modal-pod-form'); loadPods();
+}
+async function deletePod(){
+  const id = document.getElementById('pod-id').value;
+  if (!id || !confirm('ลบ Pod นี้? ลูกค้าที่อยู่ใน Pod จะกลายเป็น "ยังไม่ assign"')) return;
+  await api('/api/pods/'+id, {method:'DELETE'});
+  closeModal('modal-pod-form'); loadPods();
+}
+
+// ── Pod members ──
+async function openPodMembers(podId){
+  document.getElementById('pod-mem-podid').value = podId;
+  const p = _pods.find(x=>x.id===podId);
+  document.getElementById('pod-mem-title').textContent = '👥 สมาชิก ' + (p?p.display_name:'Pod');
+  const emp = document.getElementById('pod-mem-emp');
+  emp.innerHTML = allEmployees.map(e=>`<option value="${e.id}">${esc(e.nickname || e.name)}</option>`).join('');
+  await renderPodMembers(podId);
+  openModal('modal-pod-members');
+}
+async function renderPodMembers(podId){
+  let members = await api('/api/pods/'+podId+'/members');
+  if (!Array.isArray(members)) members = [];
+  const roleLabel = { lead:'หัวหน้า ★', junior:'Junior', member:'สมาชิก' };
+  document.getElementById('pod-mem-list').innerHTML = members.length ? members.map(m=>
+    `<div style="display:flex;justify-content:space-between;align-items:center;padding:.4rem .55rem;border:1px solid var(--border);border-radius:8px;margin-bottom:.35rem">
+      <div><span style="font-weight:600;font-size:.85rem">${esc(m.nickname || m.name)}</span> <span style="font-size:.72rem;color:#64748b">· ${roleLabel[m.role_in_pod]||m.role_in_pod}</span></div>
+      <button onclick="removePodMember(${m.id},${podId})" style="background:0;border:0;color:#dc2626;cursor:pointer;font-size:.9rem">×</button>
+    </div>`).join('') : '<div class="empty" style="padding:.75rem">ยังไม่มีสมาชิก</div>';
+}
+async function addPodMember(){
+  const podId = document.getElementById('pod-mem-podid').value;
+  const body = { employee_id: document.getElementById('pod-mem-emp').value, role_in_pod: document.getElementById('pod-mem-role').value };
+  await api('/api/pods/'+podId+'/members', {method:'POST', body});
+  await renderPodMembers(podId); loadPods();
+}
+async function removePodMember(memId, podId){
+  await api('/api/pod-members/'+memId, {method:'DELETE'});
+  await renderPodMembers(podId); loadPods();
+}
+
+// ── Customer form ──
+function openCustForm(id){
+  const all = Object.values(_custByPod).flat();
+  const c = id ? all.find(x=>x.id===id) : null;
+  document.getElementById('cust-id').value = c ? c.id : '';
+  document.getElementById('cust-name').value = c ? c.name : '';
+  document.getElementById('cust-branches').value = c ? (c.branches||0) : 0;
+  document.getElementById('cust-priority').value = c ? c.priority : 'normal';
+  document.getElementById('cust-form-title').textContent = c ? '✏️ แก้ไขลูกค้า' : '➕ เพิ่มกลุ่มลูกค้า';
+  const podSel = document.getElementById('cust-pod');
+  podSel.innerHTML = '<option value="">— ยังไม่ assign —</option>' + podSelectOptions(c ? c.pod_id : '');
+  document.getElementById('cust-pod-wrap').style.display = c ? 'none' : '';
+  openModal('modal-cust-form');
+}
+async function saveCust(){
+  const id = document.getElementById('cust-id').value;
+  const body = {
+    name: document.getElementById('cust-name').value.trim(),
+    branches: parseInt(document.getElementById('cust-branches').value)||0,
+    priority: document.getElementById('cust-priority').value,
+  };
+  if (!body.name) return alert('กรุณากรอกชื่อกลุ่มลูกค้า');
+  if (id) { await api('/api/customers/'+id, {method:'PUT', body}); }
+  else { body.pod_id = document.getElementById('cust-pod').value || null; await api('/api/customers', {method:'POST', body}); }
+  closeModal('modal-cust-form'); loadPods();
+}
+
+// ── Customer detail / assign / complaints ──
+let _curCust = null;
+async function openCustDetail(id){
+  const all = Object.values(_custByPod).flat();
+  const c = all.find(x=>x.id===id); if (!c) return;
+  _curCust = c;
+  const canManage = isManagerRole();
+  document.getElementById('cust-detail-name').innerHTML = (POD_PRIO[c.priority]||'') + ' ' + esc(c.name);
+  const prioLabel = { normal:'ปกติ', vip:'VIP', secret:'ลับ' }[c.priority] || c.priority;
+  document.getElementById('cust-detail-meta').textContent = `${c.branches||0} สาขา · ${prioLabel}` + (c.pod_name ? ` · ${c.pod_name}` : ' · ยังไม่ assign');
+  document.getElementById('cust-detail-controls').style.display = canManage ? '' : 'none';
+  const podSel = document.getElementById('cust-detail-pod');
+  podSel.innerHTML = '<option value="">— ยังไม่ assign —</option>' + podSelectOptions(c.pod_id);
+  openModal('modal-cust-detail');
+  // complaint history
+  const list = document.getElementById('cust-cmp-list');
+  list.innerHTML = '<div class="empty" style="padding:1rem">กำลังโหลด...</div>';
+  let cmps = await api('/api/customers/'+id+'/complaints');
+  if (!Array.isArray(cmps)) cmps = [];
+  document.getElementById('cust-cmp-count').textContent = `(${cmps.length})`;
+  list.innerHTML = cmps.length ? cmps.map(c=>{
+    const done = c.status==='resolved' || c.resolved_at;
+    return `<div style="display:flex;gap:.5rem;padding:.45rem 0;border-bottom:1px solid #f1f5f9">
+      <span style="flex-shrink:0;font-size:.66rem;padding:.1rem .45rem;border-radius:6px;height:fit-content;background:${done?'#dcfce7':'#fef9c3'};color:${done?'#15803d':'#a16207'}">${done?'เสร็จ':'ค้าง'}</span>
+      <div style="flex:1;font-size:.8rem">
+        <div>${esc(c.message||'').slice(0,200)}</div>
+        <div style="font-size:.7rem;color:#94a3b8;margin-top:.15rem">${c.contact_name?esc(c.contact_name)+' · ':''}${(c.created_at||'').slice(0,10)}</div>
+      </div></div>`;
+  }).join('') : '<div class="empty" style="padding:1rem">ยังไม่มีคอมเพลนบันทึกไว้</div>';
+}
+async function reassignCust(){
+  if (!_curCust) return;
+  const pod_id = document.getElementById('cust-detail-pod').value || null;
+  await api('/api/customers/'+_curCust.id+'/assign', {method:'PUT', body:{pod_id}});
+  closeModal('modal-cust-detail'); loadPods();
+}
+function editCustFromDetail(){ if(_curCust){ closeModal('modal-cust-detail'); openCustForm(_curCust.id); } }
+async function deleteCust(){
+  if (!_curCust || !confirm('ลบกลุ่มลูกค้านี้?')) return;
+  await api('/api/customers/'+_curCust.id, {method:'DELETE'});
+  closeModal('modal-cust-detail'); loadPods();
 }
 
 // ══════════════════════════════════════════════════════════
