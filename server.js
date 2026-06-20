@@ -4602,7 +4602,7 @@ app.post('/api/customers', authRequired, managerRequired, async (request, res) =
       .input('name',     sql.NVarChar, name)
       .input('branches', sql.Int,      branches || 0)
       .input('pod_id',   sql.Int,      pod_id || null)
-      .input('priority', sql.NVarChar, priority || 'normal')
+      .input('priority', sql.NVarChar, priority || 'green')
       .input('note',     sql.NVarChar, note || null)
       .query(`INSERT INTO customers (name, branches, pod_id, priority, note)
               OUTPUT INSERTED.id VALUES (@name, @branches, @pod_id, @priority, @note)`);
@@ -4625,7 +4625,7 @@ app.put('/api/customers/:id', authRequired, managerRequired, async (request, res
     await req()
       .input('name',     sql.NVarChar, name)
       .input('branches', sql.Int,      branches || 0)
-      .input('priority', sql.NVarChar, priority || 'normal')
+      .input('priority', sql.NVarChar, priority || 'green')
       .input('note',     sql.NVarChar, note || null)
       .input('id',       sql.Int,      request.params.id)
       .query(`UPDATE customers SET name=@name, branches=@branches,

@@ -228,7 +228,7 @@ async function init() {
         name       NVARCHAR(255) NOT NULL,
         branches   INT DEFAULT 0,                             -- จำนวนสาขา
         pod_id     INT NULL REFERENCES pods(id),              -- Pod ที่ assign (null = ยังไม่ assign)
-        priority   NVARCHAR(20) DEFAULT 'normal',             -- normal | vip | secret
+        priority   NVARCHAR(20) DEFAULT 'green',              -- green | yellow | red (customer status)
         note       NVARCHAR(1000),
         active     BIT DEFAULT 1,
         created_at DATETIME DEFAULT GETDATE()
