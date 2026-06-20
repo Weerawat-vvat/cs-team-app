@@ -4606,6 +4606,14 @@ function custStat(p){
   return p === 'vip' ? 'red' : (p === 'secret' ? 'yellow' : 'green');
 }
 function custDot(p){ const s = custStat(p); const m = CUST_STATUS[s]; return `<span title="${m.label}" style="width:8px;height:8px;border-radius:50%;background:${m.c};flex-shrink:0;display:inline-block"></span>`; }
+// sort customers by status: red → yellow → green, then by name
+const CUST_RANK = { red:0, yellow:1, green:2 };
+function sortCusts(list){
+  return [...list].sort((a,b)=>{
+    const r = (CUST_RANK[custStat(a.priority)]??9) - (CUST_RANK[custStat(b.priority)]??9);
+    return r !== 0 ? r : String(a.name).localeCompare(String(b.name), 'th');
+  });
+}
 
 async function loadPods() {
   if (typeof allEmployees === 'undefined' || !allEmployees?.length) {
@@ -4633,7 +4641,7 @@ function statusDot(s){ const m = POD_STATUS[s]||POD_STATUS.none; return `<span t
 function renderPodBoard(canManage) {
   const board = document.getElementById('pods-board');
   const cols = _pods.map(p => {
-    const list = _custByPod[p.id] || [];
+    const list = sortCusts(_custByPod[p.id] || []);
     const totalBr = list.reduce((s,c) => s + (c.branches||0), 0);
     const chips = list.map(c => {
       const st = custStat(c.priority);
@@ -4678,7 +4686,7 @@ function renderPodBoard(canManage) {
       </div>
     </div>`;
   }).join('');
-  const unassigned = _custByPod['none'] || [];
+  const unassigned = sortCusts(_custByPod['none'] || []);
   const unCol = unassigned.length ? `<div style="min-width:0;border:1px dashed #cbd5e1;border-radius:10px;overflow:hidden;background:#fff;display:flex;flex-direction:column">
       <div style="background:#94a3b8;color:#fff;padding:.5rem .6rem"><div style="font-size:.85rem;font-weight:700">ยังไม่ assign</div><div style="font-size:.74rem;opacity:.9;margin-top:.1rem">${unassigned.length} ราย</div></div>
       <div style="padding:.45rem;display:flex;flex-direction:column;gap:.3rem;flex:1">${unassigned.map(c=>`<div onclick="openCustDetail(${c.id})" style="cursor:pointer;font-size:.78rem;padding:.3rem .5rem;border-radius:7px;background:#f8fafc;display:flex;justify-content:space-between;gap:.4rem"><span style="display:flex;align-items:center;gap:.35rem;overflow:hidden;min-width:0">${custDot(c.priority)}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.name)}</span></span><span style="color:#94a3b8;flex-shrink:0">${c.branches||0}</span></div>`).join('')}</div>
