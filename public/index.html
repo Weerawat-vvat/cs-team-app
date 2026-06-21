@@ -655,7 +655,7 @@ textarea{resize:vertical;min-height:80px}
       <label style="font-size:.8rem;color:var(--muted);white-space:nowrap">🎯 Target:</label>
       <input type="number" id="dash-target" class="target-input" min="1" max="9999" value="10"
         title="จำนวน tickets เป้าหมายต่อคนต่อวัน"
-        onchange="saveTarget();recalcTarget()" oninput="recalcTarget()"/>
+        onchange="syncDailyTarget(this.value,'dash')" oninput="recalcTarget()"/>
       <label style="font-size:.78rem;color:var(--muted);white-space:nowrap">tickets/คน/วัน</label>
     </div>
     <div class="drb-custom" id="dash-custom-range">
@@ -3230,7 +3230,7 @@ textarea{resize:vertical;min-height:80px}
       <div style="font-size:.78rem;color:var(--muted)">ย้อนหลัง <b id="cap-months">3</b> เดือน · ปรับสมมติฐานได้ →</div>
       <div style="display:flex;align-items:center;gap:.4rem">
         <label style="font-size:.78rem;color:var(--muted)">เป้า เคส/คน/วัน</label>
-        <input id="cap-target" type="number" min="1" value="16" style="width:70px" oninput="renderCapacity()"/>
+        <input id="cap-target" type="number" min="1" value="16" style="width:70px" oninput="syncDailyTarget(this.value,'cap')"/>
       </div>
       <div style="display:flex;align-items:center;gap:.4rem">
         <label style="font-size:.78rem;color:var(--muted)">วันทำงาน/เดือน</label>
@@ -5057,9 +5057,21 @@ function saveTarget() {
   if (v) localStorage.setItem('cs_daily_target', v);
 }
 function loadTarget() {
-  const saved = localStorage.getItem('cs_daily_target');
-  const el    = document.getElementById('dash-target');
-  if (saved && el) el.value = saved;
+  const el  = document.getElementById('dash-target');
+  const cap = document.getElementById('cap-target');
+  // single shared target: saved value wins; else fall back to the capacity tab's value
+  const v = localStorage.getItem('cs_daily_target') || (cap && cap.value) || (el && el.value) || '10';
+  if (el)  el.value  = v;
+  if (cap) cap.value = v;
+}
+// Shared daily target — kept in sync between Dashboard and Capacity tab
+function syncDailyTarget(v, from) {
+  v = Math.max(1, parseInt(v) || 10);
+  localStorage.setItem('cs_daily_target', v);
+  const dt = document.getElementById('dash-target'); if (dt && from !== 'dash') dt.value = v;
+  const ct = document.getElementById('cap-target');  if (ct && from !== 'cap')  ct.value = v;
+  recalcTarget();
+  if (typeof renderCapacity === 'function') renderCapacity();
 }
 function recalcTarget() {
   const target = parseInt(document.getElementById('dash-target')?.value) || 0;
