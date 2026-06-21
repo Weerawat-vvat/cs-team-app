@@ -8363,8 +8363,8 @@ async function tryAutoLogin() {
     setTimeout(checkNewsAnnouncement, 1500);
     // เช็คข่าวสารทุก 1 ชม. — โผล่อัตโนมัติถ้าเป็นวันใหม่แม้ไม่ refresh
     setInterval(checkNewsAnnouncement, 60 * 60 * 1000);
-    loadDashboard();
-    loadDashboardCharts();
+    // Default the dashboard to "today" on login/refresh (same as opening the menu)
+    dashRange('today', document.querySelector('#dash-drb .drb-btn'));
     loadNewsBadge();
     setInterval(updateClock, 1000);
   } catch(e) { console.error('[init] data load error (auth OK):', e); }
