@@ -2623,6 +2623,7 @@ app.get('/api/dashboard', authRequired, async (_, res) => {
       LEFT JOIN app_users au ON au.employee_id = e.id AND au.active = 1
       WHERE s.shift_date=@today AND s.shift_type IN (${shiftIn})
         AND s.status='scheduled' AND e.active=1
+        AND e.team IN (SELECT name FROM teams WHERE show_in_schedule=1 AND active=1)
       ORDER BY e.team, s.shift_type`)).recordset;
 
     // ── Count Calllog per employee since their shift start ────
@@ -2756,6 +2757,7 @@ async function getDashboardContext() {
     FROM shifts s JOIN employees e ON e.id=s.employee_id
     WHERE s.shift_date=@today AND s.shift_type IN (${shiftIn})
       AND s.status='scheduled' AND e.active=1
+      AND e.team IN (SELECT name FROM teams WHERE show_in_schedule=1 AND active=1)
     ORDER BY e.team, s.shift_type`)).recordset;
 
   const pendingLeaves = (await req()
@@ -5057,7 +5059,8 @@ app.get('/api/ai-analysis', authRequired, async (_, res) => {
       SELECT s.shift_type, e.name, e.team
       FROM shifts s JOIN employees e ON e.id=s.employee_id
       WHERE s.shift_date=@today AND s.shift_type IN (${shiftIn})
-        AND s.status='scheduled' AND e.active=1`)).recordset;
+        AND s.status='scheduled' AND e.active=1
+        AND e.team IN (SELECT name FROM teams WHERE show_in_schedule=1 AND active=1)`)).recordset;
 
     const pendingLeaves = (await req()
       .query(`SELECT COUNT(*) AS cnt FROM leave_requests WHERE status='pending'`))
