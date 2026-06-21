@@ -651,12 +651,6 @@ textarea{resize:vertical;min-height:80px}
       <select id="dash-filter-team" onchange="loadDashboardAll()" style="max-width:130px">
         <option value="">ทุกทีม</option>
       </select>
-      <span style="color:var(--border)">|</span>
-      <label style="font-size:.8rem;color:var(--muted);white-space:nowrap">🎯 Target:</label>
-      <input type="number" id="dash-target" class="target-input" min="1" max="9999" value="10"
-        title="จำนวน tickets เป้าหมายต่อคนต่อวัน"
-        onchange="syncDailyTarget(this.value,'dash')" oninput="recalcTarget()"/>
-      <label style="font-size:.78rem;color:var(--muted);white-space:nowrap">tickets/คน/วัน</label>
     </div>
     <div class="drb-custom" id="dash-custom-range">
       <input type="date" id="dash-date-from" style="max-width:130px"/>
@@ -5064,6 +5058,12 @@ function loadTarget() {
   if (el)  el.value  = v;
   if (cap) cap.value = v;
 }
+// Shared daily target (cases/person/day) — set in the Capacity tab, used app-wide
+function getDailyTarget() {
+  return parseInt(localStorage.getItem('cs_daily_target'))
+      || parseInt(document.getElementById('cap-target')?.value)
+      || 10;
+}
 // Shared daily target — kept in sync between Dashboard and Capacity tab
 function syncDailyTarget(v, from) {
   v = Math.max(1, parseInt(v) || 10);
@@ -5074,7 +5074,7 @@ function syncDailyTarget(v, from) {
   if (typeof renderCapacity === 'function') renderCapacity();
 }
 function recalcTarget() {
-  const target = parseInt(document.getElementById('dash-target')?.value) || 0;
+  const target = getDailyTarget();
   const tracker = document.getElementById('target-tracker');
   if (!target || !_dashLastAgents) { if (tracker) tracker.style.display = 'none'; return; }
 
@@ -5521,7 +5521,7 @@ async function loadDashboardCharts() {
     allChartUsers.sort((a, b) => (thisMap2[b] || 0) - (thisMap2[a] || 0));
     const topN = allChartUsers.map(u => ({ UserName: u, cnt: thisMap2[u] || 0 }));
 
-    const _tgt   = parseInt(document.getElementById('dash-target')?.value) || 0;
+    const _tgt   = getDailyTarget();
 
     // Format short date label e.g. "1 เม.ย." using th-TH locale
     const _fmtShort = s => s ? parseDbDate(s).toLocaleDateString('th-TH',{day:'numeric',month:'short'}) : '';
