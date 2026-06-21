@@ -3200,6 +3200,11 @@ textarea{resize:vertical;min-height:80px}
       <button class="btn btn-sm btn-ghost" onclick="loadPods()">🔄 รีเฟรช</button>
     </div>
   </div>
+  <div class="dash-tabs">
+    <button class="dash-tab-btn active" id="pod-tab-btn-1" onclick="switchPodTab(1)">🗂️ โครงสร้าง Pod</button>
+    <button class="dash-tab-btn" id="pod-tab-btn-2" onclick="switchPodTab(2)">📊 วิเคราะห์กำลังคน</button>
+  </div>
+  <div id="pod-tab-1">
   <div style="display:flex;gap:1rem;align-items:center;font-size:.72rem;color:#64748b;margin-bottom:.6rem;flex-wrap:wrap">
     <span style="font-weight:600">สถานะวันนี้:</span>
     <span style="display:flex;align-items:center;gap:.3rem"><span style="width:9px;height:9px;border-radius:50%;background:#16a34a;display:inline-block"></span>ทำงาน</span>
@@ -3216,6 +3221,23 @@ textarea{resize:vertical;min-height:80px}
   <div id="pod-license-load" style="display:none;font-size:.8rem;color:#0c4a6e;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:.55rem .8rem;margin-bottom:.7rem"></div>
   <div id="pods-board" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.6rem;align-items:start">
     <div class="empty" style="padding:2rem">กำลังโหลด...</div>
+  </div>
+  </div><!-- /pod-tab-1 -->
+
+  <!-- Capacity analysis tab -->
+  <div id="pod-tab-2" style="display:none">
+    <div class="card" style="padding:.85rem 1rem;margin-bottom:.75rem;display:flex;gap:1.2rem;align-items:center;flex-wrap:wrap">
+      <div style="font-size:.78rem;color:var(--muted)">ย้อนหลัง <b id="cap-months">3</b> เดือน · ปรับสมมติฐานได้ →</div>
+      <div style="display:flex;align-items:center;gap:.4rem">
+        <label style="font-size:.78rem;color:var(--muted)">เป้า เคส/คน/วัน</label>
+        <input id="cap-target" type="number" min="1" value="16" style="width:70px" oninput="renderCapacity()"/>
+      </div>
+      <div style="display:flex;align-items:center;gap:.4rem">
+        <label style="font-size:.78rem;color:var(--muted)">วันทำงาน/เดือน</label>
+        <input id="cap-workdays" type="number" min="1" value="22" style="width:70px" oninput="renderCapacity()"/>
+      </div>
+    </div>
+    <div id="pod-capacity"><div class="empty" style="padding:2rem">กำลังโหลด...</div></div>
   </div>
 </div>
 
@@ -4677,16 +4699,94 @@ async function loadLicenseLoad() {
   const el = document.getElementById('pod-license-load');
   if (!el) return;
   const d = await api('/api/pods/license-load', { silent: true });
-  if (!d || d.licenses == null) { el.style.display = 'none'; return; }
   const staff = new Set();
   _pods.forEach(p => (p.members || []).forEach(m => staff.add(m.employee_id)));
   const n = staff.size;
+  if (!d || d.licenses == null) { el.style.display = 'none'; _capData = { licenses: null, staff: n }; renderCapacity(); return; }
+  _capData = { licenses: d.licenses, calls: d.calls || 0, months: d.months || 3, staff: n };
   const avg = n ? Math.round(d.licenses / n) : 0;
   el.style.display = '';
   el.innerHTML = `📊 License ที่มี activity ย้อนหลัง 3 เดือน: <b>${d.licenses.toLocaleString()}</b>`
     + ` · ทีม CS <b>${n}</b> คน`
     + (n ? ` · เฉลี่ย ~<b>${avg.toLocaleString()}</b> license/คน` : '')
     + ` <span style="color:#0369a1">(${(d.calls||0).toLocaleString()} เคส)</span>`;
+  renderCapacity();
+}
+
+// ── Pod page tabs + capacity analysis ──
+let _capData = null;
+function switchPodTab(tab) {
+  document.getElementById('pod-tab-1').style.display = tab === 1 ? '' : 'none';
+  document.getElementById('pod-tab-2').style.display = tab === 2 ? '' : 'none';
+  document.getElementById('pod-tab-btn-1').classList.toggle('active', tab === 1);
+  document.getElementById('pod-tab-btn-2').classList.toggle('active', tab === 2);
+  if (tab === 2) renderCapacity();
+}
+function _capCard(label, value, color, sub) {
+  return `<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:.85rem 1rem">
+    <div style="font-size:.72rem;color:var(--muted);margin-bottom:3px">${label}</div>
+    <div style="font-size:1.5rem;font-weight:700;line-height:1;color:${color||'var(--text)'}">${value}</div>
+    ${sub ? `<div style="font-size:.7rem;color:#94a3b8;margin-top:3px">${sub}</div>` : ''}
+  </div>`;
+}
+function renderCapacity() {
+  const el = document.getElementById('pod-capacity'); if (!el) return;
+  if (!_capData || _capData.licenses == null) {
+    el.innerHTML = '<div class="empty" style="padding:2rem">ยังไม่มีข้อมูล license (LicenseDB ไม่พร้อม)</div>';
+    return;
+  }
+  const { licenses, calls, months, staff } = _capData;
+  const target   = Math.max(1, parseInt(document.getElementById('cap-target')?.value) || 16);
+  const workdays = Math.max(1, parseInt(document.getElementById('cap-workdays')?.value) || 22);
+  const cm = document.getElementById('cap-months'); if (cm) cm.textContent = months;
+  const callsPerMonth   = calls / months;
+  const licPerMonth     = licenses / months;
+  const casesPerLicense = licenses ? calls / licenses : 0;
+  const capacityMonth   = staff * target * workdays;
+  const util            = capacityMonth ? callsPerMonth / capacityMonth * 100 : 0;
+  const needed          = (target * workdays) ? callsPerMonth / (target * workdays) : 0;
+  const shortfall       = callsPerMonth - capacityMonth;           // >0 = เกิน capacity
+  const loadPerDay      = (staff * workdays) ? callsPerMonth / (staff * workdays) : 0;
+  const over            = util > 100;
+  const r = n => Math.round(n).toLocaleString();
+  const utilColor = over ? '#dc2626' : (util >= 85 ? '#d97706' : '#16a34a');
+  const barPct = Math.min(100, Math.round(loadPerDay / target * 100));
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:1rem">
+      ${_capCard('Active licenses', r(licenses), '#2563eb', `~${r(licPerMonth)} / เดือน`)}
+      ${_capCard('ทีม CS', staff, '#16a34a', `~${r(licenses/(staff||1))} license/คน`)}
+      ${_capCard('เคสทั้งหมด', r(calls), null, `~${r(callsPerMonth)} / เดือน`)}
+      ${_capCard('เคส / license', casesPerLicense.toFixed(1), null, `${months} เดือนรวม`)}
+      ${_capCard('Utilization', `${Math.round(util)}%`, utilColor, over ? 'เกิน capacity' : 'อยู่ในเกณฑ์')}
+      ${_capCard('ต้องการคน', needed.toFixed(1), over ? '#dc2626' : '#16a34a', `มี ${staff} · ${over ? 'ขาด ' + (needed - staff).toFixed(1) : 'พอ'}`)}
+    </div>
+    <div class="card" style="padding:1rem 1.1rem;margin-bottom:1rem">
+      <div style="font-size:.78rem;color:var(--muted);margin-bottom:.7rem">โหลดต่อคน/วัน เทียบเป้า</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:.5rem">
+        <span style="width:90px;font-size:.76rem;color:var(--muted)">เป้า</span>
+        <div style="flex:1;background:#f1f5f9;border-radius:5px;height:22px"><div style="width:${Math.min(100, Math.round(target/Math.max(target,loadPerDay)*100))}%;height:100%;background:rgba(37,99,235,.25);border-radius:5px"></div></div>
+        <span style="width:54px;text-align:right;font-weight:600;color:#2563eb">${target.toFixed(1)}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="width:90px;font-size:.76rem;color:var(--muted)">จริง (avg)</span>
+        <div style="flex:1;background:#f1f5f9;border-radius:5px;height:22px"><div style="width:${Math.min(100, Math.round(loadPerDay/Math.max(target,loadPerDay)*100))}%;height:100%;background:${over?'rgba(220,38,38,.25)':'rgba(22,163,74,.25)'};border-radius:5px"></div></div>
+        <span style="width:54px;text-align:right;font-weight:600;color:${over?'#dc2626':'#16a34a'}">${loadPerDay.toFixed(1)}</span>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
+      <div class="card" style="padding:.85rem 1rem">
+        <div style="font-weight:600;font-size:.85rem;margin-bottom:3px">${over ? '⚠️ ทีมโหลดเกิน capacity' : '✅ กำลังคนยังพอ'}</div>
+        <div style="font-size:.78rem;color:var(--muted)">เคสจริง ${r(callsPerMonth)}/เดือน เทียบ capacity ทีม ${r(capacityMonth)}/เดือน → ${over ? `เกิน <b style="color:#dc2626">~${r(shortfall)} เคส/เดือน</b>` : `เหลือ <b style="color:#16a34a">~${r(-shortfall)} เคส/เดือน</b>`}</div>
+      </div>
+      <div class="card" style="padding:.85rem 1rem">
+        <div style="font-weight:600;font-size:.85rem;margin-bottom:3px">👥 จำนวนคนที่ควรมี</div>
+        <div style="font-size:.78rem;color:var(--muted)">โหลดจริง ÷ (${target}×${workdays} วัน) = <b>${needed.toFixed(1)} คน</b> ${over ? `→ ควรเพิ่ม ~${Math.ceil(needed - staff)} คน` : '→ เพียงพอ'}</div>
+      </div>
+      <div class="card" style="padding:.85rem 1rem">
+        <div style="font-weight:600;font-size:.85rem;margin-bottom:3px">📈 Repeat contact</div>
+        <div style="font-size:.78rem;color:var(--muted)">1 license ติดต่อ ~<b>${(casesPerLicense/months).toFixed(1)}</b> ครั้ง/เดือน — ถ้าสูงควรเช็ก FCR / repeat จากปัญหาเดิม</div>
+      </div>
+    </div>`;
 }
 
 // today work-status dot
