@@ -46,6 +46,18 @@ body{font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--t
 .sidebar-user-role{font-size:.7rem;color:#94a3b8;margin-top:.1rem}
 .sidebar-logout{background:#334155;border:1px solid #475569;color:#94a3b8;cursor:pointer;padding:.35rem .7rem;border-radius:6px;font-size:.75rem;width:100%;margin-top:.5rem;transition:.2s;font-family:inherit}
 .sidebar-logout:hover{background:#ef4444;color:#fff;border-color:#ef4444}
+/* ── Collapsible sidebar ── */
+.sidebar{transition:width .18s ease,min-width .18s ease}
+.sidebar-toggle{position:absolute;top:.55rem;right:.5rem;background:#1e2d40;border:1px solid #334155;color:#94a3b8;width:26px;height:26px;border-radius:7px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1rem;line-height:1;z-index:101;transition:.15s;font-family:inherit}
+.sidebar-toggle:hover{background:#1d4ed8;color:#fff;border-color:#1d4ed8}
+.sidebar.collapsed{width:62px;min-width:62px}
+.sidebar.collapsed .sidebar-name,.sidebar.collapsed .sidebar-sub,.sidebar.collapsed .s-tab>span,.sidebar.collapsed .sidebar-user-name,.sidebar.collapsed .sidebar-user-role,.sidebar.collapsed .sidebar-logout,.sidebar.collapsed #nav-display-name,.sidebar.collapsed #nav-display-role{display:none}
+.sidebar.collapsed .s-sub-menu{display:none!important}
+.sidebar.collapsed .s-tab{font-size:0;justify-content:center;padding:.5rem 0;gap:0}
+.sidebar.collapsed .sidebar-nav{padding:.6rem .3rem}
+.sidebar.collapsed .sidebar-brand{padding:.55rem 0 .7rem;text-align:center}
+.sidebar.collapsed .sidebar-footer{align-items:center;padding:.6rem 0}
+.sidebar.collapsed .sidebar-toggle{position:static;margin:.45rem auto .25rem}
 
 /* ── MAIN WRAP ── */
 .main-wrap{flex:1;overflow-y:auto;min-height:100vh;min-width:0}
@@ -487,6 +499,7 @@ textarea{resize:vertical;min-height:80px}
 
 <!-- SIDEBAR -->
 <aside class="sidebar">
+  <button class="sidebar-toggle" id="sidebar-toggle-btn" onclick="toggleSidebar()" title="พับ/ขยายเมนู">«</button>
   <div class="sidebar-brand">
     <div class="sidebar-logo-icon">🎧</div>
     <div class="sidebar-name">CS Team Manager</div>
@@ -4535,6 +4548,33 @@ async function api(path, opts = {}) {
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
+// ── Collapsible sidebar ──
+function _applySidebarTitles(collapsed) {
+  document.querySelectorAll('.sidebar-nav .s-tab').forEach(b => {
+    b.title = collapsed ? b.textContent.trim() : '';
+  });
+}
+function toggleSidebar() {
+  const sb = document.querySelector('.sidebar');
+  if (!sb) return;
+  const collapsed = sb.classList.toggle('collapsed');
+  localStorage.setItem('cs_sidebar_collapsed', collapsed ? '1' : '0');
+  const t = document.getElementById('sidebar-toggle-btn');
+  if (t) t.textContent = collapsed ? '»' : '«';
+  _applySidebarTitles(collapsed);
+}
+document.addEventListener('DOMContentLoaded', () => {
+  if (localStorage.getItem('cs_sidebar_collapsed') === '1') {
+    const sb = document.querySelector('.sidebar');
+    if (sb) {
+      sb.classList.add('collapsed');
+      const t = document.getElementById('sidebar-toggle-btn');
+      if (t) t.textContent = '»';
+      _applySidebarTitles(true);
+    }
+  }
+});
+
 // click outside to close
 // Modals ที่ห้ามปิดเมื่อกด outside (ข้อมูลอาจหาย)
 const NO_BACKDROP_CLOSE = new Set(['modal-repair-link','modal-repair-form','modal-repair-detail','modal-person','modal-create-case','modal-edit-ticket-full','modal-specialist-detail','modal-assign-specialist','modal-add-sp','modal-edit-sp','modal-si-entry','modal-si-import','modal-fu-add-issue','modal-sk-entry','modal-sw-update-form','modal-tk-import','modal-news-form','modal-weekly-pattern','modal-tr-add','modal-hr-password','modal-pod-form','modal-cust-form','modal-pod-members','modal-cust-detail']);
@@ -4554,7 +4594,7 @@ function showPage(name, btn) {
   document.querySelectorAll('.s-tab').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
   if (btn) btn.classList.add('active');
-  if (name === 'dashboard') { loadDashboardAll(); }
+  if (name === 'dashboard') { dashRange('today', document.querySelector('#dash-drb .drb-btn')); }
   if (name === 'schedule')  _applyScheduleView();
   if (name === 'tickets')   loadTickets();
   if (name === 'kpi')       loadKpi();
@@ -5041,15 +5081,15 @@ async function loadDashboard() {
   }
 
   // ── On Shift ─────────────────────────────────────────────
-  const ONSHIFT_TEAMS = ['helpdesk', 'specialist', 'war_room'];
+  const ONSHIFT_TEAMS = (allTeams || []).filter(t => t.show_in_schedule).map(t => t.name);
   const SHIFT_ORDER   = ['morning', 'morning2', 'midday', 'mid', 'afternoon', 'night'];
 
   // Build team color lookup
   const _teamCol = {};
   allTeams.forEach(tm => { _teamCol[tm.name] = tm.color || '#475569'; });
 
-  // Filter to 3 teams only
-  const _onShiftFiltered = (d.onShift || []).filter(e => ONSHIFT_TEAMS.includes(e.team));
+  // Filter to teams flagged show_in_schedule
+  const _onShiftFiltered = (d.onShift || []).filter(e => ONSHIFT_TEAMS.length === 0 || ONSHIFT_TEAMS.includes(e.team));
 
   // Summary badge
   const _onShiftTotal = _onShiftFiltered.length;
