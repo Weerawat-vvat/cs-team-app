@@ -4698,14 +4698,25 @@ async function loadPods() {
   }
   const canManage = isManagerRole();
   document.getElementById('pod-actions').style.display = canManage ? '' : 'none';
-  _pods = await api('/api/pods/board');
-  let custs = await api('/api/customers');
-  if (!Array.isArray(_pods)) _pods = [];
+  let [board, custs, groups] = await Promise.all([
+    api('/api/pods/board'),
+    api('/api/customers'),
+    api('/api/pods/customer-groups', { silent: true }),
+  ]);
+  _pods = Array.isArray(board) ? board : [];
   if (!Array.isArray(custs)) custs = [];
+  // ticket count per group name (from LicenseDB, YTD)
+  _ticketsByName = {};
+  (Array.isArray(groups) ? groups : []).forEach(g => { _ticketsByName[g.name] = g.tickets; });
   _custByPod = {};
   custs.forEach(c => { const k = c.pod_id || 'none'; (_custByPod[k] = _custByPod[k] || []).push(c); });
   renderPodBoard(canManage);
   loadLicenseLoad();
+}
+let _ticketsByName = {};
+function _ticketCell(name) {
+  const t = _ticketsByName[name];
+  return (t == null) ? '' : `<span style="font-size:.62rem;color:#94a3b8;white-space:nowrap">${t.toLocaleString()} เคส</span>`;
 }
 
 // License workload — distinct RegistrationId (3 months) vs CS headcount
@@ -4848,11 +4859,12 @@ function renderPodBoard(canManage) {
   const cols = _pods.map(p => {
     const list = sortCusts(_custByPod[p.id] || []);
     const totalBr = list.reduce((s,c) => s + (c.branches||0), 0);
+    const totalTk = list.reduce((s,c) => s + (_ticketsByName[c.name]||0), 0);
     const chips = list.map(c => {
       const st = custStat(c.priority);
       return `<div onclick="openCustDetail(${c.id})" style="display:flex;justify-content:space-between;gap:.4rem;align-items:center;cursor:pointer;font-size:.78rem;padding:.3rem .5rem;border-radius:7px;background:#f8fafc;border:1px solid transparent" onmouseover="this.style.borderColor='#cbd5e1'" onmouseout="this.style.borderColor='transparent'">
         <span style="display:flex;align-items:center;gap:.35rem;overflow:hidden;min-width:0">${custDot(c.priority)}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${st==='red'?'color:#dc2626;font-weight:600':''}">${esc(c.name)}</span></span>
-        <span style="color:#94a3b8;font-size:.72rem;flex-shrink:0">${c.branches||0}</span>
+        <span style="flex-shrink:0;text-align:right;line-height:1.15"><span style="color:#475569;font-size:.72rem" title="จำนวนสาขา">${c.branches||0}</span>${_ticketCell(c.name) ? '<br>' + _ticketCell(c.name) : ''}</span>
       </div>`;
     }).join('') || `<div style="font-size:.74rem;color:#cbd5e1;padding:.3rem .5rem">ยังไม่มีลูกค้า</div>`;
     // members + today status
@@ -4884,17 +4896,17 @@ function renderPodBoard(canManage) {
         ${memRows}${manageLink}
       </div>
       <div style="padding:.45rem;display:flex;flex-direction:column;gap:.3rem;flex:1">
-        <div style="font-size:.66rem;color:#94a3b8;font-weight:600;padding:0 .1rem">ลูกค้า</div>${chips}
+        <div style="font-size:.66rem;color:#94a3b8;font-weight:600;padding:0 .1rem;display:flex;justify-content:space-between"><span>ลูกค้า</span><span style="font-weight:400">สาขา · เคส</span></div>${chips}
       </div>
       <div style="padding:.4rem .6rem;border-top:1px solid var(--border);background:#f8fafc;display:flex;justify-content:space-between;font-size:.76rem;font-weight:700">
-        <span>รวมสาขา</span><span>${totalBr}</span>
+        <span>รวมสาขา</span><span>${totalBr}${totalTk ? ` <span style="color:#94a3b8;font-weight:400">· ${totalTk.toLocaleString()} เคส</span>` : ''}</span>
       </div>
     </div>`;
   }).join('');
   const unassigned = sortCusts(_custByPod['none'] || []);
   const unCol = unassigned.length ? `<div style="min-width:0;border:1px dashed #cbd5e1;border-radius:10px;overflow:hidden;background:#fff;display:flex;flex-direction:column">
       <div style="background:#94a3b8;color:#fff;padding:.5rem .6rem"><div style="font-size:.85rem;font-weight:700">ยังไม่ assign</div><div style="font-size:.74rem;opacity:.9;margin-top:.1rem">${unassigned.length} ราย</div></div>
-      <div style="padding:.45rem;display:flex;flex-direction:column;gap:.3rem;flex:1">${unassigned.map(c=>`<div onclick="openCustDetail(${c.id})" style="cursor:pointer;font-size:.78rem;padding:.3rem .5rem;border-radius:7px;background:#f8fafc;display:flex;justify-content:space-between;gap:.4rem"><span style="display:flex;align-items:center;gap:.35rem;overflow:hidden;min-width:0">${custDot(c.priority)}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.name)}</span></span><span style="color:#94a3b8;flex-shrink:0">${c.branches||0}</span></div>`).join('')}</div>
+      <div style="padding:.45rem;display:flex;flex-direction:column;gap:.3rem;flex:1">${unassigned.map(c=>`<div onclick="openCustDetail(${c.id})" style="cursor:pointer;font-size:.78rem;padding:.3rem .5rem;border-radius:7px;background:#f8fafc;display:flex;justify-content:space-between;gap:.4rem"><span style="display:flex;align-items:center;gap:.35rem;overflow:hidden;min-width:0">${custDot(c.priority)}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.name)}</span></span><span style="flex-shrink:0;text-align:right;line-height:1.15"><span style="color:#475569;font-size:.72rem">${c.branches||0}</span>${_ticketCell(c.name) ? '<br>' + _ticketCell(c.name) : ''}</span></div>`).join('')}</div>
     </div>` : '';
   board.innerHTML = (cols || '') + unCol || `<div class="empty" style="padding:2rem">ยังไม่มี Pod — กด "สร้าง Pod" เพื่อเริ่ม</div>`;
 }
