@@ -3197,6 +3197,7 @@ textarea{resize:vertical;min-height:80px}
   <div class="dash-tabs">
     <button class="dash-tab-btn active" id="pod-tab-btn-1" onclick="switchPodTab(1)">🗂️ โครงสร้าง Pod</button>
     <button class="dash-tab-btn" id="pod-tab-btn-2" onclick="switchPodTab(2)">📊 วิเคราะห์กำลังคน</button>
+    <button class="dash-tab-btn" id="pod-tab-btn-3" onclick="switchPodTab(3)">📥 กลุ่มลูกค้า (License)</button>
   </div>
   <div id="pod-tab-1">
   <div style="display:flex;gap:1rem;align-items:center;font-size:.72rem;color:#64748b;margin-bottom:.6rem;flex-wrap:wrap">
@@ -3232,6 +3233,25 @@ textarea{resize:vertical;min-height:80px}
       </div>
     </div>
     <div id="pod-capacity"><div class="empty" style="padding:2rem">กำลังโหลด...</div></div>
+  </div>
+
+  <!-- Customer groups from License DB -->
+  <div id="pod-tab-3" style="display:none">
+    <div class="card" style="padding:.7rem 1rem;margin-bottom:.75rem;font-size:.78rem;color:var(--muted)">
+      กลุ่มลูกค้าจริงจากระบบ License (มี activity ปีนี้) · เลือก Pod ในแต่ละแถวเพื่อ assign — ระบบจะเพิ่ม/อัปเดตลงบอร์ดให้อัตโนมัติ (จำนวนสาขาดึงจาก License)
+    </div>
+    <div class="card" style="padding:.5rem 0">
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>กลุ่มลูกค้า</th><th style="text-align:right">สาขา</th><th style="text-align:right">เคส (ปีนี้)</th><th>Pod</th>
+          </tr></thead>
+          <tbody id="pod-groups-tbody">
+            <tr><td colspan="4" class="empty">กดแท็บนี้เพื่อโหลด...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -4710,11 +4730,43 @@ async function loadLicenseLoad() {
 // ── Pod page tabs + capacity analysis ──
 let _capData = null;
 function switchPodTab(tab) {
-  document.getElementById('pod-tab-1').style.display = tab === 1 ? '' : 'none';
-  document.getElementById('pod-tab-2').style.display = tab === 2 ? '' : 'none';
-  document.getElementById('pod-tab-btn-1').classList.toggle('active', tab === 1);
-  document.getElementById('pod-tab-btn-2').classList.toggle('active', tab === 2);
+  [1, 2, 3].forEach(i => {
+    const panel = document.getElementById('pod-tab-' + i);
+    const btn   = document.getElementById('pod-tab-btn-' + i);
+    if (panel) panel.style.display = tab === i ? '' : 'none';
+    if (btn)   btn.classList.toggle('active', tab === i);
+  });
   if (tab === 2) renderCapacity();
+  if (tab === 3) loadCustomerGroups();
+}
+
+// Customer groups from License DB → assign to pods
+async function loadCustomerGroups() {
+  const tb = document.getElementById('pod-groups-tbody');
+  if (!tb) return;
+  tb.innerHTML = '<tr><td colspan="4" class="empty">กำลังโหลด...</td></tr>';
+  let groups = await api('/api/pods/customer-groups', { silent: true });
+  if (!Array.isArray(groups)) groups = [];
+  if (!groups.length) { tb.innerHTML = '<tr><td colspan="4" class="empty">ไม่มีข้อมูล (LicenseDB ไม่พร้อม)</td></tr>'; return; }
+  const canManage = isManagerRole();
+  const podOpts = sel => '<option value="">— ยังไม่ assign —</option>' +
+    _pods.map(p => `<option value="${p.id}"${p.id == sel ? ' selected' : ''}>${esc(p.display_name)}</option>`).join('');
+  tb.innerHTML = groups.map(g => `
+    <tr>
+      <td>${esc(g.name)}</td>
+      <td style="text-align:right">${(g.branches||0).toLocaleString()}</td>
+      <td style="text-align:right;color:#64748b">${(g.tickets||0).toLocaleString()}</td>
+      <td>${canManage
+        ? `<select style="max-width:170px" onchange="assignGroup(this, ${JSON.stringify(g.name).replace(/"/g,'&quot;')}, ${g.branches||0})">${podOpts(g.pod_id)}</select>`
+        : (g.pod_code ? esc(g.pod_code) : '<span style="color:#cbd5e1">—</span>')}</td>
+    </tr>`).join('');
+}
+async function assignGroup(sel, name, branches) {
+  const pod_id = sel.value || null;
+  sel.disabled = true;
+  await api('/api/pods/assign-group', { method: 'POST', body: { name, branches, pod_id } });
+  sel.disabled = false;
+  loadPods(); // refresh board so the group shows under its pod
 }
 function _capCard(label, value, color, sub) {
   return `<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:.85rem 1rem">

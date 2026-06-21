@@ -4518,6 +4518,63 @@ app.get('/api/pods/license-load', authRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Customer groups from LicenseDB (CustomerGroup) with branch + ticket counts (year-to-date)
+app.get('/api/pods/customer-groups', authRequired, async (request, res) => {
+  try {
+    const ext = getExtPool();
+    if (!ext) return res.json([]);
+    const groups = (await extReq().query(`
+      SELECT cg.GroupName,
+             COUNT(DISTINCT cr.RegistrationId) AS NumOfBranch,
+             COUNT(cl.CalllogId)               AS NumOfTicket
+      FROM Calllog cl
+      INNER JOIN CustomerRegistration cr ON cr.RegistrationId = cl.RegistrationId AND cr.AccurateData = 1
+      INNER JOIN CustomerGroup cg ON cg.GroupId = cr.GroupId
+      WHERE cl.ReceiveDate >= DATEADD(YEAR, DATEDIFF(YEAR, 0, GETDATE()), 0)
+      GROUP BY cg.GroupName
+      ORDER BY COUNT(cl.CalllogId) DESC`)).recordset;
+    // match to internal customers to show current pod assignment
+    const custs = (await req().query(`
+      SELECT c.name, c.pod_id, p.code AS pod_code
+      FROM customers c LEFT JOIN pods p ON p.id = c.pod_id
+      WHERE c.active = 1`)).recordset;
+    const byName = {};
+    custs.forEach(c => { byName[c.name] = c; });
+    res.json(groups.map(g => ({
+      name: g.GroupName, branches: g.NumOfBranch, tickets: g.NumOfTicket,
+      pod_id: byName[g.GroupName]?.pod_id || null,
+      pod_code: byName[g.GroupName]?.pod_code || null,
+    })));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Assign a customer group to a pod (upsert by name + log history)
+app.post('/api/pods/assign-group', authRequired, managerRequired, async (request, res) => {
+  const { name, branches, pod_id } = request.body;
+  if (!name) return res.status(400).json({ error: 'name required' });
+  try {
+    const ex = (await req().input('nm', sql.NVarChar, name)
+      .query('SELECT TOP 1 id FROM customers WHERE name=@nm AND active=1')).recordset[0];
+    let cid;
+    if (ex) {
+      cid = ex.id;
+      await req().input('b', sql.Int, branches || 0).input('p', sql.Int, pod_id || null).input('id', sql.Int, cid)
+        .query('UPDATE customers SET branches=@b, pod_id=@p WHERE id=@id');
+    } else {
+      cid = (await req().input('nm', sql.NVarChar, name).input('b', sql.Int, branches || 0).input('p', sql.Int, pod_id || null)
+        .query(`INSERT INTO customers (name, branches, pod_id, priority, active, created_at)
+                OUTPUT INSERTED.id VALUES (@nm, @b, @p, 'green', 1, GETDATE())`)).recordset[0].id;
+    }
+    await req().input('cid', sql.Int, cid)
+      .query('UPDATE customer_assignments SET unassigned_at=GETDATE() WHERE customer_id=@cid AND unassigned_at IS NULL');
+    if (pod_id) {
+      await req().input('cid', sql.Int, cid).input('p', sql.Int, pod_id).input('by', sql.Int, request.user?.employee_id || null)
+        .query('INSERT INTO customer_assignments (customer_id, pod_id, assigned_by) VALUES (@cid, @p, @by)');
+    }
+    res.json({ id: cid });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/pods/board', authRequired, async (request, res) => {
   try {
     const pods = (await req().query(`
