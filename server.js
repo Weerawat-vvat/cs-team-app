@@ -4505,6 +4505,19 @@ app.delete('/api/pod-members/:id', authRequired, managerRequired, async (request
 });
 
 // Board data — pods + lead + all members, each with today's work status
+// License load — distinct RegistrationId with call activity in the last 3 months (LicenseDB)
+app.get('/api/pods/license-load', authRequired, async (request, res) => {
+  try {
+    const ext = getExtPool();
+    if (!ext) return res.json({ licenses: null, calls: null, months: 3 });
+    const r = await extReq().query(`
+      SELECT COUNT(DISTINCT RegistrationId) AS licenses, COUNT(*) AS calls
+      FROM Calllog
+      WHERE Active = 1 AND ReceiveDate >= DATEADD(month, -3, GETDATE())`);
+    res.json({ licenses: r.recordset[0].licenses, calls: r.recordset[0].calls, months: 3 });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/pods/board', authRequired, async (request, res) => {
   try {
     const pods = (await req().query(`

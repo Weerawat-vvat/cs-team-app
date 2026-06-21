@@ -3213,6 +3213,7 @@ textarea{resize:vertical;min-height:80px}
     <span style="display:flex;align-items:center;gap:.3rem"><span style="width:8px;height:8px;border-radius:50%;background:#eab308;display:inline-block"></span>เฝ้าระวัง</span>
     <span style="display:flex;align-items:center;gap:.3rem"><span style="width:8px;height:8px;border-radius:50%;background:#dc2626;display:inline-block"></span>มีปัญหา</span>
   </div>
+  <div id="pod-license-load" style="display:none;font-size:.8rem;color:#0c4a6e;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:.55rem .8rem;margin-bottom:.7rem"></div>
   <div id="pods-board" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.6rem;align-items:start">
     <div class="empty" style="padding:2rem">กำลังโหลด...</div>
   </div>
@@ -4668,6 +4669,24 @@ async function loadPods() {
   _custByPod = {};
   custs.forEach(c => { const k = c.pod_id || 'none'; (_custByPod[k] = _custByPod[k] || []).push(c); });
   renderPodBoard(canManage);
+  loadLicenseLoad();
+}
+
+// License workload — distinct RegistrationId (3 months) vs CS headcount
+async function loadLicenseLoad() {
+  const el = document.getElementById('pod-license-load');
+  if (!el) return;
+  const d = await api('/api/pods/license-load', { silent: true });
+  if (!d || d.licenses == null) { el.style.display = 'none'; return; }
+  const staff = new Set();
+  _pods.forEach(p => (p.members || []).forEach(m => staff.add(m.employee_id)));
+  const n = staff.size;
+  const avg = n ? Math.round(d.licenses / n) : 0;
+  el.style.display = '';
+  el.innerHTML = `📊 License ที่มี activity ย้อนหลัง 3 เดือน: <b>${d.licenses.toLocaleString()}</b>`
+    + ` · ทีม CS <b>${n}</b> คน`
+    + (n ? ` · เฉลี่ย ~<b>${avg.toLocaleString()}</b> license/คน` : '')
+    + ` <span style="color:#0369a1">(${(d.calls||0).toLocaleString()} เคส)</span>`;
 }
 
 // today work-status dot
