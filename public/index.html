@@ -4728,9 +4728,10 @@ async function loadLicenseLoad() {
   const el = document.getElementById('pod-license-load');
   if (!el) return;
   const d = await api('/api/pods/license-load', { silent: true });
-  const staff = new Set();
-  _pods.forEach(p => (p.members || []).forEach(m => staff.add(m.employee_id)));
-  const n = staff.size;
+  // headcount = active employees in the scheduled (ticked) teams — BKK + CNX + SP
+  const ticked = new Set((allTeams || []).filter(t => t.show_in_schedule).map(t => t.name));
+  let n = (allEmployees || []).filter(e => ticked.has(e.team)).length;
+  if (!n) { const s = new Set(); _pods.forEach(p => (p.members || []).forEach(m => s.add(m.employee_id))); n = s.size; }
   if (!d || d.licenses == null) { el.style.display = 'none'; _capData = { licenses: null, staff: n }; renderCapacity(); return; }
   _capData = { licenses: d.licenses, calls: d.calls || 0, months: d.months || 3, staff: n };
   const avg = n ? Math.round(d.licenses / n) : 0;
