@@ -4643,7 +4643,20 @@ app.get('/api/pods/board', authRequired, async (request, res) => {
     // sort: lead first, then junior, then member
     const rank = { lead:0, junior:1, member:2 };
     Object.values(byPod).forEach(p => p.members.sort((a,b)=>(rank[a.role_in_pod]??3)-(rank[b.role_in_pod]??3)));
-    res.json(pods.map(p => byPod[p.id]));
+
+    // employees in scheduled teams who are NOT in any pod but ARE working today
+    const assigned = new Set();
+    leads.forEach(l => assigned.add(l.employee_id));
+    members.forEach(m => assigned.add(m.employee_id));
+    const teamEmps = (await req().query(`
+      SELECT e.id, e.name, e.nickname, e.team
+      FROM employees e
+      WHERE e.active=1 AND e.team IN (SELECT name FROM teams WHERE show_in_schedule=1 AND active=1)`)).recordset;
+    const unassignedWorking = teamEmps
+      .filter(e => !assigned.has(e.id) && statusOf(e.id) === 'work')
+      .map(e => ({ employee_id: e.id, name: e.name, nickname: e.nickname, team: e.team, ...shiftInfo(e.id) }));
+
+    res.json({ pods: pods.map(p => byPod[p.id]), unassignedWorking });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

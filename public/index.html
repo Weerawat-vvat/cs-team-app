@@ -3213,6 +3213,7 @@ textarea{resize:vertical;min-height:80px}
     <span style="display:flex;align-items:center;gap:.3rem"><span style="width:8px;height:8px;border-radius:50%;background:#dc2626;display:inline-block"></span>มีปัญหา</span>
   </div>
   <div id="pod-license-load" style="display:none;font-size:.8rem;color:#0c4a6e;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:.55rem .8rem;margin-bottom:.7rem"></div>
+  <div id="pod-unassigned-working" style="display:none;font-size:.8rem;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:.55rem .8rem;margin-bottom:.7rem"></div>
   <div id="pods-board" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.6rem;align-items:start">
     <div class="empty" style="padding:2rem">กำลังโหลด...</div>
   </div>
@@ -4702,7 +4703,8 @@ async function loadPods() {
     api('/api/customers'),
     api('/api/pods/customer-groups', { silent: true }),
   ]);
-  _pods = Array.isArray(board) ? board : [];
+  _pods = Array.isArray(board) ? board : (board?.pods || []);
+  _unassignedWorking = (board && board.unassignedWorking) || [];
   if (!Array.isArray(custs)) custs = [];
   // branch + ticket count per group name (from LicenseDB, YTD) — authoritative
   _ticketsByName = {}; _branchesByName = {};
@@ -4712,7 +4714,16 @@ async function loadPods() {
   renderPodBoard(canManage);
   loadLicenseLoad();
 }
-let _ticketsByName = {}, _branchesByName = {};
+let _ticketsByName = {}, _branchesByName = {}, _unassignedWorking = [];
+function renderUnassignedWorking() {
+  const el = document.getElementById('pod-unassigned-working');
+  if (!el) return;
+  const list = _unassignedWorking || [];
+  if (!list.length) { el.style.display = 'none'; return; }
+  el.style.display = '';
+  el.innerHTML = `⚠️ ทำงานวันนี้แต่ยังไม่ได้จัดเข้า Pod (${list.length}): `
+    + list.map(e => `<b>${esc(e.nickname || e.name)}</b><span style="color:#b45309">${e.shift_time ? ' ' + esc(e.shift_time) : ''}</span>`).join(' · ');
+}
 function _ticketCell(name) {
   const t = _ticketsByName[name];
   return (t == null) ? '' : `<span style="font-size:.62rem;color:#94a3b8;white-space:nowrap">${t.toLocaleString()} เคส</span>`;
@@ -4914,6 +4925,7 @@ function renderPodBoard(canManage) {
       <div style="padding:.45rem;display:flex;flex-direction:column;gap:.3rem;flex:1">${unassigned.map(c=>`<div onclick="openCustDetail(${c.id})" style="cursor:pointer;font-size:.78rem;padding:.3rem .5rem;border-radius:7px;background:#f8fafc;display:flex;justify-content:space-between;gap:.4rem"><span style="display:flex;align-items:center;gap:.35rem;overflow:hidden;min-width:0">${custDot(c.priority)}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.name)}</span></span><span style="flex-shrink:0;text-align:right;line-height:1.15"><span style="color:#475569;font-size:.72rem">${_branchOf(c)}</span>${_ticketCell(c.name) ? '<br>' + _ticketCell(c.name) : ''}</span></div>`).join('')}</div>
     </div>` : '';
   board.innerHTML = (cols || '') + unCol || `<div class="empty" style="padding:2rem">ยังไม่มี Pod — กด "สร้าง Pod" เพื่อเริ่ม</div>`;
+  renderUnassignedWorking();
 }
 
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
