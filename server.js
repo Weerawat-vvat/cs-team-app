@@ -4526,11 +4526,11 @@ app.get('/api/pods/customer-groups', authRequired, async (request, res) => {
     const groups = (await extReq().query(`
       SELECT cg.GroupName,
              COUNT(DISTINCT cr.RegistrationId) AS NumOfBranch,
-             COUNT(CASE WHEN cl.ReceiveDate >= DATEADD(day, -60, GETDATE()) THEN cl.CalllogId END) AS NumOfTicket
+             COUNT(cl.CalllogId)               AS NumOfTicket
       FROM Calllog cl
       INNER JOIN CustomerRegistration cr ON cr.RegistrationId = cl.RegistrationId AND cr.AccurateData = 1
       INNER JOIN CustomerGroup cg ON cg.GroupId = cr.GroupId
-      WHERE cl.ReceiveDate >= DATEADD(YEAR, DATEDIFF(YEAR, 0, GETDATE()), 0)
+      WHERE cl.ReceiveDate >= DATEADD(month, -3, GETDATE())
       GROUP BY cg.GroupName
       ORDER BY NumOfTicket DESC`)).recordset;
     // match to internal customers to show current pod assignment
