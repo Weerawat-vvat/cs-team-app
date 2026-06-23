@@ -4888,11 +4888,15 @@ function renderPodBoard(canManage) {
     const workMems = mem.filter(m => m.status === 'work');
     const working = workMems.length;
     // staff grouped by 3 shift periods (responsible today, with time + names)
-    const PERIODS = [
+    const ALL_PERIODS = [
       { key:'เช้า', types:['morning','morning2'] },
       { key:'บ่าย', types:['mid','midday','afternoon'] },
       { key:'ดึก', types:['night'] },
     ];
+    // กทม (BKK) มีแต่ เช้า/ดึก · เชียงใหม่ (CNX) มีครบ 3 — เผื่อมีคนเข้ากะนอกมาตรฐานก็โชว์ช่วงนั้นเพิ่ม
+    const _region = (p.code || '').toUpperCase().startsWith('BKK') ? 'BKK' : 'CNX';
+    const _std = _region === 'BKK' ? ['เช้า','ดึก'] : ['เช้า','บ่าย','ดึก'];
+    const PERIODS = ALL_PERIODS.filter(per => _std.includes(per.key) || workMems.some(m => per.types.includes(m.shift_type)));
     const periodRows = PERIODS.map(per => {
       const ppl = workMems.filter(m => per.types.includes(m.shift_type));
       const ok = ppl.length > 0;
