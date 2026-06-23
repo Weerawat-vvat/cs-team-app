@@ -4582,6 +4582,21 @@ app.post('/api/pods/assign-group', authRequired, managerRequired, async (request
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Today's shift per employee (for member/lead dropdowns)
+app.get('/api/today-shifts', authRequired, async (request, res) => {
+  try {
+    const rows = (await req().query(`
+      SELECT s.employee_id, s.shift_type,
+             CASE WHEN st.start_time IS NOT NULL AND st.end_time IS NOT NULL
+                  THEN CONVERT(varchar(5), st.start_time, 108) + N'–' + CONVERT(varchar(5), st.end_time, 108)
+                  ELSE NULL END AS shift_time
+      FROM shifts s
+      LEFT JOIN shift_types st ON st.shift_key = s.shift_type
+      WHERE s.shift_date = CAST(GETDATE() AS DATE)`)).recordset;
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/pods/board', authRequired, async (request, res) => {
   try {
     const pods = (await req().query(`

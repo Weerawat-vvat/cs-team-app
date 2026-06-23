@@ -4698,11 +4698,14 @@ async function loadPods() {
   }
   const canManage = isManagerRole();
   document.getElementById('pod-actions').style.display = canManage ? '' : 'none';
-  let [board, custs, groups] = await Promise.all([
+  let [board, custs, groups, today] = await Promise.all([
     api('/api/pods/board'),
     api('/api/customers'),
     api('/api/pods/customer-groups', { silent: true }),
+    api('/api/today-shifts', { silent: true }),
   ]);
+  _todayShift = {};
+  (Array.isArray(today) ? today : []).forEach(s => { _todayShift[s.employee_id] = s; });
   _pods = Array.isArray(board) ? board : (board?.pods || []);
   _unassignedWorking = (board && board.unassignedWorking) || [];
   if (!Array.isArray(custs)) custs = [];
@@ -4714,7 +4717,17 @@ async function loadPods() {
   renderPodBoard(canManage);
   loadLicenseLoad();
 }
-let _ticketsByName = {}, _branchesByName = {}, _unassignedWorking = [];
+let _ticketsByName = {}, _branchesByName = {}, _unassignedWorking = [], _todayShift = {};
+// today's shift suffix for employee dropdowns, e.g. " — ดึก 15:00–00:00" / " — หยุด" / " — ยังไม่จัดกะ"
+const _SHIFT_PERIOD = { morning:'เช้า', morning2:'เช้า', mid:'บ่าย', midday:'บ่าย', afternoon:'บ่าย', night:'ดึก' };
+function empShiftSuffix(empId) {
+  const s = _todayShift[empId];
+  if (!s) return ' — ยังไม่จัดกะ';
+  if (s.shift_type === 'dayoff') return ' — หยุด';
+  if (String(s.shift_type).startsWith('leave_')) return ' — ลา';
+  const per = _SHIFT_PERIOD[s.shift_type] || s.shift_type || '';
+  return ` — ${per}${s.shift_time ? ' ' + s.shift_time : ''}`;
+}
 function renderUnassignedWorking() {
   const el = document.getElementById('pod-unassigned-working');
   if (!el) return;
@@ -4966,13 +4979,13 @@ function openPodForm(id){
   document.getElementById('pod-form-title').textContent = p ? '✏️ แก้ไข Pod' : '➕ สร้าง Pod';
   document.getElementById('pod-del-btn').style.display = p ? '' : 'none';
   const leadSel = document.getElementById('pod-lead');
-  leadSel.innerHTML = '<option value="">— ไม่ระบุ —</option>' + allEmployees.map(e=>`<option value="${e.id}">${esc(e.nickname || e.name)}</option>`).join('');
+  leadSel.innerHTML = '<option value="">— ไม่ระบุ —</option>' + allEmployees.map(e=>`<option value="${e.id}">${esc(e.nickname || e.name)}${empShiftSuffix(e.id)}</option>`).join('');
   if (p && p.lead_employee_id) leadSel.value = p.lead_employee_id;
   // members section — only when editing an existing pod (needs a pod id)
   const memSec = document.getElementById('pod-form-members');
   if (p) {
     document.getElementById('pod-mem-podid').value = p.id;
-    document.getElementById('pod-mem-emp').innerHTML = allEmployees.map(e=>`<option value="${e.id}">${esc(e.nickname || e.name)}</option>`).join('');
+    document.getElementById('pod-mem-emp').innerHTML = allEmployees.map(e=>`<option value="${e.id}">${esc(e.nickname || e.name)}${empShiftSuffix(e.id)}</option>`).join('');
     document.getElementById('pod-mem-role').value = 'member';
     memSec.style.display = '';
     renderPodMembers(p.id);
