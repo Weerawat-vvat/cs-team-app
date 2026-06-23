@@ -4473,12 +4473,19 @@ app.get('/api/pods/:id/members', authRequired, async (request, res) => {
   try {
     const result = await req().input('pid', sql.Int, request.params.id)
       .query(`SELECT pm.id, pm.pod_id, pm.employee_id, pm.role_in_pod, pm.assigned_at,
-                     e.name, e.nickname, e.team
+                     e.name, e.nickname, e.team,
+                     s.shift_type,
+                     CASE WHEN st.start_time IS NOT NULL AND st.end_time IS NOT NULL
+                          THEN CONVERT(varchar(5), st.start_time, 108) + N'–' + CONVERT(varchar(5), st.end_time, 108)
+                          ELSE NULL END AS shift_time
               FROM pod_members pm
               JOIN employees e ON e.id = pm.employee_id
+              LEFT JOIN shifts s ON s.employee_id = pm.employee_id AND s.shift_date = CAST(GETDATE() AS DATE)
+              LEFT JOIN shift_types st ON st.shift_key = s.shift_type
               WHERE pm.pod_id=@pid AND pm.active=1
               ORDER BY CASE pm.role_in_pod WHEN 'lead' THEN 0 WHEN 'junior' THEN 1 ELSE 2 END, e.name`);
-    res.json(result.recordset);
+    const statusOf = (t) => t == null ? 'none' : (t === 'dayoff' || String(t).startsWith('leave_') ? 'off' : 'work');
+    res.json(result.recordset.map(r => ({ ...r, status: statusOf(r.shift_type) })));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
