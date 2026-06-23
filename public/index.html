@@ -4885,7 +4885,13 @@ function renderPodBoard(canManage) {
     }).join('') || `<div style="font-size:.74rem;color:#cbd5e1;padding:.3rem .5rem">ยังไม่มีลูกค้า</div>`;
     // members + today status
     const mem = p.members || [];
-    const working = mem.filter(m => m.status === 'work').length;
+    const workMems = mem.filter(m => m.status === 'work');
+    const working = workMems.length;
+    // on-duty names (responsible today) + 3-period coverage
+    const onDuty = workMems.length ? workMems.map(m => esc(m.nickname || m.name)).join(', ') : '— ไม่มีคนเข้ากะ —';
+    const SHIFT_BUCKET = { morning:'เช้า', morning2:'เช้า', mid:'บ่าย', midday:'บ่าย', afternoon:'บ่าย', night:'ดึก' };
+    const covered = new Set(workMems.map(m => SHIFT_BUCKET[m.shift_type]).filter(Boolean));
+    const covChips = ['เช้า','บ่าย','ดึก'].map(b => { const ok = covered.has(b); return `<span title="${ok?'มีคนคุม':'ไม่มีคนคุม'}" style="font-size:.6rem;padding:.05rem .4rem;border-radius:10px;background:${ok?'#dcfce7':'#fef2f2'};color:${ok?'#15803d':'#b91c1c'}">${ok?'●':'○'} ${b}</span>`; }).join(' ');
     const memRows = mem.map(m => {
       const timeTxt = m.status==='work' ? (m.shift_time || m.shift_name || '') : (m.status==='off' ? (m.shift_name || 'หยุด') : '');
       const timeCol = m.status==='off' ? '#dc2626' : '#16a34a';
@@ -4907,7 +4913,9 @@ function renderPodBoard(canManage) {
         <div style="display:flex;justify-content:space-between;align-items:center;gap:.4rem">
           <div style="font-size:.85rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.display_name)}</div>${pill}
         </div>
+        <div style="font-size:.68rem;opacity:.95;margin-top:.15rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="ผู้รับผิดชอบที่เข้ากะวันนี้">👤 ${onDuty}</div>
       </div>
+      <div style="display:flex;gap:.3rem;padding:.3rem .5rem;border-bottom:1px solid var(--border);background:#fafafa">${covChips}</div>
       <div style="padding:.45rem .5rem;display:flex;flex-direction:column;gap:.1rem;border-bottom:1px solid var(--border);background:${(p.color||'#1d4ed8')}14">
         ${memRows}${manageLink}
       </div>
