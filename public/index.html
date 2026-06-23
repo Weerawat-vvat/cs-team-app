@@ -4899,15 +4899,15 @@ function renderPodBoard(canManage) {
       const times = [...new Set(ppl.map(m => m.shift_time).filter(Boolean))];
       const timeTxt = times.length === 1 ? times[0] : '';
       const names = ppl.map(m => `${m.role_in_pod==='lead'?'★':''}${esc(m.nickname||m.name)}`).join(', ');
-      return `<div style="display:flex;align-items:center;gap:.35rem;font-size:.74rem;padding:.1rem .1rem">
-        <span style="color:${ok?'#16a34a':'#cbd5e1'};font-size:.7rem;flex-shrink:0">${ok?'●':'○'}</span>
+      return `<div style="display:flex;align-items:flex-start;gap:.35rem;font-size:.74rem;padding:.1rem .1rem">
+        <span style="color:${ok?'#16a34a':'#cbd5e1'};font-size:.7rem;flex-shrink:0;margin-top:.1rem">${ok?'●':'○'}</span>
         <span style="width:24px;flex-shrink:0;color:${ok?'#334155':'#94a3b8'}">${per.key}</span>
-        <span style="width:72px;flex-shrink:0;color:#16a34a;font-size:.62rem;white-space:nowrap">${timeTxt}</span>
-        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${ok?'#334155':'#cbd5e1'}">${names || '—'}</span>
+        <span style="width:72px;flex-shrink:0;color:#16a34a;font-size:.62rem;line-height:1.3">${timeTxt}</span>
+        <span style="flex:1;min-width:0;white-space:normal;word-break:break-word;line-height:1.3;color:${ok?'#334155':'#cbd5e1'}">${names || '—'}</span>
       </div>`;
     }).join('');
     const offMems = mem.filter(m => m.status === 'off');
-    const offLine = offMems.length ? `<div style="font-size:.64rem;color:#94a3b8;padding:.2rem .1rem 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">หยุด/ลา: ${offMems.map(m=>esc(m.nickname||m.name)).join(', ')}</div>` : '';
+    const offLine = offMems.length ? `<div style="font-size:.64rem;color:#94a3b8;padding:.2rem .1rem 0;word-break:break-word;line-height:1.3">หยุด/ลา: ${offMems.map(m=>esc(m.nickname||m.name)).join(', ')}</div>` : '';
     const staffEmpty = !mem.length ? `<div style="font-size:.74rem;color:#cbd5e1;padding:.2rem .1rem">ยังไม่มีสมาชิก</div>` : '';
     // critical indicator
     let pill = '';
