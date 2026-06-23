@@ -4728,6 +4728,18 @@ function empShiftSuffix(empId) {
   const per = _SHIFT_PERIOD[s.shift_type] || s.shift_type || '';
   return ` — ${per}${s.shift_time ? ' ' + s.shift_time : ''}`;
 }
+// employee <option>s for pod lead/member dropdowns — only scheduled (ตารางกะ) teams,
+// but always keep the currently-selected id so it isn't dropped on save
+function podEmpOptions(selId, withBlank) {
+  const ticked = new Set((allTeams || []).filter(t => t.show_in_schedule).map(t => t.name));
+  let list = (allEmployees || []).filter(e => ticked.size === 0 || ticked.has(e.team));
+  if (selId && !list.some(e => String(e.id) === String(selId))) {
+    const extra = (allEmployees || []).find(e => String(e.id) === String(selId));
+    if (extra) list = [extra, ...list];
+  }
+  return (withBlank ? '<option value="">— ไม่ระบุ —</option>' : '')
+    + list.map(e => `<option value="${e.id}">${esc(e.nickname || e.name)}${empShiftSuffix(e.id)}</option>`).join('');
+}
 function renderUnassignedWorking() {
   const el = document.getElementById('pod-unassigned-working');
   if (!el) return;
@@ -4916,11 +4928,11 @@ function renderPodBoard(canManage) {
       const times = [...new Set(ppl.map(m => m.shift_time).filter(Boolean))];
       const timeTxt = times.length === 1 ? times[0] : '';
       const names = ppl.map(m => `${m.role_in_pod==='lead'?'★':''}${esc(m.nickname||m.name)}`).join(', ');
-      return `<div style="display:flex;align-items:flex-start;gap:.35rem;font-size:.74rem;padding:.1rem .1rem">
-        <span style="color:${ok?'#16a34a':'#cbd5e1'};font-size:.7rem;flex-shrink:0;margin-top:.1rem">${ok?'●':'○'}</span>
-        <span style="width:24px;flex-shrink:0;color:${ok?'#334155':'#94a3b8'}">${per.key}</span>
-        <span style="width:72px;flex-shrink:0;color:#94a3b8;font-size:.62rem;line-height:1.3">${timeTxt}</span>
-        <span style="flex:1;min-width:0;white-space:normal;word-break:break-word;line-height:1.3;color:${ok?'#334155':'#cbd5e1'}">${names || '—'}</span>
+      return `<div style="display:flex;align-items:flex-start;gap:.3rem;font-size:.74rem;padding:.1rem .1rem">
+        <span style="width:12px;flex-shrink:0;text-align:center;color:${ok?'#16a34a':'#cbd5e1'};font-size:.7rem;margin-top:.12rem">${ok?'●':'○'}</span>
+        <span style="width:30px;flex-shrink:0;white-space:nowrap;color:${ok?'#334155':'#94a3b8'}">${per.key}</span>
+        <span style="width:78px;flex-shrink:0;white-space:nowrap;color:#94a3b8;font-size:.62rem;line-height:1.35">${timeTxt}</span>
+        <span style="flex:1;min-width:0;white-space:normal;word-break:break-word;line-height:1.35;color:${ok?'#334155':'#cbd5e1'}">${names || '—'}</span>
       </div>`;
     }).join('');
     const offMems = mem.filter(m => m.status === 'off');
@@ -4979,13 +4991,13 @@ function openPodForm(id){
   document.getElementById('pod-form-title').textContent = p ? '✏️ แก้ไข Pod' : '➕ สร้าง Pod';
   document.getElementById('pod-del-btn').style.display = p ? '' : 'none';
   const leadSel = document.getElementById('pod-lead');
-  leadSel.innerHTML = '<option value="">— ไม่ระบุ —</option>' + allEmployees.map(e=>`<option value="${e.id}">${esc(e.nickname || e.name)}${empShiftSuffix(e.id)}</option>`).join('');
+  leadSel.innerHTML = podEmpOptions(p ? p.lead_employee_id : '', true);
   if (p && p.lead_employee_id) leadSel.value = p.lead_employee_id;
   // members section — only when editing an existing pod (needs a pod id)
   const memSec = document.getElementById('pod-form-members');
   if (p) {
     document.getElementById('pod-mem-podid').value = p.id;
-    document.getElementById('pod-mem-emp').innerHTML = allEmployees.map(e=>`<option value="${e.id}">${esc(e.nickname || e.name)}${empShiftSuffix(e.id)}</option>`).join('');
+    document.getElementById('pod-mem-emp').innerHTML = podEmpOptions('', false);
     document.getElementById('pod-mem-role').value = 'member';
     memSec.style.display = '';
     renderPodMembers(p.id);
