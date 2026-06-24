@@ -246,6 +246,18 @@ async function init() {
         unassigned_at DATETIME NULL
       )
     `);
+    // pod_shift_sr — หัวหน้ากะ (SR) ต่อช่วงเวลาของแต่ละ Pod
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='pod_shift_sr' AND xtype='U')
+      CREATE TABLE pod_shift_sr (
+        id          INT IDENTITY(1,1) PRIMARY KEY,
+        pod_id      INT NOT NULL REFERENCES pods(id),
+        period      NVARCHAR(20) NOT NULL,            -- morning | afternoon | night
+        employee_id INT REFERENCES employees(id),
+        updated_at  DATETIME DEFAULT GETDATE(),
+        CONSTRAINT UQ_pod_period UNIQUE (pod_id, period)
+      )
+    `);
     console.log('✅ Migrations done');
   } catch (err) {
     console.error('❌ Migration error:', err.message);

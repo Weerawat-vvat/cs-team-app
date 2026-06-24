@@ -3309,6 +3309,10 @@ textarea{resize:vertical;min-height:80px}
           <button class="btn btn-sm btn-primary" onclick="addPodMember()">เพิ่ม</button>
         </div>
       </div>
+      <div style="background:#fffdf5;border:1px solid #fde68a;border-radius:10px;padding:.6rem .8rem;margin-top:.6rem">
+        <div style="font-size:.72rem;font-weight:700;color:#854d0e;margin-bottom:.45rem">★ หัวหน้ากะ (SR) — เลือกเองต่อช่วงเวลา</div>
+        <div id="pod-sr-rows" style="display:flex;flex-direction:column;gap:.35rem"></div>
+      </div>
     </div>
     <input type="hidden" id="pod-mem-podid"/>
     <div style="display:flex;justify-content:space-between;gap:.5rem;margin-top:.75rem">
@@ -4740,6 +4744,25 @@ function podEmpOptions(selId, withBlank) {
   return (withBlank ? '<option value="">— ไม่ระบุ —</option>' : '')
     + list.map(e => `<option value="${e.id}">${esc(e.nickname || e.name)}${empShiftSuffix(e.id)}</option>`).join('');
 }
+// render the shift-SR selectors for the edit-pod modal (one per relevant period)
+function renderSrRows(p) {
+  const wrap = document.getElementById('pod-sr-rows');
+  if (!wrap) return;
+  const region = (p.code || '').toUpperCase().startsWith('BKK') ? 'BKK' : 'CNX';
+  const periods = region === 'BKK'
+    ? [{ pk:'morning', label:'เช้า' }, { pk:'night', label:'ดึก' }]
+    : [{ pk:'morning', label:'เช้า' }, { pk:'afternoon', label:'บ่าย' }, { pk:'night', label:'ดึก' }];
+  const mem = p.members || [];
+  const sr = p.sr || {};
+  wrap.innerHTML = periods.map(per => {
+    const opts = '<option value="">— ไม่ระบุ —</option>' + mem.map(m =>
+      `<option value="${m.employee_id}"${String(m.employee_id) === String(sr[per.pk]) ? ' selected' : ''}>${esc(m.nickname || m.name)}</option>`).join('');
+    return `<div style="display:flex;align-items:center;gap:.5rem">
+      <span style="width:34px;font-size:.78rem;color:#64748b">${per.label}</span>
+      <select class="pod-sr-select" data-period="${per.pk}" style="flex:1">${opts}</select>
+    </div>`;
+  }).join('');
+}
 function renderUnassignedWorking() {
   const el = document.getElementById('pod-unassigned-working');
   if (!el) return;
@@ -4914,20 +4937,24 @@ function renderPodBoard(canManage) {
     const working = workMems.length;
     // staff grouped by 3 shift periods (responsible today, with time + names)
     const ALL_PERIODS = [
-      { key:'เช้า', types:['morning','morning2'] },
-      { key:'บ่าย', types:['mid','midday','afternoon'] },
-      { key:'ดึก', types:['night'] },
+      { key:'เช้า', pk:'morning',   types:['morning','morning2'] },
+      { key:'บ่าย', pk:'afternoon', types:['mid','midday','afternoon'] },
+      { key:'ดึก', pk:'night',     types:['night'] },
     ];
+    const sr = p.sr || {};
     // กทม (BKK) มีแต่ เช้า/ดึก · เชียงใหม่ (CNX) มีครบ 3 — เผื่อมีคนเข้ากะนอกมาตรฐานก็โชว์ช่วงนั้นเพิ่ม
     const _region = (p.code || '').toUpperCase().startsWith('BKK') ? 'BKK' : 'CNX';
     const _std = _region === 'BKK' ? ['เช้า','ดึก'] : ['เช้า','บ่าย','ดึก'];
     const PERIODS = ALL_PERIODS.filter(per => _std.includes(per.key) || workMems.some(m => per.types.includes(m.shift_type)));
     const periodRows = PERIODS.map(per => {
-      const ppl = workMems.filter(m => per.types.includes(m.shift_type));
+      let ppl = workMems.filter(m => per.types.includes(m.shift_type));
       const ok = ppl.length > 0;
       const times = [...new Set(ppl.map(m => m.shift_time).filter(Boolean))];
       const timeTxt = times.length === 1 ? times[0] : (ppl.length ? '' : per.key);
-      // ★ = SR ประจำกะ (คนแรก/อาวุโสสุดในกะนั้น), ที่เหลือไม่มีดาว
+      // ★ = SR ประจำกะ: ใช้คนที่กำหนดไว้ (ถ้าเข้ากะ) ไม่งั้น fallback คนแรก
+      const srId = sr[per.pk];
+      const srm = ppl.find(m => String(m.employee_id) === String(srId));
+      if (srm) ppl = [srm, ...ppl.filter(m => m !== srm)];
       const names = ppl.map((m, i) => `${i === 0 ? '★' : ''}${esc(m.nickname || m.name)}`).join(', ');
       return `<div style="padding:.12rem .1rem .25rem">
         <div style="display:flex;align-items:center;gap:.3rem;font-size:.66rem">
@@ -5003,6 +5030,7 @@ function openPodForm(id){
     document.getElementById('pod-mem-role').value = 'member';
     memSec.style.display = '';
     renderPodMembers(p.id);
+    renderSrRows(p);
   } else {
     memSec.style.display = 'none';
     document.getElementById('pod-mem-list').innerHTML = '';
@@ -5020,8 +5048,15 @@ async function savePod(){
     sort_order: parseInt(document.getElementById('pod-sort').value)||0,
   };
   if (!body.code || !body.display_name) return alert('กรุณากรอกรหัส Pod และชื่อแสดง');
-  if (id) await api('/api/pods/'+id, {method:'PUT', body});
-  else    await api('/api/pods', {method:'POST', body});
+  if (id) {
+    await api('/api/pods/'+id, {method:'PUT', body});
+    // save shift SR selections
+    const srs = {};
+    document.querySelectorAll('#pod-sr-rows .pod-sr-select').forEach(s => { srs[s.dataset.period] = s.value || null; });
+    if (Object.keys(srs).length) await api('/api/pods/'+id+'/shift-sr', {method:'PUT', body:{srs}});
+  } else {
+    await api('/api/pods', {method:'POST', body});
+  }
   closeModal('modal-pod-form'); loadPods();
 }
 async function deletePod(){

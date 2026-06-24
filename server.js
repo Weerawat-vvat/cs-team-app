@@ -4678,7 +4678,31 @@ app.get('/api/pods/board', authRequired, async (request, res) => {
       .filter(e => !assigned.has(e.id) && statusOf(e.id) === 'work')
       .map(e => ({ employee_id: e.id, name: e.name, nickname: e.nickname, team: e.team, ...shiftInfo(e.id) }));
 
+    // designated shift SR per pod/period
+    const srRows = (await req().query('SELECT pod_id, period, employee_id FROM pod_shift_sr')).recordset;
+    Object.values(byPod).forEach(p => { p.sr = {}; });
+    srRows.forEach(r => { if (byPod[r.pod_id]) byPod[r.pod_id].sr[r.period] = r.employee_id; });
+
     res.json({ pods: pods.map(p => byPod[p.id]), unassignedWorking });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Set designated shift SR (หัวหน้ากะ) per period for a pod
+app.put('/api/pods/:id/shift-sr', authRequired, managerRequired, async (request, res) => {
+  const { srs } = request.body || {}; // { morning: id|null, afternoon: id|null, night: id|null }
+  if (!srs || typeof srs !== 'object') return res.status(400).json({ error: 'srs required' });
+  try {
+    const pid = request.params.id;
+    for (const period of ['morning', 'afternoon', 'night']) {
+      const eid = srs[period] || null;
+      await req().input('pid', sql.Int, pid).input('per', sql.NVarChar, period)
+        .query('DELETE FROM pod_shift_sr WHERE pod_id=@pid AND period=@per');
+      if (eid) {
+        await req().input('pid', sql.Int, pid).input('per', sql.NVarChar, period).input('eid', sql.Int, eid)
+          .query('INSERT INTO pod_shift_sr (pod_id, period, employee_id) VALUES (@pid, @per, @eid)');
+      }
+    }
+    res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
