@@ -4929,10 +4929,12 @@ function renderPodBoard(canManage) {
       const timeTxt = times.length === 1 ? times[0] : (ppl.length ? '' : per.key);
       // ★ = SR ประจำกะ (คนแรก/อาวุโสสุดในกะนั้น), ที่เหลือไม่มีดาว
       const names = ppl.map((m, i) => `${i === 0 ? '★' : ''}${esc(m.nickname || m.name)}`).join(', ');
-      return `<div style="display:flex;align-items:flex-start;gap:.35rem;font-size:.74rem;padding:.1rem .1rem">
-        <span style="width:12px;flex-shrink:0;text-align:center;color:${ok?'#16a34a':'#cbd5e1'};font-size:.7rem;margin-top:.12rem">${ok?'●':'○'}</span>
-        <span style="width:82px;flex-shrink:0;white-space:nowrap;color:#94a3b8;font-size:.66rem;line-height:1.35">${ok ? timeTxt : per.key}</span>
-        <span style="flex:1;min-width:0;white-space:normal;word-break:break-word;line-height:1.35;color:${ok?'#334155':'#cbd5e1'}">${ok ? (names || '—') : '—'}</span>
+      return `<div style="padding:.12rem .1rem .25rem">
+        <div style="display:flex;align-items:center;gap:.3rem;font-size:.66rem">
+          <span style="color:${ok?'#16a34a':'#cbd5e1'};font-size:.7rem">${ok?'●':'○'}</span>
+          <span style="color:#94a3b8">${ok ? timeTxt : per.key}</span>
+        </div>
+        <div style="font-size:.76rem;line-height:1.35;padding-left:.95rem;word-break:break-word;color:${ok?'#334155':'#cbd5e1'}">${ok ? (names || '—') : '—'}</div>
       </div>`;
     }).join('');
     const offMems = mem.filter(m => m.status === 'off');
