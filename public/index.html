@@ -3297,18 +3297,6 @@ textarea{resize:vertical;min-height:80px}
     <div id="pod-form-members" style="display:none;border-top:1px solid var(--border);margin-top:.85rem;padding-top:.75rem">
       <div style="font-size:.82rem;font-weight:700;color:#334155;margin-bottom:.5rem">👥 สมาชิก Pod</div>
       <div id="pod-mem-list" style="margin-bottom:.6rem"></div>
-      <div style="background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:.6rem .8rem">
-        <div style="font-size:.72rem;font-weight:700;color:#64748b;margin-bottom:.45rem">เพิ่มสมาชิก</div>
-        <div style="display:flex;gap:.4rem;align-items:center">
-          <select id="pod-mem-emp" class="emp-select" style="flex:2"></select>
-          <select id="pod-mem-role" style="flex:1">
-            <option value="member">สมาชิก</option>
-            <option value="junior">Junior</option>
-            <option value="lead">หัวหน้า</option>
-          </select>
-          <button class="btn btn-sm btn-primary" onclick="addPodMember()">เพิ่ม</button>
-        </div>
-      </div>
     </div>
     <input type="hidden" id="pod-mem-podid"/>
     <div style="display:flex;justify-content:space-between;gap:.5rem;margin-top:.75rem">
@@ -5003,8 +4991,6 @@ function openPodForm(id){
   const memSec = document.getElementById('pod-form-members');
   if (p) {
     document.getElementById('pod-mem-podid').value = p.id;
-    document.getElementById('pod-mem-emp').innerHTML = podEmpOptions('', false);
-    document.getElementById('pod-mem-role').value = 'member';
     memSec.style.display = '';
     renderPodMembers(p.id);
   } else {
@@ -5056,6 +5042,17 @@ function _memberRow(m, podId){
     <button onclick="removePodMember(${m.id},${podId})" title="ลบออกจาก Pod" style="background:0;border:0;color:#dc2626;cursor:pointer;font-size:.9rem;flex-shrink:0">×</button>
   </div>`;
 }
+function _addMemberBox(podId){
+  return `<div style="background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:.4rem .55rem;margin-top:.35rem">
+    <div style="display:flex;gap:.35rem;align-items:center">
+      <select class="add-emp" style="flex:2">${podEmpOptions('', false)}</select>
+      <select class="add-role" style="flex:1">
+        <option value="member">สมาชิก</option><option value="junior">Junior</option><option value="lead">หัวหน้า</option>
+      </select>
+      <button class="btn btn-sm btn-primary" onclick="addPodMemberInline(this, ${podId})">เพิ่ม</button>
+    </div>
+  </div>`;
+}
 async function renderPodMembers(podId){
   let members = await api('/api/pods/'+podId+'/members');
   if (!Array.isArray(members)) members = [];
@@ -5077,6 +5074,7 @@ async function renderPodMembers(podId){
         <select class="pod-sr-select" data-period="${per.pk}" style="flex:1">${srOptsAll(sr[per.pk])}</select>
       </div>
       <div style="padding-left:.2rem">${rows}</div>
+      ${_addMemberBox(podId)}
     </div>`;
   }).join('');
   const others = members.filter(m => m.status !== 'work');
@@ -5085,10 +5083,12 @@ async function renderPodMembers(podId){
     : '';
   document.getElementById('pod-mem-list').innerHTML = members.length ? (groups + othersHtml) : '<div class="empty" style="padding:.75rem">ยังไม่มีสมาชิก</div>';
 }
-async function addPodMember(){
-  const podId = document.getElementById('pod-mem-podid').value;
-  const body = { employee_id: document.getElementById('pod-mem-emp').value, role_in_pod: document.getElementById('pod-mem-role').value };
-  await api('/api/pods/'+podId+'/members', {method:'POST', body});
+async function addPodMemberInline(btn, podId){
+  const row = btn.closest('div');
+  const emp = row.querySelector('.add-emp')?.value;
+  const role = row.querySelector('.add-role')?.value || 'member';
+  if (!emp) return;
+  await api('/api/pods/'+podId+'/members', {method:'POST', body:{ employee_id: emp, role_in_pod: role }});
   await renderPodMembers(podId); loadPods();
 }
 async function removePodMember(memId, podId){
