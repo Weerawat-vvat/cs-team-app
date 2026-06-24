@@ -5059,7 +5059,7 @@ function _memberRow(m, podId){
 async function renderPodMembers(podId){
   let members = await api('/api/pods/'+podId+'/members');
   if (!Array.isArray(members)) members = [];
-  const pod = (_pods || []).find(x => x.id === podId) || {};
+  const pod = (_pods || []).find(x => String(x.id) === String(podId)) || {};
   const sr = pod.sr || {};
   const region = (pod.code || '').toUpperCase().startsWith('BKK') ? 'BKK' : 'CNX';
   const periods = region === 'BKK'
