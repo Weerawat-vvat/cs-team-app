@@ -3204,7 +3204,7 @@ textarea{resize:vertical;min-height:80px}
     <span style="display:flex;align-items:center;gap:.3rem"><span style="width:9px;height:9px;border-radius:50%;background:#16a34a;display:inline-block"></span>ทำงาน</span>
     <span style="display:flex;align-items:center;gap:.3rem"><span style="width:9px;height:9px;border-radius:50%;background:#dc2626;display:inline-block"></span>หยุด / ลา</span>
     <span style="display:flex;align-items:center;gap:.3rem"><span style="width:9px;height:9px;border-radius:50%;background:#cbd5e1;display:inline-block"></span>ยังไม่จัดกะ</span>
-    <span style="margin-left:auto;color:#94a3b8">★ = หัวหน้า · ดับเบิลคลิกแถบหัว Pod เพื่อแก้ไข / จัดการสมาชิก</span>
+    <span style="margin-left:auto;color:#94a3b8">★ = SR ประจำกะ · ดับเบิลคลิกแถบหัว Pod เพื่อแก้ไข / จัดการสมาชิก</span>
   </div>
   <div style="display:flex;gap:1rem;align-items:center;font-size:.72rem;color:#64748b;margin-bottom:.6rem;flex-wrap:wrap">
     <span style="font-weight:600">สถานะลูกค้า:</span>
@@ -4926,13 +4926,13 @@ function renderPodBoard(canManage) {
       const ppl = workMems.filter(m => per.types.includes(m.shift_type));
       const ok = ppl.length > 0;
       const times = [...new Set(ppl.map(m => m.shift_time).filter(Boolean))];
-      const timeTxt = times.length === 1 ? times[0] : '';
-      const names = ppl.map(m => `${m.role_in_pod==='lead'?'★':''}${esc(m.nickname||m.name)}`).join(', ');
-      return `<div style="display:flex;align-items:flex-start;gap:.3rem;font-size:.74rem;padding:.1rem .1rem">
+      const timeTxt = times.length === 1 ? times[0] : (ppl.length ? '' : per.key);
+      // ★ = SR ประจำกะ (คนแรก/อาวุโสสุดในกะนั้น), ที่เหลือไม่มีดาว
+      const names = ppl.map((m, i) => `${i === 0 ? '★' : ''}${esc(m.nickname || m.name)}`).join(', ');
+      return `<div style="display:flex;align-items:flex-start;gap:.35rem;font-size:.74rem;padding:.1rem .1rem">
         <span style="width:12px;flex-shrink:0;text-align:center;color:${ok?'#16a34a':'#cbd5e1'};font-size:.7rem;margin-top:.12rem">${ok?'●':'○'}</span>
-        <span style="width:30px;flex-shrink:0;white-space:nowrap;color:${ok?'#334155':'#94a3b8'}">${per.key}</span>
-        <span style="width:78px;flex-shrink:0;white-space:nowrap;color:#94a3b8;font-size:.62rem;line-height:1.35">${timeTxt}</span>
-        <span style="flex:1;min-width:0;white-space:normal;word-break:break-word;line-height:1.35;color:${ok?'#334155':'#cbd5e1'}">${names || '—'}</span>
+        <span style="width:82px;flex-shrink:0;white-space:nowrap;color:#94a3b8;font-size:.66rem;line-height:1.35">${ok ? timeTxt : per.key}</span>
+        <span style="flex:1;min-width:0;white-space:normal;word-break:break-word;line-height:1.35;color:${ok?'#334155':'#cbd5e1'}">${ok ? (names || '—') : '—'}</span>
       </div>`;
     }).join('');
     const offMems = mem.filter(m => m.status === 'off');
