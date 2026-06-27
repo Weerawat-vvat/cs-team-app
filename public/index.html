@@ -4808,18 +4808,34 @@ async function loadMonitor() {
   if (!_monRows.length) { host.innerHTML = '<div class="empty" style="padding:2rem">' + esc(d.message || 'ไม่มีข้อมูล') + '</div>'; return; }
   renderMonitor();
 }
+// groups shown per-company (not aggregated) — งานกระจุก ต้องเห็นรายสาขาเพื่อกระจาย
+const MON_EXPAND = new Set(['INF Group']);
 function renderMonitor() {
   const host = document.getElementById('pod-monitor'); if (!host || !_monRows.length) return;
   const q = (document.getElementById('mon-search')?.value || '').trim().toLowerCase();
-  let rows = _monRows.map(r => ({ ...r, _total: _monMonths.reduce((s, m) => s + (r[m] || 0), 0) }));
+  // aggregate by group, except groups in MON_EXPAND which stay per-company
+  const aggMap = {}; let rows = [];
+  _monRows.forEach(r => {
+    if (MON_EXPAND.has(r.GroupName)) {
+      const row = { GroupName: r.GroupName, CompanyName: r.CompanyName, _agg: false };
+      _monMonths.forEach(m => row[m] = r[m] || 0);
+      rows.push(row);
+    } else {
+      let g = aggMap[r.GroupName];
+      if (!g) { g = aggMap[r.GroupName] = { GroupName: r.GroupName, _agg: true, _n: 0 }; _monMonths.forEach(m => g[m] = 0); rows.push(g); }
+      _monMonths.forEach(m => g[m] += (r[m] || 0));
+      g._n++;
+    }
+  });
+  rows.forEach(r => { if (r._agg) r.CompanyName = `รวม ${r._n} บริษัท`; r._total = _monMonths.reduce((s, m) => s + (r[m] || 0), 0); });
   if (q) rows = rows.filter(r => String(r.GroupName || '').toLowerCase().includes(q) || String(r.CompanyName || '').toLowerCase().includes(q));
   rows.sort((a, b) => b._total - a._total);
   const monthTotals = _monMonths.map(m => _monRows.reduce((s, r) => s + (r[m] || 0), 0));
   const grand = monthTotals.reduce((a, b) => a + b, 0);
   const CAP = 500;
-  const head = `<tr><th style="text-align:left">กลุ่ม</th><th style="text-align:left">บริษัท</th>${_monMonths.map(m => `<th style="text-align:right">${m}</th>`).join('')}<th style="text-align:right">รวม</th></tr>`;
+  const head = `<tr><th style="text-align:left">กลุ่ม</th><th style="text-align:left">บริษัท / สาขา</th>${_monMonths.map(m => `<th style="text-align:right">${m}</th>`).join('')}<th style="text-align:right">รวม</th></tr>`;
   const body = rows.slice(0, CAP).map(r =>
-    `<tr><td>${esc(r.GroupName || '')}</td><td>${esc(r.CompanyName || '')}</td>${_monMonths.map(m => `<td style="text-align:right">${(r[m] || 0).toLocaleString()}</td>`).join('')}<td style="text-align:right;font-weight:600">${r._total.toLocaleString()}</td></tr>`).join('');
+    `<tr style="${r._agg ? 'background:#f8fafc' : ''}"><td style="${r._agg ? 'font-weight:600' : ''}">${esc(r.GroupName || '')}</td><td style="${r._agg ? 'color:#64748b' : ''}">${esc(r.CompanyName || '')}</td>${_monMonths.map(m => `<td style="text-align:right">${(r[m] || 0).toLocaleString()}</td>`).join('')}<td style="text-align:right;font-weight:600">${r._total.toLocaleString()}</td></tr>`).join('');
   host.innerHTML = `
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:.6rem;font-size:.76rem">
       <span style="background:var(--bg-muted,#f1f5f9);border-radius:6px;padding:.3rem .6rem">รวม ticket <b>${grand.toLocaleString()}</b></span>
