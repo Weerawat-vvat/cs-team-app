@@ -4705,12 +4705,14 @@ async function loadPods() {
   }
   const canManage = isManagerRole();
   document.getElementById('pod-actions').style.display = canManage ? '' : 'none';
-  let [board, custs, groups, today] = await Promise.all([
+  let [board, custs, groups, today, staffing] = await Promise.all([
     api('/api/pods/board'),
     api('/api/customers'),
     api('/api/pods/customer-groups', { silent: true }),
     api('/api/today-shifts', { silent: true }),
+    api('/api/pods/staffing', { silent: true }),
   ]);
+  _staffing = (staffing && Array.isArray(staffing.pods)) ? staffing.pods : [];
   _todayShift = {};
   (Array.isArray(today) ? today : []).forEach(s => { _todayShift[s.employee_id] = s; });
   _pods = Array.isArray(board) ? board : (board?.pods || []);
@@ -4787,7 +4789,44 @@ async function loadLicenseLoad() {
 }
 
 // ── Pod page tabs + capacity analysis ──
-let _capData = null;
+let _capData = null, _staffing = [];
+// per-pod staffing recommendation table (uses shared target × workdays)
+function _staffingTableHtml() {
+  if (!_staffing.length) return '';
+  const target   = Math.max(1, parseInt(document.getElementById('cap-target')?.value) || 16);
+  const workdays = Math.max(1, parseInt(document.getElementById('cap-workdays')?.value) || 22);
+  const cap = target * workdays; // sustainable tickets/person/month
+  const rows = _staffing.map(p => {
+    const perStaff = p.staff ? Math.round(p.ticketsMonth / p.staff) : p.ticketsMonth;
+    const need = Math.max(1, Math.ceil(p.ticketsMonth / cap)); // min 1 for shift coverage
+    const diff = need - p.staff; // + = ควรเพิ่ม, - = คนเกิน
+    return { ...p, perStaff, need, diff };
+  }).sort((a, b) => b.perStaff - a.perStaff);
+  const body = rows.map(r => {
+    const over = r.perStaff > cap;
+    const diffTxt = r.diff > 0 ? `<span style="color:#dc2626">+${r.diff}</span>` : (r.diff < 0 ? `<span style="color:#2563eb">${r.diff}</span>` : '<span style="color:#16a34a">พอดี</span>');
+    return `<tr>
+      <td>${esc(r.display_name || r.code)}</td>
+      <td style="text-align:right">${r.ticketsMonth.toLocaleString()}</td>
+      <td style="text-align:right">${r.staff}</td>
+      <td style="text-align:right;font-weight:600;color:${over ? '#dc2626' : '#16a34a'}">${r.perStaff.toLocaleString()}</td>
+      <td style="text-align:right">${r.need}</td>
+      <td style="text-align:right;font-weight:600">${diffTxt}</td>
+    </tr>`;
+  }).join('');
+  const totMove = rows.reduce((s, r) => s + (r.diff > 0 ? r.diff : 0), 0);
+  const surplus = rows.reduce((s, r) => s + (r.diff < 0 ? -r.diff : 0), 0);
+  return `
+    <div class="card" style="padding:.85rem 1rem;margin-top:1rem">
+      <div style="font-weight:600;font-size:.9rem;margin-bottom:.2rem">🧮 ตัวช่วยจัดคนราย Pod</div>
+      <div style="font-size:.74rem;color:var(--muted);margin-bottom:.6rem">โหลด 3 เดือนล่าสุด · capacity ที่ยั่งยืน ~<b>${cap.toLocaleString()}</b> เคส/คน/เดือน (${target}×${workdays}) · 🔴 = เกิน capacity</div>
+      <div class="tbl-wrap"><table style="font-size:.8rem">
+        <thead><tr><th style="text-align:left">Pod</th><th style="text-align:right">งาน/เดือน</th><th style="text-align:right">คน</th><th style="text-align:right">งาน/คน</th><th style="text-align:right">ควรมี</th><th style="text-align:right">แนะนำ</th></tr></thead>
+        <tbody>${body}</tbody>
+      </table></div>
+      <div style="font-size:.76rem;color:var(--muted);margin-top:.5rem">รวม Pod ที่ <b style="color:#dc2626">ควรเพิ่ม ${totMove} คน</b> · มีคนเหลือให้ย้ายได้ <b style="color:#2563eb">${surplus} คน</b> ${surplus>=totMove?'→ เกลี่ยภายในทีมได้โดยไม่ต้องจ้างเพิ่ม':'→ อาจต้องจ้างเพิ่มบางส่วน'}</div>
+    </div>`;
+}
 function switchPodTab(tab) {
   [1, 2, 3, 4].forEach(i => {
     const panel = document.getElementById('pod-tab-' + i);
@@ -5000,7 +5039,7 @@ function renderCapacity() {
         <div style="font-weight:600;font-size:.85rem;margin-bottom:3px">📈 Repeat contact</div>
         <div style="font-size:.78rem;color:var(--muted)">1 license ติดต่อ ~<b>${(casesPerLicense/months).toFixed(1)}</b> ครั้ง/เดือน — ถ้าสูงควรเช็ก FCR / repeat จากปัญหาเดิม</div>
       </div>
-    </div>`;
+    </div>` + _staffingTableHtml();
 }
 
 // today work-status dot

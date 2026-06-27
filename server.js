@@ -4582,6 +4582,42 @@ app.post('/api/pods/assign-group', authRequired, managerRequired, async (request
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Staffing helper — per-pod 3-month ticket load vs current headcount
+app.get('/api/pods/staffing', authRequired, async (request, res) => {
+  try {
+    const ext = getExtPool();
+    const tkBy = {};
+    if (ext) {
+      const tk = (await extReq().query(`
+        SELECT cg.GroupName, COUNT(cl.CalllogId) AS tickets
+        FROM Calllog cl
+        JOIN CustomerRegistration cr ON cr.RegistrationId = cl.RegistrationId AND cr.AccurateData = 1
+        JOIN CustomerGroup cg ON cg.GroupId = cr.GroupId
+        WHERE cl.ReceiveDate >= DATEADD(month, -3, GETDATE())
+        GROUP BY cg.GroupName`)).recordset;
+      tk.forEach(r => { tkBy[r.GroupName] = r.tickets; });
+    }
+    const pods  = (await req().query(`SELECT id, code, display_name, region FROM pods WHERE active=1 ORDER BY sort_order, code`)).recordset;
+    const cust  = (await req().query(`SELECT name, pod_id FROM customers WHERE active=1 AND pod_id IS NOT NULL`)).recordset;
+    const mem   = (await req().query(`SELECT pod_id, employee_id FROM pod_members WHERE active=1`)).recordset;
+    const leads = (await req().query(`SELECT id AS pod_id, lead_employee_id FROM pods WHERE active=1 AND lead_employee_id IS NOT NULL`)).recordset;
+    const staff = {}; pods.forEach(p => staff[p.id] = new Set());
+    mem.forEach(m => staff[m.pod_id] && staff[m.pod_id].add(m.employee_id));
+    leads.forEach(l => staff[l.pod_id] && staff[l.pod_id].add(l.lead_employee_id));
+    const podTk = {}; cust.forEach(c => { podTk[c.pod_id] = (podTk[c.pod_id] || 0) + (tkBy[c.name] || 0); });
+    const months = 3;
+    res.json({
+      months, hasLicense: !!ext,
+      pods: pods.map(p => ({
+        code: p.code, region: p.region, display_name: p.display_name,
+        tickets3mo: podTk[p.id] || 0,
+        ticketsMonth: Math.round((podTk[p.id] || 0) / months),
+        staff: staff[p.id].size,
+      })),
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Monitor — ticket trend by company × month (uses LicenseDB SP usp_RPT_TicketByCompanyMonth)
 app.get('/api/pods/ticket-monthly', authRequired, async (request, res) => {
   try {
