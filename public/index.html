@@ -3230,6 +3230,10 @@ textarea{resize:vertical;min-height:80px}
         <button class="btn btn-sm btn-ghost" onclick="loadMonitor()">โหลด</button>
       </div>
       <input id="mon-search" placeholder="🔍 ค้นหาบริษัท / กลุ่ม..." oninput="renderMonitor()" style="flex:1;min-width:160px"/>
+      <div class="drb" id="mon-view">
+        <button class="drb-btn active" onclick="setMonView('table',this)">ตาราง</button>
+        <button class="drb-btn" onclick="setMonView('trend',this)">แนวโน้มกลุ่ม</button>
+      </div>
     </div>
     <div id="pod-monitor"><div class="empty" style="padding:2rem">กดแท็บนี้เพื่อโหลด...</div></div>
   </div>
@@ -4810,8 +4814,64 @@ async function loadMonitor() {
 }
 // groups shown per-company (not aggregated) — งานกระจุก ต้องเห็นรายสาขาเพื่อกระจาย
 const MON_EXPAND = new Set(['INF Group']);
+let _monView = 'table';
+function setMonView(v, btn) {
+  _monView = v;
+  document.querySelectorAll('#mon-view .drb-btn').forEach(b => b.classList.toggle('active', b === btn));
+  renderMonitor();
+}
+// aggregate every group (incl. INF) → {name, monthly, total, pct, cat}
+function _monGroupTrends() {
+  const byG = {};
+  _monRows.forEach(r => {
+    let g = byG[r.GroupName];
+    if (!g) { g = byG[r.GroupName] = { name: r.GroupName, _n: 0 }; _monMonths.forEach(m => g[m] = 0); }
+    _monMonths.forEach(m => g[m] += (r[m] || 0));
+    g._n++;
+  });
+  const h = Math.floor(_monMonths.length / 2) || 1;
+  return Object.values(byG).map(g => {
+    const vals = _monMonths.map(m => g[m] || 0);
+    const total = vals.reduce((a, b) => a + b, 0);
+    const first = vals.slice(0, h).reduce((a, b) => a + b, 0);
+    const last = vals.slice(vals.length - h).reduce((a, b) => a + b, 0);
+    const pct = first > 0 ? Math.round((last - first) / first * 100) : (last > 0 ? 100 : 0);
+    let cat = 'stable';
+    if (total >= 6) cat = pct >= 15 ? 'up' : (pct <= -15 ? 'down' : 'stable');
+    return { ...g, vals, total, first, last, pct, cat };
+  }).filter(g => g.total > 0);
+}
+function renderMonitorTrend() {
+  const host = document.getElementById('pod-monitor'); if (!host) return;
+  const q = (document.getElementById('mon-search')?.value || '').trim().toLowerCase();
+  let groups = _monGroupTrends();
+  if (q) groups = groups.filter(g => g.name.toLowerCase().includes(q));
+  const up = groups.filter(g => g.cat === 'up').sort((a, b) => b.pct - a.pct);
+  const stable = groups.filter(g => g.cat === 'stable').sort((a, b) => b.total - a.total);
+  const down = groups.filter(g => g.cat === 'down').sort((a, b) => a.pct - b.pct);
+  const spark = vals => { const mx = Math.max(1, ...vals); return `<span style="display:inline-flex;align-items:flex-end;gap:1px;height:16px;vertical-align:middle">${vals.map(v => `<span title="${v}" style="width:5px;background:#cbd5e1;border-radius:1px;height:${Math.max(2, Math.round(v / mx * 16))}px"></span>`).join('')}</span>`; };
+  const card = (title, color, arr, showPct) => `
+    <div class="card" style="padding:.7rem .9rem">
+      <div style="font-weight:600;font-size:.85rem;margin-bottom:.5rem;color:${color}">${title} <span style="color:#94a3b8;font-weight:400">(${arr.length})</span></div>
+      ${arr.length ? arr.map(g => `
+        <div style="display:flex;align-items:center;gap:.5rem;padding:.25rem 0;border-bottom:1px solid #f1f5f9">
+          <span style="flex:1;min-width:0;font-size:.78rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(g.name)}</span>
+          ${spark(g.vals)}
+          <span style="font-size:.72rem;color:#64748b;width:46px;text-align:right">${g.total.toLocaleString()}</span>
+          <span style="font-size:.72rem;font-weight:600;width:46px;text-align:right;color:${color}">${showPct ? (g.pct > 0 ? '+' : '') + g.pct + '%' : ''}</span>
+        </div>`).join('') : '<div style="font-size:.75rem;color:#cbd5e1;padding:.3rem 0">— ไม่มี —</div>'}
+    </div>`;
+  host.innerHTML = `
+    <div style="font-size:.72rem;color:#94a3b8;margin-bottom:.5rem">เทียบ ${_monMonths[0]}–${_monMonths[Math.floor(_monMonths.length/2)-1]} กับ ${_monMonths[_monMonths.length-Math.floor(_monMonths.length/2)]}–${_monMonths[_monMonths.length-1]} (เกณฑ์ ±15% · เฉพาะกลุ่มที่ ≥6 ticket)</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;align-items:start">
+      ${card('📈 เพิ่มขึ้น', '#dc2626', up, true)}
+      ${card('➡️ คงที่', '#64748b', stable, true)}
+      ${card('📉 ลดลง', '#16a34a', down, true)}
+    </div>`;
+}
 function renderMonitor() {
   const host = document.getElementById('pod-monitor'); if (!host || !_monRows.length) return;
+  if (_monView === 'trend') return renderMonitorTrend();
   const q = (document.getElementById('mon-search')?.value || '').trim().toLowerCase();
   // aggregate by group, except groups in MON_EXPAND which stay per-company
   const aggMap = {}; let rows = [];
