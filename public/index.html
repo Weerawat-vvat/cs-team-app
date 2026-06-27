@@ -3252,6 +3252,16 @@ textarea{resize:vertical;min-height:80px}
       </div>
     </div>
     <div id="pod-capacity"><div class="empty" style="padding:2rem">กำลังโหลด...</div></div>
+    <div class="card" style="margin-top:1rem;padding:.85rem 1rem">
+      <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.2rem">
+        <div style="font-weight:600;font-size:.9rem">🧪 จำลองจัด Pod ใหม่ (Simulate)</div>
+        <span style="font-size:.74rem;color:var(--muted)">จำนวน Pod</span>
+        <input id="sim-n" type="number" value="5" min="2" max="12" style="width:60px" onchange="runSimulate()"/>
+        <button class="btn btn-sm btn-primary" onclick="runSimulate()">จำลอง</button>
+        <span style="font-size:.72rem;color:#94a3b8">จัดกลุ่มลูกค้าให้โหลดสมดุล (ยังไม่บันทึกลงระบบ)</span>
+      </div>
+      <div id="sim-out"><div style="font-size:.78rem;color:#94a3b8;padding:.4rem">กด "จำลอง" เพื่อดูตัวอย่างการจัด Pod</div></div>
+    </div>
   </div>
 
   <!-- Customer groups from License DB -->
@@ -4718,15 +4728,16 @@ async function loadPods() {
   _pods = Array.isArray(board) ? board : (board?.pods || []);
   _unassignedWorking = (board && board.unassignedWorking) || [];
   if (!Array.isArray(custs)) custs = [];
-  // branch + ticket count per group name (from LicenseDB, YTD) — authoritative
+  // branch + ticket count per group name (from LicenseDB, last 3 months) — authoritative
   _ticketsByName = {}; _branchesByName = {};
-  (Array.isArray(groups) ? groups : []).forEach(g => { _ticketsByName[g.name] = g.tickets; _branchesByName[g.name] = g.branches; });
+  _groupList = Array.isArray(groups) ? groups : [];
+  _groupList.forEach(g => { _ticketsByName[g.name] = g.tickets; _branchesByName[g.name] = g.branches; });
   _custByPod = {};
   custs.forEach(c => { const k = c.pod_id || 'none'; (_custByPod[k] = _custByPod[k] || []).push(c); });
   renderPodBoard(canManage);
   loadLicenseLoad();
 }
-let _ticketsByName = {}, _branchesByName = {}, _unassignedWorking = [], _todayShift = {};
+let _ticketsByName = {}, _branchesByName = {}, _unassignedWorking = [], _todayShift = {}, _groupList = [];
 // today's shift suffix for employee dropdowns, e.g. " — ดึก 15:00–00:00" / " — หยุด" / " — ยังไม่จัดกะ"
 const _SHIFT_PERIOD = { morning:'เช้า', morning2:'เช้า', mid:'บ่าย', midday:'บ่าย', afternoon:'บ่าย', night:'ดึก' };
 function empShiftSuffix(empId) {
@@ -4790,6 +4801,38 @@ async function loadLicenseLoad() {
 
 // ── Pod page tabs + capacity analysis ──
 let _capData = null, _staffing = [];
+// Simulate balanced N-pod allocation of customer groups (read-only)
+function runSimulate() {
+  const out = document.getElementById('sim-out'); if (!out) return;
+  if (!_groupList.length) { out.innerHTML = '<div style="font-size:.78rem;color:#94a3b8;padding:.4rem">ไม่มีข้อมูลกลุ่มลูกค้า (LicenseDB ไม่พร้อม)</div>'; return; }
+  const N = Math.max(2, Math.min(12, parseInt(document.getElementById('sim-n')?.value) || 5));
+  const target   = Math.max(1, parseInt(document.getElementById('cap-target')?.value) || 16);
+  const workdays = Math.max(1, parseInt(document.getElementById('cap-workdays')?.value) || 22);
+  const cap = target * workdays;
+  // groups: monthly tickets (3-month data) + branches, sorted desc
+  const groups = _groupList.map(g => ({ name: g.name, mo: Math.round((g.tickets || 0) / 3), br: g.branches || 0 }))
+    .filter(g => g.mo > 0 || g.br > 0).sort((a, b) => b.mo - a.mo);
+  const pods = Array.from({ length: N }, () => ({ mo: 0, br: 0, groups: [] }));
+  groups.forEach(g => { pods.sort((a, b) => a.mo - b.mo); pods[0].mo += g.mo; pods[0].br += g.br; pods[0].groups.push(g); });
+  pods.sort((a, b) => b.mo - a.mo);
+  const totalStaff = pods.reduce((s, p) => s + Math.max(1, Math.round(p.mo / cap)), 0);
+  out.innerHTML = `
+    <div style="font-size:.74rem;color:var(--muted);margin-bottom:.6rem">โหลดเฉลี่ย ~${Math.round(pods.reduce((s,p)=>s+p.mo,0)/N).toLocaleString()} เคส/เดือน/Pod · capacity ${cap}/คน/เดือน · ต้องใช้รวม ~<b>${totalStaff}</b> คน (มีจริง ${(_capData?.staff)||'—'})</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;align-items:start">
+      ${pods.map((p, i) => {
+        const staff = Math.max(1, Math.round(p.mo / cap));
+        return `<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden">
+          <div style="background:#1d4ed8;color:#fff;padding:.4rem .6rem">
+            <div style="font-weight:700;font-size:.82rem">Pod ${i + 1} <span style="font-weight:400;opacity:.9">· ${staff} คน</span></div>
+            <div style="font-size:.7rem;opacity:.92">${p.mo.toLocaleString()} เคส/เดือน · ${p.br.toLocaleString()} สาขา · ${p.groups.length} กลุ่ม</div>
+          </div>
+          <div style="padding:.4rem .5rem;max-height:200px;overflow:auto">
+            ${p.groups.map(g => `<div style="display:flex;justify-content:space-between;gap:.4rem;font-size:.74rem;padding:.12rem .1rem"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(g.name)}</span><span style="color:#94a3b8;flex-shrink:0">${g.mo}</span></div>`).join('')}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
 // per-pod staffing recommendation table (uses shared target × workdays)
 function _staffingTableHtml() {
   if (!_staffing.length) return '';
