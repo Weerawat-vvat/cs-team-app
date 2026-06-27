@@ -4582,6 +4582,24 @@ app.post('/api/pods/assign-group', authRequired, managerRequired, async (request
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Monitor — ticket trend by company × month (uses LicenseDB SP usp_RPT_TicketByCompanyMonth)
+app.get('/api/pods/ticket-monthly', authRequired, async (request, res) => {
+  try {
+    const ext = getExtPool();
+    if (!ext) return res.json({ rows: [], months: [] });
+    const dealer = (request.query.dealer || 'INF').toString().replace(/[^A-Za-z0-9_-]/g, '').slice(0, 50) || 'INF';
+    const r = await extReq().input('dc', sql.NVarChar, dealer)
+      .query('EXEC usp_RPT_TicketByCompanyMonth @DealerCode=@dc');
+    const rows = r.recordset || [];
+    if (rows.length && rows[0].Message !== undefined && Object.keys(rows[0]).length === 1) {
+      return res.json({ rows: [], months: [], message: rows[0].Message, dealer });
+    }
+    const cols = rows.length ? Object.keys(rows[0]) : [];
+    const months = cols.filter(c => /^\d{4}-\d{2}$/.test(c));
+    res.json({ rows, months, dealer });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Today's shift per employee (for member/lead dropdowns)
 app.get('/api/today-shifts', authRequired, async (request, res) => {
   try {
