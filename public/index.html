@@ -3266,6 +3266,7 @@ textarea{resize:vertical;min-height:80px}
       </div>
       <div id="sim-out"><div style="font-size:.78rem;color:#94a3b8;padding:.4rem">กด "จำลอง" เพื่อดูตัวอย่างการจัด Pod</div></div>
     </div>
+    <div id="pod-staffing"></div>
   </div>
 
   <!-- Customer groups from License DB -->
@@ -4833,22 +4834,29 @@ async function runSimulate() {
   const pods = Array.from({ length: N }, () => ({ mo: 0, groups: [] }));
   list.forEach(g => { pods.sort((a, b) => a.mo - b.mo); pods[0].mo += g.mo; pods[0].groups.push(g); });
   pods.sort((a, b) => b.mo - a.mo);
+  _simPods = pods; _simCap = cap; _simExpand = {};
+  renderSim();
+}
+function toggleSimPod(i) { _simExpand[i] = !_simExpand[i]; renderSim(); }
+function renderSim() {
+  const out = document.getElementById('sim-out'); if (!out || !_simPods.length) return;
+  const pods = _simPods, cap = _simCap, N = pods.length, ITEMCAP = 18;
   const totalStaff = pods.reduce((s, p) => s + Math.max(1, Math.round(p.mo / cap)), 0);
-  const ITEMCAP = 18;
   out.innerHTML = `
     <div style="font-size:.74rem;color:var(--muted);margin-bottom:.6rem">โหลดเฉลี่ย ~${Math.round(pods.reduce((s,p)=>s+p.mo,0)/N).toLocaleString()} เคส/เดือน/Pod · capacity ${cap}/คน/เดือน · ต้องใช้รวม ~<b>${totalStaff}</b> คน (มีจริง ${(_capData?.staff)||'—'}) · INF Group แตกรายบริษัท</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;align-items:start">
       ${pods.map((p, i) => {
         const staff = Math.max(1, Math.round(p.mo / cap));
-        const shown = p.groups.slice(0, ITEMCAP);
+        const exp = _simExpand[i];
+        const shown = exp ? p.groups : p.groups.slice(0, ITEMCAP);
         return `<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden">
           <div style="background:#1d4ed8;color:#fff;padding:.4rem .6rem">
             <div style="font-weight:700;font-size:.82rem">Pod ${i + 1} <span style="font-weight:400;opacity:.9">· ${staff} คน</span></div>
             <div style="font-size:.7rem;opacity:.92">${p.mo.toLocaleString()} เคส/เดือน · ${p.groups.length} หน่วย</div>
           </div>
-          <div style="padding:.4rem .5rem;max-height:220px;overflow:auto">
+          <div style="padding:.4rem .5rem;max-height:${exp ? '420px' : '220px'};overflow:auto">
             ${shown.map(g => `<div style="display:flex;justify-content:space-between;gap:.4rem;font-size:.74rem;padding:.12rem .1rem"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(g.name)}</span><span style="color:#94a3b8;flex-shrink:0">${g.mo}</span></div>`).join('')}
-            ${p.groups.length > ITEMCAP ? `<div style="font-size:.68rem;color:#94a3b8;padding:.2rem .1rem">+ อีก ${p.groups.length - ITEMCAP} หน่วย</div>` : ''}
+            ${p.groups.length > ITEMCAP ? `<div onclick="toggleSimPod(${i})" style="cursor:pointer;color:#2563eb;font-size:.7rem;padding:.25rem .1rem;font-weight:600">${exp ? '▲ ย่อ' : '+ อีก ' + (p.groups.length - ITEMCAP) + ' หน่วย (กดดู)'}</div>` : ''}
           </div>
         </div>`;
       }).join('')}
@@ -5075,6 +5083,7 @@ function _capCard(label, value, color, sub) {
 }
 function renderCapacity() {
   const el = document.getElementById('pod-capacity'); if (!el) return;
+  const st = document.getElementById('pod-staffing'); if (st) st.innerHTML = _staffingTableHtml();
   if (!_capData || _capData.licenses == null) {
     el.innerHTML = '<div class="empty" style="padding:2rem">ยังไม่มีข้อมูล license (LicenseDB ไม่พร้อม)</div>';
     return;
@@ -5130,7 +5139,7 @@ function renderCapacity() {
         <div style="font-weight:600;font-size:.85rem;margin-bottom:3px">📈 Repeat contact</div>
         <div style="font-size:.78rem;color:var(--muted)">1 license ติดต่อ ~<b>${(casesPerLicense/months).toFixed(1)}</b> ครั้ง/เดือน — ถ้าสูงควรเช็ก FCR / repeat จากปัญหาเดิม</div>
       </div>
-    </div>` + _staffingTableHtml();
+    </div>`;
 }
 
 // today work-status dot
