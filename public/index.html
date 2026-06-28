@@ -4805,33 +4805,50 @@ async function loadLicenseLoad() {
 
 // ── Pod page tabs + capacity analysis ──
 let _capData = null, _staffing = [];
-// Simulate balanced N-pod allocation of customer groups (read-only)
-function runSimulate() {
+// Simulate balanced N-pod allocation (read-only) — groups whole, INF Group split per company
+async function runSimulate() {
   const out = document.getElementById('sim-out'); if (!out) return;
-  if (!_groupList.length) { out.innerHTML = '<div style="font-size:.78rem;color:#94a3b8;padding:.4rem">ไม่มีข้อมูลกลุ่มลูกค้า (LicenseDB ไม่พร้อม)</div>'; return; }
   const N = Math.max(2, Math.min(12, parseInt(document.getElementById('sim-n')?.value) || 5));
   const target   = Math.max(1, parseInt(document.getElementById('cap-target')?.value) || 16);
   const workdays = Math.max(1, parseInt(document.getElementById('cap-workdays')?.value) || 22);
   const cap = target * workdays;
-  // groups: monthly tickets (3-month data) + branches, sorted desc
-  const groups = _groupList.map(g => ({ name: g.name, mo: Math.round((g.tickets || 0) / 3), br: g.branches || 0 }))
-    .filter(g => g.mo > 0 || g.br > 0).sort((a, b) => b.mo - a.mo);
-  const pods = Array.from({ length: N }, () => ({ mo: 0, br: 0, groups: [] }));
-  groups.forEach(g => { pods.sort((a, b) => a.mo - b.mo); pods[0].mo += g.mo; pods[0].br += g.br; pods[0].groups.push(g); });
+  out.innerHTML = '<div style="font-size:.78rem;color:#94a3b8;padding:.4rem">กำลังคำนวณ...</div>';
+  // ใช้ข้อมูลรายบริษัทชุดเดียวกับแนวโน้ม
+  let rows = _monRows, months = _monMonths;
+  if (!rows.length) { const d = await api('/api/pods/ticket-monthly?dealer=INF', { silent: true }); rows = (d && d.rows) || []; months = (d && d.months) || []; }
+  if (!rows.length) { out.innerHTML = '<div style="font-size:.78rem;color:#94a3b8;padding:.4rem">ไม่มีข้อมูล (LicenseDB ไม่พร้อม)</div>'; return; }
+  const mc = months.length || 1;
+  const byG = {}; const units = [];
+  rows.forEach(r => {
+    if (MON_EXPAND.has(r.GroupName)) {
+      const mo = Math.round(months.reduce((s, m) => s + (r[m] || 0), 0) / mc);
+      units.push({ name: '▸ ' + (r.CompanyName || r.GroupName), mo, br: 1 });
+    } else {
+      let g = byG[r.GroupName]; if (!g) { g = byG[r.GroupName] = { name: r.GroupName, _sum: 0, br: 0 }; units.push(g); }
+      g._sum += months.reduce((s, m) => s + (r[m] || 0), 0); g.br++;
+    }
+  });
+  units.forEach(u => { if (u._sum != null) u.mo = Math.round(u._sum / mc); });
+  const list = units.filter(u => u.mo > 0 || u.br > 0).sort((a, b) => b.mo - a.mo);
+  const pods = Array.from({ length: N }, () => ({ mo: 0, groups: [] }));
+  list.forEach(g => { pods.sort((a, b) => a.mo - b.mo); pods[0].mo += g.mo; pods[0].groups.push(g); });
   pods.sort((a, b) => b.mo - a.mo);
   const totalStaff = pods.reduce((s, p) => s + Math.max(1, Math.round(p.mo / cap)), 0);
+  const ITEMCAP = 18;
   out.innerHTML = `
-    <div style="font-size:.74rem;color:var(--muted);margin-bottom:.6rem">โหลดเฉลี่ย ~${Math.round(pods.reduce((s,p)=>s+p.mo,0)/N).toLocaleString()} เคส/เดือน/Pod · capacity ${cap}/คน/เดือน · ต้องใช้รวม ~<b>${totalStaff}</b> คน (มีจริง ${(_capData?.staff)||'—'})</div>
+    <div style="font-size:.74rem;color:var(--muted);margin-bottom:.6rem">โหลดเฉลี่ย ~${Math.round(pods.reduce((s,p)=>s+p.mo,0)/N).toLocaleString()} เคส/เดือน/Pod · capacity ${cap}/คน/เดือน · ต้องใช้รวม ~<b>${totalStaff}</b> คน (มีจริง ${(_capData?.staff)||'—'}) · INF Group แตกรายบริษัท</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;align-items:start">
       ${pods.map((p, i) => {
         const staff = Math.max(1, Math.round(p.mo / cap));
+        const shown = p.groups.slice(0, ITEMCAP);
         return `<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden">
           <div style="background:#1d4ed8;color:#fff;padding:.4rem .6rem">
             <div style="font-weight:700;font-size:.82rem">Pod ${i + 1} <span style="font-weight:400;opacity:.9">· ${staff} คน</span></div>
-            <div style="font-size:.7rem;opacity:.92">${p.mo.toLocaleString()} เคส/เดือน · ${p.br.toLocaleString()} สาขา · ${p.groups.length} กลุ่ม</div>
+            <div style="font-size:.7rem;opacity:.92">${p.mo.toLocaleString()} เคส/เดือน · ${p.groups.length} หน่วย</div>
           </div>
-          <div style="padding:.4rem .5rem;max-height:200px;overflow:auto">
-            ${p.groups.map(g => `<div style="display:flex;justify-content:space-between;gap:.4rem;font-size:.74rem;padding:.12rem .1rem"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(g.name)}</span><span style="color:#94a3b8;flex-shrink:0">${g.mo}</span></div>`).join('')}
+          <div style="padding:.4rem .5rem;max-height:220px;overflow:auto">
+            ${shown.map(g => `<div style="display:flex;justify-content:space-between;gap:.4rem;font-size:.74rem;padding:.12rem .1rem"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(g.name)}</span><span style="color:#94a3b8;flex-shrink:0">${g.mo}</span></div>`).join('')}
+            ${p.groups.length > ITEMCAP ? `<div style="font-size:.68rem;color:#94a3b8;padding:.2rem .1rem">+ อีก ${p.groups.length - ITEMCAP} หน่วย</div>` : ''}
           </div>
         </div>`;
       }).join('')}
