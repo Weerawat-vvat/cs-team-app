@@ -4913,16 +4913,18 @@ function setMonGroupBy(v, btn) {
 }
 // trend entities — by group (aggregated) or by company (each row), with up/stable/down
 function _monGroupTrends() {
-  const h = Math.floor(_monMonths.length / 2) || 1;
+  // เกณฑ์: เดือนล่าสุด เทียบ ค่าเฉลี่ย 3 เดือนก่อนหน้า (ไวต่อการเปลี่ยนล่าสุด)
   const classify = (e) => {
     const vals = _monMonths.map(m => e[m] || 0);
     const total = vals.reduce((a, b) => a + b, 0);
-    const first = vals.slice(0, h).reduce((a, b) => a + b, 0);
-    const last = vals.slice(vals.length - h).reduce((a, b) => a + b, 0);
-    const pct = first > 0 ? Math.round((last - first) / first * 100) : (last > 0 ? 100 : 0);
+    const n = vals.length;
+    const latest = vals[n - 1] || 0;
+    const prev3 = vals.slice(Math.max(0, n - 4), n - 1); // 3 เดือนก่อนเดือนล่าสุด
+    const prevAvg = prev3.length ? prev3.reduce((a, b) => a + b, 0) / prev3.length : 0;
+    const pct = prevAvg > 0 ? Math.round((latest - prevAvg) / prevAvg * 100) : (latest > 0 ? 100 : 0);
     let cat = 'stable';
     if (total >= 6) cat = pct >= 15 ? 'up' : (pct <= -15 ? 'down' : 'stable');
-    return { ...e, vals, total, first, last, pct, cat };
+    return { ...e, vals, total, latest, prevAvg, pct, cat };
   };
   if (_monGroupBy === 'company') {
     return _monRows.map(r => classify({ name: r.CompanyName || r.GroupName, ...r })).filter(e => e.total > 0);
@@ -4965,7 +4967,7 @@ function renderMonitorTrend() {
     </div>`;
   const unit = _monGroupBy === 'company' ? 'บริษัท' : 'กลุ่ม';
   host.innerHTML = `
-    <div style="font-size:.72rem;color:#94a3b8;margin-bottom:.5rem">เทียบ ${_monMonths[0]}–${_monMonths[Math.floor(_monMonths.length/2)-1]} กับ ${_monMonths[_monMonths.length-Math.floor(_monMonths.length/2)]}–${_monMonths[_monMonths.length-1]} · ราย${unit} (เกณฑ์ ±15% · เฉพาะ${unit}ที่ ≥6 ticket)</div>
+    <div style="font-size:.72rem;color:#94a3b8;margin-bottom:.5rem">เดือนล่าสุด ${_monMonths[_monMonths.length-1]} เทียบเฉลี่ย 3 เดือนก่อน (${_monMonths[_monMonths.length-4]}–${_monMonths[_monMonths.length-2]}) · ราย${unit} (เกณฑ์ ±15% · เฉพาะ${unit}ที่ ≥6 ticket)</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;align-items:start">
       ${card('📈 เพิ่มขึ้น', '#dc2626', up, true)}
       ${card('➡️ คงที่', '#64748b', stable, true)}
