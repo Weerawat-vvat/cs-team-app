@@ -4927,14 +4927,20 @@ function _monGroupTrends() {
   if (_monGroupBy === 'company') {
     return _monRows.map(r => classify({ name: r.CompanyName || r.GroupName, ...r })).filter(e => e.total > 0);
   }
-  const byG = {};
+  // group mode: aggregate groups, but expand MON_EXPAND groups (เช่น INF) per company
+  const byG = {}; const out = [];
   _monRows.forEach(r => {
-    let g = byG[r.GroupName];
-    if (!g) { g = byG[r.GroupName] = { name: r.GroupName, _n: 0 }; _monMonths.forEach(m => g[m] = 0); }
-    _monMonths.forEach(m => g[m] += (r[m] || 0));
-    g._n++;
+    if (MON_EXPAND.has(r.GroupName)) {
+      out.push(classify({ name: '▸ ' + (r.CompanyName || r.GroupName), ...r }));
+    } else {
+      let g = byG[r.GroupName];
+      if (!g) { g = byG[r.GroupName] = { name: r.GroupName, _n: 0 }; _monMonths.forEach(m => g[m] = 0); }
+      _monMonths.forEach(m => g[m] += (r[m] || 0));
+      g._n++;
+    }
   });
-  return Object.values(byG).map(g => classify(g)).filter(g => g.total > 0);
+  Object.values(byG).forEach(g => out.push(classify(g)));
+  return out.filter(e => e.total > 0);
 }
 function renderMonitorTrend() {
   const host = document.getElementById('pod-monitor'); if (!host) return;
