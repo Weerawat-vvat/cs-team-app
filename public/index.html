@@ -3223,7 +3223,7 @@ textarea{resize:vertical;min-height:80px}
   <!-- Monitor งาน — ticket trend by company × month -->
   <div id="pod-tab-2" style="display:none">
     <div class="card" style="padding:.7rem 1rem;margin-bottom:.7rem;display:flex;gap:.8rem;align-items:center;flex-wrap:wrap">
-      <div style="font-size:.78rem;color:var(--muted)">📈 แนวโน้ม Ticket รายบริษัท × เดือน (6 เดือนล่าสุด)</div>
+      <div style="font-size:.78rem;color:var(--muted)">📈 แนวโน้ม Ticket รายบริษัท × เดือน (ย้อนหลัง 3 เดือน)</div>
       <div style="display:flex;align-items:center;gap:.4rem">
         <label style="font-size:.78rem;color:var(--muted)">Dealer</label>
         <input id="mon-dealer" value="INF" style="width:90px" onkeydown="if(event.key==='Enter')loadMonitor()"/>
@@ -4999,8 +4999,9 @@ function renderMonitorTrend() {
         </div>`).join('') + (arr.length > TCAP ? `<div style="font-size:.68rem;color:#94a3b8;padding:.3rem 0">+ อีก ${arr.length - TCAP} รายการ — ใช้ช่องค้นหา</div>` : '') : '<div style="font-size:.75rem;color:#cbd5e1;padding:.3rem 0">— ไม่มี —</div>'}
     </div>`;
   const unit = _monGroupBy === 'company' ? 'บริษัท' : 'กลุ่ม';
+  const nM = _monMonths.length, pStart = Math.max(0, nM - 4), priorCount = Math.max(1, nM - 1 - pStart);
   host.innerHTML = `
-    <div style="font-size:.72rem;color:#94a3b8;margin-bottom:.5rem">เดือนล่าสุด ${_monMonths[_monMonths.length-1]} เทียบเฉลี่ย 3 เดือนก่อน (${_monMonths[_monMonths.length-4]}–${_monMonths[_monMonths.length-2]}) · คิดเป็น <b>เคส/วัน</b> (เดือนล่าสุดใช้วันที่ผ่านมาจริง) · ราย${unit} · เกณฑ์ ±15% · เฉพาะ${unit}ที่ ≥6 ticket</div>
+    <div style="font-size:.72rem;color:#94a3b8;margin-bottom:.5rem">เดือนล่าสุด ${_monMonths[nM-1]} เทียบเฉลี่ย ${priorCount} เดือนก่อน (${_monMonths[pStart]}–${_monMonths[nM-2]}) · คิดเป็น <b>เคส/วัน</b> (เดือนล่าสุดใช้วันที่ผ่านมาจริง) · ราย${unit} · เกณฑ์ ±15% · เฉพาะ${unit}ที่ ≥6 ticket</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;align-items:start">
       ${card('📈 เพิ่มขึ้น', '#dc2626', up, true)}
       ${card('➡️ คงที่', '#64748b', stable, true)}

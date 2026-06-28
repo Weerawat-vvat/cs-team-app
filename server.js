@@ -4631,7 +4631,8 @@ app.get('/api/pods/ticket-monthly', authRequired, async (request, res) => {
       return res.json({ rows: [], months: [], message: rows[0].Message, dealer });
     }
     const cols = rows.length ? Object.keys(rows[0]) : [];
-    const months = cols.filter(c => /^\d{4}-\d{2}$/.test(c));
+    // SP returns 6 months; trim to last 3 to stay consistent with the rest of the Pod page
+    const months = cols.filter(c => /^\d{4}-\d{2}$/.test(c)).slice(-3);
     res.json({ rows, months, dealer });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
