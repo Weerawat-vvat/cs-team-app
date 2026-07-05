@@ -3194,31 +3194,98 @@ textarea{resize:vertical;min-height:80px}
     </div>
   </div>
   <div class="dash-tabs">
-    <button class="dash-tab-btn active" id="pod-tab-btn-1" onclick="switchPodTab(1)">🗂️ โครงสร้าง Pod</button>
+    <button class="dash-tab-btn active" id="pod-tab-btn-0" onclick="switchPodTab(0)">💬 LINE Webhook</button>
+    <button class="dash-tab-btn" id="pod-tab-btn-5" onclick="switchPodTab(5)">🧩 จัดกลุ่มไลน์เข้า Pod</button>
     <button class="dash-tab-btn" id="pod-tab-btn-2" onclick="switchPodTab(2)">📈 Monitor งาน</button>
     <button class="dash-tab-btn" id="pod-tab-btn-3" onclick="switchPodTab(3)">📊 วิเคราะห์กำลังคน</button>
-    <button class="dash-tab-btn" id="pod-tab-btn-4" onclick="switchPodTab(4)">📥 กลุ่มลูกค้า (License)</button>
   </div>
-  <div id="pod-tab-1">
-  <div style="display:flex;gap:1rem;align-items:center;font-size:.72rem;color:#64748b;margin-bottom:.6rem;flex-wrap:wrap">
-    <span style="font-weight:600">สถานะวันนี้:</span>
-    <span style="display:flex;align-items:center;gap:.3rem"><span style="width:9px;height:9px;border-radius:50%;background:#16a34a;display:inline-block"></span>ทำงาน</span>
-    <span style="display:flex;align-items:center;gap:.3rem"><span style="width:9px;height:9px;border-radius:50%;background:#dc2626;display:inline-block"></span>หยุด / ลา</span>
-    <span style="display:flex;align-items:center;gap:.3rem"><span style="width:9px;height:9px;border-radius:50%;background:#cbd5e1;display:inline-block"></span>ยังไม่จัดกะ</span>
-    <span style="margin-left:auto;color:#94a3b8">★ = SR ประจำกะ · ดับเบิลคลิกแถบหัว Pod เพื่อแก้ไข / จัดการสมาชิก</span>
-  </div>
-  <div style="display:flex;gap:1rem;align-items:center;font-size:.72rem;color:#64748b;margin-bottom:.6rem;flex-wrap:wrap">
-    <span style="font-weight:600">สถานะลูกค้า:</span>
-    <span style="display:flex;align-items:center;gap:.3rem"><span style="width:8px;height:8px;border-radius:50%;background:#16a34a;display:inline-block"></span>ปกติ</span>
-    <span style="display:flex;align-items:center;gap:.3rem"><span style="width:8px;height:8px;border-radius:50%;background:#eab308;display:inline-block"></span>เฝ้าระวัง</span>
-    <span style="display:flex;align-items:center;gap:.3rem"><span style="width:8px;height:8px;border-radius:50%;background:#dc2626;display:inline-block"></span>มีปัญหา</span>
-  </div>
-  <div id="pod-license-load" style="display:none;font-size:.8rem;color:#0c4a6e;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:.55rem .8rem;margin-bottom:.7rem"></div>
-  <div id="pod-unassigned-working" style="display:none;font-size:.8rem;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:.55rem .8rem;margin-bottom:.7rem"></div>
-  <div id="pods-board" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.6rem;align-items:start">
-    <div class="empty" style="padding:2rem">กำลังโหลด...</div>
-  </div>
-  </div><!-- /pod-tab-1 -->
+
+  <!-- LINE Webhook Monitor — group/DM behavior from LineBotMonitor -->
+  <div id="pod-tab-0">
+    <div class="card" style="padding:.7rem 1rem;margin-bottom:.75rem;display:flex;gap:.8rem;align-items:center;flex-wrap:wrap">
+      <div style="font-size:.78rem;color:var(--muted)">💬 สรุปพฤติกรรมกลุ่มไลน์ + แชทส่วนตัวจากเว็บฮุค LINE (LineBotMonitor)</div>
+      <button class="btn btn-sm btn-ghost" onclick="loadLineBotMonitor()">🔄 รีเฟรช</button>
+      <span id="lb-updated" style="font-size:.72rem;color:#94a3b8;margin-left:auto"></span>
+    </div>
+
+    <div id="lb-kpi-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:.65rem;margin-bottom:.75rem">
+      <div class="stat-flat"><div class="label">💬 กลุ่มไลน์จริง</div><div class="value blue" id="lb-groups">—</div><div class="sub" id="lb-groups-sub">—</div></div>
+      <div class="stat-flat"><div class="label">📨 ข้อความรวม</div><div class="value white" id="lb-msgs">—</div><div class="sub" id="lb-msgs-sub">—</div></div>
+      <div class="stat-flat"><div class="label">👤 ลูกค้าที่ทัก</div><div class="value purple" id="lb-customers">—</div><div class="sub">unique ต่อรายการ รวมกัน</div></div>
+      <div class="stat-flat"><div class="label">🔝 สัดส่วน Top 10</div><div class="value orange" id="lb-top10">—</div><div class="sub">ของข้อความทั้งหมด</div></div>
+    </div>
+
+    <div class="card" style="margin-bottom:.75rem">
+      <div class="card-title">📌 ข้อสังเกตหลัก (สำหรับวางแผนแบ่งพอร์ต)</div>
+      <ul id="lb-insights" style="margin:.5rem 0 0;padding-left:1.2rem;font-size:.82rem;display:flex;flex-direction:column;gap:.35rem"><li class="empty" style="list-style:none;padding:.5rem 0">กำลังโหลด...</li></ul>
+      <div id="lb-caveat" style="margin-top:.6rem;padding-top:.5rem;border-top:1px dashed var(--border);font-size:.74rem;color:var(--muted)"></div>
+    </div>
+
+    <div class="grid-2" style="margin-bottom:.75rem">
+      <div class="card">
+        <div class="card-title">⏰ ช่วงเวลาที่ลูกค้าถามเยอะ (รวมทุกรายการ)</div>
+        <canvas id="chart-lb-hour" height="150"></canvas>
+      </div>
+      <div class="card">
+        <div class="card-title">📆 แยกตามวัน</div>
+        <canvas id="chart-lb-dow" height="150"></canvas>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:.75rem">
+      <div class="card-title">🏆 20 กลุ่มที่มีข้อความมากที่สุด</div>
+      <div id="lb-top20" style="margin-top:.5rem;display:flex;flex-direction:column;gap:.35rem"></div>
+    </div>
+
+    <div class="card" style="padding:.7rem 1rem 1rem">
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.6rem">
+        <input id="lb-search" placeholder="🔍 ค้นหาชื่อกลุ่ม..." oninput="renderLineBotTable()" style="flex:1;min-width:180px"/>
+        <div class="drb" id="lb-filter">
+          <button class="drb-btn active" onclick="setLbFilter('all',this)">ทั้งหมด</button>
+          <button class="drb-btn" onclick="setLbFilter('type:group',this)">เฉพาะกลุ่ม</button>
+          <button class="drb-btn" onclick="setLbFilter('type:dm',this)">แชทส่วนตัว</button>
+          <button class="drb-btn" onclick="setLbFilter('เน้นมื้อเที่ยง',this)">เน้นมื้อเที่ยง</button>
+          <button class="drb-btn" onclick="setLbFilter('เน้นมื้อเย็น',this)">เน้นมื้อเย็น</button>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>ประเภท</th>
+            <th>ชื่อ</th>
+            <th style="text-align:right;cursor:pointer" onclick="sortLb('total')">ข้อความรวม ▾</th>
+            <th style="text-align:right;cursor:pointer" onclick="sortLb('customers')">ลูกค้า</th>
+            <th style="cursor:pointer" onclick="sortLb('peakHour')">ช่วงพีค</th>
+            <th>รูปแบบ</th>
+            <th style="text-align:right;cursor:pointer" onclick="sortLb('msgsPerDay')">เฉลี่ย/วัน</th>
+            <th>รูปแบบ 24 ชม.</th>
+            <th>Pod</th>
+          </tr></thead>
+          <tbody id="lb-tbody"><tr><td colspan="9" class="empty">กำลังโหลด...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div><!-- /pod-tab-0 -->
+
+  <!-- Assign LINE groups to Pods -->
+  <div id="pod-tab-5" style="display:none">
+    <div class="card" style="padding:.7rem 1rem;margin-bottom:.75rem;font-size:.78rem;color:var(--muted);display:flex;flex-direction:column;gap:.4rem">
+      <div>🧩 กำหนดว่ากลุ่มไลน์แต่ละกลุ่มควรอยู่ในความดูแลของ Pod ไหน (ไม่รวมแชทส่วนตัว 1:1) · ใช้ปริมาณข้อความเป็นตัวช่วยตัดสินใจกระจายงาน · ดับเบิลคลิกที่กลุ่มเพื่อย้าย Pod</div>
+      <div id="lgp-legend" style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center;padding-top:.35rem;border-top:1px dashed var(--border)">
+        <span style="font-weight:600;color:#94a3b8">สัญลักษณ์ช่วงที่ลูกค้าถามเยอะ:</span>
+      </div>
+    </div>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.6rem">
+      <input id="lgp-search" placeholder="🔍 ค้นหาชื่อกลุ่ม..." oninput="renderLineGroupPodBoard()" style="flex:1;min-width:180px"/>
+      <div class="drb" id="lgp-filter">
+        <button class="drb-btn active" onclick="setLgpFilter('all',this)">ทั้งหมด Pod</button>
+        <button class="drb-btn" onclick="setLgpFilter('unassigned',this)">เฉพาะที่ยังไม่ assign</button>
+      </div>
+    </div>
+    <div id="lgp-board" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.6rem;align-items:start">
+      <div class="empty" style="padding:2rem">กำลังโหลด...</div>
+    </div>
+  </div><!-- /pod-tab-5 -->
 
   <!-- Monitor งาน — ticket trend by company × month -->
   <div id="pod-tab-2" style="display:none">
@@ -3256,36 +3323,6 @@ textarea{resize:vertical;min-height:80px}
       </div>
     </div>
     <div id="pod-capacity"><div class="empty" style="padding:2rem">กำลังโหลด...</div></div>
-    <div class="card" style="margin-top:1rem;padding:.85rem 1rem">
-      <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.2rem">
-        <div style="font-weight:600;font-size:.9rem">🧪 จำลองจัด Pod ใหม่ (Simulate)</div>
-        <span style="font-size:.74rem;color:var(--muted)">จำนวน Pod</span>
-        <input id="sim-n" type="number" value="5" min="2" max="12" style="width:60px" onchange="runSimulate()"/>
-        <button class="btn btn-sm btn-primary" onclick="runSimulate()">จำลอง</button>
-        <span style="font-size:.72rem;color:#94a3b8">จัดกลุ่มลูกค้าให้โหลดสมดุล (ยังไม่บันทึกลงระบบ)</span>
-      </div>
-      <div id="sim-out"><div style="font-size:.78rem;color:#94a3b8;padding:.4rem">กด "จำลอง" เพื่อดูตัวอย่างการจัด Pod</div></div>
-    </div>
-    <div id="pod-staffing"></div>
-  </div>
-
-  <!-- Customer groups from License DB -->
-  <div id="pod-tab-4" style="display:none">
-    <div class="card" style="padding:.7rem 1rem;margin-bottom:.75rem;font-size:.78rem;color:var(--muted)">
-      กลุ่มลูกค้าจริงจากระบบ License (ย้อนหลัง 3 เดือน) · เลือก Pod ในแต่ละแถวเพื่อ assign — ระบบจะเพิ่ม/อัปเดตลงบอร์ดให้อัตโนมัติ (จำนวนสาขาดึงจาก License)
-    </div>
-    <div class="card" style="padding:.5rem 0">
-      <div class="tbl-wrap">
-        <table>
-          <thead><tr>
-            <th>กลุ่มลูกค้า</th><th style="text-align:right">สาขา</th><th style="text-align:right">เคส (3 เดือน)</th><th>Pod</th>
-          </tr></thead>
-          <tbody id="pod-groups-tbody">
-            <tr><td colspan="4" class="empty">กดแท็บนี้เพื่อโหลด...</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
   </div>
 </div>
 
@@ -3297,19 +3334,8 @@ textarea{resize:vertical;min-height:80px}
       <button class="modal-close" onclick="closeModal('modal-pod-form')">×</button>
     </div>
     <input type="hidden" id="pod-id"/>
-    <div class="grid-2">
-      <div class="form-group">
-        <label>รหัส Pod <span style="color:#ef4444">*</span></label>
-        <input id="pod-code" placeholder="เช่น BKK-1" style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.88rem;font-family:inherit;outline:none"/>
-      </div>
-      <div class="form-group">
-        <label>ภูมิภาค</label>
-        <select id="pod-region" style="width:100%" onchange="podRegionColor()">
-          <option value="BKK">กทม (BKK)</option>
-          <option value="CM">เชียงใหม่ (CM)</option>
-        </select>
-      </div>
-    </div>
+    <input type="hidden" id="pod-code"/>
+    <input type="hidden" id="pod-region"/>
     <div class="form-group">
       <label>ชื่อแสดง <span style="color:#ef4444">*</span></label>
       <input id="pod-name" placeholder="เช่น Pod BKK-1" style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.88rem;font-family:inherit;outline:none"/>
@@ -3327,12 +3353,6 @@ textarea{resize:vertical;min-height:80px}
         </div>
       </div>
     </div>
-    <!-- Members (shown when editing an existing pod) -->
-    <div id="pod-form-members" style="display:none;border-top:1px solid var(--border);margin-top:.85rem;padding-top:.75rem">
-      <div style="font-size:.82rem;font-weight:700;color:#334155;margin-bottom:.5rem">👥 สมาชิก Pod</div>
-      <div id="pod-mem-list" style="margin-bottom:.6rem"></div>
-    </div>
-    <input type="hidden" id="pod-mem-podid"/>
     <div style="display:flex;justify-content:space-between;gap:.5rem;margin-top:.75rem">
       <button class="btn btn-ghost btn-sm" id="pod-del-btn" style="color:#dc2626;display:none" onclick="deletePod()">🗑️ ลบ Pod</button>
       <div style="display:flex;gap:.5rem;margin-left:auto">
@@ -4686,7 +4706,7 @@ function showPage(name, btn) {
   if (name === 'shopinfo') { loadShopInfo(); }
   if (name === 'sw-update') { loadSwUpdate(); }
   if (name === 'news') { loadNews(); }
-  if (name === 'pods') { loadPods(); }
+  if (name === 'pods') { loadPods(); loadLineBotMonitor(); }
 }
 
 // ══════════════════════════════════════════════════════════
@@ -4720,14 +4740,12 @@ async function loadPods() {
   }
   const canManage = isManagerRole();
   document.getElementById('pod-actions').style.display = canManage ? '' : 'none';
-  let [board, custs, groups, today, staffing] = await Promise.all([
+  let [board, custs, groups, today] = await Promise.all([
     api('/api/pods/board'),
     api('/api/customers'),
     api('/api/pods/customer-groups', { silent: true }),
     api('/api/today-shifts', { silent: true }),
-    api('/api/pods/staffing', { silent: true }),
   ]);
-  _staffing = (staffing && Array.isArray(staffing.pods)) ? staffing.pods : [];
   _todayShift = {};
   (Array.isArray(today) ? today : []).forEach(s => { _todayShift[s.employee_id] = s; });
   _pods = Array.isArray(board) ? board : (board?.pods || []);
@@ -4741,6 +4759,7 @@ async function loadPods() {
   custs.forEach(c => { const k = c.pod_id || 'none'; (_custByPod[k] = _custByPod[k] || []).push(c); });
   renderPodBoard(canManage);
   loadLicenseLoad();
+  renderLineGroupPodBoard();
 }
 let _ticketsByName = {}, _branchesByName = {}, _unassignedWorking = [], _todayShift = {}, _groupList = [];
 // today's shift suffix for employee dropdowns, e.g. " — ดึก 15:00–00:00" / " — หยุด" / " — ยังไม่จัดกะ"
@@ -4785,130 +4804,309 @@ function _branchOf(c) {
 }
 
 // License workload — distinct RegistrationId (3 months) vs CS headcount
+// NOTE: always computes _capData + renderCapacity() (feeds "วิเคราะห์กำลังคน" tab)
+// regardless of whether the #pod-license-load status line exists on screen.
 async function loadLicenseLoad() {
   const el = document.getElementById('pod-license-load');
-  if (!el) return;
   const d = await api('/api/pods/license-load', { silent: true });
   // headcount = active employees in the scheduled (ticked) teams — BKK + CNX + SP
   const ticked = new Set((allTeams || []).filter(t => t.show_in_schedule).map(t => t.name));
   let n = (allEmployees || []).filter(e => ticked.has(e.team)).length;
   if (!n) { const s = new Set(); _pods.forEach(p => (p.members || []).forEach(m => s.add(m.employee_id))); n = s.size; }
-  if (!d || d.licenses == null) { el.style.display = 'none'; _capData = { licenses: null, staff: n }; renderCapacity(); return; }
+  if (!d || d.licenses == null) { if (el) el.style.display = 'none'; _capData = { licenses: null, staff: n }; renderCapacity(); return; }
   _capData = { licenses: d.licenses, calls: d.calls || 0, months: d.months || 3, staff: n };
   const avg = n ? Math.round(d.licenses / n) : 0;
-  el.style.display = '';
-  el.innerHTML = `📊 License ที่มี activity ย้อนหลัง 3 เดือน: <b>${d.licenses.toLocaleString()}</b>`
-    + ` · ทีม CS <b>${n}</b> คน`
-    + (n ? ` · เฉลี่ย ~<b>${avg.toLocaleString()}</b> license/คน` : '')
-    + ` <span style="color:#0369a1">(${(d.calls||0).toLocaleString()} เคส)</span>`;
+  if (el) {
+    el.style.display = '';
+    el.innerHTML = `📊 License ที่มี activity ย้อนหลัง 3 เดือน: <b>${d.licenses.toLocaleString()}</b>`
+      + ` · ทีม CS <b>${n}</b> คน`
+      + (n ? ` · เฉลี่ย ~<b>${avg.toLocaleString()}</b> license/คน` : '')
+      + ` <span style="color:#0369a1">(${(d.calls||0).toLocaleString()} เคส)</span>`;
+  }
   renderCapacity();
 }
 
 // ── Pod page tabs + capacity analysis ──
-let _capData = null, _staffing = [];
-// Simulate balanced N-pod allocation (read-only) — groups whole, INF Group split per company
-async function runSimulate() {
-  const out = document.getElementById('sim-out'); if (!out) return;
-  const N = Math.max(2, Math.min(12, parseInt(document.getElementById('sim-n')?.value) || 5));
-  const target   = Math.max(1, parseInt(document.getElementById('cap-target')?.value) || 16);
-  const workdays = Math.max(1, parseInt(document.getElementById('cap-workdays')?.value) || 22);
-  const cap = target * workdays;
-  out.innerHTML = '<div style="font-size:.78rem;color:#94a3b8;padding:.4rem">กำลังคำนวณ...</div>';
-  // ใช้ข้อมูลรายบริษัทชุดเดียวกับแนวโน้ม
-  let rows = _monRows, months = _monMonths;
-  if (!rows.length) { const d = await api('/api/pods/ticket-monthly?dealer=INF', { silent: true }); rows = (d && d.rows) || []; months = (d && d.months) || []; }
-  if (!rows.length) { out.innerHTML = '<div style="font-size:.78rem;color:#94a3b8;padding:.4rem">ไม่มีข้อมูล (LicenseDB ไม่พร้อม)</div>'; return; }
-  const mc = months.length || 1;
-  const byG = {}; const units = [];
-  rows.forEach(r => {
-    if (MON_EXPAND.has(r.GroupName)) {
-      const mo = Math.round(months.reduce((s, m) => s + (r[m] || 0), 0) / mc);
-      units.push({ name: '▸ ' + (r.CompanyName || r.GroupName), mo, br: 1 });
-    } else {
-      let g = byG[r.GroupName]; if (!g) { g = byG[r.GroupName] = { name: r.GroupName, _sum: 0, br: 0 }; units.push(g); }
-      g._sum += months.reduce((s, m) => s + (r[m] || 0), 0); g.br++;
-    }
-  });
-  units.forEach(u => { if (u._sum != null) u.mo = Math.round(u._sum / mc); });
-  const list = units.filter(u => u.mo > 0 || u.br > 0).sort((a, b) => b.mo - a.mo);
-  const pods = Array.from({ length: N }, () => ({ mo: 0, groups: [] }));
-  list.forEach(g => { pods.sort((a, b) => a.mo - b.mo); pods[0].mo += g.mo; pods[0].groups.push(g); });
-  pods.sort((a, b) => b.mo - a.mo);
-  _simPods = pods; _simCap = cap; _simExpand = {};
-  renderSim();
-}
-function toggleSimPod(i) { _simExpand[i] = !_simExpand[i]; renderSim(); }
-function renderSim() {
-  const out = document.getElementById('sim-out'); if (!out || !_simPods.length) return;
-  const pods = _simPods, cap = _simCap, N = pods.length, ITEMCAP = 18;
-  const totalStaff = pods.reduce((s, p) => s + Math.max(1, Math.round(p.mo / cap)), 0);
-  out.innerHTML = `
-    <div style="font-size:.74rem;color:var(--muted);margin-bottom:.6rem">โหลดเฉลี่ย ~${Math.round(pods.reduce((s,p)=>s+p.mo,0)/N).toLocaleString()} เคส/เดือน/Pod · capacity ${cap}/คน/เดือน · ต้องใช้รวม ~<b>${totalStaff}</b> คน (มีจริง ${(_capData?.staff)||'—'}) · INF Group แตกรายบริษัท</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;align-items:start">
-      ${pods.map((p, i) => {
-        const staff = Math.max(1, Math.round(p.mo / cap));
-        const exp = _simExpand[i];
-        const shown = exp ? p.groups : p.groups.slice(0, ITEMCAP);
-        return `<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden">
-          <div style="background:#1d4ed8;color:#fff;padding:.4rem .6rem">
-            <div style="font-weight:700;font-size:.82rem">Pod ${i + 1} <span style="font-weight:400;opacity:.9">· ${staff} คน</span></div>
-            <div style="font-size:.7rem;opacity:.92">${p.mo.toLocaleString()} เคส/เดือน · ${p.groups.length} หน่วย</div>
-          </div>
-          <div style="padding:.4rem .5rem;max-height:${exp ? '420px' : '220px'};overflow:auto">
-            ${shown.map(g => `<div style="display:flex;justify-content:space-between;gap:.4rem;font-size:.74rem;padding:.12rem .1rem"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(g.name)}</span><span style="color:#94a3b8;flex-shrink:0">${g.mo}</span></div>`).join('')}
-            ${p.groups.length > ITEMCAP ? `<div onclick="toggleSimPod(${i})" style="cursor:pointer;color:#2563eb;font-size:.7rem;padding:.25rem .1rem;font-weight:600">${exp ? '▲ ย่อ' : '+ อีก ' + (p.groups.length - ITEMCAP) + ' หน่วย (กดดู)'}</div>` : ''}
-          </div>
-        </div>`;
-      }).join('')}
-    </div>`;
-}
-// per-pod staffing recommendation table (uses shared target × workdays)
-function _staffingTableHtml() {
-  if (!_staffing.length) return '';
-  const target   = Math.max(1, parseInt(document.getElementById('cap-target')?.value) || 16);
-  const workdays = Math.max(1, parseInt(document.getElementById('cap-workdays')?.value) || 22);
-  const cap = target * workdays; // sustainable tickets/person/month
-  const rows = _staffing.map(p => {
-    const perStaff = p.staff ? Math.round(p.ticketsMonth / p.staff) : p.ticketsMonth;
-    const need = Math.max(1, Math.ceil(p.ticketsMonth / cap)); // min 1 for shift coverage
-    const diff = need - p.staff; // + = ควรเพิ่ม, - = คนเกิน
-    return { ...p, perStaff, need, diff };
-  }).sort((a, b) => b.perStaff - a.perStaff);
-  const body = rows.map(r => {
-    const over = r.perStaff > cap;
-    const diffTxt = r.diff > 0 ? `<span style="color:#dc2626">+${r.diff}</span>` : (r.diff < 0 ? `<span style="color:#2563eb">${r.diff}</span>` : '<span style="color:#16a34a">พอดี</span>');
-    return `<tr>
-      <td>${esc(r.display_name || r.code)}</td>
-      <td style="text-align:right">${r.ticketsMonth.toLocaleString()}</td>
-      <td style="text-align:right">${r.staff}</td>
-      <td style="text-align:right;font-weight:600;color:${over ? '#dc2626' : '#16a34a'}">${r.perStaff.toLocaleString()}</td>
-      <td style="text-align:right">${r.need}</td>
-      <td style="text-align:right;font-weight:600">${diffTxt}</td>
-    </tr>`;
-  }).join('');
-  const totMove = rows.reduce((s, r) => s + (r.diff > 0 ? r.diff : 0), 0);
-  const surplus = rows.reduce((s, r) => s + (r.diff < 0 ? -r.diff : 0), 0);
-  return `
-    <div class="card" style="padding:.85rem 1rem;margin-top:1rem">
-      <div style="font-weight:600;font-size:.9rem;margin-bottom:.2rem">🧮 ตัวช่วยจัดคนราย Pod</div>
-      <div style="font-size:.74rem;color:var(--muted);margin-bottom:.6rem">โหลด 3 เดือนล่าสุด · capacity ที่ยั่งยืน ~<b>${cap.toLocaleString()}</b> เคส/คน/เดือน (${target}×${workdays}) · 🔴 = เกิน capacity</div>
-      <div class="tbl-wrap"><table style="font-size:.8rem">
-        <thead><tr><th style="text-align:left">Pod</th><th style="text-align:right">งาน/เดือน</th><th style="text-align:right">คน</th><th style="text-align:right">งาน/คน</th><th style="text-align:right">ควรมี</th><th style="text-align:right">แนะนำ</th></tr></thead>
-        <tbody>${body}</tbody>
-      </table></div>
-      <div style="font-size:.76rem;color:var(--muted);margin-top:.5rem">รวม Pod ที่ <b style="color:#dc2626">ควรเพิ่ม ${totMove} คน</b> · มีคนเหลือให้ย้ายได้ <b style="color:#2563eb">${surplus} คน</b> ${surplus>=totMove?'→ เกลี่ยภายในทีมได้โดยไม่ต้องจ้างเพิ่ม':'→ อาจต้องจ้างเพิ่มบางส่วน'}</div>
-    </div>`;
-}
+let _capData = null;
 function switchPodTab(tab) {
-  [1, 2, 3, 4].forEach(i => {
+  [0, 2, 3, 5].forEach(i => {
     const panel = document.getElementById('pod-tab-' + i);
     const btn   = document.getElementById('pod-tab-btn-' + i);
     if (panel) panel.style.display = tab === i ? '' : 'none';
     if (btn)   btn.classList.toggle('active', tab === i);
   });
+  if (tab === 0) loadLineBotMonitor();
   if (tab === 2) loadMonitor();
   if (tab === 3) renderCapacity();
-  if (tab === 4) loadCustomerGroups();
+  if (tab === 5) renderLineGroupPodBoard();
+}
+
+// ══════════════════════════════════════════════════════════
+//  LINE WEBHOOK MONITOR — group/DM behavior (LineBotMonitor)
+// ══════════════════════════════════════════════════════════
+let _lbGroups = [], _lbFilter = 'all', _lbSortKey = 'total', _lbSortDir = -1;
+let _lbCharts = {};
+const LB_PATTERN_COLOR = { 'เน้นมื้อเที่ยง': '#f97316', 'เน้นมื้อเย็น': '#7c3aed', 'เน้นเช้า': '#eab308', 'ดึก/นอกเวลา': '#1e3a5f', 'ไม่ระบุ': '#94a3b8' };
+// Feather-style outline icons — matches the sidebar nav icon set
+function lbPatternIconSvg(path) {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;display:block">${path}</svg>`;
+}
+const LB_PATTERN_SVG = {
+  'เน้นเช้า': lbPatternIconSvg('<path d="M17 18a5 5 0 0 0-10 0"/><line x1="12" y1="2" x2="12" y2="9"/><line x1="4.22" y1="10.22" x2="5.64" y2="11.64"/><line x1="1" y1="18" x2="3" y2="18"/><line x1="21" y1="18" x2="23" y2="18"/><line x1="18.36" y1="11.64" x2="19.78" y2="10.22"/><line x1="23" y1="22" x2="1" y2="22"/><polyline points="8 6 12 2 16 6"/>'),
+  'เน้นมื้อเที่ยง': lbPatternIconSvg('<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>'),
+  'เน้นมื้อเย็น': lbPatternIconSvg('<path d="M17 18a5 5 0 0 0-10 0"/><line x1="12" y1="9" x2="12" y2="2"/><line x1="4.22" y1="10.22" x2="5.64" y2="11.64"/><line x1="1" y1="18" x2="3" y2="18"/><line x1="21" y1="18" x2="23" y2="18"/><line x1="18.36" y1="11.64" x2="19.78" y2="10.22"/><line x1="23" y1="22" x2="1" y2="22"/><polyline points="16 5 12 9 8 5"/>'),
+  'ดึก/นอกเวลา': lbPatternIconSvg('<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>'),
+  'ไม่ระบุ': lbPatternIconSvg('<circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/>'),
+};
+function lbSegColor(h) {
+  if (h >= 0 && h <= 6) return '#1e3a5f';
+  if (h >= 7 && h <= 10) return '#eab308';
+  if (h >= 11 && h <= 14) return '#f97316';
+  if (h >= 15 && h <= 22) return '#7c3aed';
+  return '#1e3a5f';
+}
+async function loadLineBotMonitor() {
+  const tbody = document.getElementById('lb-tbody');
+  const d = await api('/api/linebot/summary', { silent: true });
+  if (!d || d.error) {
+    if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="empty">โหลดไม่สำเร็จ (${esc(d?.error || 'LineBotMonitor ไม่พร้อม')})</td></tr>`;
+    return;
+  }
+  _lbGroups = d.groups || [];
+  const groups = _lbGroups.filter(g => g.type === 'group');
+  const dms = _lbGroups.filter(g => g.type === 'dm');
+  const totalMsgs = _lbGroups.reduce((s, g) => s + g.total, 0);
+  const totalCustomers = _lbGroups.reduce((s, g) => s + g.customers, 0);
+  const sorted = [...d.groups].sort((a, b) => b.total - a.total);
+  const top10Share = totalMsgs ? (sorted.slice(0, 10).reduce((s, g) => s + g.total, 0) / totalMsgs * 100).toFixed(1) : '0';
+  const dinnerCount = _lbGroups.filter(g => g.pattern === 'เน้นมื้อเย็น').length;
+  const lowActivity = _lbGroups.filter(g => g.total < 5).length;
+  const totalAnswered = _lbGroups.reduce((s, g) => s + g.answered, 0);
+  const minDate = _lbGroups.reduce((m, g) => !m || g.first < m ? g.first : m, null);
+  const maxDate = _lbGroups.reduce((m, g) => !m || g.last > m ? g.last : m, null);
+  const fmt = iso => iso ? new Date(iso).toLocaleString('th-TH', { timeZone: 'UTC', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+  const dateRangeStr = `${fmt(minDate)} – ${fmt(maxDate)}`;
+
+  document.getElementById('lb-groups').textContent = groups.length.toLocaleString();
+  document.getElementById('lb-groups-sub').textContent = `+ แชทส่วนตัว 1:1 อีก ${dms.length} ราย`;
+  document.getElementById('lb-msgs').textContent = totalMsgs.toLocaleString();
+  document.getElementById('lb-msgs-sub').textContent = dateRangeStr;
+  document.getElementById('lb-customers').textContent = totalCustomers.toLocaleString();
+  document.getElementById('lb-top10').textContent = top10Share + '%';
+  document.getElementById('lb-updated').textContent = 'อัปเดตล่าสุด ' + new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+
+  document.getElementById('lb-insights').innerHTML = `
+    <li>เว็บฮุคเชื่อมอยู่กับ <b>${groups.length}</b> กลุ่มไลน์จริง และมีแชทส่วนตัว 1:1 กับลูกค้าแยกต่างหากอีก <b>${dms.length}</b> ราย — รวม ${_lbGroups.length} รายการสนทนา</li>
+    <li>${dinnerCount} รายการ (${_lbGroups.length ? (dinnerCount / _lbGroups.length * 100).toFixed(0) : 0}%) มีรูปแบบ "เน้นมื้อเย็น" — ควรจัดคนเวรช่วงบ่าย–ค่ำให้เพียงพอ</li>
+    <li>ปริมาณกระจุกตัว: 10 อันดับบนสุดคิดเป็น <b>${top10Share}%</b> ของข้อความทั้งหมด — แนะนำแยกคนดูแลเฉพาะกลุ่มเหล่านี้</li>
+    <li><b>${lowActivity}</b> รายการ มีข้อความน้อยกว่า 5 ข้อความในช่วงที่เก็บข้อมูล — ควรตรวจสอบก่อนจัดพอร์ต</li>
+  `;
+  document.getElementById('lb-caveat').innerHTML =
+    `⚠️ ตัวเลขนี้คำนวณจากช่วง ${dateRangeStr} เท่านั้น ยิ่งเก็บข้อมูลได้นานขึ้นภาพจะยิ่งนิ่งขึ้น · ฟิลด์ "ตอบแล้ว" ถูกใช้เพียง ${totalMsgs ? (totalAnswered / totalMsgs * 100).toFixed(1) : 0}% จึงยังใช้วัด SLA จริงไม่ได้ในตอนนี้`;
+
+  // Hour chart
+  if (_lbCharts.hour) { _lbCharts.hour.destroy(); }
+  const ctxHour = document.getElementById('chart-lb-hour');
+  if (ctxHour) {
+    const hrData = (d.hourly || []).map(h => h.count);
+    _lbCharts.hour = new Chart(ctxHour, {
+      type: 'bar',
+      data: { labels: (d.hourly || []).map(h => h.hour + ':00'), datasets: [{ label: 'ข้อความ', data: hrData, backgroundColor: (d.hourly || []).map(h => lbSegColor(h.hour)), borderRadius: 3 }] },
+      options: { responsive: true, plugins: { legend: { display: false } },
+        scales: { x: { ticks: { color: '#64748b', font: { size: 9 } }, grid: { display: false } }, y: { beginAtZero: true, ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#e2e8f0' } } } }
+    });
+  }
+  // Day-of-week chart
+  if (_lbCharts.dow) { _lbCharts.dow.destroy(); }
+  const ctxDow = document.getElementById('chart-lb-dow');
+  if (ctxDow) {
+    const dowData = d.dow || [];
+    _lbCharts.dow = new Chart(ctxDow, {
+      type: 'bar',
+      data: { labels: dowData.map(x => x.label), datasets: [{ label: 'ข้อความ', data: dowData.map(x => x.count), backgroundColor: '#38bdf8', borderRadius: 5 }] },
+      options: { responsive: true, plugins: { legend: { display: false } },
+        scales: { x: { ticks: { color: '#64748b', font: { size: 11 } }, grid: { display: false } }, y: { beginAtZero: true, ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#e2e8f0' } } } }
+    });
+  }
+
+  // Top 20
+  const top20 = sorted.slice(0, 20);
+  const maxTop = top20.length ? top20[0].total : 1;
+  document.getElementById('lb-top20').innerHTML = top20.map(g => `
+    <div class="kpi-cat-bar">
+      <span style="width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.78rem" title="${esc(g.name)}">${esc(g.name)}</span>
+      <div class="kpi-cat-bar-track"><div class="kpi-cat-bar-fill" style="width:${g.total / maxTop * 100}%;background:#2563eb"></div></div>
+      <span style="width:40px;text-align:right;font-size:.78rem;color:var(--muted)">${g.total}</span>
+    </div>`).join('');
+
+  renderLineBotTable();
+  renderLineGroupPodBoard();
+}
+function setLbFilter(f, btn) {
+  _lbFilter = f;
+  document.querySelectorAll('#lb-filter .drb-btn').forEach(b => b.classList.toggle('active', b === btn));
+  renderLineBotTable();
+}
+function sortLb(key) {
+  if (_lbSortKey === key) _lbSortDir *= -1; else { _lbSortKey = key; _lbSortDir = -1; }
+  renderLineBotTable();
+}
+function lbSparkline(g) {
+  const hours = Array.from({ length: 24 }, (_, i) => g.hourly[i] || 0);
+  const max = Math.max(...hours, 1);
+  return `<div style="display:flex;align-items:flex-end;gap:1px;height:20px;width:140px">${hours.map((v, h) => `<i style="flex:1;height:${Math.max(v / max * 100, 4)}%;background:${lbSegColor(h)};border-radius:1px 1px 0 0;display:block" title="${h}:00 = ${v}"></i>`).join('')}</div>`;
+}
+function renderLineBotTable() {
+  const tbody = document.getElementById('lb-tbody');
+  if (!tbody) return;
+  const search = (document.getElementById('lb-search')?.value || '').toLowerCase();
+  let rows = _lbGroups.filter(g => {
+    if (_lbFilter === 'type:group' && g.type !== 'group') return false;
+    if (_lbFilter === 'type:dm' && g.type !== 'dm') return false;
+    if (_lbFilter !== 'all' && !_lbFilter.startsWith('type:') && g.pattern !== _lbFilter) return false;
+    return g.name.toLowerCase().includes(search);
+  });
+  rows.sort((a, b) => {
+    const va = a[_lbSortKey], vb = b[_lbSortKey];
+    if (typeof va === 'string') return _lbSortDir * va.localeCompare(vb);
+    return _lbSortDir * ((va ?? -1) - (vb ?? -1));
+  });
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="9" class="empty">ไม่พบรายการ</td></tr>'; return; }
+  const canManage = isManagerRole();
+  tbody.innerHTML = rows.map(g => `
+    <tr>
+      <td><span class="badge" style="background:${g.type === 'group' ? '#2563eb' : '#64748b'};color:#fff">${g.type === 'group' ? 'กลุ่ม' : '1:1'}</span></td>
+      <td title="${esc(g.name)}" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(g.name)}</td>
+      <td style="text-align:right">${g.total.toLocaleString()}</td>
+      <td style="text-align:right">${g.customers}</td>
+      <td>${g.peakHour !== null ? g.peakHour + ':00' : '—'}</td>
+      <td><span class="badge" style="background:${LB_PATTERN_COLOR[g.pattern] || '#94a3b8'};color:#fff">${g.pattern}</span></td>
+      <td style="text-align:right">${g.msgsPerDay}</td>
+      <td>${lbSparkline(g)}</td>
+      <td>${g.type !== 'group' ? '<span style="color:#cbd5e1">—</span>' : lgpPodBadgeHtml(g, canManage)}</td>
+    </tr>`).join('');
+}
+// Shared Pod <select> cell — used in the LINE Webhook table and the Pod board
+
+// ── Assign LINE groups to Pods (pod-tab-5) ──────────────────
+let _lgpFilter = 'all';
+function setLgpFilter(f, btn) {
+  _lgpFilter = f;
+  document.querySelectorAll('#lgp-filter .drb-btn').forEach(b => b.classList.toggle('active', b === btn));
+  renderLineGroupPodBoard();
+}
+// Collapsed pill showing current pod — click to expand into a <select> for editing
+function lgpPodBadgeHtml(g, canManage) {
+  if (!canManage) return g.podCode ? esc(g.podCode) : '<span style="color:#cbd5e1">—</span>';
+  const podName = g.podId ? _pods.find(p => p.id === g.podId)?.display_name : null;
+  const gid = JSON.stringify(g.id).replace(/"/g,'&quot;');
+  const gname = JSON.stringify(g.name).replace(/"/g,'&quot;');
+  return podName
+    ? `<span class="badge" style="background:#2563eb;color:#fff;cursor:pointer" onclick="lgpEditPod(this, ${gid}, ${gname})">${esc(podName)}</span>`
+    : `<span class="badge" style="background:#e2e8f0;color:#64748b;cursor:pointer" onclick="lgpEditPod(this, ${gid}, ${gname})">— assign —</span>`;
+}
+// Expand a clicked pod pill into a live <select>; collapses back on change or blur
+function lgpEditPod(el, groupId, groupName) {
+  const g = _lbGroups.find(x => x.id === groupId);
+  const opts = '<option value="">— ยังไม่ assign —</option>' +
+    _pods.map(p => `<option value="${p.id}"${p.id == g?.podId ? ' selected' : ''}>${esc(p.display_name)}</option>`).join('');
+  const sel = document.createElement('select');
+  sel.style.cssText = 'width:100%;font-size:.72rem;padding:1px 2px';
+  sel.innerHTML = opts;
+  sel.onchange = () => assignLineGroupPod(sel, groupId, groupName);
+  sel.onblur = () => { renderLineBotTable(); renderLineGroupPodBoard(); };
+  el.replaceWith(sel);
+  sel.focus();
+}
+// Board chip — position within a pod card already shows its assignment, so no
+// pod pill here (avoids duplicate/noisy pills). Double-click reveals the pod picker.
+function lgpEditPodChip(el, groupId, groupName) {
+  const g = _lbGroups.find(x => x.id === groupId);
+  const slot = el.querySelector('.lgp-pattern-slot');
+  if (!slot) return;
+  const opts = '<option value="">— ยังไม่ assign —</option>' +
+    _pods.map(p => `<option value="${p.id}"${p.id == g?.podId ? ' selected' : ''}>${esc(p.display_name)}</option>`).join('');
+  const sel = document.createElement('select');
+  sel.style.cssText = 'width:100%;font-size:.72rem;padding:1px 2px';
+  sel.innerHTML = opts;
+  sel.onchange = () => assignLineGroupPod(sel, groupId, groupName);
+  sel.onblur = () => { renderLineBotTable(); renderLineGroupPodBoard(); };
+  slot.replaceWith(sel);
+  sel.focus();
+}
+function lgpChip(g, canManage) {
+  const gid = JSON.stringify(g.id).replace(/"/g,'&quot;');
+  const gname = JSON.stringify(g.name).replace(/"/g,'&quot;');
+  const patternBadge = `<span class="lgp-pattern-slot" title="${esc(g.pattern)}" style="display:inline-flex;color:${LB_PATTERN_COLOR[g.pattern] || '#94a3b8'}">${LB_PATTERN_SVG[g.pattern] || LB_PATTERN_SVG['ไม่ระบุ']}</span>`;
+  return `<div style="font-size:.78rem;padding:.3rem .4rem;border-radius:6px;background:#f8fafc;display:flex;flex-direction:column;gap:.25rem;${canManage ? 'cursor:pointer' : ''}"
+    ${canManage ? `ondblclick="lgpEditPodChip(this, ${gid}, ${gname})" title="ดับเบิลคลิกเพื่อย้าย Pod"` : ''}>
+    <div style="display:flex;justify-content:space-between;gap:.4rem;align-items:center">
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0" title="${esc(g.name)}">${esc(g.name)}</span>
+      <span style="flex-shrink:0;color:#475569;font-size:.72rem">${g.total.toLocaleString()}</span>
+    </div>
+    ${patternBadge}
+  </div>`;
+}
+function renderLgpLegend() {
+  const el = document.getElementById('lgp-legend');
+  if (!el || el.dataset.built) return;
+  el.dataset.built = '1';
+  const labels = ['เน้นเช้า', 'เน้นมื้อเที่ยง', 'เน้นมื้อเย็น', 'ดึก/นอกเวลา', 'ไม่ระบุ'];
+  el.insertAdjacentHTML('beforeend', labels.map(p => `
+    <span style="display:inline-flex;align-items:center;gap:.3rem;color:${LB_PATTERN_COLOR[p]}">${LB_PATTERN_SVG[p]}<span style="color:var(--muted)">${p}</span></span>`).join(''));
+}
+function renderLineGroupPodBoard() {
+  renderLgpLegend();
+  const board = document.getElementById('lgp-board');
+  if (!board) return;
+  if (!_lbGroups.length) { board.innerHTML = '<div class="empty" style="padding:2rem">กำลังโหลด...</div>'; return; }
+  const search = (document.getElementById('lgp-search')?.value || '').toLowerCase();
+  const groups = _lbGroups.filter(g => g.type === 'group' && g.name.toLowerCase().includes(search));
+  const canManage = isManagerRole();
+  const unassigned = groups.filter(g => !g.podId).sort((a, b) => b.total - a.total);
+
+  if (_lgpFilter === 'unassigned') {
+    board.innerHTML = `<div style="grid-column:1/-1;min-width:0;border:1px dashed #cbd5e1;border-radius:10px;overflow:hidden;background:#fff;max-width:420px">
+      <div style="background:#94a3b8;color:#fff;padding:.5rem .6rem"><div style="font-size:.85rem;font-weight:700">ยังไม่ assign</div><div style="font-size:.74rem;opacity:.9;margin-top:.1rem">${unassigned.length} กลุ่ม</div></div>
+      <div style="padding:.45rem;display:flex;flex-direction:column;gap:.3rem">${unassigned.length ? unassigned.map(g => lgpChip(g, canManage)).join('') : '<div style="font-size:.74rem;color:#cbd5e1;padding:.3rem .5rem">ไม่พบรายการ</div>'}</div>
+    </div>`;
+    return;
+  }
+
+  const cols = _pods.map(p => {
+    const list = groups.filter(g => g.podId === p.id).sort((a, b) => b.total - a.total);
+    const totalMsgs = list.reduce((s, g) => s + g.total, 0);
+    const chips = list.length ? list.map(g => lgpChip(g, canManage)).join('') : `<div style="font-size:.74rem;color:#cbd5e1;padding:.3rem .5rem">ยังไม่มีกลุ่มไลน์</div>`;
+    return `<div style="min-width:0;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:#fff;display:flex;flex-direction:column">
+      <div ${canManage ? `ondblclick="openPodForm(${p.id})" title="ดับเบิลคลิกเพื่อแก้ไข Pod / จัดการสมาชิก" style="cursor:pointer;` : 'style="'}background:${p.color || '#1d4ed8'};color:#fff;padding:.5rem .6rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:.4rem">
+          <div style="font-size:.85rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.display_name)}</div>
+          <span style="font-size:.68rem;font-weight:700;padding:.08rem .4rem;border-radius:20px;background:rgba(255,255,255,.28);flex-shrink:0">${list.length} กลุ่ม</span>
+        </div>
+      </div>
+      <div style="padding:.45rem;display:flex;flex-direction:column;gap:.3rem;flex:1">${chips}</div>
+      <div style="padding:.4rem .6rem;border-top:1px solid var(--border);background:#f8fafc;display:flex;justify-content:space-between;font-size:.76rem;font-weight:700">
+        <span>รวมข้อความ</span><span>${totalMsgs.toLocaleString()}</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  const unCol = `<div style="min-width:0;border:1px dashed #cbd5e1;border-radius:10px;overflow:hidden;background:#fff;display:flex;flex-direction:column">
+    <div style="background:#94a3b8;color:#fff;padding:.5rem .6rem"><div style="font-size:.85rem;font-weight:700">ยังไม่ assign</div><div style="font-size:.74rem;opacity:.9;margin-top:.1rem">${unassigned.length} กลุ่ม</div></div>
+    <div style="padding:.45rem;display:flex;flex-direction:column;gap:.3rem;flex:1">${unassigned.length ? unassigned.map(g => lgpChip(g, canManage)).join('') : '<div style="font-size:.74rem;color:#cbd5e1;padding:.3rem .5rem">ไม่มีกลุ่มค้าง</div>'}</div>
+  </div>`;
+
+  board.innerHTML = (cols || '') + unCol || `<div class="empty" style="padding:2rem">ยังไม่มี Pod — กดปุ่ม "➕ สร้าง Pod" ด้านบนก่อน</div>`;
+}
+async function assignLineGroupPod(sel, groupId, groupName) {
+  const podId = sel.value || null;
+  sel.disabled = true;
+  await api('/api/linebot/assign-pod', { method: 'POST', body: { groupId, groupName, podId } });
+  const g = _lbGroups.find(x => x.id === groupId);
+  if (g) g.podId = podId ? parseInt(podId) : null;
+  sel.disabled = false;
+  renderLineGroupPodBoard();
+  renderLineBotTable();
 }
 
 // Monitor — ticket trend by company × month (LicenseDB SP)
@@ -5047,34 +5245,6 @@ function renderMonitor() {
     ${rows.length > CAP ? `<div style="font-size:.72rem;color:#94a3b8;padding:.4rem">แสดง ${CAP} จาก ${rows.length.toLocaleString()} แถว — ใช้ช่องค้นหาเพื่อกรอง</div>` : `<div style="font-size:.72rem;color:#94a3b8;padding:.4rem">${rows.length.toLocaleString()} แถว</div>`}`;
 }
 
-// Customer groups from License DB → assign to pods
-async function loadCustomerGroups() {
-  const tb = document.getElementById('pod-groups-tbody');
-  if (!tb) return;
-  tb.innerHTML = '<tr><td colspan="4" class="empty">กำลังโหลด...</td></tr>';
-  let groups = await api('/api/pods/customer-groups', { silent: true });
-  if (!Array.isArray(groups)) groups = [];
-  if (!groups.length) { tb.innerHTML = '<tr><td colspan="4" class="empty">ไม่มีข้อมูล (LicenseDB ไม่พร้อม)</td></tr>'; return; }
-  const canManage = isManagerRole();
-  const podOpts = sel => '<option value="">— ยังไม่ assign —</option>' +
-    _pods.map(p => `<option value="${p.id}"${p.id == sel ? ' selected' : ''}>${esc(p.display_name)}</option>`).join('');
-  tb.innerHTML = groups.map(g => `
-    <tr>
-      <td>${esc(g.name)}</td>
-      <td style="text-align:right">${(g.branches||0).toLocaleString()}</td>
-      <td style="text-align:right;color:#64748b">${(g.tickets||0).toLocaleString()}</td>
-      <td>${canManage
-        ? `<select style="max-width:170px" onchange="assignGroup(this, ${JSON.stringify(g.name).replace(/"/g,'&quot;')}, ${g.branches||0})">${podOpts(g.pod_id)}</select>`
-        : (g.pod_code ? esc(g.pod_code) : '<span style="color:#cbd5e1">—</span>')}</td>
-    </tr>`).join('');
-}
-async function assignGroup(sel, name, branches) {
-  const pod_id = sel.value || null;
-  sel.disabled = true;
-  await api('/api/pods/assign-group', { method: 'POST', body: { name, branches, pod_id } });
-  sel.disabled = false;
-  loadPods(); // refresh board so the group shows under its pod
-}
 function _capCard(label, value, color, sub) {
   return `<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:.85rem 1rem">
     <div style="font-size:.72rem;color:var(--muted);margin-bottom:3px">${label}</div>
@@ -5084,7 +5254,6 @@ function _capCard(label, value, color, sub) {
 }
 function renderCapacity() {
   const el = document.getElementById('pod-capacity'); if (!el) return;
-  const st = document.getElementById('pod-staffing'); if (st) st.innerHTML = _staffingTableHtml();
   if (!_capData || _capData.licenses == null) {
     el.innerHTML = '<div class="empty" style="padding:2rem">ยังไม่มีข้อมูล license (LicenseDB ไม่พร้อม)</div>';
     return;
@@ -5153,6 +5322,7 @@ function statusDot(s){ const m = POD_STATUS[s]||POD_STATUS.none; return `<span t
 
 function renderPodBoard(canManage) {
   const board = document.getElementById('pods-board');
+  if (!board) return;
   const cols = _pods.map(p => {
     const list = sortCusts(_custByPod[p.id] || []);
     const totalBr = list.reduce((s,c) => s + _branchOf(c), 0);
@@ -5207,11 +5377,22 @@ function renderPodBoard(canManage) {
       pill = `<span style="font-size:.68rem;font-weight:700;padding:.08rem .4rem;border-radius:20px;background:${crit?'#dc2626':'rgba(255,255,255,.28)'};color:#fff">${crit?'⚠ ไม่มีคนวันนี้':`ทำงาน ${working}/${mem.length}`}</span>`;
     }
     const manageLink = '';
+    // 👑 หัวหน้า Pod ประจำ (คนละบทบาทกับ ★ SR ประจำกะ) + จุดสถานะวันนี้
+    const leadName = p.lead_nickname || p.lead_name;
+    const leadDot = p.lead_status === 'work' ? '#22c55e' : (p.lead_status === 'off' ? '#f87171' : 'rgba(255,255,255,.45)');
+    const leadLine = leadName
+      ? `<div title="หัวหน้า Pod${p.lead_status==='work'?' · ทำงานวันนี้':(p.lead_status==='off'?' · หยุด/ลาวันนี้':'')}" style="display:flex;align-items:center;gap:.3rem;font-size:.68rem;color:#fff;opacity:.95;margin-top:.18rem">
+           <span style="flex-shrink:0">👑</span>
+           <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(leadName)}</span>
+           <span style="width:6px;height:6px;border-radius:50%;background:${leadDot};flex-shrink:0"></span>
+         </div>`
+      : '';
     return `<div style="min-width:0;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:#fff;display:flex;flex-direction:column">
       <div ${canManage?`ondblclick="openPodForm(${p.id})" title="ดับเบิลคลิกเพื่อแก้ไข Pod"`:''} style="background:${p.color||'#1d4ed8'};color:#fff;padding:.5rem .6rem;${canManage?'cursor:pointer':''}">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:.4rem">
           <div style="font-size:.85rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.display_name)}</div>${pill}
         </div>
+        ${leadLine}
       </div>
       <div style="padding:.4rem .5rem;display:flex;flex-direction:column;gap:.05rem;border-bottom:1px solid var(--border);background:${(p.color||'#1d4ed8')}14">
         ${periodRows}${offLine}${staffEmpty}${manageLink}
@@ -5237,11 +5418,6 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;'
 function podSelectOptions(sel){ return _pods.map(p=>`<option value="${p.id}"${p.id==sel?' selected':''}>${esc(p.display_name)}</option>`).join(''); }
 
 // ── Pod form ──
-function podRegionColor(){
-  const r = document.getElementById('pod-region').value;
-  const c = document.getElementById('pod-color');
-  if (!document.getElementById('pod-id').value) c.value = r === 'CM' ? '#16a34a' : '#1d4ed8';
-}
 function openPodForm(id){
   const p = id ? _pods.find(x=>x.id===id) : null;
   document.getElementById('pod-id').value = p ? p.id : '';
@@ -5255,35 +5431,24 @@ function openPodForm(id){
   const leadSel = document.getElementById('pod-lead');
   leadSel.innerHTML = podEmpOptions(p ? p.lead_employee_id : '', true);
   if (p && p.lead_employee_id) leadSel.value = p.lead_employee_id;
-  // members section — only when editing an existing pod (needs a pod id)
-  const memSec = document.getElementById('pod-form-members');
-  if (p) {
-    document.getElementById('pod-mem-podid').value = p.id;
-    memSec.style.display = '';
-    renderPodMembers(p.id);
-  } else {
-    memSec.style.display = 'none';
-    document.getElementById('pod-mem-list').innerHTML = '';
-  }
   openModal('modal-pod-form');
 }
 async function savePod(){
   const id = document.getElementById('pod-id').value;
+  const displayName = document.getElementById('pod-name').value.trim();
   const body = {
-    code: document.getElementById('pod-code').value.trim(),
-    display_name: document.getElementById('pod-name').value.trim(),
-    region: document.getElementById('pod-region').value,
+    // code/region are no longer user-editable — keep the existing pod's values,
+    // or derive a fresh code from the display name when creating a new pod
+    code: document.getElementById('pod-code').value.trim() || displayName,
+    display_name: displayName,
+    region: document.getElementById('pod-region').value || 'BKK',
     lead_employee_id: document.getElementById('pod-lead').value || null,
     color: document.getElementById('pod-color').value,
     sort_order: parseInt(document.getElementById('pod-sort').value)||0,
   };
-  if (!body.code || !body.display_name) return alert('กรุณากรอกรหัส Pod และชื่อแสดง');
+  if (!body.display_name) return alert('กรุณากรอกชื่อแสดง');
   if (id) {
     await api('/api/pods/'+id, {method:'PUT', body});
-    // save shift SR selections
-    const srs = {};
-    document.querySelectorAll('#modal-pod-form .pod-sr-select').forEach(s => { srs[s.dataset.period] = s.value || null; });
-    if (Object.keys(srs).length) await api('/api/pods/'+id+'/shift-sr', {method:'PUT', body:{srs}});
   } else {
     await api('/api/pods', {method:'POST', body});
   }
@@ -5294,74 +5459,6 @@ async function deletePod(){
   if (!id || !confirm('ลบ Pod นี้? ลูกค้าที่อยู่ใน Pod จะกลายเป็น "ยังไม่ assign"')) return;
   await api('/api/pods/'+id, {method:'DELETE'});
   closeModal('modal-pod-form'); loadPods();
-}
-
-// ── Pod members (inside the edit-pod modal) ──
-const _MEM_STAT = { work:{c:'#16a34a',t:'ทำงาน'}, off:{c:'#dc2626',t:'หยุด/ลา'}, none:{c:'#cbd5e1',t:'ยังไม่จัดกะ'} };
-function _memberRow(m, podId){
-  const st = _MEM_STAT[m.status] || _MEM_STAT.none;
-  const right = m.status === 'work' ? (m.shift_time || 'ทำงาน') : st.t;
-  return `<div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;padding:.3rem .5rem;border:1px solid var(--border);border-radius:8px;margin-bottom:.3rem">
-    <div style="display:flex;align-items:center;gap:.4rem;min-width:0;flex-wrap:wrap">
-      <span title="${st.t}" style="width:8px;height:8px;border-radius:50%;background:${st.c};flex-shrink:0;display:inline-block"></span>
-      <span style="font-weight:600;font-size:.82rem">${esc(m.nickname || m.name)}</span>
-      <span style="font-size:.66rem;color:${st.c}">· ${esc(right)}</span>
-    </div>
-    <button onclick="removePodMember(${m.id},${podId})" title="ลบออกจาก Pod" style="background:0;border:0;color:#dc2626;cursor:pointer;font-size:.9rem;flex-shrink:0">×</button>
-  </div>`;
-}
-function _addMemberBox(podId){
-  return `<div style="background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:.4rem .55rem;margin-top:.35rem">
-    <div style="display:flex;gap:.35rem;align-items:center">
-      <select class="add-emp" style="flex:2">${podEmpOptions('', false)}</select>
-      <select class="add-role" style="flex:1">
-        <option value="member">สมาชิก</option><option value="junior">Junior</option><option value="lead">หัวหน้า</option>
-      </select>
-      <button class="btn btn-sm btn-primary" onclick="addPodMemberInline(this, ${podId})">เพิ่ม</button>
-    </div>
-  </div>`;
-}
-async function renderPodMembers(podId){
-  let members = await api('/api/pods/'+podId+'/members');
-  if (!Array.isArray(members)) members = [];
-  const pod = (_pods || []).find(x => String(x.id) === String(podId)) || {};
-  const sr = pod.sr || {};
-  const region = (pod.code || '').toUpperCase().startsWith('BKK') ? 'BKK' : 'CNX';
-  const periods = region === 'BKK'
-    ? [{ pk:'morning', label:'เช้า', types:['morning','morning2'] }, { pk:'night', label:'ดึก', types:['night'] }]
-    : [{ pk:'morning', label:'เช้า', types:['morning','morning2'] }, { pk:'afternoon', label:'บ่าย', types:['mid','midday','afternoon'] }, { pk:'night', label:'ดึก', types:['night'] }];
-  const srOptsAll = sel => '<option value="">— ไม่ระบุ —</option>' + members.map(m =>
-    `<option value="${m.employee_id}"${String(m.employee_id) === String(sel) ? ' selected' : ''}>${esc(m.nickname || m.name)}</option>`).join('');
-  const groups = periods.map(per => {
-    const inShift = members.filter(m => m.status === 'work' && per.types.includes(m.shift_type));
-    const rows = inShift.length ? inShift.map(m => _memberRow(m, podId)).join('')
-      : '<div style="font-size:.72rem;color:#cbd5e1;padding:.2rem .4rem">— ไม่มีคนเข้ากะนี้วันนี้ —</div>';
-    return `<div style="margin-bottom:.7rem">
-      <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.3rem">
-        <span style="font-size:.74rem;font-weight:700;color:#854d0e;white-space:nowrap">★ SR กะ${per.label}</span>
-        <select class="pod-sr-select" data-period="${per.pk}" style="flex:1">${srOptsAll(sr[per.pk])}</select>
-      </div>
-      <div style="padding-left:.2rem">${rows}</div>
-      ${_addMemberBox(podId)}
-    </div>`;
-  }).join('');
-  const others = members.filter(m => m.status !== 'work');
-  const othersHtml = others.length
-    ? `<div style="border-top:1px dashed var(--border);padding-top:.5rem"><div style="font-size:.7rem;color:#64748b;font-weight:600;margin-bottom:.3rem">ไม่เข้ากะวันนี้</div>${others.map(m => _memberRow(m, podId)).join('')}</div>`
-    : '';
-  document.getElementById('pod-mem-list').innerHTML = members.length ? (groups + othersHtml) : '<div class="empty" style="padding:.75rem">ยังไม่มีสมาชิก</div>';
-}
-async function addPodMemberInline(btn, podId){
-  const row = btn.closest('div');
-  const emp = row.querySelector('.add-emp')?.value;
-  const role = row.querySelector('.add-role')?.value || 'member';
-  if (!emp) return;
-  await api('/api/pods/'+podId+'/members', {method:'POST', body:{ employee_id: emp, role_in_pod: role }});
-  await renderPodMembers(podId); loadPods();
-}
-async function removePodMember(memId, podId){
-  await api('/api/pod-members/'+memId, {method:'DELETE'});
-  await renderPodMembers(podId); loadPods();
 }
 
 // ── Customer form ──
@@ -5943,17 +6040,12 @@ async function loadDashboardCharts() {
   if (dashCharts.bar) { dashCharts.bar.destroy(); dashCharts.bar = null; }
   const ctxBar = document.getElementById('chart-agent-compare');
   if (ctxBar && (agentThis.length || agentLast.length)) {
-    // รวม username จากทั้ง 2 ช่วง ไม่ตัดแค่ top N
+    // รวม username จากทั้ง 2 ช่วง ไม่ตัดแค่ top N — แสดงเฉพาะคนที่มี ticket จริงในช่วงที่เลือก
     // เรียงตาม ticket ช่วงนี้ (มากสุดก่อน) แล้วตามด้วยคนที่มีแค่ช่วงก่อน
     let allChartUsers = [...new Set([
       ...agentThis.map(r => r.UserName),
       ...agentLast.map(r => r.UserName)
     ])];
-    // ถ้าดู "วันนี้" และมีข้อมูล on-shift → แสดงเฉพาะคนออนกะวันนี้ (case-insensitive)
-    if (_dashPreset === 'today' && _onShiftExtUsernames.size > 0) {
-      const onShiftLower = new Set([..._onShiftExtUsernames].map(s => s.toLowerCase()));
-      allChartUsers = allChartUsers.filter(u => onShiftLower.has(u.toLowerCase()));
-    }
     const thisMap2 = Object.fromEntries(agentThis.map(r => [r.UserName, r.cnt || 0]));
     allChartUsers.sort((a, b) => (thisMap2[b] || 0) - (thisMap2[a] || 0));
     const topN = allChartUsers.map(u => ({ UserName: u, cnt: thisMap2[u] || 0 }));

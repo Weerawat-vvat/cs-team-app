@@ -9,7 +9,7 @@ const crypto                     = require('crypto');
 const multer                     = require('multer');
 const nodemailer                 = require('nodemailer');
 const axios                      = require('axios');
-const { init, getPool, getExtPool, getInfoPool, sql } = require('./database');
+const { init, getPool, getExtPool, getInfoPool, getLineBotPool, sql } = require('./database');
 const { GoogleGenerativeAI }     = require('@google/generative-ai');
 
 const app        = express();
@@ -352,8 +352,9 @@ app.use('/uploads', (req, res, next) => {
   next();
 }, express.static(UPLOAD_DIR));
 
-const req    = () => getPool().request();
-const extReq = () => getExtPool().request();
+const req        = () => getPool().request();
+const extReq     = () => getExtPool().request();
+const lineBotReq = () => getLineBotPool().request();
 
 // ── Auth Middleware ───────────────────────────────────────
 function authRequired(request, res, next) {
@@ -4555,33 +4556,6 @@ app.get('/api/pods/customer-groups', authRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Assign a customer group to a pod (upsert by name + log history)
-app.post('/api/pods/assign-group', authRequired, managerRequired, async (request, res) => {
-  const { name, branches, pod_id } = request.body;
-  if (!name) return res.status(400).json({ error: 'name required' });
-  try {
-    const ex = (await req().input('nm', sql.NVarChar, name)
-      .query('SELECT TOP 1 id FROM customers WHERE name=@nm AND active=1')).recordset[0];
-    let cid;
-    if (ex) {
-      cid = ex.id;
-      await req().input('b', sql.Int, branches || 0).input('p', sql.Int, pod_id || null).input('id', sql.Int, cid)
-        .query('UPDATE customers SET branches=@b, pod_id=@p WHERE id=@id');
-    } else {
-      cid = (await req().input('nm', sql.NVarChar, name).input('b', sql.Int, branches || 0).input('p', sql.Int, pod_id || null)
-        .query(`INSERT INTO customers (name, branches, pod_id, priority, active, created_at)
-                OUTPUT INSERTED.id VALUES (@nm, @b, @p, 'green', 1, GETDATE())`)).recordset[0].id;
-    }
-    await req().input('cid', sql.Int, cid)
-      .query('UPDATE customer_assignments SET unassigned_at=GETDATE() WHERE customer_id=@cid AND unassigned_at IS NULL');
-    if (pod_id) {
-      await req().input('cid', sql.Int, cid).input('p', sql.Int, pod_id).input('by', sql.Int, request.user?.employee_id || null)
-        .query('INSERT INTO customer_assignments (customer_id, pod_id, assigned_by) VALUES (@cid, @p, @by)');
-    }
-    res.json({ id: cid });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
 // Staffing helper — per-pod 3-month ticket load vs current headcount
 app.get('/api/pods/staffing', authRequired, async (request, res) => {
   try {
@@ -4634,6 +4608,127 @@ app.get('/api/pods/ticket-monthly', authRequired, async (request, res) => {
     // SP returns 6 months; trim to last 3 to stay consistent with the rest of the Pod page
     const months = cols.filter(c => /^\d{4}-\d{2}$/.test(c)).slice(-3);
     res.json({ rows, months, dealer });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// LINE Webhook Monitor — group/DM behavior summary (LineBotMonitor.dbo.LineWaitingReply)
+app.get('/api/linebot/summary', authRequired, async (request, res) => {
+  try {
+    const lb = getLineBotPool();
+    if (!lb) return res.status(503).json({ error: 'LineBotMonitor DB ไม่ได้เชื่อมต่อ' });
+
+    const groupsR = await lineBotReq().query(`
+      SELECT
+        GroupId,
+        MAX(GroupName) AS GroupName,
+        COUNT(*) AS TotalMessages,
+        SUM(CASE WHEN Answered = 1 THEN 1 ELSE 0 END) AS AnsweredCount,
+        COUNT(DISTINCT CustomerUserId) AS UniqueCustomers,
+        MIN(MessageTime) AS FirstMessage,
+        MAX(MessageTime) AS LastMessage
+      FROM dbo.LineWaitingReply
+      GROUP BY GroupId
+    `);
+    const hourlyR = await lineBotReq().query(`
+      SELECT GroupId, DATEPART(HOUR, MessageTime) AS HourOfDay, COUNT(*) AS MsgCount
+      FROM dbo.LineWaitingReply
+      WHERE MessageTime IS NOT NULL
+      GROUP BY GroupId, DATEPART(HOUR, MessageTime)
+    `);
+    const dowR = await lineBotReq().query(`
+      SELECT DATENAME(WEEKDAY, MessageTime) AS DayName, DATEPART(WEEKDAY, MessageTime) AS DayNum, COUNT(*) AS MsgCount
+      FROM dbo.LineWaitingReply
+      WHERE MessageTime IS NOT NULL
+      GROUP BY DATENAME(WEEKDAY, MessageTime), DATEPART(WEEKDAY, MessageTime)
+      ORDER BY DayNum
+    `);
+
+    const hourByGroup = {};
+    hourlyR.recordset.forEach(r => {
+      if (!hourByGroup[r.GroupId]) hourByGroup[r.GroupId] = {};
+      hourByGroup[r.GroupId][r.HourOfDay] = r.MsgCount;
+    });
+
+    const LUNCH = [11, 12, 13], DINNER = [16, 17, 18, 19, 20, 21, 22];
+    const NIGHT = [0, 1, 2, 3, 4, 5, 6], MORNING = [7, 8, 9, 10];
+    const sumHours = (h, hrs) => hrs.reduce((s, x) => s + (h[x] || 0), 0);
+
+    function classify(gid) {
+      const h = hourByGroup[gid] || {};
+      const lunch = sumHours(h, LUNCH), dinner = sumHours(h, DINNER);
+      const night = sumHours(h, NIGHT), morning = sumHours(h, MORNING);
+      let peakHour = null, peakCnt = -1;
+      for (const [hr, cnt] of Object.entries(h)) if (cnt > peakCnt) { peakCnt = cnt; peakHour = parseInt(hr); }
+      const total = lunch + dinner + night + morning;
+      if (total === 0) return { peakHour, pattern: 'ไม่ระบุ' };
+      const max = Math.max(lunch, dinner, night, morning);
+      const pattern = max === dinner ? 'เน้นมื้อเย็น' : max === lunch ? 'เน้นมื้อเที่ยง' : max === morning ? 'เน้นเช้า' : 'ดึก/นอกเวลา';
+      return { peakHour, pattern };
+    }
+
+    const rows = groupsR.recordset;
+    const globalMin = rows.reduce((m, g) => !m || g.FirstMessage < m ? g.FirstMessage : m, null);
+    const globalMax = rows.reduce((m, g) => !m || g.LastMessage > m ? g.LastMessage : m, null);
+    const windowDays = globalMin && globalMax
+      ? Math.max((new Date(globalMax) - new Date(globalMin)) / 86400000, 0.04)
+      : 1;
+
+    // Pod assignments — เก็บใน cs_team DB (ไม่ใช่ LineBotMonitor) แยกจาก License customers
+    const assignR = await req().query(`
+      SELECT lgp.group_id, lgp.pod_id, p.code AS pod_code, p.display_name AS pod_name
+      FROM line_group_pods lgp LEFT JOIN pods p ON p.id = lgp.pod_id
+    `);
+    const podByGroup = {};
+    assignR.recordset.forEach(r => { podByGroup[r.group_id] = r; });
+
+    const groups = rows.map(g => {
+      const { peakHour, pattern } = classify(g.GroupId);
+      const assign = podByGroup[g.GroupId];
+      return {
+        id: g.GroupId,
+        name: g.GroupName || '(ไม่มีชื่อ)',
+        type: (g.GroupId || '').startsWith('U') ? 'dm' : 'group',
+        total: g.TotalMessages,
+        answered: g.AnsweredCount,
+        customers: g.UniqueCustomers,
+        peakHour,
+        pattern,
+        msgsPerDay: +(g.TotalMessages / windowDays).toFixed(1),
+        first: g.FirstMessage,
+        last: g.LastMessage,
+        hourly: hourByGroup[g.GroupId] || {},
+        podId: assign?.pod_id || null,
+        podCode: assign?.pod_code || null,
+      };
+    });
+
+    const hourAgg = Array.from({ length: 24 }, (_, h) => ({ hour: h, count: 0 }));
+    hourlyR.recordset.forEach(r => { hourAgg[r.HourOfDay].count += r.MsgCount; });
+
+    const dowLabel = { Monday: 'จันทร์', Tuesday: 'อังคาร', Wednesday: 'พุธ', Thursday: 'พฤหัสบดี', Friday: 'ศุกร์', Saturday: 'เสาร์', Sunday: 'อาทิตย์' };
+    const dow = dowR.recordset.map(r => ({ label: dowLabel[r.DayName] || r.DayName, count: r.MsgCount }));
+
+    res.json({ groups, hourly: hourAgg, dow, generatedAt: new Date().toISOString() });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Assign a LINE group to a Pod (upsert into line_group_pods)
+app.post('/api/linebot/assign-pod', authRequired, managerRequired, async (request, res) => {
+  const { groupId, groupName, podId } = request.body;
+  if (!groupId) return res.status(400).json({ error: 'groupId required' });
+  try {
+    await req()
+      .input('gid', sql.NVarChar, groupId)
+      .input('gname', sql.NVarChar, groupName || null)
+      .input('pid', sql.Int, podId || null)
+      .input('by', sql.Int, request.user?.employee_id || null)
+      .query(`
+        MERGE line_group_pods AS target
+        USING (SELECT @gid AS group_id) AS src ON target.group_id = src.group_id
+        WHEN MATCHED THEN UPDATE SET pod_id = @pid, group_name = @gname, assigned_by = @by, updated_at = GETDATE()
+        WHEN NOT MATCHED THEN INSERT (group_id, group_name, pod_id, assigned_by) VALUES (@gid, @gname, @pid, @by);
+      `);
+    res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

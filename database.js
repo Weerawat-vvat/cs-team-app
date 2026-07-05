@@ -5,9 +5,10 @@
 require('dotenv').config();
 const mssql = require('mssql');
 
-let pool     = null; // cs_team DB
-let extPool  = null; // LicenseDB (external)
-let infoPool = null; // INFO_BKK (inventory/serial)
+let pool       = null; // cs_team DB
+let extPool    = null; // LicenseDB (external)
+let infoPool   = null; // INFO_BKK (inventory/serial)
+let lineBotPool = null; // LineBotMonitor (LINE webhook monitor)
 
 const sql = mssql;
 
@@ -258,6 +259,18 @@ async function init() {
         CONSTRAINT UQ_pod_period UNIQUE (pod_id, period)
       )
     `);
+    // line_group_pods — assign กลุ่มไลน์ (จาก LineBotMonitor) ให้ Pod ดูแล
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='line_group_pods' AND xtype='U')
+      CREATE TABLE line_group_pods (
+        id          INT IDENTITY(1,1) PRIMARY KEY,
+        group_id    NVARCHAR(100) NOT NULL UNIQUE,     -- LINE GroupId (Cxxxx)
+        group_name  NVARCHAR(255),
+        pod_id      INT NULL REFERENCES pods(id),
+        assigned_by INT REFERENCES employees(id),
+        updated_at  DATETIME DEFAULT GETDATE()
+      )
+    `);
     console.log('✅ Migrations done');
   } catch (err) {
     console.error('❌ Migration error:', err.message);
@@ -289,11 +302,26 @@ async function init() {
         infoPool = null;
       }
     }
+
+    // เชื่อมต่อ LineBotMonitor (same server as LicenseDB, different database)
+    try {
+      const lineBotConfig = {
+        ...extConfig,
+        database: process.env.LINEBOT_DB_NAME || 'LineBotMonitor',
+      };
+      lineBotPool = new mssql.ConnectionPool(lineBotConfig);
+      await lineBotPool.connect();
+      console.log(`✅ Connected to LineBotMonitor DB — ${lineBotConfig.server}/${lineBotConfig.database}`);
+    } catch (err) {
+      console.warn('⚠️  LineBotMonitor DB not available:', err.message);
+      lineBotPool = null;
+    }
   }
 }
 
-function getPool()     { return pool; }
-function getExtPool()  { return extPool; }
-function getInfoPool() { return infoPool; }
+function getPool()        { return pool; }
+function getExtPool()     { return extPool; }
+function getInfoPool()    { return infoPool; }
+function getLineBotPool() { return lineBotPool; }
 
-module.exports = { init, getPool, getExtPool, getInfoPool, sql };
+module.exports = { init, getPool, getExtPool, getInfoPool, getLineBotPool, sql };
