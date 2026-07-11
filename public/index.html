@@ -3194,14 +3194,14 @@ textarea{resize:vertical;min-height:80px}
     </div>
   </div>
   <div class="dash-tabs">
-    <button class="dash-tab-btn active" id="pod-tab-btn-0" onclick="switchPodTab(0)">💬 LINE Webhook</button>
-    <button class="dash-tab-btn" id="pod-tab-btn-5" onclick="switchPodTab(5)">🧩 จัดกลุ่มไลน์เข้า Pod</button>
+    <button class="dash-tab-btn active" id="pod-tab-btn-5" onclick="switchPodTab(5)">🧩 จัดกลุ่มไลน์เข้า Pod</button>
+    <button class="dash-tab-btn" id="pod-tab-btn-0" onclick="switchPodTab(0)">💬 LINE Webhook</button>
     <button class="dash-tab-btn" id="pod-tab-btn-2" onclick="switchPodTab(2)">📈 Monitor งาน</button>
     <button class="dash-tab-btn" id="pod-tab-btn-3" onclick="switchPodTab(3)">📊 วิเคราะห์กำลังคน</button>
   </div>
 
   <!-- LINE Webhook Monitor — group/DM behavior from LineBotMonitor -->
-  <div id="pod-tab-0">
+  <div id="pod-tab-0" style="display:none">
     <div class="card" style="padding:.7rem 1rem;margin-bottom:.75rem;display:flex;gap:.8rem;align-items:center;flex-wrap:wrap">
       <div style="font-size:.78rem;color:var(--muted)">💬 สรุปพฤติกรรมกลุ่มไลน์ + แชทส่วนตัวจากเว็บฮุค LINE (LineBotMonitor)</div>
       <button class="btn btn-sm btn-ghost" onclick="loadLineBotMonitor()">🔄 รีเฟรช</button>
@@ -3268,7 +3268,7 @@ textarea{resize:vertical;min-height:80px}
   </div><!-- /pod-tab-0 -->
 
   <!-- Assign LINE groups to Pods -->
-  <div id="pod-tab-5" style="display:none">
+  <div id="pod-tab-5">
     <div class="card" style="padding:.7rem 1rem;margin-bottom:.75rem;font-size:.78rem;color:var(--muted);display:flex;flex-direction:column;gap:.4rem">
       <div>🧩 กำหนดว่ากลุ่มไลน์แต่ละกลุ่มควรอยู่ในความดูแลของ Pod ไหน (ไม่รวมแชทส่วนตัว 1:1) · ใช้ปริมาณข้อความเป็นตัวช่วยตัดสินใจกระจายงาน · ดับเบิลคลิกที่กลุ่มเพื่อย้าย Pod</div>
       <div id="lgp-legend" style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center;padding-top:.35rem;border-top:1px dashed var(--border)">
@@ -3282,7 +3282,7 @@ textarea{resize:vertical;min-height:80px}
         <button class="drb-btn" onclick="setLgpFilter('unassigned',this)">เฉพาะที่ยังไม่ assign</button>
       </div>
     </div>
-    <div id="lgp-board" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.6rem;align-items:start">
+    <div id="lgp-board" style="display:flex;gap:.6rem;align-items:flex-start;overflow-x:auto;overflow-y:hidden;padding-bottom:.5rem">
       <div class="empty" style="padding:2rem">กำลังโหลด...</div>
     </div>
   </div><!-- /pod-tab-5 -->
@@ -5031,20 +5031,18 @@ function lgpEditPodChip(el, groupId, groupName) {
   sel.innerHTML = opts;
   sel.onchange = () => assignLineGroupPod(sel, groupId, groupName);
   sel.onblur = () => { renderLineBotTable(); renderLineGroupPodBoard(); };
-  slot.replaceWith(sel);
+  el.innerHTML = ''; el.appendChild(sel);   // แสดง select เต็ม chip ตอนแก้ไข
   sel.focus();
 }
 function lgpChip(g, canManage) {
   const gid = JSON.stringify(g.id).replace(/"/g,'&quot;');
   const gname = JSON.stringify(g.name).replace(/"/g,'&quot;');
-  const patternBadge = `<span class="lgp-pattern-slot" title="${esc(g.pattern)}" style="display:inline-flex;color:${LB_PATTERN_COLOR[g.pattern] || '#94a3b8'}">${LB_PATTERN_SVG[g.pattern] || LB_PATTERN_SVG['ไม่ระบุ']}</span>`;
-  return `<div style="font-size:.78rem;padding:.3rem .4rem;border-radius:6px;background:#f8fafc;display:flex;flex-direction:column;gap:.25rem;${canManage ? 'cursor:pointer' : ''}"
+  const patternBadge = `<span class="lgp-pattern-slot" title="${esc(g.pattern)}" style="display:inline-flex;flex-shrink:0;color:${LB_PATTERN_COLOR[g.pattern] || '#94a3b8'}">${LB_PATTERN_SVG[g.pattern] || LB_PATTERN_SVG['ไม่ระบุ']}</span>`;
+  return `<div style="font-size:.76rem;padding:.22rem .4rem;border-radius:6px;background:#f8fafc;display:flex;align-items:center;gap:.4rem;${canManage ? 'cursor:pointer' : ''}"
     ${canManage ? `ondblclick="lgpEditPodChip(this, ${gid}, ${gname})" title="ดับเบิลคลิกเพื่อย้าย Pod"` : ''}>
-    <div style="display:flex;justify-content:space-between;gap:.4rem;align-items:center">
-      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0" title="${esc(g.name)}">${esc(g.name)}</span>
-      <span style="flex-shrink:0;color:#475569;font-size:.72rem">${g.total.toLocaleString()}</span>
-    </div>
     ${patternBadge}
+    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1" title="${esc(g.name)}">${esc(g.name)}</span>
+    <span style="flex-shrink:0;color:#475569;font-size:.72rem">${g.total.toLocaleString()}</span>
   </div>`;
 }
 function renderLgpLegend() {
@@ -5077,29 +5075,52 @@ function renderLineGroupPodBoard() {
     const list = groups.filter(g => g.podId === p.id).sort((a, b) => b.total - a.total);
     const totalMsgs = list.reduce((s, g) => s + g.total, 0);
     const chips = list.length ? list.map(g => lgpChip(g, canManage)).join('') : `<div style="font-size:.74rem;color:#cbd5e1;padding:.3rem .5rem">ยังไม่มีกลุ่มไลน์</div>`;
-    return `<div style="min-width:0;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:#fff;display:flex;flex-direction:column">
+    // 👑 หัวหน้า Pod + จุดสถานะวันนี้ (เขียว=ทำงาน / แดง=หยุดลา / เทา=ยังไม่จัดกะ)
+    const leadName = p.lead_nickname || p.lead_name;
+    const leadDot = p.lead_status === 'work' ? '#22c55e' : (p.lead_status === 'off' ? '#f87171' : 'rgba(255,255,255,.45)');
+    const leadLine = leadName
+      ? `<div title="หัวหน้า Pod${p.lead_status==='work'?' · ทำงานวันนี้':(p.lead_status==='off'?' · หยุด/ลาวันนี้':'')}" style="display:flex;align-items:center;gap:.3rem;font-size:.68rem;color:#fff;opacity:.95;margin-top:.18rem">
+           <span style="flex-shrink:0">👑</span>
+           <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(leadName)}</span>
+           <span style="width:6px;height:6px;border-radius:50%;background:${leadDot};flex-shrink:0"></span>
+         </div>`
+      : '';
+    return `<div style="flex:0 0 232px;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:#fff;display:flex;flex-direction:column">
       <div ${canManage ? `ondblclick="openPodForm(${p.id})" title="ดับเบิลคลิกเพื่อแก้ไข Pod / จัดการสมาชิก" style="cursor:pointer;` : 'style="'}background:${p.color || '#1d4ed8'};color:#fff;padding:.5rem .6rem">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:.4rem">
           <div style="font-size:.85rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.display_name)}</div>
           <span style="font-size:.68rem;font-weight:700;padding:.08rem .4rem;border-radius:20px;background:rgba(255,255,255,.28);flex-shrink:0">${list.length} กลุ่ม</span>
         </div>
+        ${leadLine}
       </div>
-      <div style="padding:.45rem;display:flex;flex-direction:column;gap:.3rem;flex:1">${chips}</div>
+      <div style="padding:.45rem;display:flex;flex-direction:column;gap:.3rem;flex:1;max-height:62vh;overflow-y:auto">${chips}</div>
       <div style="padding:.4rem .6rem;border-top:1px solid var(--border);background:#f8fafc;display:flex;justify-content:space-between;font-size:.76rem;font-weight:700">
         <span>รวมข้อความ</span><span>${totalMsgs.toLocaleString()}</span>
       </div>
     </div>`;
   }).join('');
 
-  const unCol = `<div style="min-width:0;border:1px dashed #cbd5e1;border-radius:10px;overflow:hidden;background:#fff;display:flex;flex-direction:column">
+  const unCol = `<div style="flex:0 0 232px;border:1px dashed #cbd5e1;border-radius:10px;overflow:hidden;background:#fff;display:flex;flex-direction:column">
     <div style="background:#94a3b8;color:#fff;padding:.5rem .6rem"><div style="font-size:.85rem;font-weight:700">ยังไม่ assign</div><div style="font-size:.74rem;opacity:.9;margin-top:.1rem">${unassigned.length} กลุ่ม</div></div>
-    <div style="padding:.45rem;display:flex;flex-direction:column;gap:.3rem;flex:1">${unassigned.length ? unassigned.map(g => lgpChip(g, canManage)).join('') : '<div style="font-size:.74rem;color:#cbd5e1;padding:.3rem .5rem">ไม่มีกลุ่มค้าง</div>'}</div>
+    <div style="padding:.45rem;display:flex;flex-direction:column;gap:.3rem;flex:1;max-height:62vh;overflow-y:auto">${unassigned.length ? unassigned.map(g => lgpChip(g, canManage)).join('') : '<div style="font-size:.74rem;color:#cbd5e1;padding:.3rem .5rem">ไม่มีกลุ่มค้าง</div>'}</div>
   </div>`;
 
   board.innerHTML = (cols || '') + unCol || `<div class="empty" style="padding:2rem">ยังไม่มี Pod — กดปุ่ม "➕ สร้าง Pod" ด้านบนก่อน</div>`;
 }
+// รหัสผ่านยืนยันก่อน "กำหนด/ย้าย" กลุ่มไลน์เข้า Pod (กันย้ายพลาด) — ถามทุกครั้ง
+const POD_ASSIGN_PW = 'PA$$w0rd';
+function podAssignGuard() {
+  const v = prompt('🔒 ใส่รหัสผ่านเพื่อกำหนด/ย้ายกลุ่มไลน์ไปยัง Pod:');
+  if (v === null) return false;          // กดยกเลิก
+  if (v !== POD_ASSIGN_PW) { alert('❌ รหัสผ่านไม่ถูกต้อง — ยกเลิกการย้าย'); return false; }
+  return true;
+}
 async function assignLineGroupPod(sel, groupId, groupName) {
   const podId = sel.value || null;
+  if (!podAssignGuard()) {               // ต้องผ่านรหัสผ่านก่อน ไม่งั้นคืนค่าเดิม
+    renderLineGroupPodBoard(); renderLineBotTable();
+    return;
+  }
   sel.disabled = true;
   await api('/api/linebot/assign-pod', { method: 'POST', body: { groupId, groupName, podId } });
   const g = _lbGroups.find(x => x.id === groupId);
