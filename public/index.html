@@ -3353,6 +3353,11 @@ textarea{resize:vertical;min-height:80px}
         </div>
       </div>
     </div>
+    <!-- Members + SR (shown when editing an existing pod) -->
+    <div id="pod-form-members" style="display:none;border-top:1px solid var(--border);margin-top:.85rem;padding-top:.75rem">
+      <div style="font-size:.82rem;font-weight:700;color:#334155;margin-bottom:.5rem">👥 สมาชิก Pod</div>
+      <div id="pod-mem-list"></div>
+    </div>
     <div style="display:flex;justify-content:space-between;gap:.5rem;margin-top:.75rem">
       <button class="btn btn-ghost btn-sm" id="pod-del-btn" style="color:#dc2626;display:none" onclick="deletePod()">🗑️ ลบ Pod</button>
       <div style="display:flex;gap:.5rem;margin-left:auto">
@@ -5452,6 +5457,10 @@ function openPodForm(id){
   const leadSel = document.getElementById('pod-lead');
   leadSel.innerHTML = podEmpOptions(p ? p.lead_employee_id : '', true);
   if (p && p.lead_employee_id) leadSel.value = p.lead_employee_id;
+  // member + SR management — only when editing an existing pod (needs a pod id)
+  const memSec = document.getElementById('pod-form-members');
+  if (p) { memSec.style.display = ''; renderPodMembers(p.id); }
+  else { memSec.style.display = 'none'; document.getElementById('pod-mem-list').innerHTML = ''; }
   openModal('modal-pod-form');
 }
 async function savePod(){
@@ -5470,6 +5479,10 @@ async function savePod(){
   if (!body.display_name) return alert('กรุณากรอกชื่อแสดง');
   if (id) {
     await api('/api/pods/'+id, {method:'PUT', body});
+    // save shift-SR selections
+    const srs = {};
+    document.querySelectorAll('#modal-pod-form .pod-sr-select').forEach(s => { srs[s.dataset.period] = s.value || null; });
+    if (Object.keys(srs).length) await api('/api/pods/'+id+'/shift-sr', {method:'PUT', body:{srs}});
   } else {
     await api('/api/pods', {method:'POST', body});
   }
@@ -5480,6 +5493,79 @@ async function deletePod(){
   if (!id || !confirm('ลบ Pod นี้? ลูกค้าที่อยู่ใน Pod จะกลายเป็น "ยังไม่ assign"')) return;
   await api('/api/pods/'+id, {method:'DELETE'});
   closeModal('modal-pod-form'); loadPods();
+}
+
+// ── Pod members + per-shift SR (inside the edit-pod modal) ──
+const _MEM_STAT = { work:{c:'#16a34a',t:'ทำงาน'}, off:{c:'#dc2626',t:'หยุด/ลา'}, none:{c:'#cbd5e1',t:'ยังไม่จัดกะ'} };
+function _memberRow(m, podId){
+  const st = _MEM_STAT[m.status] || _MEM_STAT.none;
+  const right = m.status === 'work' ? (m.shift_time || 'ทำงาน') : st.t;
+  return `<div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;padding:.3rem .5rem;border:1px solid var(--border);border-radius:8px;margin-bottom:.3rem">
+    <div style="display:flex;align-items:center;gap:.4rem;min-width:0;flex-wrap:wrap">
+      <span title="${st.t}" style="width:8px;height:8px;border-radius:50%;background:${st.c};flex-shrink:0;display:inline-block"></span>
+      <span style="font-weight:600;font-size:.82rem">${esc(m.nickname || m.name)}</span>
+      <span style="font-size:.66rem;color:${st.c}">· ${esc(right)}</span>
+    </div>
+    <button onclick="removePodMember(${m.id},${podId})" title="ลบออกจาก Pod" style="background:0;border:0;color:#dc2626;cursor:pointer;font-size:.9rem;flex-shrink:0">×</button>
+  </div>`;
+}
+async function renderPodMembers(podId){
+  let members = await api('/api/pods/'+podId+'/members');
+  if (!Array.isArray(members)) members = [];
+  const pod = (_pods || []).find(x => String(x.id) === String(podId)) || {};
+  const sr = pod.sr || {};
+  const region = (pod.code || '').toUpperCase().startsWith('BKK') ? 'BKK' : 'CNX';
+  const periods = region === 'BKK'
+    ? [{ pk:'morning', label:'เช้า' }, { pk:'night', label:'ดึก' }]
+    : [{ pk:'morning', label:'เช้า' }, { pk:'afternoon', label:'บ่าย' }, { pk:'night', label:'ดึก' }];
+  const srOptsAll = sel => '<option value="">— ไม่ระบุ —</option>' + members.map(m =>
+    `<option value="${m.employee_id}"${String(m.employee_id) === String(sel) ? ' selected' : ''}>${esc(m.nickname || m.name)}</option>`).join('');
+  // 1) เพิ่มพนักงานเข้า Pod — เลือกได้อิสระ ทำได้ทุกเมื่อ (ไม่ผูกกับกะวันนี้)
+  const memIds = new Set(members.map(m => String(m.employee_id)));
+  const addOpts = (allEmployees || [])
+    .filter(e => !memIds.has(String(e.id)))
+    .filter(e => { const tk=(allTeams||[]).filter(t=>t.show_in_schedule).map(t=>t.name); return tk.length===0 || tk.includes(e.team); })
+    .map(e => `<option value="${e.id}">${esc(e.nickname || e.name)}${empShiftSuffix(e.id)}</option>`).join('');
+  const addBox = `<div style="background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:.5rem .55rem;margin-bottom:.75rem">
+    <div style="font-size:.72rem;color:#64748b;font-weight:700;margin-bottom:.35rem">➕ เพิ่มพนักงานเข้า Pod</div>
+    <div style="display:flex;gap:.35rem;align-items:center">
+      <select class="add-emp" style="flex:2"><option value="">— เลือกพนักงาน —</option>${addOpts}</select>
+      <select class="add-role" style="flex:1">
+        <option value="member">สมาชิก</option><option value="junior">Junior</option><option value="lead">หัวหน้า</option>
+      </select>
+      <button class="btn btn-sm btn-primary" onclick="addPodMemberInline(this, ${podId})">เพิ่ม</button>
+    </div>
+  </div>`;
+  // 2) ★ SR ประจำกะ — เลือกอิสระจากสมาชิกใน Pod (BKK 2 กะ / CNX 3 กะ)
+  const srBox = `<div style="margin-bottom:.75rem">
+    <div style="font-size:.74rem;font-weight:700;color:#854d0e;margin-bottom:.35rem">★ SR ประจำกะ</div>
+    ${periods.map(per => `<div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.3rem">
+      <span style="font-size:.72rem;color:#475569;white-space:nowrap;width:3.4rem;flex-shrink:0">กะ${per.label}</span>
+      <select class="pod-sr-select" data-period="${per.pk}" style="flex:1"${members.length?'':' disabled'}>${srOptsAll(sr[per.pk])}</select>
+    </div>`).join('')}
+    ${members.length ? '' : '<div style="font-size:.68rem;color:#cbd5e1;padding-left:.1rem">เพิ่มสมาชิกก่อน จึงเลือก SR ได้</div>'}
+  </div>`;
+  // 3) สมาชิกทั้งหมด — รายชื่อแบนราบ พร้อมสถานะกะวันนี้ + ปุ่มลบ
+  const listRows = members.length
+    ? members.map(m => _memberRow(m, podId)).join('')
+    : '<div style="font-size:.74rem;color:#cbd5e1;padding:.3rem .1rem">ยังไม่มีสมาชิก — เพิ่มจากด้านบน</div>';
+  const listBox = `<div>
+    <div style="font-size:.72rem;color:#64748b;font-weight:700;margin-bottom:.35rem">👥 สมาชิกทั้งหมด (${members.length})</div>
+    ${listRows}
+  </div>`;
+  document.getElementById('pod-mem-list').innerHTML = addBox + srBox + listBox;
+}
+async function addPodMemberInline(btn, podId){
+  const row = btn.closest('div');
+  const emp = row.querySelector('.add-emp')?.value;
+  const role = row.querySelector('.add-role')?.value || 'member';
+  if (!emp) return;
+  await api('/api/pods/'+podId+'/members', {method:'POST', body:{ employee_id: emp, role_in_pod: role }});
+  await renderPodMembers(podId); loadPods();
+}
+async function removePodMember(memId, podId){
+  await api('/api/pod-members/'+memId, {method:'DELETE'});
+  await renderPodMembers(podId); loadPods();
 }
 
 // ── Customer form ──
