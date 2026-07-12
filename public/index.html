@@ -4891,7 +4891,7 @@ function renderPodHourHeatmap() {
   const days = (minD && maxD) ? Math.max(1, Math.round((new Date(maxD) - new Date(minD)) / 86400000)) : 1;
   const avgFmt = n => n.toLocaleString(undefined, { maximumFractionDigits: 1 });
   const desc = document.getElementById('lb-heatmap-desc');
-  if (desc) desc.textContent = `ค่าเฉลี่ยข้อความต่อวัน แยกตามชั่วโมง (0–23 น.) ของแต่ละ Pod · เฉลี่ยจาก ${days} วัน · ตัวเลขในช่อง = เฉลี่ย/วัน · คอลัมน์ "รวม" = ยอดสะสมทั้งหมด · สียิ่งเข้ม = ยิ่งเยอะ · ชี้ที่ช่องเพื่อดูรายละเอียด`;
+  if (desc) desc.textContent = `ค่าเฉลี่ยข้อความต่อวัน แยกตามชั่วโมง (0–23 น.) ของแต่ละ Pod · เฉลี่ยจาก ${days} วัน · ตัวเลขในช่อง = เฉลี่ย/วัน · คอลัมน์ "รวม/วัน" = ผลรวมเฉลี่ย/วันทุกชั่วโมง · สียิ่งเข้ม = ยิ่งเยอะ · ชี้ที่ช่องเพื่อดูรายละเอียด`;
   const cell = v => {
     const ratio = v / max;
     const bg = v === 0 ? '#f1f5f9' : `rgba(37,99,235,${(0.10 + 0.90 * ratio).toFixed(3)})`;
@@ -4900,13 +4900,13 @@ function renderPodHourHeatmap() {
     const disp = v === 0 ? '' : (a < 10 ? a.toFixed(1) : Math.round(a).toLocaleString());
     return `<td title="เฉลี่ย ${avgFmt(a)}/วัน · รวม ${v.toLocaleString()} ข้อความ" style="text-align:center;font-size:.56rem;padding:3px 0;background:${bg};color:${col};border-radius:3px">${disp}</td>`;
   };
-  const head = `<tr><th style="text-align:left;font-size:.64rem;color:#64748b;position:sticky;left:0;background:var(--card-bg,#fff);padding-right:.4rem;z-index:1">Pod \\ ชม.</th>${HOURS.map(h => `<th style="font-size:.56rem;color:#94a3b8;font-weight:600;min-width:22px">${h}</th>`).join('')}<th style="font-size:.62rem;color:#64748b;padding-left:.5rem" title="ยอดสะสมทั้งหมด ${days} วัน">รวม</th></tr>`;
+  const head = `<tr><th style="text-align:left;font-size:.64rem;color:#64748b;position:sticky;left:0;background:var(--card-bg,#fff);padding-right:.4rem;z-index:1">Pod \\ ชม.</th>${HOURS.map(h => `<th style="font-size:.56rem;color:#94a3b8;font-weight:600;min-width:22px">${h}</th>`).join('')}<th style="font-size:.62rem;color:#64748b;padding-left:.5rem" title="ผลรวมเฉลี่ย/วัน ทุกชั่วโมง (จาก ${days} วัน)">รวม/วัน</th></tr>`;
   const body = rows.map(r => {
     const tot = r.hours.reduce((s, v) => s + v, 0);
     return `<tr>
       <td style="font-size:.68rem;font-weight:600;white-space:nowrap;position:sticky;left:0;background:var(--card-bg,#fff);padding-right:.4rem;z-index:1"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${r.color};margin-right:.3rem"></span>${esc(r.label)}</td>
       ${r.hours.map(cell).join('')}
-      <td style="font-size:.66rem;font-weight:700;color:#475569;padding-left:.5rem;text-align:right" title="เฉลี่ย ${avgFmt(tot / days)}/วัน">${tot.toLocaleString()}</td>
+      <td style="font-size:.66rem;font-weight:700;color:#475569;padding-left:.5rem;text-align:right" title="ผลรวมเฉลี่ย/วัน ทุกชั่วโมง · ยอดสะสมทั้งหมด ${tot.toLocaleString()} ข้อความ">${avgFmt(tot / days)}</td>
     </tr>`;
   }).join('');
   host.innerHTML = `<table style="border-collapse:separate;border-spacing:2px;min-width:660px"><thead>${head}</thead><tbody>${body}</tbody></table>`;
