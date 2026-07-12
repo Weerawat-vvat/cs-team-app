@@ -3276,7 +3276,7 @@ textarea{resize:vertical;min-height:80px}
   <!-- Assign LINE groups to Pods -->
   <div id="pod-tab-5">
     <div class="card" style="padding:.7rem 1rem;margin-bottom:.75rem;font-size:.78rem;color:var(--muted);display:flex;flex-direction:column;gap:.4rem">
-      <div>🧩 กำหนดว่ากลุ่มไลน์แต่ละกลุ่มควรอยู่ในความดูแลของ Pod ไหน (ไม่รวมแชทส่วนตัว 1:1) · ใช้ปริมาณข้อความเป็นตัวช่วยตัดสินใจกระจายงาน · ดับเบิลคลิกที่กลุ่มเพื่อย้าย Pod</div>
+      <div>🧩 กำหนดว่ากลุ่มไลน์แต่ละกลุ่มควรอยู่ในความดูแลของ Pod ไหน (ไม่รวมแชทส่วนตัว 1:1) · ตัวเลข = เฉลี่ยข้อความ/วัน · เรียงตามช่วงเวลาที่ลูกค้าถามเยอะ (เช้า→เที่ยง→เย็น→ดึก→ไม่ระบุ) · ดับเบิลคลิกที่กลุ่มเพื่อย้าย Pod</div>
       <div id="lgp-legend" style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center;padding-top:.35rem;border-top:1px dashed var(--border)">
         <span style="font-weight:600;color:#94a3b8">สัญลักษณ์ช่วงที่ลูกค้าถามเยอะ:</span>
       </div>
@@ -5081,15 +5081,30 @@ function lgpEditPodChip(el, groupId, groupName) {
   el.innerHTML = ''; el.appendChild(sel);   // แสดง select เต็ม chip ตอนแก้ไข
   sel.focus();
 }
+// เรียงตามรูปแบบช่วงเวลา: เช้า → เที่ยง → เย็น → ดึก → ไม่ระบุ (แล้วค่อยเรียงตามปริมาณ)
+const LGP_PAT_ORDER = ['เน้นเช้า', 'เน้นมื้อเที่ยง', 'เน้นมื้อเย็น', 'ดึก/นอกเวลา', 'ไม่ระบุ'];
+const lgpPatRank = pat => { const i = LGP_PAT_ORDER.indexOf(pat); return i < 0 ? LGP_PAT_ORDER.length : i; };
+const lgpSort = (a, b) => lgpPatRank(a.pattern) - lgpPatRank(b.pattern) || b.total - a.total;
+let _lbDays = 1;
+function lbDaySpan() {
+  const gs = (_lbGroups || []).filter(g => g.type === 'group');
+  const fs = gs.map(g => g.first).filter(Boolean), ls = gs.map(g => g.last).filter(Boolean);
+  const mn = fs.length ? fs.reduce((a, b) => a < b ? a : b) : null;
+  const mx = ls.length ? ls.reduce((a, b) => a > b ? a : b) : null;
+  return (mn && mx) ? Math.max(1, Math.round((new Date(mx) - new Date(mn)) / 86400000)) : 1;
+}
+const lgpAvgFmt = n => n.toLocaleString(undefined, { maximumFractionDigits: 1 });
 function lgpChip(g, canManage) {
   const gid = JSON.stringify(g.id).replace(/"/g,'&quot;');
   const gname = JSON.stringify(g.name).replace(/"/g,'&quot;');
+  const avg = g.total / (_lbDays || 1);
+  const avgDisp = avg < 10 ? avg.toFixed(1) : Math.round(avg).toLocaleString();
   const patternBadge = `<span class="lgp-pattern-slot" title="${esc(g.pattern)}" style="display:inline-flex;flex-shrink:0;color:${LB_PATTERN_COLOR[g.pattern] || '#94a3b8'}">${LB_PATTERN_SVG[g.pattern] || LB_PATTERN_SVG['ไม่ระบุ']}</span>`;
   return `<div style="font-size:.76rem;padding:.22rem .4rem;border-radius:6px;background:#f8fafc;display:flex;align-items:center;gap:.4rem;${canManage ? 'cursor:pointer' : ''}"
     ${canManage ? `ondblclick="lgpEditPodChip(this, ${gid}, ${gname})" title="ดับเบิลคลิกเพื่อย้าย Pod"` : ''}>
     ${patternBadge}
     <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1" title="${esc(g.name)}">${esc(g.name)}</span>
-    <span style="flex-shrink:0;color:#475569;font-size:.72rem">${g.total.toLocaleString()}</span>
+    <span style="flex-shrink:0;color:#475569;font-size:.72rem" title="เฉลี่ย ${lgpAvgFmt(avg)}/วัน · รวม ${g.total.toLocaleString()} ข้อความ">${avgDisp}</span>
   </div>`;
 }
 function renderLgpLegend() {
@@ -5108,7 +5123,8 @@ function renderLineGroupPodBoard() {
   const search = (document.getElementById('lgp-search')?.value || '').toLowerCase();
   const groups = _lbGroups.filter(g => g.type === 'group' && g.name.toLowerCase().includes(search));
   const canManage = isManagerRole();
-  const unassigned = groups.filter(g => !g.podId).sort((a, b) => b.total - a.total);
+  _lbDays = lbDaySpan();
+  const unassigned = groups.filter(g => !g.podId).sort(lgpSort);
 
   if (_lgpFilter === 'unassigned') {
     board.innerHTML = `<div style="grid-column:1/-1;min-width:0;border:1px dashed #cbd5e1;border-radius:10px;overflow:hidden;background:#fff;max-width:420px">
@@ -5119,7 +5135,7 @@ function renderLineGroupPodBoard() {
   }
 
   const cols = _pods.map(p => {
-    const list = groups.filter(g => g.podId === p.id).sort((a, b) => b.total - a.total);
+    const list = groups.filter(g => g.podId === p.id).sort(lgpSort);
     const totalMsgs = list.reduce((s, g) => s + g.total, 0);
     const chips = list.length ? list.map(g => lgpChip(g, canManage)).join('') : `<div style="font-size:.74rem;color:#cbd5e1;padding:.3rem .5rem">ยังไม่มีกลุ่มไลน์</div>`;
     // 👑 หัวหน้า Pod + จุดสถานะวันนี้ (เขียว=ทำงาน / แดง=หยุดลา / เทา=ยังไม่จัดกะ)
@@ -5142,7 +5158,7 @@ function renderLineGroupPodBoard() {
       </div>
       <div style="padding:.45rem;display:flex;flex-direction:column;gap:.3rem;flex:1;max-height:62vh;overflow-y:auto">${chips}</div>
       <div style="padding:.4rem .6rem;border-top:1px solid var(--border);background:#f8fafc;display:flex;justify-content:space-between;font-size:.76rem;font-weight:700">
-        <span>รวมข้อความ</span><span>${totalMsgs.toLocaleString()}</span>
+        <span title="ผลรวมเฉลี่ย/วัน · ยอดสะสม ${totalMsgs.toLocaleString()} ข้อความ">รวม/วัน</span><span title="ยอดสะสม ${totalMsgs.toLocaleString()} ข้อความ">${lgpAvgFmt(totalMsgs / _lbDays)}</span>
       </div>
     </div>`;
   }).join('');
