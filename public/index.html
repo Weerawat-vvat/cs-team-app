@@ -4884,19 +4884,26 @@ function renderPodHourHeatmap() {
   if (unassigned.length) rows.push({ label: 'ยังไม่ assign', color: '#94a3b8', hours: sumHours(unassigned) });
   if (!rows.length || !groups.length) { host.innerHTML = '<div style="font-size:.8rem;color:#94a3b8;padding:.5rem">ไม่มีข้อมูล</div>'; return; }
   const max = Math.max(1, ...rows.flatMap(r => r.hours));
+  // จำนวนวันในช่วงข้อมูล (ใช้หารหาค่าเฉลี่ย/วัน)
+  const firsts = groups.map(g => g.first).filter(Boolean), lasts = groups.map(g => g.last).filter(Boolean);
+  const minD = firsts.length ? firsts.reduce((a, b) => a < b ? a : b) : null;
+  const maxD = lasts.length ? lasts.reduce((a, b) => a > b ? a : b) : null;
+  const days = (minD && maxD) ? Math.max(1, Math.round((new Date(maxD) - new Date(minD)) / 86400000)) : 1;
+  const avgFmt = n => n.toLocaleString(undefined, { maximumFractionDigits: 1 });
   const cell = v => {
     const ratio = v / max;
     const bg = v === 0 ? '#f1f5f9' : `rgba(37,99,235,${(0.10 + 0.90 * ratio).toFixed(3)})`;
     const col = ratio > 0.55 ? '#fff' : (v === 0 ? '#e2e8f0' : '#1e293b');
     return `<td title="${v.toLocaleString()} ข้อความ" style="text-align:center;font-size:.58rem;padding:3px 0;background:${bg};color:${col};border-radius:3px">${v || ''}</td>`;
   };
-  const head = `<tr><th style="text-align:left;font-size:.64rem;color:#64748b;position:sticky;left:0;background:var(--card-bg,#fff);padding-right:.4rem;z-index:1">Pod \\ ชม.</th>${HOURS.map(h => `<th style="font-size:.56rem;color:#94a3b8;font-weight:600;min-width:22px">${h}</th>`).join('')}<th style="font-size:.62rem;color:#64748b;padding-left:.5rem">รวม</th></tr>`;
+  const head = `<tr><th style="text-align:left;font-size:.64rem;color:#64748b;position:sticky;left:0;background:var(--card-bg,#fff);padding-right:.4rem;z-index:1">Pod \\ ชม.</th>${HOURS.map(h => `<th style="font-size:.56rem;color:#94a3b8;font-weight:600;min-width:22px">${h}</th>`).join('')}<th style="font-size:.62rem;color:#64748b;padding-left:.5rem">รวม</th><th style="font-size:.62rem;color:#2563eb;padding-left:.5rem" title="เฉลี่ยต่อวัน จาก ${days} วัน">เฉลี่ย/วัน</th></tr>`;
   const body = rows.map(r => {
     const tot = r.hours.reduce((s, v) => s + v, 0);
     return `<tr>
       <td style="font-size:.68rem;font-weight:600;white-space:nowrap;position:sticky;left:0;background:var(--card-bg,#fff);padding-right:.4rem;z-index:1"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${r.color};margin-right:.3rem"></span>${esc(r.label)}</td>
       ${r.hours.map(cell).join('')}
       <td style="font-size:.66rem;font-weight:700;color:#475569;padding-left:.5rem;text-align:right">${tot.toLocaleString()}</td>
+      <td style="font-size:.66rem;font-weight:700;color:#2563eb;padding-left:.5rem;text-align:right" title="${tot.toLocaleString()} ÷ ${days} วัน">${avgFmt(tot / days)}</td>
     </tr>`;
   }).join('');
   host.innerHTML = `<table style="border-collapse:separate;border-spacing:2px;min-width:660px"><thead>${head}</thead><tbody>${body}</tbody></table>`;
