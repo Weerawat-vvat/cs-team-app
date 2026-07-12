@@ -3239,7 +3239,19 @@ textarea{resize:vertical;min-height:80px}
     </div>
 
     <div class="card" style="margin-bottom:.75rem">
-      <div class="card-title">🏆 20 กลุ่มที่มีข้อความมากที่สุด</div>
+      <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+        <div class="card-title" style="margin:0">🏆 กลุ่มที่มีข้อความมากที่สุด</div>
+        <span style="font-size:.72rem;color:var(--muted);margin-left:.3rem">แสดง</span>
+        <select id="lb-top-per" onchange="_lbTopPage=1;renderLbTop()" style="font-size:.75rem;padding:2px 5px">
+          <option value="10">10</option><option value="20" selected>20</option><option value="50">50</option><option value="100">100</option><option value="all">ทั้งหมด</option>
+        </select>
+        <span style="font-size:.72rem;color:var(--muted)">แถว/หน้า</span>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:.35rem">
+          <button class="btn btn-sm btn-ghost" onclick="lbTopPage(-1)" style="padding:.1rem .5rem">‹</button>
+          <span id="lb-top-pageinfo" style="font-size:.74rem;color:var(--muted);min-width:96px;text-align:center"></span>
+          <button class="btn btn-sm btn-ghost" onclick="lbTopPage(1)" style="padding:.1rem .5rem">›</button>
+        </div>
+      </div>
       <div id="lb-top20" style="margin-top:.5rem;display:flex;flex-direction:column;gap:.35rem"></div>
     </div>
 
@@ -4865,6 +4877,35 @@ const LB_PATTERN_SVG = {
   'ดึก/นอกเวลา': lbPatternIconSvg('<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>'),
   'ไม่ระบุ': lbPatternIconSvg('<circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/>'),
 };
+// Top groups list — paginated with selectable rows-per-page
+let _lbTop = [], _lbTopPage = 1, _lbTopPer = 20;
+function lbTopPage(d) {
+  const per = _lbTopPer === 'all' ? (_lbTop.length || 1) : _lbTopPer;
+  const pages = Math.max(1, Math.ceil(_lbTop.length / per));
+  _lbTopPage = Math.min(pages, Math.max(1, _lbTopPage + d));
+  renderLbTop();
+}
+function renderLbTop() {
+  const host = document.getElementById('lb-top20'); if (!host) return;
+  const sel = document.getElementById('lb-top-per');
+  if (sel) _lbTopPer = sel.value === 'all' ? 'all' : parseInt(sel.value);
+  const total = _lbTop.length;
+  const per = _lbTopPer === 'all' ? (total || 1) : _lbTopPer;
+  const pages = Math.max(1, Math.ceil(total / per));
+  if (_lbTopPage > pages) _lbTopPage = pages;
+  const start = (_lbTopPage - 1) * per;
+  const slice = _lbTop.slice(start, start + per);
+  const maxTop = total ? _lbTop[0].total : 1;
+  host.innerHTML = slice.map((g, i) => `
+    <div class="kpi-cat-bar">
+      <span style="width:22px;text-align:right;font-size:.72rem;color:#94a3b8;flex-shrink:0">${start + i + 1}</span>
+      <span style="width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.78rem" title="${esc(g.name)}">${esc(g.name)}</span>
+      <div class="kpi-cat-bar-track"><div class="kpi-cat-bar-fill" style="width:${maxTop ? g.total / maxTop * 100 : 0}%;background:#2563eb"></div></div>
+      <span style="width:44px;text-align:right;font-size:.78rem;color:var(--muted)">${g.total.toLocaleString()}</span>
+    </div>`).join('') || '<div style="font-size:.8rem;color:#94a3b8;padding:.4rem">ไม่มีข้อมูล</div>';
+  const info = document.getElementById('lb-top-pageinfo');
+  if (info) info.textContent = `หน้า ${_lbTopPage}/${pages} · ${total.toLocaleString()} กลุ่ม`;
+}
 function lbSegColor(h) {
   if (h >= 0 && h <= 6) return '#1e3a5f';
   if (h >= 7 && h <= 10) return '#eab308';
@@ -4975,15 +5016,9 @@ async function loadLineBotMonitor() {
     });
   }
 
-  // Top 20
-  const top20 = sorted.slice(0, 20);
-  const maxTop = top20.length ? top20[0].total : 1;
-  document.getElementById('lb-top20').innerHTML = top20.map(g => `
-    <div class="kpi-cat-bar">
-      <span style="width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.78rem" title="${esc(g.name)}">${esc(g.name)}</span>
-      <div class="kpi-cat-bar-track"><div class="kpi-cat-bar-fill" style="width:${g.total / maxTop * 100}%;background:#2563eb"></div></div>
-      <span style="width:40px;text-align:right;font-size:.78rem;color:var(--muted)">${g.total}</span>
-    </div>`).join('');
+  // Top groups (paginated) — groups only, sorted by volume
+  _lbTop = _lbGroups.filter(g => g.type === 'group').sort((a, b) => b.total - a.total);
+  renderLbTop();
 
   renderLineBotTable();
   renderLineGroupPodBoard();
