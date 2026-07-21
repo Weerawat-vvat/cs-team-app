@@ -778,10 +778,19 @@ function renderListTable(){
       <td><span class="badge ${badgeCls(t.status)}">${esc(t.status||'—')}</span></td>
       <td style="white-space:nowrap;font-size:.77rem">${t.CloseDate?fmtDate(t.CloseDate):'—'}</td>
     </tr>
-    ${t.description||t.Solution?`<tr style="background:#fafafa">
+    ${t.description||t.Solution||t.attachments?.length?`<tr style="background:#fafafa">
       <td colspan="${isGrp?7:6}" style="padding:.35rem .65rem .55rem 1.5rem">
         ${t.description?`<div style="font-size:.77rem;color:#475569;margin-bottom:.2rem"><b>ปัญหา:</b> ${esc(t.description)}</div>`:''}
         ${t.Solution?`<div style="font-size:.77rem;color:#15803d"><b>แก้ไข:</b> ${esc(t.Solution)}</div>`:''}
+        ${t.attachments?.length?`<div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.35rem">
+          ${t.attachments.map(a=>(a.mime_type||'').startsWith('image/')?`
+            <a href="${a.url}" target="_blank" title="${esc(a.original_name)}">
+              <img src="${a.url}" style="width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0"/>
+            </a>` : `
+            <a href="${a.url}" target="_blank" style="display:inline-flex;align-items:center;gap:.3rem;background:#f1f5f9;border-radius:6px;padding:.25rem .55rem;font-size:.73rem;color:#2563eb;text-decoration:none">
+              📄 ${esc(a.original_name)}
+            </a>`).join('')}
+        </div>`:''}
       </td>
     </tr>`:''}
   `).join('');

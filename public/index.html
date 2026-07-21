@@ -351,13 +351,13 @@ textarea{resize:vertical;min-height:80px}
 .tk-detail-text{font-size:.84rem;line-height:1.7;color:var(--text);white-space:pre-wrap}
 .tk-solution-box{background:#f0fdf4;border:1px solid #86efac}
 .tk-solution-box .tk-detail-label{color:#15803d}
-/* ── TICKET REVIEW (stars + comment) ── */
-.tk-review-box{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:.75rem 1rem;margin-top:.75rem}
-.tk-review-box .tk-detail-label{color:#92400e}
+/* ── TICKET REVIEW (stars) ── */
 .star-picker{display:flex;gap:.15rem;margin:.25rem 0}
 .star-picker span{font-size:1.4rem;cursor:pointer;color:#d1d5db;transition:color .1s;user-select:none;line-height:1}
 .star-picker span.on{color:#f59e0b}
 .star-picker span:hover,.star-picker:hover span.hover-on{color:#f59e0b}
+.star-picker.sm{gap:.05rem;margin:0}
+.star-picker.sm span{font-size:.85rem}
 .tk-star-display{color:#f59e0b;font-size:.9rem;letter-spacing:.05em}
 .tk-star-display.empty{color:#d1d5db}
 /* ── KPI AGENT DRILL-DOWN ── */
@@ -1360,6 +1360,10 @@ textarea{resize:vertical;min-height:80px}
         <option value="manager">Manager</option>
         <option value="admin">Admin</option>
       </select>
+      <label style="display:flex;align-items:center;gap:.35rem;font-size:.82rem;color:var(--muted);cursor:pointer;white-space:nowrap">
+        <input type="checkbox" id="ppl-show-deleted" onchange="filterPeople()">
+        แสดงรายการที่ถูกลบ
+      </label>
       <span id="ppl-count" style="font-size:.78rem;color:var(--muted);white-space:nowrap"></span>
     </div>
 
@@ -1555,6 +1559,14 @@ textarea{resize:vertical;min-height:80px}
           <textarea id="cc-solution" rows="3" placeholder="วิธีแก้ไขที่ดำเนินการ..."></textarea>
         </div>
       </div>
+
+      <!-- แนบไฟล์ -->
+      <div class="card" style="padding:.85rem 1rem;margin-bottom:.65rem">
+        <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">📎 แนบไฟล์</div>
+        <input type="file" id="cc-file-input" accept="image/*,.pdf" multiple style="display:none" onchange="ccPickFiles(this)"/>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('cc-file-input').click()">📎 เลือกไฟล์ (รูปภาพ/PDF, ไฟล์ละไม่เกิน 2MB)</button>
+        <div id="cc-file-list" style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.5rem"></div>
+      </div>
     </div>
 
     <!-- Right column -->
@@ -1609,12 +1621,14 @@ textarea{resize:vertical;min-height:80px}
       </div>
 
       <!-- Submit -->
-      <button class="btn btn-primary" style="width:100%;padding:.65rem;font-size:.9rem" onclick="saveCreateCase()">
-        💾 บันทึก Case
-      </button>
-      <button class="btn btn-ghost" style="width:100%;margin-top:.4rem" onclick="resetCreateCase()">
-        🔄 ล้างฟอร์ม
-      </button>
+      <div style="display:flex;gap:.5rem">
+        <button class="btn btn-ghost" style="flex:0 0 auto;padding:.65rem 1rem" onclick="resetCreateCase()">
+          🔄 ล้างฟอร์ม
+        </button>
+        <button class="btn btn-primary" style="flex:1;padding:.65rem;font-size:.9rem" onclick="saveCreateCase()">
+          💾 บันทึก Case
+        </button>
+      </div>
     </div>
   </div>
   </div>
@@ -1860,6 +1874,15 @@ textarea{resize:vertical;min-height:80px}
             <option value="Remote">🖥️ Remote</option>
           </select></div>
       </div>
+    </div>
+    <div class="form-group" style="margin-top:.25rem">
+      <label>📎 ไฟล์แนบ</label>
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem">
+        <input type="file" id="etf-file-input" accept="image/*,.pdf" multiple style="display:none" onchange="etfPickFiles(this)"/>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('etf-file-input').click()">📎 เพิ่มไฟล์ (รูปภาพ/PDF, ไม่เกิน 2MB)</button>
+        <span id="etf-file-uploading" style="display:none;font-size:.75rem;color:var(--muted)">⏳ กำลังอัปโหลด...</span>
+      </div>
+      <div id="etf-file-list" style="display:flex;flex-wrap:wrap;gap:.4rem"></div>
     </div>
     <div class="btn-group" style="margin-top:.75rem">
       <button class="btn btn-primary" onclick="saveEditTicket()">💾 บันทึก</button>
@@ -7384,16 +7407,27 @@ function renderTickets() {
         }
       }
 
-      // Star picker HTML
+      // Star picker HTML (small — embedded into the วิธีแก้ไข/รายละเอียด box header)
       const starPickerHtml = canReview
-        ? `<div class="star-picker" id="sp-${t.id}" onmouseleave="spHover(${t.id},0)">
+        ? `<div class="star-picker sm" id="sp-${t.id}" onmouseleave="spHover(${t.id},0)" onclick="event.stopPropagation()">
             ${[1,2,3,4,5].map(n =>
               `<span data-v="${n}" class="${n<=curStars?'on':''}"
                 onclick="spClick(${t.id},${n})"
                 onmouseenter="spHover(${t.id},${n})">★</span>`
             ).join('')}
            </div>`
-        : `<div class="tk-star-display">${curStars ? '★'.repeat(curStars)+'☆'.repeat(5-curStars) : '☆☆☆☆☆'}</div>`;
+        : `<div class="tk-star-display" style="font-size:.75rem">${curStars ? '★'.repeat(curStars)+'☆'.repeat(5-curStars) : '☆☆☆☆☆'}</div>`;
+
+      // Attachments (lazy-loaded on expand — see toggleTicketDetail)
+      const atts = _tkAttachments[t.id];
+      const attHtml = atts && atts.length ? `<div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.65rem">
+        ${atts.map(a => (a.mime_type||'').startsWith('image/') ? `
+          <a href="/uploads/cases/${t.id}/${encodeURIComponent(a.filename)}" target="_blank" title="${escHtml(a.original_name)}">
+            <img src="/uploads/cases/${t.id}/${encodeURIComponent(a.filename)}" style="width:52px;height:52px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0"/>
+          </a>` : `
+          <a href="/uploads/cases/${t.id}/${encodeURIComponent(a.filename)}" target="_blank" style="display:inline-flex;align-items:center;gap:.3rem;background:#f1f5f9;border-radius:6px;padding:.22rem .5rem;font-size:.72rem;color:#2563eb;text-decoration:none">📄 ${escHtml(a.original_name)}</a>`
+        ).join('')}
+      </div>` : '';
 
       rows.push(`<tr class="tk-row-detail" onclick="event.stopPropagation()">
         <td colspan="11" style="padding:.65rem .9rem .85rem">
@@ -7408,16 +7442,17 @@ function renderTickets() {
               <div class="tk-detail-text">${escHtml(desc)}</div>
             </div>` : ''}
             ${sol ? `<div class="tk-detail-box tk-solution-box">
-              <div class="tk-detail-label">✅ วิธีแก้ไข</div>
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;margin-bottom:.25rem">
+                <div class="tk-detail-label" style="margin-bottom:0">✅ วิธีแก้ไข</div>
+                ${starPickerHtml}
+              </div>
               <div class="tk-detail-text">${escHtml(sol)}</div>
             </div>` : ''}
           </div>` : ''}
-          <!-- Review section -->
-          <div class="tk-review-box" onclick="event.stopPropagation()">
-            <div class="tk-detail-label">⭐ ประเมินเคส</div>
-            ${starPickerHtml}
-            <!-- Comment removed (ไม่แสดง textarea) -->
-          </div>
+          ${!sol ? `<div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.65rem" onclick="event.stopPropagation()">
+            <span class="tk-detail-label" style="margin-bottom:0">⭐ ประเมินเคส</span>${starPickerHtml}
+          </div>` : ''}
+          ${attHtml}
           ${isLeadRole() ? `
           <div style="margin-top:.55rem;padding-top:.5rem;border-top:1px solid #f1f5f9;display:flex;justify-content:flex-end;gap:.4rem" onclick="event.stopPropagation()">
             <button class="btn btn-sm" style="background:#f59e0b;color:#fff"
@@ -7551,12 +7586,26 @@ function toggleTicketDetail(id) {
     // seed star picker with existing value
     const t = allTickets.find(x => x.id === id);
     if (t && t.Stars) _spValues[id] = t.Stars;
+    // lazy-load attachments (only once per ticket — refreshTicketAttachments() invalidates this when edited)
+    if (_tkAttachments[id] === undefined) {
+      _tkAttachments[id] = null; // loading marker (falsy → attHtml stays empty until resolved)
+      refreshTicketAttachments(id);
+    }
   }
   renderTickets();
 }
 
 // ── Star picker helpers ──
 const _spValues = {};  // ticketId → selected stars (in-memory before save)
+const _tkAttachments = {};  // ticketId → attachment list (lazy-loaded on row expand)
+
+// Re-fetch a ticket's attachment list and redraw its row if still expanded.
+// Called after upload/delete in the edit modal so the list view doesn't show stale (cached-empty) attachments.
+async function refreshTicketAttachments(id) {
+  const list = await api(`/api/cases/${id}/attachments`, { silent: true });
+  _tkAttachments[id] = Array.isArray(list) ? list : [];
+  if (tkExpandedRows.has(id)) renderTickets();
+}
 
 function spHover(id, n) {
   const picker = document.getElementById('sp-' + id);
@@ -11239,8 +11288,50 @@ let _ccFormData = null;
 let _ccShopTimer = null;
 
 async function openCreateCaseModal() {
+  ccPendingFiles = [];
+  ccRenderFileList();
   openModal('modal-create-case');
   await initCreateCase();
+}
+
+// ── แนบไฟล์ (เก็บไว้ในเครื่องก่อน อัปโหลดจริงหลังบันทึก Case สำเร็จ) ──
+let ccPendingFiles = [];
+function ccPickFiles(input) {
+  const files = Array.from(input.files || []);
+  const MAX = 2 * 1024 * 1024;
+  for (const f of files) {
+    if (f.size > MAX) { showToast(`❌ ${f.name} ใหญ่เกิน 2MB`, 'error'); continue; }
+    ccPendingFiles.push(f);
+  }
+  input.value = '';
+  ccRenderFileList();
+}
+function ccRemovePendingFile(idx) {
+  ccPendingFiles.splice(idx, 1);
+  ccRenderFileList();
+}
+function ccRenderFileList() {
+  const el = document.getElementById('cc-file-list');
+  if (!el) return;
+  el.innerHTML = ccPendingFiles.map((f, i) => `
+    <span style="display:inline-flex;align-items:center;gap:.3rem;background:#f1f5f9;border-radius:6px;padding:.2rem .5rem;font-size:.75rem">
+      📄 ${esc(f.name)}
+      <button type="button" onclick="ccRemovePendingFile(${i})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:.85rem;line-height:1;padding:0">×</button>
+    </span>`).join('');
+}
+async function ccUploadPendingFiles(caseId) {
+  if (!ccPendingFiles.length) return;
+  const fd = new FormData();
+  ccPendingFiles.forEach(f => fd.append('files', f));
+  try {
+    const headers = {};
+    if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
+    const upRes = await fetch(`/api/cases/${caseId}/attachments`, { method: 'POST', headers, body: fd });
+    const upData = await upRes.json().catch(() => ({}));
+    if (!upRes.ok) showToast('⚠️ บันทึก Case สำเร็จ แต่แนบไฟล์ไม่สำเร็จ: ' + (upData.error || upRes.status), 'error');
+  } catch (e) {
+    showToast('⚠️ บันทึก Case สำเร็จ แต่แนบไฟล์ไม่สำเร็จ', 'error');
+  }
 }
 
 async function initCreateCase() {
@@ -11389,6 +11480,8 @@ async function saveCreateCase() {
   const r = await api('/api/cases', { method:'POST', body, silent:true });
   if (r?.error) { showToast('❌ ' + r.error, 'error'); return; }
 
+  await ccUploadPendingFiles(r.id);
+
   // Auto-send to Specialist Q if selected status contains "specialist"
   const selectedStatus = (_ccFormData?.statuses||[]).find(s => String(s.id) === String(body.status_id));
   if (selectedStatus && selectedStatus.name.toLowerCase().includes('specialist')) {
@@ -11434,6 +11527,8 @@ function resetCreateCase() {
   document.getElementById('cc-project').value='';
   document.getElementById('cc-inform-type').value='Phone';
   document.getElementById('cc-saved-msg').style.display='none';
+  ccPendingFiles = [];
+  ccRenderFileList();
   // Reset receive date to now
   const now=new Date(), pad=n=>String(n).padStart(2,'0');
   const el=document.getElementById('cc-receive-date');
@@ -11809,6 +11904,8 @@ let _editTicketId = null;
 async function openEditTicket(ticketId) {
   _editTicketId = ticketId;
   document.getElementById('etf-id').textContent = `#${ticketId}`;
+  document.getElementById('etf-file-list').innerHTML = '';
+  etfLoadAttachments(ticketId);
 
   // Load form data if needed
   if (!_ccFormData) _ccFormData = await api('/api/cases/form-data');
@@ -11893,6 +11990,59 @@ function etfOnSubjectChange() {
   const t   = opt?.dataset?.time;
   if (t && parseInt(t) > 0) { val.textContent=t; hint.style.display=''; }
   else hint.style.display='none';
+}
+
+// ── ไฟล์แนบของ Case ที่มีอยู่แล้ว (อัปโหลด/ลบทันที ไม่ต้องรอกด "บันทึก") ──
+async function etfLoadAttachments(caseId) {
+  const list = await api(`/api/cases/${caseId}/attachments`, { silent: true });
+  etfRenderAttachments(Array.isArray(list) ? list : []);
+}
+function etfRenderAttachments(list) {
+  const el = document.getElementById('etf-file-list');
+  if (!el) return;
+  if (!list.length) { el.innerHTML = '<span style="font-size:.75rem;color:var(--muted)">ยังไม่มีไฟล์แนบ</span>'; return; }
+  el.innerHTML = list.map(f => `
+    <span style="display:inline-flex;align-items:center;gap:.35rem;background:#f1f5f9;border-radius:6px;padding:.25rem .55rem;font-size:.75rem">
+      <a href="/uploads/cases/${_editTicketId}/${encodeURIComponent(f.filename)}" target="_blank" style="color:var(--hd);text-decoration:none">📄 ${esc(f.original_name)}</a>
+      <button type="button" onclick="etfDeleteAttachment(${f.id})" title="ลบไฟล์แนบ" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:.85rem;line-height:1;padding:0">×</button>
+    </span>`).join('');
+}
+async function etfPickFiles(input) {
+  const files = Array.from(input.files || []);
+  input.value = '';
+  if (!files.length || !_editTicketId) return;
+  const MAX = 2 * 1024 * 1024;
+  const fd = new FormData();
+  let any = false;
+  for (const f of files) {
+    if (f.size > MAX) { showToast(`❌ ${f.name} ใหญ่เกิน 2MB`, 'error'); continue; }
+    fd.append('files', f);
+    any = true;
+  }
+  if (!any) return;
+  const busy = document.getElementById('etf-file-uploading');
+  if (busy) busy.style.display = '';
+  try {
+    const headers = {};
+    if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
+    const upRes = await fetch(`/api/cases/${_editTicketId}/attachments`, { method: 'POST', headers, body: fd });
+    const upData = await upRes.json().catch(() => ({}));
+    if (!upRes.ok) showToast('❌ แนบไฟล์ไม่สำเร็จ: ' + (upData.error || upRes.status), 'error');
+    else showToast('✅ แนบไฟล์แล้ว');
+  } catch (e) {
+    showToast('❌ แนบไฟล์ไม่สำเร็จ', 'error');
+  } finally {
+    if (busy) busy.style.display = 'none';
+    etfLoadAttachments(_editTicketId);
+    refreshTicketAttachments(_editTicketId); // keep the ติดตามเคส list row in sync (was caching stale/empty)
+  }
+}
+async function etfDeleteAttachment(attId) {
+  if (!confirm('ลบไฟล์แนบนี้?')) return;
+  const r = await api(`/api/cases/attachments/${attId}`, { method: 'DELETE', silent: true });
+  if (r?.error) { showToast('❌ ' + r.error, 'error'); return; }
+  etfLoadAttachments(_editTicketId);
+  refreshTicketAttachments(_editTicketId);
 }
 
 async function saveEditTicket() {
@@ -15372,7 +15522,7 @@ async function loadPeople() {
               .map(t => `<option value="${t.name}">${t.display_name || t.name}</option>`).join('');
   }
 
-  renderPeopleTable(emps);
+  filterPeople();
 }
 
 function filterPeople() {
@@ -15380,9 +15530,11 @@ function filterPeople() {
   const team   = document.getElementById('ppl-filter-team')?.value || '';
   const status = document.getElementById('ppl-filter-status')?.value || '';
   const role   = document.getElementById('ppl-filter-role')?.value || '';
+  const showDeleted = document.getElementById('ppl-show-deleted')?.checked || false;
 
   const filtered = _peopleEmps.filter(e => {
     const u = _peopleUserByEmpId[e.id];
+    if (!showDeleted && !e.active) return false; // ซ่อนรายการที่ออกแล้ว เว้นแต่ติ๊ก "แสดงรายการที่ถูกลบ"
     if (team   && e.team !== team) return false;
     if (status === 'active'   && !e.active) return false;
     if (status === 'inactive' &&  e.active) return false;

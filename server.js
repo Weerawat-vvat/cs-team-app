@@ -65,6 +65,28 @@ const fuUpload = multer({
   }
 });
 
+// ── Case (Calllog) attachment upload config ──────────────
+const caseStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(UPLOAD_DIR, 'cases', String(req.params.id || 'tmp'));
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const ext  = path.extname(file.originalname);
+    const base = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9ก-๙_-]/g, '_');
+    cb(null, `${Date.now()}_${base}${ext}`);
+  }
+});
+const caseUpload = multer({
+  storage: caseStorage,
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB per file — keep case attachments small so uploads/ doesn't balloon
+  fileFilter: (req, file, cb) => {
+    const allowed = /jpeg|jpg|png|gif|webp|pdf/;
+    cb(null, allowed.test(path.extname(file.originalname).toLowerCase()));
+  }
+});
+
 // ── Knowledge image upload config ────────────────────────
 const skStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -1176,6 +1198,52 @@ app.post('/api/cases', authRequired, async (request, res) => {
          @subj, @sol, @solvety, @uid, @cbid, 1, GETDATE(), GETDATE())`);
 
     res.json({ id: result.recordset[0].id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Case attachments (stored locally, keyed by CalllogId) ──
+app.get('/api/cases/:id/attachments', authRequired, async (request, res) => {
+  try {
+    const rows = (await req().input('id', sql.Int, parseInt(request.params.id))
+      .query(`SELECT a.*, e.name AS uploaded_by_name FROM case_attachments a
+              LEFT JOIN app_users au ON au.id=a.uploaded_by
+              LEFT JOIN employees e ON e.id=au.employee_id
+              WHERE a.calllog_id=@id ORDER BY a.created_at`)).recordset;
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/cases/:id/attachments', authRequired, caseUpload.array('files', 10), async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const files = request.files || [];
+    if (!files.length) return res.status(400).json({ error: 'ไม่พบไฟล์' });
+    const inserted = [];
+    for (const f of files) {
+      const r = await req()
+        .input('cid', sql.Int, id)
+        .input('fn',  sql.NVarChar, f.filename)
+        .input('on',  sql.NVarChar, f.originalname)
+        .input('fs',  sql.Int, f.size)
+        .input('mt',  sql.NVarChar, f.mimetype)
+        .input('ub',  sql.Int, request.user.id)
+        .query(`INSERT INTO case_attachments(calllog_id,filename,original_name,file_size,mime_type,uploaded_by)
+                OUTPUT INSERTED.id VALUES(@cid,@fn,@on,@fs,@mt,@ub)`);
+      inserted.push({ id: r.recordset[0].id, filename: f.filename, original_name: f.originalname, file_size: f.size, mime_type: f.mimetype });
+    }
+    res.json({ ok: true, files: inserted });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/cases/attachments/:id', authRequired, async (request, res) => {
+  try {
+    const row = (await req().input('id', sql.Int, parseInt(request.params.id))
+      .query(`SELECT * FROM case_attachments WHERE id=@id`)).recordset[0];
+    if (!row) return res.status(404).json({ error: 'not found' });
+    const filePath = path.join(UPLOAD_DIR, 'cases', String(row.calllog_id), row.filename);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    await req().input('id', sql.Int, parseInt(request.params.id)).query(`DELETE FROM case_attachments WHERE id=@id`);
+    res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -3419,6 +3487,23 @@ app.get('/api/public/track/:token', async (request, res) => {
       complaints = await req().input('cn2', sql.NVarChar, linkRow.company_name)
         .query(`SELECT id, ticket_id, message, status, created_at
                 FROM ticket_complaints WHERE company_name=@cn2 ORDER BY created_at DESC`);
+    }
+
+    // Attach files (if any) so the customer can view/download them alongside each case
+    const ticketIds = ticketRes.recordset.map(t => t.id);
+    if (ticketIds.length) {
+      const ar = req();
+      ticketIds.forEach((id, i) => ar.input(`id${i}`, sql.Int, id));
+      const inClause = ticketIds.map((_, i) => `@id${i}`).join(',');
+      const attRows = (await ar.query(
+        `SELECT calllog_id, id, filename, original_name, mime_type
+         FROM case_attachments WHERE calllog_id IN (${inClause}) ORDER BY created_at`)).recordset;
+      const attByCase = {};
+      attRows.forEach(a => (attByCase[a.calllog_id] ||= []).push({
+        id: a.id, filename: a.filename, original_name: a.original_name, mime_type: a.mime_type,
+        url: `/uploads/cases/${a.calllog_id}/${a.filename}`,
+      }));
+      ticketRes.recordset.forEach(t => { t.attachments = attByCase[t.id] || []; });
     }
 
     res.json({
@@ -7792,6 +7877,26 @@ async function ensureServiceAttachmentsTable() {
   } catch(e) { console.error('❌ service_attachments error:', e.message); }
 }
 
+// Attachments for Cases (Calllog lives on the external LicenseDB — keep attachment
+// metadata local in cs_team, keyed by CalllogId, same pattern as fu_attachments)
+async function ensureCaseAttachmentsTable() {
+  try {
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='case_attachments' AND xtype='U')
+      CREATE TABLE case_attachments (
+        id            INT PRIMARY KEY IDENTITY,
+        calllog_id    INT NOT NULL,
+        filename      NVARCHAR(300) NOT NULL,
+        original_name NVARCHAR(300) NOT NULL,
+        file_size     INT,
+        mime_type     NVARCHAR(100),
+        uploaded_by   INT,
+        created_at    DATETIME DEFAULT GETDATE()
+      )`);
+    console.log('✅ case_attachments table ready');
+  } catch(e) { console.error('❌ case_attachments error:', e.message); }
+}
+
 async function ensureSwUpdateTable() {
   try {
     await req().query(`
@@ -9470,6 +9575,7 @@ init().then(async () => {
   await ensureServiceRequestsTable();
   await ensureServiceProjectsTable();
   await ensureServiceAttachmentsTable();
+  await ensureCaseAttachmentsTable();
   await ensureSwUpdateTable();
   await ensureNewsTable();
   await fixGarbledServiceAttachmentNames();
