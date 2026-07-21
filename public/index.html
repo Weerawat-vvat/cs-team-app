@@ -771,24 +771,6 @@ textarea{resize:vertical;min-height:80px}
     <div id="dash-leaves"></div>
   </div>
 
-  <!-- ── AI Insight Card (SSE streaming) ── -->
-  <div class="ai-insight-box" style="margin-top:1rem">
-    <div class="ai-label">
-      🤖 AI Situation Analysis
-      <span style="font-size:.68rem;opacity:.55;font-weight:400">powered by Claude</span>
-      <div style="margin-left:auto;display:flex;align-items:center;gap:.5rem">
-        <span id="ai-last-run" style="font-size:.7rem;color:#4f46e5"></span>
-        <button class="btn btn-sm" id="ai-run-btn" onclick="loadAiInsight()">✨ วิเคราะห์สถานการณ์</button>
-      </div>
-    </div>
-    <div id="ai-status-bar" class="ai-status-bar">กด "วิเคราะห์สถานการณ์" เพื่อให้ AI ประเมินภาพรวมทีมและตรวจจับความผิดปกติประจำวัน</div>
-    <div id="ai-insight-body" class="ai-insight-body" style="color:#4c4982;font-style:italic;font-size:.83rem">ยังไม่มีผลการวิเคราะห์</div>
-    <div id="ai-tags" class="ai-tags"></div>
-    <div id="ai-footer-bar" class="ai-footer-bar" style="display:none">
-      <span id="ai-token-info"></span>
-      <span>ข้อมูล ณ เวลาที่กดวิเคราะห์</span>
-    </div>
-  </div>
   </div><!-- /dash-tab-agent -->
 
   <!-- ════ TAB 2: Issue Analytics ════ -->
@@ -3288,7 +3270,7 @@ textarea{resize:vertical;min-height:80px}
   <!-- Assign LINE groups to Pods -->
   <div id="pod-tab-5">
     <div class="card" style="padding:.7rem 1rem;margin-bottom:.75rem;font-size:.78rem;color:var(--muted);display:flex;flex-direction:column;gap:.4rem">
-      <div>🧩 กำหนดว่ากลุ่มไลน์แต่ละกลุ่มควรอยู่ในความดูแลของ Pod ไหน (ไม่รวมแชทส่วนตัว 1:1) · ตัวเลข = เฉลี่ยข้อความ/วัน · เรียงตามช่วงเวลาที่ลูกค้าถามเยอะ (เช้า→เที่ยง→เย็น→ดึก→ไม่ระบุ) · ดับเบิลคลิกที่กลุ่มเพื่อย้าย Pod</div>
+      <div>🧩 กำหนดว่ากลุ่มไลน์แต่ละกลุ่มควรอยู่ในความดูแลของ Pod ไหน (ไม่รวมแชทส่วนตัว 1:1) · ตัวเลข = เฉลี่ยข้อความ/วัน · เลือกเรียงตามช่วงเวลาที่ลูกค้าถามเยอะ (เช้า→เที่ยง→เย็น→ดึก→ไม่ระบุ) หรือตามความเคลื่อนไหว (Active→เริ่มเงียบ→เงียบ) ได้ด้านล่าง · ดับเบิลคลิกที่กลุ่มเพื่อย้าย Pod</div>
       <div id="lgp-legend" style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center;padding-top:.35rem;border-top:1px dashed var(--border)">
         <span style="font-weight:600;color:#94a3b8">สัญลักษณ์ช่วงที่ลูกค้าถามเยอะ:</span>
       </div>
@@ -3298,6 +3280,10 @@ textarea{resize:vertical;min-height:80px}
       <div class="drb" id="lgp-filter">
         <button class="drb-btn active" onclick="setLgpFilter('all',this)">ทั้งหมด Pod</button>
         <button class="drb-btn" onclick="setLgpFilter('unassigned',this)">เฉพาะที่ยังไม่ assign</button>
+      </div>
+      <div class="drb" id="lgp-sort" title="เรียงลำดับกลุ่มไลน์ในแต่ละ Pod">
+        <button class="drb-btn active" onclick="setLgpSort('pattern',this)">เรียงตามช่วงเวลา</button>
+        <button class="drb-btn" onclick="setLgpSort('activity',this)">เรียงตามความเคลื่อนไหว</button>
       </div>
     </div>
     <div id="lgp-board" style="display:flex;gap:.6rem;align-items:flex-start;overflow-x:auto;overflow-y:hidden;padding-bottom:.5rem">
@@ -5119,7 +5105,18 @@ function lgpEditPodChip(el, groupId, groupName) {
 // เรียงตามรูปแบบช่วงเวลา: เช้า → เที่ยง → เย็น → ดึก → ไม่ระบุ (แล้วค่อยเรียงตามปริมาณ)
 const LGP_PAT_ORDER = ['เน้นเช้า', 'เน้นมื้อเที่ยง', 'เน้นมื้อเย็น', 'ดึก/นอกเวลา', 'ไม่ระบุ'];
 const lgpPatRank = pat => { const i = LGP_PAT_ORDER.indexOf(pat); return i < 0 ? LGP_PAT_ORDER.length : i; };
-const lgpSort = (a, b) => lgpPatRank(a.pattern) - lgpPatRank(b.pattern) || b.total - a.total;
+const lgpSortByPattern = (a, b) => lgpPatRank(a.pattern) - lgpPatRank(b.pattern) || b.total - a.total;
+// เรียงตามความเคลื่อนไหว: Active → เริ่มเงียบ → เงียบ (แล้วค่อยเรียงตามวันล่าสุดที่มีข้อความ)
+const LGP_ACT_ORDER = ['active', 'quieting', 'quiet'];
+const lgpActRank = act => { const i = LGP_ACT_ORDER.indexOf(act); return i < 0 ? LGP_ACT_ORDER.length : i; };
+const lgpSortByActivity = (a, b) => lgpActRank(a.activity) - lgpActRank(b.activity) || (a.daysSinceLast ?? Infinity) - (b.daysSinceLast ?? Infinity) || b.total - a.total;
+let _lgpSortMode = 'pattern';
+function setLgpSort(mode, btn) {
+  _lgpSortMode = mode;
+  document.querySelectorAll('#lgp-sort .drb-btn').forEach(b => b.classList.toggle('active', b === btn));
+  renderLineGroupPodBoard();
+}
+const lgpSort = (a, b) => _lgpSortMode === 'activity' ? lgpSortByActivity(a, b) : lgpSortByPattern(a, b);
 let _lbDays = 1;
 function lbDaySpan() {
   const gs = (_lbGroups || []).filter(g => g.type === 'group');
@@ -5129,14 +5126,31 @@ function lbDaySpan() {
   return (mn && mx) ? Math.max(1, Math.round((new Date(mx) - new Date(mn)) / 86400000)) : 1;
 }
 const lgpAvgFmt = n => n.toLocaleString(undefined, { maximumFractionDigits: 1 });
+// Quiet-group indicator — colour by days since last message
+const LGP_ACT = {
+  active:   { c: '#22c55e', t: 'Active' },
+  quieting: { c: '#eab308', t: 'เริ่มเงียบ' },
+  quiet:    { c: '#cbd5e1', t: 'เงียบ' },
+};
+function lgpActivityDot(g) {
+  const a = LGP_ACT[g.activity] || LGP_ACT.quiet;
+  const dsl = g.daysSinceLast;
+  const when = dsl === null ? 'ไม่มีข้อมูลข้อความ'
+    : dsl <= 0 ? 'มีข้อความวันนี้'
+    : `เงียบมา ${dsl} วัน`;
+  const title = `${when} · ${a.t}`;
+  return `<span title="${title}" style="width:9px;height:9px;border-radius:50%;background:${a.c};flex-shrink:0;box-shadow:0 0 0 2px ${a.c}22"></span>`;
+}
 function lgpChip(g, canManage) {
   const gid = JSON.stringify(g.id).replace(/"/g,'&quot;');
   const gname = JSON.stringify(g.name).replace(/"/g,'&quot;');
   const avg = g.total / (_lbDays || 1);
   const avgDisp = avg < 10 ? avg.toFixed(1) : Math.round(avg).toLocaleString();
   const patternBadge = `<span class="lgp-pattern-slot" title="${esc(g.pattern)}" style="display:inline-flex;flex-shrink:0;color:${LB_PATTERN_COLOR[g.pattern] || '#94a3b8'}">${LB_PATTERN_SVG[g.pattern] || LB_PATTERN_SVG['ไม่ระบุ']}</span>`;
+  const activityDot = lgpActivityDot(g);
   return `<div style="font-size:.76rem;padding:.22rem .4rem;border-radius:6px;background:#f8fafc;display:flex;align-items:center;gap:.4rem;${canManage ? 'cursor:pointer' : ''}"
     ${canManage ? `ondblclick="lgpEditPodChip(this, ${gid}, ${gname})" title="ดับเบิลคลิกเพื่อย้าย Pod"` : ''}>
+    ${activityDot}
     ${patternBadge}
     <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1" title="${esc(g.name)}">${esc(g.name)}</span>
     <span style="flex-shrink:0;color:#475569;font-size:.72rem" title="เฉลี่ย ${lgpAvgFmt(avg)}/วัน · รวม ${g.total.toLocaleString()} ข้อความ">${avgDisp}</span>
@@ -5149,6 +5163,13 @@ function renderLgpLegend() {
   const labels = ['เน้นเช้า', 'เน้นมื้อเที่ยง', 'เน้นมื้อเย็น', 'ดึก/นอกเวลา', 'ไม่ระบุ'];
   el.insertAdjacentHTML('beforeend', labels.map(p => `
     <span style="display:inline-flex;align-items:center;gap:.3rem;color:${LB_PATTERN_COLOR[p]}">${LB_PATTERN_SVG[p]}<span style="color:var(--muted)">${p}</span></span>`).join(''));
+  // Activity-dot legend (quiet-group detection)
+  const dot = c => `<span style="width:9px;height:9px;border-radius:50%;background:${c};display:inline-block"></span>`;
+  el.insertAdjacentHTML('beforeend',
+    `<span style="border-left:1px dashed var(--border);padding-left:1rem;margin-left:.25rem;color:#94a3b8;font-weight:600">ความเคลื่อนไหว:</span>` +
+    `<span style="display:inline-flex;align-items:center;gap:.3rem">${dot('#22c55e')}<span style="color:var(--muted)">Active (≤3 วัน)</span></span>` +
+    `<span style="display:inline-flex;align-items:center;gap:.3rem">${dot('#eab308')}<span style="color:var(--muted)">เริ่มเงียบ (4–7 วัน)</span></span>` +
+    `<span style="display:inline-flex;align-items:center;gap:.3rem">${dot('#cbd5e1')}<span style="color:var(--muted)">เงียบ (>7 วัน)</span></span>`);
 }
 function renderLineGroupPodBoard() {
   renderLgpLegend();
@@ -15593,13 +15614,23 @@ function sendQuick(msg) {
   sendAiMessage();
 }
 
-function appendAiMsg(role, text) {
+function aiEscape(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function aiFormat(text) {
+  // escape first, then apply light markdown (**bold**) — newlines handled by CSS pre-wrap
+  return aiEscape(text).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+}
+function appendAiMsg(role, text, imgSrc) {
   const el = document.getElementById('ai-messages');
   const div = document.createElement('div');
   div.className = `ai-msg ${role}`;
+  const imgHtml = imgSrc
+    ? `<img src="${imgSrc}" style="max-width:180px;max-height:180px;border-radius:8px;margin-bottom:.35rem;display:block"/>`
+    : '';
   div.innerHTML = `
     <div class="avatar">${role === 'bot' ? '🤖' : '👤'}</div>
-    <div class="bubble">${text}</div>
+    <div class="bubble">${imgHtml}${text ? aiFormat(text) : ''}</div>
   `;
   el.appendChild(div);
   scrollAiMessages();
@@ -15621,26 +15652,58 @@ function hideTyping() {
   if (t) t.remove();
 }
 
+// ── Image attachment ───────────────────────────────────────
+let aiPendingImage = null; // data URL of the image to send with the next message
+
+function aiSetImage(file) {
+  if (!file || !file.type.startsWith('image/')) return;
+  if (file.size > 10 * 1024 * 1024) { alert('รูปใหญ่เกินไป (จำกัด 10MB)'); return; }
+  const reader = new FileReader();
+  reader.onload = () => {
+    aiPendingImage = reader.result;
+    document.getElementById('ai-img-thumb').src = aiPendingImage;
+    document.getElementById('ai-img-name').textContent = file.name || 'รูปที่วาง';
+    document.getElementById('ai-img-preview').style.display = 'flex';
+  };
+  reader.readAsDataURL(file);
+}
+function aiPickImage(input) { if (input.files && input.files[0]) aiSetImage(input.files[0]); input.value = ''; }
+function aiPasteImage(e) {
+  const items = (e.clipboardData || {}).items || [];
+  for (const it of items) {
+    if (it.type && it.type.startsWith('image/')) { e.preventDefault(); aiSetImage(it.getAsFile()); return; }
+  }
+}
+function aiClearImage() {
+  aiPendingImage = null;
+  document.getElementById('ai-img-preview').style.display = 'none';
+  document.getElementById('ai-img-thumb').src = '';
+}
+
 async function sendAiMessage() {
   if (aiPending) return;
   const input = document.getElementById('ai-input');
   const msg = input.value.trim();
-  if (!msg) return;
+  const img = aiPendingImage;
+  if (!msg && !img) return;
   input.value = '';
 
   // Hide quick chips after first use
   document.getElementById('ai-quick-chips').style.display = 'none';
 
-  appendAiMsg('user', msg);
-  aiHistory.push({ role: 'user', content: msg });
+  appendAiMsg('user', msg, img);
+  aiHistory.push({ role: 'user', content: msg || '[แนบรูป]' });
+  aiClearImage();
   aiPending = true;
   showTyping();
 
   try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
     const res = await fetch('/api/ai/chat', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: msg, history: aiHistory.slice(-8) })
+      headers,
+      body: JSON.stringify({ message: msg, history: aiHistory.slice(-8), image: img || undefined })
     });
     const data = await res.json();
     hideTyping();
@@ -19112,11 +19175,13 @@ function newsRender() {
   <div style="display:flex;align-items:flex-start;gap:.5rem;flex-wrap:wrap">
     <div style="flex:1;min-width:0">
       ${n.pinned?'<span style="font-size:.65rem;font-weight:700;color:#d97706;background:#fef3c7;border-radius:4px;padding:.08rem .35rem;margin-right:.3rem">📌 ปักหมุด</span>':''}
+      ${newsIsStopped(n)?'<span style="font-size:.65rem;font-weight:700;color:#64748b;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:4px;padding:.08rem .35rem;margin-right:.3rem">🔕 หยุดประกาศ</span>':''}
       <span style="font-size:.65rem;font-weight:700;color:#fff;background:${color};border-radius:4px;padding:.08rem .35rem">${emoji} ${escHtml(n.category)}</span>
       <div style="font-size:.95rem;font-weight:700;color:#1e293b;margin-top:.3rem;line-height:1.3">${escHtml(n.title)}</div>
     </div>
     ${canEdit?`<div style="display:flex;gap:.25rem;flex-shrink:0">
       ${isLead?`<button class="btn btn-ghost btn-sm" style="padding:.18rem .45rem;font-size:.7rem" onclick="toggleNewsPin(${n.id})" title="${n.pinned?'เอาออกจากปักหมุด':'ปักหมุด'}">${n.pinned?'📌':'📍'}</button>`:''}
+      ${isLead?`<button class="btn btn-ghost btn-sm" style="padding:.18rem .45rem;font-size:.7rem${newsIsStopped(n)?';color:#dc2626':''}" onclick="toggleNewsAnnounce(${n.id})" title="${newsIsStopped(n)?'เปิดประกาศอีกครั้ง (ให้เด้งแจ้งเตือน)':'หยุดประกาศ (ไม่ให้เด้งแจ้งเตือน)'}">${newsIsStopped(n)?'🔕':'📢'}</button>`:''}
       <button class="btn btn-ghost btn-sm" style="padding:.18rem .45rem;font-size:.7rem" onclick="openNewsModal(${n.id})">✏️</button>
       <button class="btn btn-ghost btn-sm" style="padding:.18rem .45rem;font-size:.7rem;color:#ef4444" onclick="deleteNews(${n.id})">🗑️</button>
     </div>`:''}
@@ -19149,6 +19214,20 @@ function newsExpand(id, btn) {
 async function toggleNewsPin(id) {
   const r = await api(`/api/news/${id}/pin`, { method: 'PUT' });
   if (r && r.pinned !== undefined) loadNews();
+}
+
+// BIT comes back from SQL Server as boolean (true/false); treat both false and 0 as "stopped"
+function newsIsStopped(n) { return !!n && (n.announce === 0 || n.announce === false); }
+
+async function toggleNewsAnnounce(id) {
+  const n = _newsData.find(x => x.id === id);
+  const stopping = !newsIsStopped(n); // currently announcing → about to stop
+  if (stopping && !confirm('หยุดประกาศข่าวนี้? ข่าวจะยังอยู่ในรายการ แต่จะไม่เด้งแจ้งเตือนให้ผู้ใช้อีก')) return;
+  const r = await api(`/api/news/${id}/announce`, { method: 'PUT' });
+  if (r && r.announce !== undefined) {
+    showToast(r.announce ? '📢 เปิดประกาศอีกครั้งแล้ว' : '🔕 หยุดประกาศแล้ว');
+    loadNews();
+  }
 }
 
 async function deleteNews(id) {
@@ -19308,8 +19387,12 @@ async function checkNewsAnnouncement() {
     const data = await api('/api/news', { silent: true });
     if (!Array.isArray(data) || !data.length) return;
 
+    // เฉพาะข่าวที่ยังเปิดประกาศอยู่เท่านั้นที่จะเด้ง popup (ข้ามข่าวที่ถูกหยุดประกาศ)
+    const active = data.filter(n => !newsIsStopped(n));
+    if (!active.length) return;
+
     // เรียง: pinned ก่อน แล้วตาม created_at ล่าสุด
-    const sorted = [...data].sort((a,b) => {
+    const sorted = [...active].sort((a,b) => {
       if ((b.pinned||0) !== (a.pinned||0)) return (b.pinned||0) - (a.pinned||0);
       return new Date(b.created_at) - new Date(a.created_at);
     });
@@ -20027,6 +20110,48 @@ async function generateFromPattern() {
         <button class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="generateFromPattern()">✨ เจนตารางทั้งเดือน</button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- ══════════ CS ASSISTANT — AI CHAT WIDGET ══════════ -->
+<button id="ai-fab" onclick="toggleAiPanel()" title="CS Assistant — ถาม AI เรื่องประวัติ support" aria-label="เปิดแชท CS Assistant">
+  🤖
+  <span id="ai-unread" class="badge-unread">1</span>
+</button>
+
+<div id="ai-panel">
+  <div id="ai-panel-header">
+    <span>🤖</span>
+    <span>CS Assistant</span>
+    <button class="close-btn" onclick="toggleAiPanel()" aria-label="ปิดแชท">×</button>
+  </div>
+
+  <div id="ai-messages">
+    <div class="ai-msg bot">
+      <div class="avatar">🤖</div>
+      <div class="bubble">สวัสดีครับ 👋 ผมคือ CS Assistant
+ถามผมได้เลย ผมค้นให้จาก <b>ประวัติเคส (Calllog)</b>, <b>สิ่งที่ควรรู้ของร้าน</b> และ <b>ข้อมูลรีโมท</b> 🔎</div>
+    </div>
+  </div>
+
+  <div id="ai-quick-chips" class="quick-chips">
+    <button class="chip" onclick="sendQuick('เครื่องพิมพ์ไม่ออกใบเสร็จ เคยแก้ยังไงบ้าง')">🖨️ เครื่องพิมพ์ไม่ออกใบเสร็จ</button>
+    <button class="chip" onclick="sendQuick('มีสิ่งที่ควรรู้อะไรบ้างเกี่ยวกับการตั้งค่าร้าน')">📖 สิ่งที่ควรรู้</button>
+    <button class="chip" onclick="sendQuick('ขอข้อมูลรีโมท (Anydesk/IP) ของสาขา')">🖥️ ข้อมูลรีโมทสาขา</button>
+    <button class="chip" onclick="sendQuick('สรุปสถานการณ์ทีมวันนี้')">📊 สรุปวันนี้</button>
+  </div>
+
+  <div id="ai-img-preview" style="display:none;padding:.5rem .75rem 0;align-items:center;gap:.5rem">
+    <img id="ai-img-thumb" style="width:44px;height:44px;object-fit:cover;border-radius:8px;border:1px solid var(--border)"/>
+    <span id="ai-img-name" style="font-size:.75rem;color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+    <button onclick="aiClearImage()" title="เอารูปออก" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:1.1rem;line-height:1;flex-shrink:0">×</button>
+  </div>
+  <div id="ai-input-wrap">
+    <input type="file" id="ai-img-file" accept="image/*" style="display:none" onchange="aiPickImage(this)"/>
+    <button id="ai-attach" onclick="document.getElementById('ai-img-file').click()" title="แนบรูป (หรือวางรูปด้วย Ctrl+V)" aria-label="แนบรูป"
+      style="background:#f1f5f9;border:1.5px solid var(--border);border-radius:10px;padding:.52rem .7rem;cursor:pointer;font-size:1rem;flex-shrink:0">📎</button>
+    <textarea id="ai-input" rows="1" placeholder="พิมพ์คำถาม หรือแนบ/วางรูป..." onkeydown="aiKeydown(event)" onpaste="aiPasteImage(event)"></textarea>
+    <button id="ai-send" onclick="sendAiMessage()" title="ส่ง" aria-label="ส่งข้อความ">➤</button>
   </div>
 </div>
 

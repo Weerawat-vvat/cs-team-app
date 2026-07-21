@@ -10,11 +10,11 @@ const multer                     = require('multer');
 const nodemailer                 = require('nodemailer');
 const axios                      = require('axios');
 const { init, getPool, getExtPool, getInfoPool, getLineBotPool, sql } = require('./database');
-const { GoogleGenerativeAI }     = require('@google/generative-ai');
+const { GoogleGenerativeAI, SchemaType } = require('@google/generative-ai');
 
 const app        = express();
 const PORT       = process.env.PORT || 3010;
-const AI_MODEL   = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+const AI_MODEL   = process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
 const JWT_SECRET = process.env.JWT_SECRET || 'cs-team-jwt-secret-change-in-prod';
 const genAI      = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '', { apiVersion: 'v1' });
 
@@ -324,7 +324,7 @@ async function notifyRepairStatus(repairId, jobNo, companyName, newStatus, chang
 }
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '12mb' })); // 12mb to allow base64 image attachments in AI chat
 // Serve HTML files without caching so clients always get the latest version
 app.use((req, res, next) => {
   if (req.path.endsWith('.html') || req.path === '/') {
@@ -2783,28 +2783,277 @@ async function getDashboardContext() {
 //  AI ENDPOINTS
 // ══════════════════════════════════════════════════════════
 
+// ── Support-history search (used by AI chat function calling) ──
+// Searches the full Calllog history by keyword / problem symptom
+// (and optional company), respecting the caller's RBAC scope.
+async function searchSupportHistory(user, { keywords = '', company = '', limit = 8 } = {}) {
+  if (!getExtPool()) return { error: 'ฐานข้อมูล Calllog ไม่พร้อมใช้งานตอนนี้', results: [] };
+
+  const scope = await getScopedUsernames(user);
+  if (scope === null) return { count: 0, results: [] }; // no access
+
+  const lim = Math.min(Math.max(parseInt(limit, 10) || 8, 1), 20);
+  const terms = String(keywords || '').trim().split(/\s+/).filter(Boolean).slice(0, 6);
+  const co = String(company || '').trim();
+  if (!terms.length && !co) {
+    return { error: 'ต้องระบุคำค้น (keywords) หรือชื่อบริษัทอย่างน้อยหนึ่งอย่าง', results: [] };
+  }
+
+  const r = extReq();
+  let q = `
+    SELECT TOP (${lim})
+      cl.CalllogId          AS id,
+      cr.CompanyName        AS company,
+      cl.ReceiveDate        AS opened_at,
+      cl.CloseDate          AS closed_at,
+      cs.StatusName         AS status,
+      cl.Subject            AS subject,
+      pt.ProblemTypeDetail  AS problem_type,
+      LEFT(cl.CalllogDesc, 600) AS description,
+      LEFT(cl.Solution,    600) AS solution,
+      u.UserName            AS agent,
+      cl.Stars              AS stars
+    FROM Calllog cl
+    INNER JOIN CustomerRegistration cr ON cr.RegistrationId = cl.RegistrationId
+    LEFT  JOIN CallStatus           cs ON cs.StatusId       = cl.StatusId
+    INNER JOIN Users                u  ON u.UserId          = cl.SupportId
+    LEFT  JOIN ProblemType          pt ON pt.ProblemTypeId  = cl.ProblemTypeId
+    WHERE cl.Active = 1`;
+
+  terms.forEach((t, i) => {
+    r.input(`kw${i}`, sql.NVarChar, `%${t}%`);
+    q += ` AND (cl.Subject LIKE @kw${i} OR cl.CalllogDesc LIKE @kw${i}
+            OR cl.Solution LIKE @kw${i} OR pt.ProblemTypeDetail LIKE @kw${i} OR pt.Note LIKE @kw${i})`;
+  });
+  if (co) { r.input('co', sql.NVarChar, `%${co}%`); q += ' AND cr.CompanyName LIKE @co'; }
+  q += appendScopeClause(r, scope);
+  q += ' ORDER BY cl.ReceiveDate DESC';
+
+  const rows = (await r.query(q)).recordset;
+  // Normalise dates so they serialise cleanly into the function response
+  const results = rows.map(x => ({
+    ...x,
+    opened_at: x.opened_at ? new Date(x.opened_at).toISOString().slice(0, 10) : null,
+    closed_at: x.closed_at ? new Date(x.closed_at).toISOString().slice(0, 10) : null
+  }));
+  return { count: results.length, results };
+}
+
+// Search "สิ่งที่ควรรู้" (shop_knowledge) — brand/branch how-to articles
+async function searchShopKnowledge({ query = '', brand = '', limit = 8 } = {}) {
+  const q  = String(query || '').trim();
+  const br = String(brand || '').trim();
+  if (!q && !br) return { error: 'ต้องระบุคำค้น (query) หรือแบรนด์ (brand) อย่างน้อยหนึ่งอย่าง', results: [] };
+  const lim = Math.min(Math.max(parseInt(limit, 10) || 8, 1), 20);
+  const r = req();
+  let where = '1=1';
+  if (br) { r.input('brand', sql.NVarChar, `%${br}%`); where += ' AND brand_name LIKE @brand'; }
+  // Tokenise the query and match if ANY term appears in any field (KB is small → favour recall)
+  const terms = q.split(/\s+/).filter(Boolean).slice(0, 6);
+  if (terms.length) {
+    const ors = terms.map((t, i) => {
+      r.input(`t${i}`, sql.NVarChar, `%${t}%`);
+      return `(title LIKE @t${i} OR content LIKE @t${i} OR category LIKE @t${i} OR branch_name LIKE @t${i} OR brand_name LIKE @t${i})`;
+    });
+    where += ' AND (' + ors.join(' OR ') + ')';
+  }
+  const rows = (await r.query(`
+    SELECT TOP (${lim}) id, brand_name, branch_name, category, title,
+           LEFT(content, 800) AS content, updated_at
+    FROM shop_knowledge
+    WHERE ${where}
+    ORDER BY updated_at DESC`)).recordset;
+  const results = rows.map(x => ({
+    ...x,
+    updated_at: x.updated_at ? new Date(x.updated_at).toISOString().slice(0, 10) : null
+  }));
+  return { count: results.length, results };
+}
+
+// Search "ข้อมูลรีโมท" (shop_entries) — remote-access details per branch/terminal
+async function searchRemoteInfo({ query = '', limit = 8 } = {}) {
+  const q = String(query || '').trim();
+  if (!q) return { error: 'ต้องระบุคำค้น เช่น ชื่อแบรนด์/สาขา/ชื่อเครื่อง/Anydesk/IP', results: [] };
+  const lim = Math.min(Math.max(parseInt(limit, 10) || 8, 1), 20);
+  const r = req();
+  const terms = q.split(/\s+/).filter(Boolean).slice(0, 6);
+  const fields = ['brand_name','branch_name','branch_code','contact_name','terminal_name','anydesk_id','teamviewer_id','ip_address','services'];
+  const ors = terms.map((t, i) => {
+    r.input(`t${i}`, sql.NVarChar, `%${t}%`);
+    return '(' + fields.map(f => `${f} LIKE @t${i}`).join(' OR ') + ')';
+  });
+  const rows = (await r.query(`
+    SELECT TOP (${lim}) id, brand_name, branch_name, branch_code, contact_name, telephone,
+           terminal_type, terminal_name, anydesk_id, teamviewer_id, remote_password, ip_address, services, note
+    FROM shop_entries
+    WHERE ${ors.length ? ors.join(' OR ') : '1=1'}
+    ORDER BY brand_name, branch_name`)).recordset;
+  return { count: rows.length, results: rows };
+}
+
+// Gemini function-calling tool exposed to the CS Assistant chat
+const SUPPORT_HISTORY_TOOL = {
+  functionDeclarations: [{
+    name: 'search_support_history',
+    description: 'ค้นประวัติเคส support ย้อนหลังจาก Calllog ตามคำค้น/อาการปัญหา (และชื่อบริษัทถ้ามี). ' +
+      'ใช้เครื่องมือนี้ทุกครั้งที่ผู้ใช้ถามถึงเคสในอดีต ปัญหาที่เคยเกิด หรือวิธีแก้ที่เคยใช้ — อย่าเดาคำตอบเอง',
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        keywords: {
+          type: SchemaType.STRING,
+          description: 'คำสำคัญของอาการปัญหา — สำคัญมาก: ต้องแยกเป็นคำสั้น ๆ คั่นด้วยช่องว่างเสมอ ' +
+            'ห้ามส่งเป็นวลียาวติดกัน (ทุกคำจะถูก match แบบ AND). ' +
+            'ตัวอย่างที่ถูก: "เครื่องพิมพ์ ใบเสร็จ" หรือ "ปริ้น ไม่ออก" — ตัวอย่างที่ผิด: "เครื่องพิมพ์ไม่ออกใบเสร็จ". ' +
+            'ถ้าค้นครั้งแรกไม่พบ ให้ลองใหม่ด้วยคำที่สั้น/กว้างขึ้น'
+        },
+        company: {
+          type: SchemaType.STRING,
+          description: 'ชื่อบริษัท/ลูกค้า ถ้าผู้ใช้ระบุ (เว้นว่างได้)'
+        },
+        limit: {
+          type: SchemaType.NUMBER,
+          description: 'จำนวนเคสสูงสุด (1-20, ค่าเริ่มต้น 8)'
+        }
+      },
+      required: ['keywords']
+    }
+  }]
+};
+
+const SHOP_KNOWLEDGE_TOOL = {
+  functionDeclarations: [{
+    name: 'search_shop_knowledge',
+    description: 'ค้น "สิ่งที่ควรรู้" ของร้าน/แบรนด์ (คู่มือ วิธีตั้งค่า ข้อควรระวัง เฉพาะแต่ละแบรนด์/สาขา). ' +
+      'ใช้เมื่อผู้ใช้ถามถึงข้อมูลเฉพาะของร้าน วิธีทำงานกับระบบของแบรนด์นั้น ๆ หรือสิ่งที่ทีมควรรู้ก่อนซัพพอร์ต',
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        query: { type: SchemaType.STRING, description: 'คำค้น/หัวข้อ/อาการ เช่น "การตั้งค่าเครื่องพิมพ์" (เว้นว่างได้ถ้าระบุ brand)' },
+        brand: { type: SchemaType.STRING, description: 'ชื่อแบรนด์/ร้าน ถ้าผู้ใช้ระบุ (เว้นว่างได้)' },
+        limit: { type: SchemaType.NUMBER, description: 'จำนวนบทความสูงสุด (1-20, ค่าเริ่มต้น 8)' }
+      },
+      required: ['query']
+    }
+  }]
+};
+
+const REMOTE_INFO_TOOL = {
+  functionDeclarations: [{
+    name: 'search_remote_info',
+    description: 'ค้น "ข้อมูลรีโมท" ของสาขา/เครื่อง (Anydesk ID, TeamViewer ID, IP, รหัสผ่านรีโมท, ผู้ติดต่อ, ประเภทเครื่อง). ' +
+      'ใช้เมื่อผู้ใช้ถามวิธีรีโมทเข้าเครื่องของสาขา หรือขอข้อมูลการเชื่อมต่อของร้าน',
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties: {
+        query: { type: SchemaType.STRING, description: 'คำค้น เช่น ชื่อแบรนด์/สาขา/รหัสสาขา/ชื่อเครื่อง/Anydesk/IP' },
+        limit: { type: SchemaType.NUMBER, description: 'จำนวนรายการสูงสุด (1-20, ค่าเริ่มต้น 8)' }
+      },
+      required: ['query']
+    }
+  }]
+};
+
 // ── 1. AI Chat ─────────────────────────────────────────────
 app.post('/api/ai/chat', authRequired, async (request, res) => {
-  const { message, history = [] } = request.body;
-  if (!message) return res.status(400).json({ error: 'message required' });
+  const { message, history = [], image } = request.body;
+  if (!message && !image) return res.status(400).json({ error: 'message or image required' });
+  if (!process.env.GEMINI_API_KEY) {
+    return res.status(503).json({ error: 'GEMINI_API_KEY ยังไม่ได้ตั้งค่าใน .env' });
+  }
   try {
     const context = await getDashboardContext();
     const systemPrompt = `คุณคือผู้ช่วย AI สำหรับระบบบริหารทีม Customer Service ชื่อว่า "CS Assistant"
 ตอบเป็นภาษาไทย กระชับ ชัดเจน เป็นมิตร
-ข้อมูลระบบที่ใช้คือ Calllog จาก LicenseDB และข้อมูลกะจาก cs_team
-ใช้ข้อมูลต่อไปนี้เพื่อตอบคำถาม:\n\n${context}`;
 
-    const model = genAI.getGenerativeModel({ model: AI_MODEL, systemInstruction: systemPrompt });
+คุณมีเครื่องมือค้นข้อมูล 3 ชุด — เลือกใช้ให้ตรงกับคำถาม และห้ามเดาคำตอบเอง ให้ค้นก่อนเสมอ:
+1. search_support_history — ประวัติเคส/ปัญหาที่เคยเกิด/วิธีแก้ที่เคยใช้ (จาก Calllog). สรุปโดยระบุเลขเคส (#id), บริษัท, อาการ และวิธีแก้ (Solution)
+2. search_shop_knowledge — "สิ่งที่ควรรู้" เฉพาะร้าน/แบรนด์ (คู่มือ วิธีตั้งค่า ข้อควรระวัง). สรุปโดยอ้างอิงหัวข้อและแบรนด์/สาขา
+3. search_remote_info — "ข้อมูลรีโมท" ของสาขา/เครื่อง (Anydesk, TeamViewer, IP, รหัสผ่านรีโมท, ผู้ติดต่อ)
+
+ถ้าคำถามเกี่ยวข้องหลายด้าน ให้เรียกหลายเครื่องมือได้ ถ้าค้นแล้วไม่พบให้บอกตรง ๆ ว่าไม่พบ
+ถ้าผู้ใช้แนบรูป (เช่น screenshot error) ให้อ่านข้อความ/อาการในรูป แล้วใช้เป็นคำค้นกับเครื่องมือข้างต้นเพื่อหาสาเหตุและวิธีแก้
+
+ข้อมูลภาพรวมของทีมวันนี้:\n\n${context}`;
+
+    const model = genAI.getGenerativeModel({
+      model: AI_MODEL,
+      systemInstruction: systemPrompt,
+      tools: [SUPPORT_HISTORY_TOOL, SHOP_KNOWLEDGE_TOOL, REMOTE_INFO_TOOL]
+    });
     // Convert history to Gemini format (role: user|model)
     const geminiHistory = history.slice(-8).map(m => ({
       role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: m.content }]
     }));
-    const chat   = model.startChat({ history: geminiHistory });
-    const result = await chat.sendMessage(message);
-    res.json({ reply: result.response.text() });
+    const chat = model.startChat({ history: geminiHistory });
+
+    // Build the user turn — text plus an optional attached image (data URL)
+    const userParts = [{ text: message || 'ช่วยดูรูปที่แนบมานี้ แล้ววิเคราะห์/ค้นหาวิธีแก้ให้หน่อย' }];
+    if (typeof image === 'string' && image.startsWith('data:')) {
+      const m = image.match(/^data:([^;]+);base64,(.+)$/);
+      if (m) userParts.push({ inlineData: { mimeType: m[1], data: m[2] } });
+    }
+
+    // Function-calling loop — let the model search history, then answer
+    const MAX_HOPS = 3; // each hop = 1 Gemini request; cap it to protect the daily quota
+    let result = await chat.sendMessage(userParts);
+    let hop = 0;
+    for (; hop < MAX_HOPS; hop++) {
+      const calls = result.response.functionCalls();
+      if (!calls || !calls.length) break;
+      console.log(`[ai/chat] hop ${hop} calls:`, calls.map(c => `${c.name}(${JSON.stringify(c.args)})`).join(' | '));
+      const parts = [];
+      for (const call of calls) {
+        let response;
+        if (call.name === 'search_support_history') {
+          response = await searchSupportHistory(request.user, call.args || {});
+        } else if (call.name === 'search_shop_knowledge') {
+          response = await searchShopKnowledge(call.args || {});
+        } else if (call.name === 'search_remote_info') {
+          response = await searchRemoteInfo(call.args || {});
+        } else {
+          response = { error: `ไม่รู้จักเครื่องมือ ${call.name}` };
+        }
+        console.log(`[ai/chat]   -> ${call.name} count=${response.count ?? 0} err=${response.error || '-'}`);
+        parts.push({ functionResponse: { name: call.name, response } });
+      }
+      result = await chat.sendMessage(parts);
+    }
+
+    let reply = '';
+    try { reply = (result.response.text() || '').trim(); } catch { reply = ''; }
+    // Model ended still wanting to call tools (or produced no text) — nudge it once for a plain answer
+    if (!reply) {
+      console.warn(`[ai/chat] empty reply after ${hop} hops (still calling tools?=${!!result.response.functionCalls()?.length}) — nudging`);
+      try {
+        const nudge = await chat.sendMessage(
+          'สรุปคำตอบเป็นข้อความภาษาไทยจากผลการค้นที่มีอยู่ตอนนี้ ถ้าไม่พบเคสที่เกี่ยวข้องให้บอกว่าไม่พบ (ห้ามเรียกเครื่องมือเพิ่ม)'
+        );
+        reply = (nudge.response.text() || '').trim();
+      } catch (e) { console.warn('[ai/chat] nudge failed:', e.message); }
+    }
+    if (!reply) reply = 'ขออภัยครับ ผมยังสรุปคำตอบไม่ได้ ลองระบุอาการหรือชื่อบริษัทให้ชัดขึ้นอีกนิดได้ไหมครับ 🙏';
+
+    res.json({ reply });
   } catch (e) {
     console.error('AI chat error:', e.message);
+    const msg = String(e.message || '');
+    // Paid account but out of prepaid credits
+    if (/prepayment|credits are depleted|billing/i.test(msg)) {
+      return res.status(402).json({
+        error: 'เครดิต API หมด — กรุณาเติมเครดิต/ตรวจสอบ billing ของโปรเจกต์ที่ Google AI Studio (ai.studio/projects) แล้วลองใหม่'
+      });
+    }
+    // Free-tier daily quota / rate limit
+    if (/429|Too Many Requests|quota/i.test(msg)) {
+      const m = msg.match(/retry in ([\d.]+)s/i);
+      const wait = m ? ` (ลองใหม่ในอีก ~${Math.ceil(parseFloat(m[1]))} วินาที)` : '';
+      return res.status(429).json({
+        error: `โควตา AI เต็มชั่วคราว${wait} — กรุณาลองใหม่ภายหลัง ` +
+               `(ถ้าใช้ free tier ให้เปิด billing ที่ Google AI Studio เพื่อเพิ่มลิมิต)`
+      });
+    }
     res.status(500).json({ error: e.message });
   }
 });
@@ -4681,9 +4930,18 @@ app.get('/api/linebot/summary', authRequired, async (request, res) => {
     const podByGroup = {};
     assignR.recordset.forEach(r => { podByGroup[r.group_id] = r; });
 
+    // Activity status from days since last message (quiet-group detection)
+    const QUIET_ACTIVE = 3, QUIET_WARN = 7;
+    const nowMs = Date.now();
     const groups = rows.map(g => {
       const { peakHour, pattern } = classify(g.GroupId);
       const assign = podByGroup[g.GroupId];
+      const daysSinceLast = g.LastMessage
+        ? Math.max(0, Math.floor((nowMs - new Date(g.LastMessage).getTime()) / 86400000))
+        : null;
+      const activity = daysSinceLast === null || daysSinceLast > QUIET_WARN ? 'quiet'
+                     : daysSinceLast > QUIET_ACTIVE ? 'quieting'
+                     : 'active';
       return {
         id: g.GroupId,
         name: g.GroupName || '(ไม่มีชื่อ)',
@@ -4696,6 +4954,8 @@ app.get('/api/linebot/summary', authRequired, async (request, res) => {
         msgsPerDay: +(g.TotalMessages / windowDays).toFixed(1),
         first: g.FirstMessage,
         last: g.LastMessage,
+        daysSinceLast,
+        activity,
         hourly: hourByGroup[g.GroupId] || {},
         podId: assign?.pod_id || null,
         podCode: assign?.pod_code || null,
@@ -8997,6 +9257,10 @@ async function ensureNewsTable() {
   await getPool().request().query(`
     IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('news_posts') AND name='links')
       ALTER TABLE news_posts ADD links NVARCHAR(MAX) NULL`);
+  // Add announce column — controls whether the post auto-pops as an announcement
+  await getPool().request().query(`
+    IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('news_posts') AND name='announce')
+      ALTER TABLE news_posts ADD announce BIT NOT NULL DEFAULT 1`);
   await getPool().request().query(`
     IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name='news_attachments')
     CREATE TABLE news_attachments (
@@ -9014,7 +9278,7 @@ async function ensureNewsTable() {
 app.get('/api/news', authRequired, async (req2, res) => {
   try {
     const rows = (await req().query(`
-      SELECT id, title, body, category, author_id, author_name, pinned, links,
+      SELECT id, title, body, category, author_id, author_name, pinned, announce, links,
              created_at, updated_at,
              CASE WHEN DATEDIFF(second, created_at, updated_at) > 60 THEN 1 ELSE 0 END AS is_edited
       FROM news_posts
@@ -9050,7 +9314,7 @@ app.post('/api/news', authRequired, leadRequired, async (request, res) => {
       .input('lk',  sql.NVarChar, linksJson)
       .query(`INSERT INTO news_posts (title,body,category,author_id,author_name,links)
               OUTPUT INSERTED.id,INSERTED.title,INSERTED.body,INSERTED.category,
-                     INSERTED.author_id,INSERTED.author_name,INSERTED.pinned,
+                     INSERTED.author_id,INSERTED.author_name,INSERTED.pinned,INSERTED.announce,
                      INSERTED.links,INSERTED.created_at,INSERTED.updated_at
               VALUES (@ti,@bo,@ca,@uid,@un,@lk)`)).recordset[0];
     try { row.links = row.links ? JSON.parse(row.links) : []; } catch { row.links = []; }
@@ -9113,6 +9377,18 @@ app.put('/api/news/:id/pin', authRequired, leadRequired, async (request, res) =>
     const row = (await req().input('id', sql.Int, id)
       .query('SELECT pinned FROM news_posts WHERE id=@id')).recordset[0];
     res.json({ pinned: row?.pinned || 0 });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Toggle announce — stop/resume the auto-popup announcement for a post
+app.put('/api/news/:id/announce', authRequired, leadRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    await req().input('id', sql.Int, id)
+      .query('UPDATE news_posts SET announce=CASE WHEN announce=1 THEN 0 ELSE 1 END WHERE id=@id');
+    const row = (await req().input('id', sql.Int, id)
+      .query('SELECT announce FROM news_posts WHERE id=@id')).recordset[0];
+    res.json({ announce: row?.announce ?? 1 });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
