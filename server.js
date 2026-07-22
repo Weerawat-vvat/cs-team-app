@@ -3097,12 +3097,15 @@ app.post('/api/ai/chat', authRequired, async (request, res) => {
       systemInstruction: systemPrompt,
       tools: [SUPPORT_HISTORY_TOOL, SHOP_KNOWLEDGE_TOOL, REMOTE_INFO_TOOL]
     });
-    // Convert history to Gemini format (role: user|model)
-    const geminiHistory = history.slice(-8).map(m => ({
+    // Build the conversation manually (role: user|model only) instead of using
+    // model.startChat()/chat.sendMessage() — that helper hardcodes role:'function'
+    // for function-response turns, which current Gemini backends reject
+    // ("Role 'function' is not supported"). Passing functionResponse parts under
+    // role:'user' via generateContent({contents}) sidesteps that entirely.
+    const contents = history.slice(-8).map(m => ({
       role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: m.content }]
     }));
-    const chat = model.startChat({ history: geminiHistory });
 
     // Build the user turn — text plus an optional attached image (data URL)
     const userParts = [{ text: message || 'ช่วยดูรูปที่แนบมานี้ แล้ววิเคราะห์/ค้นหาวิธีแก้ให้หน่อย' }];
@@ -3110,15 +3113,17 @@ app.post('/api/ai/chat', authRequired, async (request, res) => {
       const m = image.match(/^data:([^;]+);base64,(.+)$/);
       if (m) userParts.push({ inlineData: { mimeType: m[1], data: m[2] } });
     }
+    contents.push({ role: 'user', parts: userParts });
 
     // Function-calling loop — let the model search history, then answer
     const MAX_HOPS = 3; // each hop = 1 Gemini request; cap it to protect the daily quota
-    let result = await chat.sendMessage(userParts);
+    let result = await model.generateContent({ contents });
     let hop = 0;
     for (; hop < MAX_HOPS; hop++) {
       const calls = result.response.functionCalls();
       if (!calls || !calls.length) break;
       console.log(`[ai/chat] hop ${hop} calls:`, calls.map(c => `${c.name}(${JSON.stringify(c.args)})`).join(' | '));
+      contents.push({ role: 'model', parts: result.response.candidates[0].content.parts });
       const parts = [];
       for (const call of calls) {
         let response;
@@ -3134,7 +3139,8 @@ app.post('/api/ai/chat', authRequired, async (request, res) => {
         console.log(`[ai/chat]   -> ${call.name} count=${response.count ?? 0} err=${response.error || '-'}`);
         parts.push({ functionResponse: { name: call.name, response } });
       }
-      result = await chat.sendMessage(parts);
+      contents.push({ role: 'user', parts });
+      result = await model.generateContent({ contents });
     }
 
     let reply = '';
@@ -3143,9 +3149,11 @@ app.post('/api/ai/chat', authRequired, async (request, res) => {
     if (!reply) {
       console.warn(`[ai/chat] empty reply after ${hop} hops (still calling tools?=${!!result.response.functionCalls()?.length}) — nudging`);
       try {
-        const nudge = await chat.sendMessage(
+        contents.push({ role: 'model', parts: result.response.candidates[0].content.parts });
+        contents.push({ role: 'user', parts: [{ text:
           'สรุปคำตอบเป็นข้อความภาษาไทยจากผลการค้นที่มีอยู่ตอนนี้ ถ้าไม่พบเคสที่เกี่ยวข้องให้บอกว่าไม่พบ (ห้ามเรียกเครื่องมือเพิ่ม)'
-        );
+        }] });
+        const nudge = await model.generateContent({ contents });
         reply = (nudge.response.text() || '').trim();
       } catch (e) { console.warn('[ai/chat] nudge failed:', e.message); }
     }
