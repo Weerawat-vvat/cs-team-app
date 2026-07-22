@@ -2721,20 +2721,42 @@ app.get('/api/dashboard', authRequired, async (_, res) => {
                 WHERE cl.Active=1 AND cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me
                   AND (cs.StatusName LIKE '%close%' OR cs.StatusName LIKE '%ปิด%' OR cs.StatusName LIKE '%complete%')`)).recordset[0]?.cnt || 0;
     }
-    const shiftIn  = currentShifts.map((_,i) => `@st${i}`).join(',');
-    const shiftReq = req().input('today', sql.Date, today);
-    currentShifts.forEach((s,i) => shiftReq.input(`st${i}`, sql.NVarChar, s));
-    const onShift = (await shiftReq.query(`
-      SELECT s.shift_type, e.id AS employee_id, e.name, e.nickname, e.team, e.role,
-             au.ext_username
-      FROM shifts s JOIN employees e ON e.id=s.employee_id
-      LEFT JOIN app_users au ON au.employee_id = e.id AND au.active = 1
-      WHERE s.shift_date=@today AND s.shift_type IN (${shiftIn})
-        AND s.status='scheduled' AND e.active=1
-        AND e.team IN (SELECT name FROM teams WHERE show_in_schedule=1 AND active=1)
-      ORDER BY e.team, s.shift_type`)).recordset;
+    // Build ext_username → display name + id → { name, ext_username } maps
+    const nameMapRows = (await req().query(`
+      SELECT e.id, au.ext_username, ISNULL(e.nickname, e.name) AS display_name
+      FROM app_users au JOIN employees e ON e.id = au.employee_id
+      WHERE au.ext_username IS NOT NULL AND au.active = 1 AND e.active = 1
+    `)).recordset;
+    const nameMap = {}, nameMapById = {};
+    nameMapRows.forEach(r => {
+      nameMap[r.ext_username] = r.display_name;
+      nameMapById[r.id] = { name: r.display_name, ext_username: r.ext_username };
+    });
 
-    // ── Count Calllog per employee since their shift start ────
+    // ── On-shift now — sourced from the Google Calendar employee schedule
+    // (ตารางงานพนักงาน), limited to the teams that keep it up to date daily.
+    const nowHHMM = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Bangkok' });
+    const onShift = [];
+    try {
+      const empcalData = await computeEmpcalSummary(bangkokToday(), false);
+      for (const t of (empcalData.teams || [])) {
+        if (!EMPCAL_ONSHIFT_TEAMS.includes(t.team)) continue;
+        for (const p of t.people) {
+          const active = p.items.find(it =>
+            (it.type === 'shift' || it.type === 'onsite') && it.start && it.end && it.start <= nowHHMM && nowHHMM <= it.end);
+          if (!active) continue;
+          const m = nameMapById[p.emp_id];
+          onShift.push({
+            employee_id: p.emp_id, team: t.team,
+            shift_type: `${active.start}-${active.end}`, shift_start: active.start,
+            name: m?.name || p.nickname, nickname: m?.name || p.nickname,
+            ext_username: m?.ext_username || null,
+          });
+        }
+      }
+    } catch (e) { console.warn('empcal onShift error:', e.message); }
+
+    // ── Count Calllog per employee since their (actual, per-person) shift start ─
     let shiftTaskCounts = {}; // employee_id → count
     if (ext && onShift.length > 0) {
       try {
@@ -2744,18 +2766,16 @@ app.get('/api/dashboard', authRequired, async (_, res) => {
             `SELECT employee_id, calluserid FROM app_users WHERE employee_id IN (${onShiftIds.join(',')}) AND calluserid IS NOT NULL AND active=1`
           )).recordset;
           if (cuRows.length > 0) {
-            const empToCalluser = {}, calluserToEmp = {};
-            cuRows.forEach(r => { empToCalluser[r.employee_id] = r.calluserid; calluserToEmp[r.calluserid] = r.employee_id; });
-            const SHIFT_START = { morning:'08:00', morning2:'08:30', midday:'10:00', mid:'10:00', afternoon:'12:00', night:'15:00' };
-            // Group by shift_type
-            const byShiftType = {};
+            const empToCalluser = {};
+            cuRows.forEach(r => { empToCalluser[r.employee_id] = r.calluserid; });
+            // Group by each person's actual shift-start time (from the calendar), not a fixed lookup table
+            const byStart = {};
             onShift.forEach(e => {
               if (!e.employee_id || !empToCalluser[e.employee_id]) return;
-              if (!byShiftType[e.shift_type]) byShiftType[e.shift_type] = [];
-              byShiftType[e.shift_type].push({ empId: e.employee_id, callId: empToCalluser[e.employee_id] });
+              const key = e.shift_start || '08:00';
+              (byStart[key] ||= []).push({ empId: e.employee_id, callId: empToCalluser[e.employee_id] });
             });
-            for (const [sType, emps] of Object.entries(byShiftType)) {
-              const startTime = SHIFT_START[sType] || '08:00';
+            for (const [startTime, emps] of Object.entries(byStart)) {
               const startDT   = new Date(`${today}T${startTime}:00`);
               const callIds   = emps.map(e => e.callId);
               const r         = extReq().input('st', sql.DateTime, startDT);
@@ -2777,17 +2797,6 @@ app.get('/api/dashboard', authRequired, async (_, res) => {
       .query(`SELECT lr.*, e.name AS emp_name, e.team
               FROM leave_requests lr JOIN employees e ON e.id=lr.employee_id
               WHERE lr.status='pending' ORDER BY lr.leave_date`)).recordset;
-    // Build ext_username → display name + id → { name, ext_username } maps
-    const nameMapRows = (await req().query(`
-      SELECT e.id, au.ext_username, ISNULL(e.nickname, e.name) AS display_name
-      FROM app_users au JOIN employees e ON e.id = au.employee_id
-      WHERE au.ext_username IS NOT NULL AND au.active = 1 AND e.active = 1
-    `)).recordset;
-    const nameMap = {}, nameMapById = {};
-    nameMapRows.forEach(r => {
-      nameMap[r.ext_username] = r.display_name;
-      nameMapById[r.id] = { name: r.display_name, ext_username: r.ext_username };
-    });
 
     res.json({
       ticketsToday, overdueTickets, ticketStats,
@@ -3283,6 +3292,8 @@ const GCAL_CAL_ID      = process.env.GCAL_CALENDAR_ID || 'schedule.supinfo@gmail
 const EMPCAL_CACHE_DIR = path.join(UPLOAD_DIR, '_empcal_cache');
 const empcalCachePath  = (date) => path.join(EMPCAL_CACHE_DIR, `${date}.json`);
 const bangkokToday     = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }); // YYYY-MM-DD
+// Teams whose calendar entries are reliable enough to drive the Dashboard "on-shift now" card
+const EMPCAL_ONSHIFT_TEAMS = ['specialist', 'helpdesk_bkk', 'helpdesk_cnx'];
 
 async function computeEmpcalSummary(date, refresh) {
     if (!GCAL_API_KEY) { const e = new Error('ยังไม่ได้ตั้งค่า GCAL_API_KEY ใน .env — สร้าง API key ที่ Google Cloud Console แล้วใส่ใน .env'); e.status = 503; throw e; }
@@ -3466,6 +3477,55 @@ function formatEmpcalLine(data) {
   return out.trim();
 }
 
+// ── Persist each day's parsed schedule to the DB (in addition to the JSON file
+// cache) once it's actually sent to LINE — gives a queryable attendance history.
+async function ensureEmpcalLogTable() {
+  await getPool().request().query(`
+    IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name='empcal_daily_log')
+      CREATE TABLE empcal_daily_log (
+        id INT PRIMARY KEY IDENTITY,
+        log_date DATE NOT NULL,
+        employee_id INT NULL,
+        raw_name NVARCHAR(100) NULL,
+        team NVARCHAR(50) NULL,
+        type NVARCHAR(20) NULL,
+        start_time NVARCHAR(5) NULL,
+        end_time NVARCHAR(5) NULL,
+        all_day BIT DEFAULT 0,
+        note NVARCHAR(200) NULL,
+        created_at DATETIME DEFAULT GETDATE()
+      );
+  `);
+}
+
+async function saveEmpcalToDb(data) {
+  // Re-sending the same day (manual test button, or a rerun) replaces that day's rows
+  await req().input('d', sql.Date, data.date).query(`DELETE FROM empcal_daily_log WHERE log_date=@d`);
+  const rows = [];
+  for (const t of (data.teams || [])) {
+    for (const p of t.people) {
+      for (const it of p.items) rows.push({ employee_id: p.emp_id, raw_name: p.nickname, team: t.team, ...it });
+    }
+  }
+  for (const u of (data.unknown || [])) {
+    for (const it of u.items) rows.push({ employee_id: null, raw_name: u.raw, team: null, ...it });
+  }
+  for (const r of rows) {
+    await req()
+      .input('d',  sql.Date,     data.date)
+      .input('eid', sql.Int,     r.employee_id || null)
+      .input('rn', sql.NVarChar, r.raw_name || null)
+      .input('tm', sql.NVarChar, r.team || null)
+      .input('ty', sql.NVarChar, r.type || null)
+      .input('st', sql.NVarChar, r.start || null)
+      .input('et', sql.NVarChar, r.end || null)
+      .input('ad', sql.Bit,      r.allDay ? 1 : 0)
+      .input('nt', sql.NVarChar, (r.note || '').slice(0,200))
+      .query(`INSERT INTO empcal_daily_log (log_date, employee_id, raw_name, team, type, start_time, end_time, all_day, note)
+              VALUES (@d, @eid, @rn, @tm, @ty, @st, @et, @ad, @nt)`);
+  }
+}
+
 // GET /api/empcal/summary — structured summary for the UI
 app.get('/api/empcal/summary', authRequired, async (request, res) => {
   try {
@@ -3484,6 +3544,7 @@ app.get('/api/empcal/summary', authRequired, async (request, res) => {
 async function sendEmpcalSummaryToLine(date) {
   const data = await computeEmpcalSummary(date, false);
   if (!data.eventCount) { console.log(`empcal: no events on ${date}, skip LINE`); return { sent: false, reason: 'no-events' }; }
+  try { await saveEmpcalToDb(data); } catch (e) { console.error('empcal DB save failed:', e.message); }
   await sendLineNotify(formatEmpcalLine(data), 'empcal_summary');
   return { sent: true, eventCount: data.eventCount };
 }
@@ -9928,6 +9989,7 @@ init().then(async () => {
   await ensureShopEntriesTable();
   await ensureShopKnowledgeTable();
   await ensureLineNotifyTable();
+  await ensureEmpcalLogTable();
   await ensureServiceRequestsTable();
   await ensureServiceProjectsTable();
   await ensureServiceAttachmentsTable();

@@ -5857,11 +5857,10 @@ async function dashRefreshOnShift() {
   if (d && d.serverTime) {
     if (d.nameMap) { Object.assign(nameMap, d.nameMap); if (d.nameMapById) Object.assign(nameMapById, d.nameMapById); }
     // Re-render only the OnShift section
-    const ONSHIFT_TEAMS = (allTeams || []).filter(t => t.show_in_schedule).map(t => t.name);
-    const SHIFT_ORDER   = ['morning', 'morning2', 'midday', 'mid', 'afternoon', 'night'];
+    // Team/time scoping now happens server-side (empcal schedule), so render as-is.
     const _teamCol = {};
     allTeams.forEach(tm => { _teamCol[tm.name] = tm.color || '#475569'; });
-    const _onShiftFiltered = (d.onShift || []).filter(e => ONSHIFT_TEAMS.length === 0 || ONSHIFT_TEAMS.includes(e.team));
+    const _onShiftFiltered = d.onShift || [];
     const _onShiftTotal = _onShiftFiltered.length;
     const _nowStr = new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
     const _sumEl = document.getElementById('dash-onshift-summary');
@@ -5871,10 +5870,7 @@ async function dashRefreshOnShift() {
       if (!onShiftByShift[e.shift_type]) onShiftByShift[e.shift_type] = [];
       onShiftByShift[e.shift_type].push(e);
     });
-    const shiftsPresent = [...new Set([
-      ...SHIFT_ORDER.filter(s => onShiftByShift[s]),
-      ...Object.keys(onShiftByShift).filter(s => !SHIFT_ORDER.includes(s))
-    ])];
+    const shiftsPresent = Object.keys(onShiftByShift).sort();
     const _stc = d.shiftTaskCounts || {};
     document.getElementById('dash-onshift').innerHTML = shiftsPresent.length === 0
       ? `<div style="font-size:.8rem;color:var(--muted);padding:.5rem">ไม่มีพนักงานออนกะ</div>`
@@ -5959,15 +5955,13 @@ async function loadDashboard() {
   }
 
   // ── On Shift ─────────────────────────────────────────────
-  const ONSHIFT_TEAMS = (allTeams || []).filter(t => t.show_in_schedule).map(t => t.name);
-  const SHIFT_ORDER   = ['morning', 'morning2', 'midday', 'mid', 'afternoon', 'night'];
+  // Team/time scoping now happens server-side (empcal schedule), so render as-is.
 
   // Build team color lookup
   const _teamCol = {};
   allTeams.forEach(tm => { _teamCol[tm.name] = tm.color || '#475569'; });
 
-  // Filter to teams flagged show_in_schedule
-  const _onShiftFiltered = (d.onShift || []).filter(e => ONSHIFT_TEAMS.length === 0 || ONSHIFT_TEAMS.includes(e.team));
+  const _onShiftFiltered = d.onShift || [];
 
   // Summary badge
   const _onShiftTotal = _onShiftFiltered.length;
@@ -5982,11 +5976,8 @@ async function loadDashboard() {
     onShiftByShift[e.shift_type].push(e);
   });
 
-  // Render grouped by shift, employees colored by team
-  const shiftsPresent = [...new Set([
-    ...SHIFT_ORDER.filter(s => onShiftByShift[s]),
-    ...Object.keys(onShiftByShift).filter(s => !SHIFT_ORDER.includes(s))
-  ])];
+  // Render grouped by shift (time range), sorted chronologically
+  const shiftsPresent = Object.keys(onShiftByShift).sort();
 
   const _stc = d.shiftTaskCounts || {};
   document.getElementById('dash-onshift').innerHTML = shiftsPresent.length === 0
