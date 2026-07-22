@@ -3235,6 +3235,251 @@ ${JSON.stringify(history, null, 2)}
 });
 
 // ══════════════════════════════════════════════════════════
+//  EMPLOYEE SCHEDULE SUMMARY
+//  Google Calendar (public) → Gemini parse+map → per-team summary
+//  Per-day, cached to a JSON file (no production DB writes).
+// ══════════════════════════════════════════════════════════
+const GCAL_API_KEY     = process.env.GCAL_API_KEY || '';
+const GCAL_CAL_ID      = process.env.GCAL_CALENDAR_ID || 'schedule.supinfo@gmail.com';
+const EMPCAL_CACHE_DIR = path.join(UPLOAD_DIR, '_empcal_cache');
+const empcalCachePath  = (date) => path.join(EMPCAL_CACHE_DIR, `${date}.json`);
+const bangkokToday     = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }); // YYYY-MM-DD
+
+async function computeEmpcalSummary(date, refresh) {
+    if (!GCAL_API_KEY) { const e = new Error('ยังไม่ได้ตั้งค่า GCAL_API_KEY ใน .env — สร้าง API key ที่ Google Cloud Console แล้วใส่ใน .env'); e.status = 503; throw e; }
+    if (!process.env.GEMINI_API_KEY) { const e = new Error('GEMINI_API_KEY ยังไม่ได้ตั้งค่าใน .env'); e.status = 503; throw e; }
+
+    // Serve cached result unless a refresh is requested
+    if (!refresh) {
+      try {
+        const cached = JSON.parse(fs.readFileSync(empcalCachePath(date), 'utf8'));
+        return { ...cached, cached: true };
+      } catch { /* no cache yet */ }
+    }
+
+    // 1) Fetch that day's events (Bangkok day window) from Google Calendar API
+    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(GCAL_CAL_ID)}/events`;
+    const gcal = await axios.get(url, { params: {
+      key: GCAL_API_KEY,
+      timeMin: `${date}T00:00:00+07:00`,
+      timeMax: `${date}T23:59:59+07:00`,
+      singleEvents: true, orderBy: 'startTime', timeZone: 'Asia/Bangkok', maxResults: 250,
+    }, timeout: 20000 });
+
+    const rawEvents = (gcal.data.items || []).map((ev, i) => ({
+      idx: i,
+      summary: ev.summary || '',
+      start:   ev.start?.dateTime || ev.start?.date || '',
+      end:     ev.end?.dateTime   || ev.end?.date   || '',
+      allDay:  !ev.start?.dateTime,
+    }));
+
+    // Deterministic time resolver — the shift time lives in the summary text
+    // ("08:00-17:00 : Boek,Nnai") even when the calendar event is all-day.
+    // Regex is far more reliable than the LLM for this, so we own it here.
+    const hhmm = (iso) => {
+      const d = new Date(iso);
+      return isNaN(d) ? '' : d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Bangkok' });
+    };
+    const resolveTime = (raw) => {
+      const m = (raw.summary || '').match(/(\d{1,2}[:.]\d{2})\s*[-–]\s*(\d{1,2}[:.]\d{2})/);
+      if (m) {
+        const norm = (s) => { s = s.replace('.', ':'); return s.length === 4 ? '0' + s : s; };
+        return { start: norm(m[1]), end: norm(m[2]), allDay: false };
+      }
+      if (!raw.allDay && raw.start) return { start: hhmm(raw.start), end: hhmm(raw.end), allDay: false };
+      return { start: '', end: '', allDay: true };
+    };
+
+    if (!rawEvents.length)
+      return { date, teams: [], unknown: [], eventCount: 0, cached: false, generatedAt: new Date().toISOString() };
+
+    // 2) Employee reference list (for name matching)
+    const employees = (await req().query(
+      `SELECT id, name, nickname, team FROM employees WHERE active=1`)).recordset
+      .map(e => ({ id: e.id, name: e.name, nickname: e.nickname, team: e.team }));
+
+    // 3) Gemini: parse each event + match names to employees
+    const prompt = `คุณคือตัวช่วยแปลงข้อมูลปฏิทินงานของทีม Customer Service ให้เป็น JSON
+
+รายชื่อพนักงานในระบบ (ใช้จับคู่ชื่อ):
+${JSON.stringify(employees)}
+
+event จากปฏิทิน Google ของวันที่ ${date} (เวลาเป็น ISO, allDay=true คือทั้งวัน):
+${JSON.stringify(rawEvents)}
+
+แปลงแต่ละ event เป็น object 1 ชิ้น (1 ต่อ 1 ตามลำดับเดิม) แล้วคืนเป็น JSON array เท่านั้น ตามสคีมานี้:
+{
+  "idx": 0,           // ใส่ค่า idx ของ event เดิมที่แปลงมา (สำคัญมาก ห้ามลืม)
+  "type": "shift"|"leave"|"onsite"|"other",
+     // shift = กะทำงานปกติ (มีช่วงเวลา HH:MM-HH:MM แล้วตามด้วยชื่อ)
+     // leave = ลา (ลาพักร้อน/ลาป่วย/ลากิจ)
+     // onsite = ออกหน้างาน/ลงร้าน/ติดตั้ง/เทรนนิ่ง (มักมีชื่อร้านและ #งาน)
+     // other = อื่นๆ
+  "note": "",         // คำอธิบายสั้นๆ เช่น ชื่อร้าน/เหตุผลลา (ไม่เกิน 60 ตัวอักษร)
+  "people": [ { "raw": "Boek", "emp_id": 12, "nickname": "เบิก", "team": "BKK-1" } ]
+     // ถ้าจับคู่พนักงานในระบบไม่ได้ → emp_id=null, nickname=null, team=null
+}
+
+กติกา:
+- ชื่อคนมักอยู่ก่อนเครื่องหมาย ":" แรก คั่นด้วย "," (เช่น "08:00-17:00 : Boek,Nnai" → 2 คน; "Best : ลาพักร้อน" → 1 คน)
+- ตัด "(OT)"/วงเล็บออกจากชื่อก่อนจับคู่ แต่ถ้ามี (OT) ให้ใส่ไว้ใน note
+- จับคู่ชื่อกับ nickname เป็นหลัก (ไทย/อังกฤษ ไม่สนตัวพิมพ์เล็กใหญ่) ถ้าไม่ตรงค่อยเทียบ name
+- ไม่มั่นใจว่าเป็นใคร → emp_id=null (ห้ามเดามั่ว)
+- คืน JSON array อย่างเดียว ห้ามมีข้อความอื่น`;
+
+    const model  = genAI.getGenerativeModel({ model: AI_MODEL });
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim()
+      .replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+    const events = JSON.parse(text);
+
+    // 4) Aggregate per team + collect unmatched as "unknown"
+    const teamAgg = {};  // team -> emp_id -> { emp_id, nickname, items[] }
+    const unkAgg  = {};  // raw  -> { raw, items[] }
+    const evArr = Array.isArray(events) ? events : [];
+    const sameLen = evArr.length === rawEvents.length;  // AI usually returns 1:1 in order
+    for (let i = 0; i < evArr.length; i++) {
+      const ev = evArr[i];
+      // Prefer AI's echoed idx; fall back to positional match when counts line up.
+      const raw = (ev.idx != null && rawEvents[ev.idx]) ? rawEvents[ev.idx]
+                : (sameLen ? rawEvents[i] : null);
+      const t = raw ? resolveTime(raw) : { start: ev.start || '', end: ev.end || '', allDay: !!ev.allDay };
+      const item = {
+        start: t.start, end: t.end, allDay: t.allDay,
+        type: ev.type || 'other', note: ev.note || '',
+      };
+      for (const p of (ev.people || [])) {
+        if (p && p.emp_id) {
+          const team = p.team || 'ไม่ระบุทีม';
+          (teamAgg[team] ||= {});
+          (teamAgg[team][p.emp_id] ||= { emp_id: p.emp_id, nickname: p.nickname || p.raw || '?', items: [] });
+          teamAgg[team][p.emp_id].items.push(item);
+        } else {
+          const raw = ((p && p.raw) || '?').trim();
+          (unkAgg[raw] ||= { raw, items: [] });
+          unkAgg[raw].items.push(item);
+        }
+      }
+    }
+    // Fixed team display order; any unlisted team falls to the end (a→z)
+    const TEAM_ORDER = ['specialist', 'helpdesk_bkk', 'helpdesk_cnx', 'implement', 'management'];
+    const teamRank = (t) => { const i = TEAM_ORDER.indexOf(t); return i === -1 ? TEAM_ORDER.length : i; };
+    // earliest start time of a person (all-day/leave sinks to the bottom)
+    const minStart = (p) => {
+      const t = p.items.map(i => i.start).filter(Boolean).sort();
+      return t[0] || '99:99';
+    };
+    const teams = Object.keys(teamAgg)
+      .sort((a, b) => (teamRank(a) - teamRank(b)) || a.localeCompare(b))
+      .map(team => ({
+        team,
+        people: Object.values(teamAgg[team]).sort((a, b) =>
+          minStart(a).localeCompare(minStart(b)) || String(a.nickname).localeCompare(String(b.nickname), 'th')),
+      }));
+    const unknown = Object.values(unkAgg);
+
+    const payload = {
+      date, teams, unknown,
+      eventCount: (Array.isArray(events) ? events.length : 0),
+      model: AI_MODEL, generatedAt: new Date().toISOString(),
+    };
+
+    // Cache the day's parsed result (only when we actually got events)
+    try {
+      fs.mkdirSync(EMPCAL_CACHE_DIR, { recursive: true });
+      fs.writeFileSync(empcalCachePath(date), JSON.stringify(payload));
+    } catch (e) { console.error('empcal cache write failed:', e.message); }
+
+    return { ...payload, cached: false };
+}
+
+// Render the summary as a LINE-friendly plain-text message
+function formatEmpcalLine(data) {
+  const TYPE = { shift: 'กะงาน', leave: 'ลา', onsite: 'หน้างาน', other: 'อื่นๆ' };
+  const [y, m, d] = data.date.split('-');
+  const timeOf = (it) => it.start ? (it.end ? `${it.start}-${it.end}` : it.start) : 'ทั้งวัน';
+  const cleanNote = (n) => (n || '')
+    .replace(/\d{1,2}[:.]\d{2}\s*[-–]\s*\d{1,2}[:.]\d{2}/g, '')
+    .replace(/^\s*กะ\s*/, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[\s·:：-]+|[\s·:：-]+$/g, '')
+    .trim();
+  const lineFor = (it) => {
+    const note = cleanNote(it.note);
+    return `${timeOf(it)} ${TYPE[it.type] || TYPE.other}${note ? ' · ' + note : ''}`;
+  };
+  let out = `🗓️ ตารางงานพนักงาน ${d}/${m}/${y}\n`;
+  for (const t of (data.teams || [])) {
+    out += `\n👥 ${t.team} (${t.people.length})\n`;
+    for (const p of t.people) {
+      const items = [...p.items].sort((a, b) => (a.start || '').localeCompare(b.start || ''));
+      out += `• ${p.nickname}: ${items.map(lineFor).join(' | ')}\n`;
+    }
+  }
+  if ((data.unknown || []).length) {
+    out += `\n❓ ไม่รู้จัก\n`;
+    for (const u of data.unknown) {
+      const items = [...u.items].sort((a, b) => (a.start || '').localeCompare(b.start || ''));
+      out += `• ${u.raw}: ${items.map(lineFor).join(' | ')}\n`;
+    }
+  }
+  return out.trim();
+}
+
+// GET /api/empcal/summary — structured summary for the UI
+app.get('/api/empcal/summary', authRequired, async (request, res) => {
+  try {
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(request.query.date || '') ? request.query.date : bangkokToday();
+    const data = await computeEmpcalSummary(date, request.query.refresh === '1');
+    res.json(data);
+  } catch (e) {
+    const msg = e.response?.data?.error?.message || e.message;
+    console.error('empcal summary error:', msg);
+    res.status(e.status || 500).json({ error: msg });
+  }
+});
+
+// Build today's summary and push it to LINE targets subscribed to 'empcal_summary'
+// (targets are configured in Settings → LINE, same mechanism as other auto-notifications)
+async function sendEmpcalSummaryToLine(date) {
+  const data = await computeEmpcalSummary(date, false);
+  if (!data.eventCount) { console.log(`empcal: no events on ${date}, skip LINE`); return { sent: false, reason: 'no-events' }; }
+  await sendLineNotify(formatEmpcalLine(data), 'empcal_summary');
+  return { sent: true, eventCount: data.eventCount };
+}
+
+// Daily auto-send scheduler (no cron lib) — checks every 30s, fires once/day
+// at EMPCAL_LINE_SCHEDULE (HH:MM, Asia/Bangkok). Default 07:00.
+const EMPCAL_SEND_TIME = (process.env.EMPCAL_LINE_SCHEDULE || '07:00').trim();
+let _empcalLastSentDate = null;
+async function empcalSchedulerTick() {
+  try {
+    const now  = new Date();
+    const hhmm = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Bangkok' });
+    const today = bangkokToday();
+    if (hhmm !== EMPCAL_SEND_TIME || _empcalLastSentDate === today) return;
+    _empcalLastSentDate = today;               // guard against re-send within the same day
+    const r = await sendEmpcalSummaryToLine(today);
+    console.log(`📤 empcal auto-send (${today}):`, JSON.stringify(r));
+  } catch (e) { console.error('empcal scheduler error:', e.message); }
+}
+setInterval(empcalSchedulerTick, 30 * 1000);
+
+// POST /api/empcal/send-line-now — manual trigger (manager) for testing the auto-send
+app.post('/api/empcal/send-line-now', authRequired, managerRequired, async (request, res) => {
+  try {
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(request.body?.date || '') ? request.body.date : bangkokToday();
+    const r = await sendEmpcalSummaryToLine(date);
+    res.json({ ok: true, ...r });
+  } catch (e) {
+    const msg = e.response?.data?.message || e.response?.data?.error?.message || e.message;
+    console.error('empcal send-line-now error:', msg);
+    res.status(e.status || 500).json({ error: msg });
+  }
+});
+
+// ══════════════════════════════════════════════════════════
 //  CUSTOMER PUBLIC LINKS
 // ══════════════════════════════════════════════════════════
 
@@ -9245,7 +9490,18 @@ app.post('/api/settings/line/targets/:id/test', authRequired, async (request, re
       token = tokenRow?.channel_token || process.env.LINE_CHANNEL_TOKEN;
     } catch { token = process.env.LINE_CHANNEL_TOKEN; }
     if (!token) return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า Channel Access Token' });
-    const msg = `🔔 ทดสอบการแจ้งเตือน\nCS Team App — ส่งถึง: ${target.name}\n${new Date().toLocaleString('th-TH')}`;
+
+    // If this group is subscribed to the employee-schedule summary, the test
+    // sweeps today's real calendar data and sends the actual summary.
+    const evs = (target.events || '').split(',').map(s => s.trim());
+    let msg;
+    if (evs.includes('empcal_summary')) {
+      const today = bangkokToday();
+      const data = await computeEmpcalSummary(today, false);
+      msg = data.eventCount ? formatEmpcalLine(data) : `🗓️ ตารางงานพนักงาน ${today}\n(ไม่มีข้อมูลงานวันนี้)`;
+    } else {
+      msg = `🔔 ทดสอบการแจ้งเตือน\nCS Team App — ส่งถึง: ${target.name}\n${new Date().toLocaleString('th-TH')}`;
+    }
     await axios.post('https://api.line.me/v2/bot/message/push',
       { to: target.group_id, messages: [{ type: 'text', text: msg }] },
       { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }

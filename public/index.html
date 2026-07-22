@@ -554,6 +554,11 @@ textarea{resize:vertical;min-height:80px}
       งานอัพเดท SW
       <span id="sw-update-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.62rem;padding:.02rem .38rem;font-weight:700"></span>
     </button>
+    <!-- 4d. ตารางงานพนักงาน (Google Calendar) -->
+    <button class="s-tab" id="nav-btn-empcal" onclick="showPage('empcal',this)">
+      <svg class="s-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      ตารางงานพนักงาน
+    </button>
     <!-- 5. เครื่องมือ Support -->
     <div>
       <button class="s-tab" onclick="toggleToolsMenu(this)">
@@ -948,6 +953,49 @@ textarea{resize:vertical;min-height:80px}
     </div>
   </div>
 
+</div>
+
+<!-- ═══════════════════ PAGE: EMPLOYEE SCHEDULE (Google Calendar) ═══════════════════ -->
+<div id="page-empcal" class="page">
+  <div class="section-header" style="margin-bottom:.75rem">
+    <div class="section-title">🗓️ ตารางงานพนักงาน</div>
+    <div class="btn-group">
+      <button class="btn btn-sm btn-ghost" onclick="openGCalExternal()" id="gcal-open-btn" style="display:none">↗️ เปิดใน Google</button>
+      <button class="btn btn-sm btn-ghost" onclick="toggleGCalSettings()">⚙️ ตั้งค่าลิงก์</button>
+    </div>
+  </div>
+
+  <!-- settings row (hidden by default) -->
+  <div id="gcal-settings" style="display:none;background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:.75rem;margin-bottom:.75rem">
+    <div style="font-size:.78rem;color:var(--muted,#64748b);margin-bottom:.5rem;line-height:1.6">
+      วางลิงก์ฝัง (embed URL), โค้ด <code>&lt;iframe&gt;</code> ทั้งอัน หรือ Calendar ID ก็ได้<br>
+      <span style="opacity:.75">วิธีหา: Google Calendar → hover ที่ปฏิทิน → ⋮ → <b>Settings and sharing</b> → เลื่อนไปหัวข้อ <b>Integrate calendar</b> → คัดลอกช่อง <b>Public URL to this calendar</b> หรือ <b>Embed code</b> (ปฏิทินต้องตั้งเป็นสาธารณะ)</span>
+    </div>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+      <input id="gcal-url-input" type="text" placeholder="วางลิงก์ embed / โค้ด iframe / Calendar ID ที่นี่"
+             style="flex:1;min-width:260px;padding:.4rem .65rem;border:1.5px solid var(--border);border-radius:8px;font-size:.82rem;background:#fff;color:var(--text);outline:none"/>
+      <button class="btn btn-sm" style="background:#16a34a;color:#fff" onclick="saveGCalUrl()">💾 บันทึก</button>
+      <button class="btn btn-sm btn-ghost" onclick="clearGCalUrl()">🗑️ ล้าง</button>
+    </div>
+  </div>
+
+  <!-- ── AI สรุปคนทำงานรายวัน (ต่อทีม) ── -->
+  <div class="card" style="margin-bottom:1rem">
+    <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem">
+      <div class="section-title" style="font-size:.95rem;margin:0">🧑‍💼 สรุปคนทำงานรายวัน</div>
+      <span style="flex:1"></span>
+      <input type="date" id="empcal-date" onchange="loadEmpcalSummary()"
+             style="padding:.32rem .6rem;border:1.5px solid var(--border);border-radius:8px;font-size:.8rem;background:#fff;color:var(--text)"/>
+      <button class="btn btn-sm btn-ghost" onclick="empcalToday()">วันนี้</button>
+      <button class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="loadEmpcalSummary(true)" title="เรียก AI ประมวลผลใหม่">🔄 รีเฟรช (AI)</button>
+    </div>
+
+    <div id="empcal-summary"><div style="padding:1.5rem;text-align:center;color:var(--muted,#64748b);font-size:.85rem">เลือกวันเพื่อดูสรุป…</div></div>
+  </div>
+
+  <div class="card" style="padding:.5rem">
+    <div id="gcal-frame-wrap"></div>
+  </div>
 </div>
 
 <!-- ═══════════════════ PAGE: TICKETS ═══════════════════ -->
@@ -4702,6 +4750,7 @@ function showPage(name, btn) {
   if (btn) btn.classList.add('active');
   if (name === 'dashboard') { dashRange('today', document.querySelector('#dash-drb .drb-btn')); }
   if (name === 'schedule')  _applyScheduleView();
+  if (name === 'empcal')  { renderGCal(); empcalToday(); }
   if (name === 'tickets')   loadTickets();
   if (name === 'kpi')       loadKpi();
   if (name === 'users')      loadUsers();
@@ -10847,6 +10896,7 @@ const LINE_EVENTS = [
   { key: 'followup_due',     label: '⏰ FU สรุปรายวัน (due/stale)' },
   { key: 'specialist',       label: '🎯 Specialist ใหม่' },
   { key: 'service_request',  label: '📋 แจ้งงานบริการ' },
+  { key: 'empcal_summary',   label: '🗓️ ตารางงานพนักงาน (สรุปรายวัน 07:00)' },
 ];
 const SERVE_TYPES = [
   { key: 'promo_coupon',        label: '🎯 สร้างโปรฯ / คูปอง' },
@@ -16132,6 +16182,201 @@ function _applyScheduleView() {
     if (clearBtn) clearBtn.style.display = '';
     loadSchedule();
   }
+}
+
+// ══════════════════════════════════════════════════════════
+//  GOOGLE CALENDAR EMBED (display-only, public calendar)
+//  Stored client-side in localStorage — no backend / DB write.
+// ══════════════════════════════════════════════════════════
+const GCAL_KEY = 'cs_gcal_url';
+// Default calendar shown out-of-the-box (ตารางงานพนักงาน — public).
+// A user-saved link in localStorage overrides this.
+const GCAL_DEFAULT = 'schedule.supinfo@gmail.com';
+
+// Accepts: full <iframe> embed code, an embed/render URL, or a bare
+// Calendar ID / email. Returns a usable calendar.google.com embed URL, or ''.
+function normalizeGCalUrl(raw) {
+  if (!raw) return '';
+  raw = raw.trim();
+  // 1) full iframe embed code → pull out the src
+  const m = raw.match(/src\s*=\s*["']([^"']+)["']/i);
+  if (m) raw = m[1];
+  // decode HTML entities that appear in copied embed codes (&amp; → &)
+  raw = raw.replace(/&amp;/g, '&').trim();
+  // 2) "add calendar" links (…/u/0?cid=<base64>) can't be iframed —
+  //    decode the cid to a Calendar ID and build a real embed URL
+  const cid = raw.match(/[?&]cid=([^&]+)/i);
+  if (cid) {
+    try {
+      let b64 = decodeURIComponent(cid[1]).replace(/-/g, '+').replace(/_/g, '/');
+      while (b64.length % 4) b64 += '=';
+      const id = atob(b64);
+      if (id) return 'https://calendar.google.com/calendar/embed?src='
+                    + encodeURIComponent(id) + '&ctz=Asia/Bangkok';
+    } catch (e) { /* fall through */ }
+  }
+  // 3) already an embeddable Google Calendar URL → use as-is
+  if (/^https?:\/\/calendar\.google\.com\/calendar\/embed/i.test(raw)) return raw;
+  // any other calendar.google.com URL isn't iframe-safe → reject
+  if (/^https?:\/\/calendar\.google\.com\//i.test(raw)) return '';
+  // 3) any other full URL → reject (only embed google calendar here)
+  if (/^https?:\/\//i.test(raw)) return '';
+  // 4) bare Calendar ID / email → build a public embed URL
+  return 'https://calendar.google.com/calendar/embed?src='
+       + encodeURIComponent(raw) + '&ctz=Asia/Bangkok';
+}
+
+function renderGCal() {
+  const wrap = document.getElementById('gcal-frame-wrap');
+  const openBtn = document.getElementById('gcal-open-btn');
+  if (!wrap) return;
+  const saved = localStorage.getItem(GCAL_KEY);
+  // saved === '' means the user explicitly cleared it → show nothing
+  const src = saved === '' ? '' : (saved || GCAL_DEFAULT);
+  let url = normalizeGCalUrl(src);
+  // Default to Schedule (agenda) view unless the pasted link sets its own mode
+  if (url && !/[?&]mode=/i.test(url)) url += '&mode=AGENDA';
+  if (!url) {
+    if (openBtn) openBtn.style.display = 'none';
+    wrap.innerHTML = `<div style="padding:2rem 1rem;text-align:center;color:var(--muted,#64748b);border:1.5px dashed var(--border);border-radius:10px;font-size:.85rem;line-height:1.7">
+        ยังไม่ได้ตั้งค่าปฏิทิน<br>
+        กด <b>⚙️ ตั้งค่าลิงก์</b> ด้านบน แล้ววางลิงก์ปฏิทิน Google (สาธารณะ) เพื่อแสดงตารางงานที่นี่
+      </div>`;
+    return;
+  }
+  if (openBtn) openBtn.style.display = '';
+  wrap.innerHTML = `<iframe src="${url}" title="Google Calendar"
+      style="width:100%;height:640px;border:1px solid var(--border);border-radius:10px"
+      frameborder="0" scrolling="no" loading="lazy"></iframe>`;
+}
+
+function toggleGCalSettings() {
+  const box = document.getElementById('gcal-settings');
+  if (!box) return;
+  const show = box.style.display === 'none' || !box.style.display;
+  box.style.display = show ? '' : 'none';
+  if (show) {
+    const inp = document.getElementById('gcal-url-input');
+    if (inp) { inp.value = localStorage.getItem(GCAL_KEY) || ''; inp.focus(); }
+  }
+}
+
+function saveGCalUrl() {
+  const inp = document.getElementById('gcal-url-input');
+  if (!inp) return;
+  const raw = inp.value.trim();
+  if (raw && !normalizeGCalUrl(raw)) {
+    showToast('ลิงก์ไม่ถูกต้อง — ต้องเป็นลิงก์/โค้ดฝังของ Google Calendar หรือ Calendar ID', 'error');
+    return;
+  }
+  localStorage.setItem(GCAL_KEY, raw);
+  document.getElementById('gcal-settings').style.display = 'none';
+  renderGCal();
+  showToast(raw ? 'บันทึกลิงก์ปฏิทินแล้ว' : 'ล้างลิงก์ปฏิทินแล้ว');
+}
+
+function clearGCalUrl() {
+  localStorage.removeItem(GCAL_KEY);
+  const inp = document.getElementById('gcal-url-input');
+  if (inp) inp.value = '';
+  renderGCal();
+  showToast('ล้างลิงก์ปฏิทินแล้ว');
+}
+
+function openGCalExternal() {
+  const url = normalizeGCalUrl(localStorage.getItem(GCAL_KEY) || '');
+  if (url) window.open(url, '_blank', 'noopener');
+}
+
+// ── AI daily work summary (per team) ──────────────────────
+const EMPCAL_TYPE_META = {
+  shift:  { label: 'กะงาน',  c: '#16a34a', bg: '#dcfce7' },
+  leave:  { label: 'ลา',     c: '#dc2626', bg: '#fee2e2' },
+  onsite: { label: 'หน้างาน', c: '#2563eb', bg: '#dbeafe' },
+  other:  { label: 'อื่นๆ',   c: '#64748b', bg: '#f1f5f9' },
+};
+function _empcalTimeStr(it) {
+  if (it.start) return it.end ? `${it.start}–${it.end}` : it.start;
+  return 'ทั้งวัน';
+}
+function _empcalTypeTag(type) {
+  const m = EMPCAL_TYPE_META[type] || EMPCAL_TYPE_META.other;
+  return `<span style="background:${m.bg};color:${m.c};border-radius:5px;padding:.05rem .4rem;font-size:.66rem;font-weight:700;white-space:nowrap">${m.label}</span>`;
+}
+// One row = one person × one assignment: [name] [start–end] [type + detail]
+// `first` = first assignment of a person → draws the dashed divider, so a
+// person's multiple jobs stay grouped (divider separates people, not rows).
+function _empcalCleanNote(note) {
+  return (note || '')
+    .replace(/\d{1,2}[:.]\d{2}\s*[-–]\s*\d{1,2}[:.]\d{2}/g, '') // drop any HH:MM-HH:MM (already shown)
+    .replace(/^\s*กะ\s*/, '')                                   // drop leading "กะ"
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[\s·:：-]+|[\s·:：-]+$/g, '')
+    .trim();
+}
+function _empcalRow(name, it, nameColor, first, borderColor) {
+  const m = EMPCAL_TYPE_META[it.type] || EMPCAL_TYPE_META.other;
+  const noteTxt = _empcalCleanNote(it.note);
+  const border = first ? `border-top:1px dashed ${borderColor || 'var(--border)'};` : '';
+  const pad = first ? 'padding:.34rem 0 .16rem' : 'padding:.02rem 0 .16rem';
+  return `<div style="display:grid;grid-template-columns:104px 94px 1fr;gap:.5rem;align-items:baseline;${pad};${border}">
+      <div style="font-weight:600;font-size:.8rem;color:${nameColor || 'inherit'}">${escHtml(name)}</div>
+      <div style="font-weight:700;font-size:.78rem;color:${m.c};white-space:nowrap">${escHtml(_empcalTimeStr(it))}</div>
+      <div style="font-size:.78rem;line-height:1.45">${_empcalTypeTag(it.type)}${noteTxt ? ' <span style="opacity:.85">' + escHtml(noteTxt) + '</span>' : ''}</div>
+    </div>`;
+}
+function empcalToday() {
+  document.getElementById('empcal-date').value = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+  loadEmpcalSummary();
+}
+async function loadEmpcalSummary(refresh = false) {
+  const box = document.getElementById('empcal-summary');
+  const dateEl = document.getElementById('empcal-date');
+  if (!box || !dateEl) return;
+  if (!dateEl.value) dateEl.value = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+  box.innerHTML = `<div style="padding:1.5rem;text-align:center;color:var(--muted,#64748b);font-size:.85rem">${refresh ? '🔄 กำลังให้ AI ประมวลผลใหม่…' : '⏳ กำลังโหลด…'}</div>`;
+  const data = await api(`/api/empcal/summary?date=${dateEl.value}${refresh ? '&refresh=1' : ''}`, { silent: true });
+  if (!data || data.error) {
+    box.innerHTML = `<div style="padding:1.25rem;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#b91c1c;font-size:.82rem">
+        ⚠️ ${escHtml((data && data.error) || 'โหลดสรุปไม่สำเร็จ')}</div>`;
+    return;
+  }
+  renderEmpcalSummary(data);
+}
+function renderEmpcalSummary(data) {
+  const box = document.getElementById('empcal-summary');
+  if (!box) return;
+  if (!data.eventCount) {
+    box.innerHTML = `<div style="padding:1.5rem;text-align:center;color:var(--muted,#64748b);font-size:.85rem">ไม่มีข้อมูลงานในวันนี้</div>`;
+    return;
+  }
+  let html = '';
+  // per-team cards
+  for (const t of (data.teams || [])) {
+    html += `<div style="border:1px solid var(--border);border-radius:10px;padding:.7rem .85rem;margin-bottom:.6rem">
+      <div style="font-weight:700;font-size:.85rem;margin-bottom:.45rem">👥 ${escHtml(t.team)}
+        <span style="font-weight:400;color:var(--muted,#64748b);font-size:.75rem">· ${t.people.length} คน</span></div>`;
+    for (const p of t.people) {
+      // sort each person's assignments by start time; all-day first
+      const items = [...p.items].sort((a, b) => (a.start || '').localeCompare(b.start || ''));
+      items.forEach((it, i) => { html += _empcalRow(i === 0 ? p.nickname : '', it, undefined, i === 0); });
+    }
+    html += `</div>`;
+  }
+  // unknown group
+  if ((data.unknown || []).length) {
+    html += `<div style="border:1px solid #fed7aa;background:#fff7ed;border-radius:10px;padding:.7rem .85rem;margin-bottom:.6rem">
+      <div style="font-weight:700;font-size:.85rem;margin-bottom:.45rem;color:#c2410c">❓ ไม่รู้จัก (จับคู่พนักงานไม่ได้)
+        <span style="font-weight:400;font-size:.75rem">· ${data.unknown.length} ชื่อ</span></div>`;
+    for (const u of data.unknown) {
+      const items = [...u.items].sort((a, b) => (a.start || '').localeCompare(b.start || ''));
+      items.forEach((it, i) => { html += _empcalRow(i === 0 ? u.raw : '', it, '#c2410c', i === 0, '#fed7aa'); });
+    }
+    html += `</div>`;
+  }
+  const meta = `<div style="font-size:.72rem;color:var(--muted,#64748b);text-align:right">
+      ${data.eventCount} events · ${data.cached ? 'จาก cache' : 'ประมวลผลด้วย AI'}${data.model ? ' ('+escHtml(data.model)+')' : ''}</div>`;
+  box.innerHTML = html + meta;
 }
 
 function toggleScheduleView() {
