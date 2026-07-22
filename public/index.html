@@ -1564,7 +1564,7 @@ textarea{resize:vertical;min-height:80px}
           <input id="cc-shop-search" type="text" placeholder="พิมพ์ชื่อร้านเพื่อค้นหา..." oninput="ccShopSearch()" autocomplete="off"
             style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.4rem .65rem;font-size:.83rem;outline:none"/>
           <input type="hidden" id="cc-registration-id"/>
-          <div id="cc-shop-results" style="position:absolute;z-index:200;background:#fff;border:1px solid var(--border);border-radius:8px;max-height:180px;overflow-y:auto;width:100%;display:none;box-shadow:0 4px 12px #0002"></div>
+          <div id="cc-shop-results" style="position:absolute;z-index:200;background:#fff;border:1px solid var(--border);border-radius:8px;max-height:460px;overflow-y:auto;width:480px;max-width:80vw;display:none;box-shadow:0 4px 12px #0002"></div>
           <div id="cc-shop-selected" style="font-size:.75rem;color:#16a34a;margin-top:.2rem"></div>
         </div>
       </div>
@@ -11560,12 +11560,6 @@ function ccShopSearch() {
            style="padding:.42rem .75rem;cursor:pointer;font-size:.82rem;border-bottom:1px solid #f1f5f9"
            onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
         <div style="font-weight:600">${escHtml(s.CompanyName)}</div>
-        <div style="font-size:.72rem;color:var(--muted);display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.1rem">
-          ${s.ProductName?`<span>📦 ${escHtml(s.ProductName)}</span>`:''}
-          ${s.LicenseTypeName?`<span>🔑 ${escHtml(s.LicenseTypeName)}</span>`:''}
-          ${s.ContactName?`<span>👤 ${escHtml(s.ContactName)}</span>`:''}
-          ${s.Phone||s.MobilePhone?`<span>📞 ${escHtml(s.Phone||s.MobilePhone)}</span>`:''}
-        </div>
       </div>`).join('');
     res.querySelectorAll('.rp-shop-item').forEach(el => {
       el.addEventListener('click', () => {
