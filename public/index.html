@@ -10908,6 +10908,7 @@ const SERVE_TYPES = [
 ];
 
 let _lineSvcProjects = [];  // cached for badge display
+let _lineBots = [];  // cached bots list for target-form select + badge lookup
 
 async function loadLineSettings() {
   const wrap = document.getElementById('line-settings-inner');
@@ -10919,22 +10920,17 @@ async function loadLineSettings() {
       api('/api/service-projects').catch(() => []),
     ]);
     _lineSvcProjects = projs || [];
+    _lineBots = data.bots || [];
     wrap.innerHTML = `
-      <!-- Token card -->
+      <!-- Bots card (multi LINE OA) -->
       <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:1rem;margin-bottom:1rem">
-        <div style="font-size:.88rem;font-weight:600;margin-bottom:.65rem">🔑 Channel Access Token</div>
-        <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
-          <input id="line-token-input" type="password"
-            placeholder="${data.has_token ? '(โทเค็นถูกตั้งค่าแล้ว — ป้อนใหม่เพื่อเปลี่ยน)' : 'วาง Channel Access Token ที่นี่'}"
-            style="flex:1;min-width:220px;font-size:.8rem;padding:.35rem .6rem;border:1px solid #d1d5db;border-radius:8px"
-            autocomplete="off"/>
-          <button class="btn btn-primary btn-sm" onclick="saveLineToken()">💾 บันทึก Token</button>
-        </div>
-        <div style="font-size:.72rem;color:var(--muted);margin-top:.35rem">
-          Channel Access Token จาก LINE Developers Console
-          ${data.has_token ? `<span style="color:#22c55e;margin-left:.5rem">✓ ตั้งค่าแล้ว (${escHtml(data.token||'')})</span>` : ''}
+        <div style="font-size:.88rem;font-weight:600;margin-bottom:.65rem">🤖 บอท LINE (หลายแบรนด์/แผนก)</div>
+        <div id="line-bots-wrap">${renderLineBots(_lineBots)}</div>
+        <div style="margin-top:.75rem">
+          <button class="btn btn-primary btn-sm" onclick="openLineBotForm(null)">+ เพิ่มบอทใหม่</button>
         </div>
       </div>
+      <div id="line-bot-form-wrap" style="display:none;background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:1rem;margin-bottom:1rem"></div>
 
       <!-- Targets card -->
       <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:1rem;margin-bottom:1rem">
@@ -10954,6 +10950,100 @@ async function loadLineSettings() {
   } catch(e) {
     wrap.innerHTML = `<p style="color:#ef4444;font-size:.8rem">โหลดข้อมูลล้มเหลว: ${escHtml(e.message)}</p>`;
   }
+}
+
+function renderLineBots(bots) {
+  if (!bots.length) {
+    return '<p style="color:var(--muted);font-size:.8rem;margin:.5rem 0">ยังไม่มีบอท — กด + เพิ่มบอทใหม่ (กลุ่มที่ไม่เลือกบอทจะใช้ Token ค่าเริ่มต้น)</p>';
+  }
+  const rows = bots.map(b => {
+    const activeBadge = b.active
+      ? '<span style="color:#22c55e;font-size:.75rem">● เปิด</span>'
+      : '<span style="color:#94a3b8;font-size:.75rem">○ ปิด</span>';
+    return `<tr>
+      <td style="font-size:.8rem">${escHtml(b.name)}</td>
+      <td style="font-size:.75rem;color:var(--muted);font-family:monospace">${b.has_token ? escHtml(b.token||'') : '<span style="color:#ef4444">ยังไม่มี Token</span>'}</td>
+      <td>${activeBadge}</td>
+      <td>
+        <button class="btn btn-sm" style="font-size:.72rem;padding:2px 8px;margin-right:2px" onclick="openLineBotForm(${JSON.stringify(b).replace(/"/g,'&quot;')})">✏️</button>
+        <button class="btn btn-sm" style="font-size:.72rem;padding:2px 8px;color:#ef4444" onclick="deleteLineBot(${b.id},'${escHtml(b.name.replace(/'/g,"\\'"))}')">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+  return `<div class="tbl-wrap"><table>
+    <thead><tr>
+      <th style="font-size:.75rem">ชื่อบอท</th>
+      <th style="font-size:.75rem">Token</th>
+      <th style="font-size:.75rem">สถานะ</th>
+      <th style="font-size:.75rem"></th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
+function openLineBotForm(bot = null) {
+  const wrap = document.getElementById('line-bot-form-wrap');
+  if (!wrap) return;
+  const isEdit = bot && bot.id;
+  wrap.style.display = '';
+  wrap.innerHTML = `
+    <div style="font-size:.88rem;font-weight:700;color:var(--hd);margin-bottom:1rem;padding-bottom:.5rem;border-bottom:1px solid #f1f5f9">
+      ${isEdit ? '✏️ แก้ไขบอท' : '➕ เพิ่มบอทใหม่'}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.75rem">
+      <div>
+        <label style="font-size:.73rem;font-weight:600;color:#475569;display:block;margin-bottom:.3rem">ชื่อบอท <span style="color:#ef4444">*</span></label>
+        <input id="bf-name" type="text" value="${escHtml(bot?.name||'')}" placeholder="เช่น แบรนด์ A"
+          style="width:100%;font-size:.82rem;padding:.4rem .65rem;border:1px solid #d1d5db;border-radius:8px;outline:none"/>
+      </div>
+      <div>
+        <label style="font-size:.73rem;font-weight:600;color:#475569;display:block;margin-bottom:.3rem">Channel Access Token</label>
+        <input id="bf-token" type="password"
+          placeholder="${isEdit && bot.has_token ? '(ตั้งค่าแล้ว — ป้อนใหม่เพื่อเปลี่ยน)' : 'วาง Channel Access Token ที่นี่'}"
+          style="width:100%;font-size:.82rem;padding:.4rem .65rem;border:1px solid #d1d5db;border-radius:8px;outline:none" autocomplete="off"/>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding-top:.6rem;border-top:1px solid #f1f5f9">
+      <label style="display:flex;align-items:center;gap:.4rem;font-size:.82rem;cursor:pointer;color:#475569">
+        <input id="bf-active" type="checkbox" style="accent-color:#16a34a;width:15px;height:15px" ${(!isEdit || bot?.active) ? 'checked' : ''}>
+        เปิดใช้งาน
+      </label>
+      <div style="display:flex;gap:.5rem">
+        <button class="btn btn-sm" onclick="document.getElementById('line-bot-form-wrap').style.display='none'"
+          style="background:#f1f5f9;color:#475569">ยกเลิก</button>
+        <button class="btn btn-primary btn-sm" onclick="saveLineBot(${isEdit ? bot.id : 'null'})">💾 บันทึก</button>
+      </div>
+    </div>
+  `;
+  wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function saveLineBot(id = null) {
+  const name = document.getElementById('bf-name')?.value?.trim();
+  const channel_token = document.getElementById('bf-token')?.value?.trim();
+  const active = document.getElementById('bf-active')?.checked ? 1 : 0;
+  if (!name) { showToast('กรุณาระบุชื่อบอท', 'error'); return; }
+  const body = { name, active };
+  if (channel_token) body.channel_token = channel_token;
+  try {
+    if (id) {
+      await api(`/api/settings/line/bots/${id}`, { method: 'PUT', body });
+    } else {
+      await api('/api/settings/line/bots', { method: 'POST', body });
+    }
+    showToast(id ? 'แก้ไขบอทเรียบร้อย' : 'เพิ่มบอทเรียบร้อย');
+    document.getElementById('line-bot-form-wrap').style.display = 'none';
+    loadLineSettings();
+  } catch(e) { showToast('บันทึกล้มเหลว: ' + e.message, 'error'); }
+}
+
+async function deleteLineBot(id, name) {
+  if (!confirm(`ต้องการลบบอท "${name}"? กลุ่มที่ใช้บอทนี้จะกลับไปใช้ Token ค่าเริ่มต้นแทน`)) return;
+  try {
+    await api(`/api/settings/line/bots/${id}`, { method: 'DELETE' });
+    showToast('ลบเรียบร้อย');
+    loadLineSettings();
+  } catch(e) { showToast('ลบล้มเหลว: ' + e.message, 'error'); }
 }
 
 function renderLineTargets(targets) {
@@ -10984,9 +11074,14 @@ function renderLineTargets(targets) {
     const activeBadge = t.active
       ? '<span style="color:#22c55e;font-size:.75rem">● เปิด</span>'
       : '<span style="color:#94a3b8;font-size:.75rem">○ ปิด</span>';
+    const bot = t.bot_id ? _lineBots.find(b => b.id === t.bot_id) : null;
+    const botBadge = bot
+      ? `<span style="display:inline-block;background:#f5f3ff;color:#6d28d9;border-radius:4px;padding:1px 6px;font-size:.7rem">🤖 ${escHtml(bot.name)}</span>`
+      : '<span style="font-size:.7rem;color:var(--muted)">ค่าเริ่มต้น</span>';
     return `<tr>
       <td style="font-size:.8rem">${escHtml(t.name)}</td>
       <td style="font-size:.72rem;color:var(--muted);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(t.group_id)}">${escHtml(t.group_id)}</td>
+      <td style="font-size:.75rem">${botBadge}</td>
       <td style="font-size:.75rem">${badges}${piBadges}</td>
       <td>${activeBadge}</td>
       <td>
@@ -11000,22 +11095,13 @@ function renderLineTargets(targets) {
     <thead><tr>
       <th style="font-size:.75rem">ชื่อกลุ่ม</th>
       <th style="font-size:.75rem">Group ID</th>
+      <th style="font-size:.75rem">บอทที่ใช้ส่ง</th>
       <th style="font-size:.75rem">เหตุการณ์ที่แจ้ง</th>
       <th style="font-size:.75rem">สถานะ</th>
       <th style="font-size:.75rem"></th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`;
-}
-
-async function saveLineToken() {
-  const val = document.getElementById('line-token-input')?.value?.trim();
-  if (!val) { showToast('กรุณาป้อน Token', 'error'); return; }
-  try {
-    await api('/api/settings/line/token', { method: 'POST', body: { token: val } });
-    showToast('บันทึก Token เรียบร้อย');
-    loadLineSettings();
-  } catch(e) { showToast('บันทึกล้มเหลว: ' + e.message, 'error'); }
 }
 
 async function openLineTargetForm(target = null) {
@@ -11071,6 +11157,13 @@ async function openLineTargetForm(target = null) {
       </div>
     </div>
     <div style="margin-bottom:.75rem">
+      <label style="font-size:.73rem;font-weight:600;color:#475569;display:block;margin-bottom:.3rem">ส่งด้วยบอท</label>
+      <select id="lf-bot" style="width:100%;font-size:.82rem;padding:.4rem .65rem;border:1px solid #d1d5db;border-radius:8px;outline:none">
+        <option value="">(ค่าเริ่มต้น — ใช้ Token หลัก)</option>
+        ${_lineBots.map(b => `<option value="${b.id}" ${target?.bot_id===b.id?'selected':''}>${escHtml(b.name)}</option>`).join('')}
+      </select>
+    </div>
+    <div style="margin-bottom:.75rem">
       <label style="font-size:.73rem;font-weight:600;color:#475569;display:block;margin-bottom:.45rem">
         เหตุการณ์ที่แจ้งเตือน
         <span style="font-weight:400;color:#94a3b8;font-size:.7rem">(ไม่เลือกเลย = แจ้งทุกเหตุการณ์)</span>
@@ -11113,12 +11206,13 @@ function lfToggleServeTypes() {
 async function saveLineTarget(id = null) {
   const name = document.getElementById('lf-name')?.value?.trim();
   const group_id = document.getElementById('lf-gid')?.value?.trim();
+  const bot_id = document.getElementById('lf-bot')?.value || null;
   const active = document.getElementById('lf-active')?.checked ? 1 : 0;
   const checked = [...document.querySelectorAll('input[name="line_event"]:checked')].map(c => c.value);
   const projectIds = [...document.querySelectorAll('input[name="line_project_id"]:checked')].map(c => c.value);
   if (!name) { showToast('กรุณาระบุชื่อกลุ่ม', 'error'); return; }
   if (!group_id) { showToast('กรุณาระบุ Group ID', 'error'); return; }
-  const body = { name, group_id, events: checked, project_ids: projectIds, active };
+  const body = { name, group_id, events: checked, project_ids: projectIds, active, bot_id };
   try {
     if (id) {
       await api(`/api/settings/line/targets/${id}`, { method: 'PUT', body });

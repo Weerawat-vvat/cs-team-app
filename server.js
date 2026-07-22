@@ -242,31 +242,68 @@ async function ensureLineNotifyTable() {
       ALTER TABLE line_notify_targets ADD serve_types NVARCHAR(500) NULL;
     IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('line_notify_targets') AND name='project_ids')
       ALTER TABLE line_notify_targets ADD project_ids NVARCHAR(500) NULL;
+
+    -- Multi-bot support: several LINE OA tokens, each target picks which bot sends it
+    IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name='line_bots')
+      CREATE TABLE line_bots (
+        id INT PRIMARY KEY IDENTITY,
+        name NVARCHAR(100) NOT NULL,
+        channel_token NVARCHAR(500) NULL,
+        active BIT DEFAULT 1,
+        created_at DATETIME DEFAULT GETDATE()
+      );
+    -- Seed a default bot from the existing single token so nothing breaks
+    IF NOT EXISTS (SELECT 1 FROM line_bots)
+      INSERT INTO line_bots (name, channel_token)
+      SELECT N'บอทหลัก', channel_token FROM line_settings WHERE id=1;
+    IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('line_notify_targets') AND name='bot_id')
+      ALTER TABLE line_notify_targets ADD bot_id INT NULL;
   `);
+}
+
+// ── LINE token helpers (multi-bot) ────────────────────────
+// Legacy single token (line_settings) — used as fallback when a target has no bot
+async function getLineDefaultToken() {
+  try {
+    const row = (await getPool().request().query(`SELECT channel_token FROM line_settings WHERE id=1`)).recordset[0];
+    return row?.channel_token || process.env.LINE_CHANNEL_TOKEN || null;
+  } catch { return process.env.LINE_CHANNEL_TOKEN || null; }
+}
+// Map of bot_id → channel_token (active bots)
+async function getLineBotsMap() {
+  try {
+    const rows = (await getPool().request().query(`SELECT id, channel_token FROM line_bots WHERE active=1`)).recordset;
+    const m = {}; for (const r of rows) m[r.id] = r.channel_token; return m;
+  } catch { return {}; }
+}
+// Resolve the token a given target sends with (its bot, else default)
+async function resolveTargetToken(target) {
+  if (target?.bot_id) {
+    try {
+      const b = (await getPool().request().input('id', sql.Int, target.bot_id)
+        .query(`SELECT channel_token FROM line_bots WHERE id=@id`)).recordset[0];
+      if (b?.channel_token) return b.channel_token;
+    } catch { /* fall through to default */ }
+  }
+  return getLineDefaultToken();
 }
 
 // ── Notification helpers ──────────────────────────────────
 // opts: { serveType?: string }  — used to filter targets by serve_types when event=service_request
 async function sendLineNotify(message, eventType = null, opts = {}) {
   try {
-    // Read channel token: DB first, fallback to env
-    let token;
-    try {
-      const tokenRow = (await getPool().request()
-        .query(`SELECT channel_token FROM line_settings WHERE id=1`)).recordset[0];
-      token = tokenRow?.channel_token || process.env.LINE_CHANNEL_TOKEN;
-    } catch { token = process.env.LINE_CHANNEL_TOKEN; }
-    if (!token) return;
+    const botsMap = await getLineBotsMap();
+    const defaultToken = await getLineDefaultToken();
 
     // Read active targets
     let targets = [];
     try {
       targets = (await getPool().request()
-        .query(`SELECT id, name, group_id, events, serve_types, project_ids FROM line_notify_targets WHERE active=1`)).recordset;
+        .query(`SELECT id, name, group_id, events, serve_types, project_ids, bot_id FROM line_notify_targets WHERE active=1`)).recordset;
     } catch {
       // Fallback to legacy single group if table not ready
       const groupId = process.env.LINE_GROUP_ID;
-      if (groupId) targets = [{ name: 'default', group_id: groupId, events: null, serve_types: null, project_ids: null }];
+      if (groupId) targets = [{ name: 'default', group_id: groupId, events: null, serve_types: null, project_ids: null, bot_id: null }];
     }
 
     for (const target of targets) {
@@ -285,6 +322,8 @@ async function sendLineNotify(message, eventType = null, opts = {}) {
         const allowedProjs = target.project_ids.split(',').map(s => s.trim()).filter(Boolean);
         if (allowedProjs.length && !allowedProjs.includes(String(opts.projectId))) continue;
       }
+      const token = (target.bot_id && botsMap[target.bot_id]) || defaultToken;
+      if (!token) { console.error(`LINE: no token for target ${target.name} (bot_id=${target.bot_id})`); continue; }
       try {
         await axios.post('https://api.line.me/v2/bot/message/push',
           { to: target.group_id, messages: [{ type: 'text', text: message.trim() }] },
@@ -9402,7 +9441,71 @@ app.get('/api/settings/line', authRequired, async (request, res) => {
       maskedToken = '****';
     }
     const targets = (await req().query(`SELECT * FROM line_notify_targets ORDER BY created_at`)).recordset;
-    res.json({ token: maskedToken, has_token: !!rawToken, targets });
+    // Multi-bot list (mask tokens)
+    let bots = [];
+    try {
+      bots = (await req().query(`SELECT id, name, channel_token, active FROM line_bots ORDER BY id`)).recordset
+        .map(b => {
+          const tk = b.channel_token || '';
+          return { id: b.id, name: b.name, active: !!b.active, has_token: !!tk,
+                   token: tk.length >= 8 ? tk.slice(0,4)+'****'+tk.slice(-4) : (tk ? '****' : null) };
+        });
+    } catch { /* table not ready */ }
+    res.json({ token: maskedToken, has_token: !!rawToken, targets, bots });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── LINE Bots (multiple LINE OA tokens) ───────────────────
+// GET /api/settings/line/bots
+app.get('/api/settings/line/bots', authRequired, async (_, res) => {
+  try {
+    const bots = (await req().query(`SELECT id, name, channel_token, active FROM line_bots ORDER BY id`)).recordset
+      .map(b => {
+        const tk = b.channel_token || '';
+        return { id: b.id, name: b.name, active: !!b.active, has_token: !!tk,
+                 token: tk.length >= 8 ? tk.slice(0,4)+'****'+tk.slice(-4) : (tk ? '****' : null) };
+      });
+    res.json(bots);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/settings/line/bots  { name, channel_token }
+app.post('/api/settings/line/bots', authRequired, managerRequired, async (request, res) => {
+  try {
+    const { name, channel_token } = request.body || {};
+    if (!name?.trim()) return res.status(400).json({ error: 'กรุณาระบุชื่อบอท' });
+    const r = await req()
+      .input('nm', sql.NVarChar, name.trim())
+      .input('tk', sql.NVarChar, channel_token?.trim() || null)
+      .query(`INSERT INTO line_bots (name, channel_token) OUTPUT INSERTED.id VALUES (@nm, @tk)`);
+    res.json({ id: r.recordset[0].id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT /api/settings/line/bots/:id  { name?, channel_token?, active? }
+// channel_token only updated when a non-empty value is provided (keeps existing otherwise)
+app.put('/api/settings/line/bots/:id', authRequired, managerRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const { name, channel_token, active } = request.body || {};
+    let r = req().input('id', sql.Int, id);
+    const sets = [];
+    if (name !== undefined)   { r = r.input('nm', sql.NVarChar, name?.trim() || null); sets.push('name=@nm'); }
+    if (channel_token)        { r = r.input('tk', sql.NVarChar, channel_token.trim()); sets.push('channel_token=@tk'); }
+    if (active !== undefined) { r = r.input('act', sql.Bit, active ? 1 : 0); sets.push('active=@act'); }
+    if (!sets.length) return res.json({ ok: true });
+    await r.query(`UPDATE line_bots SET ${sets.join(',')} WHERE id=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE /api/settings/line/bots/:id  (targets pointing here fall back to default bot)
+app.delete('/api/settings/line/bots/:id', authRequired, managerRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    await req().input('id', sql.Int, id).query(`UPDATE line_notify_targets SET bot_id=NULL WHERE bot_id=@id`);
+    await req().input('id', sql.Int, id).query(`DELETE FROM line_bots WHERE id=@id`);
+    res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -9428,7 +9531,7 @@ app.get('/api/settings/line/targets', authRequired, async (request, res) => {
 // POST /api/settings/line/targets
 app.post('/api/settings/line/targets', authRequired, async (request, res) => {
   try {
-    const { name, group_id, events, serve_types, project_ids } = request.body;
+    const { name, group_id, events, serve_types, project_ids, bot_id } = request.body;
     if (!name?.trim()) return res.status(400).json({ error: 'กรุณาระบุชื่อกลุ่ม' });
     if (!group_id?.trim()) return res.status(400).json({ error: 'กรุณาระบุ Group ID' });
     const eventsStr    = Array.isArray(events)      ? events.join(',')      : (events      || null);
@@ -9440,7 +9543,8 @@ app.post('/api/settings/line/targets', authRequired, async (request, res) => {
       .input('ev',  sql.NVarChar, eventsStr || null)
       .input('st',  sql.NVarChar, serveTypeStr || null)
       .input('pi',  sql.NVarChar, projIdsStr || null)
-      .query(`INSERT INTO line_notify_targets (name, group_id, events, serve_types, project_ids) OUTPUT INSERTED.id VALUES (@nm, @gid, @ev, @st, @pi)`);
+      .input('bid', sql.Int,      bot_id ? parseInt(bot_id) : null)
+      .query(`INSERT INTO line_notify_targets (name, group_id, events, serve_types, project_ids, bot_id) OUTPUT INSERTED.id VALUES (@nm, @gid, @ev, @st, @pi, @bid)`);
     res.json({ id: r.recordset[0].id });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -9449,7 +9553,7 @@ app.post('/api/settings/line/targets', authRequired, async (request, res) => {
 app.put('/api/settings/line/targets/:id', authRequired, async (request, res) => {
   try {
     const id = parseInt(request.params.id);
-    const { name, group_id, events, serve_types, project_ids, active } = request.body;
+    const { name, group_id, events, serve_types, project_ids, active, bot_id } = request.body;
     const eventsStr    = Array.isArray(events)      ? events.join(',')      : (events      ?? null);
     const serveTypeStr = Array.isArray(serve_types) ? serve_types.join(',') : (serve_types ?? null);
     const projIdsStr   = Array.isArray(project_ids) ? project_ids.join(',') : (project_ids ?? null);
@@ -9461,8 +9565,9 @@ app.put('/api/settings/line/targets/:id', authRequired, async (request, res) => 
       .input('st',  sql.NVarChar, serveTypeStr)
       .input('pi',  sql.NVarChar, projIdsStr)
       .input('act', sql.Bit,      active !== undefined ? (active ? 1 : 0) : 1)
+      .input('bid', sql.Int,      bot_id ? parseInt(bot_id) : null)
       .query(`UPDATE line_notify_targets SET name=COALESCE(@nm,name), group_id=COALESCE(@gid,group_id),
-              events=@ev, serve_types=@st, project_ids=@pi, active=@act WHERE id=@id`);
+              events=@ev, serve_types=@st, project_ids=@pi, active=@act, bot_id=@bid WHERE id=@id`);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -9483,12 +9588,7 @@ app.post('/api/settings/line/targets/:id/test', authRequired, async (request, re
     const target = (await req().input('id', sql.Int, id)
       .query(`SELECT * FROM line_notify_targets WHERE id=@id`)).recordset[0];
     if (!target) return res.status(404).json({ error: 'ไม่พบกลุ่มนี้' });
-    // Read token
-    let token;
-    try {
-      const tokenRow = (await req().query(`SELECT channel_token FROM line_settings WHERE id=1`)).recordset[0];
-      token = tokenRow?.channel_token || process.env.LINE_CHANNEL_TOKEN;
-    } catch { token = process.env.LINE_CHANNEL_TOKEN; }
+    const token = await resolveTargetToken(target);
     if (!token) return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า Channel Access Token' });
 
     // If this group is subscribed to the employee-schedule summary, the test
