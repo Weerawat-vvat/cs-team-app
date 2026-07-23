@@ -48,6 +48,8 @@ body { font-family: 'Segoe UI', 'Noto Sans Thai', sans-serif; background: #f8faf
 .clear-btn { background:none; border:1.5px solid #e2e8f0; border-radius:9px; padding:.33rem .7rem; font-family:inherit; font-size:.76rem; font-weight:600; color:#64748b; cursor:pointer; transition:all .15s; white-space:nowrap; }
 .clear-btn:hover { border-color:#f87171; color:#dc2626; background:#fef2f2; }
 .result-count { font-size:.75rem; color:#64748b; margin-left:auto; white-space:nowrap; }
+.btn-add-issue { background:#1d4ed8; color:#fff; border:none; border-radius:9px; padding:.4rem .85rem; font-size:.78rem; font-weight:700; cursor:pointer; font-family:inherit; white-space:nowrap; transition:background .15s; }
+.btn-add-issue:hover { background:#1e40af; }
 
 /* ── View tabs ── */
 .view-tabs { background:#fff; border-bottom:1px solid #e2e8f0; padding:0 1.5rem; display:flex; }
@@ -134,8 +136,14 @@ tr:last-child td { border-bottom:none; }
 
 /* Status + priority row */
 .modal-pills { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
-.modal-status-pill { display:inline-flex; align-items:center; gap:.35rem; font-size:.78rem; font-weight:700; border-radius:20px; padding:.28rem .75rem; }
+.modal-status-pill { display:inline-flex; align-items:center; gap:.35rem; font-size:.78rem; font-weight:700; border-radius:20px; padding:.28rem .75rem; transition:filter .12s; }
+.modal-status-pill:hover { filter:brightness(0.96); }
 .modal-prio-badge { font-size:.78rem; font-weight:700; border-radius:20px; padding:.25rem .65rem; }
+
+/* Status change dropdown */
+.status-menu { position:fixed; z-index:300; background:#fff; border:1px solid #e2e8f0; border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.14); padding:.3rem; min-width:200px; }
+.status-menu-item { display:flex; align-items:center; gap:.4rem; padding:.4rem .65rem; border-radius:7px; cursor:pointer; font-size:.8rem; font-weight:600; }
+.status-menu-item:hover { background:#f1f5f9; }
 
 /* Metadata grid */
 .meta-grid { display:grid; grid-template-columns:1fr 1fr; gap:.6rem; }
@@ -158,9 +166,26 @@ tr:last-child td { border-bottom:none; }
 }
 .issue-url-btn:hover { background:#dbeafe; border-color:#93c5fd; }
 
-.modal-footer { padding:.75rem 1.25rem; border-top:1px solid #f1f5f9; display:flex; justify-content:flex-end; }
+.modal-footer { padding:.75rem 1.25rem; border-top:1px solid #f1f5f9; display:flex; justify-content:flex-end; gap:.5rem; }
 .btn-close-modal { background:#f1f5f9; color:#374151; border:none; border-radius:9px; padding:.45rem 1.2rem; font-size:.82rem; font-weight:600; cursor:pointer; font-family:inherit; transition:background .12s; }
 .btn-close-modal:hover { background:#e2e8f0; }
+.btn-edit-issue { background:none; border:1.5px solid #e2e8f0; color:#374151; border-radius:8px; padding:.3rem .75rem; font-size:.76rem; font-weight:600; cursor:pointer; font-family:inherit; transition:all .12s; white-space:nowrap; margin-top:.18rem; }
+.btn-edit-issue:hover { border-color:#93c5fd; color:#1d4ed8; background:#eff6ff; }
+.btn-save-issue { background:#1d4ed8; color:#fff; border:none; border-radius:9px; padding:.45rem 1.2rem; font-size:.82rem; font-weight:700; cursor:pointer; font-family:inherit; transition:background .12s; }
+.btn-save-issue:hover { background:#1e40af; }
+.btn-save-issue:disabled { opacity:.6; cursor:default; }
+
+/* ── Form fields (create / edit) ── */
+.form-group { display:flex; flex-direction:column; gap:.3rem; }
+.form-label { font-size:.72rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.04em; }
+.form-input, .form-select, .form-textarea {
+  font-family:inherit; font-size:.85rem; color:#1e293b; background:#fff;
+  border:1.5px solid #e2e8f0; border-radius:9px; padding:.5rem .7rem; outline:none; transition:border-color .15s; width:100%;
+}
+.form-input:focus, .form-select:focus, .form-textarea:focus { border-color:#3b82f6; }
+.form-textarea { resize:vertical; min-height:70px; line-height:1.5; }
+.form-row { display:grid; grid-template-columns:1fr 1fr; gap:.6rem; }
+.form-err { font-size:.76rem; color:#dc2626; display:none; }
 
 /* ── Comments ── */
 .comments-section { border-top:1px solid #f1f5f9; padding-top:.9rem; }
@@ -176,6 +201,16 @@ tr:last-child td { border-bottom:none; }
 .comments-loading { display:flex; align-items:center; gap:.5rem; color:#94a3b8; font-size:.8rem; padding:.5rem 0; }
 .mini-spinner { width:16px; height:16px; border:2px solid #e2e8f0; border-top-color:#3b82f6; border-radius:50%; animation:spin .6s linear infinite; flex-shrink:0; }
 .no-comments { text-align:center; color:#cbd5e1; font-size:.78rem; padding:.75rem 0; }
+.comment-composer { margin-top:.85rem; padding-top:.85rem; border-top:1px dashed #e2e8f0; }
+
+/* ── Attachments ── */
+.attach-grid { display:flex; flex-wrap:wrap; gap:.5rem; }
+.attach-img { width:76px; height:76px; object-fit:cover; border-radius:8px; border:1px solid #e2e8f0; cursor:pointer; transition:border-color .12s; }
+.attach-img:hover { border-color:#93c5fd; }
+.attach-file { display:flex; align-items:center; gap:.4rem; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:.4rem .65rem; font-size:.76rem; color:#374151; text-decoration:none; max-width:220px; }
+.attach-file:hover { border-color:#93c5fd; background:#eff6ff; }
+.attach-file .fname { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.attach-file .fsize { color:#94a3b8; font-size:.68rem; flex-shrink:0; }
 
 /* Loading / Error */
 .center { display:flex; align-items:center; justify-content:center; min-height:50vh; }
@@ -205,7 +240,7 @@ tr:last-child td { border-bottom:none; }
   <div class="header-right">
     <span class="badge-count" id="hdr-count" style="display:none"></span>
     <button class="refresh-btn" onclick="reloadData()">↻ รีเฟรช</button>
-    <span class="badge-readonly">👁 อ่านอย่างเดียว</span>
+    <span class="badge-readonly">✏️ เพิ่ม/แก้ไขข้อมูลได้</span>
   </div>
 </div>
 
@@ -220,6 +255,7 @@ tr:last-child td { border-bottom:none; }
   <div class="stat-chip" id="chip-pending"     onclick="setStatusFilter('pending')"     style="color:#92400e"><div class="stat-dot" style="background:#f59e0b"></div><span class="stat-label">รอดำเนินการ</span><span class="stat-num" id="cnt-pending">0</span></div>
   <div class="stat-chip" id="chip-in_progress" onclick="setStatusFilter('in_progress')" style="color:#1e40af"><div class="stat-dot" style="background:#3b82f6"></div><span class="stat-label">กำลังดำเนินการ</span><span class="stat-num" id="cnt-in_progress">0</span></div>
   <div class="stat-chip" id="chip-waiting"     onclick="setStatusFilter('waiting')"     style="color:#5b21b6"><div class="stat-dot" style="background:#8b5cf6"></div><span class="stat-label">รอข้อมูล</span><span class="stat-num" id="cnt-waiting">0</span></div>
+  <div class="stat-chip" id="chip-fixed_waiting_update" onclick="setStatusFilter('fixed_waiting_update')" style="color:#0e7490"><div class="stat-dot" style="background:#0891b2"></div><span class="stat-label">แก้ไขแล้วรออัพเดท</span><span class="stat-num" id="cnt-fixed_waiting_update">0</span></div>
   <div class="stat-chip" id="chip-resolved"    onclick="setStatusFilter('resolved')"    style="color:#166534"><div class="stat-dot" style="background:#22c55e"></div><span class="stat-label">แก้ไขแล้ว</span><span class="stat-num" id="cnt-resolved">0</span></div>
   <div class="stat-chip" id="chip-cancelled"   onclick="setStatusFilter('cancelled')"   style="color:#475569"><div class="stat-dot" style="background:#94a3b8"></div><span class="stat-label">ยกเลิก</span><span class="stat-num" id="cnt-cancelled">0</span></div>
 </div>
@@ -242,6 +278,7 @@ tr:last-child td { border-bottom:none; }
   </select>
   <button class="clear-btn" onclick="clearFilters()" id="clear-btn" style="display:none">✕ ล้างตัวกรอง</button>
   <span class="result-count" id="result-count"></span>
+  <button class="btn-add-issue" onclick="openCreateModal()">+ เพิ่มรายการ</button>
 </div>
 
 <!-- View tabs -->
@@ -274,38 +311,89 @@ tr:last-child td { border-bottom:none; }
     <div class="modal-header">
       <span class="modal-id" id="dm-id"></span>
       <span class="modal-title" id="dm-title"></span>
+      <button class="btn-edit-issue" id="dm-edit-btn" onclick="enterEditMode()">✏️ แก้ไข</button>
       <button class="modal-close" onclick="closeDetail()">×</button>
     </div>
     <div class="modal-body">
-      <!-- Status + Priority -->
-      <div class="modal-pills" id="dm-pills"></div>
+      <!-- ── Read-only view ── -->
+      <div id="dm-view-fields">
+        <!-- Status + Priority -->
+        <div class="modal-pills" id="dm-pills"></div>
 
-      <!-- Meta grid: assignee, category, due date, created -->
-      <div class="meta-grid" id="dm-meta"></div>
+        <!-- Meta grid: assignee, category, due date, created -->
+        <div class="meta-grid" id="dm-meta"></div>
 
-      <!-- Description / รายละเอียด -->
-      <div id="dm-note-wrap" style="display:none">
-        <div class="desc-box">
-          <div class="desc-label">รายละเอียดปัญหา</div>
-          <div class="desc-text" id="dm-note"></div>
+        <!-- Description / รายละเอียด -->
+        <div id="dm-note-wrap" style="display:none">
+          <div class="desc-box">
+            <div class="desc-label">รายละเอียดปัญหา</div>
+            <div class="desc-text" id="dm-note"></div>
+          </div>
+        </div>
+
+        <!-- Branch / Note เพิ่มเติม -->
+        <div id="dm-branch-wrap" style="display:none">
+          <div class="desc-box" style="background:#fffbf0;border:1px solid #fde68a">
+            <div class="desc-label" style="color:#92400e">Note / รายละเอียดเพิ่มเติม</div>
+            <div class="desc-text" id="dm-branch" style="color:#451a03"></div>
+          </div>
+        </div>
+
+        <!-- Issue URL -->
+        <div id="dm-url-wrap" style="display:none">
+          <div class="desc-label" style="margin-bottom:.4rem">🔗 Issue / Work Item</div>
+          <a id="dm-url" href="#" target="_blank" rel="noopener" class="issue-url-btn">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            <span id="dm-url-label"></span>
+          </a>
         </div>
       </div>
 
-      <!-- Branch / Note เพิ่มเติม -->
-      <div id="dm-branch-wrap" style="display:none">
-        <div class="desc-box" style="background:#fffbf0;border:1px solid #fde68a">
-          <div class="desc-label" style="color:#92400e">Note / รายละเอียดเพิ่มเติม</div>
-          <div class="desc-text" id="dm-branch" style="color:#451a03"></div>
+      <!-- ── Edit form (hidden unless editing) ── -->
+      <div id="dm-edit-fields" style="display:none">
+        <div class="form-group" style="margin-bottom:.6rem">
+          <label class="form-label">หัวข้อ / รายละเอียดปัญหา *</label>
+          <textarea class="form-textarea" id="ef-detail"></textarea>
+        </div>
+        <div class="form-row" style="margin-bottom:.6rem">
+          <div class="form-group">
+            <label class="form-label">Category</label>
+            <input class="form-input" id="ef-category" list="ef-category-list">
+            <datalist id="ef-category-list"></datalist>
+          </div>
+          <div class="form-group">
+            <label class="form-label">ความสำคัญ</label>
+            <select class="form-select" id="ef-priority">
+              <option value="urgent">🔴 เร่งด่วน</option>
+              <option value="high">🟠 สูง</option>
+              <option value="normal">🟡 ปกติ</option>
+              <option value="low">🔵 ต่ำ</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:.6rem">
+          <label class="form-label">Due Date</label>
+          <input class="form-input" type="date" id="ef-due">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Note เพิ่มเติม</label>
+          <textarea class="form-textarea" id="ef-note" style="min-height:50px"></textarea>
         </div>
       </div>
 
-      <!-- Issue URL -->
-      <div id="dm-url-wrap" style="display:none">
-        <div class="desc-label" style="margin-bottom:.4rem">🔗 Issue / Work Item</div>
-        <a id="dm-url" href="#" target="_blank" rel="noopener" class="issue-url-btn">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-          <span id="dm-url-label"></span>
-        </a>
+      <!-- Attachments -->
+      <div class="comments-section" id="dm-attach-section">
+        <div class="comments-title">
+          📎 ไฟล์แนบ <span class="cnt-badge" id="dm-attach-cnt"></span>
+        </div>
+        <div id="dm-attach-body">
+          <div class="comments-loading"><div class="mini-spinner"></div> กำลังโหลด…</div>
+        </div>
+        <div style="margin-top:.65rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+          <input type="file" id="dm-attach-input" accept="image/jpeg,image/png,image/gif,image/webp,.pdf" multiple style="display:none" onchange="uploadAttachments(this.files)">
+          <button class="btn-edit-issue" style="margin-top:0" onclick="document.getElementById('dm-attach-input').click()">📎 แนบไฟล์ (ไม่เกิน 2MB/ไฟล์)</button>
+          <span class="form-err" id="dm-attach-err"></span>
+        </div>
       </div>
 
       <!-- Comments -->
@@ -316,10 +404,68 @@ tr:last-child td { border-bottom:none; }
         <div id="dm-comments-body">
           <div class="comments-loading"><div class="mini-spinner"></div> กำลังโหลด…</div>
         </div>
+        <div class="comment-composer">
+          <input class="form-input" id="dm-comment-name" placeholder="ชื่อของคุณ (ถ้าต้องการ)" style="margin-bottom:.4rem">
+          <textarea class="form-textarea" id="dm-comment-body" style="min-height:60px" placeholder="แสดงความคิดเห็น…"></textarea>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:.4rem">
+            <span class="form-err" id="dm-comment-err"></span>
+            <button class="btn-save-issue" id="dm-comment-btn" onclick="submitComment()">ส่ง Comment</button>
+          </div>
+        </div>
       </div>
     </div>
-    <div class="modal-footer">
+    <div class="modal-footer" id="dm-footer-view">
       <button class="btn-close-modal" onclick="closeDetail()">ปิด</button>
+    </div>
+    <div class="modal-footer" id="dm-footer-edit" style="display:none">
+      <span class="form-err" id="dm-edit-err" style="margin-right:auto;align-self:center"></span>
+      <button class="btn-close-modal" onclick="cancelEditMode()">ยกเลิก</button>
+      <button class="btn-save-issue" id="dm-save-btn" onclick="saveEditIssue()">💾 บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Create Issue Modal ── -->
+<div class="modal-overlay" id="create-modal" style="display:none" onclick="if(event.target===this)closeCreateModal()">
+  <div class="modal-box" style="max-width:520px">
+    <div class="modal-header">
+      <span class="modal-title">+ เพิ่มรายการใหม่</span>
+      <button class="modal-close" onclick="closeCreateModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">หัวข้อ / รายละเอียดปัญหา *</label>
+        <textarea class="form-textarea" id="cf-detail" placeholder="อธิบายปัญหาหรืองานที่ต้องการแจ้ง…"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Category</label>
+          <input class="form-input" id="cf-category" list="cf-category-list" placeholder="เช่น รายงาน, ระบบ">
+          <datalist id="cf-category-list"></datalist>
+        </div>
+        <div class="form-group">
+          <label class="form-label">ความสำคัญ</label>
+          <select class="form-select" id="cf-priority">
+            <option value="urgent">🔴 เร่งด่วน</option>
+            <option value="high">🟠 สูง</option>
+            <option value="normal" selected>🟡 ปกติ</option>
+            <option value="low">🔵 ต่ำ</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Due Date</label>
+        <input class="form-input" type="date" id="cf-due">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Note เพิ่มเติม</label>
+        <textarea class="form-textarea" id="cf-note" style="min-height:50px" placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)"></textarea>
+      </div>
+      <span class="form-err" id="cf-err"></span>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-close-modal" onclick="closeCreateModal()">ยกเลิก</button>
+      <button class="btn-save-issue" id="cf-save-btn" onclick="submitCreateIssue()">+ เพิ่มรายการ</button>
     </div>
   </div>
 </div>
@@ -327,22 +473,31 @@ tr:last-child td { border-bottom:none; }
 <script>
 // ── Config ────────────────────────────────────────────────────────────────
 const STATUS_CFG = [
-  { key:'pending',     label:'⏳ รอดำเนินการ',    color:'#f59e0b', bg:'#fffbeb', text:'#92400e' },
-  { key:'in_progress', label:'🔄 กำลังดำเนินการ', color:'#3b82f6', bg:'#eff6ff', text:'#1e40af' },
-  { key:'waiting',     label:'⏸️ รอข้อมูล',       color:'#8b5cf6', bg:'#f5f3ff', text:'#5b21b6' },
-  { key:'resolved',    label:'✅ แก้ไขแล้ว',      color:'#22c55e', bg:'#f0fdf4', text:'#166534' },
-  { key:'cancelled',   label:'🚫 ยกเลิก',          color:'#94a3b8', bg:'#f8fafc', text:'#475569' },
+  { key:'pending',              label:'⏳ รอดำเนินการ',         color:'#f59e0b', bg:'#fffbeb', text:'#92400e' },
+  { key:'in_progress',          label:'🔄 กำลังดำเนินการ',      color:'#3b82f6', bg:'#eff6ff', text:'#1e40af' },
+  { key:'waiting',              label:'⏸️ รอข้อมูล',            color:'#8b5cf6', bg:'#f5f3ff', text:'#5b21b6' },
+  { key:'fixed_waiting_update', label:'💿 แก้ไขแล้วรออัพเดท', color:'#0891b2', bg:'#ecfeff', text:'#0e7490' },
+  { key:'resolved',             label:'✅ แก้ไขแล้ว',           color:'#22c55e', bg:'#f0fdf4', text:'#166534' },
+  { key:'cancelled',            label:'🚫 ยกเลิก',               color:'#94a3b8', bg:'#f8fafc', text:'#475569' },
 ];
 const PRIO_CFG = {
-  urgent: { label:'🔴 เร่งด่วน', cls:'badge-p-urgent' },
-  high:   { label:'🟠 สูง',      cls:'badge-p-high'   },
-  normal: { label:'🟡 ปกติ',     cls:'badge-p-normal' },
-  low:    { label:'🔵 ต่ำ',      cls:'badge-p-low'    },
+  urgent: { label:'🔴 เร่งด่วน', cls:'badge-p-urgent', color:'#b91c1c' },
+  high:   { label:'🟠 สูง',      cls:'badge-p-high',   color:'#c2410c' },
+  normal: { label:'🟡 ปกติ',     cls:'badge-p-normal', color:'#475569' },
+  low:    { label:'🔵 ต่ำ',      cls:'badge-p-low',    color:'#1d4ed8' },
 };
 
 // ── State ─────────────────────────────────────────────────────────────────
 let _issues = [], _filtered = [], _view = 'board';
-let _statusFilter = null, _prioFilter = '', _catFilter = '', _searchQ = '';
+let _statusFilter = new Set(), _prioFilter = '', _catFilter = '', _searchQ = '';
+let _currentDetailId = null;
+
+function boardToken() { return location.pathname.split('/public/board/')[1]; }
+
+function categoryOptionsHtml() {
+  const cats = [...new Set(_issues.map(i => i.category).filter(Boolean))].sort();
+  return cats.map(c => `<option value="${esc(c)}">`).join('');
+}
 
 // ── Utils ─────────────────────────────────────────────────────────────────
 function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -367,19 +522,16 @@ function fmtDate(iso) {
 function openDetail(id) {
   const issue = _issues.find(i => i.id === id);
   if (!issue) return;
+  _currentDetailId = id;
+  resetToViewMode();
 
-  const sc = STATUS_CFG.find(s => s.key === issue.status) || { label: issue.status, color:'#94a3b8', bg:'#f8fafc', text:'#475569' };
-  const pc = PRIO_CFG[issue.priority] || PRIO_CFG.normal;
   const dm = issue.due_date ? dueMeta(issue.due_date) : null;
 
   document.getElementById('dm-id').textContent    = `#${issue.id}`;
   document.getElementById('dm-title').textContent = issue.title || '(ไม่มีหัวข้อ)';
 
   // Pills
-  document.getElementById('dm-pills').innerHTML =
-    `<span class="modal-status-pill" style="background:${sc.bg};color:${sc.text}">${sc.label}</span>` +
-    (issue.priority ? `<span class="modal-prio-badge badge ${pc.cls}">${pc.label}</span>` : '') +
-    (issue.category ? `<span class="badge badge-cat">${esc(issue.category)}</span>` : '');
+  renderPills(issue);
 
   // Meta grid
   const metaItems = [
@@ -426,12 +578,83 @@ function openDetail(id) {
   document.getElementById('dm-comment-cnt').textContent = '';
   document.getElementById('dm-comments-body').innerHTML =
     `<div class="comments-loading"><div class="mini-spinner"></div> กำลังโหลด…</div>`;
+  document.getElementById('dm-comment-body').value = '';
+  document.getElementById('dm-comment-name').value = loadCommentName();
+  document.getElementById('dm-comment-err').textContent = '';
+
+  // Reset attachments
+  document.getElementById('dm-attach-cnt').textContent = '';
+  document.getElementById('dm-attach-err').textContent = '';
+  document.getElementById('dm-attach-body').innerHTML =
+    `<div class="comments-loading"><div class="mini-spinner"></div> กำลังโหลด…</div>`;
 
   document.getElementById('detail-modal').style.display = 'flex';
   document.body.style.overflow = 'hidden';
 
-  // Load comments async (don't await — show modal immediately)
+  // Load comments + attachments async (don't await — show modal immediately)
   loadComments(id);
+  loadAttachments(id);
+}
+
+function fmtFileSize(bytes) {
+  if (!bytes) return '';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024*1024) return Math.round(bytes/1024) + ' KB';
+  return (bytes/1024/1024).toFixed(1) + ' MB';
+}
+
+async function loadAttachments(issueId) {
+  const body = document.getElementById('dm-attach-body');
+  try {
+    const res = await fetch(`/api/public/board/${boardToken()}/issues/${issueId}/attachments`);
+    if (!res.ok) throw new Error('load failed');
+    const files = await res.json();
+
+    const cntEl = document.getElementById('dm-attach-cnt');
+    if (cntEl) cntEl.textContent = files.length || '';
+    if (!body) return;
+
+    if (!files.length) { body.innerHTML = `<div class="no-comments">ยังไม่มีไฟล์แนบ</div>`; return; }
+
+    body.innerHTML = `<div class="attach-grid">` + files.map(f => {
+      const url = `/uploads/fu/${issueId}/${f.filename}`;
+      const isImg = /^image\//.test(f.mime_type || '');
+      if (isImg) return `<img class="attach-img" src="${url}" onclick="window.open('${url}','_blank')" title="${esc(f.original_name)}">`;
+      return `<a class="attach-file" href="${url}" target="_blank" title="${esc(f.original_name)}">
+        <span>📄</span><span class="fname">${esc(f.original_name)}</span><span class="fsize">${fmtFileSize(f.file_size)}</span>
+      </a>`;
+    }).join('') + `</div>`;
+  } catch {
+    if (body) body.innerHTML = `<div class="no-comments" style="color:#fca5a5">โหลดไฟล์แนบไม่สำเร็จ</div>`;
+  }
+}
+
+async function uploadAttachments(fileList) {
+  const files  = [...fileList];
+  const input  = document.getElementById('dm-attach-input');
+  const errEl  = document.getElementById('dm-attach-err');
+  errEl.textContent = '';
+  if (!files.length) return;
+
+  const tooBig = files.find(f => f.size > 2 * 1024 * 1024);
+  if (tooBig) { errEl.textContent = `ไฟล์ "${tooBig.name}" ใหญ่เกิน 2MB`; input.value = ''; return; }
+
+  const fd = new FormData();
+  files.forEach(f => fd.append('files', f));
+
+  errEl.textContent = 'กำลังอัปโหลด…';
+  try {
+    const res = await fetch(`/api/public/board/${boardToken()}/issues/${_currentDetailId}/attachments`, { method: 'POST', body: fd });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { errEl.textContent = data.error || 'แนบไฟล์ไม่สำเร็จ'; return; }
+    errEl.textContent = '';
+    input.value = '';
+    await loadAttachments(_currentDetailId);
+    const issue = _issues.find(i => i.id === _currentDetailId);
+    if (issue) { issue.attachment_count = (issue.attachment_count || 0) + data.files.length; render(); }
+  } catch(e) {
+    errEl.textContent = 'แนบไฟล์ไม่สำเร็จ กรุณาลองใหม่';
+  }
 }
 
 async function loadComments(issueId) {
@@ -458,8 +681,7 @@ async function loadComments(issueId) {
 
     body.innerHTML = comments.map(c => {
       const name = c.user_name || 'ไม่ระบุ';
-      if (!colorMap[name]) colorMap[name] = AVATAR_COLORS[colorIdx++ % AVATAR_COLORS.length];
-      const avatarColor = colorMap[name];
+      const avatarColor = c.is_customer ? '#0891b2' : (colorMap[name] || (colorMap[name] = AVATAR_COLORS[colorIdx++ % AVATAR_COLORS.length]));
       const avatarChar  = (c.avatar_char || name.charAt(0) || '?').toUpperCase();
       const dt = new Date(c.created_at);
       const timeStr = dt.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}) +
@@ -469,6 +691,7 @@ async function loadComments(issueId) {
         <div class="comment-bubble">
           <div class="comment-meta">
             <span class="comment-author">${esc(name)}</span>
+            ${c.is_customer ? `<span class="badge badge-cat" style="font-size:.6rem;padding:.05rem .4rem">ลูกค้า</span>` : ''}
             <span>${timeStr}</span>
           </div>
           <div class="comment-body">${esc(c.body)}</div>
@@ -481,12 +704,252 @@ async function loadComments(issueId) {
   }
 }
 
+function loadCommentName() { return localStorage.getItem('cs_board_commenter_name') || ''; }
+function saveCommentName(v) { try { localStorage.setItem('cs_board_commenter_name', v); } catch {} }
+
+async function submitComment() {
+  const nameEl = document.getElementById('dm-comment-name');
+  const bodyEl = document.getElementById('dm-comment-body');
+  const errEl  = document.getElementById('dm-comment-err');
+  const body   = bodyEl.value.trim();
+  errEl.textContent = '';
+  if (!body) { errEl.textContent = 'กรุณาพิมพ์ข้อความ'; return; }
+
+  const authorName = nameEl.value.trim();
+  if (authorName) saveCommentName(authorName);
+
+  const btn = document.getElementById('dm-comment-btn');
+  btn.disabled = true; btn.textContent = 'กำลังส่ง…';
+  try {
+    const res = await fetch(`/api/public/board/${boardToken()}/issues/${_currentDetailId}/comments`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body, author_name: authorName || null })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { errEl.textContent = data.error || 'ส่งไม่สำเร็จ'; return; }
+    bodyEl.value = '';
+    await loadComments(_currentDetailId);
+    const issue = _issues.find(i => i.id === _currentDetailId);
+    if (issue) { issue.comment_count = (issue.comment_count || 0) + 1; render(); }
+  } catch(e) {
+    errEl.textContent = 'ส่งไม่สำเร็จ กรุณาลองใหม่';
+  } finally {
+    btn.disabled = false; btn.textContent = 'ส่ง Comment';
+  }
+}
+
 function closeDetail() {
   document.getElementById('detail-modal').style.display = 'none';
   document.body.style.overflow = '';
+  _currentDetailId = null;
+  document.querySelectorAll('.status-menu').forEach(m => m.remove());
 }
 
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDetail(); });
+function renderPills(issue) {
+  const sc = STATUS_CFG.find(s => s.key === issue.status) || { label: issue.status, color:'#94a3b8', bg:'#f8fafc', text:'#475569' };
+  const pc = PRIO_CFG[issue.priority] || PRIO_CFG.normal;
+  document.getElementById('dm-pills').innerHTML =
+    `<span class="modal-status-pill" onclick="toggleStatusMenu(event)" style="background:${sc.bg};color:${sc.text};cursor:pointer" title="คลิกเพื่อเปลี่ยนสถานะ">${sc.label} <span style="font-size:.6rem;opacity:.6">▾</span></span>` +
+    `<span class="modal-prio-badge badge ${pc.cls}" onclick="togglePriorityMenu(event)" style="cursor:pointer" title="คลิกเพื่อเปลี่ยนความสำคัญ">${pc.label} <span style="font-size:.6rem;opacity:.6">▾</span></span>` +
+    (issue.category ? `<span class="badge badge-cat">${esc(issue.category)}</span>` : '');
+}
+
+function toggleStatusMenu(e) {
+  e.stopPropagation();
+  const already = document.querySelector('.status-menu');
+  document.querySelectorAll('.status-menu').forEach(m => m.remove());
+  if (already) return; // clicking again toggles closed
+
+  const rect = e.currentTarget.getBoundingClientRect();
+  const menu = document.createElement('div');
+  menu.className = 'status-menu';
+  menu.innerHTML = STATUS_CFG.map(s =>
+    `<div class="status-menu-item" style="color:${s.text}" onclick="changeStatus('${s.key}')">${s.label}</div>`
+  ).join('');
+  document.body.appendChild(menu);
+  const mh = menu.offsetHeight;
+  menu.style.top  = (rect.bottom + mh + 6 > window.innerHeight ? rect.top - mh - 6 : rect.bottom + 6) + 'px';
+  menu.style.left = Math.min(rect.left, window.innerWidth - 210) + 'px';
+  setTimeout(() => document.addEventListener('click', () => document.querySelectorAll('.status-menu').forEach(m => m.remove()), { once: true }), 10);
+}
+
+async function changeStatus(newStatus) {
+  document.querySelectorAll('.status-menu').forEach(m => m.remove());
+  const id = _currentDetailId;
+  const issue = _issues.find(i => i.id === id);
+  if (!issue || issue.status === newStatus) return;
+  const prev = issue.status;
+  issue.status = newStatus; // optimistic UI
+  renderPills(issue);
+  updateSummary(_issues);
+  render();
+  try {
+    const res = await fetch(`/api/public/board/${boardToken()}/issues/${id}/status`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: newStatus })
+    });
+    if (!res.ok) throw new Error();
+    issue.updated_at = new Date().toISOString();
+  } catch(e) {
+    issue.status = prev; // revert on failure
+    renderPills(issue);
+    updateSummary(_issues);
+    render();
+    alert('เปลี่ยนสถานะไม่สำเร็จ กรุณาลองใหม่');
+  }
+}
+
+function togglePriorityMenu(e) {
+  e.stopPropagation();
+  const already = document.querySelector('.status-menu');
+  document.querySelectorAll('.status-menu').forEach(m => m.remove());
+  if (already) return; // clicking again toggles closed
+
+  const rect = e.currentTarget.getBoundingClientRect();
+  const menu = document.createElement('div');
+  menu.className = 'status-menu';
+  menu.innerHTML = Object.entries(PRIO_CFG).map(([key, p]) =>
+    `<div class="status-menu-item" style="color:${p.color}" onclick="changePriority('${key}')">${p.label}</div>`
+  ).join('');
+  document.body.appendChild(menu);
+  const mh = menu.offsetHeight;
+  menu.style.top  = (rect.bottom + mh + 6 > window.innerHeight ? rect.top - mh - 6 : rect.bottom + 6) + 'px';
+  menu.style.left = Math.min(rect.left, window.innerWidth - 210) + 'px';
+  setTimeout(() => document.addEventListener('click', () => document.querySelectorAll('.status-menu').forEach(m => m.remove()), { once: true }), 10);
+}
+
+async function changePriority(newPriority) {
+  document.querySelectorAll('.status-menu').forEach(m => m.remove());
+  const id = _currentDetailId;
+  const issue = _issues.find(i => i.id === id);
+  if (!issue || issue.priority === newPriority) return;
+  const prev = issue.priority;
+  issue.priority = newPriority; // optimistic UI
+  renderPills(issue);
+  render();
+  try {
+    const res = await fetch(`/api/public/board/${boardToken()}/issues/${id}/priority`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ priority: newPriority })
+    });
+    if (!res.ok) throw new Error();
+    issue.updated_at = new Date().toISOString();
+  } catch(e) {
+    issue.priority = prev; // revert on failure
+    renderPills(issue);
+    render();
+    alert('เปลี่ยนความสำคัญไม่สำเร็จ กรุณาลองใหม่');
+  }
+}
+
+function resetToViewMode() {
+  document.getElementById('dm-view-fields').style.display = '';
+  document.getElementById('dm-edit-fields').style.display = 'none';
+  document.getElementById('dm-edit-btn').style.display = '';
+  document.getElementById('dm-footer-view').style.display = '';
+  document.getElementById('dm-footer-edit').style.display = 'none';
+  document.getElementById('dm-edit-err').textContent = '';
+}
+
+function enterEditMode() {
+  const issue = _issues.find(i => i.id === _currentDetailId);
+  if (!issue) return;
+
+  document.getElementById('ef-detail').value    = issue.title || '';
+  document.getElementById('ef-category').value  = issue.category || '';
+  document.getElementById('ef-priority').value  = issue.priority || 'normal';
+  document.getElementById('ef-due').value       = issue.due_date ? issue.due_date.split('T')[0] : '';
+  document.getElementById('ef-note').value      = issue.note || '';
+  document.getElementById('ef-category-list').innerHTML = categoryOptionsHtml();
+
+  document.getElementById('dm-view-fields').style.display = 'none';
+  document.getElementById('dm-edit-fields').style.display = '';
+  document.getElementById('dm-edit-btn').style.display = 'none';
+  document.getElementById('dm-footer-view').style.display = 'none';
+  document.getElementById('dm-footer-edit').style.display = '';
+  document.getElementById('dm-edit-err').textContent = '';
+}
+
+function cancelEditMode() { resetToViewMode(); }
+
+async function saveEditIssue() {
+  const id     = _currentDetailId;
+  const detail = document.getElementById('ef-detail').value.trim();
+  const errEl  = document.getElementById('dm-edit-err');
+  if (!detail) { errEl.textContent = 'กรุณาระบุหัวข้อปัญหา'; return; }
+
+  const body = {
+    detail,
+    category: document.getElementById('ef-category').value.trim() || null,
+    priority: document.getElementById('ef-priority').value,
+    due_date: document.getElementById('ef-due').value || null,
+    note:     document.getElementById('ef-note').value.trim() || null,
+  };
+
+  const btn = document.getElementById('dm-save-btn');
+  btn.disabled = true; btn.textContent = 'กำลังบันทึก…';
+  try {
+    const res = await fetch(`/api/public/board/${boardToken()}/issues/${id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { errEl.textContent = data.error || 'บันทึกไม่สำเร็จ'; return; }
+    closeDetail();
+    await reloadData();
+  } catch(e) {
+    errEl.textContent = 'บันทึกไม่สำเร็จ กรุณาลองใหม่';
+  } finally {
+    btn.disabled = false; btn.textContent = '💾 บันทึก';
+  }
+}
+
+// ── Create Issue ──────────────────────────────────────────────────────────
+function openCreateModal() {
+  document.getElementById('cf-detail').value   = '';
+  document.getElementById('cf-category').value = '';
+  document.getElementById('cf-priority').value = 'normal';
+  document.getElementById('cf-due').value      = '';
+  document.getElementById('cf-note').value     = '';
+  document.getElementById('cf-err').textContent = '';
+  document.getElementById('cf-category-list').innerHTML = categoryOptionsHtml();
+  document.getElementById('create-modal').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function closeCreateModal() {
+  document.getElementById('create-modal').style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+async function submitCreateIssue() {
+  const detail = document.getElementById('cf-detail').value.trim();
+  const errEl  = document.getElementById('cf-err');
+  if (!detail) { errEl.textContent = 'กรุณาระบุหัวข้อปัญหา'; return; }
+
+  const body = {
+    detail,
+    category: document.getElementById('cf-category').value.trim() || null,
+    priority: document.getElementById('cf-priority').value,
+    due_date: document.getElementById('cf-due').value || null,
+    note:     document.getElementById('cf-note').value.trim() || null,
+  };
+
+  const btn = document.getElementById('cf-save-btn');
+  btn.disabled = true; btn.textContent = 'กำลังบันทึก…';
+  try {
+    const res = await fetch(`/api/public/board/${boardToken()}/issues`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { errEl.textContent = data.error || 'เพิ่มรายการไม่สำเร็จ'; return; }
+    closeCreateModal();
+    await reloadData();
+  } catch(e) {
+    errEl.textContent = 'เพิ่มรายการไม่สำเร็จ กรุณาลองใหม่';
+  } finally {
+    btn.disabled = false; btn.textContent = '+ เพิ่มรายการ';
+  }
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeDetail(); closeCreateModal(); } });
 
 // ── Filtering ─────────────────────────────────────────────────────────────
 function applyFilters() {
@@ -495,7 +958,7 @@ function applyFilters() {
   _catFilter  = document.getElementById('filter-cat').value;
 
   _filtered = _issues.filter(i => {
-    if (_statusFilter && i.status   !== _statusFilter) return false;
+    if (_statusFilter.size && !_statusFilter.has(i.status)) return false;
     if (_prioFilter   && i.priority !== _prioFilter)   return false;
     if (_catFilter    && i.category !== _catFilter)    return false;
     if (_searchQ) {
@@ -505,22 +968,31 @@ function applyFilters() {
     return true;
   });
 
-  const hasFilter = _statusFilter || _prioFilter || _catFilter || _searchQ;
+  const hasFilter = _statusFilter.size || _prioFilter || _catFilter || _searchQ;
   document.getElementById('clear-btn').style.display = hasFilter ? '' : 'none';
   document.getElementById('result-count').textContent =
     hasFilter ? `แสดง ${_filtered.length} / ${_issues.length} รายการ` : `${_issues.length} รายการ`;
 
   document.querySelectorAll('.stat-chip').forEach(c => c.classList.remove('active'));
-  const chip = document.getElementById(_statusFilter ? `chip-${_statusFilter}` : 'chip-all');
-  if (chip) chip.classList.add('active');
+  if (!_statusFilter.size) {
+    document.getElementById('chip-all')?.classList.add('active');
+  } else {
+    _statusFilter.forEach(k => document.getElementById(`chip-${k}`)?.classList.add('active'));
+  }
 
   render();
 }
 
-function setStatusFilter(key) { _statusFilter = key; applyFilters(); }
+// Chips are multi-select toggles — clicking "ทั้งหมด" clears the selection, clicking a status toggles it in/out
+function setStatusFilter(key) {
+  if (key === null) { _statusFilter.clear(); }
+  else if (_statusFilter.has(key)) { _statusFilter.delete(key); }
+  else { _statusFilter.add(key); }
+  applyFilters();
+}
 
 function clearFilters() {
-  _statusFilter = null; _prioFilter = ''; _catFilter = ''; _searchQ = '';
+  _statusFilter.clear(); _prioFilter = ''; _catFilter = ''; _searchQ = '';
   document.getElementById('search-input').value = '';
   document.getElementById('filter-prio').value  = '';
   document.getElementById('filter-cat').value   = '';
@@ -534,6 +1006,7 @@ function setView(v) {
   document.getElementById('table-view').style.display = v === 'table' ? 'block' : 'none';
   document.getElementById('tab-board').classList.toggle('active', v === 'board');
   document.getElementById('tab-table').classList.toggle('active', v === 'table');
+  render();
 }
 
 // ── Render ─────────────────────────────────────────────────────────────────
@@ -568,7 +1041,7 @@ function renderBoard(issues) {
             </div>
             ${dm ? `<div class="card-due ${dm.cls}">📅 ${dm.label}</div>` : ''}
             <div class="card-hint">
-              ${i.comment_count > 0 ? `💬 ${i.comment_count} · ` : ''}คลิกดูรายละเอียด
+              ${i.attachment_count > 0 ? `📎 ${i.attachment_count} · ` : ''}${i.comment_count > 0 ? `💬 ${i.comment_count} · ` : ''}คลิกดูรายละเอียด
             </div>
           </div>`;
         }).join('');

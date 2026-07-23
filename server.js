@@ -64,6 +64,15 @@ const fuUpload = multer({
     cb(null, allowed.test(path.extname(file.originalname).toLowerCase()));
   }
 });
+// Same storage folder as fuUpload, smaller cap — customer-submitted via public board link
+const fuPublicUpload = multer({
+  storage: fuStorage,
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB per file
+  fileFilter: (req, file, cb) => {
+    const allowed = /jpeg|jpg|png|gif|webp|pdf/;
+    cb(null, allowed.test(path.extname(file.originalname).toLowerCase()));
+  }
+});
 
 // ── Case (Calllog) attachment upload config ──────────────
 const caseStorage = multer.diskStorage({
@@ -6946,6 +6955,9 @@ async function ensureFollowupV2Tables() {
     try { await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('fu_folders') AND name='group_name') ALTER TABLE fu_folders ADD group_name NVARCHAR(255) NULL`); } catch(e2) {}
     try { await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('fu_issues') AND name='sp_ref') ALTER TABLE fu_issues ADD sp_ref INT NULL`); } catch(e2) {}
     try { await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('fu_issues') AND name='issue_url') ALTER TABLE fu_issues ADD issue_url NVARCHAR(500) NULL`); } catch(e2) {}
+    // Customer-submitted comments have no app_users row — allow NULL user_id + a free-text display name
+    try { await req().query(`ALTER TABLE fu_comments ALTER COLUMN user_id INT NULL`); } catch(e2) {}
+    try { await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('fu_comments') AND name='author_name') ALTER TABLE fu_comments ADD author_name NVARCHAR(200) NULL`); } catch(e2) {}
 
     // Share tokens for public board view
     await req().query(`IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='fu_board_tokens' AND xtype='U')
@@ -7010,13 +7022,122 @@ app.get('/api/public/board/:token/data', async (request, res) => {
       .query(`SELECT i.id, i.detail AS title, i.branch, i.status, i.priority, i.category,
                      i.note, i.due_date, i.issue_url, i.created_at, i.updated_at,
                      ISNULL(e.nickname, e.name) AS assigned_to_name,
-                     (SELECT COUNT(*) FROM fu_comments c WHERE c.issue_id = i.id) AS comment_count
+                     (SELECT COUNT(*) FROM fu_comments c WHERE c.issue_id = i.id) AS comment_count,
+                     (SELECT COUNT(*) FROM fu_attachments a WHERE a.issue_id = i.id) AS attachment_count
               FROM fu_issues i
               LEFT JOIN employees e ON e.id = i.assigned_to
               WHERE i.board_id=@bid
               ORDER BY i.created_at DESC`)).recordset;
     res.set('Cache-Control', 'no-store');
     res.json({ board_name: row.board_name, folder_name: row.folder_name, issues });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/public/board/:token/issues  → customer adds a new issue to this board (no auth)
+app.post('/api/public/board/:token/issues', async (request, res) => {
+  try {
+    const tok = request.params.token;
+    const { detail, category, priority, note, due_date } = request.body;
+    if (!detail?.trim()) return res.status(400).json({ error: 'กรุณาระบุหัวข้อปัญหา' });
+
+    const tokenRow = (await req().input('tok', sql.NVarChar, tok)
+      .query(`SELECT board_id FROM fu_board_tokens WHERE token=@tok`)).recordset[0];
+    if (!tokenRow) return res.status(404).json({ error: 'invalid token' });
+
+    const r = await req()
+      .input('bid', sql.Int, tokenRow.board_id)
+      .input('det', sql.NVarChar, detail.trim())
+      .input('cat', sql.NVarChar, category || null)
+      .input('pri', sql.NVarChar, priority || 'normal')
+      .input('dd',  sql.Date,     due_date || null)
+      .input('nt',  sql.NVarChar, note || null)
+      .query(`INSERT INTO fu_issues(board_id,detail,category,priority,due_date,note)
+              OUTPUT INSERTED.id VALUES(@bid,@det,@cat,@pri,@dd,@nt)`);
+    res.json({ id: r.recordset[0].id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT /api/public/board/:token/issues/:id  → customer edits an issue on this board (no auth)
+app.put('/api/public/board/:token/issues/:id', async (request, res) => {
+  try {
+    const tok = request.params.token;
+    const id  = parseInt(request.params.id);
+    const { detail, category, priority, note, due_date } = request.body;
+    if (!detail?.trim()) return res.status(400).json({ error: 'กรุณาระบุหัวข้อปัญหา' });
+
+    const tokenRow = (await req().input('tok', sql.NVarChar, tok)
+      .query(`SELECT board_id FROM fu_board_tokens WHERE token=@tok`)).recordset[0];
+    if (!tokenRow) return res.status(404).json({ error: 'invalid token' });
+
+    // Verify issue belongs to this board (no cross-board writes via a stolen id)
+    const issue = (await req().input('id', sql.Int, id).input('bid', sql.Int, tokenRow.board_id)
+      .query(`SELECT id FROM fu_issues WHERE id=@id AND board_id=@bid`)).recordset[0];
+    if (!issue) return res.status(403).json({ error: 'Issue ไม่พบหรือไม่มีสิทธิ์' });
+
+    await req()
+      .input('id',  sql.Int,     id)
+      .input('det', sql.NVarChar, detail.trim())
+      .input('cat', sql.NVarChar, category || null)
+      .input('pri', sql.NVarChar, priority || 'normal')
+      .input('dd',  sql.Date,     due_date || null)
+      .input('nt',  sql.NVarChar, note || null)
+      .query(`UPDATE fu_issues SET detail=@det,category=@cat,priority=@pri,due_date=@dd,note=@nt,updated_at=GETDATE() WHERE id=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/public/board/:token/issues/:id/attachments  → public attachment list (no auth)
+app.get('/api/public/board/:token/issues/:id/attachments', async (request, res) => {
+  try {
+    const tok = request.params.token;
+    const id  = parseInt(request.params.id);
+    const tokenRow = (await req().input('tok', sql.NVarChar, tok)
+      .query(`SELECT board_id FROM fu_board_tokens WHERE token=@tok`)).recordset[0];
+    if (!tokenRow) return res.status(404).json({ error: 'invalid token' });
+
+    const issue = (await req().input('id', sql.Int, id).input('bid', sql.Int, tokenRow.board_id)
+      .query(`SELECT id FROM fu_issues WHERE id=@id AND board_id=@bid`)).recordset[0];
+    if (!issue) return res.status(403).json({ error: 'Issue ไม่พบหรือไม่มีสิทธิ์' });
+
+    const rows = (await req().input('id', sql.Int, id)
+      .query(`SELECT id, filename, original_name, file_size, mime_type, created_at
+              FROM fu_attachments WHERE issue_id=@id ORDER BY created_at`)).recordset;
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/public/board/:token/issues/:id/attachments  → customer attaches files (no auth, 2MB/file cap)
+app.post('/api/public/board/:token/issues/:id/attachments', (request, res, next) => {
+  fuPublicUpload.array('files', 5)(request, res, err => {
+    if (err) return res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'ไฟล์ใหญ่เกิน 2MB' : err.message });
+    next();
+  });
+}, async (request, res) => {
+  try {
+    const tok = request.params.token;
+    const id  = parseInt(request.params.id);
+    const tokenRow = (await req().input('tok', sql.NVarChar, tok)
+      .query(`SELECT board_id FROM fu_board_tokens WHERE token=@tok`)).recordset[0];
+    if (!tokenRow) return res.status(404).json({ error: 'invalid token' });
+
+    const issue = (await req().input('id', sql.Int, id).input('bid', sql.Int, tokenRow.board_id)
+      .query(`SELECT id FROM fu_issues WHERE id=@id AND board_id=@bid`)).recordset[0];
+    if (!issue) return res.status(403).json({ error: 'Issue ไม่พบหรือไม่มีสิทธิ์' });
+
+    const files = request.files || [];
+    if (!files.length) return res.status(400).json({ error: 'ไม่พบไฟล์' });
+    const inserted = [];
+    for (const f of files) {
+      const r = await req()
+        .input('iid', sql.Int, id)
+        .input('fn',  sql.NVarChar, f.filename)
+        .input('on',  sql.NVarChar, f.originalname)
+        .input('fs',  sql.Int, f.size)
+        .input('mt',  sql.NVarChar, f.mimetype)
+        .query(`INSERT INTO fu_attachments(issue_id,filename,original_name,file_size,mime_type,created_by) OUTPUT INSERTED.id VALUES(@iid,@fn,@on,@fs,@mt,NULL)`);
+      inserted.push({ id: r.recordset[0].id, filename: f.filename, original_name: f.originalname, file_size: f.size, mime_type: f.mimetype });
+    }
+    res.json({ ok: true, files: inserted });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -7034,14 +7155,87 @@ app.get('/api/public/board/:token/issues/:id/comments', async (request, res) => 
     if (!issueRow) return res.status(404).json({ error: 'issue not found' });
     const comments = (await req().input('id', sql.Int, iid).query(`
       SELECT c.id, c.body, c.created_at,
-             ISNULL(e.nickname, e.name) AS user_name,
-             LEFT(UPPER(ISNULL(e.nickname, e.name)), 1) AS avatar_char
+             COALESCE(e.nickname, e.name, c.author_name, N'ลูกค้า') AS user_name,
+             LEFT(UPPER(COALESCE(e.nickname, e.name, c.author_name, N'ลูกค้า')), 1) AS avatar_char,
+             CASE WHEN c.user_id IS NULL THEN 1 ELSE 0 END AS is_customer
       FROM fu_comments c
       LEFT JOIN app_users au ON au.id = c.user_id
       LEFT JOIN employees e  ON e.id  = au.employee_id
       WHERE c.issue_id = @id
       ORDER BY c.created_at ASC`)).recordset;
     res.json(comments);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/public/board/:token/issues/:id/comments  → customer adds a comment (no auth)
+app.post('/api/public/board/:token/issues/:id/comments', async (request, res) => {
+  try {
+    const tok  = request.params.token;
+    const iid  = parseInt(request.params.id);
+    const body = request.body.body?.trim();
+    const authorName = request.body.author_name?.trim() || null;
+    if (!body) return res.status(400).json({ error: 'กรุณาระบุข้อความ' });
+
+    const tokenRow = (await req().input('tok', sql.NVarChar, tok)
+      .query(`SELECT board_id FROM fu_board_tokens WHERE token=@tok`)).recordset[0];
+    if (!tokenRow) return res.status(404).json({ error: 'invalid token' });
+
+    const issueRow = (await req().input('iid', sql.Int, iid).input('bid', sql.Int, tokenRow.board_id)
+      .query(`SELECT id FROM fu_issues WHERE id=@iid AND board_id=@bid`)).recordset[0];
+    if (!issueRow) return res.status(404).json({ error: 'issue not found' });
+
+    const r = await req()
+      .input('iid', sql.Int, iid)
+      .input('an',  sql.NVarChar, authorName)
+      .input('b',   sql.NVarChar, body)
+      .query(`INSERT INTO fu_comments(issue_id,user_id,author_name,body) OUTPUT INSERTED.id VALUES(@iid,NULL,@an,@b)`);
+    res.json({ id: r.recordset[0].id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT /api/public/board/:token/issues/:id/status  → customer updates status (no auth)
+app.put('/api/public/board/:token/issues/:id/status', async (request, res) => {
+  try {
+    const tok    = request.params.token;
+    const id     = parseInt(request.params.id);
+    const status = request.body.status;
+    const allowed = ['pending','in_progress','waiting','fixed_waiting_update','resolved','cancelled'];
+    if (!allowed.includes(status)) return res.status(400).json({ error: 'สถานะไม่ถูกต้อง' });
+
+    const tokenRow = (await req().input('tok', sql.NVarChar, tok)
+      .query(`SELECT board_id FROM fu_board_tokens WHERE token=@tok`)).recordset[0];
+    if (!tokenRow) return res.status(404).json({ error: 'invalid token' });
+
+    const issue = (await req().input('id', sql.Int, id).input('bid', sql.Int, tokenRow.board_id)
+      .query(`SELECT id FROM fu_issues WHERE id=@id AND board_id=@bid`)).recordset[0];
+    if (!issue) return res.status(403).json({ error: 'Issue ไม่พบหรือไม่มีสิทธิ์' });
+
+    await req().input('id', sql.Int, id).input('st', sql.NVarChar, status)
+      .query(`UPDATE fu_issues SET status=@st, updated_at=GETDATE() WHERE id=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT /api/public/board/:token/issues/:id/priority  → customer updates priority (no auth)
+app.put('/api/public/board/:token/issues/:id/priority', async (request, res) => {
+  try {
+    const tok      = request.params.token;
+    const id       = parseInt(request.params.id);
+    const priority = request.body.priority;
+    const allowed  = ['urgent','high','normal','low'];
+    if (!allowed.includes(priority)) return res.status(400).json({ error: 'ความสำคัญไม่ถูกต้อง' });
+
+    const tokenRow = (await req().input('tok', sql.NVarChar, tok)
+      .query(`SELECT board_id FROM fu_board_tokens WHERE token=@tok`)).recordset[0];
+    if (!tokenRow) return res.status(404).json({ error: 'invalid token' });
+
+    const issue = (await req().input('id', sql.Int, id).input('bid', sql.Int, tokenRow.board_id)
+      .query(`SELECT id FROM fu_issues WHERE id=@id AND board_id=@bid`)).recordset[0];
+    if (!issue) return res.status(403).json({ error: 'Issue ไม่พบหรือไม่มีสิทธิ์' });
+
+    await req().input('id', sql.Int, id).input('pr', sql.NVarChar, priority)
+      .query(`UPDATE fu_issues SET priority=@pr, updated_at=GETDATE() WHERE id=@id`);
+    res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -7411,7 +7605,9 @@ app.get('/api/fu/issues/:id/timeline', authRequired, async (request, res) => {
   try {
     const id = parseInt(request.params.id);
     const comments = (await req().input('id',sql.Int,id).query(`
-      SELECT 'comment' AS type,c.id,c.body AS content,c.created_at,ISNULL(e.nickname,e.name) AS user_name
+      SELECT 'comment' AS type,c.id,c.body AS content,c.created_at,
+             COALESCE(e.nickname,e.name,c.author_name,N'ลูกค้า') AS user_name,
+             CASE WHEN c.user_id IS NULL THEN 1 ELSE 0 END AS is_customer
       FROM fu_comments c LEFT JOIN app_users au ON au.id=c.user_id LEFT JOIN employees e ON e.id=au.employee_id
       WHERE c.issue_id=@id`)).recordset;
     const activity = (await req().input('id',sql.Int,id).query(`
