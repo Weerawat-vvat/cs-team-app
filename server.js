@@ -7023,7 +7023,10 @@ app.get('/api/public/board/:token/data', async (request, res) => {
                      i.note, i.due_date, i.issue_url, i.created_at, i.updated_at,
                      ISNULL(e.nickname, e.name) AS assigned_to_name,
                      (SELECT COUNT(*) FROM fu_comments c WHERE c.issue_id = i.id) AS comment_count,
-                     (SELECT COUNT(*) FROM fu_attachments a WHERE a.issue_id = i.id) AS attachment_count
+                     (SELECT COUNT(*) FROM fu_attachments a WHERE a.issue_id = i.id) AS attachment_count,
+                     (SELECT TOP 1 a.filename      FROM fu_attachments a WHERE a.issue_id = i.id ORDER BY CASE WHEN a.mime_type LIKE 'image/%' THEN 0 ELSE 1 END, a.created_at, a.id) AS thumb_filename,
+                     (SELECT TOP 1 a.mime_type     FROM fu_attachments a WHERE a.issue_id = i.id ORDER BY CASE WHEN a.mime_type LIKE 'image/%' THEN 0 ELSE 1 END, a.created_at, a.id) AS thumb_mime,
+                     (SELECT TOP 1 a.original_name FROM fu_attachments a WHERE a.issue_id = i.id ORDER BY CASE WHEN a.mime_type LIKE 'image/%' THEN 0 ELSE 1 END, a.created_at, a.id) AS thumb_name
               FROM fu_issues i
               LEFT JOIN employees e ON e.id = i.assigned_to
               WHERE i.board_id=@bid
