@@ -451,6 +451,15 @@ function leadRequired(request, res, next) {
   next();
 }
 
+// Designated leave-request approvers — Pon (employee #2), Boek (employee #17), Nart (employee #14)
+const LEAVE_APPROVER_EMPLOYEE_IDS = [2, 17, 14];
+function leaveApproverRequired(request, res, next) {
+  if (!LEAVE_APPROVER_EMPLOYEE_IDS.includes(request.user?.employee_id)) {
+    return res.status(403).json({ error: 'เฉพาะผู้มีสิทธิ์อนุมัติวันลาเท่านั้น' });
+  }
+  next();
+}
+
 async function getScopedUsernames(user) {
   if (!user) return null;
   if (['manager', 'admin', 'staff'].includes(user.role)) return undefined; // no restriction
@@ -917,13 +926,12 @@ app.post('/api/leave-requests', authRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.put('/api/leave-requests/:id/approve', authRequired, async (request, res) => {
+app.put('/api/leave-requests/:id/approve', authRequired, leaveApproverRequired, async (request, res) => {
   try {
-    const { approved_by } = request.body;
     const lr = (await req().input('id', sql.Int, request.params.id)
       .query('SELECT * FROM leave_requests WHERE id=@id')).recordset[0];
     if (!lr) return res.status(404).json({ error: 'not found' });
-    await req().input('by', sql.Int, approved_by).input('id', sql.Int, request.params.id)
+    await req().input('by', sql.Int, request.user.employee_id).input('id', sql.Int, request.params.id)
       .query("UPDATE leave_requests SET status='approved',approved_by=@by WHERE id=@id");
     await req().input('eid', sql.Int, lr.employee_id).input('date', sql.Date, lr.leave_date)
       .query("UPDATE shifts SET status='approved_leave' WHERE employee_id=@eid AND shift_date=@date");
@@ -931,9 +939,9 @@ app.put('/api/leave-requests/:id/approve', authRequired, async (request, res) =>
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.put('/api/leave-requests/:id/reject', authRequired, async (request, res) => {
+app.put('/api/leave-requests/:id/reject', authRequired, leaveApproverRequired, async (request, res) => {
   try {
-    await req().input('by', sql.Int, request.body.approved_by).input('id', sql.Int, request.params.id)
+    await req().input('by', sql.Int, request.user.employee_id).input('id', sql.Int, request.params.id)
       .query("UPDATE leave_requests SET status='rejected',approved_by=@by WHERE id=@id");
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -7341,6 +7349,33 @@ app.get('/api/fu/by-assignee', authRequired, async (request, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ══ FOLLOW UP v2 — GLOBAL SEARCH (across every folder/board) ══
+app.get('/api/fu/search', authRequired, async (request, res) => {
+  try {
+    const raw = (request.query.q || '').trim();
+    if (!raw) return res.json([]);
+    const idOnly = raw.replace(/^#/, '');
+    const result = await req()
+      .input('q',   sql.NVarChar, `%${raw}%`)
+      .input('idQ', sql.NVarChar, idOnly)
+      .query(`
+        SELECT TOP 50
+          i.id, i.detail, i.note, i.status, i.priority, i.category, i.due_date,
+          ISNULL(e.nickname, e.name) AS assigned_to_name,
+          b.id AS board_id, b.name AS board_name,
+          f.id AS folder_id, f.name AS folder_name
+        FROM fu_issues i
+        LEFT JOIN employees e  ON e.id  = i.assigned_to
+        LEFT JOIN fu_boards  b ON b.id  = i.board_id
+        LEFT JOIN fu_folders f ON f.id  = b.folder_id
+        WHERE i.detail LIKE @q OR i.note LIKE @q OR i.category LIKE @q
+           OR ISNULL(e.nickname, e.name) LIKE @q
+           OR CAST(i.id AS NVARCHAR) = @idQ
+        ORDER BY i.created_at DESC`);
+    res.json(result.recordset);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ══ FOLLOW UP v2 — STALE ISSUES ══
 app.get('/api/fu/stale', authRequired, async (request, res) => {
   try {
@@ -9882,65 +9917,57 @@ app.post('/api/settings/line/targets/:id/test', authRequired, async (request, re
 // ══════════════════════════════════════════════════════════
 //  FOLLOW UP — DAILY DIGEST NOTIFICATION
 // ══════════════════════════════════════════════════════════
-const PRI_EMOJI = { urgent:'🔴', high:'🟠', normal:'🟡', low:'🟢' };
-const STALE_DAYS = 3; // days without update = stale
+// Only these 2 statuses are tracked in the digest — grouped by status, then by assignee
+const FU_DIGEST_STATUSES = [
+  { key: 'pending',     label: 'รอดำเนินการ' },
+  { key: 'in_progress', label: 'กำลังตรวจสอบ' },
+];
+
+function fmtDigestDueDate(d) {
+  if (!d) return 'ไม่มีกำหนด';
+  const dt = new Date(String(d).replace('Z',''));
+  return `${dt.getDate()}.${dt.getMonth()+1}.${dt.getFullYear()}`;
+}
+
+function fmtDigestOverdue(d) {
+  if (!d) return '';
+  const due = new Date(String(d).replace('Z','')); due.setHours(0,0,0,0);
+  const now = new Date(); now.setHours(0,0,0,0);
+  const days = Math.floor((now - due) / 86400000);
+  return days > 0 ? ` เลยกำหนดมาแล้ว ${days} วัน` : '';
+}
 
 async function sendFollowUpDigest() {
   try {
-    const today    = `CAST(GETDATE() AS DATE)`;
-    const tomorrow = `CAST(DATEADD(DAY,1,GETDATE()) AS DATE)`;
-    const staleTS  = `DATEADD(DAY,-${STALE_DAYS},GETDATE())`;
-    const notDone  = `i.status NOT IN ('resolved','cancelled')`;
-    const cols     = `i.id, i.detail, i.priority, i.due_date, i.updated_at,
-                      ISNULL(e.nickname,e.name) AS assigned_to_name,
-                      b.name AS board_name, f.name AS folder_name`;
-    const joins    = `FROM fu_issues i
-                      LEFT JOIN fu_boards b  ON b.id = i.board_id
-                      LEFT JOIN fu_folders f ON f.id = b.folder_id
-                      LEFT JOIN app_users au ON au.id = i.assigned_to
-                      LEFT JOIN employees e  ON e.id  = au.employee_id`;
+    const rows = (await req().query(`
+      SELECT i.id, i.due_date, i.status, ISNULL(e.nickname, e.name) AS assigned_to_name
+      FROM fu_issues i
+      LEFT JOIN app_users au ON au.id = i.assigned_to
+      LEFT JOIN employees e  ON e.id  = au.employee_id
+      WHERE i.status IN ('pending','in_progress')
+      ORDER BY i.due_date ASC`)).recordset;
 
-    const [overdue, dueToday, dueTmr, stale] = await Promise.all([
-      req().query(`SELECT ${cols} ${joins} WHERE ${notDone} AND i.due_date < ${today} ORDER BY i.due_date ASC`),
-      req().query(`SELECT ${cols} ${joins} WHERE ${notDone} AND i.due_date = ${today}  ORDER BY i.priority`),
-      req().query(`SELECT ${cols} ${joins} WHERE ${notDone} AND i.due_date = ${tomorrow} ORDER BY i.priority`),
-      req().query(`SELECT ${cols} ${joins} WHERE ${notDone} AND i.due_date IS NOT NULL AND i.updated_at < ${staleTS} ORDER BY i.updated_at ASC`),
-    ]);
-
-    const od = overdue.recordset, td = dueToday.recordset, tm = dueTmr.recordset, st = stale.recordset;
-    if (!od.length && !td.length && !tm.length && !st.length) return; // ไม่มีอะไร ไม่ส่ง
-
-    const fmtIssue = (r) => {
-      const emoji = PRI_EMOJI[r.priority] || '⚪';
-      const who   = r.assigned_to_name ? ` → ${r.assigned_to_name}` : '';
-      const brd   = r.folder_name ? `[${r.folder_name}/${r.board_name}]` : `[${r.board_name||'—'}]`;
-      const txt   = (r.detail||'').substring(0, 60) + ((r.detail||'').length > 60 ? '…' : '');
-      return `${emoji}  ${brd} เรื่อง ${txt}${who}`;
-    };
-    const fmtDaysAgo = (d) => {
-      if (!d) return '';
-      const days = Math.floor((Date.now() - new Date(String(d).replace('Z',''))) / 86400000);
-      return days > 0 ? ` (${days} วันที่แล้ว)` : '';
-    };
+    if (!rows.length) return; // ไม่มีอะไร ไม่ส่ง
 
     const dateStr = new Date().toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'});
     let msg = `📋 Follow Up สรุปรายวัน — ${dateStr}\n`;
 
-    if (od.length) {
-      msg += `\n🔴 เลยกำหนด ${od.length} รายการ:\n`;
-      msg += od.map(r => fmtIssue(r) + fmtDaysAgo(r.due_date)).join('\n');
-    }
-    if (td.length) {
-      msg += `\n\n⚠️ ครบกำหนดวันนี้ ${td.length} รายการ:\n`;
-      msg += td.map(fmtIssue).join('\n');
-    }
-    if (tm.length) {
-      msg += `\n\n🔔 พรุ่งนี้ครบกำหนด ${tm.length} รายการ:\n`;
-      msg += tm.map(fmtIssue).join('\n');
-    }
-    if (st.length) {
-      msg += `\n\n💤 ไม่มี update ${STALE_DAYS}+ วัน ${st.length} รายการ:\n`;
-      msg += st.map(r => fmtIssue(r) + fmtDaysAgo(r.updated_at)).join('\n');
+    for (const st of FU_DIGEST_STATUSES) {
+      const items = rows.filter(r => r.status === st.key);
+      if (!items.length) continue;
+
+      msg += `\n${st.label}\n`;
+      const byAssignee = {};
+      items.forEach(r => {
+        const name = r.assigned_to_name || 'ยังไม่มอบหมาย';
+        (byAssignee[name] = byAssignee[name] || []).push(r);
+      });
+      Object.keys(byAssignee).sort().forEach(name => {
+        msg += `${name}\n`;
+        msg += byAssignee[name]
+          .map(r => `#${r.id} , ${fmtDigestDueDate(r.due_date)}${fmtDigestOverdue(r.due_date)}`)
+          .join('\n') + '\n';
+      });
     }
 
     await sendLineNotify(msg, 'followup_due');
