@@ -669,6 +669,7 @@ textarea{resize:vertical;min-height:80px}
   <div class="dash-tabs">
     <button class="dash-tab-btn active" id="dash-tab-btn-1" onclick="switchDashTab(1)">👥 ภาพรวม Agent</button>
     <button class="dash-tab-btn" id="dash-tab-btn-2" onclick="switchDashTab(2)">📊 Issue Analytics</button>
+    <button class="dash-tab-btn" id="dash-tab-btn-3" onclick="switchDashTab(3)">🤖 AI Analysis</button>
   </div>
 
   <!-- ════ TAB 1: Agent Overview ════ -->
@@ -894,6 +895,35 @@ textarea{resize:vertical;min-height:80px}
     </div>
 
   </div><!-- /dash-tab-issues -->
+
+  <!-- ════ TAB 3: AI Analysis ════ -->
+  <div id="dash-tab-ai" style="display:none">
+    <div style="background:linear-gradient(160deg,#1e1b4b 0%,#312e81 55%,#1e1b4b 100%);border:1px solid #3730a3;border-radius:16px;padding:1.1rem 1.25rem;box-shadow:0 10px 30px -12px rgba(49,46,129,.6)">
+      <div style="display:flex;align-items:flex-start;gap:.75rem;flex-wrap:wrap">
+        <div style="flex:1;min-width:220px">
+          <div style="font-size:1.05rem;font-weight:800;color:#e0e7ff;display:flex;align-items:center;gap:.45rem">🤖 AI สรุป Case & แนวทางแก้ไข</div>
+          <div style="font-size:.76rem;color:#a5b4fc;margin-top:.25rem;line-height:1.5">ให้ AI วิเคราะห์ Case ที่เข้ามาตามช่วงวันที่ที่เลือกด้านบน แล้วสรุปปัญหาหลัก พร้อมเสนอ <b style="color:#c7d2fe">แนวทางแก้ระยะสั้นและระยะยาว</b></div>
+        </div>
+        <button class="btn btn-sm" id="ai-run-btn" onclick="loadAiInsight()" style="background:#6366f1;color:#fff;font-weight:700;flex-shrink:0">✨ วิเคราะห์ด้วย AI</button>
+      </div>
+
+      <div class="ai-status-bar" id="ai-status-bar" style="margin-top:.8rem"></div>
+
+      <div class="ai-insight-body" id="ai-insight-body" style="margin-top:.2rem">
+        <div style="color:#818cf8;font-size:.85rem;padding:1.2rem 0;text-align:center">
+          กดปุ่ม <b style="color:#c7d2fe">"✨ วิเคราะห์ด้วย AI"</b> เพื่อให้ AI สรุป Case และเสนอแนวทางแก้ไข
+        </div>
+      </div>
+
+      <div class="ai-tags" id="ai-tags"></div>
+
+      <div id="ai-footer-bar" style="display:none;margin-top:.85rem;padding-top:.6rem;border-top:1px solid #3730a3;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.4rem">
+        <span id="ai-last-run" style="font-size:.72rem;color:#818cf8"></span>
+        <span id="ai-token-info" style="font-size:.72rem;color:#6366f1"></span>
+      </div>
+    </div>
+    <div style="font-size:.72rem;color:var(--muted);margin-top:.6rem;text-align:center">⚡ ขับเคลื่อนโดย Gemini · วิเคราะห์จากข้อมูล Case จริงในระบบ · โปรดใช้วิจารณญาณประกอบการตัดสินใจ</div>
+  </div><!-- /dash-tab-ai -->
 
 </div>
 
@@ -5321,24 +5351,68 @@ function renderLineGroupPodBoard() {
     return;
   }
 
+  // ── วิเคราะห์ภาระงานแต่ละ Pod — เฉพาะ Pod ที่มีหัวหน้า · นับกลุ่ม Active (≤3 วัน) · คิดเป็น % ──
+  const podLoad = {};
+  _pods.forEach(p => {
+    const hasLead = !!(p.lead_nickname || p.lead_name);
+    const active = hasLead ? groups.filter(g => g.podId === p.id && g.activity === 'active') : [];
+    podLoad[p.id] = {
+      hasLead,
+      perDay: active.reduce((s, g) => s + g.total, 0) / (_lbDays || 1),
+      activeGroups: active.length,
+    };
+  });
+  const teamPerDay = Math.max(1e-9, Object.values(podLoad).reduce((s, l) => s + (l.hasLead ? l.perDay : 0), 0));
+  Object.values(podLoad).forEach(l => { l.pct = l.hasLead ? l.perDay / teamPerDay * 100 : 0; });
+  const contributing = Object.entries(podLoad).filter(([, l]) => l.hasLead && l.activeGroups > 0 && l.perDay > 0);
+  const maxPct     = Math.max(0.01, ...contributing.map(([, l]) => l.pct));
+  const ranked     = contributing.map(([id]) => +id).sort((a, b) => podLoad[b].pct - podLoad[a].pct);
+  const heaviestId = ranked[0] ?? null;
+  const rankOf     = {}; ranked.forEach((id, i) => { rankOf[id] = i + 1; });
+  // ป้าย % ส่วนแบ่งภาระงาน (สีไล่ตามความหนักเทียบกับ Pod ที่มากสุด)
+  function loadBadge(pid) {
+    const l = podLoad[pid];
+    if (!l || !l.hasLead || !l.activeGroups) return { icon: '', chip: '' };
+    const r = l.pct / maxPct;
+    const pctDisp = l.pct.toLocaleString(undefined, { maximumFractionDigits: 1 }) + '%';
+    let icon, bg;
+    if (pid === heaviestId) { icon = '🔥'; bg = '#dc2626'; }
+    else if (r >= 0.6)      { icon = '🟠'; bg = '#ea580c'; }
+    else if (r >= 0.35)     { icon = '🟡'; bg = '#ca8a04'; }
+    else                    { icon = '🟢'; bg = '#16a34a'; }
+    const tip = `แบกงาน ${pctDisp} ของทั้งทีม · นับเฉพาะกลุ่ม Active (≤3 วัน) · อันดับ ${rankOf[pid]}/${ranked.length} · ${l.activeGroups} กลุ่ม Active · เฉลี่ย ${lgpAvgFmt(l.perDay)} ข้อความ/วัน`;
+    return {
+      icon: `<span title="${tip}" style="flex-shrink:0">${icon}</span>`,
+      chip: `<span title="${tip}" style="display:inline-flex;align-items:center;gap:.25rem;font-size:.64rem;font-weight:800;padding:.05rem .45rem;border-radius:20px;background:${bg};color:#fff">${icon} ${pctDisp}</span>`,
+    };
+  }
+
   const cols = _pods.map(p => {
     const list = groups.filter(g => g.podId === p.id).sort(lgpSort);
     const totalMsgs = list.reduce((s, g) => s + g.total, 0);
+    const load = loadBadge(p.id);
     const chips = list.length ? list.map(g => lgpChip(g, canManage)).join('') : `<div style="font-size:.74rem;color:#cbd5e1;padding:.3rem .5rem">ยังไม่มีกลุ่มไลน์</div>`;
     // 👑 หัวหน้า Pod + จุดสถานะวันนี้ (เขียว=ทำงาน / แดง=หยุดลา / เทา=ยังไม่จัดกะ)
     const leadName = p.lead_nickname || p.lead_name;
     const leadDot = p.lead_status === 'work' ? '#22c55e' : (p.lead_status === 'off' ? '#f87171' : 'rgba(255,255,255,.45)');
-    const leadLine = leadName
-      ? `<div title="หัวหน้า Pod${p.lead_status==='work'?' · ทำงานวันนี้':(p.lead_status==='off'?' · หยุด/ลาวันนี้':'')}" style="display:flex;align-items:center;gap:.3rem;font-size:.68rem;color:#fff;opacity:.95;margin-top:.18rem">
+    const leadInner = leadName
+      ? `<div title="หัวหน้า Pod${p.lead_status==='work'?' · ทำงานวันนี้':(p.lead_status==='off'?' · หยุด/ลาวันนี้':'')}" style="display:flex;align-items:center;gap:.3rem;font-size:.68rem;color:#fff;opacity:.95;min-width:0">
            <span style="flex-shrink:0">👑</span>
            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(leadName)}</span>
            <span style="width:6px;height:6px;border-radius:50%;background:${leadDot};flex-shrink:0"></span>
          </div>`
+      : '<span></span>';
+    // แถวล่างของหัว Pod: หัวหน้า (ซ้าย) + ป้าย % ภาระงาน (ขวา) อยู่บรรทัดเดียวกัน
+    const leadLine = (leadName || load.chip)
+      ? `<div style="display:flex;justify-content:space-between;align-items:center;gap:.4rem;margin-top:.22rem">${leadInner}${load.chip}</div>`
       : '';
     return `<div style="flex:0 0 232px;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:#fff;display:flex;flex-direction:column">
       <div ${canManage ? `ondblclick="openPodForm(${p.id})" title="ดับเบิลคลิกเพื่อแก้ไข Pod" style="cursor:pointer;` : 'style="'}background:${p.color || '#1d4ed8'};color:#fff;padding:.5rem .6rem">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:.4rem">
-          <div style="font-size:.85rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.display_name)}</div>
+          <div style="display:flex;align-items:center;gap:.3rem;min-width:0">
+            ${load.icon}
+            <div style="font-size:.85rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.display_name)}</div>
+          </div>
           <span style="font-size:.68rem;font-weight:700;padding:.08rem .4rem;border-radius:20px;background:rgba(255,255,255,.28);flex-shrink:0">${list.length} กลุ่ม</span>
         </div>
         ${leadLine}
@@ -16302,7 +16376,14 @@ async function loadAiInsight() {
   _aiAbortCtrl = new AbortController();
 
   try {
-    const resp = await fetch('/api/ai-analysis', {
+    const dFrom = document.getElementById('dash-date-from')?.value || '';
+    const dTo   = document.getElementById('dash-date-to')?.value   || '';
+    let aiQs = '/api/ai-analysis';
+    const qp = [];
+    if (dFrom) qp.push(`dateFrom=${encodeURIComponent(dFrom)}`);
+    if (dTo)   qp.push(`dateTo=${encodeURIComponent(dTo)}`);
+    if (qp.length) aiQs += '?' + qp.join('&');
+    const resp = await fetch(aiQs, {
       signal: _aiAbortCtrl.signal,
       headers: authToken ? { 'Authorization': 'Bearer ' + authToken } : {}
     });
@@ -16341,7 +16422,8 @@ async function loadAiInsight() {
         } else if (msg.type === 'done') {
           bodyEl.innerHTML    = _aiFormatText(fullText);
           statusEl.textContent = '✅ วิเคราะห์เสร็จสิ้น';
-          tokenEl.textContent  = `🔢 ${msg.inputTokens} in / ${msg.outputTokens} out tokens`;
+          tokenEl.textContent  = (msg.inputTokens || msg.outputTokens)
+            ? `🔢 ${msg.inputTokens} in / ${msg.outputTokens} out tokens` : '';
           footerEl.style.display = '';
           lastEl.textContent     = 'อัปเดต ' + new Date().toLocaleTimeString('th-TH');
           _aiRenderTags(fullText, tagsEl);
@@ -17375,8 +17457,10 @@ function switchDashTab(tab) {
   _dashTab = tab;
   document.getElementById('dash-tab-agent').style.display  = tab === 1 ? '' : 'none';
   document.getElementById('dash-tab-issues').style.display = tab === 2 ? '' : 'none';
+  document.getElementById('dash-tab-ai').style.display     = tab === 3 ? '' : 'none';
   document.getElementById('dash-tab-btn-1').classList.toggle('active', tab === 1);
   document.getElementById('dash-tab-btn-2').classList.toggle('active', tab === 2);
+  document.getElementById('dash-tab-btn-3').classList.toggle('active', tab === 3);
   if (tab === 2) loadIssueAnalytics();
 }
 

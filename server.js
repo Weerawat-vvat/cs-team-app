@@ -5955,7 +5955,7 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
 // ══════════════════════════════════════════════════════════
 //  AI ANALYSIS — SSE streaming (real-time situation analysis)
 // ══════════════════════════════════════════════════════════
-app.get('/api/ai-analysis', authRequired, async (_, res) => {
+app.get('/api/ai-analysis', authRequired, async (request, res) => {
   if (!process.env.GEMINI_API_KEY) {
     return res.status(503).json({ error: 'GEMINI_API_KEY ยังไม่ได้ตั้งค่าใน .env' });
   }
@@ -6035,6 +6035,44 @@ app.get('/api/ai-analysis', authRequired, async (_, res) => {
       };
     }
 
+    // ── Case analytics ตามช่วงวันที่ที่เลือก (สำหรับสรุป Case + แนวทางแก้) ──
+    if (ext) {
+      const rs = request.query.dateFrom ? new Date(request.query.dateFrom) : new Date(new Date().setHours(0,0,0,0));
+      const re = request.query.dateTo   ? new Date(new Date(request.query.dateTo).setHours(23,59,59,999)) : new Date(new Date().setHours(23,59,59,999));
+
+      const [catR, subjR, custR, caseTotR] = await Promise.all([
+        extReq().input('s', sql.DateTime, rs).input('e', sql.DateTime, re)
+          .query(`SELECT TOP 10 ISNULL(pt.ProblemTypeDetail,'(ไม่ระบุ)') AS category, COUNT(*) AS cnt
+                  FROM Calllog cl LEFT JOIN ProblemType pt ON pt.ProblemTypeId=cl.ProblemTypeId
+                  WHERE cl.Active=1 AND cl.ReceiveDate>=@s AND cl.ReceiveDate<=@e
+                  GROUP BY pt.ProblemTypeDetail ORDER BY cnt DESC`),
+        extReq().input('s', sql.DateTime, rs).input('e', sql.DateTime, re)
+          .query(`SELECT TOP 12 cl.Subject AS subject, ISNULL(pt.ProblemTypeDetail,'(ไม่ระบุ)') AS category, COUNT(*) AS cnt
+                  FROM Calllog cl LEFT JOIN ProblemType pt ON pt.ProblemTypeId=cl.ProblemTypeId
+                  WHERE cl.Active=1 AND cl.ReceiveDate>=@s AND cl.ReceiveDate<=@e
+                    AND cl.Subject IS NOT NULL AND LEN(LTRIM(cl.Subject))>0
+                  GROUP BY cl.Subject, pt.ProblemTypeDetail ORDER BY cnt DESC`),
+        extReq().input('s', sql.DateTime, rs).input('e', sql.DateTime, re)
+          .query(`SELECT TOP 8 cr.CompanyName AS customer, COUNT(*) AS cnt
+                  FROM Calllog cl INNER JOIN CustomerRegistration cr ON cr.RegistrationId=cl.RegistrationId
+                  WHERE cl.Active=1 AND cl.ReceiveDate>=@s AND cl.ReceiveDate<=@e
+                    AND cr.CompanyName IS NOT NULL AND LEN(LTRIM(cr.CompanyName))>0
+                  GROUP BY cr.CompanyName ORDER BY cnt DESC`),
+        extReq().input('s', sql.DateTime, rs).input('e', sql.DateTime, re)
+          .query(`SELECT COUNT(*) AS cnt FROM Calllog cl
+                  WHERE cl.Active=1 AND cl.ReceiveDate>=@s AND cl.ReceiveDate<=@e`),
+      ]);
+
+      snap = {
+        ...snap,
+        caseRange: { from: rs.toISOString().split('T')[0], to: re.toISOString().split('T')[0] },
+        caseTotalInRange: caseTotR.recordset[0]?.cnt || 0,
+        topCategories:      catR.recordset,
+        topSubjects:        subjR.recordset,
+        topCustomersByCase: custR.recordset,
+      };
+    }
+
     // On-shift employees
     const hour    = now.getHours(), minute = now.getMinutes();
     const timeVal = hour * 60 + minute;
@@ -6069,25 +6107,30 @@ app.get('/api/ai-analysis', authRequired, async (_, res) => {
     };
 
     // ── Build prompt & stream ─────────────────────────────
-    const prompt = `คุณคือ "CS Assistant" ผู้ช่วย AI ของผู้จัดการทีม Customer Service
+    const prompt = `คุณคือ "CS Assistant" นักวิเคราะห์ Case ของทีม Customer Service
 วันที่: ${snap.date}  เวลา: ${snap.time}
+ช่วงข้อมูล Case ที่วิเคราะห์: ${snap.caseRange ? snap.caseRange.from + ' ถึง ' + snap.caseRange.to : 'ไม่มีข้อมูล (LicenseDB ไม่ได้เชื่อมต่อ)'}
 
-สถานะปัจจุบัน:
+ข้อมูลดิบจากระบบ (topCategories/topSubjects = ปัญหาที่ลูกค้าแจ้งเข้ามามากสุด):
 ${JSON.stringify(snap, null, 2)}
 
-กรุณาวิเคราะห์และรายงานเป็นภาษาไทย ในรูปแบบต่อไปนี้ (ห้ามออกนอกหัวข้อที่กำหนด):
+หน้าที่ของคุณคือช่วยผู้จัดการ "สรุป Case ที่เข้ามา" และ "เสนอแนวทางแก้ทั้งระยะสั้นและระยะยาว"
+วิเคราะห์เป็นภาษาไทย กระชับ ชัดเจน ใช้ข้อมูลตัวเลขจริงประกอบเสมอ และตอบตามรูปแบบนี้เท่านั้น (ห้ามเพิ่ม/ลดหัวข้อ):
 
-## 🌅 สรุปสถานการณ์วันนี้
-[2-3 ประโยค ภาพรวมสิ่งที่เกิดขึ้น]
+## 📋 สรุปภาพรวม Case
+[2-3 ประโยค: จำนวน Case รวมในช่วงนี้ หมวด/หัวข้อที่เด่นที่สุด และลูกค้าที่แจ้งเยอะ]
 
-## ⚠️ จุดที่ต้องระวัง
-[สิ่งที่น่ากังวล เช่น เคสค้างนาน, ปริมาณงานสูง, ขาดแคลนพนักงาน]
+## 🎯 ปัญหาหลักที่พบ (Top Issues)
+[รายการปัญหาสำคัญ 3-5 ข้อ แต่ละข้อระบุจำนวน Case และตีความว่าน่าจะเกิดจากสาเหตุอะไร]
 
-## 🔍 ความผิดปกติที่ตรวจพบ
-[ความผิดปกติในข้อมูล เช่น การกระจายเคสไม่สม่ำเสมอ, หมวดหมู่พุ่งขึ้นผิดปกติ]
+## 🩹 แนวทางแก้ระยะสั้น (Short-term)
+[2-4 ข้อ ที่ทำได้ทันทีใน 1-2 สัปดาห์ เช่น จัดคนเสริม, ทำ FAQ/สคริปต์ตอบ, ไล่ปิดเคสค้าง — ระบุให้ลงมือได้จริง]
 
-## 💡 คำแนะนำสำหรับผู้จัดการ
-[การกระทำที่แนะนำ 2-3 ข้อ ระบุเป็นข้อๆ]`;
+## 🌱 แนวทางแก้ระยะยาว (Long-term)
+[2-4 ข้อ ที่แก้ที่ต้นเหตุใน 1-3 เดือนขึ้นไป เช่น ปรับปรุงระบบ/ฟีเจอร์, อบรมลูกค้า, ทำ Knowledge Base, ลดปัญหาซ้ำซาก]
+
+## 💡 สิ่งที่ควรทำถัดไป
+[สรุป action ที่แนะนำให้ผู้จัดการทำก่อน 2-3 ข้อ เรียงตามความสำคัญ]`;
 
     send('start', { message: 'กำลังส่งข้อมูลให้ AI วิเคราะห์...' });
 
