@@ -3575,8 +3575,8 @@ async function sendEmpcalSummaryToLine(date) {
 }
 
 // Daily auto-send scheduler (no cron lib) — checks every 30s, fires once/day
-// at EMPCAL_LINE_SCHEDULE (HH:MM, Asia/Bangkok). Default 07:00.
-const EMPCAL_SEND_TIME = (process.env.EMPCAL_LINE_SCHEDULE || '07:00').trim();
+// at EMPCAL_LINE_SCHEDULE (HH:MM, Asia/Bangkok). Default 08:00.
+const EMPCAL_SEND_TIME = (process.env.EMPCAL_LINE_SCHEDULE || '08:00').trim();
 let _empcalLastSentDate = null;
 async function empcalSchedulerTick() {
   try {

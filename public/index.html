@@ -1764,7 +1764,13 @@ textarea{resize:vertical;min-height:80px}
 </div>
 
 <!-- Panel Modal Backdrop (Tab 3) — panel floats as centered dialog -->
-<div id="fu-panel-backdrop" onclick="fuClosePanelModal()" style="display:none;position:fixed;inset:0;z-index:9050;background:rgba(15,23,42,.45)"></div>
+<div id="fu-panel-backdrop" onclick="fuClosePanel()" style="display:none;position:fixed;inset:0;z-index:9050;background:rgba(15,23,42,.5);backdrop-filter:blur(2px)"></div>
+<style>
+@keyframes fuModalIn { from { opacity:0; transform:translate(-50%,-46%) scale(.97); } to { opacity:1; transform:translate(-50%,-50%) scale(1); } }
+.fu-nav-btn { width:26px;height:26px;border-radius:7px;border:1px solid #e2e8f0;background:#f8fafc;color:#475569;font-size:1.1rem;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;font-family:inherit;transition:background .12s,border-color .12s,color .12s }
+.fu-nav-btn:hover:not(:disabled) { background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8 }
+.fu-nav-btn:disabled { opacity:.32;cursor:default }
+</style>
 
 <!-- Add Issue Modal (Follow-up) -->
 <!-- ── Follow-up: Import CSV modal ── -->
@@ -2688,8 +2694,18 @@ textarea{resize:vertical;min-height:80px}
 
     <!-- ── Slide Panel ── -->
     <div id="fu-panel" style="width:0;min-width:0;background:#fff;border-left:1px solid #e2e8f0;display:flex;flex-direction:column;overflow:hidden;transition:width .22s ease">
-      <div style="padding:.55rem .9rem;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:.5rem">
-        <span id="fu-panel-title" style="font-size:.78rem;color:#94a3b8;flex:1"></span>
+      <div style="padding:.5rem .85rem;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:.5rem">
+        <!-- ‹ Prev / Next › navigation -->
+        <div id="fu-nav-group" style="display:none;align-items:center;gap:.15rem">
+          <button id="fu-nav-prev" class="fu-nav-btn" onclick="fuNavGo(-1)" title="ก่อนหน้า (←)">‹</button>
+          <span id="fu-nav-counter" style="font-size:.72rem;color:#64748b;font-weight:700;min-width:46px;text-align:center;font-variant-numeric:tabular-nums">–</span>
+          <button id="fu-nav-next" class="fu-nav-btn" onclick="fuNavGo(1)" title="ถัดไป (→)">›</button>
+        </div>
+        <span id="fu-panel-title" style="font-size:.78rem;color:#94a3b8"></span>
+        <div style="flex:1"></div>
+        <button id="fu-save-btn" onclick="fuSaveAll()" title="บันทึกทุกช่อง (Ctrl+S)"
+          style="background:#1d4ed8;color:#fff;border:none;border-radius:7px;padding:.32rem .8rem;font-size:.78rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:.3rem;transition:background .15s"
+          onmouseover="this.style.background='#1e40af'" onmouseout="this.style.background='#1d4ed8'">💾 บันทึก</button>
         <div style="position:relative">
           <button id="fu-move-btn" onclick="fuToggleMovePopover(_fuPanelId)" title="ย้ายไปยัง Board อื่น"
             style="background:#f1f5f9;border:1px solid #e2e8f0;font-size:.7rem;cursor:pointer;color:#475569;padding:.2rem .5rem;border-radius:6px;font-weight:600;display:flex;align-items:center;gap:.25rem;transition:all .15s"
@@ -2709,7 +2725,7 @@ textarea{resize:vertical;min-height:80px}
         <button onclick="if(confirm('ลบ Issue นี้?'))fuDeleteIssue(_fuPanelId)" title="ลบ Issue"
           style="background:none;border:none;font-size:.95rem;cursor:pointer;color:#94a3b8;padding:.1rem .3rem;border-radius:5px;transition:color .15s"
           onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#94a3b8'">🗑</button>
-        <button onclick="_fuPanelModal?fuClosePanelModal():fuClosePanel()" style="background:none;border:none;font-size:1.1rem;cursor:pointer;color:#94a3b8;padding:.1rem .3rem">×</button>
+        <button onclick="fuClosePanel()" title="ปิด (Esc)" style="background:none;border:none;font-size:1.1rem;cursor:pointer;color:#94a3b8;padding:.1rem .3rem">×</button>
       </div>
       <div id="fu-panel-body" style="flex:1;overflow-y:auto;padding:.75rem .9rem;display:flex;flex-direction:column;gap:.65rem"></div>
       <!-- Comment input -->
@@ -2864,6 +2880,19 @@ textarea{resize:vertical;min-height:80px}
 
   <!-- Tab 4: Azure Issues -->
   <div id="fu-tab-4" style="display:none;height:calc(100vh - 100px);overflow-y:auto;padding:1rem">
+    <!-- Search bar -->
+    <div style="display:flex;align-items:center;gap:.55rem;margin-bottom:.75rem;flex-wrap:wrap">
+      <div style="position:relative;flex:1;min-width:200px;max-width:420px">
+        <svg style="position:absolute;left:.6rem;top:50%;transform:translateY(-50%);width:14px;height:14px;color:#94a3b8;pointer-events:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input id="fu-azure-search" type="text" placeholder="ค้นหา Title / FU# / Work Item / State / ผู้รับผิดชอบ / Version..."
+          oninput="fuRenderAzureItems()"
+          style="width:100%;font-size:.8rem;padding:.42rem .7rem .42rem 1.9rem;border:1.5px solid #e2e8f0;border-radius:8px;outline:none;font-family:inherit;background:#fff;color:#1e293b;transition:border .15s;box-sizing:border-box"
+          onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'"/>
+        <button id="fu-azure-search-clear" onclick="document.getElementById('fu-azure-search').value='';fuRenderAzureItems();document.getElementById('fu-azure-search').focus()"
+          style="display:none;position:absolute;right:.5rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#94a3b8;font-size:1rem;line-height:1;padding:0" title="ล้างคำค้นหา">×</button>
+      </div>
+      <span id="fu-azure-count" style="font-size:.76rem;color:#64748b;font-weight:600;white-space:nowrap"></span>
+    </div>
     <div id="fu-azure-body" style="display:flex;flex-direction:column;gap:.75rem">
       <div style="color:#94a3b8;font-size:.85rem">กำลังโหลด...</div>
     </div>
@@ -10946,7 +10975,7 @@ const LINE_EVENTS = [
   { key: 'followup_due',     label: '⏰ FU สรุปรายวัน (due/stale)' },
   { key: 'specialist',       label: '🎯 Specialist ใหม่' },
   { key: 'service_request',  label: '📋 แจ้งงานบริการ' },
-  { key: 'empcal_summary',   label: '🗓️ ตารางงานพนักงาน (สรุปรายวัน 07:00)' },
+  { key: 'empcal_summary',   label: '🗓️ ตารางงานพนักงาน (สรุปรายวัน 08:00)' },
 ];
 const SERVE_TYPES = [
   { key: 'promo_coupon',        label: '🎯 สร้างโปรฯ / คูปอง' },
@@ -12616,7 +12645,9 @@ async function fuJumpToBoard(boardId, boardName, folderId, status) {
   fuRender();
 }
 
+let _fuActiveTab = 1;
 function fuSwitchTab(n) {
+  _fuActiveTab = n;
   const tabs = [1,2,3,4];
   tabs.forEach(i => {
     const tab = document.getElementById(`fu-tab-${i}`);
@@ -12942,7 +12973,7 @@ function fuRenderByAssignee() {
       const staleDays = issue.days_stale || 0;
       const staleCol  = staleDays >= 14 ? '#ef4444' : staleDays >= 7 ? '#f59e0b' : '#94a3b8';
       const rowBg = idx % 2 ? '#fafafa' : '#fff';
-      html += `<tr style="border-top:1px solid #f1f5f9;background:${rowBg};cursor:pointer"
+      html += `<tr data-id="${issue.id}" style="border-top:1px solid #f1f5f9;background:${rowBg};cursor:pointer"
           onclick="fuOpenIssueDialogById(${issue.id})"
           onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background='${rowBg}'">
         <td style="padding:.35rem .5rem;color:#cbd5e1;font-size:.7rem;vertical-align:top">${issue.id}</td>
@@ -13137,77 +13168,149 @@ function fubaClearFilters() {
   fuRenderByAssignee();
 }
 
-// ── Panel Modal Mode (Tab 3) ──────────────────────────────
-let _fuPanelModal    = false;  // true = panel is floating as modal (Tab 3)
+// ── Centered Modal + Prev/Next Navigation ─────────────────
+let _fuPanelModal    = false;  // true = panel is floating as centered modal
 let _fuByAssigneeMap = {};     // issueId → issue object
 let _fuIssuesSaved   = null;   // saved _fuIssues before modal overwrite
+let _fuNavIds        = [];     // ordered issue ids for prev/next (matches on-screen order)
+let _fuNavIdx        = -1;     // current position within _fuNavIds
 
-function fuOpenIssueDialogById(id) {
-  const issue = _fuByAssigneeMap[id];
-  if (!issue) return;
-  fuOpenPanelModal(issue);
+// Collect issue ids in on-screen order from a container's [data-id] elements
+function fuBuildNavIds(containerSel) {
+  const seen = new Set(), ids = [];
+  document.querySelectorAll(`${containerSel} [data-id]`).forEach(el => {
+    const n = parseInt(el.getAttribute('data-id'));
+    if (n && !seen.has(n)) { seen.add(n); ids.push(n); }
+  });
+  return ids;
 }
 
-async function fuOpenPanelModal(issue) {
-  _fuPanelModal = true;
+function fuOpenIssueDialogById(id) {
+  // Tab 3: nav follows the visible table order; full record is fetched on load
+  fuOpenModalById(id, fuBuildNavIds('#fu-byassignee-body'));
+}
 
-  // Save Tab 1 issues so we can restore them when closing
-  _fuIssuesSaved = _fuIssues;
+// Unified entry: open the centered modal for `id`, with `navIds` driving prev/next
+async function fuOpenModalById(id, navIds) {
+  _fuNavIds = Array.isArray(navIds) && navIds.length ? navIds : [id];
+  _fuNavIdx = _fuNavIds.indexOf(id);
+  if (_fuNavIdx < 0) { _fuNavIds = [id]; _fuNavIdx = 0; }
 
-  // Inject issue into _fuIssues so fuRenderPanel() can find it
-  if (!_fuIssues.find(i => i.id === issue.id)) _fuIssues = [issue];
-  _fuPanelId = issue.id;
+  if (!_fuPanelModal) {
+    _fuPanelModal  = true;
+    _fuIssuesSaved = _fuIssues;   // remember Tab 1 board list (restored on close)
 
-  // Move panel to <body> — escapes fu-tab-1's display:none
-  const panel = document.getElementById('fu-panel');
-  document.body.appendChild(panel);
+    const panel = document.getElementById('fu-panel');
+    document.body.appendChild(panel);        // escape fu-tab-1's layout
+    panel.style.cssText = `
+      position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+      width:min(680px,94vw);max-height:88vh;background:#fff;
+      border-radius:16px;display:flex;flex-direction:column;overflow:hidden;
+      box-shadow:0 24px 70px rgba(0,0,0,.28);z-index:9100;min-width:0;
+      animation:fuModalIn .18s cubic-bezier(.22,1,.36,1);
+    `;
+    document.getElementById('fu-panel-backdrop').style.display = 'block';
+    document.getElementById('fu-nav-group').style.display = 'flex';
+    document.addEventListener('keydown', _fuModalKeyHandler);
+  }
 
-  // Style as fixed right-side sheet
-  panel.style.cssText = `
-    position:fixed;top:0;right:0;bottom:0;width:420px;
-    background:#fff;border-left:1px solid #e2e8f0;
-    display:flex;flex-direction:column;overflow:hidden;
-    box-shadow:-8px 0 40px rgba(0,0,0,.18);z-index:9100;
-    transition:none;min-width:0;
-  `;
+  await _fuLoadIntoPanel(id);
+}
 
-  // Show backdrop
-  document.getElementById('fu-panel-backdrop').style.display = 'block';
+// Backward-compatible alias (older call sites pass a full issue object)
+async function fuOpenPanelModal(issue, navIds) {
+  if (issue && typeof issue === 'object') {
+    _fuByAssigneeMap[issue.id] = issue;   // cache so first paint is instant
+    return fuOpenModalById(issue.id, navIds || [issue.id]);
+  }
+  return fuOpenModalById(issue, navIds);
+}
 
+// Load a specific issue into the (already open) modal — used by open + prev/next
+async function _fuLoadIntoPanel(id) {
+  // Prefer the aliased object from the Tab 1 board list (edits stay in sync),
+  // else the cached row, else fetch the full record from the API.
+  let issue = (_fuIssuesSaved && _fuIssuesSaved.find(i => i.id === id))
+           || _fuByAssigneeMap[id];
+  // Board rows (SELECT i.*) carry sp_ref; partial rows (by-assignee) don't — fetch the full record
+  if (!issue || issue.note === undefined || issue.sp_ref === undefined) {
+    const full = await api(`/api/fu/issues/${id}`);
+    if (full && !full.error) { issue = full; _fuByAssigneeMap[id] = full; }
+  }
+  if (!issue) { showToast('❌ โหลด issue ไม่ได้', 'error'); return; }
+
+  _fuIssues  = [issue];
+  _fuPanelId = id;
+  fuUpdateNavUI();
+  const bodyEl = document.getElementById('fu-panel-body');
+  if (bodyEl) bodyEl.scrollTop = 0;
   await fuRenderPanel();
+  api('/api/fu/mentions/seen', { method:'POST', body:{}, silent:true });
+}
+
+// Move to prev (-1) / next (+1); stops at the ends (no wrap-around)
+async function fuNavGo(delta) {
+  const ni = _fuNavIdx + delta;
+  if (ni < 0 || ni >= _fuNavIds.length) return;
+  _fuNavIdx = ni;
+  await _fuLoadIntoPanel(_fuNavIds[ni]);
+}
+
+function fuUpdateNavUI() {
+  const counter = document.getElementById('fu-nav-counter');
+  const prev    = document.getElementById('fu-nav-prev');
+  const next    = document.getElementById('fu-nav-next');
+  const total   = _fuNavIds.length;
+  if (counter) counter.textContent = total > 1 ? `${_fuNavIdx + 1} / ${total}` : `#${_fuPanelId}`;
+  if (prev) prev.disabled = _fuNavIdx <= 0;
+  if (next) next.disabled = _fuNavIdx >= total - 1;
+}
+
+function _fuModalKeyHandler(e) {
+  if (!_fuPanelModal) return;
+  // Ctrl/Cmd+S saves everything, even while a field is focused
+  if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+    e.preventDefault(); if (document.activeElement) document.activeElement.blur(); fuSaveAll(); return;
+  }
+  const tag = (document.activeElement?.tagName || '').toLowerCase();
+  const typing = tag === 'input' || tag === 'textarea' || tag === 'select';
+  if (e.key === 'Escape')           { e.preventDefault(); fuClosePanel(); }
+  else if (typing)                  { return; }              // don't hijack arrows while editing
+  else if (e.key === 'ArrowLeft')   { e.preventDefault(); fuNavGo(-1); }
+  else if (e.key === 'ArrowRight')  { e.preventDefault(); fuNavGo(1); }
 }
 
 function fuClosePanelModal() {
+  if (!_fuPanelModal) return;
   _fuPanelModal = false;
+  document.removeEventListener('keydown', _fuModalKeyHandler);
 
-  // Move panel back into fu-tab-1 as a flex drawer
-  const panel  = document.getElementById('fu-panel');
-  const tab1   = document.getElementById('fu-tab-1');
-  tab1.appendChild(panel);
-
-  // Restore drawer styles
+  // Move panel back into fu-tab-1 and collapse it (hidden drawer state)
+  const panel = document.getElementById('fu-panel');
+  const tab1  = document.getElementById('fu-tab-1');
+  if (tab1) tab1.appendChild(panel);
   panel.style.cssText = `
-    width:0;min-width:0;background:#fff;
-    border-left:1px solid #e2e8f0;
-    display:flex;flex-direction:column;
-    overflow:hidden;transition:width .22s ease;
+    width:0;min-width:0;background:#fff;border-left:1px solid #e2e8f0;
+    display:flex;flex-direction:column;overflow:hidden;transition:width .22s ease;
   `;
-
   document.getElementById('fu-panel-backdrop').style.display = 'none';
+  document.getElementById('fu-nav-group').style.display = 'none';
   _fuPanelId = null;
+  _fuNavIds  = []; _fuNavIdx = -1;
 
-  // Restore Tab 1's issue list (was saved before modal opened)
-  if (_fuIssuesSaved !== null) {
-    _fuIssues      = _fuIssuesSaved;
-    _fuIssuesSaved = null;
-  } else {
-    _fuIssues = [];
-  }
+  // Restore Tab 1's board list (edits made in modal are reflected via shared refs)
+  _fuIssues      = _fuIssuesSaved !== null ? _fuIssuesSaved : [];
+  _fuIssuesSaved = null;
 
-  fuLoadByAssignee(); // refresh Tab 3
+  // Refresh whichever view is active so it shows the latest data
+  if (_fuActiveTab === 3)      fuLoadByAssignee();
+  else if (_fuActiveTab === 4) fuLoadAzureItems();
+  else                         fuRender();
 }
 
 // ── Tab 4: Azure Issues ───────────────────────────────────
+let _fuAzureData = [];   // cached rows from the API (filtered client-side by the search box)
+
 async function fuLoadAzureItems() {
   const body = document.getElementById('fu-azure-body');
   if (!body) return;
@@ -13215,8 +13318,38 @@ async function fuLoadAzureItems() {
 
   const data = await api('/api/fu/azure-items');
   if (!data) { body.innerHTML = '<div style="color:#ef4444">โหลดข้อมูลไม่ได้</div>'; return; }
-  if (!data.length) {
+  _fuAzureData = data;
+  fuRenderAzureItems();
+}
+
+// Filter cached rows by the search box, then group by folder and render
+function fuRenderAzureItems() {
+  const body = document.getElementById('fu-azure-body');
+  if (!body) return;
+
+  const q       = (document.getElementById('fu-azure-search')?.value || '').trim().toLowerCase();
+  const clearBtn = document.getElementById('fu-azure-search-clear');
+  const countEl  = document.getElementById('fu-azure-count');
+  if (clearBtn) clearBtn.style.display = q ? 'block' : 'none';
+
+  if (!_fuAzureData.length) {
     body.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:3rem">ไม่พบ Issues ที่มี Azure URL</div>';
+    if (countEl) countEl.textContent = '';
+    return;
+  }
+
+  const data = q ? _fuAzureData.filter(r =>
+    [r.title, r.fu_id, r.workItemId, r.workItemType, r.state, r.assignedTo,
+     r.releaseVersion, r.levelOfUrgency, r.folder_name]
+      .some(v => String(v ?? '').toLowerCase().includes(q))
+  ) : _fuAzureData;
+
+  if (countEl) countEl.textContent = q ? `พบ ${data.length} จาก ${_fuAzureData.length} รายการ` : `${_fuAzureData.length} รายการ`;
+
+  if (!data.length) {
+    body.innerHTML = `<div style="color:#94a3b8;text-align:center;padding:3rem">
+      <div style="font-size:2rem;margin-bottom:.5rem">🔍</div>
+      <div>ไม่พบรายการที่ตรงกับ "${esc(q)}"</div></div>`;
     return;
   }
 
@@ -13295,7 +13428,7 @@ async function fuLoadAzureItems() {
     group.items.forEach((item, idx) => {
       const rowBg = idx % 2 ? '#fafafa' : '#fff';
       const url = item.issue_url || '';
-      html += `<tr style="border-top:1px solid #f1f5f9;background:${rowBg};cursor:pointer"
+      html += `<tr data-id="${item.fu_id}" style="border-top:1px solid #f1f5f9;background:${rowBg};cursor:pointer"
           onclick="fuAzureOpenPanel(${item.fu_id})"
           onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background='${rowBg}'">
         <td style="padding:.35rem .6rem;vertical-align:middle">${urgencyBadge(item.levelOfUrgency)}</td>
@@ -13325,16 +13458,10 @@ async function fuLoadAzureItems() {
   body.innerHTML = html;
 }
 
-// ── Open fu-panel as modal from Azure Issues tab ───────────
-async function fuAzureOpenPanel(fuId) {
-  // Fetch full issue details
-  const issue = await api(`/api/fu/issues/${fuId}`);
-  if (!issue || issue.error) {
-    alert('โหลดข้อมูล Follow-up ไม่ได้');
-    return;
-  }
-  // Re-use existing modal mechanism (originally for Tab 3)
-  fuOpenPanelModal(issue);
+// ── Open detail modal from Azure Issues tab ───────────────
+function fuAzureOpenPanel(fuId) {
+  // nav follows the visible Azure table order; full record fetched on load
+  fuOpenModalById(fuId, fuBuildNavIds('#fu-azure-body'));
 }
 
 let _fuSummaryCache = null; // { status:{}, stale:{} }
@@ -14365,22 +14492,16 @@ async function fuDeleteIssue(id) {
   fuLoadSidebarStats();
 }
 
-// ── Slide Panel ───────────────────────────────────────────
+// ── Detail Modal (Tab 1 entry point) ──────────────────────
+// Opens the centered modal; prev/next follows the visible table/board order.
 async function fuOpenPanel(id) {
-  _fuPanelId = id;
-  const panel = document.getElementById('fu-panel');
-  if (panel) panel.style.width = '380px';
-  await fuRenderPanel();
-  fuRender(); // refresh current view (highlights selected row in table / panel glow in board)
-  // Mark mentions seen
-  api('/api/fu/mentions/seen', { method:'POST', body:{}, silent:true });
+  await fuOpenModalById(id, fuBuildNavIds('#fu-table-wrap'));
 }
 
 function fuClosePanel() {
   if (_fuPanelModal) { fuClosePanelModal(); return; }
   _fuPanelId = null;
   const panel = document.getElementById('fu-panel');
-  // Ensure panel is inside fu-tab-1 (in case it was moved to body)
   const tab1 = document.getElementById('fu-tab-1');
   if (panel && tab1 && panel.parentElement !== tab1) tab1.appendChild(panel);
   if (panel) panel.style.width = '0';
@@ -14483,7 +14604,7 @@ async function fuRenderPanel() {
 
   body.innerHTML = `
     <div>
-      <input type="text" value="${esc(issue.detail||'')}" placeholder="ชื่อ / หัวข้อปัญหา"
+      <input id="fup-detail" type="text" value="${esc(issue.detail||'')}" placeholder="ชื่อ / หัวข้อปัญหา"
         style="width:100%;font-weight:800;font-size:1.08rem;color:#0f172a;border:none;border-bottom:2px solid #e2e8f0;padding:.35rem .1rem;outline:none;background:transparent;transition:border-color .15s;font-family:inherit;letter-spacing:-.01em"
         onfocus="this.style.borderBottomColor='#3b82f6'"
         onblur="this.style.borderBottomColor='#e2e8f0';fuPanelSave(${id},'detail',this.value.trim()||null)"
@@ -14491,7 +14612,7 @@ async function fuRenderPanel() {
     </div>
     <div>
       <div style="font-size:.72rem;font-weight:700;color:#94a3b8;margin-bottom:.3rem">รายละเอียดปัญหา</div>
-      <textarea rows="3" style="width:100%;border:1px solid #e2e8f0;border-radius:7px;padding:.45rem .6rem;font-size:.82rem;font-family:inherit;resize:vertical;outline:none;transition:border .15s"
+      <textarea id="fup-note" rows="3" style="width:100%;border:1px solid #e2e8f0;border-radius:7px;padding:.45rem .6rem;font-size:.82rem;font-family:inherit;resize:vertical;outline:none;transition:border .15s"
         onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0';fuPanelSave(${id},'note',this.value)"
         placeholder="อธิบายรายละเอียดปัญหา..."
       >${esc(issue.note||'')}</textarea>
@@ -14499,7 +14620,7 @@ async function fuRenderPanel() {
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
       <div>
         <div style="font-size:.72rem;font-weight:700;color:#94a3b8;margin-bottom:.25rem">Note / รายละเอียดเพิ่มเติม</div>
-        <input type="text" value="${esc(issue.branch||'')}" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:.35rem .5rem;font-size:.8rem;font-family:inherit;outline:none;transition:border .15s"
+        <input id="fup-branch" type="text" value="${esc(issue.branch||'')}" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:.35rem .5rem;font-size:.8rem;font-family:inherit;outline:none;transition:border .15s"
           onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0';fuPanelSave(${id},'branch',this.value||null)" placeholder="--"/>
       </div>
       <div style="position:relative">
@@ -14513,19 +14634,19 @@ async function fuRenderPanel() {
       </div>
       <div>
         <div style="font-size:.72rem;font-weight:700;color:#94a3b8;margin-bottom:.25rem">ความสำคัญ</div>
-        <select onchange="fuPanelSave(${id},'priority',this.value)" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:.35rem .5rem;font-size:.8rem;font-family:inherit;outline:none">
+        <select id="fup-priority" onchange="fuPanelSave(${id},'priority',this.value)" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:.35rem .5rem;font-size:.8rem;font-family:inherit;outline:none">
           ${Object.entries(FU_PRIORITY).map(([v,p])=>`<option value="${v}" ${issue.priority===v?'selected':''}>${p.label}</option>`).join('')}
         </select>
       </div>
       <div>
         <div style="font-size:.72rem;font-weight:700;color:#94a3b8;margin-bottom:.25rem">สถานะ</div>
-        <select onchange="fuPanelSave(${id},'status',this.value)" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:.35rem .5rem;font-size:.8rem;font-family:inherit;outline:none">
+        <select id="fup-status" onchange="fuPanelSave(${id},'status',this.value)" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:.35rem .5rem;font-size:.8rem;font-family:inherit;outline:none">
           ${Object.entries(FU_STATUS).map(([v,s])=>`<option value="${v}" ${issue.status===v?'selected':''}>${s.label}</option>`).join('')}
         </select>
       </div>
       <div>
         <div style="font-size:.72rem;font-weight:700;color:#94a3b8;margin-bottom:.25rem">ผู้รับผิดชอบ</div>
-        <select onchange="fuPanelSave(${id},'assigned_to',this.value||null)" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:.35rem .5rem;font-size:.8rem;font-family:inherit;outline:none">
+        <select id="fup-assigned" onchange="fuPanelSave(${id},'assigned_to',this.value||null)" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:.35rem .5rem;font-size:.8rem;font-family:inherit;outline:none">
           <option value="">— ไม่ระบุ —</option>
           ${allEmployees.filter(e=>e.active).map(e=>`<option value="${e.id}" ${issue.assigned_to==e.id?'selected':''}>${esc(e.nickname||e.name)}</option>`).join('')}
         </select>
@@ -14538,7 +14659,7 @@ async function fuRenderPanel() {
       </div>
       <div>
         <div style="font-size:.72rem;font-weight:700;color:#94a3b8;margin-bottom:.25rem">Due Date</div>
-        <input type="date" value="${issue.due_date?issue.due_date.split('T')[0]:''}"
+        <input id="fup-due" type="date" value="${issue.due_date?issue.due_date.split('T')[0]:''}"
           style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:.35rem .5rem;font-size:.8rem;font-family:inherit;outline:none"
           onchange="fuPanelSave(${id},'due_date',this.value||null)"/>
       </div>
@@ -14621,6 +14742,61 @@ async function fuPanelSave(id, field, val) {
 async function fuPanelSaveTitle(val) {
   if (!_fuPanelId) return;
   await fuPanelSave(_fuPanelId, 'detail', val.trim() || null);
+}
+
+// Save every field at once (one PUT with only the fields that changed)
+async function fuSaveAll() {
+  const id    = _fuPanelId;
+  const issue = _fuIssues.find(i => i.id === id);
+  if (!id || !issue) return;
+  const g = s => document.getElementById(s);
+
+  // Read current values from the form (undefined = field not rendered)
+  const raw = {
+    detail:      g('fup-detail')        ? (g('fup-detail').value.trim() || null)        : undefined,
+    note:        g('fup-note')          ? g('fup-note').value                            : undefined,
+    branch:      g('fup-branch')        ? (g('fup-branch').value || null)                : undefined,
+    category:    g('fup-cat-inp')       ? (g('fup-cat-inp').value.trim() || null)        : undefined,
+    priority:    g('fup-priority')      ? g('fup-priority').value                        : undefined,
+    status:      g('fup-status')        ? g('fup-status').value                          : undefined,
+    assigned_to: g('fup-assigned')      ? (g('fup-assigned').value || null)              : undefined,
+    due_date:    g('fup-due')           ? (g('fup-due').value || null)                   : undefined,
+    issue_url:   g('fup-issue-url-inp') ? (g('fup-issue-url-inp').value.trim() || null)  : undefined,
+  };
+
+  // Keep only fields that actually changed
+  const body = {};
+  for (const [f, v] of Object.entries(raw)) {
+    if (v === undefined) continue;
+    let cur = issue[f];
+    if (f === 'due_date') cur = issue.due_date ? String(issue.due_date).split('T')[0] : null;
+    if (String(v ?? '') !== String(cur ?? '')) body[f] = v;
+  }
+
+  const keys = Object.keys(body);
+  if (!keys.length) { showToast('ℹ️ ไม่มีการเปลี่ยนแปลง'); return; }
+
+  const btn = g('fu-save-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '.6'; }
+  const r = await api(`/api/fu/issues/${id}`, { method:'PUT', body, silent:true });
+  if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+  if (r?.error) { showToast('❌ ' + r.error, 'error'); return; }
+
+  // Sync local copy so the list / next render reflect the change
+  Object.assign(issue, body);
+  if (body.assigned_to !== undefined) {
+    const emp = allEmployees.find(e => e.id == body.assigned_to);
+    issue.assigned_to_name = emp ? (emp.nickname || emp.name) : null;
+  }
+  if (body.category && !_fuCategories.includes(body.category)) { _fuCategories.push(body.category); _fuCategories.sort(); }
+  if (body.status !== undefined) fuLoadSidebarStats();
+
+  showToast(`✅ บันทึกแล้ว (${keys.length} ฟิลด์)`);
+
+  // Same auto-flow as inline edit: set to "แก้ไขแล้วรออัพเดท" → open SW Update form
+  if (body.status === 'fixed_waiting_update') { fuClosePanel(); fuCreateSwUpdate(issue); return; }
+
+  await fuRenderPanel();
 }
 
 // ── Attachment helpers ────────────────────────────────────
