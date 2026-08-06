@@ -3317,6 +3317,7 @@ textarea{resize:vertical;min-height:80px}
   <div class="dash-tabs">
     <button class="dash-tab-btn active" id="pod-tab-btn-5" onclick="switchPodTab(5)">🧩 จัดกลุ่มไลน์เข้า Pod</button>
     <button class="dash-tab-btn" id="pod-tab-btn-0" onclick="switchPodTab(0)">💬 LINE Webhook</button>
+    <button class="dash-tab-btn" id="pod-tab-btn-9" onclick="switchPodTab(9)">🤖 คัดกรอง AI</button>
     <button class="dash-tab-btn" id="pod-tab-btn-2" onclick="switchPodTab(2)">📈 Monitor งาน</button>
     <button class="dash-tab-btn" id="pod-tab-btn-3" onclick="switchPodTab(3)">📊 วิเคราะห์กำลังคน</button>
   </div>
@@ -3405,6 +3406,77 @@ textarea{resize:vertical;min-height:80px}
       </div>
     </div>
   </div><!-- /pod-tab-0 -->
+
+  <!-- AI Triage Inbox — classify LINE messages & let the team tick them off -->
+  <div id="pod-tab-9" style="display:none">
+    <div class="card" style="padding:.7rem 1rem;margin-bottom:.75rem;display:flex;gap:.7rem;align-items:center;flex-wrap:wrap">
+      <div style="font-size:.78rem;color:var(--muted)">🤖 AI คัดกรองเฉพาะข้อความที่เป็น <b>ticket</b> (ต้องดำเนินการ) เรียงจาก <b>รอนานสุด → น้อยสุด</b> · ทีมกดรับเรื่อง &amp; ติ๊กเสร็จ</div>
+      <div style="margin-left:auto;display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
+        <span id="tr-auto" style="font-size:.7rem;color:#94a3b8"></span>
+        <button class="btn btn-sm btn-ghost" onclick="triagePreviewAlert()">🔔 แจ้งเตือน LINE</button>
+        <button class="btn btn-sm btn-primary" id="tr-classify-btn" onclick="triageClassify()">✨ คัดกรองเดี๋ยวนี้</button>
+        <button class="btn btn-sm btn-ghost" onclick="loadTriage()">🔄 รีเฟรช</button>
+      </div>
+    </div>
+
+    <div id="tr-kpi-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:.65rem;margin-bottom:.75rem">
+      <div class="stat-flat"><div class="label">🎫 Ticket รอทำ</div><div class="value orange" id="tr-open-action">—</div><div class="sub">ยังไม่มีคนรับ</div></div>
+      <div class="stat-flat"><div class="label">⏳ รอนานสุด</div><div class="value" style="color:#f59e0b" id="tr-oldest">—</div><div class="sub">ticket ที่ค้างนานสุด</div></div>
+      <div class="stat-flat"><div class="label">✅ ปิดแล้ว</div><div class="value" style="color:#22c55e" id="tr-done">—</div><div class="sub">ติ๊กเสร็จสะสม</div></div>
+      <div class="stat-flat"><div class="label">📥 คัดกรองแล้ว</div><div class="value white" id="tr-classified">—</div><div class="sub" id="tr-backlog">—</div></div>
+    </div>
+
+    <div class="card" style="padding:.7rem 1rem 1rem">
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.55rem">
+        <div class="drb" id="tr-status-filter">
+          <button class="drb-btn active" onclick="setTriageStatus('open',this)">🔵 รอทำ</button>
+          <button class="drb-btn" onclick="setTriageStatus('done',this)">🟢 เสร็จแล้ว</button>
+          <button class="drb-btn" onclick="setTriageStatus('',this)">ทั้งหมด</button>
+        </div>
+        <select id="tr-f-category" onchange="loadTriage()" style="font-size:.75rem;padding:3px 6px">
+          <option value="">ประเภท: ทั้งหมด</option>
+          <option value="problem">🛠 แจ้งปัญหา</option>
+          <option value="question">❓ คำถาม</option>
+          <option value="request">📋 ขอ/ร้องขอ</option>
+          <option value="complaint">😠 ร้องเรียน</option>
+        </select>
+        <input id="tr-search" placeholder="🔍 ค้นข้อความ/กลุ่ม..." onkeydown="if(event.key==='Enter')loadTriage()" style="flex:1;min-width:160px"/>
+      </div>
+      <div id="tr-pod-filter" style="display:flex;gap:.35rem;flex-wrap:wrap;align-items:center;margin-bottom:.6rem"></div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th style="min-width:88px">⏳ รอมานาน</th>
+            <th style="min-width:150px">กลุ่มไลน์ / แชท</th>
+            <th style="min-width:300px">ข้อความ</th>
+            <th style="min-width:160px">จัดการ</th>
+          </tr></thead>
+          <tbody id="tr-tbody"><tr><td colspan="4" class="empty">— เลือกแท็บนี้เพื่อโหลด —</td></tr></tbody>
+        </table>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:flex-end;gap:.5rem;margin-top:.55rem">
+        <button class="btn btn-sm btn-ghost" onclick="triagePage(-1)" style="padding:.1rem .55rem">‹</button>
+        <span id="tr-pageinfo" style="font-size:.74rem;color:var(--muted);min-width:120px;text-align:center"></span>
+        <button class="btn btn-sm btn-ghost" onclick="triagePage(1)" style="padding:.1rem .55rem">›</button>
+      </div>
+    </div>
+
+    <!-- LINE alert preview modal -->
+    <div id="tr-alert-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;align-items:center;justify-content:center" onclick="if(event.target===this)this.style.display='none'">
+      <div style="background:#0f172a;border:1px solid #1e293b;border-radius:12px;max-width:460px;width:92%;padding:1rem">
+        <div style="display:flex;align-items:center;margin-bottom:.6rem">
+          <div style="font-weight:600;font-size:.9rem">🔔 ตัวอย่างข้อความแจ้งเตือน LINE</div>
+          <button class="btn btn-sm btn-ghost" style="margin-left:auto" onclick="document.getElementById('tr-alert-modal').style.display='none'">✕</button>
+        </div>
+        <pre id="tr-alert-text" style="white-space:pre-wrap;font-size:.78rem;color:#e2e8f0;background:#0b1220;border:1px solid #1e293b;border-radius:8px;padding:.7rem;max-height:50vh;overflow:auto;margin:0;font-family:inherit">—</pre>
+        <div style="display:flex;gap:.5rem;margin-top:.7rem;align-items:center">
+          <div id="tr-alert-note" style="font-size:.68rem;color:#94a3b8;flex:1"></div>
+          <button class="btn btn-sm btn-primary" id="tr-alert-send" onclick="triageSendAlert()">📤 ส่งเข้า LINE เลย</button>
+        </div>
+        <div style="font-size:.64rem;color:#64748b;margin-top:.5rem">ส่งไปยังกลุ่มที่ติ๊ก event "🔔 Ticket ไลน์ค้าง" ในตั้งค่า → LINE · เปิดส่งอัตโนมัติด้วย <code>TRIAGE_ALERT=on</code></div>
+      </div>
+    </div>
+  </div><!-- /pod-tab-9 -->
 
   <!-- Assign LINE groups to Pods -->
   <div id="pod-tab-5">
@@ -4995,7 +5067,7 @@ async function loadLicenseLoad() {
 // ── Pod page tabs + capacity analysis ──
 let _capData = null;
 function switchPodTab(tab) {
-  [0, 2, 3, 5].forEach(i => {
+  [0, 2, 3, 5, 9].forEach(i => {
     const panel = document.getElementById('pod-tab-' + i);
     const btn   = document.getElementById('pod-tab-btn-' + i);
     if (panel) panel.style.display = tab === i ? '' : 'none';
@@ -5005,6 +5077,234 @@ function switchPodTab(tab) {
   if (tab === 2) loadMonitor();
   if (tab === 3) renderCapacity();
   if (tab === 5) renderLineGroupPodBoard();
+  if (tab === 9) loadTriage();
+}
+
+// ══════════════════════════════════════════════════════════
+//  AI TRIAGE INBOX (pod-tab-9)
+// ══════════════════════════════════════════════════════════
+let _trStatus = 'open', _trPage = 1, _trTotal = 0, _trPer = 30;
+let _trPods = new Set();   // selected pod ids (strings) for multi-select filter; empty = all
+
+function renderTriagePodFilter() {
+  const el = document.getElementById('tr-pod-filter');
+  if (!el) return;
+  const pods = _pods || [];
+  const chip = (id, label, color, active) =>
+    `<button onclick="toggleTriagePod('${id}')" data-pod="${id}"
+      style="padding:2px 10px;border-radius:12px;font-size:.7rem;cursor:pointer;border:1px solid ${color}77;
+      background:${active ? color : 'transparent'};color:${active ? '#fff' : color};font-weight:${active ? '600' : '400'}">${label}</button>`;
+  let html = `<span style="font-size:.72rem;color:var(--muted)">🧩 Pod:</span>`;
+  html += chip('all', 'ทุก Pod', '#64748b', _trPods.size === 0);
+  html += pods.map(p => chip(p.id, esc(p.display_name), p.color || '#4f46e5', _trPods.has(String(p.id)))).join('');
+  html += chip('none', 'ไม่มี Pod', '#94a3b8', _trPods.has('none'));
+  el.innerHTML = html;
+}
+function toggleTriagePod(id) {
+  if (id === 'all') _trPods.clear();
+  else if (_trPods.has(id)) _trPods.delete(id);
+  else _trPods.add(id);
+  _trPage = 1;
+  renderTriagePodFilter();
+  loadTriage();
+}
+
+const TR_CAT = {
+  problem:   { label: '🛠 แจ้งปัญหา', bg:'#1e3a8a', fg:'#bfdbfe' },
+  question:  { label: '❓ คำถาม',     bg:'#3730a3', fg:'#c7d2fe' },
+  request:   { label: '📋 ขอ',        bg:'#134e4a', fg:'#99f6e4' },
+  complaint: { label: '😠 ร้องเรียน', bg:'#7f1d1d', fg:'#fecaca' },
+  thank:     { label: '🙏 ขอบคุณ',    bg:'#14532d', fg:'#bbf7d0' },
+  other:     { label: '💬 อื่นๆ',     bg:'#334155', fg:'#cbd5e1' },
+};
+const TR_SENT = { positive:'🟢', neutral:'⚪', negative:'🔴' };
+const TR_PRI  = {
+  urgent: { label:'🚨 ด่วน', bg:'#7f1d1d', fg:'#fecaca' },
+  normal: { label:'ปกติ',    bg:'#334155', fg:'#cbd5e1' },
+  low:    { label:'ต่ำ',     bg:'#1f2937', fg:'#9ca3af' },
+};
+const TR_ST = {
+  open:    { label:'🔵 รอทำ',    bg:'#1e3a8a', fg:'#bfdbfe' },
+  claimed: { label:'🟡 กำลังทำ', bg:'#78350f', fg:'#fde68a' },
+  done:    { label:'🟢 เสร็จ',   bg:'#14532d', fg:'#bbf7d0' },
+};
+const trPill = (o) => o ? `<span style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:.68rem;background:${o.bg};color:${o.fg};white-space:nowrap">${o.label}</span>` : '';
+
+function setTriageStatus(v, btn) {
+  _trStatus = v; _trPage = 1;
+  document.querySelectorAll('#tr-status-filter .drb-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  loadTriage();
+}
+function triagePage(dir) {
+  const maxPage = Math.max(1, Math.ceil(_trTotal / _trPer));
+  _trPage = Math.min(maxPage, Math.max(1, _trPage + dir));
+  loadTriage();
+}
+
+async function triageClassify() {
+  const btn = document.getElementById('tr-classify-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ กำลังคัดกรอง...'; }
+  try {
+    const r = await api('/api/triage/classify', { method: 'POST', body: { limit: 30 }, silent: true });
+    if (r?.error) { alert('❌ ' + r.error); }
+    else { alert(`✨ คัดกรองเพิ่ม ${r.classified || 0} ข้อความ`); _trPage = 1; await loadTriage(); }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '✨ คัดกรองเดี๋ยวนี้'; }
+  }
+}
+
+async function triagePreviewAlert() {
+  const modal = document.getElementById('tr-alert-modal');
+  document.getElementById('tr-alert-text').textContent = 'กำลังโหลด...';
+  document.getElementById('tr-alert-note').textContent = '';
+  modal.style.display = 'flex';
+  const a = await api('/api/triage/alert-preview', { silent: true });
+  if (!a || a.error) { document.getElementById('tr-alert-text').textContent = 'โหลดไม่สำเร็จ: ' + (a?.error || ''); return; }
+  document.getElementById('tr-alert-text').textContent = a.text;
+  document.getElementById('tr-alert-note').textContent = a.hasAny ? `🔴 ${a.urgentCount} กลุ่ม · 🟡 ${a.warnCount} กลุ่ม` : 'ยังไม่มี ticket ค้างเกิน 15 นาที';
+  const sb = document.getElementById('tr-alert-send'); if (sb) sb.disabled = !a.hasAny;
+}
+async function triageSendAlert() {
+  const btn = document.getElementById('tr-alert-send');
+  btn.disabled = true; btn.textContent = '⏳ กำลังส่ง...';
+  const r = await api('/api/triage/alert-send', { method: 'POST', silent: true });
+  btn.textContent = '📤 ส่งเข้า LINE เลย'; btn.disabled = false;
+  if (r?.error) alert('❌ ' + r.error);
+  else if (r?.sent) { alert(`✅ ส่งแจ้งเตือนแล้ว (🔴 ${r.urgentCount} · 🟡 ${r.warnCount})`); document.getElementById('tr-alert-modal').style.display = 'none'; }
+  else alert('ℹ️ ' + (r?.reason || 'ไม่มีอะไรให้ส่ง'));
+}
+
+async function triageAction(id, action, needNote) {
+  let note;
+  if (action === 'note') {
+    note = prompt('บันทึกโน้ต:', '');
+    if (note === null) return;
+  }
+  const r = await api(`/api/triage/${id}/action`, { method: 'POST', body: { action, note }, silent: true });
+  if (r?.error) { alert('❌ ' + r.error); return; }
+  await loadTriage();
+}
+
+async function loadTriage() {
+  const tbody = document.getElementById('tr-tbody');
+  if (!tbody) return;
+  if (!(_pods && _pods.length)) {   // ensure pod list for the filter chips
+    try { const b = await api('/api/pods/board', { silent: true }); _pods = Array.isArray(b) ? b : (b?.pods || []); } catch {}
+  }
+  renderTriagePodFilter();
+  const q = new URLSearchParams();
+  if (_trStatus) q.set('status', _trStatus);
+  const cat = document.getElementById('tr-f-category')?.value; if (cat) q.set('category', cat);
+  q.set('needsAction', '1');   // แสดงเฉพาะข้อความที่เป็น ticket (ต้อง action)
+  if (_trPods.size) q.set('pods', [..._trPods].join(','));
+  const search = document.getElementById('tr-search')?.value.trim(); if (search) q.set('q', search);
+  q.set('page', _trPage); q.set('per', _trPer);
+
+  tbody.innerHTML = `<tr><td colspan="7" class="empty">กำลังโหลด...</td></tr>`;
+  const [stats, data] = await Promise.all([
+    api('/api/triage/stats', { silent: true }),
+    api('/api/triage/inbox?' + q.toString(), { silent: true }),
+  ]);
+  if (stats && !stats.error) renderTriageStats(stats);
+  if (!data || data.error) {
+    tbody.innerHTML = `<tr><td colspan="7" class="empty">โหลดไม่สำเร็จ (${esc(data?.error || 'ไม่พร้อม')})</td></tr>`;
+    return;
+  }
+  _trTotal = data.total; _trPer = data.per;
+  renderTriageTable(data.rows || []);
+  const maxPage = Math.max(1, Math.ceil(_trTotal / _trPer));
+  const info = document.getElementById('tr-pageinfo');
+  if (info) info.textContent = `${_trTotal} รายการ · หน้า ${_trPage}/${maxPage}`;
+}
+
+function renderTriageStats(s) {
+  const sum = (arr, k, v) => (arr || []).reduce((a, r) => a + (r[k] === v ? r.n : 0), 0);
+  const setv = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  setv('tr-open-action', s.openAction ?? 0);
+  setv('tr-oldest', s.oldestOpenTicket ? trWaiting(s.oldestOpenTicket).txt : '—');
+  setv('tr-done', sum(s.byStatus, 'status', 'done'));
+  setv('tr-classified', s.totalClassified ?? 0);
+  const bl = document.getElementById('tr-backlog');
+  if (bl) bl.textContent = s.backlog != null ? `ค้างอีก ~${s.backlog.toLocaleString()}` : '';
+  const au = document.getElementById('tr-auto');
+  if (au) au.textContent = s.autoOn ? '🟢 auto คัดกรองทุก 15 นาที' : '⚪ auto ปิดอยู่ (TRIAGE_AUTO=off)';
+}
+
+function trFmtTime(s) {
+  const d = parseDbDate(s);
+  if (!d) return '';
+  return d.toLocaleString('th-TH', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+// "รอมานาน" — ระยะเวลาตั้งแต่ข้อความเข้ามา ถึงตอนนี้ + สีตามความนาน
+function trWaiting(s) {
+  const d = parseDbDate(s);
+  if (!d) return { txt: '—', color: '#64748b' };
+  const mins = Math.max(0, (Date.now() - d.getTime()) / 60000);
+  const days = Math.floor(mins / 1440), hrs = Math.floor((mins % 1440) / 60);
+  let txt;
+  if (days >= 1) txt = `${days} วัน${hrs ? ` ${hrs} ชม.` : ''}`;
+  else if (mins >= 60) txt = `${Math.floor(mins / 60)} ชม.`;
+  else txt = `${Math.floor(mins)} นาที`;
+  // ≤15 นาที เขียว · 15–30 นาที เหลือง · >30 นาที แดง
+  const color = mins > 30 ? '#ef4444' : mins > 15 ? '#eab308' : '#22c55e';
+  return { txt, color };
+}
+
+function trCopyName(btn, enc) {
+  const s = decodeURIComponent(enc);
+  const done = () => { const o = btn.textContent; btn.textContent = '✓'; btn.style.color = '#22c55e'; setTimeout(() => { btn.textContent = o; btn.style.color = '#94a3b8'; }, 1200); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(s).then(done).catch(done);
+  else { const t = document.createElement('textarea'); t.value = s; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); done(); }
+}
+
+function renderTriageRow(r) {
+  const w = trWaiting(r.message_time);
+  const msg = esc(r.message_text || '');
+  const short = msg.length > 180 ? msg.slice(0, 180) + '…' : msg;
+  const isDM = String(r.group_id || '').startsWith('U');
+  const chatName = r.group_name || (isDM ? (r.customer_name || 'แชทส่วนตัว') : (r.group_id || '(ไม่ทราบกลุ่ม)'));
+  const sender = (!isDM && r.customer_name) ? `<div style="color:#64748b;font-size:.64rem">โดย ${esc(r.customer_name)}</div>` : '';
+  const pod = r.pod_code
+    ? `<div style="margin-top:2px"><span style="display:inline-block;padding:0 6px;border-radius:8px;font-size:.62rem;background:${r.pod_color || '#4f46e5'}22;color:${r.pod_color || '#818cf8'}">🧩 ${esc(r.pod_name || r.pod_code)}</span></div>`
+    : '';
+  const cat = TR_CAT[r.category] || TR_CAT.other;
+  const catChip = `<span style="display:inline-block;padding:0 6px;border-radius:8px;font-size:.62rem;background:${cat.bg};color:${cat.fg};margin-right:4px;white-space:nowrap">${cat.label}</span>`;
+  const actions = r.status === 'done'
+    ? `<button class="btn btn-sm btn-ghost" style="padding:1px 7px;font-size:.68rem" onclick="triageAction(${r.id},'reopen')">↩ เปิดใหม่</button>`
+    : `<button class="btn btn-sm btn-primary" style="padding:2px 12px;font-size:.72rem" onclick="triageAction(${r.id},'done')">✅ เสร็จ</button>`;
+  const who = r.status !== 'done' ? ''
+    : r.answered_in_line ? `<div style="font-size:.64rem;color:#4ade80">✅ ตอบในไลน์แล้ว${r.answered_by ? ' · ' + esc(r.answered_by) : ''}</div>`
+    : r.done_name ? `<div style="font-size:.64rem;color:#4ade80">✅ โดย ${esc(r.done_name)}</div>` : '';
+  return `<tr>
+    <td style="white-space:nowrap">
+      <div style="font-weight:600;font-size:.75rem;color:${w.color}">${w.txt}</div>
+      <div style="color:#64748b;font-size:.6rem">${trFmtTime(r.message_time)}</div>
+    </td>
+    <td style="font-size:.74rem">
+      <div style="display:flex;align-items:center;gap:4px">
+        <span>${isDM ? '👤' : '💬'} ${esc(chatName)}</span>
+        <button title="คัดลอกชื่อไปค้นหา" onclick="trCopyName(this,'${encodeURIComponent(chatName)}')"
+          style="cursor:pointer;border:none;background:transparent;color:#94a3b8;padding:0 2px;font-size:.72rem;line-height:1">📋</button>
+      </div>
+      ${sender}${pod}
+    </td>
+    <td>
+      <div style="font-size:.8rem" title="${msg}">${catChip}${short || '<span style=\"color:#64748b\">(ว่าง)</span>'}</div>
+      ${r.summary ? `<div style="font-size:.66rem;color:#38bdf8;margin-top:2px">↳ ${esc(r.summary)}</div>` : ''}
+    </td>
+    <td>
+      <div style="margin-bottom:3px">${trPill(TR_ST[r.status] || TR_ST.open)}${who}</div>
+      ${actions}
+    </td>
+  </tr>`;
+}
+
+function renderTriageTable(rows) {
+  const tbody = document.getElementById('tr-tbody');
+  if (!rows.length) { tbody.innerHTML = `<tr><td colspan="4" class="empty">ไม่มี ticket ในเงื่อนไขนี้</td></tr>`; return; }
+  tbody.innerHTML = rows.map(renderTriageRow).join('');
 }
 
 // ══════════════════════════════════════════════════════════
@@ -11050,6 +11350,7 @@ const LINE_EVENTS = [
   { key: 'specialist',       label: '🎯 Specialist ใหม่' },
   { key: 'service_request',  label: '📋 แจ้งงานบริการ' },
   { key: 'empcal_summary',   label: '🗓️ ตารางงานพนักงาน (สรุปรายวัน 08:00)' },
+  { key: 'triage_alert',     label: '🔔 Ticket ไลน์ค้าง (เกิน 15/30 นาที)' },
 ];
 const SERVE_TYPES = [
   { key: 'promo_coupon',        label: '🎯 สร้างโปรฯ / คูปอง' },

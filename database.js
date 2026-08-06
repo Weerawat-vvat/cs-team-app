@@ -271,6 +271,56 @@ async function init() {
         updated_at  DATETIME DEFAULT GETDATE()
       )
     `);
+    // AI triage layer for LINE webhook messages (LineBotMonitor.dbo.LineWaitingReply).
+    // Owned by the app — we never alter the webhook writer's table. source_msg_id = LineWaitingReply.Id.
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='line_msg_triage' AND xtype='U')
+      CREATE TABLE line_msg_triage (
+        id             INT IDENTITY(1,1) PRIMARY KEY,
+        source_msg_id  INT NOT NULL UNIQUE,               -- LineWaitingReply.Id
+        group_id       NVARCHAR(100),                     -- denormalized for filtering
+        customer_name  NVARCHAR(255),
+        message_text   NVARCHAR(MAX),                     -- copy of CustomerMessage so the inbox renders from one DB
+        message_time   DATETIME,                          -- copy of LineWaitingReply.MessageTime
+        category       NVARCHAR(20)  NOT NULL DEFAULT 'other',   -- problem/question/thank/complaint/request/other
+        sentiment      NVARCHAR(12)  NOT NULL DEFAULT 'neutral',  -- positive/neutral/negative
+        priority       NVARCHAR(10)  NOT NULL DEFAULT 'normal',   -- urgent/normal/low
+        summary        NVARCHAR(500),                     -- AI one-line intent summary
+        needs_action   BIT NOT NULL DEFAULT 0,            -- AI judgment: does a human need to act?
+        status         NVARCHAR(12)  NOT NULL DEFAULT 'open',     -- open/claimed/done
+        claimed_by     INT NULL REFERENCES employees(id),
+        claimed_at     DATETIME NULL,
+        done_by        INT NULL REFERENCES employees(id),
+        done_at        DATETIME NULL,
+        note           NVARCHAR(1000),
+        ai_model       NVARCHAR(60),
+        classified_at  DATETIME DEFAULT GETDATE(),
+        created_at     DATETIME DEFAULT GETDATE(),
+        updated_at     DATETIME DEFAULT GETDATE()
+      )
+    `);
+    // Helpful indexes for the inbox filters (created once, ignore if they already exist)
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='ix_triage_status')
+        CREATE INDEX ix_triage_status ON line_msg_triage(status, needs_action, priority);
+      IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='ix_triage_group')
+        CREATE INDEX ix_triage_group ON line_msg_triage(group_id);
+    `);
+    // Added later: LINE group / chat display name (nullable; backfilled from LineWaitingReply.GroupName)
+    await pool.request().query(`
+      IF COL_LENGTH('line_msg_triage','group_name') IS NULL
+        ALTER TABLE line_msg_triage ADD group_name NVARCHAR(255)
+    `);
+    // Added later: auto-resolved because a staff member already replied in LINE
+    // (LineWaitingReply.Answered=1). Such tickets close automatically and never alert.
+    await pool.request().query(`
+      IF COL_LENGTH('line_msg_triage','answered_in_line') IS NULL
+        ALTER TABLE line_msg_triage ADD answered_in_line BIT NOT NULL DEFAULT 0
+    `);
+    await pool.request().query(`
+      IF COL_LENGTH('line_msg_triage','answered_by') IS NULL
+        ALTER TABLE line_msg_triage ADD answered_by NVARCHAR(255) NULL
+    `);
     console.log('✅ Migrations done');
   } catch (err) {
     console.error('❌ Migration error:', err.message);

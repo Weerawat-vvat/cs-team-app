@@ -5448,6 +5448,409 @@ app.post('/api/linebot/assign-pod', authRequired, managerRequired, async (reques
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ══════════════════════════════════════════════════════════
+//  AI TRIAGE — classify LINE webhook messages (Gemini) into a team
+//  inbox (category / sentiment / priority) that staff tick off.
+//  Source: LineBotMonitor.dbo.LineWaitingReply → app table line_msg_triage.
+//  We never modify the webhook writer's table; triage state lives in cs_team.
+// ══════════════════════════════════════════════════════════
+const TRIAGE_CATEGORIES = ['problem', 'question', 'thank', 'complaint', 'request', 'other'];
+const TRIAGE_SENTIMENTS = ['positive', 'neutral', 'negative'];
+const TRIAGE_PRIORITIES = ['urgent', 'normal', 'low'];
+const TRIAGE_STATUSES   = ['open', 'claimed', 'done'];
+
+const triageClean = (v, allowed, fallback) => {
+  const s = String(v ?? '').toLowerCase().trim();
+  return allowed.includes(s) ? s : fallback;
+};
+
+// Classify one batch of not-yet-triaged messages. Focus: unanswered + most recent first.
+// Returns { classified, scanned, hasKey, error? }.
+async function classifyTriageBatch(batchSize = 30) {
+  if (!process.env.GEMINI_API_KEY) return { classified: 0, scanned: 0, hasKey: false };
+  const lb = getLineBotPool();
+  if (!lb) return { classified: 0, scanned: 0, hasKey: true, error: 'LineBotMonitor DB ไม่ได้เชื่อมต่อ' };
+
+  batchSize = Math.max(1, Math.min(60, parseInt(batchSize) || 30));
+
+  // Candidate window: unanswered first, newest first — then anti-join against already-triaged rows.
+  const WINDOW = 400;
+  const cand = (await lb.request().query(`
+    SELECT TOP (${WINDOW}) Id, GroupId, GroupName, CustomerName, CustomerMessage, MessageTime, Answered
+    FROM dbo.LineWaitingReply
+    WHERE CustomerMessage IS NOT NULL AND LEN(LTRIM(RTRIM(CustomerMessage))) > 0
+    ORDER BY Answered ASC, MessageTime DESC
+  `)).recordset;
+  if (!cand.length) return { classified: 0, scanned: 0, hasKey: true };
+
+  // Filter out ids already classified (cross-DB, so anti-join in app; chunk the IN list)
+  const ids = cand.map(r => r.Id);
+  const existing = new Set();
+  for (let i = 0; i < ids.length; i += 200) {
+    const chunk = ids.slice(i, i + 200);
+    const r = req();
+    chunk.forEach((id, k) => r.input('e' + k, sql.Int, id));
+    const rows = (await r.query(
+      `SELECT source_msg_id FROM line_msg_triage WHERE source_msg_id IN (${chunk.map((_, k) => '@e' + k).join(',')})`
+    )).recordset;
+    rows.forEach(x => existing.add(x.source_msg_id));
+  }
+  const todo = cand.filter(r => !existing.has(r.Id)).slice(0, batchSize);
+  if (!todo.length) return { classified: 0, scanned: cand.length, hasKey: true };
+
+  const list = todo.map((m, i) =>
+    `[${i}] ${String(m.CustomerMessage).replace(/\s+/g, ' ').slice(0, 500)}`
+  ).join('\n');
+
+  const prompt = `คุณคือระบบคัดกรองข้อความจากลูกค้าที่ทักเข้ามาในกลุ่ม/แชทไลน์ของทีม Customer Service
+จำแนกข้อความแต่ละรายการด้านล่างนี้ แล้วตอบกลับเป็น JSON array เท่านั้น (ห้ามมีข้อความอื่นนอก JSON)
+
+แต่ละ object ต้องมี field:
+- i        : เลขลำดับข้อความ (ตรงกับ [i] ที่ให้มา)
+- category : หนึ่งใน "problem"(แจ้งปัญหา/เคส) | "question"(คำถาม/สอบถาม) | "thank"(ขอบคุณ/ชม) | "complaint"(ร้องเรียน/ตำหนิ) | "request"(ขอ/ร้องขอให้ทำอะไร) | "other"(อื่นๆ/ทักทาย/ไม่เข้าพวก)
+- sentiment: "positive" | "neutral" | "negative"
+- priority : "urgent"(รีบมาก เช่น ระบบล่ม ใช้งานไม่ได้ ลูกค้าเดือดร้อน) | "normal" | "low"
+- needs_action: true/false — ต้องมีทีมงานเข้าไปทำหรือตอบไหม (ขอบคุณเฉยๆ/ทักทาย = false; แจ้งปัญหา/คำถาม/ขอ/ร้องเรียน = true)
+- summary  : สรุปใจความสั้นๆ 1 ประโยคภาษาไทยว่าลูกค้าต้องการอะไร
+
+ข้อความ:
+${list}`;
+
+  const model = genAI.getGenerativeModel({
+    model: AI_MODEL,
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: SchemaType.ARRAY,
+        items: {
+          type: SchemaType.OBJECT,
+          properties: {
+            i:            { type: SchemaType.NUMBER },
+            category:     { type: SchemaType.STRING },
+            sentiment:    { type: SchemaType.STRING },
+            priority:     { type: SchemaType.STRING },
+            needs_action: { type: SchemaType.BOOLEAN },
+            summary:      { type: SchemaType.STRING },
+          },
+          required: ['i', 'category', 'sentiment', 'priority', 'needs_action', 'summary'],
+        },
+      },
+    },
+  });
+
+  let arr;
+  try {
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim()
+      .replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+    arr = JSON.parse(text);
+  } catch (e) {
+    console.error('triage: AI/parse failed:', e.message);
+    return { classified: 0, scanned: cand.length, hasKey: true, error: 'AI คัดกรองไม่สำเร็จ: ' + e.message };
+  }
+  if (!Array.isArray(arr)) return { classified: 0, scanned: cand.length, hasKey: true, error: 'AI ตอบผิดรูปแบบ' };
+
+  const byIndex = new Map();
+  arr.forEach(o => { if (o && Number.isInteger(o.i)) byIndex.set(o.i, o); });
+
+  let classified = 0;
+  for (let i = 0; i < todo.length; i++) {
+    const m = todo[i];
+    const o = byIndex.get(i) || {};
+    const needsAction = (o.needs_action === true || o.needs_action === 'true') ? 1 : 0;
+    try {
+      await req()
+        .input('sid',  sql.Int, m.Id)
+        .input('gid',  sql.NVarChar, m.GroupId || null)
+        .input('gname', sql.NVarChar, m.GroupName || null)
+        .input('cust', sql.NVarChar, m.CustomerName || null)
+        .input('txt',  sql.NVarChar(sql.MAX), m.CustomerMessage || null)
+        .input('mtime', sql.DateTime, m.MessageTime || null)
+        .input('cat',  sql.NVarChar, triageClean(o.category, TRIAGE_CATEGORIES, 'other'))
+        .input('sen',  sql.NVarChar, triageClean(o.sentiment, TRIAGE_SENTIMENTS, 'neutral'))
+        .input('pri',  sql.NVarChar, triageClean(o.priority, TRIAGE_PRIORITIES, 'normal'))
+        .input('sum',  sql.NVarChar, String(o.summary || '').slice(0, 480))
+        .input('na',   sql.Bit, needsAction)
+        .input('model', sql.NVarChar, AI_MODEL)
+        .query(`
+          IF NOT EXISTS (SELECT 1 FROM line_msg_triage WHERE source_msg_id=@sid)
+          INSERT INTO line_msg_triage
+            (source_msg_id, group_id, group_name, customer_name, message_text, message_time,
+             category, sentiment, priority, summary, needs_action, ai_model)
+          VALUES (@sid,@gid,@gname,@cust,@txt,@mtime,@cat,@sen,@pri,@sum,@na,@model)
+        `);
+      classified++;
+    } catch (e) { console.error('triage insert failed for id', m.Id, e.message); }
+  }
+  return { classified, scanned: cand.length, hasKey: true };
+}
+
+// Apply inbox filters from query params onto a request; returns the WHERE clause.
+function buildTriageFilter(query, r) {
+  const where = [];
+  if (TRIAGE_CATEGORIES.includes(query.category)) { where.push('t.category=@cat'); r.input('cat', sql.NVarChar, query.category); }
+  if (TRIAGE_SENTIMENTS.includes(query.sentiment)) { where.push('t.sentiment=@sen'); r.input('sen', sql.NVarChar, query.sentiment); }
+  if (TRIAGE_PRIORITIES.includes(query.priority)) { where.push('t.priority=@pri'); r.input('pri', sql.NVarChar, query.priority); }
+  if (TRIAGE_STATUSES.includes(query.status)) { where.push('t.status=@st'); r.input('st', sql.NVarChar, query.status); }
+  if (query.group) { where.push('t.group_id=@gid'); r.input('gid', sql.NVarChar, query.group); }
+  if (query.needsAction === '1') where.push('t.needs_action=1');
+  // Multi-select Pod filter: comma-separated pod ids, plus optional 'none' (unassigned groups)
+  if (query.pods) {
+    const parts = String(query.pods).split(',');
+    const ids = parts.map(x => parseInt(x)).filter(Boolean);   // parseInt guards against injection
+    const ors = [];
+    if (ids.length) ors.push(`lgp.pod_id IN (${ids.join(',')})`);
+    if (parts.includes('none')) ors.push('lgp.pod_id IS NULL');
+    if (ors.length) where.push('(' + ors.join(' OR ') + ')');
+  }
+  if (query.q) { where.push('(t.message_text LIKE @q OR t.summary LIKE @q OR t.customer_name LIKE @q OR t.group_name LIKE @q)'); r.input('q', sql.NVarChar, '%' + String(query.q).slice(0, 80) + '%'); }
+  return where.length ? 'WHERE ' + where.join(' AND ') : '';
+}
+
+// Manual trigger — classify the next batch (any signed-in user)
+app.post('/api/triage/classify', authRequired, async (request, res) => {
+  try {
+    const r = await classifyTriageBatch(request.body?.limit || 30);
+    if (!r.hasKey) return res.status(503).json({ error: 'GEMINI_API_KEY ยังไม่ได้ตั้งค่าใน .env' });
+    if (r.error)  return res.status(502).json({ error: r.error });
+    res.json({ ok: true, ...r });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Inbox list with filters + pagination
+app.get('/api/triage/inbox', authRequired, async (request, res) => {
+  try {
+    try { await syncTriageAnswered(); } catch {}   // reflect LINE replies before listing
+    const page = Math.max(1, parseInt(request.query.page) || 1);
+    const per  = Math.min(100, Math.max(5, parseInt(request.query.per) || 30));
+
+    const r = req();
+    const wsql = buildTriageFilter(request.query, r);
+    r.input('off', sql.Int, (page - 1) * per).input('per', sql.Int, per);
+    const rows = (await r.query(`
+      SELECT t.id, t.source_msg_id, t.group_id, t.customer_name, t.message_text, t.message_time,
+             COALESCE(t.group_name, lgp.group_name) AS group_name,
+             t.category, t.sentiment, t.priority, t.summary, t.needs_action, t.status,
+             t.answered_in_line, t.answered_by,
+             t.claimed_at, t.done_at, t.note, t.classified_at,
+             lgp.pod_id, p.code AS pod_code, p.display_name AS pod_name, p.color AS pod_color,
+             ISNULL(ce.nickname, ce.name) AS claimed_name,
+             ISNULL(de.nickname, de.name) AS done_name
+      FROM line_msg_triage t
+      LEFT JOIN line_group_pods lgp ON lgp.group_id = t.group_id
+      LEFT JOIN pods p       ON p.id = lgp.pod_id
+      LEFT JOIN employees ce ON ce.id = t.claimed_by
+      LEFT JOIN employees de ON de.id = t.done_by
+      ${wsql}
+      ORDER BY
+        CASE t.status WHEN 'open' THEN 0 WHEN 'claimed' THEN 1 ELSE 2 END,
+        t.message_time ASC          -- waiting longest (oldest) first
+      OFFSET @off ROWS FETCH NEXT @per ROWS ONLY
+    `)).recordset;
+
+    const rc = req();
+    const wsql2 = buildTriageFilter(request.query, rc);
+    const total = (await rc.query(`
+      SELECT COUNT(*) AS n FROM line_msg_triage t
+      LEFT JOIN line_group_pods lgp ON lgp.group_id = t.group_id
+      ${wsql2}`)).recordset[0].n;
+
+    res.json({ rows, total, page, per });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Summary counters for the cards on top of the inbox
+app.get('/api/triage/stats', authRequired, async (request, res) => {
+  try {
+    const byStatus   = (await req().query(`SELECT status, COUNT(*) AS n FROM line_msg_triage GROUP BY status`)).recordset;
+    const byCategory = (await req().query(`SELECT category, COUNT(*) AS n FROM line_msg_triage WHERE status<>'done' GROUP BY category`)).recordset;
+    const byPriority = (await req().query(`SELECT priority, COUNT(*) AS n FROM line_msg_triage WHERE status<>'done' GROUP BY priority`)).recordset;
+    const openAction = (await req().query(`SELECT COUNT(*) AS n FROM line_msg_triage WHERE status='open' AND needs_action=1`)).recordset[0].n;
+    const oldestOpenTicket = (await req().query(`SELECT MIN(message_time) AS oldest FROM line_msg_triage WHERE status='open' AND needs_action=1`)).recordset[0].oldest;
+    const totalClassified = (await req().query(`SELECT COUNT(*) AS n FROM line_msg_triage`)).recordset[0].n;
+
+    // Backlog estimate: total LINE messages with text minus what we've classified
+    let backlog = null;
+    const lb = getLineBotPool();
+    if (lb) {
+      const totalMsgs = (await lb.request().query(
+        `SELECT COUNT(*) AS n FROM dbo.LineWaitingReply WHERE CustomerMessage IS NOT NULL AND LEN(LTRIM(RTRIM(CustomerMessage)))>0`
+      )).recordset[0].n;
+      backlog = Math.max(0, totalMsgs - totalClassified);
+    }
+
+    res.json({
+      byStatus, byCategory, byPriority, openAction, oldestOpenTicket, totalClassified, backlog,
+      autoOn: (process.env.TRIAGE_AUTO || '').toLowerCase() === 'on',
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Team action on a triaged message: claim / done / reopen / note
+app.post('/api/triage/:id/action', authRequired, async (request, res) => {
+  const id = parseInt(request.params.id);
+  const { action, note } = request.body || {};
+  if (!id) return res.status(400).json({ error: 'id required' });
+  const empId = request.user?.employee_id || null;
+  try {
+    if (action === 'claim') {
+      await req().input('id', sql.Int, id).input('by', sql.Int, empId).query(
+        `UPDATE line_msg_triage SET status='claimed', claimed_by=@by, claimed_at=GETDATE(), updated_at=GETDATE() WHERE id=@id`);
+    } else if (action === 'done') {
+      await req().input('id', sql.Int, id).input('by', sql.Int, empId).query(
+        `UPDATE line_msg_triage
+         SET status='done', done_by=@by, done_at=GETDATE(),
+             claimed_by=ISNULL(claimed_by,@by), claimed_at=ISNULL(claimed_at,GETDATE()), updated_at=GETDATE()
+         WHERE id=@id`);
+    } else if (action === 'reopen') {
+      await req().input('id', sql.Int, id).query(
+        `UPDATE line_msg_triage SET status='open', claimed_by=NULL, claimed_at=NULL, done_by=NULL, done_at=NULL, updated_at=GETDATE() WHERE id=@id`);
+    } else if (action === 'note') {
+      await req().input('id', sql.Int, id).input('note', sql.NVarChar, String(note || '').slice(0, 990)).query(
+        `UPDATE line_msg_triage SET note=@note, updated_at=GETDATE() WHERE id=@id`);
+    } else {
+      return res.status(400).json({ error: 'unknown action' });
+    }
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Auto-classify scheduler — every 15 min, only when TRIAGE_AUTO=on. Caps at 60 msgs/round.
+let _triageAutoRunning = false;
+async function triageAutoTick() {
+  if ((process.env.TRIAGE_AUTO || '').toLowerCase() !== 'on') return;
+  if (_triageAutoRunning) return;
+  _triageAutoRunning = true;
+  try {
+    const r = await classifyTriageBatch(60);
+    if (r.classified) console.log(`🤖 triage auto: classified ${r.classified} msg(s)`);
+    if (r.error) console.warn('triage auto error:', r.error);
+  } catch (e) { console.error('triage auto tick error:', e.message); }
+  finally { _triageAutoRunning = false; }
+}
+setInterval(triageAutoTick, 15 * 60 * 1000);
+
+// ── Sync "answered in LINE" ───────────────────────────────
+// If a staff member already replied in the LINE group (LineWaitingReply.Answered=1),
+// auto-close that triage ticket so it drops off the inbox and never alerts again.
+let _triageSyncRunning = false;
+async function syncTriageAnswered() {
+  if (_triageSyncRunning) return 0;
+  const lb = getLineBotPool();
+  if (!lb) return 0;
+  _triageSyncRunning = true;
+  try {
+    const open = (await req().query(`SELECT source_msg_id FROM line_msg_triage WHERE status='open'`)).recordset;
+    if (!open.length) return 0;
+    let closed = 0;
+    for (let i = 0; i < open.length; i += 200) {
+      const chunk = open.slice(i, i + 200).map(r => r.source_msg_id);
+      const lreq = lb.request();
+      chunk.forEach((id, k) => lreq.input('a' + k, sql.Int, id));
+      const answered = (await lreq.query(
+        `SELECT Id, AnsweredBy, AnsweredTime FROM dbo.LineWaitingReply
+         WHERE Answered=1 AND Id IN (${chunk.map((_, k) => '@a' + k).join(',')})`)).recordset;
+      for (const a of answered) {
+        await req()
+          .input('id', sql.Int, a.Id)
+          .input('by', sql.NVarChar, a.AnsweredBy || null)
+          .input('at', sql.DateTime, a.AnsweredTime || null)
+          .query(`
+            UPDATE line_msg_triage
+            SET status='done', answered_in_line=1, answered_by=@by,
+                done_at=ISNULL(@at, GETDATE()), updated_at=GETDATE()
+            WHERE source_msg_id=@id AND status='open'`);
+        closed++;
+      }
+    }
+    if (closed) console.log(`🔄 triage sync: auto-closed ${closed} ticket(s) already answered in LINE`);
+    return closed;
+  } catch (e) { console.error('triage sync error:', e.message); return 0; }
+  finally { _triageSyncRunning = false; }
+}
+setInterval(syncTriageAnswered, 3 * 60 * 1000);
+
+// ── Overdue-ticket LINE alert ─────────────────────────────
+// Group open+needs_action tickets by LINE group, bucket by waiting time
+// (15–30 นาที = เริ่มค้าง, >30 นาที = ด่วนที่สุด), and format a LINE message.
+async function buildTriageAlert() {
+  await syncTriageAnswered();   // close LINE-answered tickets before building the alert
+  const rows = (await req().query(`
+    SELECT COALESCE(t.group_name, lgp.group_name) AS group_name, t.group_id,
+           p.display_name AS pod_name,
+           MIN(t.message_time) AS oldest, COUNT(*) AS cnt
+    FROM line_msg_triage t
+    LEFT JOIN line_group_pods lgp ON lgp.group_id = t.group_id
+    LEFT JOIN pods p ON p.id = lgp.pod_id
+    WHERE t.status='open' AND t.needs_action=1 AND t.message_time IS NOT NULL
+    GROUP BY COALESCE(t.group_name, lgp.group_name), t.group_id, p.display_name
+  `)).recordset;
+
+  const now = Date.now();
+  const items = rows.map(r => {
+    const waitMin = Math.floor((now - new Date(r.oldest).getTime()) / 60000);
+    const isDM = String(r.group_id || '').startsWith('U');
+    const name = r.group_name || (isDM ? '(แชทส่วนตัว)' : (r.group_id || '(ไม่ทราบกลุ่ม)'));
+    return { name, pod: r.pod_name || 'ไม่มี Pod', waitMin };
+  });
+  const byPod = (a, b) => String(a.pod).localeCompare(String(b.pod), 'th') || String(a.name).localeCompare(String(b.name), 'th');
+  const urgent = items.filter(x => x.waitMin > 30).sort(byPod);
+  const warn   = items.filter(x => x.waitMin >= 15 && x.waitMin <= 30).sort(byPod);
+  const line = (x) => `• [${x.pod}] ${x.name}`;
+
+  const nowTh = new Date().toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit', timeZone:'Asia/Bangkok' });
+  let text = `🔔 แจ้งเตือน Ticket ค้าง — ${nowTh} น.\n`;
+  if (urgent.length) {
+    text += `\n🔴 ด่วนที่สุด — รอเกิน 30 นาที (${urgent.length} กลุ่ม)\n`;
+    text += urgent.map(line).join('\n') + '\n';
+  }
+  if (warn.length) {
+    text += `\n🟡 เริ่มค้าง — รอ 15–30 นาที (${warn.length} กลุ่ม)\n`;
+    text += warn.map(line).join('\n') + '\n';
+  }
+  if (!urgent.length && !warn.length) text += `\n✅ ไม่มี ticket ค้างเกิน 15 นาที`;
+  else text += `\nรวมค้าง ${urgent.length + warn.length} กลุ่ม · เข้าเคลียร์ที่ CS → Pod & ลูกค้า → คัดกรอง AI`;
+
+  return { text, urgentCount: urgent.length, warnCount: warn.length, hasAny: !!(urgent.length || warn.length) };
+}
+
+// Preview the alert text (does NOT send to LINE)
+app.get('/api/triage/alert-preview', authRequired, async (request, res) => {
+  try { res.json(await buildTriageAlert()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Manually send the alert now to LINE targets subscribed to 'triage_alert'
+app.post('/api/triage/alert-send', authRequired, async (request, res) => {
+  try {
+    const a = await buildTriageAlert();
+    if (!a.hasAny) return res.json({ ok: true, sent: false, reason: 'ไม่มี ticket ค้างเกิน 15 นาที' });
+    await sendLineNotify(a.text, 'triage_alert');
+    res.json({ ok: true, sent: true, urgentCount: a.urgentCount, warnCount: a.warnCount });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Auto alert scheduler — checks every minute, sends at most once / TRIAGE_ALERT_MINUTES,
+// only when TRIAGE_ALERT=on and there is at least one ticket overdue ≥15 นาที.
+const TRIAGE_ALERT_MIN = Math.max(5, parseInt(process.env.TRIAGE_ALERT_MINUTES) || 15);
+let _triageAlertRunning = false, _triageAlertLast = 0;
+async function triageAlertTick() {
+  if ((process.env.TRIAGE_ALERT || '').toLowerCase() !== 'on') return;
+  if (_triageAlertRunning) return;
+  if (Date.now() - _triageAlertLast < TRIAGE_ALERT_MIN * 60000) return;
+  _triageAlertRunning = true;
+  try {
+    const a = await buildTriageAlert();
+    if (a.hasAny) {
+      await sendLineNotify(a.text, 'triage_alert');
+      _triageAlertLast = Date.now();
+      console.log(`🔔 triage alert sent (urgent ${a.urgentCount}, warn ${a.warnCount})`);
+    }
+  } catch (e) { console.error('triage alert tick error:', e.message); }
+  finally { _triageAlertRunning = false; }
+}
+setInterval(triageAlertTick, 60 * 1000);
+
 // Today's shift per employee (for member/lead dropdowns)
 app.get('/api/today-shifts', authRequired, async (request, res) => {
   try {
@@ -7566,7 +7969,7 @@ app.patch('/api/fu/issues/:id/move', authRequired, async (request, res) => {
     await req().input('iid',sql.Int,id).input('uid',sql.Int,request.user.id)
       .input('ct',sql.NVarChar,'ย้าย Board')
       .input('nv',sql.NVarChar,`${bRow.fname} / ${bRow.bname}`)
-      .query(`INSERT INTO fu_activity(issue_id,user_id,content,new_val,created_at) VALUES(@iid,@uid,@ct,@nv,GETDATE())`);
+      .query(`INSERT INTO fu_activity(issue_id,user_id,action,new_val,created_at) VALUES(@iid,@uid,@ct,@nv,GETDATE())`);
     res.json({ ok:true, board_name: bRow.bname, folder_name: bRow.fname });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
