@@ -5181,9 +5181,16 @@ async function triageAction(id, action, needNote) {
     note = prompt('บันทึกโน้ต:', '');
     if (note === null) return;
   }
+  // Optimistic UI — drop the row immediately so it never lingers until refresh
+  let removedRow = null;
+  if (action === 'done' || action === 'reopen') {
+    const btn = document.querySelector(`#tr-tbody button[onclick^="triageAction(${id},"]`);
+    removedRow = btn?.closest('tr') || null;
+    if (removedRow) removedRow.remove();
+  }
   const r = await api(`/api/triage/${id}/action`, { method: 'POST', body: { action, note }, silent: true });
-  if (r?.error) { alert('❌ ' + r.error); return; }
-  await loadTriage();
+  if (r?.error) { alert('❌ ' + r.error); }
+  await loadTriage();   // resync list + counts (fresh, uncached)
 }
 
 async function loadTriage() {
@@ -5200,10 +5207,11 @@ async function loadTriage() {
   if (_trPods.size) q.set('pods', [..._trPods].join(','));
   const search = document.getElementById('tr-search')?.value.trim(); if (search) q.set('q', search);
   q.set('page', _trPage); q.set('per', _trPer);
+  q.set('_t', Date.now());   // cache-buster so we never render a stale list
 
   tbody.innerHTML = `<tr><td colspan="7" class="empty">กำลังโหลด...</td></tr>`;
   const [stats, data] = await Promise.all([
-    api('/api/triage/stats', { silent: true }),
+    api('/api/triage/stats?_t=' + Date.now(), { silent: true }),
     api('/api/triage/inbox?' + q.toString(), { silent: true }),
   ]);
   if (stats && !stats.error) renderTriageStats(stats);
