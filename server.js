@@ -5627,6 +5627,16 @@ app.get('/api/triage/inbox', authRequired, async (request, res) => {
     const r = req();
     const wsql = buildTriageFilter(request.query, r);
     r.input('off', sql.Int, (page - 1) * per).input('per', sql.Int, per);
+
+    // Status-aware ordering (whitelisted, no injection):
+    //  • open/claimed → waiting longest first (oldest message)
+    //  • done         → most recently completed first
+    //  • ทั้งหมด (no status) → most recently changed first, so just-actioned tickets surface
+    const st = request.query.status;
+    const orderBy =
+      st === 'done' ? 't.done_at DESC, t.updated_at DESC'
+      : (st === 'open' || st === 'claimed') ? 't.message_time ASC'
+      : 't.updated_at DESC';
     const rows = (await r.query(`
       SELECT t.id, t.source_msg_id, t.group_id, t.customer_name, t.message_text, t.message_time,
              COALESCE(t.group_name, lgp.group_name) AS group_name,
@@ -5642,9 +5652,7 @@ app.get('/api/triage/inbox', authRequired, async (request, res) => {
       LEFT JOIN employees ce ON ce.id = t.claimed_by
       LEFT JOIN employees de ON de.id = t.done_by
       ${wsql}
-      ORDER BY
-        CASE t.status WHEN 'open' THEN 0 WHEN 'claimed' THEN 1 ELSE 2 END,
-        t.message_time ASC          -- waiting longest (oldest) first
+      ORDER BY ${orderBy}
       OFFSET @off ROWS FETCH NEXT @per ROWS ONLY
     `)).recordset;
 
