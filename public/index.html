@@ -5284,6 +5284,7 @@ function renderTriageRow(r) {
     : `<button class="btn btn-sm btn-primary" style="padding:2px 12px;font-size:.72rem" onclick="triageAction(${r.id},'done')">✅ เสร็จ</button>`;
   const who = r.status !== 'done' ? ''
     : r.answered_in_line ? `<div style="font-size:.64rem;color:#4ade80">✅ ตอบในไลน์แล้ว${r.answered_by ? ' · ' + esc(r.answered_by) : ''}</div>`
+    : r.auto_closed ? `<div style="font-size:.64rem;color:#94a3b8">🗓️ ปิดอัตโนมัติ (ครบ 3 วัน)</div>`
     : r.done_name ? `<div style="font-size:.64rem;color:#4ade80">✅ โดย ${esc(r.done_name)}</div>` : '';
   return `<tr>
     <td style="white-space:nowrap">
@@ -5304,6 +5305,7 @@ function renderTriageRow(r) {
     </td>
     <td>
       <div style="margin-bottom:3px">${trPill(TR_ST[r.status] || TR_ST.open)}${who}</div>
+      ${r.maybe_resolved ? `<div style="font-size:.62rem;color:#f59e0b;margin-bottom:3px" title="ในกลุ่มนี้มีข้อความขอบคุณ/บวกใหม่กว่า — ลูกค้าอาจแก้ได้แล้ว">💡 น่าจะแก้แล้ว</div>` : ''}
       ${actions}
     </td>
   </tr>`;

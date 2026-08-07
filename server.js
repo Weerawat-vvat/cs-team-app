@@ -5620,7 +5620,8 @@ app.post('/api/triage/classify', authRequired, async (request, res) => {
 // Inbox list with filters + pagination
 app.get('/api/triage/inbox', authRequired, async (request, res) => {
   try {
-    try { await syncTriageAnswered(); } catch {}   // reflect LINE replies before listing
+    try { await syncTriageAnswered(); } catch {}     // reflect LINE replies before listing
+    try { await autoCloseStaleTickets(); } catch {}  // close tickets open ≥3 days
     const page = Math.max(1, parseInt(request.query.page) || 1);
     const per  = Math.min(100, Math.max(5, parseInt(request.query.per) || 30));
 
@@ -5641,7 +5642,14 @@ app.get('/api/triage/inbox', authRequired, async (request, res) => {
       SELECT t.id, t.source_msg_id, t.group_id, t.customer_name, t.message_text, t.message_time,
              COALESCE(t.group_name, lgp.group_name) AS group_name,
              t.category, t.sentiment, t.priority, t.summary, t.needs_action, t.status,
-             t.answered_in_line, t.answered_by,
+             t.answered_in_line, t.answered_by, t.auto_closed,
+             CASE WHEN t.status='open' AND EXISTS (
+               SELECT 1 FROM line_msg_triage t2
+               WHERE t2.group_id = t.group_id
+                 AND t2.message_time > t.message_time
+                 AND t2.message_time <= DATEADD(hour, 24, t.message_time)  -- within 24h → likely related
+                 AND (t2.category='thank' OR t2.sentiment='positive')
+             ) THEN 1 ELSE 0 END AS maybe_resolved,
              t.claimed_at, t.done_at, t.note, t.classified_at,
              lgp.pod_id, p.code AS pod_code, p.display_name AS pod_name, p.color AS pod_color,
              ISNULL(ce.nickname, ce.name) AS claimed_name,
@@ -5777,6 +5785,21 @@ async function syncTriageAnswered() {
   finally { _triageSyncRunning = false; }
 }
 setInterval(syncTriageAnswered, 3 * 60 * 1000);
+
+// ── Auto-close stale tickets ──────────────────────────────
+// Close any ticket still open after 3 days (compared in SQL so no TZ issues).
+async function autoCloseStaleTickets() {
+  try {
+    const r = await req().query(`
+      UPDATE line_msg_triage
+      SET status='done', auto_closed=1, done_at=GETDATE(), updated_at=GETDATE()
+      WHERE status='open' AND message_time < DATEADD(day, -3, GETDATE())`);
+    const n = r.rowsAffected?.[0] || 0;
+    if (n) console.log(`🗓️ triage auto-close: closed ${n} ticket(s) open ≥3 days`);
+    return n;
+  } catch (e) { console.error('triage auto-close error:', e.message); return 0; }
+}
+setInterval(autoCloseStaleTickets, 60 * 60 * 1000);  // hourly
 
 // ── Overdue-ticket LINE alert ─────────────────────────────
 // Group open+needs_action tickets by LINE group, bucket by waiting time

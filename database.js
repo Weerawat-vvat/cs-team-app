@@ -321,6 +321,11 @@ async function init() {
       IF COL_LENGTH('line_msg_triage','answered_by') IS NULL
         ALTER TABLE line_msg_triage ADD answered_by NVARCHAR(255) NULL
     `);
+    // Added later: auto-closed because the ticket sat open ≥3 days with no action
+    await pool.request().query(`
+      IF COL_LENGTH('line_msg_triage','auto_closed') IS NULL
+        ALTER TABLE line_msg_triage ADD auto_closed BIT NOT NULL DEFAULT 0
+    `);
     console.log('✅ Migrations done');
   } catch (err) {
     console.error('❌ Migration error:', err.message);
