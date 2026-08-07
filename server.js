@@ -5704,6 +5704,7 @@ app.get('/api/triage/stats', authRequired, async (request, res) => {
     res.json({
       byStatus, byCategory, byPriority, openAction, oldestOpenTicket, maybeResolved, totalClassified, backlog,
       autoOn: (process.env.TRIAGE_AUTO || '').toLowerCase() === 'on',
+      alertOn: (process.env.TRIAGE_ALERT || '').toLowerCase() === 'on',
       autoMinutes: TRIAGE_AUTO_MIN,
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -5757,18 +5758,27 @@ app.post('/api/triage/:id/action', authRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Auto-classify scheduler — every TRIAGE_AUTO_MINUTES (default 15), only when
-// TRIAGE_AUTO=on. Caps at 60 msgs/round.
+// Unified auto tick — one cadence (TRIAGE_AUTO_MINUTES, default 15) that first
+// classifies new messages (if TRIAGE_AUTO=on), then sends the LINE alert with the
+// fresh data (if TRIAGE_ALERT=on). Classify + alert stay in sync on the same cycle.
 const TRIAGE_AUTO_MIN = Math.max(1, parseInt(process.env.TRIAGE_AUTO_MINUTES) || 15);
 let _triageAutoRunning = false;
 async function triageAutoTick() {
-  if ((process.env.TRIAGE_AUTO || '').toLowerCase() !== 'on') return;
   if (_triageAutoRunning) return;
   _triageAutoRunning = true;
   try {
-    const r = await classifyTriageBatch(60);
-    if (r.classified) console.log(`🤖 triage auto: classified ${r.classified} msg(s)`);
-    if (r.error) console.warn('triage auto error:', r.error);
+    if ((process.env.TRIAGE_AUTO || '').toLowerCase() === 'on') {
+      const r = await classifyTriageBatch(60);
+      if (r.classified) console.log(`🤖 triage auto: classified ${r.classified} msg(s)`);
+      if (r.error) console.warn('triage auto error:', r.error);
+    }
+    if ((process.env.TRIAGE_ALERT || '').toLowerCase() === 'on') {
+      const a = await buildTriageAlert();
+      if (a.hasAny) {
+        await sendLineNotify(a.text, 'triage_alert');
+        console.log(`🔔 triage alert sent (over1d ${a.overdayCount}, urgent ${a.urgentCount}, warn ${a.warnCount})`);
+      }
+    }
   } catch (e) { console.error('triage auto tick error:', e.message); }
   finally { _triageAutoRunning = false; }
 }
@@ -5886,26 +5896,8 @@ app.post('/api/triage/alert-send', authRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Auto alert scheduler — checks every minute, sends at most once / TRIAGE_ALERT_MINUTES,
-// only when TRIAGE_ALERT=on and there is at least one ticket overdue ≥15 นาที.
-const TRIAGE_ALERT_MIN = Math.max(5, parseInt(process.env.TRIAGE_ALERT_MINUTES) || 15);
-let _triageAlertRunning = false, _triageAlertLast = 0;
-async function triageAlertTick() {
-  if ((process.env.TRIAGE_ALERT || '').toLowerCase() !== 'on') return;
-  if (_triageAlertRunning) return;
-  if (Date.now() - _triageAlertLast < TRIAGE_ALERT_MIN * 60000) return;
-  _triageAlertRunning = true;
-  try {
-    const a = await buildTriageAlert();
-    if (a.hasAny) {
-      await sendLineNotify(a.text, 'triage_alert');
-      _triageAlertLast = Date.now();
-      console.log(`🔔 triage alert sent (urgent ${a.urgentCount}, warn ${a.warnCount})`);
-    }
-  } catch (e) { console.error('triage alert tick error:', e.message); }
-  finally { _triageAlertRunning = false; }
-}
-setInterval(triageAlertTick, 60 * 1000);
+// (Auto alert is now fired from triageAutoTick above, on the same cadence as
+//  classification — TRIAGE_AUTO_MINUTES — so the two stay in sync.)
 
 // Today's shift per employee (for member/lead dropdowns)
 app.get('/api/today-shifts', authRequired, async (request, res) => {
