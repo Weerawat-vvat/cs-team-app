@@ -3413,6 +3413,7 @@ textarea{resize:vertical;min-height:80px}
       <div style="font-size:.78rem;color:var(--muted)">🤖 AI คัดกรองเฉพาะข้อความที่เป็น <b>ticket</b> (ต้องดำเนินการ) เรียงจาก <b>รอนานสุด → น้อยสุด</b> · ทีมกดรับเรื่อง &amp; ติ๊กเสร็จ</div>
       <div style="margin-left:auto;display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
         <span id="tr-auto" style="font-size:.7rem;color:#94a3b8"></span>
+        <button class="btn btn-sm btn-ghost" id="tr-close-maybe-btn" onclick="triageCloseMaybe()" style="display:none;color:#f59e0b">🧹 ปิดที่น่าจะแก้แล้ว</button>
         <button class="btn btn-sm btn-ghost" onclick="triagePreviewAlert()">🔔 แจ้งเตือน LINE</button>
         <button class="btn btn-sm btn-primary" id="tr-classify-btn" onclick="triageClassify()">✨ คัดกรองเดี๋ยวนี้</button>
         <button class="btn btn-sm btn-ghost" onclick="loadTriage()">🔄 รีเฟรช</button>
@@ -3449,9 +3450,10 @@ textarea{resize:vertical;min-height:80px}
             <th style="min-width:88px">⏳ รอมานาน</th>
             <th style="min-width:150px">กลุ่มไลน์ / แชท</th>
             <th style="min-width:300px">ข้อความ</th>
-            <th style="min-width:160px">จัดการ</th>
+            <th style="min-width:130px">สถานะ</th>
+            <th style="min-width:110px">จัดการ</th>
           </tr></thead>
-          <tbody id="tr-tbody"><tr><td colspan="4" class="empty">— เลือกแท็บนี้เพื่อโหลด —</td></tr></tbody>
+          <tbody id="tr-tbody"><tr><td colspan="5" class="empty">— เลือกแท็บนี้เพื่อโหลด —</td></tr></tbody>
         </table>
       </div>
       <div style="display:flex;align-items:center;justify-content:flex-end;gap:.5rem;margin-top:.55rem">
@@ -5162,7 +5164,7 @@ async function triagePreviewAlert() {
   const a = await api('/api/triage/alert-preview', { silent: true });
   if (!a || a.error) { document.getElementById('tr-alert-text').textContent = 'โหลดไม่สำเร็จ: ' + (a?.error || ''); return; }
   document.getElementById('tr-alert-text').textContent = a.text;
-  document.getElementById('tr-alert-note').textContent = a.hasAny ? `🔴 ${a.urgentCount} กลุ่ม · 🟡 ${a.warnCount} กลุ่ม` : 'ยังไม่มี ticket ค้างเกิน 15 นาที';
+  document.getElementById('tr-alert-note').textContent = a.hasAny ? `🚨 ${a.overdayCount||0} · 🔴 ${a.urgentCount} · 🟡 ${a.warnCount} กลุ่ม` : 'ยังไม่มี ticket ค้างที่ต้องรีบ';
   const sb = document.getElementById('tr-alert-send'); if (sb) sb.disabled = !a.hasAny;
 }
 async function triageSendAlert() {
@@ -5171,7 +5173,7 @@ async function triageSendAlert() {
   const r = await api('/api/triage/alert-send', { method: 'POST', silent: true });
   btn.textContent = '📤 ส่งเข้า LINE เลย'; btn.disabled = false;
   if (r?.error) alert('❌ ' + r.error);
-  else if (r?.sent) { alert(`✅ ส่งแจ้งเตือนแล้ว (🔴 ${r.urgentCount} · 🟡 ${r.warnCount})`); document.getElementById('tr-alert-modal').style.display = 'none'; }
+  else if (r?.sent) { alert(`✅ ส่งแจ้งเตือนแล้ว (🚨 ${r.overdayCount||0} · 🔴 ${r.urgentCount} · 🟡 ${r.warnCount})`); document.getElementById('tr-alert-modal').style.display = 'none'; }
   else alert('ℹ️ ' + (r?.reason || 'ไม่มีอะไรให้ส่ง'));
 }
 
@@ -5209,14 +5211,14 @@ async function loadTriage() {
   q.set('page', _trPage); q.set('per', _trPer);
   q.set('_t', Date.now());   // cache-buster so we never render a stale list
 
-  tbody.innerHTML = `<tr><td colspan="7" class="empty">กำลังโหลด...</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="5" class="empty">กำลังโหลด...</td></tr>`;
   const [stats, data] = await Promise.all([
     api('/api/triage/stats?_t=' + Date.now(), { silent: true }),
     api('/api/triage/inbox?' + q.toString(), { silent: true }),
   ]);
   if (stats && !stats.error) renderTriageStats(stats);
   if (!data || data.error) {
-    tbody.innerHTML = `<tr><td colspan="7" class="empty">โหลดไม่สำเร็จ (${esc(data?.error || 'ไม่พร้อม')})</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" class="empty">โหลดไม่สำเร็จ (${esc(data?.error || 'ไม่พร้อม')})</td></tr>`;
     return;
   }
   _trTotal = data.total; _trPer = data.per;
@@ -5237,6 +5239,27 @@ function renderTriageStats(s) {
   if (bl) bl.textContent = s.backlog != null ? `ค้างอีก ~${s.backlog.toLocaleString()}` : '';
   const au = document.getElementById('tr-auto');
   if (au) au.textContent = s.autoOn ? '🟢 auto คัดกรองทุก 15 นาที' : '⚪ auto ปิดอยู่ (TRIAGE_AUTO=off)';
+  const cm = document.getElementById('tr-close-maybe-btn');
+  if (cm) {
+    const n = s.maybeResolved || 0;
+    cm.style.display = n > 0 ? '' : 'none';
+    cm.textContent = `🧹 ปิดที่น่าจะแก้แล้ว (${n})`;
+    cm.dataset.n = n;
+  }
+}
+
+async function triageCloseMaybe() {
+  const btn = document.getElementById('tr-close-maybe-btn');
+  const n = btn?.dataset.n || '0';
+  if (n === '0') return;
+  if (!confirm(`ปิดงานที่ "น่าจะแก้แล้ว" ทั้งหมด ${n} รายการ?\n(ระบบเห็นว่ากลุ่มไลน์มีข้อความขอบคุณ/บวกตามมา — ยืนยันว่าลูกค้าได้รับการแก้ไขแล้ว)`)) return;
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = '⏳ กำลังปิด...';
+  const r = await api('/api/triage/close-maybe-resolved', { method: 'POST', silent: true });
+  btn.disabled = false; btn.textContent = orig;
+  if (r?.error) { alert('❌ ' + r.error); return; }
+  alert(`✅ ปิดงานแล้ว ${r.closed || 0} รายการ`);
+  _trPage = 1;
+  await loadTriage();
 }
 
 function trFmtTime(s) {
@@ -5284,7 +5307,7 @@ function renderTriageRow(r) {
     : `<button class="btn btn-sm btn-primary" style="padding:2px 12px;font-size:.72rem" onclick="triageAction(${r.id},'done')">✅ เสร็จ</button>`;
   const who = r.status !== 'done' ? ''
     : r.answered_in_line ? `<div style="font-size:.64rem;color:#4ade80">✅ ตอบในไลน์แล้ว${r.answered_by ? ' · ' + esc(r.answered_by) : ''}</div>`
-    : r.auto_closed ? `<div style="font-size:.64rem;color:#94a3b8">🗓️ ปิดอัตโนมัติ (ครบ 3 วัน)</div>`
+    : r.auto_closed ? `<div style="font-size:.64rem;color:#94a3b8">🤖 ${esc(r.note || 'ปิดอัตโนมัติ')}</div>`
     : r.done_name ? `<div style="font-size:.64rem;color:#4ade80">✅ โดย ${esc(r.done_name)}</div>` : '';
   return `<tr>
     <td style="white-space:nowrap">
@@ -5304,16 +5327,17 @@ function renderTriageRow(r) {
       ${r.summary ? `<div style="font-size:.66rem;color:#38bdf8;margin-top:2px">↳ ${esc(r.summary)}</div>` : ''}
     </td>
     <td>
-      <div style="margin-bottom:3px">${trPill(TR_ST[r.status] || TR_ST.open)}${who}</div>
-      ${r.maybe_resolved ? `<div style="font-size:.62rem;color:#f59e0b;margin-bottom:3px" title="ในกลุ่มนี้มีข้อความขอบคุณ/บวกใหม่กว่า — ลูกค้าอาจแก้ได้แล้ว">💡 น่าจะแก้แล้ว</div>` : ''}
-      ${actions}
+      <div>${trPill(TR_ST[r.status] || TR_ST.open)}</div>
+      ${who}
+      ${r.maybe_resolved ? `<div style="font-size:.62rem;color:#f59e0b;margin-top:2px" title="ในกลุ่มนี้มีข้อความขอบคุณ/บวกใหม่กว่า — ลูกค้าอาจแก้ได้แล้ว">💡 น่าจะแก้แล้ว</div>` : ''}
     </td>
+    <td>${actions}</td>
   </tr>`;
 }
 
 function renderTriageTable(rows) {
   const tbody = document.getElementById('tr-tbody');
-  if (!rows.length) { tbody.innerHTML = `<tr><td colspan="4" class="empty">ไม่มี ticket ในเงื่อนไขนี้</td></tr>`; return; }
+  if (!rows.length) { tbody.innerHTML = `<tr><td colspan="5" class="empty">ไม่มี ticket ในเงื่อนไขนี้</td></tr>`; return; }
   tbody.innerHTML = rows.map(renderTriageRow).join('');
 }
 

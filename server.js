@@ -5621,7 +5621,6 @@ app.post('/api/triage/classify', authRequired, async (request, res) => {
 app.get('/api/triage/inbox', authRequired, async (request, res) => {
   try {
     try { await syncTriageAnswered(); } catch {}     // reflect LINE replies before listing
-    try { await autoCloseStaleTickets(); } catch {}  // close tickets open ≥3 days
     const page = Math.max(1, parseInt(request.query.page) || 1);
     const per  = Math.min(100, Math.max(5, parseInt(request.query.per) || 30));
 
@@ -5683,6 +5682,13 @@ app.get('/api/triage/stats', authRequired, async (request, res) => {
     const byPriority = (await req().query(`SELECT priority, COUNT(*) AS n FROM line_msg_triage WHERE status<>'done' GROUP BY priority`)).recordset;
     const openAction = (await req().query(`SELECT COUNT(*) AS n FROM line_msg_triage WHERE status='open' AND needs_action=1`)).recordset[0].n;
     const oldestOpenTicket = (await req().query(`SELECT MIN(message_time) AS oldest FROM line_msg_triage WHERE status='open' AND needs_action=1`)).recordset[0].oldest;
+    const maybeResolved = (await req().query(`
+      SELECT COUNT(*) AS n FROM line_msg_triage t
+      WHERE t.status='open' AND t.needs_action=1 AND EXISTS (
+        SELECT 1 FROM line_msg_triage t2
+        WHERE t2.group_id = t.group_id AND t2.message_time > t.message_time
+          AND t2.message_time <= DATEADD(hour, 24, t.message_time)
+          AND (t2.category='thank' OR t2.sentiment='positive'))`)).recordset[0].n;
     const totalClassified = (await req().query(`SELECT COUNT(*) AS n FROM line_msg_triage`)).recordset[0].n;
 
     // Backlog estimate: total LINE messages with text minus what we've classified
@@ -5696,9 +5702,28 @@ app.get('/api/triage/stats', authRequired, async (request, res) => {
     }
 
     res.json({
-      byStatus, byCategory, byPriority, openAction, oldestOpenTicket, totalClassified, backlog,
+      byStatus, byCategory, byPriority, openAction, oldestOpenTicket, maybeResolved, totalClassified, backlog,
       autoOn: (process.env.TRIAGE_AUTO || '').toLowerCase() === 'on',
     });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Bulk-close all open tickets that look already resolved
+// (same LINE group got a thank/positive within 24h after the ticket).
+app.post('/api/triage/close-maybe-resolved', authRequired, async (request, res) => {
+  try {
+    // Marked as an automatic close (no person), reason = likely resolved
+    const r = await req().query(`
+      UPDATE line_msg_triage
+      SET status='done', auto_closed=1, done_by=NULL,
+          note=N'ปิดอัตโนมัติ (น่าจะแก้แล้ว)', done_at=GETDATE(), updated_at=GETDATE()
+      WHERE status='open' AND needs_action=1 AND EXISTS (
+        SELECT 1 FROM line_msg_triage t2
+        WHERE t2.group_id = line_msg_triage.group_id
+          AND t2.message_time > line_msg_triage.message_time
+          AND t2.message_time <= DATEADD(hour, 24, line_msg_triage.message_time)
+          AND (t2.category='thank' OR t2.sentiment='positive'))`);
+    res.json({ ok: true, closed: r.rowsAffected?.[0] || 0 });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -5786,24 +5811,10 @@ async function syncTriageAnswered() {
 }
 setInterval(syncTriageAnswered, 3 * 60 * 1000);
 
-// ── Auto-close stale tickets ──────────────────────────────
-// Close any ticket still open after 3 days (compared in SQL so no TZ issues).
-async function autoCloseStaleTickets() {
-  try {
-    const r = await req().query(`
-      UPDATE line_msg_triage
-      SET status='done', auto_closed=1, done_at=GETDATE(), updated_at=GETDATE()
-      WHERE status='open' AND message_time < DATEADD(day, -3, GETDATE())`);
-    const n = r.rowsAffected?.[0] || 0;
-    if (n) console.log(`🗓️ triage auto-close: closed ${n} ticket(s) open ≥3 days`);
-    return n;
-  } catch (e) { console.error('triage auto-close error:', e.message); return 0; }
-}
-setInterval(autoCloseStaleTickets, 60 * 60 * 1000);  // hourly
-
 // ── Overdue-ticket LINE alert ─────────────────────────────
-// Group open+needs_action tickets by LINE group, bucket by waiting time
-// (15–30 นาที = เริ่มค้าง, >30 นาที = ด่วนที่สุด), and format a LINE message.
+// Only genuinely un-serviced tickets (open, needs action, no staff reply, and NO
+// thank/positive follow-up within 24h). Bucketed by how long they've waited:
+//   >1 วัน = คาดว่ายังไม่ได้รับบริการ (โปรดตรวจสอบด่วน) · >30 นาที = ด่วน · 15–30 นาที = เริ่มค้าง
 async function buildTriageAlert() {
   await syncTriageAnswered();   // close LINE-answered tickets before building the alert
   const rows = (await req().query(`
@@ -5814,6 +5825,11 @@ async function buildTriageAlert() {
     LEFT JOIN line_group_pods lgp ON lgp.group_id = t.group_id
     LEFT JOIN pods p ON p.id = lgp.pod_id
     WHERE t.status='open' AND t.needs_action=1 AND t.message_time IS NOT NULL
+      AND NOT EXISTS (                                   -- exclude likely-resolved
+        SELECT 1 FROM line_msg_triage t2
+        WHERE t2.group_id = t.group_id AND t2.message_time > t.message_time
+          AND t2.message_time <= DATEADD(hour, 24, t.message_time)
+          AND (t2.category='thank' OR t2.sentiment='positive'))
     GROUP BY COALESCE(t.group_name, lgp.group_name), t.group_id, p.display_name
   `)).recordset;
 
@@ -5825,12 +5841,17 @@ async function buildTriageAlert() {
     return { name, pod: r.pod_name || 'ไม่มี Pod', waitMin };
   });
   const byPod = (a, b) => String(a.pod).localeCompare(String(b.pod), 'th') || String(a.name).localeCompare(String(b.name), 'th');
-  const urgent = items.filter(x => x.waitMin > 30).sort(byPod);
-  const warn   = items.filter(x => x.waitMin >= 15 && x.waitMin <= 30).sort(byPod);
+  const overday = items.filter(x => x.waitMin > 1440).sort(byPod);                 // ค้างเกิน 1 วัน
+  const urgent  = items.filter(x => x.waitMin > 30 && x.waitMin <= 1440).sort(byPod);
+  const warn    = items.filter(x => x.waitMin >= 15 && x.waitMin <= 30).sort(byPod);
   const line = (x) => `• [${x.pod}] ${x.name}`;
 
   const nowTh = new Date().toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit', timeZone:'Asia/Bangkok' });
   let text = `🔔 แจ้งเตือน Ticket ค้าง — ${nowTh} น.\n`;
+  if (overday.length) {
+    text += `\n🚨 คาดว่ายังไม่ได้รับบริการ — ค้างเกิน 1 วัน (${overday.length} กลุ่ม)\nโปรดตรวจสอบด่วน ‼️\n`;
+    text += overday.map(line).join('\n') + '\n';
+  }
   if (urgent.length) {
     text += `\n🔴 ด่วนที่สุด — รอเกิน 30 นาที (${urgent.length} กลุ่ม)\n`;
     text += urgent.map(line).join('\n') + '\n';
@@ -5839,10 +5860,11 @@ async function buildTriageAlert() {
     text += `\n🟡 เริ่มค้าง — รอ 15–30 นาที (${warn.length} กลุ่ม)\n`;
     text += warn.map(line).join('\n') + '\n';
   }
-  if (!urgent.length && !warn.length) text += `\n✅ ไม่มี ticket ค้างเกิน 15 นาที`;
-  else text += `\nรวมค้าง ${urgent.length + warn.length} กลุ่ม · เข้าเคลียร์ที่ CS → Pod & ลูกค้า → คัดกรอง AI`;
+  const total = overday.length + urgent.length + warn.length;
+  if (!total) text += `\n✅ ไม่มี ticket ค้างที่ต้องรีบ`;
+  else text += `\nรวมค้าง ${total} กลุ่ม · เข้าเคลียร์ที่ CS → Pod & ลูกค้า → คัดกรอง AI`;
 
-  return { text, urgentCount: urgent.length, warnCount: warn.length, hasAny: !!(urgent.length || warn.length) };
+  return { text, overdayCount: overday.length, urgentCount: urgent.length, warnCount: warn.length, hasAny: !!total };
 }
 
 // Preview the alert text (does NOT send to LINE)
@@ -5855,9 +5877,9 @@ app.get('/api/triage/alert-preview', authRequired, async (request, res) => {
 app.post('/api/triage/alert-send', authRequired, async (request, res) => {
   try {
     const a = await buildTriageAlert();
-    if (!a.hasAny) return res.json({ ok: true, sent: false, reason: 'ไม่มี ticket ค้างเกิน 15 นาที' });
+    if (!a.hasAny) return res.json({ ok: true, sent: false, reason: 'ไม่มี ticket ค้างที่ต้องรีบ' });
     await sendLineNotify(a.text, 'triage_alert');
-    res.json({ ok: true, sent: true, urgentCount: a.urgentCount, warnCount: a.warnCount });
+    res.json({ ok: true, sent: true, overdayCount: a.overdayCount, urgentCount: a.urgentCount, warnCount: a.warnCount });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
