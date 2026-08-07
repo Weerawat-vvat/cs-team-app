@@ -5704,6 +5704,7 @@ app.get('/api/triage/stats', authRequired, async (request, res) => {
     res.json({
       byStatus, byCategory, byPriority, openAction, oldestOpenTicket, maybeResolved, totalClassified, backlog,
       autoOn: (process.env.TRIAGE_AUTO || '').toLowerCase() === 'on',
+      autoMinutes: TRIAGE_AUTO_MIN,
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -5756,7 +5757,9 @@ app.post('/api/triage/:id/action', authRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Auto-classify scheduler — every 15 min, only when TRIAGE_AUTO=on. Caps at 60 msgs/round.
+// Auto-classify scheduler — every TRIAGE_AUTO_MINUTES (default 15), only when
+// TRIAGE_AUTO=on. Caps at 60 msgs/round.
+const TRIAGE_AUTO_MIN = Math.max(1, parseInt(process.env.TRIAGE_AUTO_MINUTES) || 15);
 let _triageAutoRunning = false;
 async function triageAutoTick() {
   if ((process.env.TRIAGE_AUTO || '').toLowerCase() !== 'on') return;
@@ -5769,7 +5772,7 @@ async function triageAutoTick() {
   } catch (e) { console.error('triage auto tick error:', e.message); }
   finally { _triageAutoRunning = false; }
 }
-setInterval(triageAutoTick, 15 * 60 * 1000);
+setInterval(triageAutoTick, TRIAGE_AUTO_MIN * 60 * 1000);
 
 // ── Sync "answered in LINE" ───────────────────────────────
 // If a staff member already replied in the LINE group (LineWaitingReply.Answered=1),

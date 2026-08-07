@@ -5238,7 +5238,7 @@ function renderTriageStats(s) {
   const bl = document.getElementById('tr-backlog');
   if (bl) bl.textContent = s.backlog != null ? `ค้างอีก ~${s.backlog.toLocaleString()}` : '';
   const au = document.getElementById('tr-auto');
-  if (au) au.textContent = s.autoOn ? '🟢 auto คัดกรองทุก 15 นาที' : '⚪ auto ปิดอยู่ (TRIAGE_AUTO=off)';
+  if (au) au.textContent = s.autoOn ? `🟢 auto คัดกรองทุก ${s.autoMinutes || 15} นาที` : '⚪ auto ปิดอยู่ (TRIAGE_AUTO=off)';
   const cm = document.getElementById('tr-close-maybe-btn');
   if (cm) {
     const n = s.maybeResolved || 0;
