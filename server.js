@@ -5823,7 +5823,8 @@ async function buildTriageAlert() {
   const rows = (await req().query(`
     SELECT COALESCE(t.group_name, lgp.group_name) AS group_name, t.group_id,
            p.display_name AS pod_name,
-           MIN(t.message_time) AS oldest, COUNT(*) AS cnt
+           DATEDIFF(MINUTE, MIN(t.message_time), GETDATE()) AS waitmin,  -- computed in SQL (TZ-safe)
+           COUNT(*) AS cnt
     FROM line_msg_triage t
     LEFT JOIN line_group_pods lgp ON lgp.group_id = t.group_id
     LEFT JOIN pods p ON p.id = lgp.pod_id
@@ -5836,9 +5837,8 @@ async function buildTriageAlert() {
     GROUP BY COALESCE(t.group_name, lgp.group_name), t.group_id, p.display_name
   `)).recordset;
 
-  const now = Date.now();
   const items = rows.map(r => {
-    const waitMin = Math.floor((now - new Date(r.oldest).getTime()) / 60000);
+    const waitMin = r.waitmin;
     const isDM = String(r.group_id || '').startsWith('U');
     const name = r.group_name || (isDM ? '(แชทส่วนตัว)' : (r.group_id || '(ไม่ทราบกลุ่ม)'));
     return { name, pod: r.pod_name || 'ไม่มี Pod', waitMin };
