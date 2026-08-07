@@ -5706,6 +5706,7 @@ app.get('/api/triage/stats', authRequired, async (request, res) => {
       autoOn: (process.env.TRIAGE_AUTO || '').toLowerCase() === 'on',
       alertOn: (process.env.TRIAGE_ALERT || '').toLowerCase() === 'on',
       autoMinutes: TRIAGE_AUTO_MIN,
+      lastAutoAt: _triageAutoLastAt ? _triageAutoLastAt.toISOString() : null,
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -5763,9 +5764,11 @@ app.post('/api/triage/:id/action', authRequired, async (request, res) => {
 // fresh data (if TRIAGE_ALERT=on). Classify + alert stay in sync on the same cycle.
 const TRIAGE_AUTO_MIN = Math.max(1, parseInt(process.env.TRIAGE_AUTO_MINUTES) || 15);
 let _triageAutoRunning = false;
+let _triageAutoLastAt = new Date();   // anchor for the countdown; matches setInterval's schedule below
 async function triageAutoTick() {
   if (_triageAutoRunning) return;
   _triageAutoRunning = true;
+  _triageAutoLastAt = new Date();
   try {
     if ((process.env.TRIAGE_AUTO || '').toLowerCase() === 'on') {
       const r = await classifyTriageBatch(60);

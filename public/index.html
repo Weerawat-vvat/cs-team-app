@@ -5228,6 +5228,34 @@ async function loadTriage() {
   if (info) info.textContent = `${_trTotal} รายการ · หน้า ${_trPage}/${maxPage}`;
 }
 
+let _trAuto = { on: false, autoOn: false, alertOn: false, minutes: 15, lastAt: null, refreshedForThisTick: false };
+let _trAutoTicker = null;
+function renderTrAutoLabel() {
+  const au = document.getElementById('tr-auto');
+  if (!au) return;
+  const { on, autoOn, alertOn, minutes, lastAt } = _trAuto;
+  if (!on) { au.textContent = '⚪ auto ปิดอยู่ (TRIAGE_AUTO=off)'; return; }
+  const what = autoOn ? `คัดกรอง${alertOn ? ' + แจ้งเตือนไลน์' : ''}` : 'แจ้งเตือนไลน์';
+  const lastStr = lastAt ? lastAt.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
+  let etaStr = '—';
+  if (lastAt) {
+    const remainMs = lastAt.getTime() + minutes * 60000 - Date.now();
+    if (remainMs > 0) {
+      const mm = Math.floor(remainMs / 60000), ss = Math.floor((remainMs % 60000) / 1000);
+      etaStr = `${mm}:${String(ss).padStart(2, '0')}`;
+    } else {
+      etaStr = 'กำลังทำงาน...';
+      // Ticket's timer already elapsed — the server is likely mid-cycle. Re-poll
+      // once shortly after so we pick up the fresh lastAutoAt / stats.
+      if (!_trAuto.refreshedForThisTick) {
+        _trAuto.refreshedForThisTick = true;
+        setTimeout(() => { if (document.getElementById('tr-auto')) loadTriage(); }, 4000);
+      }
+    }
+  }
+  au.textContent = `🟢 auto ทุก ${minutes} นาที · ${what} · อัพเดทล่าสุด ${lastStr} · อีก ${etaStr}`;
+}
+
 function renderTriageStats(s) {
   const sum = (arr, k, v) => (arr || []).reduce((a, r) => a + (r[k] === v ? r.n : 0), 0);
   const setv = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
@@ -5237,13 +5265,14 @@ function renderTriageStats(s) {
   setv('tr-classified', s.totalClassified ?? 0);
   const bl = document.getElementById('tr-backlog');
   if (bl) bl.textContent = s.backlog != null ? `ค้างอีก ~${s.backlog.toLocaleString()}` : '';
-  const au = document.getElementById('tr-auto');
-  if (au) {
-    const m = s.autoMinutes || 15;
-    au.textContent = s.autoOn
-      ? `🟢 auto ทุก ${m} นาที · คัดกรอง${s.alertOn ? ' + แจ้งเตือนไลน์' : ''}`
-      : (s.alertOn ? `🟢 แจ้งเตือนไลน์ทุก ${m} นาที` : '⚪ auto ปิดอยู่ (TRIAGE_AUTO=off)');
-  }
+  _trAuto.on = !!(s.autoOn || s.alertOn);
+  _trAuto.autoOn = !!s.autoOn;
+  _trAuto.alertOn = !!s.alertOn;
+  _trAuto.minutes = s.autoMinutes || 15;
+  _trAuto.lastAt = s.lastAutoAt ? new Date(s.lastAutoAt) : null;
+  _trAuto.refreshedForThisTick = false;
+  renderTrAutoLabel();
+  if (!_trAutoTicker) _trAutoTicker = setInterval(renderTrAutoLabel, 1000);
   const cm = document.getElementById('tr-close-maybe-btn');
   if (cm) {
     const n = s.maybeResolved || 0;
