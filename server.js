@@ -6960,10 +6960,12 @@ app.get('/api/public/track/:token/fu-issues', async (request, res) => {
 
     const rows = (await req().input('gid',sql.Int,link.group_id).query(`
       SELECT i.id, i.detail, i.category, i.priority, i.status,
-             i.due_date, i.note, i.created_at, i.updated_at,
+             i.due_date, i.note, i.issue_url, i.created_at, i.updated_at,
              ISNULL(ea.nickname, ea.name) AS assigned_to_name,
              b.id AS board_id, b.name AS board_name,
-             f.id AS folder_id, f.name AS folder_name
+             f.id AS folder_id, f.name AS folder_name,
+             (SELECT COUNT(*) FROM fu_comments c WHERE c.issue_id = i.id) AS comment_count,
+             (SELECT COUNT(*) FROM fu_attachments a WHERE a.issue_id = i.id) AS attachment_count
       FROM fu_issues i
       JOIN fu_boards b ON b.id = i.board_id
       JOIN fu_folders f ON f.id = b.folder_id
@@ -7091,6 +7093,109 @@ app.put('/api/public/track/:token/fu-issue/:id', async (request, res) => {
       .input('nt',  sql.NVarChar, note||null)
       .query(`UPDATE fu_issues SET detail=@det,category=@cat,priority=@pri,due_date=@dd,note=@nt,updated_at=GETDATE() WHERE id=@id`);
     res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Helper: verify a customer_links token + that an fu_issue belongs to its group ──
+// Returns { status, error } on failure, or { groupId } on success.
+async function trackIssueGuard(tok, issueId) {
+  if (!issueId) return { status: 400, error: 'invalid issue id' };
+  const link = (await req().input('tok', sql.NVarChar, tok)
+    .query('SELECT group_id FROM customer_links WHERE token=@tok')).recordset[0];
+  if (!link) return { status: 404, error: 'Link ไม่พบ' };
+  if (!link.group_id) return { status: 403, error: 'ไม่มีสิทธิ์' };
+  const issue = (await req().input('id', sql.Int, issueId).input('gid', sql.Int, link.group_id)
+    .query(`SELECT i.id FROM fu_issues i
+            JOIN fu_boards b ON b.id=i.board_id
+            JOIN fu_folders f ON f.id=b.folder_id
+            WHERE i.id=@id AND f.group_id=@gid`)).recordset[0];
+  if (!issue) return { status: 403, error: 'Issue ไม่พบหรือไม่มีสิทธิ์' };
+  return { groupId: link.group_id };
+}
+
+// ── GET /api/public/track/:token/fu-issue/:id/attachments ──
+app.get('/api/public/track/:token/fu-issue/:id/attachments', async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const g  = await trackIssueGuard(request.params.token, id);
+    if (g.error) return res.status(g.status).json({ error: g.error });
+
+    const rows = (await req().input('id', sql.Int, id)
+      .query(`SELECT id, filename, original_name, file_size, mime_type, created_at
+              FROM fu_attachments WHERE issue_id=@id ORDER BY created_at`)).recordset;
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── POST /api/public/track/:token/fu-issue/:id/attachments ──
+// Customer attaches files (no auth, 2MB/file cap, 5 files)
+app.post('/api/public/track/:token/fu-issue/:id/attachments', (request, res, next) => {
+  fuPublicUpload.array('files', 5)(request, res, err => {
+    if (err) return res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'ไฟล์ใหญ่เกิน 2MB' : err.message });
+    next();
+  });
+}, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const g  = await trackIssueGuard(request.params.token, id);
+    if (g.error) return res.status(g.status).json({ error: g.error });
+
+    const files = request.files || [];
+    if (!files.length) return res.status(400).json({ error: 'ไม่พบไฟล์' });
+    const inserted = [];
+    for (const f of files) {
+      const r = await req()
+        .input('iid', sql.Int, id)
+        .input('fn',  sql.NVarChar, f.filename)
+        .input('on',  sql.NVarChar, f.originalname)
+        .input('fs',  sql.Int, f.size)
+        .input('mt',  sql.NVarChar, f.mimetype)
+        .query(`INSERT INTO fu_attachments(issue_id,filename,original_name,file_size,mime_type,created_by) OUTPUT INSERTED.id VALUES(@iid,@fn,@on,@fs,@mt,NULL)`);
+      inserted.push({ id: r.recordset[0].id, filename: f.filename, original_name: f.originalname, file_size: f.size, mime_type: f.mimetype });
+    }
+    res.json({ ok: true, files: inserted });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /api/public/track/:token/fu-issue/:id/comments ──
+app.get('/api/public/track/:token/fu-issue/:id/comments', async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const g  = await trackIssueGuard(request.params.token, id);
+    if (g.error) return res.status(g.status).json({ error: g.error });
+
+    const comments = (await req().input('id', sql.Int, id).query(`
+      SELECT c.id, c.body, c.created_at,
+             COALESCE(e.nickname, e.name, c.author_name, N'ลูกค้า') AS user_name,
+             LEFT(UPPER(COALESCE(e.nickname, e.name, c.author_name, N'ลูกค้า')), 1) AS avatar_char,
+             CASE WHEN c.user_id IS NULL THEN 1 ELSE 0 END AS is_customer
+      FROM fu_comments c
+      LEFT JOIN app_users au ON au.id = c.user_id
+      LEFT JOIN employees e  ON e.id  = au.employee_id
+      WHERE c.issue_id = @id
+      ORDER BY c.created_at ASC`)).recordset;
+    res.json(comments);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── POST /api/public/track/:token/fu-issue/:id/comments ──
+// Customer adds a comment (no auth, user_id NULL + free-text author_name)
+app.post('/api/public/track/:token/fu-issue/:id/comments', async (request, res) => {
+  try {
+    const id   = parseInt(request.params.id);
+    const body = request.body.body?.trim();
+    const authorName = request.body.author_name?.trim() || null;
+    if (!body) return res.status(400).json({ error: 'กรุณาระบุข้อความ' });
+
+    const g = await trackIssueGuard(request.params.token, id);
+    if (g.error) return res.status(g.status).json({ error: g.error });
+
+    const r = await req()
+      .input('iid', sql.Int, id)
+      .input('an',  sql.NVarChar, authorName)
+      .input('b',   sql.NVarChar, body)
+      .query(`INSERT INTO fu_comments(issue_id,user_id,author_name,body) OUTPUT INSERTED.id VALUES(@iid,NULL,@an,@b)`);
+    res.json({ id: r.recordset[0].id });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
