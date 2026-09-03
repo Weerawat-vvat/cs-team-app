@@ -6405,6 +6405,8 @@ app.get('/api/triage/stats', authRequired, async (request, res) => {
       podPrefixes: TRIAGE_POD_PREFIXES,   // ให้หน้าจอกรองปุ่ม Pod ตามขอบเขตเดียวกัน
       autoOn: (process.env.TRIAGE_AUTO || '').toLowerCase() === 'on',
       alertOn: (process.env.TRIAGE_ALERT || '').toLowerCase() === 'on',
+      alertEveryMin: TRIAGE_ALERT_EVERY,
+      alertWindow: TRIAGE_ALERT_WINDOW,
       autoMinutes: TRIAGE_AUTO_MIN,
       lastAutoAt: _triageAutoLastAt ? _triageAutoLastAt.toISOString() : null,
     });
@@ -6531,17 +6533,62 @@ async function triageAutoTick() {
         if (closed) console.log(`💡 triage auto-close: ปิด ${closed} รายการที่น่าจะแก้แล้ว`);
       } catch (e) { console.error('triage auto-close error:', e.message); }
     }
-    if ((process.env.TRIAGE_ALERT || '').toLowerCase() === 'on') {
-      const a = await buildTriageAlert();
-      if (a.hasAny) {
-        const groups = await sendTriageAlert(a);
-        console.log(`🔔 triage alert sent to ${groups} LINE group(s) (over1d ${a.overdayCount}, urgent ${a.urgentCount}, warn ${a.warnCount})`);
-      }
-    }
+    // (แจ้งเตือน LINE ย้ายไปอยู่ triageAlertSchedulerTick ด้านล่าง — ต้องยิงตรงนาฬิกา
+    //  :00/:30 ซึ่ง setInterval ของรอบนี้ทำไม่ได้ เพราะนับจากเวลาที่ server เริ่มทำงาน)
   } catch (e) { console.error('triage auto tick error:', e.message); }
   finally { _triageAutoRunning = false; }
 }
 setInterval(triageAutoTick, TRIAGE_AUTO_MIN * 60 * 1000);
+
+// ── ตารางส่งแจ้งเตือน LINE ────────────────────────────────
+// ยิงตรงนาฬิกา เช่น ทุก 30 นาที = 08:00, 08:30, 09:00 … ภายในช่วงเวลาทำงาน
+// ตั้งได้ที่ .env: TRIAGE_ALERT_EVERY_MIN=30  TRIAGE_ALERT_WINDOW=08:00-00:00
+const TRIAGE_ALERT_EVERY = Math.max(1, Math.min(720, parseInt(process.env.TRIAGE_ALERT_EVERY_MIN) || 30));
+const TRIAGE_ALERT_WINDOW = (process.env.TRIAGE_ALERT_WINDOW || '08:00-00:00').trim();
+
+// "08:00-00:00" → { start: 480, end: 1440 } (นาทีนับจากเที่ยงคืน)
+// ปลายทางที่ <= ต้นทาง แปลว่าข้ามเที่ยงคืน จึงบวก 24 ชม.
+function parseAlertWindow(str) {
+  const m = /^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})$/.exec(str);
+  if (!m) return { start: 480, end: 1440 };
+  const start = (+m[1]) * 60 + (+m[2]);
+  let end = (+m[3]) * 60 + (+m[4]);
+  if (end <= start) end += 1440;
+  return { start, end };
+}
+const TRIAGE_ALERT_WIN = parseAlertWindow(TRIAGE_ALERT_WINDOW);
+
+function triageAlertInWindow(mins) {
+  const { start, end } = TRIAGE_ALERT_WIN;
+  return (mins >= start && mins < end) || (mins + 1440 >= start && mins + 1440 < end);
+}
+
+let _triageAlertLastSlot = null;   // กันยิงซ้ำช่องเวลาเดิม (tick ทุก 30 วินาที)
+let _triageAlertRunning  = false;
+
+async function triageAlertSchedulerTick() {
+  if ((process.env.TRIAGE_ALERT || '').toLowerCase() !== 'on') return;
+  if (_triageAlertRunning) return;
+  const now  = new Date();
+  const hhmm = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Bangkok' });
+  const [hh, mm] = hhmm.split(':').map(Number);
+  const mins = hh * 60 + mm;
+  if (mins % TRIAGE_ALERT_EVERY !== 0) return;      // ไม่ตรงช่องเวลา
+  if (!triageAlertInWindow(mins)) return;           // นอกเวลาทำงาน
+  const slot = `${bangkokToday()} ${hhmm}`;
+  if (_triageAlertLastSlot === slot) return;        // ช่องนี้ยิงไปแล้ว
+  _triageAlertLastSlot = slot;
+
+  _triageAlertRunning = true;
+  try {
+    const a = await buildTriageAlert();
+    if (!a.hasAny) { console.log(`🔕 triage alert ${hhmm}: ไม่มี ticket ค้าง — ไม่ส่ง`); return; }
+    const groups = await sendTriageAlert(a);
+    console.log(`🔔 triage alert ${hhmm} → ${groups} LINE group(s) (over1d ${a.overdayCount}, urgent ${a.urgentCount}, warn ${a.warnCount})`);
+  } catch (e) { console.error('triage alert scheduler error:', e.message); }
+  finally { _triageAlertRunning = false; }
+}
+setInterval(triageAlertSchedulerTick, 30 * 1000);
 
 // ── Sync "answered in LINE" ───────────────────────────────
 // If a staff member already replied in the LINE group (LineWaitingReply.Answered=1),

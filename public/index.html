@@ -5432,14 +5432,15 @@ async function loadTriage() {
   if (info) info.textContent = `${_trTotal} รายการ · หน้า ${_trPage}/${maxPage}`;
 }
 
-let _trAuto = { on: false, autoOn: false, alertOn: false, minutes: 15, lastAt: null, refreshedForThisTick: false };
+let _trAuto = { on: false, autoOn: false, alertOn: false, minutes: 15, lastAt: null,
+                alertEveryMin: 30, alertWindow: '08:00-00:00', refreshedForThisTick: false };
 let _trAutoTicker = null;
 function renderTrAutoLabel() {
   const au = document.getElementById('tr-auto');
   if (!au) return;
-  const { on, autoOn, alertOn, minutes, lastAt } = _trAuto;
+  const { on, autoOn, alertOn, minutes, lastAt, alertEveryMin, alertWindow } = _trAuto;
   if (!on) { au.textContent = '⚪ auto ปิดอยู่ (TRIAGE_AUTO=off)'; return; }
-  const what = autoOn ? `คัดกรอง${alertOn ? ' + แจ้งเตือนไลน์' : ''}` : 'แจ้งเตือนไลน์';
+  const what = 'คัดกรอง';
   const lastStr = lastAt ? lastAt.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
   let etaStr = '—';
   if (lastAt) {
@@ -5457,7 +5458,11 @@ function renderTrAutoLabel() {
       }
     }
   }
-  au.textContent = `🟢 auto ทุก ${minutes} นาที · ${what} · อัพเดทล่าสุด ${lastStr} · อีก ${etaStr}`;
+  // แจ้งเตือน LINE เดินคนละรอบกับการคัดกรอง — ยิงตรงนาฬิกาตามตารางที่ตั้งไว้
+  const alertPart = alertOn
+    ? ` · 🔔 แจ้งเตือนไลน์ทุก ${alertEveryMin} นาที (${alertWindow})`
+    : ' · 🔕 แจ้งเตือนไลน์ปิดอยู่';
+  au.textContent = `🟢 auto ทุก ${minutes} นาที · ${what} · อัพเดทล่าสุด ${lastStr} · อีก ${etaStr}${alertPart}`;
 }
 
 function renderTriageStats(s) {
@@ -5473,6 +5478,8 @@ function renderTriageStats(s) {
   _trAuto.autoOn = !!s.autoOn;
   _trAuto.alertOn = !!s.alertOn;
   _trAuto.minutes = s.autoMinutes || 15;
+  _trAuto.alertEveryMin = s.alertEveryMin || 30;
+  _trAuto.alertWindow = s.alertWindow || '08:00-00:00';
   _trAuto.lastAt = s.lastAutoAt ? new Date(s.lastAutoAt) : null;
   _trAuto.refreshedForThisTick = false;
   renderTrAutoLabel();
