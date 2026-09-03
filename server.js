@@ -178,6 +178,33 @@ const newsUpload = multer({
   }
 });
 
+// ── UAT attachment upload config ─────────────────────────
+// Two scopes so job #1 and issue #1 never share a folder:
+//   uploads/uat/job/<jobId>  |  uploads/uat/issue/<issueId>
+function makeUatUpload(scope) {
+  return multer({
+    storage: multer.diskStorage({
+      destination: (req, file, cb) => {
+        const dir = path.join(UPLOAD_DIR, 'uat', scope, String(req.params.id || 'tmp'));
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        cb(null, dir);
+      },
+      filename: (req, file, cb) => {
+        const name = fixUploadName(file.originalname);
+        const ext  = path.extname(name).toLowerCase();
+        const base = path.basename(name, ext).replace(/[^a-zA-Z0-9ก-๙._-]/g, '_').slice(0, 60);
+        cb(null, `${Date.now()}_${base}${ext}`);
+      }
+    }),
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      cb(null, /\.(jpg|jpeg|png|gif|webp|pdf|doc|docx|xls|xlsx|txt|log)$/i.test(fixUploadName(file.originalname)));
+    }
+  });
+}
+const uatJobUpload   = makeUatUpload('job');
+const uatIssueUpload = makeUatUpload('issue');
+
 // ── Error Log table ──────────────────────────────────────
 async function ensureErrorLogTable() {
   await getPool().request().query(`
@@ -3470,7 +3497,7 @@ ${JSON.stringify(rawEvents)}
 }
 
 // Render the summary as a LINE-friendly plain-text message
-function formatEmpcalLine(data) {
+function formatEmpcalLine(data, opts = {}) {
   const TYPE = { shift: 'กะงาน', leave: 'ลา', onsite: 'หน้างาน', other: 'อื่นๆ' };
   const [y, m, d] = data.date.split('-');
   const timeOf = (it) => it.start ? (it.end ? `${it.start}-${it.end}` : it.start) : 'ทั้งวัน';
@@ -3499,6 +3526,8 @@ function formatEmpcalLine(data) {
       out += `• ${u.raw}: ${items.map(lineFor).join(' | ')}\n`;
     }
   }
+  // ดึงข้อมูลใหม่ไม่สำเร็จ ต้องใช้ข้อมูลเดิม → บอกในข้อความให้รู้ตัว
+  if (opts.stale) out += `\n⚠️ ดึงปฏิทินใหม่ไม่สำเร็จ — ข้อมูลนี้มาจากที่บันทึกไว้ก่อนหน้า อาจไม่ตรงกับปฏิทินล่าสุด\n`;
   return out.trim();
 }
 
@@ -3564,14 +3593,30 @@ app.get('/api/empcal/summary', authRequired, async (request, res) => {
   }
 });
 
+// ── ดึงข้อมูลปฏิทินใหม่ก่อนส่งทุกครั้ง ────────────────────
+// cache ไฟล์ JSON มีไว้ให้หน้าจอโหลดเร็ว แต่ถ้าเอาไปส่ง LINE ตรง ๆ จะได้ข้อมูลเก่า
+// เมื่อมีคนแก้ปฏิทินหลัง cache ถูกเขียน → ก่อนส่งจึงบังคับ refresh เสมอ
+// ถ้า refresh ไม่สำเร็จ (Google/Gemini ล่ม) ค่อยถอยไปใช้ cache แล้วติดธง stale ไว้
+async function empcalDataForSend(date) {
+  try {
+    return { data: await computeEmpcalSummary(date, true), stale: false };
+  } catch (e) {
+    const msg = e.response?.data?.error?.message || e.message;
+    console.error(`empcal: refresh before send failed (${date}):`, msg);
+    // ไม่มี cache ของวันนั้น → computeEmpcalSummary จะคำนวณใหม่และโยน error เดิมออกไป
+    const data = await computeEmpcalSummary(date, false);
+    return { data, stale: !!data.cached, refreshError: msg };
+  }
+}
+
 // Build today's summary and push it to LINE targets subscribed to 'empcal_summary'
 // (targets are configured in Settings → LINE, same mechanism as other auto-notifications)
 async function sendEmpcalSummaryToLine(date) {
-  const data = await computeEmpcalSummary(date, false);
-  if (!data.eventCount) { console.log(`empcal: no events on ${date}, skip LINE`); return { sent: false, reason: 'no-events' }; }
+  const { data, stale, refreshError } = await empcalDataForSend(date);
+  if (!data.eventCount) { console.log(`empcal: no events on ${date}, skip LINE`); return { sent: false, reason: 'no-events', stale }; }
   try { await saveEmpcalToDb(data); } catch (e) { console.error('empcal DB save failed:', e.message); }
-  await sendLineNotify(formatEmpcalLine(data), 'empcal_summary');
-  return { sent: true, eventCount: data.eventCount };
+  await sendLineNotify(formatEmpcalLine(data, { stale }), 'empcal_summary');
+  return { sent: true, eventCount: data.eventCount, refreshed: !stale, stale, refreshError };
 }
 
 // Daily auto-send scheduler (no cron lib) — checks every 30s, fires once/day
@@ -5050,6 +5095,606 @@ app.delete('/api/sw-update/:id', authRequired, managerRequired, async (request, 
   try {
     await req().input('id', sql.Int, parseInt(request.params.id))
       .query('DELETE FROM sw_update_jobs WHERE id=@id');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════
+//  UAT JOBS + ISSUES
+//  Flow: support เปิดงาน → UAT Staff แจ้ง slot → support ยืนยันกับลูกค้า
+//        → ทดสอบ → แนบเอกสารผล UAT → ส่งต่อทีม Update → ปิดจบ
+// ══════════════════════════════════════════════════════════
+
+// งานที่ยังไม่จบ (ใช้กับ badge / stat)
+const UAT_JOB_OPEN   = `('requested','slot_proposed','confirmed','testing','issues_found','retesting','passed','handed_to_update')`;
+// Issue ที่ยังไม่จบ
+const UAT_ISSUE_OPEN = `('open','sent_dev','fixing','fixed','retest_failed')`;
+
+const UAT_STATUSES = ['requested','slot_proposed','confirmed','testing','issues_found',
+                      'retesting','passed','handed_to_update','closed','cancelled'];
+
+// UAT-YYYYMM-XXXX (ใช้ MAX เผื่อมีการลบจนเลขขาด)
+async function genUatJobNo() {
+  const ym = new Date().toISOString().substring(0, 7).replace('-', '');
+  const prefix = `UAT-${ym}-`;
+  const row = await req()
+    .query(`SELECT ISNULL(MAX(CAST(SUBSTRING(job_no, ${prefix.length + 1}, 4) AS INT)), 0) + 1 AS n
+            FROM uat_jobs WHERE job_no LIKE '${prefix}%'`);
+  return `${prefix}${String(row.recordset[0].n).padStart(4, '0')}`;
+}
+
+const uatUserName = (u) => u?.name || u?.username || '—';
+
+// ── GET /api/uat/badge — MUST come before /api/uat/:id ──
+app.get('/api/uat/badge', authRequired, async (request, res) => {
+  try {
+    const r = (await req().query(`
+      SELECT
+        (SELECT COUNT(*) FROM uat_jobs   WHERE status IN ${UAT_JOB_OPEN})    AS jobs,
+        (SELECT COUNT(*) FROM uat_issues WHERE status IN ${UAT_ISSUE_OPEN})  AS issues
+    `)).recordset[0];
+    res.json({ count: r?.jobs || 0, open_issues: r?.issues || 0 });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Issue-scoped routes (ต้องมาก่อน /api/uat/:id เพื่อไม่ให้ชน) ──
+
+// GET แนบไฟล์ของ Issue
+app.get('/api/uat/issues/:id/attachments', authRequired, async (request, res) => {
+  try {
+    const rows = (await req().input('id', sql.Int, parseInt(request.params.id))
+      .query(`SELECT a.*, ISNULL(e.nickname, e.name) AS uploaded_by_name
+              FROM uat_attachments a
+              LEFT JOIN app_users au ON au.id = a.created_by
+              LEFT JOIN employees e  ON e.id  = au.employee_id
+              WHERE a.issue_id=@id ORDER BY a.created_at`)).recordset;
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST แนบไฟล์เข้า Issue (ภาพหน้าจอ / หลักฐานประกอบ)
+app.post('/api/uat/issues/:id/attachments', authRequired, uatIssueUpload.array('files', 10), async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const files = request.files || [];
+    if (!files.length) return res.status(400).json({ error: 'ไม่พบไฟล์' });
+    const jobRow = (await req().input('id', sql.Int, id)
+      .query('SELECT job_id FROM uat_issues WHERE id=@id')).recordset[0];
+    if (!jobRow) return res.status(404).json({ error: 'ไม่พบ Issue' });
+    const inserted = [];
+    for (const f of files) {
+      const r = await req()
+        .input('jid', sql.Int,      jobRow.job_id)
+        .input('iid', sql.Int,      id)
+        .input('fn',  sql.NVarChar, f.filename)
+        .input('on',  sql.NVarChar, fixUploadName(f.originalname))
+        .input('fs',  sql.Int,      f.size)
+        .input('mt',  sql.NVarChar, f.mimetype)
+        .input('cb',  sql.Int,      request.user.id)
+        .query(`INSERT INTO uat_attachments (scope,doc_type,job_id,issue_id,filename,original_name,file_size,mime_type,created_by)
+                OUTPUT INSERTED.id VALUES (N'issue',N'other',@jid,@iid,@fn,@on,@fs,@mt,@cb)`);
+      inserted.push({ id: r.recordset[0].id, filename: f.filename, original_name: fixUploadName(f.originalname) });
+    }
+    res.json({ ok: true, files: inserted });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT แก้ไข Issue
+app.put('/api/uat/issues/:id', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const b  = request.body;
+    const done = ['retest_passed', 'wont_fix'].includes(b.status);
+    await req()
+      .input('id',  sql.Int,      id)
+      .input('tp',  sql.NVarChar, b.topic        || null)
+      .input('de',  sql.NVarChar, b.description  || null)
+      .input('ex',  sql.NVarChar, b.expected     || null)
+      .input('ac',  sql.NVarChar, b.actual       || null)
+      .input('sv',  sql.NVarChar, b.severity     || 'medium')
+      .input('st',  sql.NVarChar, b.status       || 'open')
+      .input('az',  sql.NVarChar, b.azure_id     || null)
+      .input('dv',  sql.NVarChar, b.assigned_dev || null)
+      .input('fb',  sql.Int,      b.found_by     || null)
+      .input('dn',  sql.Bit,      done ? 1 : 0)
+      .input('ub',  sql.Int,      request.user.id)
+      .query(`UPDATE uat_issues SET
+        topic=@tp, description=@de, expected=@ex, actual=@ac,
+        severity=@sv, status=@st, azure_id=@az, assigned_dev=@dv, found_by=@fb,
+        resolved_at = CASE WHEN @dn=1 THEN ISNULL(resolved_at, GETDATE()) ELSE NULL END,
+        updated_at=GETDATE(), updated_by=@ub
+        WHERE id=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE Issue (+ ไฟล์แนบ)
+app.delete('/api/uat/issues/:id', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const dir = path.join(UPLOAD_DIR, 'uat', 'issue', String(id));
+    if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
+    await req().input('id', sql.Int, id).query('DELETE FROM uat_attachments WHERE issue_id=@id');
+    await req().input('id', sql.Int, id).query('DELETE FROM uat_issues WHERE id=@id');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE ไฟล์แนบ (ทั้ง job และ issue)
+app.delete('/api/uat/attachments/:id', authRequired, async (request, res) => {
+  try {
+    const id  = parseInt(request.params.id);
+    const row = (await req().input('id', sql.Int, id)
+      .query('SELECT * FROM uat_attachments WHERE id=@id')).recordset[0];
+    if (!row) return res.status(404).json({ error: 'ไม่พบไฟล์' });
+    const ownerId = row.scope === 'issue' ? row.issue_id : row.job_id;
+    const filePath = path.join(UPLOAD_DIR, 'uat', row.scope, String(ownerId), row.filename);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    await req().input('id', sql.Int, id).query('DELETE FROM uat_attachments WHERE id=@id');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /api/uat — รายการงาน UAT ──
+app.get('/api/uat', authRequired, async (request, res) => {
+  try {
+    const { status, priority, job_type, q } = request.query;
+    let where = 'WHERE 1=1';
+    const r = req();
+    if (status)   { where += ' AND j.status=@st';   r.input('st', sql.NVarChar, status); }
+    if (priority) { where += ' AND j.priority=@pr'; r.input('pr', sql.NVarChar, priority); }
+    if (job_type) { where += ' AND j.job_type=@jt'; r.input('jt', sql.NVarChar, job_type); }
+    if (q) {
+      where += ' AND (j.job_no LIKE @q OR j.title LIKE @q OR j.version_to LIKE @q)';
+      r.input('q', sql.NVarChar, `%${q}%`);
+    }
+    const rows = (await r.query(`
+      SELECT j.*, ISNULL(e.nickname, e.name) AS reporter_name,
+        (SELECT COUNT(*) FROM uat_issues i WHERE i.job_id = j.id) AS issue_total,
+        (SELECT COUNT(*) FROM uat_issues i WHERE i.job_id = j.id AND i.status IN ${UAT_ISSUE_OPEN}) AS issue_open,
+        (SELECT COUNT(*) FROM uat_attachments a WHERE a.job_id = j.id AND a.doc_type='result') AS result_docs,
+        (SELECT COUNT(*) FROM uat_attachments a WHERE a.job_id = j.id AND a.doc_type='kickoff') AS kickoff_docs
+      FROM uat_jobs j
+      LEFT JOIN app_users au ON au.id = j.reported_by
+      LEFT JOIN employees e  ON e.id  = au.employee_id
+      ${where}
+      ORDER BY j.created_at DESC
+    `)).recordset;
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── POST /api/uat — support/team เปิดงาน (ขั้นที่ 1) ──
+app.post('/api/uat', authRequired, async (request, res) => {
+  try {
+    const b = request.body;
+    if (!b.title || !String(b.title).trim()) return res.status(400).json({ error: 'กรุณาระบุเรื่องที่ขอทดสอบ' });
+    const jobNo = await genUatJobNo();
+    const result = await req()
+      .input('jn',  sql.NVarChar, jobNo)
+      .input('ti',  sql.NVarChar, String(b.title).trim())
+      .input('jt',  sql.NVarChar, b.job_type     || 'version_update')
+      .input('vf',  sql.NVarChar, b.version_from || null)
+      .input('vt',  sql.NVarChar, b.version_to   || null)
+      .input('rq',  sql.Date,     b.requested_date ? new Date(b.requested_date) : null)
+      .input('pr',  sql.NVarChar, b.priority     || 'normal')
+      .input('nt',  sql.NVarChar, b.note         || null)
+      .input('rb',  sql.Int,      b.reported_by  || request.user.id || null)
+      .input('cb',  sql.Int,      request.user.id)
+      .query(`INSERT INTO uat_jobs
+        (job_no,title,job_type,version_from,version_to,requested_date,
+         priority,status,note,reported_by,created_by)
+        OUTPUT INSERTED.id, INSERTED.job_no
+        VALUES (@jn,@ti,@jt,@vf,@vt,@rq,@pr,N'requested',@nt,@rb,@cb)`);
+    const newId = result.recordset[0].id;
+    await sendLineNotify(
+      `\n🧪 Request UAT ใหม่ [${jobNo}]\n` +
+      `${String(b.title).trim()}\n` +
+      (b.version_to ? `📦 Version: ${b.version_from || '—'} → ${b.version_to}\n` : '') +
+      `📅 วันที่ต้องการ: ${b.requested_date || 'ยังไม่ระบุ'}\n` +
+      `👤 ผู้แจ้ง: ${uatUserName(request.user)}\n` +
+      `⏳ รอทีม UAT แจ้ง slot`,
+      'uat_job');
+    res.json({ id: newId, job_no: result.recordset[0].job_no });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /api/uat/:id — รายละเอียด + issues + ไฟล์แนบ ──
+app.get('/api/uat/:id', authRequired, async (request, res) => {
+  try {
+    const id  = parseInt(request.params.id);
+    const job = (await req().input('id', sql.Int, id).query(`
+      SELECT j.*,
+        ISNULL(er.nickname, er.name) AS reporter_name,
+        ISNULL(es.nickname, es.name) AS slot_by_name,
+        ISNULL(ec.nickname, ec.name) AS confirmed_by_name,
+        ISNULL(ep.nickname, ep.name) AS uat_passed_by_name,
+        ISNULL(eh.nickname, eh.name) AS handed_by_name
+      FROM uat_jobs j
+      LEFT JOIN app_users ar ON ar.id = j.reported_by   LEFT JOIN employees er ON er.id = ar.employee_id
+      LEFT JOIN app_users asl ON asl.id = j.slot_by     LEFT JOIN employees es ON es.id = asl.employee_id
+      LEFT JOIN app_users ac ON ac.id = j.confirmed_by  LEFT JOIN employees ec ON ec.id = ac.employee_id
+      LEFT JOIN app_users ap ON ap.id = j.uat_passed_by LEFT JOIN employees ep ON ep.id = ap.employee_id
+      LEFT JOIN app_users ah ON ah.id = j.handed_by     LEFT JOIN employees eh ON eh.id = ah.employee_id
+      WHERE j.id=@id`)).recordset[0];
+    if (!job) return res.status(404).json({ error: 'ไม่พบงาน UAT' });
+    job.issues = (await req().input('id', sql.Int, id).query(`
+      SELECT i.*, ISNULL(e.nickname, e.name) AS found_by_name,
+        (SELECT COUNT(*) FROM uat_attachments a WHERE a.issue_id = i.id) AS attach_count
+      FROM uat_issues i
+      LEFT JOIN app_users au ON au.id = i.found_by
+      LEFT JOIN employees e  ON e.id  = au.employee_id
+      WHERE i.job_id=@id ORDER BY i.issue_no, i.id`)).recordset;
+    job.attachments = (await req().input('id', sql.Int, id)
+      .query(`SELECT a.*, ISNULL(e.nickname, e.name) AS uploaded_by_name
+              FROM uat_attachments a
+              LEFT JOIN app_users au ON au.id = a.created_by
+              LEFT JOIN employees e  ON e.id  = au.employee_id
+              WHERE a.job_id=@id AND a.scope=N'job' ORDER BY a.created_at`)).recordset;
+    res.json(job);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /api/uat/:id/issues ──
+app.get('/api/uat/:id/issues', authRequired, async (request, res) => {
+  try {
+    const rows = (await req().input('id', sql.Int, parseInt(request.params.id)).query(`
+      SELECT i.*, ISNULL(e.nickname, e.name) AS found_by_name,
+        (SELECT COUNT(*) FROM uat_attachments a WHERE a.issue_id = i.id) AS attach_count
+      FROM uat_issues i
+      LEFT JOIN app_users au ON au.id = i.found_by
+      LEFT JOIN employees e  ON e.id  = au.employee_id
+      WHERE i.job_id=@id ORDER BY i.issue_no, i.id`)).recordset;
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── POST /api/uat/:id/issues — บันทึกปัญหาตามฟอร์แมตในเอกสาร ──
+app.post('/api/uat/:id/issues', authRequired, async (request, res) => {
+  try {
+    const jobId = parseInt(request.params.id);
+    const b = request.body;
+    if (!b.topic || !String(b.topic).trim()) return res.status(400).json({ error: 'กรุณาระบุ Topic' });
+    const job = (await req().input('id', sql.Int, jobId)
+      .query('SELECT job_no, title, status FROM uat_jobs WHERE id=@id')).recordset[0];
+    if (!job) return res.status(404).json({ error: 'ไม่พบงาน UAT' });
+    const nextNo = (await req().input('id', sql.Int, jobId)
+      .query('SELECT ISNULL(MAX(issue_no),0)+1 AS n FROM uat_issues WHERE job_id=@id')).recordset[0].n;
+    const result = await req()
+      .input('jid', sql.Int,      jobId)
+      .input('no',  sql.Int,      nextNo)
+      .input('tp',  sql.NVarChar, String(b.topic).trim())
+      .input('de',  sql.NVarChar, b.description  || null)
+      .input('ex',  sql.NVarChar, b.expected     || null)
+      .input('ac',  sql.NVarChar, b.actual       || null)
+      .input('sv',  sql.NVarChar, b.severity     || 'medium')
+      .input('st',  sql.NVarChar, b.status       || 'open')
+      .input('az',  sql.NVarChar, b.azure_id     || null)
+      .input('dv',  sql.NVarChar, b.assigned_dev || null)
+      .input('fb',  sql.Int,      b.found_by     || request.user.id || null)
+      .input('cb',  sql.Int,      request.user.id)
+      .query(`INSERT INTO uat_issues
+        (job_id,issue_no,topic,description,expected,actual,severity,status,azure_id,assigned_dev,found_by,created_by)
+        OUTPUT INSERTED.id VALUES (@jid,@no,@tp,@de,@ex,@ac,@sv,@st,@az,@dv,@fb,@cb)`);
+    // กำลังทดสอบอยู่แล้วเจอปัญหา → เลื่อนสถานะเป็น "พบปัญหา" อัตโนมัติ
+    if (job.status === 'testing') {
+      await req().input('id', sql.Int, jobId)
+        .query(`UPDATE uat_jobs SET status='issues_found', updated_at=GETDATE() WHERE id=@id`);
+    }
+    const sevLabel = { critical: '🔴 Critical', high: '🟠 High', medium: '🟡 Medium', low: '⚪ Low' }[b.severity || 'medium'];
+    await sendLineNotify(
+      `\n🐞 พบปัญหาจาก UAT [${job.job_no}] #${nextNo}\n` +
+      `${job.title}\n` +
+      `Topic: ${String(b.topic).trim()}\n` +
+      `ระดับ: ${sevLabel}\n` +
+      (b.expected ? `Expected: ${String(b.expected).slice(0, 150)}\n` : '') +
+      (b.actual   ? `Actual: ${String(b.actual).slice(0, 150)}\n` : '') +
+      `👤 ผู้พบ: ${uatUserName(request.user)}`,
+      'uat_issue');
+    res.json({ id: result.recordset[0].id, issue_no: nextNo });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── ไฟล์แนบระดับงาน — ?doc_type=kickoff|result|other ──
+app.get('/api/uat/:id/attachments', authRequired, async (request, res) => {
+  try {
+    const rows = (await req().input('id', sql.Int, parseInt(request.params.id))
+      .query(`SELECT a.*, ISNULL(e.nickname, e.name) AS uploaded_by_name
+              FROM uat_attachments a
+              LEFT JOIN app_users au ON au.id = a.created_by
+              LEFT JOIN employees e  ON e.id  = au.employee_id
+              WHERE a.job_id=@id AND a.scope=N'job' ORDER BY a.created_at`)).recordset;
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/uat/:id/attachments', authRequired, uatJobUpload.array('files', 10), async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const files = request.files || [];
+    if (!files.length) return res.status(400).json({ error: 'ไม่พบไฟล์' });
+    const docType = ['kickoff', 'result', 'other'].includes(request.query.doc_type)
+      ? request.query.doc_type : 'other';
+    const inserted = [];
+    for (const f of files) {
+      const r = await req()
+        .input('jid', sql.Int,      id)
+        .input('dt',  sql.NVarChar, docType)
+        .input('fn',  sql.NVarChar, f.filename)
+        .input('on',  sql.NVarChar, fixUploadName(f.originalname))
+        .input('fs',  sql.Int,      f.size)
+        .input('mt',  sql.NVarChar, f.mimetype)
+        .input('cb',  sql.Int,      request.user.id)
+        .query(`INSERT INTO uat_attachments (scope,doc_type,job_id,issue_id,filename,original_name,file_size,mime_type,created_by)
+                OUTPUT INSERTED.id VALUES (N'job',@dt,@jid,NULL,@fn,@on,@fs,@mt,@cb)`);
+      inserted.push({ id: r.recordset[0].id, filename: f.filename, original_name: fixUploadName(f.originalname) });
+    }
+    res.json({ ok: true, doc_type: docType, files: inserted });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══ ขั้นตอนงาน ═════════════════════════════════════════════
+
+// ขั้นที่ 2 — UAT Staff แจ้ง slot ว่าว่างวันไหน (requested → slot_proposed)
+app.post('/api/uat/:id/schedule', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const { test_date_from, test_date_to } = request.body;
+    if (!test_date_from) return res.status(400).json({ error: 'กรุณาระบุวันเริ่มทดสอบ' });
+    const job = (await req().input('id', sql.Int, id)
+      .query('SELECT job_no, title FROM uat_jobs WHERE id=@id')).recordset[0];
+    if (!job) return res.status(404).json({ error: 'ไม่พบงาน UAT' });
+    await req()
+      .input('id', sql.Int,  id)
+      .input('df', sql.Date, new Date(test_date_from))
+      .input('dt', sql.Date, test_date_to ? new Date(test_date_to) : new Date(test_date_from))
+      .input('ub', sql.Int,  request.user.id)
+      .query(`UPDATE uat_jobs SET test_date_from=@df, test_date_to=@dt,
+              status='slot_proposed', slot_by=@ub, slot_at=GETDATE(),
+              confirmed_at=NULL, confirmed_by=NULL,
+              updated_at=GETDATE(), updated_by=@ub WHERE id=@id`);
+    await sendLineNotify(
+      `\n📅 ทีม UAT แจ้ง slot [${job.job_no}]\n` +
+      `${job.title}\n` +
+      `Slot ที่ว่าง: ${test_date_from}${test_date_to && test_date_to !== test_date_from ? ` – ${test_date_to}` : ''}\n` +
+      `👤 แจ้งโดย: ${uatUserName(request.user)}\n` +
+      `⏳ รอ Support ยืนยันกับลูกค้าว่าตรงกันไหม`,
+      'uat_job');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ขั้นที่ 3 — Support ยืนยันกับลูกค้าว่า slot ตรงกัน (slot_proposed → confirmed)
+app.post('/api/uat/:id/confirm', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const job = (await req().input('id', sql.Int, id)
+      .query('SELECT job_no, title, test_date_from, test_date_to FROM uat_jobs WHERE id=@id')).recordset[0];
+    if (!job) return res.status(404).json({ error: 'ไม่พบงาน UAT' });
+    if (!job.test_date_from) return res.status(400).json({ error: 'ทีม UAT ยังไม่ได้แจ้ง slot — ยืนยันกับลูกค้าไม่ได้' });
+    await req().input('id', sql.Int, id).input('ub', sql.Int, request.user.id)
+      .query(`UPDATE uat_jobs SET status='confirmed', confirmed_at=GETDATE(), confirmed_by=@ub,
+              updated_at=GETDATE(), updated_by=@ub WHERE id=@id`);
+    const d = (x) => x ? new Date(x).toISOString().slice(0,10) : '—';
+    await sendLineNotify(
+      `\n🤝 Support ยืนยัน slot กับลูกค้าแล้ว [${job.job_no}]\n` +
+      `${job.title}\n` +
+      `วันทดสอบ: ${d(job.test_date_from)}${job.test_date_to ? ` – ${d(job.test_date_to)}` : ''}\n` +
+      `👤 ยืนยันโดย: ${uatUserName(request.user)}`,
+      'uat_job');
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ขั้นที่ 4 — เปลี่ยนสถานะ (เริ่มทดสอบ / UAT ผ่าน / ส่งต่อทีม Update / ปิดจบ)
+app.post('/api/uat/:id/status', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const st = String(request.body?.status || '');
+    if (!UAT_STATUSES.includes(st)) return res.status(400).json({ error: 'สถานะไม่ถูกต้อง' });
+    const job = (await req().input('id', sql.Int, id)
+      .query('SELECT job_no, title, version_to, status FROM uat_jobs WHERE id=@id')).recordset[0];
+    if (!job) return res.status(404).json({ error: 'ไม่พบงาน UAT' });
+
+    // กติกา: จะกด "UAT ผ่าน" ได้ต้องแนบเอกสารผลการทดสอบก่อน
+    if (st === 'passed') {
+      const n = (await req().input('id', sql.Int, id)
+        .query(`SELECT COUNT(*) AS c FROM uat_attachments WHERE job_id=@id AND doc_type='result'`)).recordset[0].c;
+      if (!n) return res.status(400).json({
+        error: 'ต้องแนบเอกสารยืนยันผล UAT (ผ่าน) ก่อน จึงจะปิดผลการทดสอบได้' });
+      const openIssues = (await req().input('id', sql.Int, id)
+        .query(`SELECT COUNT(*) AS c FROM uat_issues WHERE job_id=@id AND status IN ${UAT_ISSUE_OPEN}`)).recordset[0].c;
+      if (openIssues) return res.status(400).json({
+        error: `ยังมี Issue ค้างอยู่ ${openIssues} รายการ — ต้อง Re-test ให้ผ่านก่อน` });
+    }
+    // จะส่งต่อทีม Update ได้ต้องผ่าน UAT ก่อน
+    if (st === 'handed_to_update' && !['passed','handed_to_update'].includes(job.status)) {
+      return res.status(400).json({ error: 'ต้องปิดผล UAT ว่าผ่านก่อน จึงจะส่งต่อทีม Update ได้' });
+    }
+
+    const extra = st === 'passed'           ? ', uat_passed_at=GETDATE(), uat_passed_by=@ub'
+                : st === 'handed_to_update' ? ', handed_at=GETDATE(), handed_by=@ub'
+                : '';
+    await req().input('id', sql.Int, id).input('st', sql.NVarChar, st).input('ub', sql.Int, request.user.id)
+      .query(`UPDATE uat_jobs SET status=@st${extra}, updated_at=GETDATE(), updated_by=@ub WHERE id=@id`);
+
+    const who = uatUserName(request.user);
+    if (st === 'passed') {
+      await sendLineNotify(
+        `\n✅ UAT ผ่านแล้ว [${job.job_no}]\n${job.title}\n` +
+        `แนบเอกสารยืนยันผลเรียบร้อย\n👤 ปิดผลโดย: ${who}\n➡️ พร้อมส่งต่อทีม Update`, 'uat_job');
+    } else if (st === 'handed_to_update') {
+      await sendLineNotify(
+        `\n📤 ส่งต่อทีม Update แล้ว [${job.job_no}]\n${job.title}\n` +
+        (job.version_to ? `📦 Version: ${job.version_to}\n` : '') +
+        `👤 ส่งต่อโดย: ${who}`, 'uat_job');
+    } else if (st === 'closed') {
+      await sendLineNotify(`\n🏁 ปิดงาน UAT [${job.job_no}]\n${job.title}\n👤 ปิดโดย: ${who}`, 'uat_job');
+    }
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /api/uat/:id/draft-doc ──
+// เอกสารเปิดงานทดสอบ (Test Kickoff) แบบร่าง — เปิดใน Word ได้เลย ให้ผู้แจ้งกรอกแล้วอัพโหลดกลับ
+app.get('/api/uat/:id/draft-doc', authRequired, async (request, res) => {
+  try {
+    const id  = parseInt(request.params.id);
+    const job = (await req().input('id', sql.Int, id).query(`
+      SELECT j.*, ISNULL(e.nickname, e.name) AS reporter_name
+      FROM uat_jobs j
+      LEFT JOIN app_users au ON au.id = j.reported_by
+      LEFT JOIN employees e  ON e.id  = au.employee_id
+      WHERE j.id=@id`)).recordset[0];
+    if (!job) return res.status(404).json({ error: 'ไม่พบงาน UAT' });
+
+    const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    const val = (s) => s ? esc(s) : '<span style="color:#999">— กรุณากรอก —</span>';
+    const day = (d) => d ? new Date(d).toISOString().slice(0,10) : null;
+    const period = job.test_date_from
+      ? `${day(job.test_date_from)}${job.test_date_to && day(job.test_date_to) !== day(job.test_date_from) ? ` ถึง ${day(job.test_date_to)}` : ''}`
+      : (job.requested_date ? `${day(job.requested_date)} (วันที่ผู้แจ้งต้องการ — รอทีม UAT แจ้ง slot)` : null);
+    const TYPE_TH = { version_update:'อัพเดท Version', sync_test:'ทดสอบ Sync ข้าม Version',
+                      feature:'ฟีเจอร์ใหม่', hotfix:'Hotfix', other:'อื่น ๆ' };
+    const kv = (k, v) => `<tr><td class="k">${k}</td><td class="v">${v}</td></tr>`;
+    const fill = (lines = 4) => '<p class="fill">' + Array(lines).fill('&nbsp;').join('</p><p class="fill">') + '</p>';
+
+    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8"><title>${esc(job.job_no)} Test Kickoff</title>
+<style>
+ @page { size: A4; margin: 2cm; }
+ body { font-family: "TH SarabunPSK","Tahoma",sans-serif; font-size: 15pt; color:#000; }
+ h1 { font-size: 19pt; margin: 0 0 2pt; }
+ h2 { font-size: 15pt; margin: 16pt 0 4pt; border-bottom: 1px solid #999; padding-bottom: 2pt; }
+ .sub { font-size: 12pt; color: #555; margin: 0 0 12pt; }
+ table { border-collapse: collapse; width: 100%; margin-bottom: 6pt; }
+ td { border: 1px solid #999; padding: 4pt 6pt; vertical-align: top; font-size: 13pt; }
+ td.k { width: 32%; background: #f0f0f0; font-weight: bold; }
+ p { margin: 3pt 0; font-size: 13pt; }
+ p.fill { border-bottom: 1px dotted #aaa; min-height: 14pt; }
+ ol, ul { margin: 3pt 0 3pt 18pt; font-size: 13pt; }
+ .note { font-size: 11pt; color: #a00; }
+</style></head>
+<body>
+<h1>เอกสารเปิดงานทดสอบระบบ (Test Kickoff Document)</h1>
+<p class="sub">เลขที่งาน ${esc(job.job_no)} · ฉบับร่างสำหรับกรอก แล้วบันทึกและอัพโหลดกลับเข้าระบบ CS Team Manager</p>
+
+<table>
+  ${kv('โครงการ / Project', val(job.title))}
+  ${kv('ประเภทงาน', esc(TYPE_TH[job.job_type] || TYPE_TH.other))}
+  ${kv('วันที่ทดสอบ', period ? esc(period) : '<span style="color:#999">— รอทีม UAT แจ้ง slot —</span>')}
+  ${kv('ทีมที่รับผิดชอบ', 'ทีม UAT')}
+  ${kv('ผู้ประสานงาน / จัดทำโดย', '&nbsp;')}
+  ${kv('ผู้แจ้ง', val(job.reporter_name))}
+  ${kv('สถานะเอกสาร', 'ฉบับร่างสำหรับเปิดงาน (Draft for kickoff)')}
+</table>
+
+<h2>1. วัตถุประสงค์ (Objective)</h2>
+${job.note ? `<p>${esc(job.note).replace(/\n/g,'</p><p>')}</p>${fill(2)}` : fill(4)}
+
+<h2>2. ขอบเขตงาน (Scope)</h2>
+<p><b>2.1 ระบบ / สาขาที่ทำการอัพเดท</b></p>
+${fill(4)}
+<p><b>2.2 ระบบ / สาขาที่ใช้ทดสอบเปรียบเทียบ (คงของเดิม)</b></p>
+${fill(3)}
+
+<h2>3. ข้อมูล Version สำหรับการอัพเดท</h2>
+<table>
+  <tr><td class="k">ส่วนประกอบ</td><td class="k">Version</td><td class="k">แหล่งดาวน์โหลด (FTP)</td></tr>
+  <tr><td>Version ปัจจุบัน (ก่อนอัพเดท)</td><td>${val(job.version_from)}</td><td>—</td></tr>
+  <tr><td>Version ที่จะอัพเดท</td><td>${val(job.version_to)}</td><td>&nbsp;</td></tr>
+  <tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+</table>
+
+<h2>4. ข้อมูลการเชื่อมต่อเครื่อง Remote</h2>
+<table>
+  ${kv('เลขรีโมทเครื่อง (Remote ID)', '&nbsp;')}
+  ${kv('รหัสผ่าน (Password)', '&nbsp;')}
+</table>
+<p class="note">หมายเหตุ: ข้อมูลการเข้าถึงเครื่อง Remote เป็นข้อมูลสำคัญ กรุณาใช้เฉพาะผู้ที่เกี่ยวข้องกับงานนี้เท่านั้น และไม่เผยแพร่ต่อ · ระบบไม่ได้จัดเก็บข้อมูลนี้ไว้ในฐานข้อมูล</p>
+
+<h2>5. ขั้นตอนการทดสอบ (Test Steps)</h2>
+${fill(8)}
+
+<h2>6. รูปแบบการบันทึกและแจ้งปัญหา (Issue Reporting Format)</h2>
+<p>กรณีพบข้อผิดพลาด ให้บันทึกในระบบ CS Team Manager &gt; แจ้งงาน UAT &gt; ${esc(job.job_no)} &gt; แจ้ง Issue ตามรูปแบบ:</p>
+<ul>
+  <li><b>Topic</b> — หัวข้อ/ชื่อปัญหาโดยสรุป</li>
+  <li><b>Description</b> — รายละเอียดของปัญหาที่พบ</li>
+  <li><b>Expected Behavior</b> — พฤติกรรมที่ระบบควรทำงาน</li>
+  <li><b>Actual Behavior</b> — พฤติกรรมที่ระบบทำงานจริง (ผิดปกติ)</li>
+</ul>
+
+<h2>7. เกณฑ์ผ่านการทดสอบ (Pass Criteria)</h2>
+${fill(5)}
+
+<h2>8. ผู้เกี่ยวข้อง (Stakeholders)</h2>
+<table>
+  <tr><td class="k">บทบาท</td><td class="k">ผู้รับผิดชอบ</td></tr>
+  <tr><td>ผู้เปิดงาน (Support / Team)</td><td>${val(job.reporter_name)}</td></tr>
+  <tr><td>ผู้ประสานงาน</td><td>&nbsp;</td></tr>
+  <tr><td>ทีมทดสอบ (UAT Staff)</td><td>&nbsp;</td></tr>
+  <tr><td>ทีมแก้ไขปัญหา (Developer)</td><td>&nbsp;</td></tr>
+  <tr><td>ทีมอัพเดท (Update)</td><td>&nbsp;</td></tr>
+</table>
+
+<h2>9. สรุปผลการทดสอบ (กรอกเมื่อทดสอบเสร็จ)</h2>
+<table>
+  ${kv('ผลการทดสอบ', '☐ ผ่าน &nbsp;&nbsp; ☐ ไม่ผ่าน &nbsp;&nbsp; ☐ ผ่านแบบมีเงื่อนไข')}
+  ${kv('วันที่ทดสอบจริง', '&nbsp;')}
+  ${kv('ผู้ทดสอบ (UAT Staff)', '&nbsp;')}
+  ${kv('ลงชื่อผู้ยืนยันผล', '&nbsp;')}
+</table>
+<p class="note">เอกสารหน้านี้เมื่อกรอกผลว่า “ผ่าน” แล้ว ให้อัพโหลดกลับเข้าระบบเป็น <b>เอกสารผล UAT</b> ก่อน จึงจะกดปิดผลและส่งต่อทีม Update ได้</p>
+</body></html>`;
+
+    const filename = `${job.job_no}_Test_Kickoff_Draft.doc`;
+    res.setHeader('Content-Type', 'application/msword; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.send('﻿' + html);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── PUT /api/uat/:id — แก้ข้อมูลที่ผู้แจ้งกรอก (สถานะ/วันที่คุมด้วยปุ่มขั้นตอนงาน) ──
+app.put('/api/uat/:id', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const b  = request.body;
+    await req()
+      .input('id',  sql.Int,      id)
+      .input('ti',  sql.NVarChar, b.title        || null)
+      .input('jt',  sql.NVarChar, b.job_type     || 'version_update')
+      .input('vf',  sql.NVarChar, b.version_from || null)
+      .input('vt',  sql.NVarChar, b.version_to   || null)
+      .input('rq',  sql.Date,     b.requested_date ? new Date(b.requested_date) : null)
+      .input('pr',  sql.NVarChar, b.priority     || 'normal')
+      .input('nt',  sql.NVarChar, b.note         || null)
+      .input('rb',  sql.Int,      b.reported_by  || null)
+      .input('ub',  sql.Int,      request.user.id)
+      .query(`UPDATE uat_jobs SET
+        title=@ti, job_type=@jt, version_from=@vf, version_to=@vt,
+        requested_date=@rq, priority=@pr, note=@nt, reported_by=@rb,
+        updated_at=GETDATE(), updated_by=@ub
+        WHERE id=@id`);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── DELETE /api/uat/:id — ลบงานพร้อม issue / ไฟล์แนบ ──
+app.delete('/api/uat/:id', authRequired, managerRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const issueIds = (await req().input('id', sql.Int, id)
+      .query('SELECT id FROM uat_issues WHERE job_id=@id')).recordset.map(x => x.id);
+    for (const iid of issueIds) {
+      const d = path.join(UPLOAD_DIR, 'uat', 'issue', String(iid));
+      if (fs.existsSync(d)) fs.rmSync(d, { recursive: true, force: true });
+    }
+    const jobDir = path.join(UPLOAD_DIR, 'uat', 'job', String(id));
+    if (fs.existsSync(jobDir)) fs.rmSync(jobDir, { recursive: true, force: true });
+    await req().input('id', sql.Int, id).query('DELETE FROM uat_attachments WHERE job_id=@id');
+    await req().input('id', sql.Int, id).query('DELETE FROM uat_issues WHERE job_id=@id');
+    await req().input('id', sql.Int, id).query('DELETE FROM uat_jobs WHERE id=@id');
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -9131,6 +9776,110 @@ async function ensureSwUpdateTable() {
   } catch(e) { console.error('❌ sw_update_jobs error:', e.message); }
 }
 
+// ══════════════════════════════════════════════════════════
+//  UAT — รอบทดสอบ (uat_jobs) → Issue (uat_issues)
+//  โครงสร้างตาม "เอกสารเปิดงานทดสอบระบบ (Test Kickoff Document)"
+// ══════════════════════════════════════════════════════════
+async function ensureUatTables() {
+  try {
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='uat_jobs' AND xtype='U')
+      CREATE TABLE uat_jobs (
+        id              INT PRIMARY KEY IDENTITY,
+        job_no          NVARCHAR(20)  NOT NULL,          -- UAT-YYYYMM-0001
+        title           NVARCHAR(300) NOT NULL,          -- ชื่อรอบทดสอบ / โครงการ
+        job_type        NVARCHAR(30)  DEFAULT 'version_update',
+        -- version_update | sync_test | feature | hotfix | other
+        version_from    NVARCHAR(100) NULL,
+        version_to      NVARCHAR(100) NULL,
+        requested_date  DATE NULL,                       -- วันที่ผู้แจ้งอยากได้
+        test_date_from  DATE NULL,                       -- slot ที่ UAT Staff แจ้ง
+        test_date_to    DATE NULL,
+        slot_by         INT NULL,                        -- UAT Staff ที่แจ้ง slot
+        slot_at         DATETIME NULL,
+        confirmed_at    DATETIME NULL,                   -- Support ยืนยันกับลูกค้าแล้ว
+        confirmed_by    INT NULL,
+        uat_passed_at   DATETIME NULL,                   -- UAT ผ่าน (ต้องมีเอกสารผลแนบก่อน)
+        uat_passed_by   INT NULL,
+        handed_at       DATETIME NULL,                   -- ส่งต่อทีม Update
+        handed_by       INT NULL,
+        priority        NVARCHAR(20)  DEFAULT 'normal',
+        status          NVARCHAR(30)  DEFAULT 'requested',
+        -- requested | slot_proposed | confirmed | testing | issues_found
+        -- | retesting | passed | handed_to_update | closed | cancelled
+        note            NVARCHAR(MAX) NULL,
+        reported_by     INT NULL,
+        created_by      INT NULL,
+        created_at      DATETIME DEFAULT GETDATE(),
+        updated_at      DATETIME DEFAULT GETDATE(),
+        updated_by      INT NULL
+      )
+    `);
+    // คอลัมน์ที่เพิ่มทีหลัง (สำหรับ DB ที่สร้างตารางไปแล้ว)
+    for (const [col, ddl] of [
+      ['requested_date', 'DATE NULL'],
+      ['slot_by',        'INT NULL'],
+      ['slot_at',        'DATETIME NULL'],
+      ['confirmed_at',   'DATETIME NULL'],
+      ['confirmed_by',   'INT NULL'],
+      ['uat_passed_at',  'DATETIME NULL'],
+      ['uat_passed_by',  'INT NULL'],
+      ['handed_at',      'DATETIME NULL'],
+      ['handed_by',      'INT NULL'],
+    ]) {
+      await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('uat_jobs') AND name='${col}')
+        ALTER TABLE uat_jobs ADD ${col} ${ddl}`);
+    }
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='uat_issues' AND xtype='U')
+      CREATE TABLE uat_issues (
+        id           INT PRIMARY KEY IDENTITY,
+        job_id       INT NOT NULL,
+        issue_no     INT NULL,                           -- ลำดับภายในรอบทดสอบ
+        topic        NVARCHAR(300) NOT NULL,             -- Topic
+        description  NVARCHAR(MAX) NULL,                 -- Description
+        expected     NVARCHAR(MAX) NULL,                 -- Expected Behavior
+        actual       NVARCHAR(MAX) NULL,                 -- Actual Behavior
+        severity     NVARCHAR(20)  DEFAULT 'medium',     -- critical | high | medium | low
+        status       NVARCHAR(30)  DEFAULT 'open',
+        -- open | sent_dev | fixing | fixed | retest_passed | retest_failed | wont_fix
+        azure_id     NVARCHAR(200) NULL,
+        assigned_dev NVARCHAR(200) NULL,
+        found_by     INT NULL,
+        found_at     DATETIME DEFAULT GETDATE(),
+        resolved_at  DATETIME NULL,
+        created_by   INT NULL,
+        created_at   DATETIME DEFAULT GETDATE(),
+        updated_at   DATETIME DEFAULT GETDATE(),
+        updated_by   INT NULL
+      )
+    `);
+    await req().query(`
+      IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('uat_issues') AND name='IX_uat_issues_job')
+        CREATE INDEX IX_uat_issues_job ON uat_issues (job_id)
+    `);
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='uat_attachments' AND xtype='U')
+      CREATE TABLE uat_attachments (
+        id            INT PRIMARY KEY IDENTITY,
+        scope         NVARCHAR(10) NOT NULL,             -- 'job' | 'issue'
+        doc_type      NVARCHAR(20) DEFAULT 'other',      -- 'kickoff' | 'result' | 'other'
+        job_id        INT NULL,
+        issue_id      INT NULL,
+        filename      NVARCHAR(300) NOT NULL,
+        original_name NVARCHAR(300) NOT NULL,
+        file_size     INT NULL,
+        mime_type     NVARCHAR(100) NULL,
+        created_by    INT NULL,
+        created_at    DATETIME DEFAULT GETDATE()
+      )
+    `);
+    await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('uat_attachments') AND name='doc_type')
+      ALTER TABLE uat_attachments ADD doc_type NVARCHAR(20) NULL`);
+    console.log('✅ uat_jobs / uat_issues tables ready');
+  } catch(e) { console.error('❌ uat tables error:', e.message); }
+}
+
 // ── One-time migration: fix garbled Thai filenames in service_attachments ──
 async function fixGarbledServiceAttachmentNames() {
   try {
@@ -10503,8 +11252,8 @@ app.post('/api/settings/line/targets/:id/test', authRequired, async (request, re
     let msg;
     if (evs.includes('empcal_summary')) {
       const today = bangkokToday();
-      const data = await computeEmpcalSummary(today, false);
-      msg = data.eventCount ? formatEmpcalLine(data) : `🗓️ ตารางงานพนักงาน ${today}\n(ไม่มีข้อมูลงานวันนี้)`;
+      const { data, stale } = await empcalDataForSend(today);   // refresh ก่อนส่งเช่นเดียวกับ auto-send
+      msg = data.eventCount ? formatEmpcalLine(data, { stale }) : `🗓️ ตารางงานพนักงาน ${today}\n(ไม่มีข้อมูลงานวันนี้)`;
     } else {
       msg = `🔔 ทดสอบการแจ้งเตือน\nCS Team App — ส่งถึง: ${target.name}\n${new Date().toLocaleString('th-TH')}`;
     }
@@ -10832,6 +11581,7 @@ init().then(async () => {
   await ensureServiceAttachmentsTable();
   await ensureCaseAttachmentsTable();
   await ensureSwUpdateTable();
+  await ensureUatTables();
   await ensureNewsTable();
   await fixGarbledServiceAttachmentNames();
 

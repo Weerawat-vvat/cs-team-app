@@ -548,6 +548,13 @@ textarea{resize:vertical;min-height:80px}
       <span id="repair-new-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.62rem;padding:.02rem .38rem;font-weight:700"></span>
       <span id="repair-msg-badge" style="display:none;background:#f97316;color:#fff;border-radius:20px;font-size:.62rem;padding:.02rem .38rem;font-weight:700"></span>
     </button>
+    <!-- 4b-2. แจ้งงาน UAT -->
+    <button class="s-tab" id="nav-btn-uat" onclick="showPage('uat',this)">
+      <svg class="s-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><path d="M9 2v6.5L4.5 17a2 2 0 0 0 1.8 3h11.4a2 2 0 0 0 1.8-3L15 8.5V2"/><line x1="8" y1="2" x2="16" y2="2"/><line x1="7" y1="14" x2="17" y2="14"/></svg>
+      แจ้งงาน UAT
+      <span id="uat-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.62rem;padding:.02rem .38rem;font-weight:700"></span>
+      <span id="uat-issue-badge" style="display:none;background:#f97316;color:#fff;border-radius:20px;font-size:.62rem;padding:.02rem .38rem;font-weight:700"></span>
+    </button>
     <!-- 4c. งานอัพเดท SW -->
     <button class="s-tab" id="nav-btn-sw-update" onclick="showPage('sw-update',this)">
       <svg class="s-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -1021,6 +1028,7 @@ textarea{resize:vertical;min-height:80px}
              style="padding:.32rem .6rem;border:1.5px solid var(--border);border-radius:8px;font-size:.8rem;background:#fff;color:var(--text)"/>
       <button class="btn btn-sm btn-ghost" onclick="empcalToday()">วันนี้</button>
       <button class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="loadEmpcalSummary(true)" title="เรียก AI ประมวลผลใหม่">🔄 รีเฟรช (AI)</button>
+      <button class="btn btn-sm" style="background:#16a34a;color:#fff" onclick="empcalSendLineNow()" title="ดึงปฏิทินใหม่ก่อน แล้วส่งสรุปเข้ากลุ่ม LINE">📤 ส่ง LINE ตอนนี้</button>
     </div>
 
     <div id="empcal-summary"><div style="padding:1.5rem;text-align:center;color:var(--muted,#64748b);font-size:.85rem">เลือกวันเพื่อดูสรุป…</div></div>
@@ -3027,6 +3035,109 @@ textarea{resize:vertical;min-height:80px}
 </div>
 
 <!-- ═══════════════════ PAGE: SW UPDATE ═══════════════════ -->
+<!-- ═══════════════════ PAGE: UAT ═══════════════════ -->
+<div id="page-uat" class="page">
+  <div class="section-header" style="margin-bottom:.75rem">
+    <div class="section-title">🧪 แจ้งงาน UAT</div>
+    <div style="display:flex;gap:.5rem;align-items:center">
+      <!-- View toggle -->
+      <div style="display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+        <button id="uat-view-table" onclick="uatSetView('table')"
+          style="padding:.28rem .7rem;font-size:.78rem;font-weight:700;border:none;cursor:pointer;background:#2563eb;color:#fff;font-family:inherit;transition:all .15s" title="มุมมองตาราง">☰ ตาราง</button>
+        <button id="uat-view-board" onclick="uatSetView('board')"
+          style="padding:.28rem .7rem;font-size:.78rem;font-weight:700;border:none;cursor:pointer;background:#fff;color:#94a3b8;font-family:inherit;transition:all .15s" title="มุมมองบอร์ด">⬛ บอร์ด</button>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="openUatForm()">+ แจ้ง Request UAT</button>
+    </div>
+  </div>
+
+  <!-- Stat Bar -->
+  <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem">
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">📋 ทั้งหมด</span>
+      <span style="font-size:1.1rem;font-weight:800;color:var(--hd)" id="uat-stat-total">—</span>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">📥 รอ slot / รอยืนยัน</span>
+      <span style="font-size:1.1rem;font-weight:800;color:#b45309" id="uat-stat-testing">—</span>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">🐞 Issue ค้าง</span>
+      <span style="font-size:1.1rem;font-weight:800;color:#dc2626" id="uat-stat-issues">—</span>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">✅ UAT ผ่าน / ส่งต่อแล้ว</span>
+      <span style="font-size:1.1rem;font-weight:800;color:#16a34a" id="uat-stat-passed">—</span>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="page-datebar" style="margin-bottom:.75rem;gap:.5rem;flex-wrap:wrap">
+    <select id="uat-filter-status" onchange="loadUat()">
+      <option value="">ทุกสถานะ</option>
+      <option value="requested">รอทีม UAT แจ้ง slot</option>
+      <option value="slot_proposed">รอ Support ยืนยันลูกค้า</option>
+      <option value="confirmed">ยืนยันวันแล้ว</option>
+      <option value="testing">กำลังทดสอบ</option>
+      <option value="issues_found">พบปัญหา</option>
+      <option value="retesting">ทดสอบซ้ำ</option>
+      <option value="passed">UAT ผ่าน</option>
+      <option value="handed_to_update">ส่งต่อทีม Update</option>
+      <option value="closed">ปิดงาน</option>
+      <option value="cancelled">ยกเลิก</option>
+    </select>
+    <select id="uat-filter-type" onchange="loadUat()">
+      <option value="">ทุกประเภทงาน</option>
+      <option value="version_update">อัพเดท Version</option>
+      <option value="sync_test">ทดสอบ Sync ข้าม Version</option>
+      <option value="feature">ฟีเจอร์ใหม่</option>
+      <option value="hotfix">Hotfix</option>
+      <option value="other">อื่น ๆ</option>
+    </select>
+    <select id="uat-filter-priority" onchange="loadUat()">
+      <option value="">ทุกระดับ</option>
+      <option value="urgent">เร่งด่วน</option>
+      <option value="high">สูง</option>
+      <option value="normal">ปกติ</option>
+      <option value="low">ต่ำ</option>
+    </select>
+    <input id="uat-search" type="text" placeholder="🔍 ค้นหาเลขงาน / ชื่อรอบ / version / ผู้ประสานงาน..." oninput="uatSearchDebounce()" style="min-width:220px;flex:1"/>
+    <button class="btn btn-ghost btn-sm" onclick="loadUat()">🔄</button>
+  </div>
+
+  <!-- Table view -->
+  <div id="uat-panel-table">
+    <div class="card" style="padding:.5rem 0">
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>เลขงาน</th>
+            <th>เรื่องที่ขอทดสอบ</th>
+            <th>ประเภทงาน</th>
+            <th>Version</th>
+            <th>วันที่ต้องการ</th>
+            <th>Slot ทดสอบ</th>
+            <th>สถานะ</th>
+            <th>ความสำคัญ</th>
+            <th title="เอกสาร Kickoff / เอกสารผล UAT">เอกสาร</th>
+            <th>Issue</th>
+            <th>ผู้แจ้ง</th>
+            <th></th>
+          </tr></thead>
+          <tbody id="uat-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Board view -->
+  <div id="uat-panel-board" style="display:none;overflow-x:auto;margin:0 -.5rem">
+    <div id="uat-kanban-wrap" style="min-height:calc(100vh - 260px)">
+      <div style="text-align:center;color:var(--muted);padding:3rem">กำลังโหลด...</div>
+    </div>
+  </div>
+</div>
+
 <div id="page-sw-update" class="page">
   <div class="section-header" style="margin-bottom:.75rem">
     <div class="section-title">💿 งานอัพเดท Software</div>
@@ -4894,7 +5005,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // click outside to close
 // Modals ที่ห้ามปิดเมื่อกด outside (ข้อมูลอาจหาย)
-const NO_BACKDROP_CLOSE = new Set(['modal-repair-link','modal-repair-form','modal-repair-detail','modal-person','modal-create-case','modal-edit-ticket-full','modal-specialist-detail','modal-assign-specialist','modal-add-sp','modal-edit-sp','modal-si-entry','modal-si-import','modal-fu-add-issue','modal-sk-entry','modal-sw-update-form','modal-tk-import','modal-news-form','modal-weekly-pattern','modal-tr-add','modal-hr-password','modal-pod-form','modal-cust-form','modal-pod-members','modal-cust-detail']);
+const NO_BACKDROP_CLOSE = new Set(['modal-repair-link','modal-repair-form','modal-repair-detail','modal-person','modal-create-case','modal-edit-ticket-full','modal-specialist-detail','modal-assign-specialist','modal-add-sp','modal-edit-sp','modal-si-entry','modal-si-import','modal-fu-add-issue','modal-sk-entry','modal-sw-update-form','modal-uat-form','modal-uat-detail','modal-uat-issue-form','modal-tk-import','modal-news-form','modal-weekly-pattern','modal-tr-add','modal-hr-password','modal-pod-form','modal-cust-form','modal-pod-members','modal-cust-detail']);
 
 document.querySelectorAll('.overlay').forEach(el => {
   el.addEventListener('click', e => {
@@ -4943,6 +5054,7 @@ function showPage(name, btn) {
     svcLoadProjects();
   }
   if (name === 'shopinfo') { loadShopInfo(); }
+  if (name === 'uat') { loadUat(); }
   if (name === 'sw-update') { loadSwUpdate(); }
   if (name === 'news') { loadNews(); }
   if (name === 'pods') { loadPods(); loadLineBotMonitor(); }
@@ -9732,6 +9844,8 @@ function applyUserContext() {
   setInterval(fuPollBadge, 60000);
   swuUpdateBadge();
   setInterval(swuUpdateBadge, 60000);
+  uatUpdateBadge();
+  setInterval(uatUpdateBadge, 60000);
 
   // Schedule: hide clear-week button for staff
   const clearShiftBtn = document.getElementById('btn-clear-shifts');
@@ -11419,6 +11533,8 @@ const LINE_EVENTS = [
   { key: 'service_request',  label: '📋 แจ้งงานบริการ' },
   { key: 'empcal_summary',   label: '🗓️ ตารางงานพนักงาน (สรุปรายวัน 08:00)' },
   { key: 'triage_alert',     label: '🔔 Ticket ไลน์ค้าง (เกิน 15/30 นาที)' },
+  { key: 'uat_job',          label: '🧪 แจ้งงาน UAT ใหม่' },
+  { key: 'uat_issue',        label: '🐞 พบ Issue จาก UAT' },
 ];
 const SERVE_TYPES = [
   { key: 'promo_coupon',        label: '🎯 สร้างโปรฯ / คูปอง' },
@@ -17148,6 +17264,19 @@ async function loadEmpcalSummary(refresh = false) {
   }
   renderEmpcalSummary(data);
 }
+// ดึงปฏิทินใหม่แล้วส่งสรุปเข้า LINE (ฝั่ง server บังคับ refresh ก่อนส่งอยู่แล้ว)
+async function empcalSendLineNow() {
+  const date = document.getElementById('empcal-date')?.value || '';
+  if (!confirm(`ดึงข้อมูลปฏิทินใหม่ แล้วส่งสรุปวันที่ ${date || 'วันนี้'} เข้ากลุ่ม LINE?`)) return;
+  showToast('🔄 กำลังดึงปฏิทินใหม่แล้วส่ง…');
+  const r = await api('/api/empcal/send-line-now', { method: 'POST', body: { date }, silent: true });
+  if (!r || r.error) { showToast('❌ ' + (r?.error || 'ส่งไม่สำเร็จ'), 'error'); return; }
+  if (!r.sent) { showToast('ℹ️ ไม่มีข้อมูลงานในวันนั้น — ไม่ได้ส่ง', 'warning'); return; }
+  if (r.stale) showToast(`⚠️ ส่งแล้ว ${r.eventCount} รายการ แต่ดึงปฏิทินใหม่ไม่สำเร็จ — เป็นข้อมูลเดิม`, 'warning');
+  else         showToast(`✅ ดึงปฏิทินใหม่แล้วส่งสำเร็จ (${r.eventCount} รายการ)`, 'success');
+  loadEmpcalSummary();   // ให้หน้าจอตรงกับข้อมูลที่ส่งไปจริง
+}
+
 function renderEmpcalSummary(data) {
   const box = document.getElementById('empcal-summary');
   if (!box) return;
@@ -20248,6 +20377,809 @@ async function swuUpdateBadge() {
   } catch {}
 }
 
+// ════════════════════════════════════════════════════════════════
+//  UAT PAGE
+//  Flow: support เปิดงาน → UAT Staff แจ้ง slot → support ยืนยันกับลูกค้า
+//        → ทดสอบ → แนบเอกสารผล UAT → ส่งต่อทีม Update → ปิดจบ
+//  รายละเอียดเชิงลึกทั้งหมดอยู่ใน "เอกสาร draft" ที่ดาวน์โหลดไปกรอก
+// ════════════════════════════════════════════════════════════════
+
+const UAT_STATUS = {
+  requested:        { label: '📥 รอทีม UAT แจ้ง slot',    color: '#b45309', bg: '#fef3c7' },
+  slot_proposed:    { label: '📅 รอ Support ยืนยันลูกค้า', color: '#0369a1', bg: '#e0f2fe' },
+  confirmed:        { label: '🤝 ยืนยันวันแล้ว',           color: '#15803d', bg: '#dcfce7' },
+  testing:          { label: '🧪 กำลังทดสอบ',              color: '#0891b2', bg: '#ecfeff' },
+  issues_found:     { label: '🐞 พบปัญหา',                 color: '#dc2626', bg: '#fef2f2' },
+  retesting:        { label: '🔁 ทดสอบซ้ำ',                color: '#7c3aed', bg: '#ede9fe' },
+  passed:           { label: '✅ UAT ผ่าน',                 color: '#15803d', bg: '#dcfce7' },
+  handed_to_update: { label: '📤 ส่งต่อทีม Update',         color: '#4f46e5', bg: '#eef2ff' },
+  closed:           { label: '🏁 ปิดงาน',                  color: '#64748b', bg: '#f1f5f9' },
+  cancelled:        { label: '🚫 ยกเลิก',                  color: '#9ca3af', bg: '#f3f4f6' },
+};
+const UAT_TYPE = {
+  version_update: '📦 อัพเดท Version',
+  sync_test:      '🔁 ทดสอบ Sync ข้าม Version',
+  feature:        '✨ ฟีเจอร์ใหม่',
+  hotfix:         '🩹 Hotfix',
+  other:          '📄 อื่น ๆ',
+};
+const UAT_PRIORITY = {
+  urgent: { label: '🔴 เร่งด่วน', color: '#dc2626' },
+  high:   { label: '🟠 สูง',      color: '#ea580c' },
+  normal: { label: '🟡 ปกติ',     color: '#b45309' },
+  low:    { label: '⚪ ต่ำ',       color: '#9ca3af' },
+};
+const UAT_ISSUE_STATUS = {
+  open:          { label: '🆕 เปิดใหม่',              color: '#b91c1c', bg: '#fee2e2' },
+  sent_dev:      { label: '📤 ส่ง Developer แล้ว',    color: '#1d4ed8', bg: '#dbeafe' },
+  fixing:        { label: '🔧 กำลังแก้ไข',            color: '#c2410c', bg: '#ffedd5' },
+  fixed:         { label: '🛠 แก้แล้ว — รอ Re-test',  color: '#7c3aed', bg: '#ede9fe' },
+  retest_passed: { label: '✅ Re-test ผ่าน',           color: '#15803d', bg: '#dcfce7' },
+  retest_failed: { label: '❌ Re-test ไม่ผ่าน',        color: '#b91c1c', bg: '#fee2e2' },
+  wont_fix:      { label: '🚫 ไม่แก้ไข',              color: '#6b7280', bg: '#f3f4f6' },
+};
+const UAT_SEVERITY = {
+  critical: { label: '🔴 Critical', color: '#dc2626' },
+  high:     { label: '🟠 High',     color: '#ea580c' },
+  medium:   { label: '🟡 Medium',   color: '#b45309' },
+  low:      { label: '⚪ Low',       color: '#9ca3af' },
+};
+const UAT_DOC_TYPE = {
+  kickoff: { label: '📄 เอกสาร Kickoff', color: '#1d4ed8', bg: '#dbeafe' },
+  result:  { label: '✅ เอกสารผล UAT',    color: '#15803d', bg: '#dcfce7' },
+  other:   { label: '📎 อื่น ๆ',          color: '#64748b', bg: '#f1f5f9' },
+};
+
+let _uatData = [], _uatUsers = [], _uatSearchTimer = null;
+let _uatDetail = null;   // งานที่เปิดอยู่ใน modal รายละเอียด
+
+function uatDate(d) {
+  return d ? new Date(d).toLocaleDateString('th-TH', { day:'numeric', month:'short', year:'2-digit' }) : '—';
+}
+function uatDateTime(d) {
+  return d ? new Date(d).toLocaleString('th-TH', { day:'numeric', month:'short', year:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—';
+}
+function uatMultiline(t) { return t ? escHtml(t).replace(/\n/g, '<br>') : '<span style="color:#94a3b8">—</span>'; }
+
+async function loadUat() {
+  if (!_uatUsers.length) _uatUsers = await api('/api/users') || [];
+  const status   = document.getElementById('uat-filter-status')?.value   || '';
+  const jobType  = document.getElementById('uat-filter-type')?.value     || '';
+  const priority = document.getElementById('uat-filter-priority')?.value || '';
+  const q        = document.getElementById('uat-search')?.value?.trim()  || '';
+  let url = '/api/uat?';
+  if (status)   url += `status=${encodeURIComponent(status)}&`;
+  if (jobType)  url += `job_type=${encodeURIComponent(jobType)}&`;
+  if (priority) url += `priority=${encodeURIComponent(priority)}&`;
+  if (q)        url += `q=${encodeURIComponent(q)}&`;
+  _uatData = await api(url) || [];
+  renderUat();
+  uatUpdateBadge();
+}
+
+function uatSearchDebounce() {
+  clearTimeout(_uatSearchTimer);
+  _uatSearchTimer = setTimeout(loadUat, 300);
+}
+
+function renderUat() {
+  const all = _uatData;
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('uat-stat-total',   all.length);
+  set('uat-stat-testing', all.filter(r => ['requested','slot_proposed'].includes(r.status)).length);
+  set('uat-stat-issues',  all.reduce((n, r) => n + (r.issue_open || 0), 0));
+  set('uat-stat-passed',  all.filter(r => ['passed','handed_to_update','closed'].includes(r.status)).length);
+  renderUatTable();
+  if (_uatView === 'board') uatRenderKanban();
+}
+
+// ── มุมมองตาราง ──────────────────────────────────────────
+function renderUatTable() {
+  const tbody = document.getElementById('uat-tbody');
+  if (!tbody) return;
+  const all = _uatData;
+  if (!all.length) {
+    tbody.innerHTML = '<tr><td colspan="12" class="empty"><div class="icon">🧪</div>ยังไม่มี Request UAT — กด “+ แจ้ง Request UAT” เพื่อเริ่ม</td></tr>';
+    return;
+  }
+  tbody.innerHTML = all.map(r => {
+    const st  = UAT_STATUS[r.status]     || UAT_STATUS.requested;
+    const pri = UAT_PRIORITY[r.priority] || UAT_PRIORITY.normal;
+    const ver = (r.version_from || r.version_to)
+      ? `<span style="font-family:monospace;font-size:.73rem;color:#1d4ed8">${escHtml(r.version_from || '—')} → <b>${escHtml(r.version_to || '—')}</b></span>`
+      : '<span style="color:#cbd5e1">—</span>';
+    const slot = r.test_date_from
+      ? `${uatDate(r.test_date_from)}${r.test_date_to && r.test_date_to !== r.test_date_from ? ' – ' + uatDate(r.test_date_to) : ''}`
+      : '<span style="color:#b45309">รอ slot</span>';
+    return `<tr style="cursor:pointer" onclick="openUatDetail(${r.id})"
+        onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+      <td style="white-space:nowrap"><b style="color:var(--hd);font-family:monospace;font-size:.78rem">${escHtml(r.job_no || '')}</b></td>
+      <td style="font-size:.83rem;font-weight:600;word-break:break-word;min-width:180px;max-width:320px">${escHtml(r.title || '—')}</td>
+      <td style="font-size:.75rem;color:#64748b;white-space:nowrap">${escHtml(UAT_TYPE[r.job_type] || UAT_TYPE.other)}</td>
+      <td style="white-space:nowrap">${ver}</td>
+      <td style="font-size:.77rem;white-space:nowrap">${uatDate(r.requested_date)}</td>
+      <td style="font-size:.77rem;white-space:nowrap">${slot}</td>
+      <td><span style="background:${st.bg};color:${st.color};border-radius:20px;padding:.15rem .55rem;font-size:.72rem;font-weight:700;white-space:nowrap">${st.label}</span></td>
+      <td><span style="font-size:.74rem;font-weight:700;color:${pri.color};white-space:nowrap">${pri.label}</span></td>
+      <td style="white-space:nowrap">
+        ${r.kickoff_docs ? `<span title="มีเอกสาร Kickoff ${r.kickoff_docs} ไฟล์" style="font-size:.72rem;background:#dbeafe;color:#1d4ed8;border-radius:10px;padding:.1rem .4rem;font-weight:700">📄 ${r.kickoff_docs}</span>` : ''}
+        ${r.result_docs  ? `<span title="มีเอกสารผล UAT ${r.result_docs} ไฟล์" style="font-size:.72rem;background:#dcfce7;color:#15803d;border-radius:10px;padding:.1rem .4rem;font-weight:700;margin-left:.15rem">✅ ${r.result_docs}</span>` : ''}
+        ${!r.kickoff_docs && !r.result_docs ? '<span style="color:#cbd5e1">—</span>' : ''}
+      </td>
+      <td style="white-space:nowrap">
+        ${r.issue_open  ? `<span title="Issue ที่ยังไม่จบ" style="font-size:.72rem;background:#fee2e2;color:#b91c1c;border-radius:10px;padding:.1rem .4rem;font-weight:700">${r.issue_open} ค้าง</span>` : ''}
+        ${r.issue_total ? `<span style="font-size:.72rem;color:#64748b;margin-left:.2rem">/ ${r.issue_total}</span>` : '<span style="color:#cbd5e1">—</span>'}
+      </td>
+      <td style="font-size:.77rem;white-space:nowrap">${escHtml(r.reporter_name || '—')}</td>
+      <td onclick="event.stopPropagation()" style="white-space:nowrap">
+        <button class="btn btn-ghost btn-sm" onclick="uatDownloadDraft(${r.id})" title="ดาวน์โหลดเอกสาร draft">⬇</button>
+        <button class="btn btn-ghost btn-sm" onclick="openUatEdit(${r.id})" title="แก้ไข">✏️</button>
+        <button class="btn btn-ghost btn-sm" style="color:#dc2626" onclick="deleteUat(${r.id})" title="ลบ">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════════
+//  UAT — KANBAN BOARD VIEW
+// ══════════════════════════════════════════════════════════
+
+let _uatView   = 'table';   // 'table' | 'board'
+let _uatDragId = null;
+
+const UAT_KANBAN_COLS = [
+  { key:'requested',        label:'📥 รอแจ้ง slot',     bg:'#fef3c7', col:'#b45309' },
+  { key:'slot_proposed',    label:'📅 รอยืนยันลูกค้า',   bg:'#e0f2fe', col:'#0369a1' },
+  { key:'confirmed',        label:'🤝 ยืนยันวันแล้ว',    bg:'#dcfce7', col:'#15803d' },
+  { key:'testing',          label:'🧪 กำลังทดสอบ',       bg:'#ecfeff', col:'#0891b2' },
+  { key:'issues_found',     label:'🐞 พบปัญหา',          bg:'#fef2f2', col:'#dc2626' },
+  { key:'retesting',        label:'🔁 Re-test',          bg:'#ede9fe', col:'#7c3aed' },
+  { key:'passed',           label:'✅ UAT ผ่าน',          bg:'#f0fdf4', col:'#16a34a' },
+  { key:'handed_to_update', label:'📤 ส่งต่อ Update',     bg:'#eef2ff', col:'#4f46e5' },
+  { key:'closed',           label:'🏁 ปิดงาน',           bg:'#f1f5f9', col:'#64748b' },
+  { key:'cancelled',        label:'🚫 ยกเลิก',           bg:'#f3f4f6', col:'#9ca3af' },
+];
+// คอลัมน์ที่ลากเข้าไม่ได้ — ต้องใช้ปุ่มในหน้ารายละเอียดเพราะต้องบันทึกวัน/ผู้ยืนยันด้วย
+const UAT_DROP_BLOCKED = {
+  slot_proposed: 'ต้องระบุวัน slot — เปิดรายละเอียดแล้วกด “ทีม UAT แจ้ง slot”',
+  confirmed:     'ต้องบันทึกผู้ยืนยัน — เปิดรายละเอียดแล้วกด “Support ยืนยันกับลูกค้าแล้ว”',
+};
+
+function uatSetView(view) {
+  _uatView = view;
+  const table = document.getElementById('uat-panel-table');
+  const board = document.getElementById('uat-panel-board');
+  const btnT  = document.getElementById('uat-view-table');
+  const btnB  = document.getElementById('uat-view-board');
+  if (!table || !board) return;
+  if (view === 'board') {
+    table.style.display = 'none';
+    board.style.display = '';
+    btnT.style.background = '#fff';     btnT.style.color = '#94a3b8';
+    btnB.style.background = '#2563eb';  btnB.style.color = '#fff';
+    uatRenderKanban();
+  } else {
+    table.style.display = '';
+    board.style.display = 'none';
+    btnT.style.background = '#2563eb';  btnT.style.color = '#fff';
+    btnB.style.background = '#fff';     btnB.style.color = '#94a3b8';
+    renderUatTable();
+  }
+}
+
+function uatRenderKanban() {
+  const wrap = document.getElementById('uat-kanban-wrap');
+  if (!wrap) return;
+  const jobs = _uatData || [];
+  wrap.innerHTML = `
+    <div style="display:flex;gap:0;min-height:calc(100vh - 260px);overflow-x:auto">
+      ${UAT_KANBAN_COLS.map(col => {
+        const cards = jobs.filter(j => j.status === col.key);
+        return `
+          <div class="uat-kanban-col" data-status="${col.key}"
+            style="min-width:195px;flex:1;border-right:1px solid #e2e8f0;display:flex;flex-direction:column;background:${col.bg}10"
+            ondragover="uatDragOver(event)" ondrop="uatDrop(event,'${col.key}')" ondragleave="uatDragLeave(event)">
+            <div style="padding:.55rem .7rem;background:#fff;border-bottom:2px solid ${col.col}44;position:sticky;top:0;z-index:1">
+              <div style="display:flex;align-items:center;gap:.35rem">
+                <span style="font-size:.75rem;font-weight:700;color:${col.col};white-space:nowrap">${col.label}</span>
+                <span style="background:${col.col}22;color:${col.col};border-radius:20px;font-size:.66rem;padding:.05rem .38rem;font-weight:700">${cards.length}</span>
+              </div>
+            </div>
+            <div style="flex:1;padding:.45rem .4rem;overflow-y:auto;display:flex;flex-direction:column;gap:.35rem">
+              ${cards.map(j => uatKanbanCard(j, col)).join('')}
+              <div class="uat-drop-placeholder" style="display:none;height:56px;border:2px dashed ${col.col}66;border-radius:8px;background:${col.bg}44"></div>
+            </div>
+          </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function uatKanbanCard(j, col) {
+  const pri = UAT_PRIORITY[j.priority] || UAT_PRIORITY.normal;
+  const when = j.test_date_from ? `🗓 ${uatDate(j.test_date_from)}`
+             : (j.requested_date ? `📥 ${uatDate(j.requested_date)}` : '');
+  return `
+    <div class="uat-kanban-card" data-id="${j.id}" draggable="true"
+      ondragstart="uatDragStart(event,${j.id})"
+      ondragend="uatDragEnd(event)"
+      onclick="openUatDetail(${j.id})"
+      style="background:#fff;border-radius:8px;padding:.55rem .65rem;box-shadow:0 1px 3px rgba(0,0,0,.07);cursor:pointer;border-left:3px solid ${col.col};user-select:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.25rem;gap:.3rem">
+        <span style="font-size:.72rem;font-weight:800;color:${col.col};font-family:monospace">${escHtml(j.job_no||'')}</span>
+        <span style="font-size:.66rem;font-weight:700;color:${pri.color};white-space:nowrap">${pri.label}</span>
+      </div>
+      <div style="font-size:.79rem;font-weight:600;color:#1e293b;line-height:1.35;margin-bottom:.2rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${escHtml(j.title||'—')}</div>
+      ${j.version_to ? `<div style="font-size:.69rem;color:#1d4ed8;font-family:monospace;margin-bottom:.25rem">→ ${escHtml(j.version_to)}</div>` : ''}
+      <div style="display:flex;align-items:center;gap:.25rem;flex-wrap:wrap">
+        ${j.kickoff_docs ? `<span title="เอกสาร Kickoff" style="font-size:.63rem;background:#dbeafe;color:#1d4ed8;border-radius:20px;padding:.05rem .32rem;font-weight:700">📄</span>` : ''}
+        ${j.result_docs  ? `<span title="เอกสารผล UAT" style="font-size:.63rem;background:#dcfce7;color:#15803d;border-radius:20px;padding:.05rem .32rem;font-weight:700">✅</span>` : ''}
+        ${j.issue_open   ? `<span title="Issue ค้าง" style="font-size:.63rem;background:#fee2e2;color:#b91c1c;border-radius:20px;padding:.05rem .32rem;font-weight:700">🐞 ${j.issue_open}</span>` : ''}
+        ${when ? `<span style="font-size:.63rem;color:#94a3b8;margin-left:auto;white-space:nowrap">${when}</span>` : ''}
+      </div>
+    </div>`;
+}
+
+// ── Drag & Drop ───────────────────────────────────────────
+function uatDragStart(e, id) {
+  _uatDragId = id;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', id);
+  setTimeout(() => { e.target.style.opacity = '.4'; }, 0);
+}
+function uatDragEnd(e) {
+  e.target.style.opacity = '';
+  document.querySelectorAll('.uat-kanban-col').forEach(col => {
+    col.style.background = '';
+    const ph = col.querySelector('.uat-drop-placeholder');
+    if (ph) ph.style.display = 'none';
+  });
+  _uatDragId = null;
+}
+function uatDragOver(e) {
+  e.preventDefault();
+  const col    = e.currentTarget;
+  const status = col.dataset.status;
+  if (UAT_DROP_BLOCKED[status]) { e.dataTransfer.dropEffect = 'none'; return; }
+  e.dataTransfer.dropEffect = 'move';
+  const meta = UAT_KANBAN_COLS.find(c => c.key === status);
+  col.style.background = (meta?.bg || '#f8fafc') + '44';
+  const ph = col.querySelector('.uat-drop-placeholder');
+  if (ph) ph.style.display = '';
+}
+function uatDragLeave(e) {
+  const col = e.currentTarget;
+  if (!col.contains(e.relatedTarget)) {
+    col.style.background = '';
+    const ph = col.querySelector('.uat-drop-placeholder');
+    if (ph) ph.style.display = 'none';
+  }
+}
+async function uatDrop(e, newStatus) {
+  e.preventDefault();
+  const col = e.currentTarget;
+  col.style.background = '';
+  const ph = col.querySelector('.uat-drop-placeholder');
+  if (ph) ph.style.display = 'none';
+  const id = _uatDragId || parseInt(e.dataTransfer.getData('text/plain'));
+  if (!id) return;
+  if (UAT_DROP_BLOCKED[newStatus]) { showToast('⚠️ ' + UAT_DROP_BLOCKED[newStatus], 'warning'); return; }
+  const job = (_uatData || []).find(j => j.id === id);
+  if (!job || job.status === newStatus) return;
+  const prev = job.status;
+  // Optimistic update
+  job.status = newStatus;
+  uatRenderKanban();
+  renderUatTable();
+  const r = await api(`/api/uat/${id}/status`, { method:'POST', body:{ status:newStatus }, silent:true });
+  if (!r || r.error) {
+    job.status = prev;                     // revert ทันทีเพื่อไม่ให้เห็นสถานะผิด
+    uatRenderKanban();
+    renderUatTable();
+    showToast('❌ ' + (r?.error || 'บันทึกไม่สำเร็จ'), 'error');
+    return;
+  }
+  showToast(`✅ เปลี่ยนสถานะเป็น "${(UAT_STATUS[newStatus]||{}).label || newStatus}"`);
+  loadUat();
+}
+
+// ── ฟอร์มแจ้ง Request (ขั้นที่ 1) ────────────────────────
+function openUatForm() {
+  document.getElementById('uat-edit-id').value = '';
+  document.getElementById('uat-title').value = '';
+  document.getElementById('uat-job-type').value = 'version_update';
+  document.getElementById('uat-priority').value = 'normal';
+  document.getElementById('uat-requested-date').value = '';
+  ['uat-version-from','uat-version-to','uat-note']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+
+  const sel = document.getElementById('uat-reporter');
+  if (sel) {
+    sel.innerHTML = '<option value="">— เลือกผู้แจ้ง —</option>' +
+      _uatUsers.map(u => `<option value="${u.id}">${escHtml(u.nickname||u.name||u.username)}</option>`).join('');
+    if (_uatUsers.some(u => u.id === currentUser?.id)) sel.value = currentUser.id;
+  }
+  document.getElementById('modal-uat-form-title').textContent = '🧪 แจ้ง Request UAT';
+  openModal('modal-uat-form');
+}
+
+function openUatEdit(id) {
+  const r = _uatData.find(x => x.id === id);
+  if (!r) return;
+  openUatForm();
+  document.getElementById('uat-edit-id').value = id;
+  document.getElementById('uat-title').value = r.title || '';
+  document.getElementById('uat-job-type').value = r.job_type || 'version_update';
+  document.getElementById('uat-priority').value = r.priority || 'normal';
+  document.getElementById('uat-requested-date').value = r.requested_date ? r.requested_date.slice(0,10) : '';
+  document.getElementById('uat-version-from').value = r.version_from || '';
+  document.getElementById('uat-version-to').value   = r.version_to   || '';
+  document.getElementById('uat-note').value         = r.note         || '';
+  if (r.reported_by) document.getElementById('uat-reporter').value = r.reported_by;
+  document.getElementById('modal-uat-form-title').textContent = `✏️ แก้ไข ${r.job_no || '#' + id}`;
+}
+
+async function saveUatForm() {
+  const editId = document.getElementById('uat-edit-id').value;
+  const title  = document.getElementById('uat-title').value.trim();
+  if (!title) { showToast('❌ กรุณาระบุเรื่องที่ขอทดสอบ', 'error'); return; }
+  const body = {
+    title,
+    job_type:       document.getElementById('uat-job-type').value,
+    version_from:   document.getElementById('uat-version-from').value.trim() || null,
+    version_to:     document.getElementById('uat-version-to').value.trim()   || null,
+    requested_date: document.getElementById('uat-requested-date').value || null,
+    priority:       document.getElementById('uat-priority').value,
+    note:           document.getElementById('uat-note').value.trim() || null,
+    reported_by:    parseInt(document.getElementById('uat-reporter').value) || null,
+  };
+  try {
+    if (editId) {
+      const r = await api(`/api/uat/${editId}`, { method:'PUT', body, silent:true });
+      if (!r || r.error) throw new Error(r?.error || 'บันทึกไม่สำเร็จ');
+      showToast('✅ แก้ไขแล้ว', 'success');
+    } else {
+      const r = await api('/api/uat', { method:'POST', body, silent:true });
+      if (!r || r.error) throw new Error(r?.error || 'บันทึกไม่สำเร็จ');
+      showToast(`✅ แจ้ง Request UAT ${r.job_no || ''} แล้ว — รอทีม UAT แจ้ง slot`, 'success');
+    }
+    closeModal('modal-uat-form');
+    await loadUat();
+  } catch(e) { showToast('❌ ' + e.message, 'error'); }
+}
+
+async function deleteUat(id) {
+  const r = _uatData.find(x => x.id === id);
+  if (!confirm(`ลบงาน ${r?.job_no || '#' + id}?\nIssue และไฟล์แนบทั้งหมดจะถูกลบไปด้วย`)) return;
+  const res = await api(`/api/uat/${id}`, { method:'DELETE', silent:true });
+  if (!res || res.error) { showToast('❌ ' + (res?.error || 'ลบไม่สำเร็จ'), 'error'); return; }
+  showToast('🗑 ลบแล้ว');
+  loadUat();
+}
+
+// ── รายละเอียด + ขั้นตอนงาน ──────────────────────────────
+async function openUatDetail(id) {
+  const job = await api(`/api/uat/${id}`, { silent:true });
+  if (!job || job.error) { showToast('❌ ' + (job?.error || 'โหลดไม่สำเร็จ'), 'error'); return; }
+  _uatDetail = job;
+  document.getElementById('modal-uat-detail-title').textContent = `🧪 ${job.job_no} — ${job.title}`;
+  uatRenderDetail();
+  openModal('modal-uat-detail');
+}
+
+// แถบขั้นตอน 6 ขั้น พร้อมบอกว่าใครเป็นคนทำ
+function uatWorkflowPanel(j) {
+  const steps = [
+    { label:'1. เปิดงาน',    who:'Support' },
+    { label:'2. แจ้ง slot',  who:'UAT'     },
+    { label:'3. ยืนยันลูกค้า', who:'Support' },
+    { label:'4. ทดสอบ',      who:'UAT'     },
+    { label:'5. ปิดผล UAT',  who:'UAT'     },
+    { label:'6. ส่งต่อ Update', who:'Update' },
+  ];
+  const orderOf = { requested:0, slot_proposed:1, confirmed:2, testing:3, issues_found:3,
+                    retesting:3, passed:4, handed_to_update:5, closed:6, cancelled:-1 };
+  const cur = orderOf[j.status] ?? 0;
+  const track = steps.map((s, i) => {
+    const done = cur > i, now = cur === i;
+    const bg = done ? '#dcfce7' : now ? '#dbeafe' : '#f1f5f9';
+    const fg = done ? '#15803d' : now ? '#1d4ed8' : '#94a3b8';
+    return `<span style="background:${bg};color:${fg};border-radius:20px;padding:.15rem .55rem;font-size:.68rem;font-weight:700;white-space:nowrap"
+      title="ผู้รับผิดชอบ: ${s.who}">${done ? '✓ ' : ''}${s.label}</span>`;
+  }).join('<span style="color:#cbd5e1;font-size:.68rem">→</span>');
+
+  const hasResult = (j.attachments || []).some(a => a.doc_type === 'result');
+  const openIssues = (j.issues || []).filter(i => !['retest_passed','wont_fix'].includes(i.status)).length;
+  let action = '', hint = '';
+
+  if (j.status === 'requested' || j.status === 'slot_proposed') {
+    const df = j.test_date_from ? j.test_date_from.slice(0,10) : (j.requested_date ? j.requested_date.slice(0,10) : '');
+    const dt = j.test_date_to   ? j.test_date_to.slice(0,10)   : '';
+    action = `
+      <div style="display:flex;align-items:flex-end;gap:.4rem;flex-wrap:wrap;margin-top:.5rem">
+        <div>
+          <label style="font-size:.68rem;font-weight:600;color:#475569;display:block;margin-bottom:.15rem">Slot วันเริ่ม</label>
+          <input id="uat-wf-from" type="date" value="${df}" style="border:1px solid var(--border);border-radius:7px;padding:.28rem .5rem;font-size:.8rem"/>
+        </div>
+        <div>
+          <label style="font-size:.68rem;font-weight:600;color:#475569;display:block;margin-bottom:.15rem">ถึงวันที่</label>
+          <input id="uat-wf-to" type="date" value="${dt}" style="border:1px solid var(--border);border-radius:7px;padding:.28rem .5rem;font-size:.8rem"/>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="uatSchedule(${j.id})">📅 ทีม UAT แจ้ง slot</button>
+        ${j.status === 'slot_proposed'
+          ? `<button class="btn btn-sm" style="background:#16a34a;color:#fff" onclick="uatConfirm(${j.id})">🤝 Support ยืนยันกับลูกค้าแล้ว</button>`
+          : ''}
+      </div>`;
+    hint = j.status === 'requested'
+      ? 'ขั้นถัดไป: ทีม UAT เลือกวันที่ว่าง แล้วกด “แจ้ง slot”'
+      : 'ทีม UAT แจ้ง slot แล้ว — รอ Support เช็คกับลูกค้าว่าวันตรงกันไหม แล้วกดยืนยัน';
+  } else if (j.status === 'confirmed') {
+    action = `<div style="margin-top:.5rem;display:flex;gap:.35rem;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm" onclick="uatSetStatus(${j.id},'testing')">▶ เริ่มทดสอบ</button>
+        <button class="btn btn-ghost btn-sm" onclick="uatSetStatus(${j.id},'slot_proposed')">↩ กลับไปแก้ slot</button>
+      </div>`;
+    hint = 'ยืนยันวันกับลูกค้าแล้ว — พร้อมเริ่มทดสอบตามวันที่นัด';
+  } else if (['testing','issues_found','retesting'].includes(j.status)) {
+    const blocked = !hasResult || openIssues > 0;
+    action = `<div style="margin-top:.5rem;display:flex;gap:.35rem;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-sm" style="background:${blocked ? '#cbd5e1' : '#16a34a'};color:#fff"
+          onclick="uatSetStatus(${j.id},'passed')">✅ ปิดผล UAT — ผ่าน</button>
+        <button class="btn btn-ghost btn-sm" onclick="uatSetStatus(${j.id},'retesting')">🔁 เข้าสู่รอบ Re-test</button>
+      </div>`;
+    hint = blocked
+      ? `ยังปิดผลไม่ได้: ${[!hasResult ? 'ต้องแนบ “เอกสารผล UAT” ก่อน' : null,
+                            openIssues ? `ยังมี Issue ค้าง ${openIssues} รายการ` : null].filter(Boolean).join(' · ')}`
+      : 'พร้อมปิดผล UAT — แนบเอกสารผลแล้วและไม่มี Issue ค้าง';
+  } else if (j.status === 'passed') {
+    action = `<div style="margin-top:.5rem;display:flex;gap:.35rem;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm" onclick="uatSetStatus(${j.id},'handed_to_update')">📤 ส่งต่อทีม Update</button>
+        <button class="btn btn-ghost btn-sm" onclick="uatOpenSwUpdate()">＋ เปิดงานอัพเดท SW</button>
+      </div>`;
+    hint = 'UAT ผ่านแล้ว — ส่งต่อให้ทีม Update ดำเนินการอัพเดทจริง';
+  } else if (j.status === 'handed_to_update') {
+    action = `<div style="margin-top:.5rem;display:flex;gap:.35rem;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" onclick="uatOpenSwUpdate()">＋ เปิดงานอัพเดท SW</button>
+        <button class="btn btn-sm" style="background:#16a34a;color:#fff" onclick="uatSetStatus(${j.id},'closed')">🏁 ปิดงาน</button>
+      </div>`;
+    hint = 'ส่งต่อทีม Update แล้ว — เมื่ออัพเดทเสร็จให้กดปิดงาน';
+  }
+
+  return `<div style="border:1px solid #bae6fd;background:#f0f9ff;border-radius:9px;padding:.6rem .7rem">
+    <div style="display:flex;align-items:center;gap:.25rem;flex-wrap:wrap">${track}</div>
+    ${action}
+    ${hint ? `<div style="font-size:.69rem;color:#475569;margin-top:.35rem">${escHtml(hint)}</div>` : ''}
+  </div>`;
+}
+
+function uatRenderDetail() {
+  const j = _uatDetail;
+  if (!j) return;
+  const st  = UAT_STATUS[j.status]     || UAT_STATUS.requested;
+  const pri = UAT_PRIORITY[j.priority] || UAT_PRIORITY.normal;
+  const row = (label, value) => `
+    <div style="display:flex;gap:.5rem;font-size:.78rem;padding:.2rem 0">
+      <span style="color:var(--muted);min-width:130px;flex-shrink:0">${label}</span>
+      <span style="color:#1e293b;font-weight:500">${value}</span>
+    </div>`;
+
+  const issues = j.issues || [];
+  const issuesHtml = issues.length ? issues.map(i => {
+    const ist = UAT_ISSUE_STATUS[i.status]  || UAT_ISSUE_STATUS.open;
+    const sev = UAT_SEVERITY[i.severity]    || UAT_SEVERITY.medium;
+    return `<div style="border:1px solid var(--border);border-radius:9px;padding:.55rem .7rem;background:#fff">
+      <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-bottom:.3rem">
+        <span style="font-family:monospace;font-size:.72rem;color:#64748b;font-weight:700">#${i.issue_no || i.id}</span>
+        <span style="font-size:.83rem;font-weight:700;color:#1e293b;flex:1;min-width:150px">${escHtml(i.topic || '—')}</span>
+        <span style="font-size:.71rem;font-weight:700;color:${sev.color}">${sev.label}</span>
+        <span style="background:${ist.bg};color:${ist.color};border-radius:20px;padding:.1rem .5rem;font-size:.69rem;font-weight:700;white-space:nowrap">${ist.label}</span>
+      </div>
+      ${i.description ? `<div style="font-size:.77rem;color:#475569;line-height:1.5;margin-bottom:.3rem">${uatMultiline(i.description)}</div>` : ''}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;margin-bottom:.3rem">
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:.3rem .45rem">
+          <div style="font-size:.67rem;font-weight:700;color:#15803d;margin-bottom:.1rem">Expected</div>
+          <div style="font-size:.75rem;color:#166534;line-height:1.45">${uatMultiline(i.expected)}</div>
+        </div>
+        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:.3rem .45rem">
+          <div style="font-size:.67rem;font-weight:700;color:#b91c1c;margin-bottom:.1rem">Actual</div>
+          <div style="font-size:.75rem;color:#991b1b;line-height:1.45">${uatMultiline(i.actual)}</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;font-size:.71rem;color:var(--muted)">
+        <span>👤 ${escHtml(i.found_by_name || '—')}</span>
+        <span>🕒 ${uatDate(i.found_at)}</span>
+        ${i.assigned_dev ? `<span>🧑‍💻 ${escHtml(i.assigned_dev)}</span>` : ''}
+        ${i.azure_id ? `<span style="font-family:monospace;color:#0369a1">${escHtml(i.azure_id)}</span>` : ''}
+        ${i.attach_count ? `<span>📎 ${i.attach_count}</span>` : ''}
+        <span style="margin-left:auto;display:flex;gap:.15rem">
+          <button class="btn btn-ghost btn-sm" style="font-size:.7rem;padding:.12rem .38rem" onclick="openUatIssueForm(${j.id}, ${i.id})">✏️ แก้ไข</button>
+          <button class="btn btn-ghost btn-sm" style="font-size:.7rem;padding:.12rem .38rem;color:#dc2626" onclick="deleteUatIssue(${i.id})">🗑</button>
+        </span>
+      </div>
+    </div>`;
+  }).join('') : `<div style="font-size:.8rem;color:var(--muted);padding:.6rem;text-align:center">ยังไม่มี Issue จากงานนี้</div>`;
+
+  const attachChip = (a) => {
+    const dt = UAT_DOC_TYPE[a.doc_type] || UAT_DOC_TYPE.other;
+    return `<span style="display:inline-flex;align-items:center;gap:.3rem;background:${dt.bg};border-radius:6px;padding:.2rem .45rem;font-size:.73rem">
+      <span style="color:${dt.color};font-weight:700;font-size:.68rem">${dt.label}</span>
+      <a href="/uploads/uat/job/${j.id}/${encodeURIComponent(a.filename)}" target="_blank" rel="noopener" style="color:#0369a1;text-decoration:none">${escHtml(a.original_name)}</a>
+      <button onclick="uatDeleteAttachment(${a.id})" style="border:none;background:none;color:#dc2626;cursor:pointer;font-size:.7rem">✕</button>
+    </span>`;
+  };
+  const attachHtml = (j.attachments || []).length
+    ? j.attachments.map(attachChip).join('')
+    : '<span style="font-size:.73rem;color:var(--muted)">ยังไม่มีไฟล์แนบ</span>';
+
+  document.getElementById('uat-detail-body').innerHTML = `
+    <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem">
+      <span style="background:${st.bg};color:${st.color};border-radius:20px;padding:.15rem .65rem;font-size:.75rem;font-weight:700">${st.label}</span>
+      <span style="font-size:.75rem;font-weight:700;color:${pri.color}">${pri.label}</span>
+      <span style="font-size:.74rem;color:#64748b">${escHtml(UAT_TYPE[j.job_type] || UAT_TYPE.other)}</span>
+      <span style="margin-left:auto;display:flex;gap:.35rem">
+        <button class="btn btn-ghost btn-sm" onclick="uatDownloadDraft(${j.id})" title="เอกสารเปิดงานทดสอบแบบร่าง เปิดใน Word ได้เลย">⬇ เอกสาร draft</button>
+        <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-uat-detail');openUatEdit(${j.id})">✏️ แก้ไข</button>
+        <button class="btn btn-primary btn-sm" onclick="openUatIssueForm(${j.id})">+ แจ้ง Issue</button>
+      </span>
+    </div>
+
+    ${uatWorkflowPanel(j)}
+
+    <div class="grid-2" style="gap:.8rem;margin-top:.6rem">
+      <div>
+        ${row('วันที่ผู้แจ้งต้องการ', uatDate(j.requested_date))}
+        ${row('Slot ที่ทีม UAT แจ้ง', j.test_date_from
+            ? `${uatDate(j.test_date_from)} – ${uatDate(j.test_date_to)}`
+            : '<span style="color:#b45309">ยังไม่แจ้ง</span>')}
+        ${row('Version', `<span style="font-family:monospace">${escHtml(j.version_from || '—')} → <strong>${escHtml(j.version_to || '—')}</strong></span>`)}
+        ${row('รายละเอียดโดยย่อ', uatMultiline(j.note))}
+      </div>
+      <div>
+        ${row('ผู้เปิดงาน (Support)', escHtml(j.reporter_name || '—'))}
+        ${row('แจ้ง slot โดย (UAT)', j.slot_at ? `${escHtml(j.slot_by_name || '—')} · ${uatDateTime(j.slot_at)}` : '—')}
+        ${row('ยืนยันลูกค้าโดย', j.confirmed_at ? `${escHtml(j.confirmed_by_name || '—')} · ${uatDateTime(j.confirmed_at)}` : '<span style="color:#b45309">ยังไม่ยืนยัน</span>')}
+        ${row('ปิดผล UAT', j.uat_passed_at ? `<span style="color:#15803d;font-weight:600">✅ ${escHtml(j.uat_passed_by_name || '—')} · ${uatDateTime(j.uat_passed_at)}</span>` : '—')}
+        ${row('ส่งต่อทีม Update', j.handed_at ? `${escHtml(j.handed_by_name || '—')} · ${uatDateTime(j.handed_at)}` : '—')}
+      </div>
+    </div>
+
+    <div style="margin-top:.75rem;border-top:1px solid var(--border);padding-top:.6rem">
+      <div style="font-size:.75rem;font-weight:700;color:#334155;margin-bottom:.15rem">📎 เอกสารประกอบ</div>
+      <div style="font-size:.7rem;color:var(--muted);margin-bottom:.45rem">
+        กด “⬇ เอกสาร draft” ด้านบนเพื่อดาวน์โหลดไปกรอกรายละเอียดทั้งหมด แล้วอัพโหลดกลับที่นี่ ·
+        เมื่อทดสอบผ่านต้องแนบ <strong>เอกสารผล UAT</strong> ก่อน จึงจะปิดผลและส่งต่อทีม Update ได้
+      </div>
+      <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:.5rem">
+        <div>
+          <label style="font-size:.7rem;font-weight:700;color:#1d4ed8;display:block;margin-bottom:.2rem">📄 เอกสาร Kickoff ที่กรอกแล้ว</label>
+          <input type="file" multiple accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.txt,.log"
+            onchange="uatUploadJobFiles(this.files,'kickoff',this)" style="font-size:.73rem"/>
+        </div>
+        <div>
+          <label style="font-size:.7rem;font-weight:700;color:#15803d;display:block;margin-bottom:.2rem">✅ เอกสารผล UAT (ผ่าน)</label>
+          <input type="file" multiple accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.txt,.log"
+            onchange="uatUploadJobFiles(this.files,'result',this)" style="font-size:.73rem"/>
+        </div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:.4rem">${attachHtml}</div>
+    </div>
+
+    <div style="margin-top:.85rem;border-top:1px solid var(--border);padding-top:.7rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
+        <div style="font-size:.85rem;font-weight:800;color:#1e293b">🐞 Issue ที่พบ (${issues.length})</div>
+        <button class="btn btn-primary btn-sm" onclick="openUatIssueForm(${j.id})">+ แจ้ง Issue</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:.5rem">${issuesHtml}</div>
+    </div>`;
+}
+
+// ── ปุ่มขั้นตอนงาน ────────────────────────────────────────
+async function uatSchedule(id) {
+  const from = document.getElementById('uat-wf-from')?.value;
+  const to   = document.getElementById('uat-wf-to')?.value;
+  if (!from) { showToast('❌ กรุณาระบุวันเริ่มทดสอบ', 'error'); return; }
+  const r = await api(`/api/uat/${id}/schedule`, { method:'POST', body:{ test_date_from: from, test_date_to: to || from }, silent:true });
+  if (!r || r.error) { showToast('❌ ' + (r?.error || 'บันทึกไม่สำเร็จ'), 'error'); return; }
+  showToast('📅 แจ้ง slot แล้ว — รอ Support ยืนยันกับลูกค้า', 'success');
+  await openUatDetail(id);
+  loadUat();
+}
+
+async function uatConfirm(id) {
+  if (!confirm('ยืนยันว่าเช็คกับลูกค้าแล้วและวันตรงกัน?')) return;
+  const r = await api(`/api/uat/${id}/confirm`, { method:'POST', body:{}, silent:true });
+  if (!r || r.error) { showToast('❌ ' + (r?.error || 'ยืนยันไม่สำเร็จ'), 'error'); return; }
+  showToast('🤝 ยืนยันวันกับลูกค้าแล้ว', 'success');
+  await openUatDetail(id);
+  loadUat();
+}
+
+async function uatSetStatus(id, status) {
+  if (status === 'passed'           && !confirm('ยืนยันปิดผล UAT ว่า "ผ่าน"?')) return;
+  if (status === 'handed_to_update' && !confirm('ส่งต่องานให้ทีม Update?')) return;
+  if (status === 'closed'           && !confirm('ปิดงานนี้?')) return;
+  const r = await api(`/api/uat/${id}/status`, { method:'POST', body:{ status }, silent:true });
+  if (!r || r.error) { showToast('❌ ' + (r?.error || 'เปลี่ยนสถานะไม่สำเร็จ'), 'error'); return; }
+  showToast('✅ อัพเดทสถานะแล้ว', 'success');
+  await openUatDetail(id);
+  loadUat();
+}
+
+// เปิดฟอร์มงานอัพเดท SW พร้อม prefill จากงาน UAT
+async function uatOpenSwUpdate() {
+  const j = _uatDetail;
+  if (!j) return;
+  closeModal('modal-uat-detail');
+  showPage('sw-update', document.getElementById('nav-btn-sw-update'));
+  await loadSwUpdate();
+  openSwUpdateForm();
+  const desc = document.getElementById('swu-description');
+  if (desc) desc.value = `[${j.job_no}] ${j.title}` + (j.note ? `\n${j.note}` : '');
+  if (j.version_to) {
+    document.getElementById('swu-version').value = 'custom';
+    swuVersionChange();
+    document.getElementById('swu-version-custom').value = j.version_to;
+  }
+  showToast('ℹ️ กรอกร้านค้าแล้วบันทึกเพื่อเปิดงานอัพเดท SW', 'success');
+}
+
+// ดาวน์โหลดเอกสาร draft (ใช้ fetch เพราะต้องแนบ token)
+async function uatDownloadDraft(id) {
+  try {
+    showToast('📄 กำลังสร้างเอกสาร…');
+    const resp = await fetch(`/api/uat/${id}/draft-doc`, { headers: { Authorization: 'Bearer ' + authToken } });
+    if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || `Error ${resp.status}`);
+    const blob = await resp.blob();
+    const job  = _uatData.find(x => x.id === id) || _uatDetail || {};
+    const a    = document.createElement('a');
+    a.href     = URL.createObjectURL(blob);
+    a.download = `${job.job_no || 'UAT'}_Test_Kickoff_Draft.doc`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    showToast('✅ ดาวน์โหลดแล้ว — กรอกเสร็จอัพโหลดกลับที่หน้ารายละเอียด', 'success');
+  } catch(e) { showToast('❌ ' + e.message, 'error'); }
+}
+
+// ── ฟอร์ม Issue ──────────────────────────────────────────
+function openUatIssueForm(jobId, issueId = null) {
+  const issue = issueId ? (_uatDetail?.issues || []).find(i => i.id === issueId) : null;
+  document.getElementById('uat-issue-job-id').value  = jobId;
+  document.getElementById('uat-issue-edit-id').value = issue?.id || '';
+  document.getElementById('uat-issue-topic').value       = issue?.topic        || '';
+  document.getElementById('uat-issue-description').value = issue?.description  || '';
+  document.getElementById('uat-issue-expected').value    = issue?.expected     || '';
+  document.getElementById('uat-issue-actual').value      = issue?.actual       || '';
+  document.getElementById('uat-issue-severity').value    = issue?.severity     || 'medium';
+  document.getElementById('uat-issue-status').value      = issue?.status       || 'open';
+  document.getElementById('uat-issue-azure').value       = issue?.azure_id     || '';
+  document.getElementById('uat-issue-dev').value         = issue?.assigned_dev || '';
+
+  const sel = document.getElementById('uat-issue-found-by');
+  sel.innerHTML = '<option value="">— เลือกผู้พบปัญหา —</option>' +
+    _uatUsers.map(u => `<option value="${u.id}">${escHtml(u.nickname||u.name||u.username)}</option>`).join('');
+  sel.value = issue?.found_by || currentUser?.id || '';
+
+  document.getElementById('modal-uat-issue-title').textContent =
+    issue ? `✏️ แก้ไข Issue #${issue.issue_no || issue.id}` : '🐞 บันทึกปัญหา (Issue)';
+  // ไฟล์แนบต้องมี issue id ก่อน → แสดงเฉพาะตอนแก้ไข
+  const attachSec = document.getElementById('uat-issue-attach-section');
+  attachSec.style.display = issue ? '' : 'none';
+  document.getElementById('uat-issue-attach-list').innerHTML = '';
+  const fileInput = document.getElementById('uat-issue-files');
+  if (fileInput) fileInput.value = '';
+  if (issue) uatLoadIssueAttachments(issue.id);
+  openModal('modal-uat-issue-form');
+}
+
+async function saveUatIssue() {
+  const jobId  = parseInt(document.getElementById('uat-issue-job-id').value);
+  const editId = document.getElementById('uat-issue-edit-id').value;
+  const topic  = document.getElementById('uat-issue-topic').value.trim();
+  if (!topic) { showToast('❌ กรุณาระบุ Topic', 'error'); return; }
+  const body = {
+    topic,
+    description:  document.getElementById('uat-issue-description').value.trim() || null,
+    expected:     document.getElementById('uat-issue-expected').value.trim()    || null,
+    actual:       document.getElementById('uat-issue-actual').value.trim()      || null,
+    severity:     document.getElementById('uat-issue-severity').value,
+    status:       document.getElementById('uat-issue-status').value,
+    azure_id:     document.getElementById('uat-issue-azure').value.trim() || null,
+    assigned_dev: document.getElementById('uat-issue-dev').value.trim()   || null,
+    found_by:     parseInt(document.getElementById('uat-issue-found-by').value) || null,
+  };
+  try {
+    if (editId) {
+      const r = await api(`/api/uat/issues/${editId}`, { method:'PUT', body, silent:true });
+      if (!r || r.error) throw new Error(r?.error || 'บันทึกไม่สำเร็จ');
+      showToast('✅ แก้ไข Issue แล้ว', 'success');
+    } else {
+      const r = await api(`/api/uat/${jobId}/issues`, { method:'POST', body, silent:true });
+      if (!r || r.error) throw new Error(r?.error || 'บันทึกไม่สำเร็จ');
+      showToast(`✅ บันทึก Issue #${r.issue_no || ''} และแจ้งเตือนแล้ว`, 'success');
+    }
+    closeModal('modal-uat-issue-form');
+    await openUatDetail(jobId);
+    loadUat();
+  } catch(e) { showToast('❌ ' + e.message, 'error'); }
+}
+
+async function deleteUatIssue(id) {
+  if (!confirm('ลบ Issue นี้?')) return;
+  const r = await api(`/api/uat/issues/${id}`, { method:'DELETE', silent:true });
+  if (!r || r.error) { showToast('❌ ' + (r?.error || 'ลบไม่สำเร็จ'), 'error'); return; }
+  showToast('🗑 ลบแล้ว');
+  const jobId = _uatDetail?.id;
+  if (jobId) await openUatDetail(jobId);
+  loadUat();
+}
+
+// ── ไฟล์แนบ ──────────────────────────────────────────────
+async function uatUpload(url, files, okMsg) {
+  if (!files || !files.length) return false;
+  const fd = new FormData();
+  for (const f of files) fd.append('files', f);
+  try {
+    showToast('📤 กำลังอัพโหลด…');
+    const resp = await fetch(url, { method:'POST', headers:{ Authorization:'Bearer ' + authToken }, body: fd });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.error || `Error ${resp.status}`);
+    showToast(okMsg, 'success');
+    return true;
+  } catch(e) { showToast('❌ อัพโหลดไม่สำเร็จ: ' + e.message, 'error'); return false; }
+}
+
+async function uatUploadIssueFiles(files) {
+  const id = document.getElementById('uat-issue-edit-id').value;
+  if (!id) return;
+  const ok = await uatUpload(`/api/uat/issues/${id}/attachments`, files, '✅ แนบไฟล์แล้ว');
+  document.getElementById('uat-issue-files').value = '';
+  if (ok) uatLoadIssueAttachments(id);
+}
+
+async function uatLoadIssueAttachments(issueId) {
+  const rows = await api(`/api/uat/issues/${issueId}/attachments`, { silent:true }) || [];
+  const box  = document.getElementById('uat-issue-attach-list');
+  if (!box) return;
+  box.innerHTML = Array.isArray(rows) && rows.length ? rows.map(a => `
+    <span style="display:inline-flex;align-items:center;gap:.3rem;background:#fff;border:1px solid var(--border);border-radius:6px;padding:.2rem .45rem;font-size:.73rem">
+      <a href="/uploads/uat/issue/${issueId}/${encodeURIComponent(a.filename)}" target="_blank" rel="noopener" style="color:#0369a1;text-decoration:none">📄 ${escHtml(a.original_name)}</a>
+      <button onclick="uatDeleteAttachment(${a.id}, ${issueId})" style="border:none;background:none;color:#dc2626;cursor:pointer;font-size:.7rem">✕</button>
+    </span>`).join('')
+    : '<span style="font-size:.73rem;color:var(--muted)">ยังไม่มีไฟล์แนบ</span>';
+}
+
+async function uatUploadJobFiles(files, docType, inputEl) {
+  const jobId = _uatDetail?.id;
+  if (!jobId) return;
+  const label = docType === 'result' ? '✅ แนบเอกสารผล UAT แล้ว' : '✅ แนบเอกสารแล้ว';
+  const ok = await uatUpload(`/api/uat/${jobId}/attachments?doc_type=${encodeURIComponent(docType || 'other')}`, files, label);
+  if (inputEl) inputEl.value = '';
+  if (ok) await openUatDetail(jobId);
+}
+
+async function uatDeleteAttachment(id, issueId = null) {
+  if (!confirm('ลบไฟล์แนบนี้?')) return;
+  const r = await api(`/api/uat/attachments/${id}`, { method:'DELETE', silent:true });
+  if (!r || r.error) { showToast('❌ ' + (r?.error || 'ลบไม่สำเร็จ'), 'error'); return; }
+  showToast('🗑 ลบไฟล์แล้ว');
+  if (issueId) uatLoadIssueAttachments(issueId);
+  else if (_uatDetail?.id) await openUatDetail(_uatDetail.id);
+}
+
+async function uatUpdateBadge() {
+  try {
+    const r = await api('/api/uat/badge', { silent: true });
+    const jobBadge   = document.getElementById('uat-badge');
+    const issueBadge = document.getElementById('uat-issue-badge');
+    if (jobBadge) {
+      if (r?.count > 0) { jobBadge.textContent = r.count; jobBadge.style.display = ''; }
+      else jobBadge.style.display = 'none';
+    }
+    if (issueBadge) {
+      if (r?.open_issues > 0) { issueBadge.textContent = '🐞' + r.open_issues; issueBadge.style.display = ''; }
+      else issueBadge.style.display = 'none';
+    }
+  } catch {}
+}
+
 // ═══════════════════════════════════════════════════════════════
 //  NEWS / ANNOUNCEMENTS
 // ═══════════════════════════════════════════════════════════════
@@ -21059,6 +21991,188 @@ async function generateFromPattern() {
 </div>
 
 <!-- ══ SW UPDATE FORM MODAL ══ -->
+<!-- ══════════ UAT JOB FORM MODAL ══════════ -->
+<div class="overlay" id="modal-uat-form">
+  <div class="modal" style="max-width:720px;max-height:92vh;overflow-y:auto;padding:1.1rem 1.25rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
+      <div id="modal-uat-form-title" style="font-size:1rem;font-weight:800">🧪 เปิดรอบทดสอบ UAT</div>
+      <button class="modal-close" onclick="closeModal('modal-uat-form')">×</button>
+    </div>
+    <input type="hidden" id="uat-edit-id"/>
+    <div style="font-size:.73rem;color:#0369a1;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:.45rem .6rem;margin-bottom:.7rem;line-height:1.5">
+      กรอกแค่หน้านี้พอครับ — พอบันทึกแล้วจะได้ปุ่ม <strong>⬇ เอกสาร draft</strong> ไปกรอกรายละเอียดทั้งหมด<br>
+      (วัตถุประสงค์ · ขอบเขต · FTP · Remote · ขั้นตอนทดสอบ · เกณฑ์ผ่าน) แล้วอัพโหลดกลับเข้าระบบ
+    </div>
+
+    <!-- เรื่องที่ขอทดสอบ -->
+    <div style="margin-bottom:.6rem">
+      <label style="font-size:.75rem;font-weight:600;color:#475569;display:block;margin-bottom:.25rem">เรื่องที่ขอทดสอบ <span style="color:#ef4444">*</span></label>
+      <input id="uat-title" type="text" placeholder="เช่น Kouen — อัพเดท Version HQ และทดสอบ Sync ระหว่าง Version"
+        style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.38rem .65rem;font-size:.83rem;outline:none"/>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem;margin-bottom:.5rem">
+      <div>
+        <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">ประเภทงาน</label>
+        <select id="uat-job-type" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem;font-family:inherit">
+          <option value="version_update">📦 อัพเดท Version</option>
+          <option value="sync_test">🔁 ทดสอบ Sync ข้าม Version</option>
+          <option value="feature">✨ ฟีเจอร์ใหม่</option>
+          <option value="hotfix">🩹 Hotfix</option>
+          <option value="other">📄 อื่น ๆ</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">ระดับความสำคัญ</label>
+        <select id="uat-priority" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem;font-family:inherit">
+          <option value="urgent">🔴 เร่งด่วน</option>
+          <option value="high">🟠 สูง</option>
+          <option value="normal" selected>🟡 ปกติ</option>
+          <option value="low">⚪ ต่ำ</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">วันที่ต้องการ</label>
+        <input id="uat-requested-date" type="date" title="วันที่อยากให้ทดสอบ — ทีม UAT จะแจ้ง slot ที่ว่างกลับมา"
+          style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem"/>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.5rem">
+      <div>
+        <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">Version ปัจจุบัน</label>
+        <input id="uat-version-from" type="text" placeholder="เช่น 3.0.2508.1"
+          style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem;font-family:monospace"/>
+      </div>
+      <div>
+        <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">Version ที่จะอัพเดท</label>
+        <input id="uat-version-to" type="text" placeholder="เช่น 3.0.2605.3"
+          style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem;font-family:monospace"/>
+      </div>
+    </div>
+
+    <div style="margin-bottom:.5rem">
+      <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">ผู้แจ้ง (Support / Team)</label>
+      <select id="uat-reporter" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem;font-family:inherit">
+        <option value="">— เลือกผู้แจ้ง —</option>
+      </select>
+    </div>
+
+    <div style="margin-bottom:.7rem">
+      <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">รายละเอียดโดยย่อ</label>
+      <textarea id="uat-note" rows="3" placeholder="อธิบายสั้น ๆ ว่าอยากให้ทดสอบอะไร (รายละเอียดเต็มกรอกในเอกสาร draft)"
+        style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.35rem .6rem;font-size:.82rem;resize:vertical;font-family:inherit"></textarea>
+    </div>
+
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="saveUatForm()">💾 บันทึก</button>
+      <button class="btn btn-ghost" onclick="closeModal('modal-uat-form')">ยกเลิก</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ UAT DETAIL MODAL ══════════ -->
+<div class="overlay" id="modal-uat-detail">
+  <div class="modal" style="max-width:900px;width:100%;max-height:92vh;overflow-y:auto;padding:1.1rem 1.25rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
+      <div id="modal-uat-detail-title" style="font-size:1rem;font-weight:800">🧪 รายละเอียดรอบทดสอบ</div>
+      <button class="modal-close" onclick="closeModal('modal-uat-detail')">×</button>
+    </div>
+    <div id="uat-detail-body"></div>
+  </div>
+</div>
+
+<!-- ══════════ UAT ISSUE FORM MODAL ══════════ -->
+<div class="overlay" id="modal-uat-issue-form">
+  <div class="modal" style="max-width:640px;width:100%;max-height:92vh;overflow-y:auto;padding:1.1rem 1.25rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.35rem">
+      <div id="modal-uat-issue-title" style="font-size:1rem;font-weight:800">🐞 บันทึกปัญหา (Issue)</div>
+      <button class="modal-close" onclick="closeModal('modal-uat-issue-form')">×</button>
+    </div>
+    <div style="font-size:.72rem;color:var(--muted);margin-bottom:.75rem">รูปแบบตามเอกสาร: Topic / Description / Expected Behavior / Actual Behavior</div>
+    <input type="hidden" id="uat-issue-edit-id"/>
+    <input type="hidden" id="uat-issue-job-id"/>
+
+    <div style="margin-bottom:.55rem">
+      <label style="font-size:.75rem;font-weight:700;color:#334155;display:block;margin-bottom:.2rem">Topic — หัวข้อ/ชื่อปัญหาโดยสรุป <span style="color:#ef4444">*</span></label>
+      <input id="uat-issue-topic" type="text" placeholder="เช่น Sync สต๊อกจาก HQ ไปสาขา Version เดิมไม่ครบ"
+        style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.38rem .65rem;font-size:.83rem"/>
+    </div>
+    <div style="margin-bottom:.55rem">
+      <label style="font-size:.75rem;font-weight:700;color:#334155;display:block;margin-bottom:.2rem">Description — รายละเอียดของปัญหาที่พบ</label>
+      <textarea id="uat-issue-description" rows="3"
+        style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.35rem .6rem;font-size:.82rem;resize:vertical;font-family:inherit"></textarea>
+    </div>
+    <div style="margin-bottom:.55rem">
+      <label style="font-size:.75rem;font-weight:700;color:#15803d;display:block;margin-bottom:.2rem">Expected Behavior — พฤติกรรมที่ระบบควรทำงาน</label>
+      <textarea id="uat-issue-expected" rows="2"
+        style="width:100%;border:1px solid #bbf7d0;background:#f0fdf4;border-radius:7px;padding:.35rem .6rem;font-size:.82rem;resize:vertical;font-family:inherit"></textarea>
+    </div>
+    <div style="margin-bottom:.55rem">
+      <label style="font-size:.75rem;font-weight:700;color:#b91c1c;display:block;margin-bottom:.2rem">Actual Behavior — พฤติกรรมที่ระบบทำงานจริง (ผิดปกติ)</label>
+      <textarea id="uat-issue-actual" rows="2"
+        style="width:100%;border:1px solid #fecaca;background:#fef2f2;border-radius:7px;padding:.35rem .6rem;font-size:.82rem;resize:vertical;font-family:inherit"></textarea>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.55rem">
+      <div>
+        <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">ระดับความรุนแรง</label>
+        <select id="uat-issue-severity" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem;font-family:inherit">
+          <option value="critical">🔴 Critical — กระทบข้อมูล/ใช้งานไม่ได้</option>
+          <option value="high">🟠 High</option>
+          <option value="medium" selected>🟡 Medium</option>
+          <option value="low">⚪ Low</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">สถานะ</label>
+        <select id="uat-issue-status" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem;font-family:inherit">
+          <option value="open" selected>🆕 เปิดใหม่</option>
+          <option value="sent_dev">📤 ส่ง Developer แล้ว</option>
+          <option value="fixing">🔧 กำลังแก้ไข</option>
+          <option value="fixed">🛠 แก้แล้ว — รอ Re-test</option>
+          <option value="retest_passed">✅ Re-test ผ่าน</option>
+          <option value="retest_failed">❌ Re-test ไม่ผ่าน</option>
+          <option value="wont_fix">🚫 ไม่แก้ไข</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.55rem">
+      <div>
+        <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">เลข Issue ใน Azure</label>
+        <input id="uat-issue-azure" type="text" placeholder="เช่น AB#1234 หรือ URL"
+          style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem;font-family:monospace"/>
+      </div>
+      <div>
+        <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">Developer ผู้รับผิดชอบ</label>
+        <input id="uat-issue-dev" type="text" placeholder="ชื่อ / ทีม"
+          style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem"/>
+      </div>
+    </div>
+
+    <div style="margin-bottom:.6rem">
+      <label style="font-size:.72rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">ผู้พบปัญหา</label>
+      <select id="uat-issue-found-by" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem;font-family:inherit">
+        <option value="">— เลือกผู้พบปัญหา —</option>
+      </select>
+    </div>
+
+    <!-- แนบภาพหน้าจอ (เฉพาะตอนแก้ไข — ต้องมี issue id ก่อน) -->
+    <div id="uat-issue-attach-section" style="display:none;margin-bottom:.7rem;border:1px solid var(--border);border-radius:9px;padding:.6rem .7rem;background:#f8fafc">
+      <label style="font-size:.75rem;font-weight:700;color:#334155;display:block;margin-bottom:.4rem">📎 ภาพหน้าจอ / หลักฐานประกอบ</label>
+      <input type="file" id="uat-issue-files" multiple accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.txt,.log"
+        onchange="uatUploadIssueFiles(this.files)" style="font-size:.75rem;margin-bottom:.4rem"/>
+      <div id="uat-issue-attach-list" style="display:flex;flex-wrap:wrap;gap:.4rem"></div>
+    </div>
+
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="saveUatIssue()">💾 บันทึก</button>
+      <button class="btn btn-ghost" onclick="closeModal('modal-uat-issue-form')">ยกเลิก</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="modal-sw-update-form">
   <div class="modal" style="max-width:620px;max-height:90vh;overflow-y:auto;padding:1.1rem 1.25rem">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
