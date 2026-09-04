@@ -20657,7 +20657,12 @@ function uatDate(d) {
 function uatDateTime(d) {
   return d ? new Date(d).toLocaleString('th-TH', { day:'numeric', month:'short', year:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—';
 }
-function uatMultiline(t) { return t ? escHtml(t).replace(/\n/g, '<br>') : '<span style="color:#94a3b8">—</span>'; }
+// escape ก่อน แล้วค่อยทำลิงก์ — ลิงก์ Scenario ที่แนบมาในโน้ตจะกดได้เลย
+function uatLinkify(t) {
+  return escHtml(t).replace(/https?:\/\/[^\s<]+/g, u =>
+    `<a href="${u}" target="_blank" rel="noopener" style="color:#0369a1;word-break:break-all">${u}</a>`);
+}
+function uatMultiline(t) { return t ? uatLinkify(t).replace(/\n/g, '<br>') : '<span style="color:#94a3b8">—</span>'; }
 
 async function loadUat() {
   if (!_uatUsers.length) _uatUsers = await api('/api/users') || [];
@@ -21169,10 +21174,11 @@ function uatRenderDetail() {
   if (!j) return;
   const st  = UAT_STATUS[j.status]     || UAT_STATUS.requested;
   const pri = UAT_PRIORITY[j.priority] || UAT_PRIORITY.normal;
+  // min-width:0 + overflow-wrap กันข้อความยาวที่ตัดคำไม่ได้ (เช่น URL) ดันคอลัมน์จนล้น
   const row = (label, value) => `
-    <div style="display:flex;gap:.5rem;font-size:.78rem;padding:.2rem 0">
+    <div style="display:flex;gap:.5rem;font-size:.78rem;padding:.2rem 0;min-width:0">
       <span style="color:var(--muted);min-width:130px;flex-shrink:0">${label}</span>
-      <span style="color:#1e293b;font-weight:500">${value}</span>
+      <span style="color:#1e293b;font-weight:500;min-width:0;overflow-wrap:anywhere">${value}</span>
     </div>`;
 
   const issues = j.issues || [];
@@ -21197,6 +21203,10 @@ function uatRenderDetail() {
           <div style="font-size:.75rem;color:#991b1b;line-height:1.45">${uatMultiline(i.actual)}</div>
         </div>
       </div>
+      ${i.resolution ? `<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:.3rem .45rem;margin-bottom:.3rem">
+        <div style="font-size:.67rem;font-weight:700;color:#1d4ed8;margin-bottom:.1rem">🛠 แนวทางการแก้ไข</div>
+        <div style="font-size:.75rem;color:#1e40af;line-height:1.45;overflow-wrap:anywhere">${uatMultiline(i.resolution)}</div>
+      </div>` : ''}
       <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;font-size:.71rem;color:var(--muted)">
         <span>👤 ${escHtml(i.found_by_name || '—')}</span>
         <span>🕒 ${uatDate(i.found_at)}</span>
@@ -21238,7 +21248,7 @@ function uatRenderDetail() {
     ${uatWorkflowPanel(j)}
 
     <div class="grid-2" style="gap:.8rem;margin-top:.6rem">
-      <div>
+      <div style="min-width:0">
         ${row('วันที่ผู้แจ้งต้องการ', uatDate(j.requested_date))}
         ${row('Slot ที่ทีม UAT แจ้ง', j.test_date_from
             ? `${uatDate(j.test_date_from)} – ${uatDate(j.test_date_to)}`
@@ -21246,7 +21256,7 @@ function uatRenderDetail() {
         ${row('Version', `<span style="font-family:monospace">${escHtml(j.version_from || '—')} → <strong>${escHtml(j.version_to || '—')}</strong></span>`)}
         ${row('รายละเอียดโดยย่อ', uatMultiline(j.note))}
       </div>
-      <div>
+      <div style="min-width:0">
         ${row('ผู้เปิดงาน (Support)', escHtml(j.reporter_name || '—'))}
         ${row('แจ้ง slot โดย (UAT)', j.slot_at ? `${escHtml(j.slot_by_name || '—')} · ${uatDateTime(j.slot_at)}` : '—')}
         ${row('ยืนยันลูกค้าโดย', j.confirmed_at ? `${escHtml(j.confirmed_by_name || '—')} · ${uatDateTime(j.confirmed_at)}` : '<span style="color:#b45309">ยังไม่ยืนยัน</span>')}
@@ -21361,6 +21371,7 @@ function openUatIssueForm(jobId, issueId = null) {
   document.getElementById('uat-issue-description').value = issue?.description  || '';
   document.getElementById('uat-issue-expected').value    = issue?.expected     || '';
   document.getElementById('uat-issue-actual').value      = issue?.actual       || '';
+  document.getElementById('uat-issue-resolution').value  = issue?.resolution   || '';
   document.getElementById('uat-issue-severity').value    = issue?.severity     || 'medium';
   document.getElementById('uat-issue-status').value      = issue?.status       || 'open';
   document.getElementById('uat-issue-azure').value       = issue?.azure_id     || '';
@@ -21393,6 +21404,7 @@ async function saveUatIssue() {
     description:  document.getElementById('uat-issue-description').value.trim() || null,
     expected:     document.getElementById('uat-issue-expected').value.trim()    || null,
     actual:       document.getElementById('uat-issue-actual').value.trim()      || null,
+    resolution:   document.getElementById('uat-issue-resolution').value.trim()  || null,
     severity:     document.getElementById('uat-issue-severity').value,
     status:       document.getElementById('uat-issue-status').value,
     azure_id:     document.getElementById('uat-issue-azure').value.trim() || null,
@@ -22421,6 +22433,14 @@ async function generateFromPattern() {
       <label style="font-size:.75rem;font-weight:700;color:#b91c1c;display:block;margin-bottom:.2rem">Actual Behavior — พฤติกรรมที่ระบบทำงานจริง (ผิดปกติ)</label>
       <textarea id="uat-issue-actual" rows="2"
         style="width:100%;border:1px solid #fecaca;background:#fef2f2;border-radius:7px;padding:.35rem .6rem;font-size:.82rem;resize:vertical;font-family:inherit"></textarea>
+    </div>
+    <div style="margin-bottom:.55rem">
+      <label style="font-size:.75rem;font-weight:700;color:#1d4ed8;display:block;margin-bottom:.2rem">
+        🛠 แนวทางการแก้ไข
+        <span style="font-weight:400;color:#94a3b8;font-size:.7rem">(ฝั่ง Developer — กรอกทีหลังได้)</span>
+      </label>
+      <textarea id="uat-issue-resolution" rows="3" placeholder="เช่น แก้ query ที่ดึงสต๊อกให้กรองตามสาขา / รอ patch เวอร์ชันถัดไป / ตั้งค่าใหม่ให้ลูกค้าแล้ว"
+        style="width:100%;border:1px solid #bfdbfe;background:#eff6ff;border-radius:7px;padding:.35rem .6rem;font-size:.82rem;resize:vertical;font-family:inherit"></textarea>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.55rem">

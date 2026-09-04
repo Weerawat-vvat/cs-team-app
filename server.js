@@ -5221,6 +5221,7 @@ app.put('/api/uat/issues/:id', authRequired, async (request, res) => {
       .input('de',  sql.NVarChar, b.description  || null)
       .input('ex',  sql.NVarChar, b.expected     || null)
       .input('ac',  sql.NVarChar, b.actual       || null)
+      .input('rs',  sql.NVarChar, b.resolution   || null)
       .input('sv',  sql.NVarChar, b.severity     || 'medium')
       .input('st',  sql.NVarChar, b.status       || 'open')
       .input('az',  sql.NVarChar, b.azure_id     || null)
@@ -5229,7 +5230,7 @@ app.put('/api/uat/issues/:id', authRequired, async (request, res) => {
       .input('dn',  sql.Bit,      done ? 1 : 0)
       .input('ub',  sql.Int,      request.user.id)
       .query(`UPDATE uat_issues SET
-        topic=@tp, description=@de, expected=@ex, actual=@ac,
+        topic=@tp, description=@de, expected=@ex, actual=@ac, resolution=@rs,
         severity=@sv, status=@st, azure_id=@az, assigned_dev=@dv, found_by=@fb,
         resolved_at = CASE WHEN @dn=1 THEN ISNULL(resolved_at, GETDATE()) ELSE NULL END,
         updated_at=GETDATE(), updated_by=@ub
@@ -5401,6 +5402,7 @@ app.post('/api/uat/:id/issues', authRequired, async (request, res) => {
       .input('de',  sql.NVarChar, b.description  || null)
       .input('ex',  sql.NVarChar, b.expected     || null)
       .input('ac',  sql.NVarChar, b.actual       || null)
+      .input('rs',  sql.NVarChar, b.resolution   || null)
       .input('sv',  sql.NVarChar, b.severity     || 'medium')
       .input('st',  sql.NVarChar, b.status       || 'open')
       .input('az',  sql.NVarChar, b.azure_id     || null)
@@ -5408,8 +5410,8 @@ app.post('/api/uat/:id/issues', authRequired, async (request, res) => {
       .input('fb',  sql.Int,      b.found_by     || request.user.id || null)
       .input('cb',  sql.Int,      request.user.id)
       .query(`INSERT INTO uat_issues
-        (job_id,issue_no,topic,description,expected,actual,severity,status,azure_id,assigned_dev,found_by,created_by)
-        OUTPUT INSERTED.id VALUES (@jid,@no,@tp,@de,@ex,@ac,@sv,@st,@az,@dv,@fb,@cb)`);
+        (job_id,issue_no,topic,description,expected,actual,resolution,severity,status,azure_id,assigned_dev,found_by,created_by)
+        OUTPUT INSERTED.id VALUES (@jid,@no,@tp,@de,@ex,@ac,@rs,@sv,@st,@az,@dv,@fb,@cb)`);
     // กำลังทดสอบอยู่แล้วเจอปัญหา → เลื่อนสถานะเป็น "พบปัญหา" อัตโนมัติ
     if (job.status === 'testing') {
       await req().input('id', sql.Int, jobId)
@@ -10358,6 +10360,7 @@ async function ensureUatTables() {
         description  NVARCHAR(MAX) NULL,                 -- Description
         expected     NVARCHAR(MAX) NULL,                 -- Expected Behavior
         actual       NVARCHAR(MAX) NULL,                 -- Actual Behavior
+        resolution   NVARCHAR(MAX) NULL,                 -- แนวทางการแก้ไข (ฝั่ง Developer)
         severity     NVARCHAR(20)  DEFAULT 'medium',     -- critical | high | medium | low
         status       NVARCHAR(30)  DEFAULT 'open',
         -- open | sent_dev | fixing | fixed | retest_passed | retest_failed | wont_fix
@@ -10372,6 +10375,8 @@ async function ensureUatTables() {
         updated_by   INT NULL
       )
     `);
+    await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('uat_issues') AND name='resolution')
+      ALTER TABLE uat_issues ADD resolution NVARCHAR(MAX) NULL`);
     await req().query(`
       IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('uat_issues') AND name='IX_uat_issues_job')
         CREATE INDEX IX_uat_issues_job ON uat_issues (job_id)
