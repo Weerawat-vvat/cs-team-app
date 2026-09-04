@@ -3045,6 +3045,8 @@ textarea{resize:vertical;min-height:80px}
           style="padding:.28rem .7rem;font-size:.78rem;font-weight:700;border:none;cursor:pointer;background:#2563eb;color:#fff;font-family:inherit;transition:all .15s" title="มุมมองตาราง">☰ ตาราง</button>
         <button id="uat-view-board" onclick="uatSetView('board')"
           style="padding:.28rem .7rem;font-size:.78rem;font-weight:700;border:none;cursor:pointer;background:#fff;color:#94a3b8;font-family:inherit;transition:all .15s" title="มุมมองบอร์ด">⬛ บอร์ด</button>
+        <button id="uat-view-cal" onclick="uatSetView('cal')"
+          style="padding:.28rem .7rem;font-size:.78rem;font-weight:700;border:none;cursor:pointer;background:#fff;color:#94a3b8;font-family:inherit;transition:all .15s" title="ปฏิทินตามวันที่ยืนยันกับลูกค้า">📅 ปฏิทิน</button>
       </div>
       <button class="btn btn-primary btn-sm" onclick="openUatForm()">+ แจ้ง Request UAT</button>
     </div>
@@ -3120,7 +3122,8 @@ textarea{resize:vertical;min-height:80px}
             <th>ความสำคัญ</th>
             <th title="เอกสาร Kickoff / เอกสารผล UAT">เอกสาร</th>
             <th>Issue</th>
-            <th>ผู้แจ้ง</th>
+            <th title="ผู้เปิดงาน (Support / Team)">ผู้แจ้ง</th>
+            <th title="ทีม UAT ที่รับงาน — บันทึกอัตโนมัติตอนกดแจ้ง slot">ผู้ UAT</th>
             <th></th>
           </tr></thead>
           <tbody id="uat-tbody"></tbody>
@@ -3133,6 +3136,27 @@ textarea{resize:vertical;min-height:80px}
   <div id="uat-panel-board" style="display:none;overflow-x:auto;margin:0 -.5rem">
     <div id="uat-kanban-wrap" style="min-height:calc(100vh - 260px)">
       <div style="text-align:center;color:var(--muted);padding:3rem">กำลังโหลด...</div>
+    </div>
+  </div>
+
+  <!-- Calendar view — วางตามช่วงวันทดสอบที่ยืนยันกับลูกค้าแล้ว -->
+  <div id="uat-panel-cal" style="display:none">
+    <div class="card" style="padding:.6rem .8rem">
+      <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem">
+        <button class="btn btn-ghost btn-sm" onclick="uatCalMove(-1)">‹</button>
+        <div id="uat-cal-label" style="font-size:.9rem;font-weight:800;color:var(--hd);min-width:130px;text-align:center">—</div>
+        <button class="btn btn-ghost btn-sm" onclick="uatCalMove(1)">›</button>
+        <button class="btn btn-ghost btn-sm" onclick="uatCalToday()">วันนี้</button>
+        <label style="display:flex;align-items:center;gap:.3rem;font-size:.75rem;color:#475569;cursor:pointer;margin-left:.4rem">
+          <input type="checkbox" id="uat-cal-tentative" onchange="uatRenderCalendar()" style="accent-color:#0284c7;width:14px;height:14px">
+          แสดงที่ยังรอยืนยันด้วย
+        </label>
+        <span style="margin-left:auto;display:flex;gap:.6rem;align-items:center;font-size:.68rem;color:var(--muted)">
+          <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#16a34a;vertical-align:middle"></span> ยืนยันแล้ว</span>
+          <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;border:1px dashed #b45309;vertical-align:middle"></span> รอยืนยัน</span>
+        </span>
+      </div>
+      <div id="uat-cal-grid"></div>
     </div>
   </div>
 </div>
@@ -20664,7 +20688,8 @@ function renderUat() {
   set('uat-stat-issues',  all.reduce((n, r) => n + (r.issue_open || 0), 0));
   set('uat-stat-passed',  all.filter(r => ['passed','handed_to_update','closed'].includes(r.status)).length);
   renderUatTable();
-  if (_uatView === 'board') uatRenderKanban();
+  if (_uatView === 'board')    uatRenderKanban();
+  else if (_uatView === 'cal') uatRenderCalendar();
 }
 
 // ── มุมมองตาราง ──────────────────────────────────────────
@@ -20673,7 +20698,7 @@ function renderUatTable() {
   if (!tbody) return;
   const all = _uatData;
   if (!all.length) {
-    tbody.innerHTML = '<tr><td colspan="12" class="empty"><div class="icon">🧪</div>ยังไม่มี Request UAT — กด “+ แจ้ง Request UAT” เพื่อเริ่ม</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="13" class="empty"><div class="icon">🧪</div>ยังไม่มี Request UAT — กด “+ แจ้ง Request UAT” เพื่อเริ่ม</td></tr>';
     return;
   }
   tbody.innerHTML = all.map(r => {
@@ -20705,6 +20730,10 @@ function renderUatTable() {
         ${r.issue_total ? `<span style="font-size:.72rem;color:#64748b;margin-left:.2rem">/ ${r.issue_total}</span>` : '<span style="color:#cbd5e1">—</span>'}
       </td>
       <td style="font-size:.77rem;white-space:nowrap">${escHtml(r.reporter_name || '—')}</td>
+      <td style="font-size:.77rem;white-space:nowrap">${r.slot_by_name
+          ? `🧪 ${escHtml(r.slot_by_name)}${r.uat_passed_by_name && r.uat_passed_by_name !== r.slot_by_name
+              ? `<div style="font-size:.68rem;color:#15803d">✅ ปิดผล: ${escHtml(r.uat_passed_by_name)}</div>` : ''}`
+          : '<span style="color:#b45309">ยังไม่รับงาน</span>'}</td>
       <td onclick="event.stopPropagation()" style="white-space:nowrap">
         <button class="btn btn-ghost btn-sm" onclick="uatDownloadDraft(${r.id})" title="ดาวน์โหลดเอกสาร draft">⬇</button>
         <button class="btn btn-ghost btn-sm" onclick="openUatEdit(${r.id})" title="แก้ไข">✏️</button>
@@ -20741,24 +20770,115 @@ const UAT_DROP_BLOCKED = {
 
 function uatSetView(view) {
   _uatView = view;
-  const table = document.getElementById('uat-panel-table');
-  const board = document.getElementById('uat-panel-board');
-  const btnT  = document.getElementById('uat-view-table');
-  const btnB  = document.getElementById('uat-view-board');
-  if (!table || !board) return;
-  if (view === 'board') {
-    table.style.display = 'none';
-    board.style.display = '';
-    btnT.style.background = '#fff';     btnT.style.color = '#94a3b8';
-    btnB.style.background = '#2563eb';  btnB.style.color = '#fff';
-    uatRenderKanban();
-  } else {
-    table.style.display = '';
-    board.style.display = 'none';
-    btnT.style.background = '#2563eb';  btnT.style.color = '#fff';
-    btnB.style.background = '#fff';     btnB.style.color = '#94a3b8';
-    renderUatTable();
+  const panels = { table: 'uat-panel-table', board: 'uat-panel-board', cal: 'uat-panel-cal' };
+  const btns   = { table: 'uat-view-table',  board: 'uat-view-board',  cal: 'uat-view-cal'  };
+  for (const k of Object.keys(panels)) {
+    const pane = document.getElementById(panels[k]);
+    const btn  = document.getElementById(btns[k]);
+    if (pane) pane.style.display = (k === view) ? '' : 'none';
+    if (btn) {
+      btn.style.background = (k === view) ? '#2563eb' : '#fff';
+      btn.style.color      = (k === view) ? '#fff'    : '#94a3b8';
+    }
   }
+  if (view === 'board')     uatRenderKanban();
+  else if (view === 'cal')  uatRenderCalendar();
+  else                      renderUatTable();
+}
+
+// ══════════════════════════════════════════════════════════
+//  UAT — CALENDAR VIEW (ตามวันที่ยืนยันกับลูกค้าแล้ว)
+// ══════════════════════════════════════════════════════════
+const UAT_TH_MONTHS = ['','มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
+                       'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+let _uatCalY = new Date().getFullYear();
+let _uatCalM = new Date().getMonth() + 1;   // 1–12
+
+function uatCalMove(dir) {
+  _uatCalM += dir;
+  if (_uatCalM > 12) { _uatCalM = 1;  _uatCalY++; }
+  if (_uatCalM < 1)  { _uatCalM = 12; _uatCalY--; }
+  uatRenderCalendar();
+}
+function uatCalToday() {
+  const n = new Date();
+  _uatCalY = n.getFullYear(); _uatCalM = n.getMonth() + 1;
+  uatRenderCalendar();
+}
+const uatIso = (y, m, d) => `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+
+function uatRenderCalendar() {
+  const grid = document.getElementById('uat-cal-grid');
+  const lbl  = document.getElementById('uat-cal-label');
+  if (!grid) return;
+  if (lbl) lbl.textContent = `${UAT_TH_MONTHS[_uatCalM]} ${_uatCalY + 543}`;
+
+  const showTentative = document.getElementById('uat-cal-tentative')?.checked;
+  // วางงานตามช่วงวันทดสอบ — ยึด "ยืนยันกับลูกค้าแล้ว" เป็นหลัก
+  const jobs = (_uatData || []).filter(j => {
+    if (!j.test_date_from) return false;
+    if (j.status === 'cancelled') return false;
+    return j.confirmed_at ? true : !!showTentative;
+  });
+
+  // กระจายงานลงทุกวันในช่วง from–to
+  const byDay = {};
+  for (const j of jobs) {
+    const from = String(j.test_date_from).slice(0,10);
+    const to   = String(j.test_date_to || j.test_date_from).slice(0,10);
+    for (let d = new Date(from + 'T12:00:00'); ; d.setDate(d.getDate() + 1)) {
+      const iso = d.toLocaleDateString('en-CA');
+      (byDay[iso] = byDay[iso] || []).push(j);
+      if (iso >= to) break;
+      if (Object.keys(byDay).length > 2000) break;   // กันลูปหลุดถ้าวันที่เพี้ยน
+    }
+  }
+
+  const lastDay  = new Date(_uatCalY, _uatCalM, 0).getDate();
+  const firstDow = new Date(uatIso(_uatCalY, _uatCalM, 1) + 'T12:00:00').getDay();
+  const todayIso = new Date().toLocaleDateString('en-CA');
+  const thDows   = ['อา','จ','อ','พ','พฤ','ศ','ส'];
+
+  const cell = (inner, bg = '#fff') =>
+    `<div style="border:1px solid var(--border);border-radius:8px;min-height:96px;padding:.3rem .35rem;background:${bg};overflow:hidden">${inner}</div>`;
+
+  let html = `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:.3rem;margin-bottom:.3rem">` +
+    thDows.map((d,i) => `<div style="text-align:center;font-size:.72rem;font-weight:700;color:${i===0||i===6?'#dc2626':'#475569'};padding:.15rem 0">${d}</div>`).join('') +
+    `</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:.3rem">`;
+
+  for (let i = 0; i < firstDow; i++) html += cell('', '#f8fafc');
+
+  let monthCount = 0;
+  for (let d = 1; d <= lastDay; d++) {
+    const iso = uatIso(_uatCalY, _uatCalM, d);
+    const dow = new Date(iso + 'T12:00:00').getDay();
+    const isToday = iso === todayIso;
+    const list = byDay[iso] || [];
+    monthCount += list.length;
+    const head = `<div style="font-size:.72rem;font-weight:${isToday?'800':'600'};color:${isToday?'#1d4ed8':(dow===0||dow===6?'#dc2626':'#334155')};margin-bottom:.2rem">
+      ${isToday ? `<span style="background:#1d4ed8;color:#fff;border-radius:50%;padding:.05rem .35rem">${d}</span>` : d}</div>`;
+    const items = list.slice(0, 3).map(j => {
+      const st  = UAT_STATUS[j.status] || UAT_STATUS.requested;
+      const ok  = !!j.confirmed_at;
+      return `<div onclick="openUatDetail(${j.id})" title="${escHtml(j.job_no + ' · ' + (j.title||''))}"
+        style="cursor:pointer;font-size:.63rem;line-height:1.3;margin-bottom:.15rem;padding:.12rem .3rem;border-radius:4px;
+               background:${ok ? st.bg : '#fff'};color:${st.color};font-weight:600;
+               border:1px ${ok ? 'solid' : 'dashed'} ${ok ? 'transparent' : '#b45309'};
+               white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+        ${ok ? '✅' : '⏳'} ${escHtml(j.title || j.job_no)}</div>`;
+    }).join('');
+    const more = list.length > 3 ? `<div style="font-size:.6rem;color:var(--muted)">+ อีก ${list.length - 3}</div>` : '';
+    html += cell(head + items + more, isToday ? '#eff6ff' : '#fff');
+  }
+  const tail = (7 - ((firstDow + lastDay) % 7)) % 7;
+  for (let i = 0; i < tail; i++) html += cell('', '#f8fafc');
+  html += `</div>`;
+
+  if (!monthCount) {
+    html += `<div style="text-align:center;color:var(--muted);font-size:.78rem;padding:.7rem">
+      ไม่มีงาน UAT ที่ยืนยันวันกับลูกค้าแล้วในเดือนนี้${showTentative ? '' : ' — ติ๊ก “แสดงที่ยังรอยืนยันด้วย” เพื่อดู slot ที่ทีม UAT แจ้งไว้'}</div>`;
+  }
+  grid.innerHTML = html;
 }
 
 function uatRenderKanban() {

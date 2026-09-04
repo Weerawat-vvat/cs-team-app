@@ -5279,14 +5279,18 @@ app.get('/api/uat', authRequired, async (request, res) => {
       r.input('q', sql.NVarChar, `%${q}%`);
     }
     const rows = (await r.query(`
-      SELECT j.*, ISNULL(e.nickname, e.name) AS reporter_name,
+      SELECT j.*,
+        ISNULL(e.nickname, e.name)   AS reporter_name,
+        ISNULL(es.nickname, es.name) AS slot_by_name,      -- ผู้ UAT ที่รับงาน (คนแจ้ง slot)
+        ISNULL(ep.nickname, ep.name) AS uat_passed_by_name,
         (SELECT COUNT(*) FROM uat_issues i WHERE i.job_id = j.id) AS issue_total,
         (SELECT COUNT(*) FROM uat_issues i WHERE i.job_id = j.id AND i.status IN ${UAT_ISSUE_OPEN}) AS issue_open,
         (SELECT COUNT(*) FROM uat_attachments a WHERE a.job_id = j.id AND a.doc_type='result') AS result_docs,
         (SELECT COUNT(*) FROM uat_attachments a WHERE a.job_id = j.id AND a.doc_type='kickoff') AS kickoff_docs
       FROM uat_jobs j
-      LEFT JOIN app_users au ON au.id = j.reported_by
-      LEFT JOIN employees e  ON e.id  = au.employee_id
+      LEFT JOIN app_users au  ON au.id  = j.reported_by    LEFT JOIN employees e  ON e.id  = au.employee_id
+      LEFT JOIN app_users asl ON asl.id = j.slot_by        LEFT JOIN employees es ON es.id = asl.employee_id
+      LEFT JOIN app_users ap  ON ap.id  = j.uat_passed_by  LEFT JOIN employees ep ON ep.id = ap.employee_id
       ${where}
       ORDER BY j.created_at DESC
     `)).recordset;
