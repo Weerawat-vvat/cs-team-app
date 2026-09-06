@@ -17,6 +17,10 @@ const PORT       = process.env.PORT || 3010;
 const AI_MODEL   = process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
 const JWT_SECRET = process.env.JWT_SECRET || 'cs-team-jwt-secret-change-in-prod';
 const genAI      = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '', { apiVersion: 'v1' });
+// Groq (OpenAI-compatible REST) — primary parser for the employee schedule, see empcalParseWithAI()
+const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
+const GROQ_MODEL   = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
+const GROQ_URL     = 'https://api.groq.com/openai/v1/chat/completions';
 
 // ── File upload config ────────────────────────────────────
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
@@ -3377,9 +3381,57 @@ const bangkokToday     = () => new Date().toLocaleDateString('en-CA', { timeZone
 // Teams whose calendar entries are reliable enough to drive the Dashboard "on-shift now" card
 const EMPCAL_ONSHIFT_TEAMS = ['specialist', 'helpdesk_bkk', 'helpdesk_cnx'];
 
+// Pull the JSON array out of an LLM reply — slicing [ … ] also strips code fences and stray prose
+function parseJsonArrayReply(text) {
+  const t = String(text || '').trim();
+  const a = t.indexOf('['), b = t.lastIndexOf(']');
+  if (a === -1 || b <= a) throw new Error('AI ไม่ได้ตอบกลับเป็น JSON array');
+  return JSON.parse(t.slice(a, b + 1));
+}
+
+// Groq chat-completions (OpenAI-compatible) — same prompt, plain axios, no extra package
+async function groqGenerate(prompt) {
+  const r = await axios.post(GROQ_URL, {
+    model: GROQ_MODEL,
+    temperature: 0,
+    messages: [{ role: 'user', content: prompt }],
+  }, {
+    headers: { Authorization: `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+    timeout: 60000,
+  });
+  return r.data?.choices?.[0]?.message?.content || '';
+}
+
+// Groq is the primary parser for the employee schedule; Gemini stays as the backup
+// for when Groq is down or rate-limited. Reports the model that actually produced the
+// result so the cached payload stays honest.
+async function empcalParseWithAI(prompt) {
+  let firstErr = null;
+  if (GROQ_API_KEY) {
+    try {
+      return { events: parseJsonArrayReply(await groqGenerate(prompt)), usedModel: GROQ_MODEL };
+    } catch (e) {
+      firstErr = e;
+      const detail = e.response?.data?.error?.message || e.message;
+      console.warn('empcal: Groq ไม่สำเร็จ →', detail, process.env.GEMINI_API_KEY ? '(ลอง Gemini ต่อ)' : '(ไม่มี GEMINI_API_KEY ให้ fallback)');
+    }
+  }
+  if (!process.env.GEMINI_API_KEY) throw firstErr || new Error('ยังไม่ได้ตั้งค่า GROQ_API_KEY ใน .env');
+  try {
+    const model  = genAI.getGenerativeModel({ model: AI_MODEL });
+    const result = await model.generateContent(prompt);
+    const out = { events: parseJsonArrayReply(result.response.text()), usedModel: AI_MODEL };
+    if (firstErr) console.log('empcal: fallback ไป Gemini สำเร็จ →', AI_MODEL);
+    return out;
+  } catch (e) {
+    const first = firstErr ? (firstErr.response?.data?.error?.message || firstErr.message) : 'ไม่ได้ใช้';
+    throw new Error(`AI แปลงปฏิทินไม่สำเร็จ — Groq: ${first} | Gemini: ${e.message}`);
+  }
+}
+
 async function computeEmpcalSummary(date, refresh) {
     if (!GCAL_API_KEY) { const e = new Error('ยังไม่ได้ตั้งค่า GCAL_API_KEY ใน .env — สร้าง API key ที่ Google Cloud Console แล้วใส่ใน .env'); e.status = 503; throw e; }
-    if (!process.env.GEMINI_API_KEY) { const e = new Error('GEMINI_API_KEY ยังไม่ได้ตั้งค่าใน .env'); e.status = 503; throw e; }
+    if (!GROQ_API_KEY && !process.env.GEMINI_API_KEY) { const e = new Error('ยังไม่ได้ตั้งค่า GROQ_API_KEY หรือ GEMINI_API_KEY ใน .env'); e.status = 503; throw e; }
 
     // Serve cached result unless a refresh is requested
     if (!refresh) {
@@ -3460,11 +3512,7 @@ ${JSON.stringify(rawEvents)}
 - ไม่มั่นใจว่าเป็นใคร → emp_id=null (ห้ามเดามั่ว)
 - คืน JSON array อย่างเดียว ห้ามมีข้อความอื่น`;
 
-    const model  = genAI.getGenerativeModel({ model: AI_MODEL });
-    const result = await model.generateContent(prompt);
-    const text = result.response.text().trim()
-      .replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
-    const events = JSON.parse(text);
+    const { events, usedModel } = await empcalParseWithAI(prompt);
 
     // 4) Aggregate per team + collect unmatched as "unknown"
     const teamAgg = {};  // team -> emp_id -> { emp_id, nickname, items[] }
@@ -3514,7 +3562,7 @@ ${JSON.stringify(rawEvents)}
     const payload = {
       date, teams, unknown,
       eventCount: (Array.isArray(events) ? events.length : 0),
-      model: AI_MODEL, generatedAt: new Date().toISOString(),
+      model: usedModel, generatedAt: new Date().toISOString(),
     };
 
     // Cache the day's parsed result (only when we actually got events)
