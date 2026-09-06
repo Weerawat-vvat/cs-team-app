@@ -751,26 +751,26 @@ textarea{resize:vertical;min-height:80px}
     </div>
   </div>
 
-  <!-- ── ช่องทางที่ลูกค้าติดต่อเข้ามา ── -->
-  <div class="card" style="margin-bottom:.75rem">
-    <div class="card-title">📞 ช่องทางที่ลูกค้าติดต่อเข้ามา
-      <span id="ch-summary" style="font-size:.72rem;font-weight:400;color:var(--muted);margin-left:.5rem"></span>
-    </div>
-    <div style="display:flex;gap:1.2rem;align-items:center;flex-wrap:wrap">
-      <div style="position:relative;width:180px;height:180px;flex:0 0 auto"><canvas id="chart-channel"></canvas></div>
-      <div id="ch-breakdown" style="flex:1 1 280px;display:flex;flex-direction:column;gap:.55rem">
-        <div style="color:var(--muted);font-size:.82rem">กำลังโหลด...</div>
+  <!-- ── Row: ช่องทางติดต่อ | คำขอวันหยุด ── -->
+  <div class="grid-2" style="margin-bottom:.75rem">
+    <div class="card">
+      <div class="card-title">📞 ช่องทางที่ลูกค้าติดต่อเข้ามา
+        <span id="ch-summary" style="font-size:.72rem;font-weight:400;color:var(--muted);margin-left:.5rem"></span>
+      </div>
+      <div style="display:flex;gap:.8rem;align-items:center;flex-wrap:wrap">
+        <div style="position:relative;width:150px;height:150px;flex:0 0 auto"><canvas id="chart-channel"></canvas></div>
+        <div id="ch-breakdown" style="flex:1 1 180px;display:flex;flex-direction:column;gap:.4rem">
+          <div style="color:var(--muted);font-size:.82rem">กำลังโหลด...</div>
+        </div>
       </div>
     </div>
-  </div>
-
-  <!-- ── Leaves ── -->
-  <div class="card" style="margin-bottom:.75rem">
-    <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
-      <span>📩 คำขอวันหยุดรออนุมัติ</span>
-      <button class="btn btn-primary btn-sm" style="font-size:.72rem;padding:.25rem .65rem" onclick="openLeaveReqModal()">+ ขออนุมัติลา</button>
+    <div class="card">
+      <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
+        <span>📩 คำขอวันหยุดรออนุมัติ</span>
+        <button class="btn btn-primary btn-sm" style="font-size:.72rem;padding:.25rem .65rem" onclick="openLeaveReqModal()">+ ขออนุมัติลา</button>
+      </div>
+      <div id="dash-leaves"></div>
     </div>
-    <div id="dash-leaves"></div>
   </div>
 
   <!-- ── Stale Follow-up Issues ── -->
@@ -6911,22 +6911,21 @@ function renderChannelCard(rows, from, to) {
     return;
   }
 
+  const pctText = (p) => p >= 0.05 ? p.toFixed(1) + '%' : '&lt;0.1%';
   const items = data.map(r => {
     const m = channelMeta(r.channel);
     return { ...m, cnt: r.cnt, pct: r.cnt / total * 100 };
   });
 
+  // จุดสีไว้เทียบกับชิ้นในโดนัท, % เป็นตัวเด่น, จำนวนเคสตามหลังแบบจางๆ
   box.innerHTML = items.map(it => `
-    <div style="display:flex;align-items:center;gap:.6rem">
-      <span style="flex:0 0 7.5rem;font-size:.83rem;display:flex;align-items:center;gap:.35rem">
+    <div style="display:flex;align-items:center;gap:.45rem">
+      <span style="flex:0 0 auto;width:9px;height:9px;border-radius:50%;background:${it.color}"></span>
+      <span style="flex:1;min-width:0;font-size:.82rem;display:flex;align-items:center;gap:.3rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
         <span>${it.icon}</span>${it.label}
       </span>
-      <div style="flex:1;min-width:60px;height:8px;background:#f1f5f9;border-radius:99px;overflow:hidden">
-        <div style="width:${it.pct.toFixed(1)}%;height:100%;background:${it.color};border-radius:99px"></div>
-      </div>
-      <span style="flex:0 0 6.5rem;font-size:.82rem;font-weight:700;text-align:right">
-        ${it.cnt.toLocaleString()}<span style="color:var(--muted);font-weight:400"> (${it.pct.toFixed(1)}%)</span>
-      </span>
+      <span style="flex:0 0 auto;min-width:3.1rem;text-align:right;font-size:.85rem;font-weight:700;white-space:nowrap">${pctText(it.pct)}</span>
+      <span style="flex:0 0 auto;min-width:3.4rem;text-align:right;font-size:.74rem;color:var(--muted);white-space:nowrap">${it.cnt.toLocaleString()}</span>
     </div>`).join('');
 
   dashCharts.channel = new Chart(ctx, {
@@ -18368,7 +18367,7 @@ function renderIssueDonut() {
   const top10    = categories.slice(0,10);
   const otherCnt = categories.slice(10).reduce((s,x)=>s+x.cnt,0);
   const fullLabels = top10.map(s => s.category);
-  const labels   = top10.map(s => s.category.length>22 ? s.category.substring(0,22)+'…' : s.category);
+  const labels   = top10.map(s => s.category.length>16 ? s.category.substring(0,16)+'…' : s.category);
   const data     = top10.map(s => s.cnt);
   if (otherCnt > 0) { fullLabels.push('อื่นๆ'); labels.push('อื่นๆ'); data.push(otherCnt); }
   const palette  = ['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#06b6d4','#ec4899','#84cc16','#f97316','#6366f1','#94a3b8'];
@@ -18383,6 +18382,8 @@ function renderIssueDonut() {
   const borderWidths = fullLabels.map((lbl) => activeCat && lbl === activeCat ? 3 : 1.5);
   const offsets = fullLabels.map((lbl) => activeCat && lbl === activeCat ? 10 : 0);
 
+  // สัดส่วนของแต่ละประเภท — ต่ำกว่า 0.05% ใช้ <0.1% แทน 0.0% ที่อ่านแล้วเหมือนไม่มีเลย
+  const pctOf = (n) => { const p = total ? n / total * 100 : 0; return p >= 0.05 ? p.toFixed(1) + '%' : '<0.1%'; };
   const ctx = document.getElementById('chart-iss-donut');
   if (!ctx) return;
   if (ctx._chart) ctx._chart.destroy();
@@ -18407,7 +18408,7 @@ function renderIssueDonut() {
           labels:{ font:{size:10}, boxWidth:10, padding:5,
             generateLabels: (chart) => {
               return chart.data.labels.map((lbl, i) => ({
-                text: lbl,
+                text: `${lbl}  ${pctOf(chart.data.datasets[0].data[i])}`,
                 fillStyle: palette[i] || '#94a3b8',
                 strokeStyle: '#fff',
                 lineWidth: 1,
