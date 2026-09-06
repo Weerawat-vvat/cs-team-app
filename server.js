@@ -6,6 +6,7 @@ const fs                         = require('fs');
 const bcrypt                     = require('bcryptjs');
 const jwt                        = require('jsonwebtoken');
 const crypto                     = require('crypto');
+const { StringDecoder }          = require('string_decoder');
 const multer                     = require('multer');
 const nodemailer                 = require('nodemailer');
 const axios                      = require('axios');
@@ -17,10 +18,142 @@ const PORT       = process.env.PORT || 3010;
 const AI_MODEL   = process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
 const JWT_SECRET = process.env.JWT_SECRET || 'cs-team-jwt-secret-change-in-prod';
 const genAI      = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '', { apiVersion: 'v1' });
-// Groq (OpenAI-compatible REST) — primary parser for the employee schedule, see empcalParseWithAI()
+// Groq (OpenAI-compatible REST) — the primary provider, see aiGenerate() below
 const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
 const GROQ_MODEL   = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
 const GROQ_URL     = 'https://api.groq.com/openai/v1/chat/completions';
+
+// ══════════════════════════════════════════════════════════
+//  AI PROVIDERS — Groq เป็นตัวหลัก, Gemini เป็นตัวสำรอง
+//  ทุกฟีเจอร์ที่แค่ "ส่ง prompt เข้า → เอาข้อความออก" ให้เรียกผ่าน aiGenerate()
+//  เจ้าใดเจ้าหนึ่งล่มจะได้ไม่ทำให้ฟีเจอร์ตายทั้งตัว
+//  (ยกเว้น /api/ai/chat ที่ใช้ Gemini function-calling โดยเฉพาะ)
+// ══════════════════════════════════════════════════════════
+const aiErrText = (e) => {
+  const d = e?.response?.data;
+  if (d && typeof d === 'object' && typeof d.pipe !== 'function') return d.error?.message || e.message;
+  if (e?.response?.status) return `HTTP ${e.response.status}`;
+  return e?.message || String(e);
+};
+
+// ดึง JSON array ออกจากคำตอบ AI — ตัด code fence และข้อความเกินได้ในตัว
+function parseJsonArrayReply(text) {
+  const t = String(text || '').trim();
+  const a = t.indexOf('['), b = t.lastIndexOf(']');
+  if (a === -1 || b <= a) throw new Error('AI ไม่ได้ตอบกลับเป็น JSON array');
+  return JSON.parse(t.slice(a, b + 1));
+}
+
+// Groq chat-completions (OpenAI-compatible) — axios ล้วน ไม่ต้องลง package เพิ่ม
+async function groqGenerate(prompt) {
+  const r = await axios.post(GROQ_URL, {
+    model: GROQ_MODEL,
+    temperature: 0,
+    messages: [{ role: 'user', content: prompt }],
+  }, {
+    headers: { Authorization: `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+    timeout: 60000,
+  });
+  return r.data?.choices?.[0]?.message?.content || '';
+}
+
+// เวอร์ชัน stream — ส่งข้อความทีละชิ้นเข้า onDelta (SSE แบบ OpenAI)
+async function groqGenerateStream(prompt, onDelta) {
+  const r = await axios.post(GROQ_URL, {
+    model: GROQ_MODEL,
+    temperature: 0,
+    stream: true,
+    messages: [{ role: 'user', content: prompt }],
+  }, {
+    headers: { Authorization: `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+    responseType: 'stream',
+    timeout: 120000,
+  });
+  const decoder = new StringDecoder('utf8');
+  let buf = '';
+  await new Promise((resolve, reject) => {
+    // axios timeout ครอบแค่ช่วงขอ header — stream ที่เงียบค้างกลางทางต้องจับเวลาเอง
+    let idle = null;
+    const finish = (fn, arg) => { clearTimeout(idle); r.data.destroy(); fn(arg); };
+    const bump = () => {
+      clearTimeout(idle);
+      idle = setTimeout(() => finish(reject, new Error('Groq stream เงียบเกิน 60 วินาที')), 60000);
+    };
+    bump();
+    r.data.on('data', (chunk) => {
+      bump();
+      buf += decoder.write(chunk);
+      const lines = buf.split(String.fromCharCode(10));
+      buf = lines.pop();
+      for (const line of lines) {
+        const t = line.trim();
+        if (!t.startsWith('data:')) continue;
+        const payload = t.slice(5).trim();
+        if (!payload || payload === '[DONE]') continue;
+        try {
+          const d = JSON.parse(payload)?.choices?.[0]?.delta?.content;
+          if (d) onDelta(d);
+        } catch { /* keep-alive หรือ frame ไม่ครบ ข้ามได้ */ }
+      }
+    });
+    r.data.on('end', () => finish(resolve));
+    r.data.on('error', (e) => finish(reject, e));
+  });
+}
+
+// prompt → ข้อความ. parse ใช้แปลง/ตรวจคำตอบ (โยน error = ให้ไปลองอีกเจ้า)
+// geminiConfig คือ responseSchema ฝั่ง Gemini เท่านั้น — Groq อาศัย prompt + parse เอา
+async function aiGenerate(prompt, { parse = (t) => t, geminiConfig = null } = {}) {
+  let firstErr = null;
+  if (GROQ_API_KEY) {
+    try {
+      return { value: parse(await groqGenerate(prompt)), usedModel: GROQ_MODEL };
+    } catch (e) {
+      firstErr = e;
+      console.warn('AI: Groq ไม่สำเร็จ →', aiErrText(e),
+        process.env.GEMINI_API_KEY ? '(ลอง Gemini ต่อ)' : '(ไม่มี GEMINI_API_KEY ให้ fallback)');
+    }
+  }
+  if (!process.env.GEMINI_API_KEY) throw firstErr || new Error('ยังไม่ได้ตั้งค่า GROQ_API_KEY ใน .env');
+  try {
+    const model  = genAI.getGenerativeModel({ model: AI_MODEL, ...(geminiConfig || {}) });
+    const result = await model.generateContent(prompt);
+    const out = { value: parse(result.response.text()), usedModel: AI_MODEL };
+    if (firstErr) console.log('AI: fallback ไป Gemini สำเร็จ →', AI_MODEL);
+    return out;
+  } catch (e) {
+    throw new Error(`AI ไม่สำเร็จ — Groq: ${firstErr ? aiErrText(firstErr) : 'ไม่ได้ใช้'} | Gemini: ${aiErrText(e)}`);
+  }
+}
+
+// เวอร์ชัน stream — ถอยไป Gemini ได้เฉพาะตอนที่ยังไม่ส่งอะไรออกไป
+// (หลุดกลางคันแล้วเริ่มใหม่ = ผู้ใช้เห็นข้อความซ้ำ)
+async function aiGenerateStream(prompt, onDelta) {
+  let firstErr = null;
+  if (GROQ_API_KEY) {
+    let sent = 0;
+    try {
+      await groqGenerateStream(prompt, (t) => { sent++; onDelta(t); });
+      return GROQ_MODEL;
+    } catch (e) {
+      if (sent) throw new Error(`Groq หลุดกลางคัน: ${aiErrText(e)}`);
+      firstErr = e;
+      console.warn('AI stream: Groq ไม่สำเร็จ →', aiErrText(e),
+        process.env.GEMINI_API_KEY ? '(ลอง Gemini ต่อ)' : '(ไม่มี GEMINI_API_KEY ให้ fallback)');
+    }
+  }
+  if (!process.env.GEMINI_API_KEY) throw firstErr || new Error('ยังไม่ได้ตั้งค่า GROQ_API_KEY ใน .env');
+  try {
+    const model  = genAI.getGenerativeModel({ model: AI_MODEL });
+    const stream = await model.generateContentStream(prompt);
+    for await (const chunk of stream.stream) { const t = chunk.text(); if (t) onDelta(t); }
+    if (firstErr) console.log('AI stream: fallback ไป Gemini สำเร็จ →', AI_MODEL);
+    return AI_MODEL;
+  } catch (e) {
+    throw new Error(`AI ไม่สำเร็จ — Groq: ${firstErr ? aiErrText(firstErr) : 'ไม่ได้ใช้'} | Gemini: ${aiErrText(e)}`);
+  }
+}
+
 
 // ── File upload config ────────────────────────────────────
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
@@ -3275,9 +3408,8 @@ ${context}
 
 ตอบเป็นภาษาไทย กระชับ อ่านง่าย ไม่เกิน 200 คำ`;
 
-    const model  = genAI.getGenerativeModel({ model: AI_MODEL });
-    const result = await model.generateContent(prompt);
-    res.json({ summary: result.response.text() });
+    const { value } = await aiGenerate(prompt);
+    res.json({ summary: value });
   } catch (e) {
     console.error('AI summary error:', e.message);
     res.status(500).json({ error: e.message });
@@ -3322,11 +3454,8 @@ ${JSON.stringify(approvedLeaves, null, 2)}
 ตอบเป็น JSON array เท่านั้น:
 [{"employee_id": 1, "shift_date": "YYYY-MM-DD", "shift_type": "morning|afternoon|night"}]`;
 
-    const model  = genAI.getGenerativeModel({ model: AI_MODEL });
-    const result = await model.generateContent(prompt);
-    let text = result.response.text().trim()
-      .replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
-    res.json({ suggestions: JSON.parse(text), week_start: startDate, end_date: endDate });
+    const { value: suggestions } = await aiGenerate(prompt, { parse: parseJsonArrayReply });
+    res.json({ suggestions, week_start: startDate, end_date: endDate });
   } catch (e) {
     console.error('AI shift error:', e.message);
     res.status(500).json({ error: e.message });
@@ -3359,9 +3488,8 @@ ${JSON.stringify(history, null, 2)}
 
 ตอบเป็นภาษาไทย ชัดเจน มีข้อมูลเชิงตัวเลขสนับสนุน`;
 
-    const model  = genAI.getGenerativeModel({ model: AI_MODEL });
-    const result = await model.generateContent(prompt);
-    res.json({ analysis: result.response.text() });
+    const { value } = await aiGenerate(prompt);
+    res.json({ analysis: value });
   } catch (e) {
     console.error('AI forecast error:', e.message);
     res.status(500).json({ error: e.message });
@@ -3370,7 +3498,7 @@ ${JSON.stringify(history, null, 2)}
 
 // ══════════════════════════════════════════════════════════
 //  EMPLOYEE SCHEDULE SUMMARY
-//  Google Calendar (public) → Gemini parse+map → per-team summary
+//  Google Calendar (public) → AI parse+map (Groq/Gemini) → per-team summary
 //  Per-day, cached to a JSON file (no production DB writes).
 // ══════════════════════════════════════════════════════════
 const GCAL_API_KEY     = process.env.GCAL_API_KEY || '';
@@ -3380,54 +3508,6 @@ const empcalCachePath  = (date) => path.join(EMPCAL_CACHE_DIR, `${date}.json`);
 const bangkokToday     = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }); // YYYY-MM-DD
 // Teams whose calendar entries are reliable enough to drive the Dashboard "on-shift now" card
 const EMPCAL_ONSHIFT_TEAMS = ['specialist', 'helpdesk_bkk', 'helpdesk_cnx'];
-
-// Pull the JSON array out of an LLM reply — slicing [ … ] also strips code fences and stray prose
-function parseJsonArrayReply(text) {
-  const t = String(text || '').trim();
-  const a = t.indexOf('['), b = t.lastIndexOf(']');
-  if (a === -1 || b <= a) throw new Error('AI ไม่ได้ตอบกลับเป็น JSON array');
-  return JSON.parse(t.slice(a, b + 1));
-}
-
-// Groq chat-completions (OpenAI-compatible) — same prompt, plain axios, no extra package
-async function groqGenerate(prompt) {
-  const r = await axios.post(GROQ_URL, {
-    model: GROQ_MODEL,
-    temperature: 0,
-    messages: [{ role: 'user', content: prompt }],
-  }, {
-    headers: { Authorization: `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-    timeout: 60000,
-  });
-  return r.data?.choices?.[0]?.message?.content || '';
-}
-
-// Groq is the primary parser for the employee schedule; Gemini stays as the backup
-// for when Groq is down or rate-limited. Reports the model that actually produced the
-// result so the cached payload stays honest.
-async function empcalParseWithAI(prompt) {
-  let firstErr = null;
-  if (GROQ_API_KEY) {
-    try {
-      return { events: parseJsonArrayReply(await groqGenerate(prompt)), usedModel: GROQ_MODEL };
-    } catch (e) {
-      firstErr = e;
-      const detail = e.response?.data?.error?.message || e.message;
-      console.warn('empcal: Groq ไม่สำเร็จ →', detail, process.env.GEMINI_API_KEY ? '(ลอง Gemini ต่อ)' : '(ไม่มี GEMINI_API_KEY ให้ fallback)');
-    }
-  }
-  if (!process.env.GEMINI_API_KEY) throw firstErr || new Error('ยังไม่ได้ตั้งค่า GROQ_API_KEY ใน .env');
-  try {
-    const model  = genAI.getGenerativeModel({ model: AI_MODEL });
-    const result = await model.generateContent(prompt);
-    const out = { events: parseJsonArrayReply(result.response.text()), usedModel: AI_MODEL };
-    if (firstErr) console.log('empcal: fallback ไป Gemini สำเร็จ →', AI_MODEL);
-    return out;
-  } catch (e) {
-    const first = firstErr ? (firstErr.response?.data?.error?.message || firstErr.message) : 'ไม่ได้ใช้';
-    throw new Error(`AI แปลงปฏิทินไม่สำเร็จ — Groq: ${first} | Gemini: ${e.message}`);
-  }
-}
 
 async function computeEmpcalSummary(date, refresh) {
     if (!GCAL_API_KEY) { const e = new Error('ยังไม่ได้ตั้งค่า GCAL_API_KEY ใน .env — สร้าง API key ที่ Google Cloud Console แล้วใส่ใน .env'); e.status = 503; throw e; }
@@ -3512,7 +3592,7 @@ ${JSON.stringify(rawEvents)}
 - ไม่มั่นใจว่าเป็นใคร → emp_id=null (ห้ามเดามั่ว)
 - คืน JSON array อย่างเดียว ห้ามมีข้อความอื่น`;
 
-    const { events, usedModel } = await empcalParseWithAI(prompt);
+    const { value: events, usedModel } = await aiGenerate(prompt, { parse: parseJsonArrayReply });
 
     // 4) Aggregate per team + collect unmatched as "unknown"
     const teamAgg = {};  // team -> emp_id -> { emp_id, nickname, items[] }
@@ -6196,7 +6276,7 @@ const triageClean = (v, allowed, fallback) => {
 // Classify one batch of not-yet-triaged messages. Focus: unanswered + most recent first.
 // Returns { classified, scanned, hasKey, error? }.
 async function classifyTriageBatch(batchSize = 30) {
-  if (!process.env.GEMINI_API_KEY) return { classified: 0, scanned: 0, hasKey: false };
+  if (!GROQ_API_KEY && !process.env.GEMINI_API_KEY) return { classified: 0, scanned: 0, hasKey: false };
   const lb = getLineBotPool();
   if (!lb) return { classified: 0, scanned: 0, hasKey: true, error: 'LineBotMonitor DB ไม่ได้เชื่อมต่อ' };
 
@@ -6245,8 +6325,8 @@ async function classifyTriageBatch(batchSize = 30) {
 ข้อความ:
 ${list}`;
 
-  const model = genAI.getGenerativeModel({
-    model: AI_MODEL,
+  // Gemini บังคับรูปแบบด้วย responseSchema ได้; Groq อาศัย prompt + parseJsonArrayReply แทน
+  const geminiConfig = {
     generationConfig: {
       responseMimeType: 'application/json',
       responseSchema: {
@@ -6265,14 +6345,11 @@ ${list}`;
         },
       },
     },
-  });
+  };
 
-  let arr;
+  let arr, usedModel;
   try {
-    const result = await model.generateContent(prompt);
-    const text = result.response.text().trim()
-      .replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
-    arr = JSON.parse(text);
+    ({ value: arr, usedModel } = await aiGenerate(prompt, { parse: parseJsonArrayReply, geminiConfig }));
   } catch (e) {
     console.error('triage: AI/parse failed:', e.message);
     return { classified: 0, scanned: cand.length, hasKey: true, error: 'AI คัดกรองไม่สำเร็จ: ' + e.message };
@@ -6300,7 +6377,7 @@ ${list}`;
         .input('pri',  sql.NVarChar, triageClean(o.priority, TRIAGE_PRIORITIES, 'normal'))
         .input('sum',  sql.NVarChar, String(o.summary || '').slice(0, 480))
         .input('na',   sql.Bit, needsAction)
-        .input('model', sql.NVarChar, AI_MODEL)
+        .input('model', sql.NVarChar, usedModel)
         .query(`
           IF NOT EXISTS (SELECT 1 FROM line_msg_triage WHERE source_msg_id=@sid)
           INSERT INTO line_msg_triage
@@ -6355,7 +6432,7 @@ function buildTriageFilter(query, r) {
 app.post('/api/triage/classify', authRequired, async (request, res) => {
   try {
     const r = await classifyTriageBatch(request.body?.limit || 30);
-    if (!r.hasKey) return res.status(503).json({ error: 'GEMINI_API_KEY ยังไม่ได้ตั้งค่าใน .env' });
+    if (!r.hasKey) return res.status(503).json({ error: 'ยังไม่ได้ตั้งค่า GROQ_API_KEY หรือ GEMINI_API_KEY ใน .env' });
     if (r.error)  return res.status(502).json({ error: r.error });
     res.json({ ok: true, ...r });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -6746,7 +6823,7 @@ async function fetchTriageTails() {
 // aiCalls=false → ใช้แต่ผลที่ประเมินไว้แล้ว ไม่เรียก Gemini (สำหรับ preview ให้ตอบเร็ว)
 async function aiScreenTriage(items, { aiCalls = true } = {}) {
   const out = { skip: new Set(), verdicts: [], checked: 0, cached: 0, pending: 0, error: null };
-  if (!TRIAGE_SCREEN_ON || !process.env.GEMINI_API_KEY) return out;
+  if (!TRIAGE_SCREEN_ON || (!GROQ_API_KEY && !process.env.GEMINI_API_KEY)) return out;
 
   let tails;
   try { tails = await fetchTriageTails(); }
@@ -6819,8 +6896,8 @@ async function aiScreenTriage(items, { aiCalls = true } = {}) {
 รายการ:
 ${list}`;
 
-  const model = genAI.getGenerativeModel({
-    model: AI_MODEL,
+  // Gemini บังคับรูปแบบด้วย responseSchema ได้; Groq อาศัย prompt + parseJsonArrayReply แทน
+  const geminiConfig = {
     generationConfig: {
       responseMimeType: 'application/json',
       responseSchema: {
@@ -6837,14 +6914,11 @@ ${list}`;
         },
       },
     },
-  });
+  };
 
   let arr;
   try {
-    const result = await model.generateContent(prompt);
-    const text = result.response.text().trim()
-      .replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
-    arr = JSON.parse(text);
+    ({ value: arr } = await aiGenerate(prompt, { parse: parseJsonArrayReply, geminiConfig }));
   } catch (e) {
     // AI ล่ม → ไม่กรองอะไรเลย ปล่อยให้แจ้งเตือนตามปกติ (ปลอดภัยกว่าเงียบ)
     console.error('triage screen: AI failed:', e.message);
@@ -6945,7 +7019,7 @@ async function buildTriageAlert({ aiCalls = true } = {}) {
     ...all, items,
     pods: [...podMap.values()].sort((a, b) => b.count - a.count),
     screen: {
-      on: TRIAGE_SCREEN_ON && !!process.env.GEMINI_API_KEY,
+      on: TRIAGE_SCREEN_ON && (!!GROQ_API_KEY || !!process.env.GEMINI_API_KEY),
       filtered: screen.verdicts.length,
       checked: screen.checked, cached: screen.cached, pending: screen.pending,
       error: screen.error,
@@ -7623,8 +7697,8 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
 //  AI ANALYSIS — SSE streaming (real-time situation analysis)
 // ══════════════════════════════════════════════════════════
 app.get('/api/ai-analysis', authRequired, async (request, res) => {
-  if (!process.env.GEMINI_API_KEY) {
-    return res.status(503).json({ error: 'GEMINI_API_KEY ยังไม่ได้ตั้งค่าใน .env' });
+  if (!GROQ_API_KEY && !process.env.GEMINI_API_KEY) {
+    return res.status(503).json({ error: 'ยังไม่ได้ตั้งค่า GROQ_API_KEY หรือ GEMINI_API_KEY ใน .env' });
   }
 
   // ── SSE headers
@@ -7801,13 +7875,7 @@ ${JSON.stringify(snap, null, 2)}
 
     send('start', { message: 'กำลังส่งข้อมูลให้ AI วิเคราะห์...' });
 
-    const model  = genAI.getGenerativeModel({ model: AI_MODEL });
-    const stream = await model.generateContentStream(prompt);
-
-    for await (const chunk of stream.stream) {
-      const text = chunk.text();
-      if (text) send('delta', { text });
-    }
+    await aiGenerateStream(prompt, (text) => send('delta', { text }));
 
     send('done', { inputTokens: 0, outputTokens: 0 });
 
