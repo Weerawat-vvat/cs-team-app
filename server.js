@@ -7559,7 +7559,8 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
     let scope = await getScopedUsernames(request.user);
     if (scope === null) {
       return res.json({ catStats:[], agentThis:[], agentLast:[], agentCat:[],
-                        dailyTrend:[], hourlyStats:[], dowStats:[], catDailyTrend:[], nameMap:{} });
+                        dailyTrend:[], hourlyStats:[], dowStats:[], catDailyTrend:[],
+                        channelStats:[], nameMap:{} });
     }
     if (team) {
       const teamRows = (await req().input('tm', sql.NVarChar, team).query(
@@ -7592,8 +7593,9 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
     const r11 = extReq()
       .input('ms', sql.DateTime, prevFromDate)
       .input('me', sql.DateTime, prevToDate); const sc11 = appendScopeClause(r11, scope);
+    const r12 = mkR(msDate, meDate);  const sc12 = appendScopeClause(r12, scope);
 
-    const [d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11] = await Promise.all([
+    const [d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12] = await Promise.all([
       // Daily trend
       r1.query(`SELECT CAST(cl.ReceiveDate AS DATE) AS day, COUNT(*) AS cnt
         FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
@@ -7655,6 +7657,17 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
         INNER JOIN CallStatus cs ON cs.StatusId = cl.StatusId
         WHERE cl.Active=1 AND cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me
           AND (cs.StatusName LIKE '%close%' OR cs.StatusName LIKE '%ปิด%' OR cs.StatusName LIKE '%complete%')${sc11}`),
+      // ช่องทางที่ลูกค้าติดต่อเข้ามา (Calllog.InformType)
+      // ข้อมูลเก่ามีค่าว่างและ '[EditValue is null]' ปนอยู่ — รวมเป็น 'ไม่ระบุ' ทั้งคู่
+      r12.query(`SELECT
+          CASE WHEN LTRIM(RTRIM(ISNULL(cl.InformType,''))) IN ('', '[EditValue is null]')
+               THEN N'ไม่ระบุ' ELSE LTRIM(RTRIM(cl.InformType)) END AS channel,
+          COUNT(*) AS cnt
+        FROM Calllog cl INNER JOIN Users u ON u.UserId = cl.SupportId
+        WHERE cl.Active=1 AND cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me${sc12}
+        GROUP BY CASE WHEN LTRIM(RTRIM(ISNULL(cl.InformType,''))) IN ('', '[EditValue is null]')
+                      THEN N'ไม่ระบุ' ELSE LTRIM(RTRIM(cl.InformType)) END
+        ORDER BY cnt DESC`),
     ]);
 
     // Build ext_username → display name + id → { name, ext_username } maps
@@ -7681,6 +7694,7 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
       catDailyTrend: d8.recordset,
       closedThis:      d9.recordset[0]?.cnt || 0,
       hourlyAgentGrid: d10.recordset,
+      channelStats:    d12.recordset,
       closedLast:      d11.recordset[0]?.cnt || 0,
       nameMap, nameMapById,
       daysThis,

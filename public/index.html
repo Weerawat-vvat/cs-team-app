@@ -751,6 +751,19 @@ textarea{resize:vertical;min-height:80px}
     </div>
   </div>
 
+  <!-- ── ช่องทางที่ลูกค้าติดต่อเข้ามา ── -->
+  <div class="card" style="margin-bottom:.75rem">
+    <div class="card-title">📞 ช่องทางที่ลูกค้าติดต่อเข้ามา
+      <span id="ch-summary" style="font-size:.72rem;font-weight:400;color:var(--muted);margin-left:.5rem"></span>
+    </div>
+    <div style="display:flex;gap:1.2rem;align-items:center;flex-wrap:wrap">
+      <div style="position:relative;width:180px;height:180px;flex:0 0 auto"><canvas id="chart-channel"></canvas></div>
+      <div id="ch-breakdown" style="flex:1 1 280px;display:flex;flex-direction:column;gap:.55rem">
+        <div style="color:var(--muted);font-size:.82rem">กำลังโหลด...</div>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Leaves ── -->
   <div class="card" style="margin-bottom:.75rem">
     <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
@@ -3579,6 +3592,11 @@ textarea{resize:vertical;min-height:80px}
         <input id="tr-search" placeholder="🔍 ค้นข้อความ/กลุ่ม..." onkeydown="if(event.key==='Enter')loadTriage()" style="flex:1;min-width:160px"/>
       </div>
       <div id="tr-pod-filter" style="display:flex;gap:.35rem;flex-wrap:wrap;align-items:center;margin-bottom:.6rem"></div>
+      <div style="display:flex;align-items:center;justify-content:flex-end;gap:.5rem;margin-bottom:.55rem">
+        <button class="btn btn-sm btn-ghost" onclick="triagePage(-1)" style="padding:.1rem .55rem">‹</button>
+        <span id="tr-pageinfo" style="font-size:.74rem;color:var(--muted);min-width:120px;text-align:center"></span>
+        <button class="btn btn-sm btn-ghost" onclick="triagePage(1)" style="padding:.1rem .55rem">›</button>
+      </div>
       <div class="tbl-wrap">
         <table>
           <thead><tr>
@@ -3590,11 +3608,6 @@ textarea{resize:vertical;min-height:80px}
           </tr></thead>
           <tbody id="tr-tbody"><tr><td colspan="5" class="empty">— เลือกแท็บนี้เพื่อโหลด —</td></tr></tbody>
         </table>
-      </div>
-      <div style="display:flex;align-items:center;justify-content:flex-end;gap:.5rem;margin-top:.55rem">
-        <button class="btn btn-sm btn-ghost" onclick="triagePage(-1)" style="padding:.1rem .55rem">‹</button>
-        <span id="tr-pageinfo" style="font-size:.74rem;color:var(--muted);min-width:120px;text-align:center"></span>
-        <button class="btn btn-sm btn-ghost" onclick="triagePage(1)" style="padding:.1rem .55rem">›</button>
       </div>
     </div>
 
@@ -6861,7 +6874,83 @@ function fuGoToIssue(boardId, issueId, folderId) {
   setTimeout(tryClick, 300);
 }
 
-const dashCharts = { donut: null, bar: null, scatter: null, trend: null, dow: null, peak: null, catTrend: null };
+const dashCharts = { donut: null, bar: null, scatter: null, trend: null, dow: null, peak: null, catTrend: null, channel: null };
+
+// ── ช่องทางที่ลูกค้าติดต่อเข้ามา (Calllog.InformType) ──────
+// ค่าที่ระบบบันทึกไว้: Phone / Line / Email / Walk-in / Remote / Other
+// ข้อมูลเก่าบางส่วนไม่มีค่า — ฝั่ง API รวมให้เป็น "ไม่ระบุ" มาแล้ว
+const CHANNEL_META = {
+  'line':    { label: 'LINE',     icon: '💬', color: '#06c755' },
+  'phone':   { label: 'โทรศัพท์',  icon: '📞', color: '#3b82f6' },
+  'email':   { label: 'อีเมล',     icon: '📧', color: '#f59e0b' },
+  'remote':  { label: 'รีโมท',     icon: '🖥️', color: '#8b5cf6' },
+  'walk-in': { label: 'Walk-in',   icon: '🚶', color: '#ec4899' },
+  'other':   { label: 'อื่นๆ',      icon: '📌', color: '#64748b' },
+};
+const channelMeta = (raw) => CHANNEL_META[String(raw || '').trim().toLowerCase()]
+  || { label: String(raw || 'ไม่ระบุ'), icon: '❔', color: '#cbd5e1' };
+
+function renderChannelCard(rows, from, to) {
+  const box = document.getElementById('ch-breakdown');
+  const sum = document.getElementById('ch-summary');
+  const ctx = document.getElementById('chart-channel');
+  if (!box || !ctx) return;
+  if (dashCharts.channel) { dashCharts.channel.destroy(); dashCharts.channel = null; }
+
+  const data  = (rows || []).filter(r => (r.cnt || 0) > 0);
+  const total = data.reduce((s, r) => s + r.cnt, 0);
+  // บอกช่วงวันที่ที่กรองอยู่ไว้บนหัวการ์ด จะได้ไม่ต้องเดาว่าตัวเลขมาจากช่วงไหน
+  const range = (from && to)
+    ? (from === to ? fmtDate(from) : `${fmtDateShort(from)} – ${fmtDate(to)}`)
+    : '';
+  if (sum) sum.textContent = total
+    ? `รวม ${total.toLocaleString()} เคส` + (range ? ` · ${range}` : '')
+    : range;
+  if (!total) {
+    box.innerHTML = '<div style="color:var(--muted);font-size:.82rem">ไม่มีข้อมูลในช่วงที่เลือก</div>';
+    return;
+  }
+
+  const items = data.map(r => {
+    const m = channelMeta(r.channel);
+    return { ...m, cnt: r.cnt, pct: r.cnt / total * 100 };
+  });
+
+  box.innerHTML = items.map(it => `
+    <div style="display:flex;align-items:center;gap:.6rem">
+      <span style="flex:0 0 7.5rem;font-size:.83rem;display:flex;align-items:center;gap:.35rem">
+        <span>${it.icon}</span>${it.label}
+      </span>
+      <div style="flex:1;min-width:60px;height:8px;background:#f1f5f9;border-radius:99px;overflow:hidden">
+        <div style="width:${it.pct.toFixed(1)}%;height:100%;background:${it.color};border-radius:99px"></div>
+      </div>
+      <span style="flex:0 0 6.5rem;font-size:.82rem;font-weight:700;text-align:right">
+        ${it.cnt.toLocaleString()}<span style="color:var(--muted);font-weight:400"> (${it.pct.toFixed(1)}%)</span>
+      </span>
+    </div>`).join('');
+
+  dashCharts.channel = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: items.map(i => i.label),
+      datasets: [{
+        data: items.map(i => i.cnt),
+        backgroundColor: items.map(i => i.color),
+        borderWidth: 2, borderColor: '#fff'
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '58%',
+      plugins: {
+        legend: { display: false },   // มีรายละเอียดครบอยู่ในแถบด้านขวาแล้ว
+        tooltip: { callbacks: {
+          label: c => ` ${c.label}: ${c.raw.toLocaleString()} (${(c.raw / total * 100).toFixed(1)}%)`
+        } }
+      }
+    }
+  });
+}
+
 
 async function loadDashboardCharts() {
   let data;
@@ -6878,7 +6967,7 @@ async function loadDashboardCharts() {
 
   const { catStats = [], agentThis = [], agentLast = [], agentCat = [],
           dailyTrend = [], hourlyStats = [], dowStats = [], catDailyTrend = [],
-          closedThis = 0, closedLast = 0, hourlyAgentGrid = [],
+          closedThis = 0, closedLast = 0, hourlyAgentGrid = [], channelStats = [],
           daysThis = 30, daysPrev = 30,
           thisFrom = '', thisTo = '', prevFrom = '', prevTo = '' } = data;
 
@@ -6944,6 +7033,8 @@ async function loadDashboardCharts() {
   const lastMap = Object.fromEntries(agentLast.map(r => [r.UserName, r.cnt || 0]));
   const thisMap = Object.fromEntries(agentThis.map(r => [r.UserName, r.cnt || 0]));
   const agentNames = agentThis.map(r => r.UserName);
+
+  renderChannelCard(channelStats, thisFrom, thisTo);
 
   // ── 1. Category Donut ────────────────────────────────────
   if (dashCharts.donut) { dashCharts.donut.destroy(); dashCharts.donut = null; }
