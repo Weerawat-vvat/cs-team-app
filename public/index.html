@@ -6435,7 +6435,7 @@ function renderImplTable() {
         <td style="font-size:.8rem">${esc(shop)}</td>
         <td style="font-size:.8rem;${late ? 'color:#dc2626;font-weight:700' : ''}">${wd}${late ? ' ⚠️' : ''}</td>
         <td>${implChip(implMeta(IMPL_PRIORITY_META, r.priority, 'ปกติ'))}</td>
-        <td>${implChip(implMeta(IMPL_STATUS_META, r.status, '—'))}</td>
+        <td>${implStatusSelect(r)}</td>
         <td>${implAssigneeSelect(r)}</td>
         <td style="font-size:.8rem">${esc(r.creator_name || '—')}</td>
         <td>${implActionBtns(r)}</td>
@@ -6463,16 +6463,23 @@ function implAssigneeSelect(r) {
     style="font-size:.76rem;padding:2px 4px;max-width:120px;${done ? 'opacity:.6' : ''}">${opts}</select>`;
 }
 
+// เลือกสถานะได้ทุกอันไม่ว่าจะเดินหน้าหรือย้อนกลับ — งานจริงมีทั้งรับผิดคนแล้วต้องคืน
+// และปิดไปแล้วต้องเปิดกลับ
+function implStatusSelect(r) {
+  const m = implMeta(IMPL_STATUS_META, r.status, '—');
+  const opts = Object.entries(IMPL_STATUS_META).map(([k, v]) =>
+    `<option value="${k}"${k === r.status ? ' selected' : ''}>${v.label}</option>`).join('');
+  return `<select onclick="event.stopPropagation()" onchange="implSetStatus(${r.id}, this.value, this)"
+    title="เปลี่ยนสถานะ (ย้อนกลับได้)"
+    style="font-size:.74rem;font-weight:700;padding:2px 4px;border-radius:6px;cursor:pointer;
+           background:${m.bg};color:${m.fg};border:1px solid ${m.fg}33">${opts}</select>`;
+}
+
+// ปุ่มลัดอย่างเดียวที่ dropdown ทำแทนไม่ได้ — รับงานที่ยังไม่มีเจ้าภาพมาเป็นของตัวเอง
 function implActionBtns(r) {
-  const btn = (label, fn, style) =>
-    `<button class="btn btn-sm" onclick="event.stopPropagation();${fn}" style="padding:2px 9px;font-size:.7rem;white-space:nowrap;${style}">${label}</button>`;
-  if (r.status === 'pending') {
-    // ปุ่มเดียวจบ: รับเป็นของตัวเอง + ขยับสถานะเป็นรับเรื่องแล้ว
-    return btn('📥 รับเรื่อง', `implTakeJob(${r.id})`, 'background:#0369a1;color:#fff');
-  }
-  if (r.status === 'accepted')    return btn('🔧 เริ่มทำ', `implSetStatus(${r.id},'in_progress')`, 'background:#1d4ed8;color:#fff');
-  if (r.status === 'in_progress') return btn('✅ เสร็จ',   `implSetStatus(${r.id},'done')`,        'background:#16a34a;color:#fff');
-  return btn('↩ เปิดใหม่', `implSetStatus(${r.id},'in_progress')`, 'background:#f1f5f9;color:#334155');
+  if (r.assigned_to || r.status === 'done' || r.status === 'cancelled') return '';
+  return `<button class="btn btn-sm" onclick="event.stopPropagation();implTakeJob(${r.id})"
+    style="padding:2px 9px;font-size:.7rem;white-space:nowrap;background:#0369a1;color:#fff">📥 รับเอง</button>`;
 }
 
 async function implPatch(id, body, okMsg) {
@@ -6493,8 +6500,12 @@ function implSetAssignee(id, val, status) {
   implPatch(id, body, assigned_to ? 'มอบหมายแล้ว' : 'ล้างผู้รับผิดชอบแล้ว');
 }
 
-function implSetStatus(id, status) {
-  if (status === 'done' && !confirm('ปิดงานนี้เป็น "เสร็จสิ้น"? ระบบจะแจ้งเข้ากลุ่ม LINE')) return;
+function implSetStatus(id, status, el) {
+  // ถามก่อนเฉพาะตอนปิดงาน เพราะจังหวะนี้จะยิงแจ้งเข้ากลุ่ม LINE
+  if (status === 'done' && !confirm('ปิดงานนี้เป็น "เสร็จสิ้น"? ระบบจะแจ้งเข้ากลุ่ม LINE')) {
+    renderImplTable();          // กดยกเลิก → คืน dropdown เป็นค่าเดิม
+    return;
+  }
   implPatch(id, { status }, 'อัปเดตสถานะแล้ว');
 }
 
