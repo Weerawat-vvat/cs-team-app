@@ -5131,6 +5131,12 @@ app.get('/api/sw-update/badge', authRequired, async (request, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// งานอัพเดท SW เดิมไม่มีแจ้งเตือน LINE เลย — เพิ่ม event 'sw_update' ให้ตั้งกลุ่มปลายทางได้
+const SWU_PRIORITY_TH = { urgent: '⚠️ เร่งด่วน', high: 'สูง', normal: 'ปกติ', low: 'ต่ำ' };
+const swuThaiDate = (d) => d
+  ? new Date(d).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })
+  : '';
+
 // GET /api/sw-update
 app.get('/api/sw-update', authRequired, async (request, res) => {
   try {
@@ -5202,7 +5208,24 @@ app.post('/api/sw-update', authRequired, async (request, res) => {
          reported_by,fu_issue_id,created_by)
         OUTPUT INSERTED.id
         VALUES(@rid,@cn,@rd,@ad,@pr,@st,@desc,@azid,@ver,@rb,@fuid,@cb)`);
-    res.json({ id: result.recordset[0].id });
+    const newId = result.recordset[0].id;
+
+    try {
+      const uname = request.user.nickname || request.user.name || request.user.username || '—';
+      const detail = String(b.description || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+      const ap = swuThaiDate(b.appointment_date);
+      await sendLineNotify(
+        `\n💿[แจ้งงานอัพเดท SW] #${newId}` +
+        (b.company_name ? `\nร้าน: ${b.company_name}` : '') +
+        (detail ? `\nรายละเอียด: ${detail}` : '') +
+        (b.version_recommend ? `\nเวอร์ชันที่แนะนำ: ${b.version_recommend}` : '') +
+        (ap ? `\nนัดหมาย: ${ap}` : '') +
+        (b.priority && b.priority !== 'normal' ? `\nความสำคัญ: ${SWU_PRIORITY_TH[b.priority] || b.priority}` : '') +
+        (b.azure_id ? `\nAzure: ${b.azure_id}` : '') +
+        `\nผู้แจ้ง: ${uname}`, 'sw_update');
+    } catch (e) { console.warn('sw_update line notify failed:', e.message); }
+
+    res.json({ id: newId });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -5213,7 +5236,7 @@ app.put('/api/sw-update/:id', authRequired, async (request, res) => {
     const b  = request.body;
     // Fetch fu_issue_id before update (stored at creation)
     const cur = (await req().input('id', sql.Int, id)
-      .query('SELECT fu_issue_id FROM sw_update_jobs WHERE id=@id')).recordset[0];
+      .query('SELECT * FROM sw_update_jobs WHERE id=@id')).recordset[0];
     await req()
       .input('id',   sql.Int,      id)
       .input('rid',  sql.Int,      b.registration_id   || null)
@@ -5253,6 +5276,18 @@ app.put('/api/sw-update/:id', authRequired, async (request, res) => {
           .query(`UPDATE fu_issues SET status='resolved', updated_at=GETDATE()
                   WHERE id=@fuid AND status NOT IN ('resolved','cancelled')`);
       } catch(e) { console.warn('fu auto-resolve failed:', e.message); }
+    }
+    // แจ้งกลุ่มเฉพาะจังหวะที่เพิ่งเปลี่ยนเป็นเสร็จ ไม่ใช่ทุกครั้งที่กดบันทึก
+    if (b.status === 'done' && cur && cur.status !== 'done') {
+      try {
+        const uname = request.user.nickname || request.user.name || request.user.username || '—';
+        const company = b.company_name || cur.company_name;
+        await sendLineNotify(
+          `\n✅[อัพเดท SW เสร็จแล้ว] #${id}` +
+          (company ? `\nร้าน: ${company}` : '') +
+          ((b.version_recommend || cur.version_recommend) ? `\nเวอร์ชัน: ${b.version_recommend || cur.version_recommend}` : '') +
+          `\nปิดงานโดย: ${uname}`, 'sw_update');
+      } catch (e) { console.warn('sw_update done notify failed:', e.message); }
     }
     res.json({ ok: true, fu_issue_id: cur?.fu_issue_id || null });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -5317,6 +5352,7 @@ async function ensureImplRequestTables() {
         contact_tel  NVARCHAR(100) NULL,
         contact_note NVARCHAR(255) NULL,
         want_date    DATE          NULL,
+        appointment_date DATE      NULL,
         priority     NVARCHAR(20)  DEFAULT 'normal',
         status       NVARCHAR(30)  DEFAULT 'pending',
         assigned_to  INT           NULL,
@@ -5332,6 +5368,7 @@ async function ensureImplRequestTables() {
       ['contact_name', 'NVARCHAR(200)'],
       ['contact_tel',  'NVARCHAR(100)'],
       ['contact_note', 'NVARCHAR(255)'],
+      ['appointment_date', 'DATE'],
     ]) {
       await req().query(
         `IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('impl_requests') AND name='${col[0]}')
@@ -5347,6 +5384,15 @@ async function ensureImplRequestTables() {
         size_bytes  INT NULL,
         uploaded_by INT NULL,
         uploaded_at DATETIME DEFAULT GETDATE()
+      )`);
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='impl_request_comments' AND xtype='U')
+      CREATE TABLE impl_request_comments (
+        id         INT PRIMARY KEY IDENTITY,
+        request_id INT NOT NULL,
+        body       NVARCHAR(MAX) NOT NULL,
+        created_by INT NULL,
+        created_at DATETIME DEFAULT GETDATE()
       )`);
     console.log('✅ impl_requests tables ready');
   } catch (e) { console.error('❌ impl_requests table error:', e.message); }
@@ -5378,7 +5424,8 @@ app.get('/api/impl-requests', authRequired, async (request, res) => {
     const { status, type, q } = request.query;
     let where = ' WHERE 1=1';
     const r = req();
-    if (status === 'open')       where += ` AND r.status IN ('pending','accepted','in_progress')`;
+    // รวม cancelled ไว้ด้วย — ยกเลิกแล้วต้องยังเห็นว่ายกเลิก ไม่ใช่หายไปเลย
+    if (status === 'open')       where += ` AND r.status IN ('pending','accepted','in_progress','cancelled')`;
     else if (status)             { where += ' AND r.status=@st'; r.input('st', sql.NVarChar, status); }
     if (type)                    { where += ' AND r.req_type=@tp'; r.input('tp', sql.NVarChar, type); }
     if (q) {
@@ -5407,6 +5454,39 @@ app.delete('/api/impl-requests/files/:fileId', authRequired, async (request, res
 });
 
 // GET /api/impl-requests/:id — พร้อมไฟล์แนบ
+app.delete('/api/impl-requests/comments/:commentId', authRequired, async (request, res) => {
+  try {
+    const cid = parseInt(request.params.commentId);
+    const c = (await req().input('cid', sql.Int, cid)
+      .query('SELECT * FROM impl_request_comments WHERE id=@cid')).recordset[0];
+    if (!c) return res.status(404).json({ error: 'ไม่พบข้อความนี้' });
+    // ลบได้เฉพาะเจ้าของข้อความ หรือผู้จัดการ
+    const isOwner = c.created_by === request.user.id;
+    if (!isOwner && !['manager', 'admin'].includes(request.user.role)) {
+      return res.status(403).json({ error: 'ลบได้เฉพาะข้อความของตัวเอง' });
+    }
+    await req().input('cid', sql.Int, cid).query('DELETE FROM impl_request_comments WHERE id=@cid');
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/impl-requests/:id/comments', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const body = String(request.body?.body || '').trim();
+    if (!body) return res.status(400).json({ error: 'กรุณาพิมพ์ข้อความ' });
+    const row = (await req()
+      .input('rid', sql.Int, id)
+      .input('bd',  sql.NVarChar, body)
+      .input('cb',  sql.Int, request.user.id)
+      .query(`INSERT INTO impl_request_comments (request_id, body, created_by)
+              OUTPUT INSERTED.id, INSERTED.created_at VALUES (@rid,@bd,@cb)`)).recordset[0];
+    // มีคนคุยในเรื่องนี้ = เรื่องยังเดินอยู่ ขยับ updated_at ให้ด้วย
+    await req().input('id', sql.Int, id).query('UPDATE impl_requests SET updated_at=GETDATE() WHERE id=@id');
+    res.json({ id: row.id, created_at: row.created_at });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/impl-requests/:id', authRequired, async (request, res) => {
   try {
     const id = parseInt(request.params.id);
@@ -5419,6 +5499,13 @@ app.get('/api/impl-requests/:id', authRequired, async (request, res) => {
        LEFT JOIN app_users au ON au.id = f.uploaded_by
        LEFT JOIN employees e  ON e.id  = au.employee_id
        WHERE f.request_id=@rid ORDER BY f.uploaded_at`)).recordset;
+    row.comments = (await req().input('rid2', sql.Int, id).query(
+      `SELECT c.id, c.body, c.created_at,
+              ISNULL(e.nickname, e.name) AS author_name, c.created_by
+       FROM impl_request_comments c
+       LEFT JOIN app_users au ON au.id = c.created_by
+       LEFT JOIN employees e  ON e.id  = au.employee_id
+       WHERE c.request_id=@rid2 ORDER BY c.created_at`)).recordset;
     res.json(row);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -5441,13 +5528,14 @@ app.post('/api/impl-requests', authRequired, async (request, res) => {
       .input('ct',   sql.NVarChar, b.contact_tel  || null)
       .input('cnote',sql.NVarChar, b.contact_note || null)
       .input('wd',   sql.Date,     b.want_date ? new Date(b.want_date) : null)
+      .input('ap',   sql.Date,     b.appointment_date ? new Date(b.appointment_date) : null)
       .input('pr',   sql.NVarChar, ['low', 'normal', 'urgent'].includes(b.priority) ? b.priority : 'normal')
       .input('cb',   sql.Int,      request.user.id)
       .query(`INSERT INTO impl_requests
                 (req_no, req_type, title, detail, customer, branch,
-                 contact_name, contact_tel, contact_note, want_date, priority, created_by)
+                 contact_name, contact_tel, contact_note, want_date, appointment_date, priority, created_by)
               OUTPUT INSERTED.id
-              VALUES (@no,@tp,@ti,@de,@cu,@br,@cn2,@ct,@cnote,@wd,@pr,@cb)`)).recordset[0].id;
+              VALUES (@no,@tp,@ti,@de,@cu,@br,@cn2,@ct,@cnote,@wd,@ap,@pr,@cb)`)).recordset[0].id;
 
     try {
       const uname = request.user.nickname || request.user.name || request.user.username || '—';
@@ -5462,6 +5550,8 @@ app.post('/api/impl-requests', authRequired, async (request, res) => {
           ? `\nผู้ติดต่อ: ${[b.contact_name, b.contact_tel].filter(Boolean).join(' · ')}` : '') +
         (b.contact_note ? `\nช่องทางอื่น: ${b.contact_note}` : '') +
         (wd ? `\nวันที่ต้องการ: ${wd}` : '') +
+        (b.appointment_date
+          ? `\nนัดหมาย: ${new Date(b.appointment_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}` : '') +
         (b.priority === 'urgent' ? `\nความสำคัญ: ⚠️ ด่วน` : '') +
         `\nผู้แจ้ง: ${uname}`;
       await sendLineNotify(msg, 'impl_request');
@@ -5493,6 +5583,7 @@ app.put('/api/impl-requests/:id', authRequired, async (request, res) => {
       .input('ct',   sql.NVarChar, b.contact_tel  !== undefined ? b.contact_tel  : cur.contact_tel)
       .input('cnote',sql.NVarChar, b.contact_note !== undefined ? b.contact_note : cur.contact_note)
       .input('wd', sql.Date,     b.want_date !== undefined ? (b.want_date ? new Date(b.want_date) : null) : cur.want_date)
+      .input('ap', sql.Date,     b.appointment_date !== undefined ? (b.appointment_date ? new Date(b.appointment_date) : null) : cur.appointment_date)
       .input('pr', sql.NVarChar, ['low', 'normal', 'urgent'].includes(b.priority) ? b.priority : cur.priority)
       .input('st', sql.NVarChar, status)
       .input('at', sql.Int,      b.assigned_to !== undefined ? (b.assigned_to || null) : cur.assigned_to)
@@ -5502,7 +5593,8 @@ app.put('/api/impl-requests/:id', authRequired, async (request, res) => {
       .input('dn',  sql.DateTime, status === 'done' ? (cur.done_at || new Date()) : null)
       .query(`UPDATE impl_requests SET
                 req_type=@tp, title=@ti, detail=@de, customer=@cu, branch=@br,
-                contact_name=@cn2, contact_tel=@ct, contact_note=@cnote, want_date=@wd,
+                contact_name=@cn2, contact_tel=@ct, contact_note=@cnote,
+                want_date=@wd, appointment_date=@ap,
                 priority=@pr, status=@st, assigned_to=@at, note=@nt,
                 accepted_at=@acc, done_at=@dn, updated_at=GETDATE()
               WHERE id=@id`);
@@ -5527,6 +5619,7 @@ app.delete('/api/impl-requests/:id', authRequired, managerRequired, async (reque
     const id = parseInt(request.params.id);
     const files = (await req().input('rid', sql.Int, id)
       .query('SELECT stored_name FROM impl_request_files WHERE request_id=@rid')).recordset;
+    await req().input('rid', sql.Int, id).query('DELETE FROM impl_request_comments WHERE request_id=@rid');
     await req().input('rid', sql.Int, id).query('DELETE FROM impl_request_files WHERE request_id=@rid');
     await req().input('id',  sql.Int, id).query('DELETE FROM impl_requests WHERE id=@id');
     // ลบไฟล์บนดิสก์ตามไปด้วย ไม่ปล่อยค้าง

@@ -3285,7 +3285,7 @@ textarea{resize:vertical;min-height:80px}
   <!-- Filters -->
   <div class="page-datebar" style="margin-bottom:.75rem;gap:.5rem;flex-wrap:wrap">
     <select id="impl-filter-status" onchange="loadImplRequests()">
-      <option value="open">ที่ยังไม่จบ</option>
+      <option value="open">ที่ยังไม่เสร็จ (รวมยกเลิก)</option>
       <option value="">ทุกสถานะ</option>
       <option value="pending">รอรับเรื่อง</option>
       <option value="accepted">รับเรื่องแล้ว</option>
@@ -3318,9 +3318,8 @@ textarea{resize:vertical;min-height:80px}
           <th style="min-width:140px">สถานะ</th>
           <th style="min-width:130px">ผู้รับผิดชอบ</th>
           <th style="min-width:110px">ผู้แจ้ง</th>
-          <th style="min-width:100px">จัดการ</th>
         </tr></thead>
-        <tbody id="impl-tbody"><tr><td colspan="10" class="empty">— เลือกเมนูนี้เพื่อโหลด —</td></tr></tbody>
+        <tbody id="impl-tbody"><tr><td colspan="9" class="empty">— เลือกเมนูนี้เพื่อโหลด —</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -3365,7 +3364,7 @@ textarea{resize:vertical;min-height:80px}
       <textarea id="impl-detail" rows="3" style="width:100%;resize:vertical" placeholder="ระบุรายละเอียด เช่น หัวข้อที่ต้องเทรน จำนวนผู้เข้าอบรม รูปแบบเทมเพลท โปรแกรมที่ต้องติดตั้ง เมนูที่ต้องการ..."></textarea>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr 130px;gap:.65rem">
+    <div style="display:grid;grid-template-columns:1fr 1fr 130px 130px;gap:.65rem">
       <div class="form-group">
         <label>ร้าน / ลูกค้า</label>
         <input id="impl-customer" type="text" style="width:100%" placeholder="ไม่บังคับ"/>
@@ -3377,6 +3376,10 @@ textarea{resize:vertical;min-height:80px}
       <div class="form-group">
         <label>วันที่ต้องการ</label>
         <input id="impl-want-date" type="date" style="width:100%"/>
+      </div>
+      <div class="form-group">
+        <label>วันที่นัดหมาย</label>
+        <input id="impl-appoint-date" type="date" style="width:100%" title="วันที่นัดกับลูกค้าได้จริง"/>
       </div>
     </div>
 
@@ -3394,6 +3397,15 @@ textarea{resize:vertical;min-height:80px}
         <label>ช่องทางอื่น</label>
         <input id="impl-contact-note" type="text" style="width:100%" placeholder="LINE / อีเมล / เวลาที่สะดวก"/>
       </div>
+    </div>
+
+    <div class="form-group">
+      <label>ไฟล์แนบ</label>
+      <div id="impl-files" style="display:flex;flex-direction:column;gap:.3rem;margin-bottom:.4rem"></div>
+      <input type="file" id="impl-file-input" multiple style="display:none" onchange="implPickFiles(this.files)"
+             accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.txt,.log"/>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('impl-file-input').click()">📎 แนบไฟล์</button>
+      <span style="font-size:.72rem;color:var(--muted);margin-left:.4rem">ไม่เกิน 10 MB ต่อไฟล์</span>
     </div>
 
     <!-- ส่วนนี้โผล่เฉพาะตอนเปิดงานที่บันทึกแล้ว -->
@@ -3420,12 +3432,13 @@ textarea{resize:vertical;min-height:80px}
         <textarea id="impl-note" rows="2" style="width:100%;resize:vertical" placeholder="ความคืบหน้า / สิ่งที่ทำไป..."></textarea>
       </div>
       <div class="form-group">
-        <label>ไฟล์แนบ</label>
-        <div id="impl-files" style="display:flex;flex-direction:column;gap:.3rem;margin-bottom:.4rem"></div>
-        <input type="file" id="impl-file-input" multiple style="display:none" onchange="implUploadFiles(this.files)"
-               accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.txt,.log"/>
-        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('impl-file-input').click()">📎 แนบไฟล์</button>
-        <span style="font-size:.72rem;color:var(--muted);margin-left:.4rem">ไม่เกิน 10 MB ต่อไฟล์</span>
+        <label>ประวัติสนทนา</label>
+        <div id="impl-comments" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:.45rem .55rem;background:#f8fafc;display:flex;flex-direction:column;gap:.45rem"></div>
+        <div style="display:flex;gap:.4rem;margin-top:.4rem">
+          <input id="impl-comment-box" type="text" style="flex:1" placeholder="พิมพ์ข้อความแล้วกด Enter..."
+                 onkeydown="if(event.key==='Enter')implAddComment()"/>
+          <button class="btn btn-sm btn-primary" onclick="implAddComment()">ส่ง</button>
+        </div>
       </div>
       <div id="impl-meta" style="font-size:.74rem;color:var(--muted);line-height:1.7"></div>
     </div>
@@ -6408,11 +6421,11 @@ async function loadImplRequests() {
   if (st) qs.set('status', st);
   if (tp) qs.set('type', tp);
   if (q)  qs.set('q', q);
-  tb.innerHTML = '<tr><td colspan="10" class="empty">กำลังโหลด...</td></tr>';
+  tb.innerHTML = '<tr><td colspan="9" class="empty">กำลังโหลด...</td></tr>';
   // ต้องมีรายชื่อก่อนวาดตาราง เพราะช่องผู้รับผิดชอบเป็น dropdown ในแถว
   if (!_implUsers) _implUsers = (await api('/api/users', { silent: true })) || [];
   const rows = await api('/api/impl-requests?' + qs.toString(), { silent: true });
-  if (!rows || rows.error) { tb.innerHTML = '<tr><td colspan="10" class="empty">โหลดไม่สำเร็จ (ถ้าเพิ่งอัปเดตโค้ด ให้รีสตาร์ท server ก่อน)</td></tr>'; return; }
+  if (!rows || rows.error) { tb.innerHTML = '<tr><td colspan="9" class="empty">โหลดไม่สำเร็จ (ถ้าเพิ่งอัปเดตโค้ด ให้รีสตาร์ท server ก่อน)</td></tr>'; return; }
   _implRows = rows;
   renderImplTable();
 }
@@ -6420,25 +6433,26 @@ async function loadImplRequests() {
 function renderImplTable() {
   const tb = document.getElementById('impl-tbody');
   if (!_implRows.length) {
-    tb.innerHTML = '<tr><td colspan="10" class="empty">— ไม่มีงานตามเงื่อนไขที่เลือก —</td></tr>';
+    tb.innerHTML = '<tr><td colspan="9" class="empty">— ไม่มีงานตามเงื่อนไขที่เลือก —</td></tr>';
   } else {
     tb.innerHTML = _implRows.map(r => {
       const wd = r.want_date ? fmtDateShort(r.want_date) : '—';
-      // วันที่ต้องการที่เลยมาแล้วและงานยังไม่จบ = เตือนด้วยสีแดง
-      const late = r.want_date && !['done', 'cancelled'].includes(r.status)
-                && new Date(r.want_date) < new Date(new Date().toDateString());
+      // มีวันนัดแล้วให้ยึดวันนัดเป็นตัวตัดสินว่าเลยกำหนดหรือยัง ไม่งั้นใช้วันที่ลูกค้าขอ
+      const due = r.appointment_date || r.want_date;
+      const late = due && !['done', 'cancelled'].includes(r.status)
+                && new Date(due) < new Date(new Date().toDateString());
       const shop = [r.customer, r.branch].filter(Boolean).join(' / ') || '—';
       return `<tr style="cursor:pointer" onclick="openImplForm(${r.id})">
         <td style="font-family:monospace;font-size:.78rem">${esc(r.req_no || '#' + r.id)}</td>
         <td>${implChip(implMeta(IMPL_TYPE_META, r.req_type, 'อื่นๆ'))}</td>
         <td style="font-weight:600">${esc(r.title)}</td>
         <td style="font-size:.8rem">${esc(shop)}</td>
-        <td style="font-size:.8rem;${late ? 'color:#dc2626;font-weight:700' : ''}">${wd}${late ? ' ⚠️' : ''}</td>
+        <td style="font-size:.8rem;${late ? 'color:#dc2626;font-weight:700' : ''}">${wd}${late ? ' ⚠️' : ''}
+          ${r.appointment_date ? `<div style="font-size:.7rem;color:#0369a1;font-weight:600">📅 นัด ${fmtDateShort(r.appointment_date)}</div>` : ''}</td>
         <td>${implChip(implMeta(IMPL_PRIORITY_META, r.priority, 'ปกติ'))}</td>
         <td>${implStatusSelect(r)}</td>
         <td>${implAssigneeSelect(r)}</td>
         <td style="font-size:.8rem">${esc(r.creator_name || '—')}</td>
-        <td>${implActionBtns(r)}</td>
       </tr>`;
     }).join('');
   }
@@ -6450,10 +6464,84 @@ function renderImplTable() {
   set('impl-stat-done', n(r => r.status === 'done'));
 }
 
+// ── ไฟล์แนบ: แนบได้ตั้งแต่ตอนแจ้งเรื่อง ─────────────────────
+// ยังไม่มี id ให้อัปโหลด เลยเก็บไฟล์ไว้ในหน่วยความจำก่อน แล้วส่งตามหลังบันทึกสำเร็จ
+let _implNewFiles = [];
+
+function implPickFiles(fileList) {
+  const id = document.getElementById('impl-id').value;
+  if (id) return implUploadFiles(fileList);
+  _implNewFiles = _implNewFiles.concat([...fileList]);
+  renderImplFiles(_implSavedFiles);
+  document.getElementById('impl-file-input').value = '';
+}
+
+function implDropQueued(i) {
+  _implNewFiles.splice(i, 1);
+  renderImplFiles(_implSavedFiles);
+}
+
+async function implUploadTo(id, files) {
+  const fd = new FormData();
+  for (const f of files) fd.append('files', f);
+  const res = await fetch(`/api/impl-requests/${id}/files`, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + authToken },
+    body: fd,
+  });
+  return res.json();
+}
+
+// ── ประวัติสนทนา ────────────────────────────────────────────
+function renderImplComments(list) {
+  const box = document.getElementById('impl-comments');
+  if (!box) return;
+  box.innerHTML = (list || []).length ? list.map(c => `
+    <div style="font-size:.8rem;line-height:1.5">
+      <div style="display:flex;align-items:baseline;gap:.4rem">
+        <span style="font-weight:700;color:#334155">${esc(c.author_name || '—')}</span>
+        <span style="font-size:.68rem;color:var(--muted)">${fmtDT(c.created_at)}</span>
+        ${(c.created_by === currentUser?.id || isManager())
+          ? `<button onclick="implDeleteComment(${c.id})" title="ลบข้อความ"
+               style="margin-left:auto;border:none;background:none;color:#cbd5e1;cursor:pointer;font-size:.8rem;line-height:1">×</button>` : ''}
+      </div>
+      <div style="white-space:pre-wrap;color:var(--text)">${esc(c.body)}</div>
+    </div>`).join('')
+    : '<div style="font-size:.78rem;color:var(--muted)">— ยังไม่มีข้อความ —</div>';
+  box.scrollTop = box.scrollHeight;
+}
+
+async function implAddComment() {
+  const id = document.getElementById('impl-id').value;
+  const el = document.getElementById('impl-comment-box');
+  const body = el.value.trim();
+  if (!id || !body) return;
+  el.disabled = true;
+  try {
+    const res = await api(`/api/impl-requests/${id}/comments`, { method: 'POST', body: { body } });
+    if (res && !res.error) {
+      el.value = '';
+      const r = await api(`/api/impl-requests/${id}`, { silent: true });
+      renderImplComments(r?.comments || []);
+    }
+  } finally { el.disabled = false; el.focus(); }
+}
+
+async function implDeleteComment(cid) {
+  if (!confirm('ลบข้อความนี้?')) return;
+  const res = await api(`/api/impl-requests/comments/${cid}`, { method: 'DELETE' });
+  if (res && !res.error) {
+    const id = document.getElementById('impl-id').value;
+    const r = await api(`/api/impl-requests/${id}`, { silent: true });
+    renderImplComments(r?.comments || []);
+  }
+}
+
+
 // ── โฟลว์มอบหมายงาน / เดินสถานะ จากในตารางเลย ─────────────
 // ใช้ PUT ตัวเดิม (มันอัปเดตเฉพาะ field ที่ส่งไป) จะได้ไม่ต้องเปิด modal ทุกครั้ง
 function implAssigneeSelect(r) {
-  const done = r.status === 'done' || r.status === 'cancelled';
+  const done = r.status === 'done';   // ยกเลิกแล้วยังเปลี่ยนผู้รับผิดชอบได้ เผื่อเปิดเรื่องกลับ
   const opts = ['<option value="">— ยังไม่ระบุ —</option>'].concat(
     (_implUsers || []).filter(u => u.active !== false).map(u =>
       `<option value="${u.id}"${String(r.assigned_to || '') === String(u.id) ? ' selected' : ''}>${esc(u.nickname || u.name || u.username)}</option>`)
@@ -6475,21 +6563,9 @@ function implStatusSelect(r) {
            background:${m.bg};color:${m.fg};border:1px solid ${m.fg}33">${opts}</select>`;
 }
 
-// ปุ่มลัดอย่างเดียวที่ dropdown ทำแทนไม่ได้ — รับงานที่ยังไม่มีเจ้าภาพมาเป็นของตัวเอง
-function implActionBtns(r) {
-  if (r.assigned_to || r.status === 'done' || r.status === 'cancelled') return '';
-  return `<button class="btn btn-sm" onclick="event.stopPropagation();implTakeJob(${r.id})"
-    style="padding:2px 9px;font-size:.7rem;white-space:nowrap;background:#0369a1;color:#fff">📥 รับเอง</button>`;
-}
-
 async function implPatch(id, body, okMsg) {
   const res = await api(`/api/impl-requests/${id}`, { method: 'PUT', body });
   if (res && !res.error) { if (okMsg) showToast(okMsg, 'success'); loadImplRequests(); }
-}
-
-// รับงานเป็นของตัวเอง — คนที่กดคือผู้รับผิดชอบ
-function implTakeJob(id) {
-  implPatch(id, { assigned_to: currentUser?.id || null, status: 'accepted' }, 'รับเรื่องแล้ว');
 }
 
 // เปลี่ยนผู้รับผิดชอบจากในตาราง — ถ้ายังรอรับเรื่องอยู่ ให้ขยับเป็นรับเรื่องแล้วไปด้วย
@@ -6528,15 +6604,19 @@ async function openImplForm(id) {
   gv('impl-form-title').textContent = id ? '📨 รายละเอียดเรื่องประสานงาน' : '+ แจ้งเรื่องประสานงาน';
   gv('impl-edit-only').style.display = id ? '' : 'none';
   gv('impl-del-btn').style.display = (id && isManager()) ? '' : 'none';
+  _implNewFiles = [];
   gv('impl-files').innerHTML = '';
   gv('impl-meta').innerHTML = '';
+  renderImplComments([]);
+  const cb = gv('impl-comment-box'); if (cb) cb.value = '';
 
   if (!id) {
     gv('impl-type').value = 'training';
     gv('impl-priority').value = 'normal';
-    ['impl-title', 'impl-detail', 'impl-customer', 'impl-branch', 'impl-want-date', 'impl-note',
+    ['impl-title', 'impl-detail', 'impl-customer', 'impl-branch', 'impl-want-date', 'impl-appoint-date', 'impl-note',
      'impl-contact-name', 'impl-contact-tel', 'impl-contact-note']
       .forEach(i => gv(i).value = '');
+    renderImplFiles([]);
     openModal('modal-impl-form');
     return;
   }
@@ -6551,6 +6631,7 @@ async function openImplForm(id) {
   gv('impl-customer').value  = r.customer || '';
   gv('impl-branch').value    = r.branch || '';
   gv('impl-want-date').value = r.want_date ? String(r.want_date).slice(0, 10) : '';
+  gv('impl-appoint-date').value = r.appointment_date ? String(r.appointment_date).slice(0, 10) : '';
   gv('impl-contact-name').value = r.contact_name || '';
   gv('impl-contact-tel').value  = r.contact_tel || '';
   gv('impl-contact-note').value = r.contact_note || '';
@@ -6558,6 +6639,7 @@ async function openImplForm(id) {
   gv('impl-note').value      = r.note || '';
   await implFillAssignees(r.assigned_to);
   renderImplFiles(r.files || []);
+  renderImplComments(r.comments || []);
   gv('impl-meta').innerHTML = [
     `เลขที่ <b>${esc(r.req_no || '#' + r.id)}</b> · แจ้งโดย ${esc(r.creator_name || '—')} · ${fmtDT(r.created_at)}`,
     r.accepted_at ? `รับเรื่อง ${fmtDT(r.accepted_at)}` : '',
@@ -6565,18 +6647,27 @@ async function openImplForm(id) {
   ].filter(Boolean).join('<br>');
 }
 
+let _implSavedFiles = [];
 function renderImplFiles(files) {
   const box = document.getElementById('impl-files');
   if (!box) return;
+  _implSavedFiles = files || [];
   const rid = document.getElementById('impl-id').value;
-  box.innerHTML = files.length ? files.map(f => `
+  const queued = _implNewFiles.map((f, i) => `
+    <div style="display:flex;align-items:center;gap:.45rem;font-size:.78rem;background:#fffbeb;border:1px dashed #fcd34d;border-radius:6px;padding:.25rem .5rem">
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📎 ${esc(f.name)}</span>
+      <span style="color:#b45309;flex-shrink:0;font-size:.7rem">รอส่งเมื่อบันทึก</span>
+      <button onclick="implDropQueued(${i})" title="เอาออก"
+              style="border:none;background:none;color:#dc2626;cursor:pointer;padding:0 .1rem;flex-shrink:0">×</button>
+    </div>`).join('');
+  box.innerHTML = (files.length ? files.map(f => `
     <div style="display:flex;align-items:center;gap:.45rem;font-size:.78rem;background:#f8fafc;border:1px solid var(--border);border-radius:6px;padding:.25rem .5rem">
       <a href="/uploads/impl/${rid}/${encodeURIComponent(f.stored_name || '')}" target="_blank" style="flex:1;color:#1d4ed8;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📎 ${esc(f.file_name)}</a>
       <span style="color:var(--muted);flex-shrink:0">${Math.round((f.size_bytes || 0) / 1024).toLocaleString()} KB</span>
       <button onclick="implDeleteFile(${f.id})" title="ลบไฟล์"
               style="border:none;background:none;color:#dc2626;cursor:pointer;padding:0 .1rem;flex-shrink:0">×</button>
-    </div>`).join('')
-    : '<div style="font-size:.78rem;color:var(--muted)">— ยังไม่มีไฟล์แนบ —</div>';
+    </div>`).join('') : '') + queued
+    || '<div style="font-size:.78rem;color:var(--muted)">— ยังไม่มีไฟล์แนบ —</div>';
 }
 
 async function implSave() {
@@ -6589,6 +6680,7 @@ async function implSave() {
     customer:  gv('impl-customer').trim() || null,
     branch:    gv('impl-branch').trim() || null,
     want_date: gv('impl-want-date') || null,
+    appointment_date: gv('impl-appoint-date') || null,
     priority:  gv('impl-priority'),
     contact_name: gv('impl-contact-name').trim() || null,
     contact_tel:  gv('impl-contact-tel').trim() || null,
@@ -6607,6 +6699,12 @@ async function implSave() {
       ? await api(`/api/impl-requests/${id}`, { method: 'PUT', body })
       : await api('/api/impl-requests', { method: 'POST', body });
     if (res && !res.error) {
+      // ไฟล์ที่แนบไว้ตอนยังไม่มี id — ส่งตามหลังบันทึกสำเร็จ
+      if (!id && _implNewFiles.length && res.id) {
+        try { await implUploadTo(res.id, _implNewFiles); }
+        catch { showToast('บันทึกแล้ว แต่แนบไฟล์ไม่สำเร็จ', 'error'); }
+        _implNewFiles = [];
+      }
       closeModal('modal-impl-form');
       showToast(id ? 'บันทึกแล้ว' : `ส่งคำขอแล้ว ${res.req_no || ''}`, 'success');
       loadImplRequests();
@@ -12329,6 +12427,7 @@ const LINE_EVENTS = [
   { key: 'empcal_summary',   label: '🗓️ ตารางงานพนักงาน (สรุปรายวัน 08:00)' },
   { key: 'triage_alert',     label: '🔔 Ticket ไลน์ค้าง (เกิน 15/30 นาที)' },
   { key: 'triage_alert_groups', label: '🎯 แจ้งเตือนตามกลุ่ม LINE ที่เลือก' },
+  { key: 'sw_update',        label: '💿 แจ้งงานอัพเดท SW (แจ้งใหม่/ปิดงาน)' },
   { key: 'impl_request',     label: '📨 รับเรื่องประสานงาน (สร้าง/ปิดงาน)' },
   { key: 'uat_job',          label: '🧪 แจ้งงาน UAT ใหม่' },
   { key: 'uat_issue',        label: '🐞 พบ Issue จาก UAT' },
