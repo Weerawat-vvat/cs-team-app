@@ -5268,6 +5268,296 @@ app.delete('/api/sw-update/:id', authRequired, managerRequired, async (request, 
 });
 
 // ══════════════════════════════════════════════════════════
+//  COORDINATION REQUESTS — "รับเรื่องประสานงาน" (งานภายใน)
+//  เทรนนิ่ง / ทำเทมเพลท / ติดตั้งโปรแกรมเพิ่มเติม / ทำเมนูใหม่
+//  แยกจาก service_requests เพราะอันนั้นเป็นงานของลูกค้าที่ซื้อบริการ
+//  ส่วนอันนี้เป็นงานภายในทีม
+// ══════════════════════════════════════════════════════════
+const IMPL_TYPES = {
+  training: 'เทรนนิ่ง',
+  template: 'ทำเทมเพลท',
+  install:  'ติดตั้งโปรแกรมเพิ่มเติม',
+  new_menu: 'ทำเมนูใหม่',
+};
+const IMPL_STATUSES  = ['pending', 'accepted', 'in_progress', 'done', 'cancelled'];
+
+const implUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const dir = path.join(UPLOAD_DIR, 'impl', String(req.params.id || 'tmp'));
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    },
+    filename: (req, file, cb) => {
+      const name = fixUploadName(file.originalname);
+      const ext  = path.extname(name).toLowerCase();
+      const base = path.basename(name, ext).replace(/[^a-zA-Z0-9ก-๙._-]/g, '_').slice(0, 60);
+      cb(null, `${Date.now()}_${base}${ext}`);
+    }
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    cb(null, /\.(jpg|jpeg|png|gif|webp|pdf|doc|docx|xls|xlsx|txt|log)$/i.test(fixUploadName(file.originalname)));
+  }
+});
+
+async function ensureImplRequestTables() {
+  try {
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='impl_requests' AND xtype='U')
+      CREATE TABLE impl_requests (
+        id           INT PRIMARY KEY IDENTITY,
+        req_no       NVARCHAR(30)  NULL,
+        req_type     NVARCHAR(30)  NOT NULL,
+        title        NVARCHAR(500) NOT NULL,
+        detail       NVARCHAR(MAX) NULL,
+        customer     NVARCHAR(255) NULL,
+        branch       NVARCHAR(255) NULL,
+        contact_name NVARCHAR(200) NULL,
+        contact_tel  NVARCHAR(100) NULL,
+        contact_note NVARCHAR(255) NULL,
+        want_date    DATE          NULL,
+        priority     NVARCHAR(20)  DEFAULT 'normal',
+        status       NVARCHAR(30)  DEFAULT 'pending',
+        assigned_to  INT           NULL,
+        note         NVARCHAR(MAX) NULL,
+        created_by   INT           NULL,
+        created_at   DATETIME      DEFAULT GETDATE(),
+        updated_at   DATETIME      DEFAULT GETDATE(),
+        accepted_at  DATETIME      NULL,
+        done_at      DATETIME      NULL
+      )`);
+    // ตารางที่สร้างไว้ก่อนมีช่องข้อมูลติดต่อ — เติมคอลัมน์ให้ย้อนหลัง
+    for (const col of [
+      ['contact_name', 'NVARCHAR(200)'],
+      ['contact_tel',  'NVARCHAR(100)'],
+      ['contact_note', 'NVARCHAR(255)'],
+    ]) {
+      await req().query(
+        `IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('impl_requests') AND name='${col[0]}')
+           ALTER TABLE impl_requests ADD ${col[0]} ${col[1]} NULL`);
+    }
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='impl_request_files' AND xtype='U')
+      CREATE TABLE impl_request_files (
+        id          INT PRIMARY KEY IDENTITY,
+        request_id  INT NOT NULL,
+        file_name   NVARCHAR(500) NULL,
+        stored_name NVARCHAR(500) NULL,
+        size_bytes  INT NULL,
+        uploaded_by INT NULL,
+        uploaded_at DATETIME DEFAULT GETDATE()
+      )`);
+    console.log('✅ impl_requests tables ready');
+  } catch (e) { console.error('❌ impl_requests table error:', e.message); }
+}
+
+// เลขที่คำขอ REQ-<ปี>-<ลำดับ 4 หลัก> — ไล่ลำดับใหม่ทุกปี
+async function nextImplReqNo() {
+  const year = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }).slice(0, 4);
+  const row = (await req().input('pfx', sql.NVarChar, `REQ-${year}-%`).query(
+    `SELECT ISNULL(MAX(TRY_CAST(RIGHT(req_no, 4) AS INT)), 0) AS n
+     FROM impl_requests WHERE req_no LIKE @pfx`)).recordset[0];
+  return `REQ-${year}-${String((row?.n || 0) + 1).padStart(4, '0')}`;
+}
+
+const implSelect = `
+  SELECT r.*,
+         ISNULL(ec.nickname, ec.name) AS creator_name,
+         ISNULL(ea.nickname, ea.name) AS assignee_name,
+         (SELECT COUNT(*) FROM impl_request_files f WHERE f.request_id = r.id) AS file_count
+  FROM impl_requests r
+  LEFT JOIN app_users auc ON auc.id = r.created_by
+  LEFT JOIN employees ec  ON ec.id  = auc.employee_id
+  LEFT JOIN app_users aua ON aua.id = r.assigned_to
+  LEFT JOIN employees ea  ON ea.id  = aua.employee_id`;
+
+// GET /api/impl-requests — ทุกคนที่ล็อกอินเห็นทั้งหมด (งานภายในทีม)
+app.get('/api/impl-requests', authRequired, async (request, res) => {
+  try {
+    const { status, type, q } = request.query;
+    let where = ' WHERE 1=1';
+    const r = req();
+    if (status === 'open')       where += ` AND r.status IN ('pending','accepted','in_progress')`;
+    else if (status)             { where += ' AND r.status=@st'; r.input('st', sql.NVarChar, status); }
+    if (type)                    { where += ' AND r.req_type=@tp'; r.input('tp', sql.NVarChar, type); }
+    if (q) {
+      where += ' AND (r.title LIKE @q OR r.detail LIKE @q OR r.customer LIKE @q OR r.branch LIKE @q OR r.req_no LIKE @q)';
+      r.input('q', sql.NVarChar, `%${q}%`);
+    }
+    // ด่วนขึ้นก่อน แล้วค่อยเรียงตามวันที่ต้องการ
+    const rows = (await r.query(`${implSelect}${where}
+      ORDER BY CASE r.priority WHEN 'urgent' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,
+               CASE WHEN r.want_date IS NULL THEN 1 ELSE 0 END, r.want_date, r.created_at DESC`)).recordset;
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// route ของไฟล์แนบต้องมาก่อน /:id ไม่งั้น Express จะจับคำว่า "files" เป็น id
+app.delete('/api/impl-requests/files/:fileId', authRequired, async (request, res) => {
+  try {
+    const fid = parseInt(request.params.fileId);
+    const f = (await req().input('fid', sql.Int, fid)
+      .query('SELECT * FROM impl_request_files WHERE id=@fid')).recordset[0];
+    if (!f) return res.status(404).json({ error: 'ไม่พบไฟล์' });
+    await req().input('fid', sql.Int, fid).query('DELETE FROM impl_request_files WHERE id=@fid');
+    try { fs.unlinkSync(path.join(UPLOAD_DIR, 'impl', String(f.request_id), f.stored_name)); } catch {}
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/impl-requests/:id — พร้อมไฟล์แนบ
+app.get('/api/impl-requests/:id', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const row = (await req().input('id', sql.Int, id).query(`${implSelect} WHERE r.id=@id`)).recordset[0];
+    if (!row) return res.status(404).json({ error: 'ไม่พบคำขอนี้' });
+    row.files = (await req().input('rid', sql.Int, id).query(
+      `SELECT f.id, f.file_name, f.stored_name, f.size_bytes, f.uploaded_at,
+              ISNULL(e.nickname, e.name) AS uploader_name
+       FROM impl_request_files f
+       LEFT JOIN app_users au ON au.id = f.uploaded_by
+       LEFT JOIN employees e  ON e.id  = au.employee_id
+       WHERE f.request_id=@rid ORDER BY f.uploaded_at`)).recordset;
+    res.json(row);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/impl-requests', authRequired, async (request, res) => {
+  try {
+    const b = request.body || {};
+    if (!IMPL_TYPES[b.req_type]) return res.status(400).json({ error: 'ประเภทงานไม่ถูกต้อง' });
+    if (!String(b.title || '').trim()) return res.status(400).json({ error: 'กรุณาระบุเรื่องที่ขอ' });
+
+    const reqNo = await nextImplReqNo();
+    const id = (await req()
+      .input('no',   sql.NVarChar, reqNo)
+      .input('tp',   sql.NVarChar, b.req_type)
+      .input('ti',   sql.NVarChar, String(b.title).trim())
+      .input('de',   sql.NVarChar, b.detail   || null)
+      .input('cu',   sql.NVarChar, b.customer || null)
+      .input('br',   sql.NVarChar, b.branch   || null)
+      .input('cn2',  sql.NVarChar, b.contact_name || null)
+      .input('ct',   sql.NVarChar, b.contact_tel  || null)
+      .input('cnote',sql.NVarChar, b.contact_note || null)
+      .input('wd',   sql.Date,     b.want_date ? new Date(b.want_date) : null)
+      .input('pr',   sql.NVarChar, ['low', 'normal', 'urgent'].includes(b.priority) ? b.priority : 'normal')
+      .input('cb',   sql.Int,      request.user.id)
+      .query(`INSERT INTO impl_requests
+                (req_no, req_type, title, detail, customer, branch,
+                 contact_name, contact_tel, contact_note, want_date, priority, created_by)
+              OUTPUT INSERTED.id
+              VALUES (@no,@tp,@ti,@de,@cu,@br,@cn2,@ct,@cnote,@wd,@pr,@cb)`)).recordset[0].id;
+
+    try {
+      const uname = request.user.nickname || request.user.name || request.user.username || '—';
+      const wd = b.want_date
+        ? new Date(b.want_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })
+        : '';
+      const msg = `\n📨[รับเรื่องประสานงาน] ${reqNo}` +
+        `\nประเภท: ${IMPL_TYPES[b.req_type]}` +
+        `\nเรื่อง: ${String(b.title).trim()}` +
+        (b.customer ? `\nร้าน: ${b.customer}${b.branch ? ` (${b.branch})` : ''}` : '') +
+        (b.contact_name || b.contact_tel
+          ? `\nผู้ติดต่อ: ${[b.contact_name, b.contact_tel].filter(Boolean).join(' · ')}` : '') +
+        (b.contact_note ? `\nช่องทางอื่น: ${b.contact_note}` : '') +
+        (wd ? `\nวันที่ต้องการ: ${wd}` : '') +
+        (b.priority === 'urgent' ? `\nความสำคัญ: ⚠️ ด่วน` : '') +
+        `\nผู้แจ้ง: ${uname}`;
+      await sendLineNotify(msg, 'impl_request');
+    } catch (e) { console.warn('impl_request line notify failed:', e.message); }
+
+    res.json({ id, req_no: reqNo });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/impl-requests/:id', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const b  = request.body || {};
+    const cur = (await req().input('id', sql.Int, id)
+      .query('SELECT * FROM impl_requests WHERE id=@id')).recordset[0];
+    if (!cur) return res.status(404).json({ error: 'ไม่พบคำขอนี้' });
+    if (b.status && !IMPL_STATUSES.includes(b.status)) return res.status(400).json({ error: 'สถานะไม่ถูกต้อง' });
+    if (b.req_type && !IMPL_TYPES[b.req_type]) return res.status(400).json({ error: 'ประเภทงานไม่ถูกต้อง' });
+
+    const status = b.status || cur.status;
+    await req()
+      .input('id', sql.Int, id)
+      .input('tp', sql.NVarChar, b.req_type || cur.req_type)
+      .input('ti', sql.NVarChar, b.title != null ? String(b.title).trim() : cur.title)
+      .input('de', sql.NVarChar, b.detail   !== undefined ? b.detail   : cur.detail)
+      .input('cu', sql.NVarChar, b.customer !== undefined ? b.customer : cur.customer)
+      .input('br', sql.NVarChar, b.branch   !== undefined ? b.branch   : cur.branch)
+      .input('cn2',  sql.NVarChar, b.contact_name !== undefined ? b.contact_name : cur.contact_name)
+      .input('ct',   sql.NVarChar, b.contact_tel  !== undefined ? b.contact_tel  : cur.contact_tel)
+      .input('cnote',sql.NVarChar, b.contact_note !== undefined ? b.contact_note : cur.contact_note)
+      .input('wd', sql.Date,     b.want_date !== undefined ? (b.want_date ? new Date(b.want_date) : null) : cur.want_date)
+      .input('pr', sql.NVarChar, ['low', 'normal', 'urgent'].includes(b.priority) ? b.priority : cur.priority)
+      .input('st', sql.NVarChar, status)
+      .input('at', sql.Int,      b.assigned_to !== undefined ? (b.assigned_to || null) : cur.assigned_to)
+      .input('nt', sql.NVarChar, b.note !== undefined ? b.note : cur.note)
+      // เก็บเวลาที่รับเรื่อง/ปิดงานครั้งแรกไว้ ไม่ทับของเดิมถ้าเคยตั้งแล้ว
+      .input('acc', sql.DateTime, cur.accepted_at || (status !== 'pending' ? new Date() : null))
+      .input('dn',  sql.DateTime, status === 'done' ? (cur.done_at || new Date()) : null)
+      .query(`UPDATE impl_requests SET
+                req_type=@tp, title=@ti, detail=@de, customer=@cu, branch=@br,
+                contact_name=@cn2, contact_tel=@ct, contact_note=@cnote, want_date=@wd,
+                priority=@pr, status=@st, assigned_to=@at, note=@nt,
+                accepted_at=@acc, done_at=@dn, updated_at=GETDATE()
+              WHERE id=@id`);
+
+    // แจ้งกลุ่มเฉพาะจังหวะที่เพิ่งเปลี่ยนเป็น "เสร็จสิ้น" (กันแจ้งซ้ำตอนแก้อย่างอื่น)
+    if (status === 'done' && cur.status !== 'done') {
+      try {
+        const uname = request.user.nickname || request.user.name || request.user.username || '—';
+        await sendLineNotify(
+          `\n✅[เรื่องประสานงานเสร็จแล้ว] ${cur.req_no || `#${id}`}` +
+          `\nประเภท: ${IMPL_TYPES[b.req_type || cur.req_type] || '—'}` +
+          `\nเรื่อง: ${b.title != null ? String(b.title).trim() : cur.title}` +
+          `\nปิดงานโดย: ${uname}`, 'impl_request');
+      } catch (e) { console.warn('impl_request done notify failed:', e.message); }
+    }
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/impl-requests/:id', authRequired, managerRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const files = (await req().input('rid', sql.Int, id)
+      .query('SELECT stored_name FROM impl_request_files WHERE request_id=@rid')).recordset;
+    await req().input('rid', sql.Int, id).query('DELETE FROM impl_request_files WHERE request_id=@rid');
+    await req().input('id',  sql.Int, id).query('DELETE FROM impl_requests WHERE id=@id');
+    // ลบไฟล์บนดิสก์ตามไปด้วย ไม่ปล่อยค้าง
+    for (const f of files) {
+      try { fs.unlinkSync(path.join(UPLOAD_DIR, 'impl', String(id), f.stored_name)); } catch {}
+    }
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/impl-requests/:id/files', authRequired, implUpload.array('files', 10), async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const saved = [];
+    for (const f of (request.files || [])) {
+      const name = fixUploadName(f.originalname);
+      const row = (await req()
+        .input('rid', sql.Int, id)
+        .input('fn',  sql.NVarChar, name)
+        .input('sn',  sql.NVarChar, f.filename)
+        .input('sz',  sql.Int, f.size)
+        .input('ub',  sql.Int, request.user.id)
+        .query(`INSERT INTO impl_request_files (request_id, file_name, stored_name, size_bytes, uploaded_by)
+                OUTPUT INSERTED.id VALUES (@rid,@fn,@sn,@sz,@ub)`)).recordset[0];
+      saved.push({ id: row.id, file_name: name, size_bytes: f.size });
+    }
+    res.json({ ok: true, files: saved });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════
 //  UAT JOBS + ISSUES
 //  Flow: support เปิดงาน → UAT Staff แจ้ง slot → support ยืนยันกับลูกค้า
 //        → ทดสอบ → แนบเอกสารผล UAT → ส่งต่อทีม Update → ปิดจบ
@@ -7088,6 +7378,8 @@ function formatTriageAlert(items, podLabel = null, perLinePod = false, minWait =
     const rows = [];
     if (showPod) rows.push(x.pod);
     rows.push(x.name + (x.cnt > 1 ? ` (${x.cnt} ข้อความ)` : ''));
+    // เลข TASK = id ข้อความต้นทางจาก LineBotMonitor — ทีมใช้อ้างอิงกลับไปหาข้อความได้
+    if (x.sourceMsgId) rows.push('TASK #' + x.sourceMsgId);
     if (x.detail) rows.push(x.detail);
     return rows.join('\n');
   };
@@ -12330,6 +12622,7 @@ init().then(async () => {
   await ensureServiceAttachmentsTable();
   await ensureCaseAttachmentsTable();
   await ensureSwUpdateTable();
+  await ensureImplRequestTables();
   await ensureUatTables();
   await ensureTriageScreenTable();
   await ensureNewsTable();

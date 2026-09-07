@@ -560,6 +560,11 @@ textarea{resize:vertical;min-height:80px}
       งานอัพเดท SW
       <span id="sw-update-badge" style="display:none;background:#ef4444;color:#fff;border-radius:20px;font-size:.62rem;padding:.02rem .38rem;font-weight:700"></span>
     </button>
+    <!-- 4c-2. รับเรื่องประสานงาน (งานภายใน) -->
+    <button class="s-tab" id="nav-btn-impl" onclick="showPage('impl',this)">
+      <svg class="s-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><path d="M4 4h16v12H5.17L4 17.17V4z"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="13" y2="13"/></svg>
+      รับเรื่องประสานงาน
+    </button>
     <!-- 4d. ตารางงานพนักงาน (Google Calendar) -->
     <button class="s-tab" id="nav-btn-empcal" onclick="showPage('empcal',this)">
       <svg class="s-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px;flex-shrink:0"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -3247,6 +3252,193 @@ textarea{resize:vertical;min-height:80px}
   </div>
 </div>
 
+<!-- ═══════════════════ PAGE: IMPLEMENT REQUESTS ═══════════════════ -->
+<!-- งานภายในที่รับเรื่องมาประสานให้ทีมที่เกี่ยวข้องทำ — แยกจาก "งานบริการ" ที่เป็นงานของลูกค้าที่ซื้อบริการ -->
+<div id="page-impl" class="page">
+  <div class="section-header" style="margin-bottom:.75rem">
+    <div class="section-title">📨 รับเรื่องประสานงาน</div>
+    <div style="display:flex;gap:.5rem;align-items:center">
+      <button class="btn btn-primary btn-sm" onclick="openImplForm()">+ แจ้งงานใหม่</button>
+    </div>
+  </div>
+
+  <!-- Stat Bar -->
+  <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem">
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">📋 ทั้งหมด</span>
+      <span style="font-size:1.1rem;font-weight:800;color:var(--hd)" id="impl-stat-total">—</span>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">⏳ รอรับเรื่อง</span>
+      <span style="font-size:1.1rem;font-weight:800;color:#b45309" id="impl-stat-pending">—</span>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">🔧 กำลังดำเนินการ</span>
+      <span style="font-size:1.1rem;font-weight:800;color:#0369a1" id="impl-stat-doing">—</span>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <span style="font-size:.72rem;color:var(--muted)">✅ เสร็จสิ้น</span>
+      <span style="font-size:1.1rem;font-weight:800;color:#16a34a" id="impl-stat-done">—</span>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="page-datebar" style="margin-bottom:.75rem;gap:.5rem;flex-wrap:wrap">
+    <select id="impl-filter-status" onchange="loadImplRequests()">
+      <option value="open">ที่ยังไม่จบ</option>
+      <option value="">ทุกสถานะ</option>
+      <option value="pending">รอรับเรื่อง</option>
+      <option value="accepted">รับเรื่องแล้ว</option>
+      <option value="in_progress">กำลังดำเนินการ</option>
+      <option value="done">เสร็จสิ้น</option>
+      <option value="cancelled">ยกเลิก</option>
+    </select>
+    <select id="impl-filter-type" onchange="loadImplRequests()">
+      <option value="">ทุกประเภท</option>
+      <option value="training">🎓 เทรนนิ่ง</option>
+      <option value="template">📄 ทำเทมเพลท</option>
+      <option value="install">💽 ติดตั้งโปรแกรมเพิ่มเติม</option>
+      <option value="new_menu">🍽️ ทำเมนูใหม่</option>
+    </select>
+    <input id="impl-search" type="text" placeholder="🔍 ค้นหาเลขที่ / เรื่อง / ร้าน..." oninput="implSearchDebounce()" style="min-width:200px;flex:1"/>
+    <button class="btn btn-ghost btn-sm" onclick="loadImplRequests()">🔄</button>
+  </div>
+
+  <!-- Table -->
+  <div class="card" style="padding:.5rem 0">
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th style="min-width:110px">เลขที่</th>
+          <th style="min-width:130px">ประเภท</th>
+          <th style="min-width:220px">เรื่อง</th>
+          <th style="min-width:150px">ร้าน / สาขา</th>
+          <th style="min-width:100px">วันที่ต้องการ</th>
+          <th style="min-width:80px">ความสำคัญ</th>
+          <th style="min-width:140px">สถานะ</th>
+          <th style="min-width:120px">ผู้รับผิดชอบ</th>
+          <th style="min-width:110px">ผู้แจ้ง</th>
+        </tr></thead>
+        <tbody id="impl-tbody"><tr><td colspan="9" class="empty">— เลือกเมนูนี้เพื่อโหลด —</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: แจ้งเรื่อง / รายละเอียดเรื่องประสานงาน -->
+<div class="overlay" id="modal-impl-form">
+  <div class="modal" style="max-width:600px;padding:1.2rem;max-height:90vh;overflow-y:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
+      <div style="font-size:1rem;font-weight:800" id="impl-form-title">+ แจ้งเรื่องประสานงาน</div>
+      <button class="modal-close" onclick="closeModal('modal-impl-form')">×</button>
+    </div>
+    <input type="hidden" id="impl-id"/>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.65rem">
+      <div class="form-group">
+        <label>ประเภทงาน <span style="color:#ef4444">*</span></label>
+        <select id="impl-type" style="width:100%">
+          <option value="training">🎓 เทรนนิ่ง</option>
+          <option value="template">📄 ทำเทมเพลท</option>
+          <option value="install">💽 ติดตั้งโปรแกรมเพิ่มเติม</option>
+          <option value="new_menu">🍽️ ทำเมนูใหม่</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>ความสำคัญ</label>
+        <select id="impl-priority" style="width:100%">
+          <option value="normal">ปกติ</option>
+          <option value="urgent">⚠️ ด่วน</option>
+          <option value="low">ไม่เร่ง</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>เรื่องที่ขอ <span style="color:#ef4444">*</span></label>
+      <input id="impl-title" type="text" style="width:100%" placeholder="เช่น เทรนการใช้งานหน้าขายให้พนักงานใหม่"/>
+    </div>
+
+    <div class="form-group">
+      <label>รายละเอียด</label>
+      <textarea id="impl-detail" rows="3" style="width:100%;resize:vertical" placeholder="ระบุรายละเอียด เช่น หัวข้อที่ต้องเทรน จำนวนผู้เข้าอบรม รูปแบบเทมเพลท โปรแกรมที่ต้องติดตั้ง เมนูที่ต้องการ..."></textarea>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 130px;gap:.65rem">
+      <div class="form-group">
+        <label>ร้าน / ลูกค้า</label>
+        <input id="impl-customer" type="text" style="width:100%" placeholder="ไม่บังคับ"/>
+      </div>
+      <div class="form-group">
+        <label>สาขา</label>
+        <input id="impl-branch" type="text" style="width:100%" placeholder="ไม่บังคับ"/>
+      </div>
+      <div class="form-group">
+        <label>วันที่ต้องการ</label>
+        <input id="impl-want-date" type="date" style="width:100%"/>
+      </div>
+    </div>
+
+    <!-- ข้อมูลติดต่อ — ทีมที่รับงานต้องโทรนัดหมายเอง -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.65rem">
+      <div class="form-group">
+        <label>ชื่อผู้ติดต่อ</label>
+        <input id="impl-contact-name" type="text" style="width:100%" placeholder="เช่น คุณสมชาย (ผู้จัดการร้าน)"/>
+      </div>
+      <div class="form-group">
+        <label>เบอร์โทร</label>
+        <input id="impl-contact-tel" type="text" style="width:100%" placeholder="08x-xxx-xxxx"/>
+      </div>
+      <div class="form-group">
+        <label>ช่องทางอื่น</label>
+        <input id="impl-contact-note" type="text" style="width:100%" placeholder="LINE / อีเมล / เวลาที่สะดวก"/>
+      </div>
+    </div>
+
+    <!-- ส่วนนี้โผล่เฉพาะตอนเปิดงานที่บันทึกแล้ว -->
+    <div id="impl-edit-only" style="display:none">
+      <div style="border-top:1px solid var(--border);margin:.5rem 0 .8rem"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.65rem">
+        <div class="form-group">
+          <label>สถานะ</label>
+          <select id="impl-status" style="width:100%">
+            <option value="pending">⏳ รอรับเรื่อง</option>
+            <option value="accepted">📥 รับเรื่องแล้ว</option>
+            <option value="in_progress">🔧 กำลังดำเนินการ</option>
+            <option value="done">✅ เสร็จสิ้น</option>
+            <option value="cancelled">🚫 ยกเลิก</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>ผู้รับผิดชอบ</label>
+          <select id="impl-assignee" style="width:100%"><option value="">— ยังไม่ระบุ —</option></select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>บันทึกของผู้ทำงาน</label>
+        <textarea id="impl-note" rows="2" style="width:100%;resize:vertical" placeholder="ความคืบหน้า / สิ่งที่ทำไป..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>ไฟล์แนบ</label>
+        <div id="impl-files" style="display:flex;flex-direction:column;gap:.3rem;margin-bottom:.4rem"></div>
+        <input type="file" id="impl-file-input" multiple style="display:none" onchange="implUploadFiles(this.files)"
+               accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.txt,.log"/>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('impl-file-input').click()">📎 แนบไฟล์</button>
+        <span style="font-size:.72rem;color:var(--muted);margin-left:.4rem">ไม่เกิน 10 MB ต่อไฟล์</span>
+      </div>
+      <div id="impl-meta" style="font-size:.74rem;color:var(--muted);line-height:1.7"></div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:.5rem;margin-top:1rem">
+      <button class="btn btn-ghost btn-sm" id="impl-del-btn" style="color:#dc2626;display:none" onclick="implDelete()">🗑️ ลบ</button>
+      <div style="margin-left:auto;display:flex;gap:.5rem">
+        <button class="btn btn-ghost" onclick="closeModal('modal-impl-form')">ยกเลิก</button>
+        <button class="btn btn-primary" id="impl-save-btn" onclick="implSave()">บันทึก</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════════ PAGE: SETTINGS ═══════════════════ -->
 <div id="page-settings" class="page">
   <div class="section-header" style="margin-bottom:.75rem">
@@ -5063,7 +5255,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // click outside to close
 // Modals ที่ห้ามปิดเมื่อกด outside (ข้อมูลอาจหาย)
-const NO_BACKDROP_CLOSE = new Set(['modal-repair-link','modal-repair-form','modal-repair-detail','modal-person','modal-create-case','modal-edit-ticket-full','modal-specialist-detail','modal-assign-specialist','modal-add-sp','modal-edit-sp','modal-si-entry','modal-si-import','modal-fu-add-issue','modal-sk-entry','modal-sw-update-form','modal-uat-form','modal-uat-detail','modal-uat-issue-form','modal-tk-import','modal-news-form','modal-weekly-pattern','modal-tr-add','modal-hr-password','modal-pod-form','modal-cust-form','modal-pod-members','modal-cust-detail']);
+const NO_BACKDROP_CLOSE = new Set(['modal-repair-link','modal-repair-form','modal-repair-detail','modal-person','modal-create-case','modal-edit-ticket-full','modal-specialist-detail','modal-assign-specialist','modal-add-sp','modal-edit-sp','modal-si-entry','modal-si-import','modal-fu-add-issue','modal-sk-entry','modal-sw-update-form','modal-uat-form','modal-uat-detail','modal-uat-issue-form','modal-tk-import','modal-news-form','modal-weekly-pattern','modal-tr-add','modal-hr-password','modal-impl-form','modal-pod-form','modal-cust-form','modal-pod-members','modal-cust-detail']);
 
 document.querySelectorAll('.overlay').forEach(el => {
   el.addEventListener('click', e => {
@@ -5114,6 +5306,7 @@ function showPage(name, btn) {
   if (name === 'shopinfo') { loadShopInfo(); }
   if (name === 'uat') { loadUat(); }
   if (name === 'sw-update') { loadSwUpdate(); }
+  if (name === 'impl')      { loadImplRequests(); }
   if (name === 'news') { loadNews(); }
   if (name === 'pods') { loadPods(); loadLineBotMonitor(); }
 }
@@ -5632,6 +5825,8 @@ function renderTriageRow(r) {
     <td style="white-space:nowrap">
       <div style="font-weight:600;font-size:.75rem;color:${w.color}">${w.txt}</div>
       <div style="color:#64748b;font-size:.6rem">${trFmtTime(r.message_time)}</div>
+      ${r.source_msg_id ? `<div style="color:#94a3b8;font-size:.62rem;font-family:ui-monospace,SFMono-Regular,monospace"
+           title="เลข TASK — อ้างอิงข้อความต้นทาง ใช้ตัวเดียวกับที่ส่งไปในไลน์">TASK #${r.source_msg_id}</div>` : ''}
     </td>
     <td style="font-size:.74rem">
       <div style="display:flex;align-items:center;gap:4px">
@@ -6168,6 +6363,230 @@ async function saveLgpNotify() {
       renderLineGroupPodBoard();
     }
   } finally { btn.disabled = false; }
+}
+
+
+// ══════════════════════════════════════════════════════════
+//  รับเรื่องประสานงาน (งานภายใน) — /api/impl-requests
+// ══════════════════════════════════════════════════════════
+const IMPL_TYPE_META = {
+  training: { label: '🎓 เทรนนิ่ง',              fg: '#047857', bg: '#d1fae5' },
+  template: { label: '📄 ทำเทมเพลท',             fg: '#1d4ed8', bg: '#dbeafe' },
+  install:  { label: '💽 ติดตั้งโปรแกรมเพิ่มเติม', fg: '#7c3aed', bg: '#ede9fe' },
+  new_menu: { label: '🍽️ ทำเมนูใหม่',            fg: '#b45309', bg: '#fef3c7' },
+};
+const IMPL_STATUS_META = {
+  pending:     { label: '⏳ รอรับเรื่อง',      fg: '#b45309', bg: '#fef3c7' },
+  accepted:    { label: '📥 รับเรื่องแล้ว',    fg: '#0369a1', bg: '#e0f2fe' },
+  in_progress: { label: '🔧 กำลังดำเนินการ',   fg: '#1d4ed8', bg: '#dbeafe' },
+  done:        { label: '✅ เสร็จสิ้น',        fg: '#16a34a', bg: '#dcfce7' },
+  cancelled:   { label: '🚫 ยกเลิก',           fg: '#64748b', bg: '#f1f5f9' },
+};
+const IMPL_PRIORITY_META = {
+  urgent: { label: '⚠️ ด่วน', fg: '#b91c1c', bg: '#fee2e2' },
+  normal: { label: 'ปกติ',    fg: '#475569', bg: '#f1f5f9' },
+  low:    { label: 'ไม่เร่ง',  fg: '#64748b', bg: '#f8fafc' },
+};
+const implMeta = (map, k, fallback) => map[k] || { label: k || fallback, fg: '#475569', bg: '#f1f5f9' };
+const implChip = (m) => `<span style="display:inline-block;font-size:.72rem;font-weight:700;padding:.1rem .45rem;border-radius:6px;background:${m.bg};color:${m.fg};white-space:nowrap">${m.label}</span>`;
+
+let _implRows = [], _implUsers = null, _implSearchTimer = null;
+
+function implSearchDebounce() {
+  clearTimeout(_implSearchTimer);
+  _implSearchTimer = setTimeout(loadImplRequests, 350);
+}
+
+async function loadImplRequests() {
+  const tb = document.getElementById('impl-tbody');
+  if (!tb) return;
+  const qs = new URLSearchParams();
+  const st = document.getElementById('impl-filter-status')?.value ?? 'open';
+  const tp = document.getElementById('impl-filter-type')?.value || '';
+  const q  = document.getElementById('impl-search')?.value.trim() || '';
+  if (st) qs.set('status', st);
+  if (tp) qs.set('type', tp);
+  if (q)  qs.set('q', q);
+  tb.innerHTML = '<tr><td colspan="9" class="empty">กำลังโหลด...</td></tr>';
+  const rows = await api('/api/impl-requests?' + qs.toString(), { silent: true });
+  if (!rows || rows.error) { tb.innerHTML = '<tr><td colspan="9" class="empty">โหลดไม่สำเร็จ</td></tr>'; return; }
+  _implRows = rows;
+  renderImplTable();
+}
+
+function renderImplTable() {
+  const tb = document.getElementById('impl-tbody');
+  if (!_implRows.length) {
+    tb.innerHTML = '<tr><td colspan="9" class="empty">— ไม่มีงานตามเงื่อนไขที่เลือก —</td></tr>';
+  } else {
+    tb.innerHTML = _implRows.map(r => {
+      const wd = r.want_date ? fmtDateShort(r.want_date) : '—';
+      // วันที่ต้องการที่เลยมาแล้วและงานยังไม่จบ = เตือนด้วยสีแดง
+      const late = r.want_date && !['done', 'cancelled'].includes(r.status)
+                && new Date(r.want_date) < new Date(new Date().toDateString());
+      const shop = [r.customer, r.branch].filter(Boolean).join(' / ') || '—';
+      return `<tr style="cursor:pointer" onclick="openImplForm(${r.id})">
+        <td style="font-family:monospace;font-size:.78rem">${esc(r.req_no || '#' + r.id)}</td>
+        <td>${implChip(implMeta(IMPL_TYPE_META, r.req_type, 'อื่นๆ'))}</td>
+        <td style="font-weight:600">${esc(r.title)}</td>
+        <td style="font-size:.8rem">${esc(shop)}</td>
+        <td style="font-size:.8rem;${late ? 'color:#dc2626;font-weight:700' : ''}">${wd}${late ? ' ⚠️' : ''}</td>
+        <td>${implChip(implMeta(IMPL_PRIORITY_META, r.priority, 'ปกติ'))}</td>
+        <td>${implChip(implMeta(IMPL_STATUS_META, r.status, '—'))}</td>
+        <td style="font-size:.8rem">${esc(r.assignee_name || '—')}</td>
+        <td style="font-size:.8rem">${esc(r.creator_name || '—')}</td>
+      </tr>`;
+    }).join('');
+  }
+  const n = (f) => _implRows.filter(f).length;
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('impl-stat-total', _implRows.length);
+  set('impl-stat-pending', n(r => r.status === 'pending'));
+  set('impl-stat-doing', n(r => r.status === 'accepted' || r.status === 'in_progress'));
+  set('impl-stat-done', n(r => r.status === 'done'));
+}
+
+// รายชื่อผู้ใช้ระบบสำหรับช่อง "ผู้รับผิดชอบ" (assigned_to = app_users.id)
+async function implFillAssignees(selected) {
+  const sel = document.getElementById('impl-assignee');
+  if (!sel) return;
+  if (!_implUsers) _implUsers = (await api('/api/users', { silent: true })) || [];
+  sel.innerHTML = '<option value="">— ยังไม่ระบุ —</option>' + _implUsers
+    .filter(u => u.active !== false)
+    .map(u => `<option value="${u.id}">${esc(u.nickname || u.name || u.username)}${u.team ? ' (' + esc(teamLabel(u.team)) + ')' : ''}</option>`)
+    .join('');
+  sel.value = selected ? String(selected) : '';
+}
+
+async function openImplForm(id) {
+  const gv = (i) => document.getElementById(i);
+  gv('impl-id').value = id || '';
+  gv('impl-form-title').textContent = id ? '📨 รายละเอียดเรื่องประสานงาน' : '+ แจ้งเรื่องประสานงาน';
+  gv('impl-edit-only').style.display = id ? '' : 'none';
+  gv('impl-del-btn').style.display = (id && isManager()) ? '' : 'none';
+  gv('impl-files').innerHTML = '';
+  gv('impl-meta').innerHTML = '';
+
+  if (!id) {
+    gv('impl-type').value = 'training';
+    gv('impl-priority').value = 'normal';
+    ['impl-title', 'impl-detail', 'impl-customer', 'impl-branch', 'impl-want-date', 'impl-note',
+     'impl-contact-name', 'impl-contact-tel', 'impl-contact-note']
+      .forEach(i => gv(i).value = '');
+    openModal('modal-impl-form');
+    return;
+  }
+
+  openModal('modal-impl-form');
+  const r = await api(`/api/impl-requests/${id}`, { silent: true });
+  if (!r || r.error) { showToast('โหลดรายละเอียดไม่สำเร็จ', 'error'); return; }
+  gv('impl-type').value      = r.req_type || 'training';
+  gv('impl-priority').value  = r.priority || 'normal';
+  gv('impl-title').value     = r.title || '';
+  gv('impl-detail').value    = r.detail || '';
+  gv('impl-customer').value  = r.customer || '';
+  gv('impl-branch').value    = r.branch || '';
+  gv('impl-want-date').value = r.want_date ? String(r.want_date).slice(0, 10) : '';
+  gv('impl-contact-name').value = r.contact_name || '';
+  gv('impl-contact-tel').value  = r.contact_tel || '';
+  gv('impl-contact-note').value = r.contact_note || '';
+  gv('impl-status').value    = r.status || 'pending';
+  gv('impl-note').value      = r.note || '';
+  await implFillAssignees(r.assigned_to);
+  renderImplFiles(r.files || []);
+  gv('impl-meta').innerHTML = [
+    `เลขที่ <b>${esc(r.req_no || '#' + r.id)}</b> · แจ้งโดย ${esc(r.creator_name || '—')} · ${fmtDT(r.created_at)}`,
+    r.accepted_at ? `รับเรื่อง ${fmtDT(r.accepted_at)}` : '',
+    r.done_at ? `ปิดงาน ${fmtDT(r.done_at)}` : '',
+  ].filter(Boolean).join('<br>');
+}
+
+function renderImplFiles(files) {
+  const box = document.getElementById('impl-files');
+  if (!box) return;
+  const rid = document.getElementById('impl-id').value;
+  box.innerHTML = files.length ? files.map(f => `
+    <div style="display:flex;align-items:center;gap:.45rem;font-size:.78rem;background:#f8fafc;border:1px solid var(--border);border-radius:6px;padding:.25rem .5rem">
+      <a href="/uploads/impl/${rid}/${encodeURIComponent(f.stored_name || '')}" target="_blank" style="flex:1;color:#1d4ed8;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📎 ${esc(f.file_name)}</a>
+      <span style="color:var(--muted);flex-shrink:0">${Math.round((f.size_bytes || 0) / 1024).toLocaleString()} KB</span>
+      <button onclick="implDeleteFile(${f.id})" title="ลบไฟล์"
+              style="border:none;background:none;color:#dc2626;cursor:pointer;padding:0 .1rem;flex-shrink:0">×</button>
+    </div>`).join('')
+    : '<div style="font-size:.78rem;color:var(--muted)">— ยังไม่มีไฟล์แนบ —</div>';
+}
+
+async function implSave() {
+  const gv = (i) => document.getElementById(i).value;
+  const id = gv('impl-id');
+  const body = {
+    req_type:  gv('impl-type'),
+    title:     gv('impl-title').trim(),
+    detail:    gv('impl-detail'),
+    customer:  gv('impl-customer').trim() || null,
+    branch:    gv('impl-branch').trim() || null,
+    want_date: gv('impl-want-date') || null,
+    priority:  gv('impl-priority'),
+    contact_name: gv('impl-contact-name').trim() || null,
+    contact_tel:  gv('impl-contact-tel').trim() || null,
+    contact_note: gv('impl-contact-note').trim() || null,
+  };
+  if (!body.title) { alert('กรุณาระบุเรื่องที่ขอ'); return; }
+  if (id) {
+    body.status      = gv('impl-status');
+    body.assigned_to = gv('impl-assignee') ? parseInt(gv('impl-assignee')) : null;
+    body.note        = gv('impl-note');
+  }
+  const btn = document.getElementById('impl-save-btn');
+  btn.disabled = true;
+  try {
+    const res = id
+      ? await api(`/api/impl-requests/${id}`, { method: 'PUT', body })
+      : await api('/api/impl-requests', { method: 'POST', body });
+    if (res && !res.error) {
+      closeModal('modal-impl-form');
+      showToast(id ? 'บันทึกแล้ว' : `ส่งคำขอแล้ว ${res.req_no || ''}`, 'success');
+      loadImplRequests();
+    }
+  } finally { btn.disabled = false; }
+}
+
+async function implDelete() {
+  const id = document.getElementById('impl-id').value;
+  if (!id) return;
+  if (!confirm('ลบคำขอนี้พร้อมไฟล์แนบทั้งหมด?')) return;
+  const res = await api(`/api/impl-requests/${id}`, { method: 'DELETE' });
+  if (res && !res.error) { closeModal('modal-impl-form'); showToast('ลบแล้ว', 'success'); loadImplRequests(); }
+}
+
+async function implUploadFiles(fileList) {
+  const id = document.getElementById('impl-id').value;
+  if (!id || !fileList?.length) return;
+  const fd = new FormData();
+  for (const f of fileList) fd.append('files', f);
+  try {
+    const res = await fetch(`/api/impl-requests/${id}/files`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + authToken },
+      body: fd,
+    });
+    const out = await res.json();
+    if (out.error) { showToast(out.error, 'error'); return; }
+    // โหลดรายการไฟล์ใหม่จากเซิร์ฟเวอร์ ให้ตรงกับของจริงเสมอ
+    const r = await api(`/api/impl-requests/${id}`, { silent: true });
+    renderImplFiles(r?.files || []);
+    showToast('แนบไฟล์แล้ว', 'success');
+  } catch (e) { showToast('แนบไฟล์ไม่สำเร็จ', 'error'); }
+  document.getElementById('impl-file-input').value = '';
+}
+
+async function implDeleteFile(fileId) {
+  if (!confirm('ลบไฟล์นี้?')) return;
+  const res = await api(`/api/impl-requests/files/${fileId}`, { method: 'DELETE' });
+  if (res && !res.error) {
+    const id = document.getElementById('impl-id').value;
+    const r = await api(`/api/impl-requests/${id}`, { silent: true });
+    renderImplFiles(r?.files || []);
+  }
 }
 
 // Monitor — ticket trend by company × month (LicenseDB SP)
@@ -11846,6 +12265,7 @@ const LINE_EVENTS = [
   { key: 'empcal_summary',   label: '🗓️ ตารางงานพนักงาน (สรุปรายวัน 08:00)' },
   { key: 'triage_alert',     label: '🔔 Ticket ไลน์ค้าง (เกิน 15/30 นาที)' },
   { key: 'triage_alert_groups', label: '🎯 แจ้งเตือนตามกลุ่ม LINE ที่เลือก' },
+  { key: 'impl_request',     label: '📨 รับเรื่องประสานงาน (สร้าง/ปิดงาน)' },
   { key: 'uat_job',          label: '🧪 แจ้งงาน UAT ใหม่' },
   { key: 'uat_issue',        label: '🐞 พบ Issue จาก UAT' },
 ];
