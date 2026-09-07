@@ -6751,7 +6751,15 @@ function buildTriageFilter(query, r) {
     if (parts.includes('none')) ors.push('lgp.pod_id IS NULL');
     if (ors.length) where.push('(' + ors.join(' OR ') + ')');
   }
-  if (query.q) { where.push('(t.message_text LIKE @q OR t.summary LIKE @q OR t.customer_name LIKE @q OR t.group_name LIKE @q)'); r.input('q', sql.NVarChar, '%' + String(query.q).slice(0, 80) + '%'); }
+  if (query.q) {
+    const raw = String(query.q).slice(0, 80).trim();
+    // รับเลข TASK ได้ทั้ง "TASK #171749" / "#171749" / "171749" — ตัดคำนำหน้าออกก่อนเทียบ
+    const bare = raw.replace(/^TASK/i, '').trim().replace(/^#/, '').trim();
+    where.push(`(t.message_text LIKE @q OR t.summary LIKE @q OR t.customer_name LIKE @q
+                 OR t.group_name LIKE @q OR CAST(t.source_msg_id AS NVARCHAR(20)) LIKE @qid)`);
+    r.input('q',   sql.NVarChar, '%' + raw + '%');
+    r.input('qid', sql.NVarChar, '%' + (bare || raw) + '%');
+  }
   return where.length ? 'WHERE ' + where.join(' AND ') : '';
 }
 

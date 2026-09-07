@@ -3316,10 +3316,11 @@ textarea{resize:vertical;min-height:80px}
           <th style="min-width:100px">วันที่ต้องการ</th>
           <th style="min-width:80px">ความสำคัญ</th>
           <th style="min-width:140px">สถานะ</th>
-          <th style="min-width:120px">ผู้รับผิดชอบ</th>
+          <th style="min-width:130px">ผู้รับผิดชอบ</th>
           <th style="min-width:110px">ผู้แจ้ง</th>
+          <th style="min-width:100px">จัดการ</th>
         </tr></thead>
-        <tbody id="impl-tbody"><tr><td colspan="9" class="empty">— เลือกเมนูนี้เพื่อโหลด —</td></tr></tbody>
+        <tbody id="impl-tbody"><tr><td colspan="10" class="empty">— เลือกเมนูนี้เพื่อโหลด —</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -3781,7 +3782,7 @@ textarea{resize:vertical;min-height:80px}
           <option value="request">📋 ขอ/ร้องขอ</option>
           <option value="complaint">😠 ร้องเรียน</option>
         </select>
-        <input id="tr-search" placeholder="🔍 ค้นข้อความ/กลุ่ม..." onkeydown="if(event.key==='Enter')loadTriage()" style="flex:1;min-width:160px"/>
+        <input id="tr-search" placeholder="🔍 ค้นข้อความ / กลุ่ม / เลข TASK..." onkeydown="if(event.key==='Enter')loadTriage()" style="flex:1;min-width:160px"/>
       </div>
       <div id="tr-pod-filter" style="display:flex;gap:.35rem;flex-wrap:wrap;align-items:center;margin-bottom:.6rem"></div>
       <div style="display:flex;align-items:center;justify-content:flex-end;gap:.5rem;margin-bottom:.55rem">
@@ -6407,9 +6408,11 @@ async function loadImplRequests() {
   if (st) qs.set('status', st);
   if (tp) qs.set('type', tp);
   if (q)  qs.set('q', q);
-  tb.innerHTML = '<tr><td colspan="9" class="empty">กำลังโหลด...</td></tr>';
+  tb.innerHTML = '<tr><td colspan="10" class="empty">กำลังโหลด...</td></tr>';
+  // ต้องมีรายชื่อก่อนวาดตาราง เพราะช่องผู้รับผิดชอบเป็น dropdown ในแถว
+  if (!_implUsers) _implUsers = (await api('/api/users', { silent: true })) || [];
   const rows = await api('/api/impl-requests?' + qs.toString(), { silent: true });
-  if (!rows || rows.error) { tb.innerHTML = '<tr><td colspan="9" class="empty">โหลดไม่สำเร็จ</td></tr>'; return; }
+  if (!rows || rows.error) { tb.innerHTML = '<tr><td colspan="10" class="empty">โหลดไม่สำเร็จ (ถ้าเพิ่งอัปเดตโค้ด ให้รีสตาร์ท server ก่อน)</td></tr>'; return; }
   _implRows = rows;
   renderImplTable();
 }
@@ -6417,7 +6420,7 @@ async function loadImplRequests() {
 function renderImplTable() {
   const tb = document.getElementById('impl-tbody');
   if (!_implRows.length) {
-    tb.innerHTML = '<tr><td colspan="9" class="empty">— ไม่มีงานตามเงื่อนไขที่เลือก —</td></tr>';
+    tb.innerHTML = '<tr><td colspan="10" class="empty">— ไม่มีงานตามเงื่อนไขที่เลือก —</td></tr>';
   } else {
     tb.innerHTML = _implRows.map(r => {
       const wd = r.want_date ? fmtDateShort(r.want_date) : '—';
@@ -6433,8 +6436,9 @@ function renderImplTable() {
         <td style="font-size:.8rem;${late ? 'color:#dc2626;font-weight:700' : ''}">${wd}${late ? ' ⚠️' : ''}</td>
         <td>${implChip(implMeta(IMPL_PRIORITY_META, r.priority, 'ปกติ'))}</td>
         <td>${implChip(implMeta(IMPL_STATUS_META, r.status, '—'))}</td>
-        <td style="font-size:.8rem">${esc(r.assignee_name || '—')}</td>
+        <td>${implAssigneeSelect(r)}</td>
         <td style="font-size:.8rem">${esc(r.creator_name || '—')}</td>
+        <td>${implActionBtns(r)}</td>
       </tr>`;
     }).join('');
   }
@@ -6445,6 +6449,55 @@ function renderImplTable() {
   set('impl-stat-doing', n(r => r.status === 'accepted' || r.status === 'in_progress'));
   set('impl-stat-done', n(r => r.status === 'done'));
 }
+
+// ── โฟลว์มอบหมายงาน / เดินสถานะ จากในตารางเลย ─────────────
+// ใช้ PUT ตัวเดิม (มันอัปเดตเฉพาะ field ที่ส่งไป) จะได้ไม่ต้องเปิด modal ทุกครั้ง
+function implAssigneeSelect(r) {
+  const done = r.status === 'done' || r.status === 'cancelled';
+  const opts = ['<option value="">— ยังไม่ระบุ —</option>'].concat(
+    (_implUsers || []).filter(u => u.active !== false).map(u =>
+      `<option value="${u.id}"${String(r.assigned_to || '') === String(u.id) ? ' selected' : ''}>${esc(u.nickname || u.name || u.username)}</option>`)
+  ).join('');
+  return `<select onclick="event.stopPropagation()" onchange="implSetAssignee(${r.id}, this.value, '${r.status}')"
+    ${done ? 'disabled' : ''} title="เลือกผู้รับผิดชอบ"
+    style="font-size:.76rem;padding:2px 4px;max-width:120px;${done ? 'opacity:.6' : ''}">${opts}</select>`;
+}
+
+function implActionBtns(r) {
+  const btn = (label, fn, style) =>
+    `<button class="btn btn-sm" onclick="event.stopPropagation();${fn}" style="padding:2px 9px;font-size:.7rem;white-space:nowrap;${style}">${label}</button>`;
+  if (r.status === 'pending') {
+    // ปุ่มเดียวจบ: รับเป็นของตัวเอง + ขยับสถานะเป็นรับเรื่องแล้ว
+    return btn('📥 รับเรื่อง', `implTakeJob(${r.id})`, 'background:#0369a1;color:#fff');
+  }
+  if (r.status === 'accepted')    return btn('🔧 เริ่มทำ', `implSetStatus(${r.id},'in_progress')`, 'background:#1d4ed8;color:#fff');
+  if (r.status === 'in_progress') return btn('✅ เสร็จ',   `implSetStatus(${r.id},'done')`,        'background:#16a34a;color:#fff');
+  return btn('↩ เปิดใหม่', `implSetStatus(${r.id},'in_progress')`, 'background:#f1f5f9;color:#334155');
+}
+
+async function implPatch(id, body, okMsg) {
+  const res = await api(`/api/impl-requests/${id}`, { method: 'PUT', body });
+  if (res && !res.error) { if (okMsg) showToast(okMsg, 'success'); loadImplRequests(); }
+}
+
+// รับงานเป็นของตัวเอง — คนที่กดคือผู้รับผิดชอบ
+function implTakeJob(id) {
+  implPatch(id, { assigned_to: currentUser?.id || null, status: 'accepted' }, 'รับเรื่องแล้ว');
+}
+
+// เปลี่ยนผู้รับผิดชอบจากในตาราง — ถ้ายังรอรับเรื่องอยู่ ให้ขยับเป็นรับเรื่องแล้วไปด้วย
+function implSetAssignee(id, val, status) {
+  const assigned_to = val ? parseInt(val) : null;
+  const body = { assigned_to };
+  if (assigned_to && status === 'pending') body.status = 'accepted';
+  implPatch(id, body, assigned_to ? 'มอบหมายแล้ว' : 'ล้างผู้รับผิดชอบแล้ว');
+}
+
+function implSetStatus(id, status) {
+  if (status === 'done' && !confirm('ปิดงานนี้เป็น "เสร็จสิ้น"? ระบบจะแจ้งเข้ากลุ่ม LINE')) return;
+  implPatch(id, { status }, 'อัปเดตสถานะแล้ว');
+}
+
 
 // รายชื่อผู้ใช้ระบบสำหรับช่อง "ผู้รับผิดชอบ" (assigned_to = app_users.id)
 async function implFillAssignees(selected) {
