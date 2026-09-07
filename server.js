@@ -103,27 +103,32 @@ async function groqGenerateStream(prompt, onDelta) {
 
 // prompt → ข้อความ. parse ใช้แปลง/ตรวจคำตอบ (โยน error = ให้ไปลองอีกเจ้า)
 // geminiConfig คือ responseSchema ฝั่ง Gemini เท่านั้น — Groq อาศัย prompt + parse เอา
-async function aiGenerate(prompt, { parse = (t) => t, geminiConfig = null } = {}) {
-  let firstErr = null;
-  if (GROQ_API_KEY) {
-    try {
-      return { value: parse(await groqGenerate(prompt)), usedModel: GROQ_MODEL };
-    } catch (e) {
-      firstErr = e;
-      console.warn('AI: Groq ไม่สำเร็จ →', aiErrText(e),
-        process.env.GEMINI_API_KEY ? '(ลอง Gemini ต่อ)' : '(ไม่มี GEMINI_API_KEY ให้ fallback)');
-    }
-  }
-  if (!process.env.GEMINI_API_KEY) throw firstErr || new Error('ยังไม่ได้ตั้งค่า GROQ_API_KEY ใน .env');
-  try {
+// prefer เลือกว่าจะให้เจ้าไหนเป็นตัวหลัก อีกเจ้าเป็นตัวสำรองอัตโนมัติ
+// ('groq' = ค่าเริ่มต้น; หน้า Pod & Assign ใช้ 'gemini')
+async function aiGenerate(prompt, { parse = (t) => t, geminiConfig = null, prefer = 'groq' } = {}) {
+  const callGroq = async () => ({ value: parse(await groqGenerate(prompt)), usedModel: GROQ_MODEL });
+  const callGemini = async () => {
     const model  = genAI.getGenerativeModel({ model: AI_MODEL, ...(geminiConfig || {}) });
     const result = await model.generateContent(prompt);
-    const out = { value: parse(result.response.text()), usedModel: AI_MODEL };
-    if (firstErr) console.log('AI: fallback ไป Gemini สำเร็จ →', AI_MODEL);
-    return out;
-  } catch (e) {
-    throw new Error(`AI ไม่สำเร็จ — Groq: ${firstErr ? aiErrText(firstErr) : 'ไม่ได้ใช้'} | Gemini: ${aiErrText(e)}`);
+    return { value: parse(result.response.text()), usedModel: AI_MODEL };
+  };
+  const groq   = { name: 'Groq',   hasKey: () => !!GROQ_API_KEY,               call: callGroq };
+  const gemini = { name: 'Gemini', hasKey: () => !!process.env.GEMINI_API_KEY, call: callGemini };
+  const order = prefer === 'gemini' ? [gemini, groq] : [groq, gemini];
+
+  const errs = [];
+  for (const p of order) {
+    if (!p.hasKey()) { errs.push(`${p.name}: ยังไม่ได้ตั้ง API key`); continue; }
+    try {
+      const out = await p.call();
+      if (errs.length) console.log(`AI: fallback ไป ${p.name} สำเร็จ →`, out.usedModel);
+      return out;
+    } catch (e) {
+      errs.push(`${p.name}: ${aiErrText(e)}`);
+      console.warn(`AI: ${p.name} ไม่สำเร็จ →`, aiErrText(e));
+    }
   }
+  throw new Error('AI ไม่สำเร็จ — ' + errs.join(' | '));
 }
 
 // เวอร์ชัน stream — ถอยไป Gemini ได้เฉพาะตอนที่ยังไม่ส่งอะไรออกไป
@@ -440,6 +445,11 @@ async function ensureLineNotifyTable() {
     -- ส่งเฉพาะที่รอเกินกี่นาที (NULL/0 = ทุกระดับ) — ใช้กับ triage_alert
     IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('line_notify_targets') AND name='min_wait_min')
       ALTER TABLE line_notify_targets ADD min_wait_min INT NULL;
+
+    -- ปลายทางที่กลุ่ม LINE นี้ส่งแจ้งเตือนไปหา — เก็บเป็น "1,2,5" (id ของ line_notify_targets)
+    -- ตั้งค่าที่แท็บ "จัดกลุ่มไลน์เข้า Pod"; ว่าง/NULL = ไม่ส่งผ่าน event triage_alert_groups
+    IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('line_group_pods') AND name='notify_target_ids')
+      ALTER TABLE line_group_pods ADD notify_target_ids NVARCHAR(500) NULL;
   `);
   // ย้ายค่าจาก pod_id (เวอร์ชันเลือกได้ Pod เดียว) มาเป็น pod_ids
   try {
@@ -6189,7 +6199,7 @@ app.get('/api/linebot/summary', authRequired, async (request, res) => {
 
     // Pod assignments — เก็บใน cs_team DB (ไม่ใช่ LineBotMonitor) แยกจาก License customers
     const assignR = await req().query(`
-      SELECT lgp.group_id, lgp.pod_id, p.code AS pod_code, p.display_name AS pod_name
+      SELECT lgp.group_id, lgp.pod_id, lgp.notify_target_ids, p.code AS pod_code, p.display_name AS pod_name
       FROM line_group_pods lgp LEFT JOIN pods p ON p.id = lgp.pod_id
     `);
     const podByGroup = {};
@@ -6224,6 +6234,7 @@ app.get('/api/linebot/summary', authRequired, async (request, res) => {
         hourly: hourByGroup[g.GroupId] || {},
         podId: assign?.pod_id || null,
         podCode: assign?.pod_code || null,
+        notifyTargetIds: parseIdList(assign?.notify_target_ids),
       };
     });
 
@@ -6254,6 +6265,31 @@ app.post('/api/linebot/assign-pod', authRequired, managerRequired, async (reques
         WHEN NOT MATCHED THEN INSERT (group_id, group_name, pod_id, assigned_by) VALUES (@gid, @gname, @pid, @by);
       `);
     res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// เลือกว่ากลุ่ม LINE นี้จะส่งแจ้งเตือน Ticket ค้างไปที่ปลายทางไหนบ้าง
+// (ปลายทางที่จะได้รับต้องติ๊ก event 'triage_alert_groups' ไว้ด้วย)
+app.post('/api/linebot/group-notify', authRequired, managerRequired, async (request, res) => {
+  const { groupId, groupName, targetIds } = request.body;
+  if (!groupId) return res.status(400).json({ error: 'groupId required' });
+  const ids = Array.isArray(targetIds)
+    ? [...new Set(targetIds.map(x => parseInt(x, 10)).filter(Number.isInteger))]
+    : [];
+  try {
+    await req()
+      .input('gid', sql.NVarChar, groupId)
+      .input('gname', sql.NVarChar, groupName || null)
+      .input('ids', sql.NVarChar, ids.length ? ids.join(',') : null)
+      .input('by', sql.Int, request.user?.employee_id || null)
+      .query(`
+        MERGE line_group_pods AS target
+        USING (SELECT @gid AS group_id) AS src ON target.group_id = src.group_id
+        WHEN MATCHED THEN UPDATE SET notify_target_ids = @ids, updated_at = GETDATE()
+        WHEN NOT MATCHED THEN INSERT (group_id, group_name, notify_target_ids, assigned_by)
+                                 VALUES (@gid, @gname, @ids, @by);
+      `);
+    res.json({ ok: true, targetIds: ids });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -6349,7 +6385,8 @@ ${list}`;
 
   let arr, usedModel;
   try {
-    ({ value: arr, usedModel } = await aiGenerate(prompt, { parse: parseJsonArrayReply, geminiConfig }));
+    // หน้า Pod & Assign ใช้ Gemini เป็นตัวหลัก (responseSchema บังคับรูปแบบได้) Groq เป็นตัวสำรอง
+    ({ value: arr, usedModel } = await aiGenerate(prompt, { parse: parseJsonArrayReply, geminiConfig, prefer: 'gemini' }));
   } catch (e) {
     console.error('triage: AI/parse failed:', e.message);
     return { classified: 0, scanned: cand.length, hasKey: true, error: 'AI คัดกรองไม่สำเร็จ: ' + e.message };
@@ -6918,7 +6955,8 @@ ${list}`;
 
   let arr;
   try {
-    ({ value: arr } = await aiGenerate(prompt, { parse: parseJsonArrayReply, geminiConfig }));
+    // หน้า Pod & Assign ใช้ Gemini เป็นตัวหลัก Groq เป็นตัวสำรอง
+    ({ value: arr } = await aiGenerate(prompt, { parse: parseJsonArrayReply, geminiConfig, prefer: 'gemini' }));
   } catch (e) {
     // AI ล่ม → ไม่กรองอะไรเลย ปล่อยให้แจ้งเตือนตามปกติ (ปลอดภัยกว่าเงียบ)
     console.error('triage screen: AI failed:', e.message);
@@ -7090,6 +7128,9 @@ function parsePodIds(str) {
   return String(str || '').split(',').map(s => parseInt(s)).filter(Boolean);
 }
 
+// รายการ id คั่นด้วยจุลภาค → array ของตัวเลข (ใช้กับ notify_target_ids ของกลุ่ม LINE)
+const parseIdList = (str) => String(str || '').split(',').map(x => parseInt(x, 10)).filter(Boolean);
+
 // ตัดเฉพาะรายการของ Pod ที่ระบุออกมาเป็นข้อความ — คืน null ถ้าไม่มีอะไรเข้าเกณฑ์
 // label = ชื่อกลุ่ม LINE ปลายทาง (ถ้ามี) ใช้ขึ้นหัวเรื่องแทนการไล่ชื่อ Pod
 function triageAlertForPods(alert, podIds, label = null, minWait = 0) {
@@ -7106,8 +7147,36 @@ function triageAlertForPods(alert, podIds, label = null, minWait = 0) {
 }
 
 // ส่งแจ้งเตือน: กลุ่มที่เลือก Pod ไว้จะได้เฉพาะของ Pod ที่เลือก, กลุ่มที่ไม่เลือกได้สรุปรวม
+// group_id → [id ของปลายทางแจ้งเตือน] ตามที่ตั้งไว้รายกลุ่ม
+async function getGroupNotifyMap() {
+  const rows = (await req().query(
+    `SELECT group_id, notify_target_ids FROM line_group_pods
+     WHERE notify_target_ids IS NOT NULL AND LTRIM(RTRIM(notify_target_ids)) <> ''`)).recordset;
+  const map = new Map();
+  for (const r of rows) {
+    const ids = parseIdList(r.notify_target_ids);
+    if (ids.length) map.set(r.group_id, ids);
+  }
+  return map;
+}
+
 async function sendTriageAlert(alert) {
-  return sendLineNotify((target) => {
+  // ปลายทางที่ติ๊ก 'triage_alert_groups' จะได้เฉพาะกลุ่ม LINE ที่เลือกให้มันไว้
+  let byGroup = 0;
+  try {
+    const gmap = await getGroupNotifyMap();
+    if (gmap.size) {
+      byGroup = await sendLineNotify((target) => {
+        const minW  = Math.max(0, parseInt(target.min_wait_min) || 0);
+        const items = (alert.items || []).filter(x => (gmap.get(x.groupId) || []).includes(target.id));
+        if (!items.length) return null;              // กลุ่มที่เลือกไว้ไม่มีของค้าง → ไม่ต้องรบกวน
+        const sub = formatTriageAlert(items, target.name, true, minW);
+        return sub.hasAny ? sub.text : null;
+      }, 'triage_alert_groups');
+    }
+  } catch (e) { console.error('triage alert (per LINE group) failed:', e.message); }
+
+  const byPod = await sendLineNotify((target) => {
     const ids  = parsePodIds(target.pod_ids);
     const minW = Math.max(0, parseInt(target.min_wait_min) || 0);
     if (ids.length) {
@@ -7120,6 +7189,7 @@ async function sendTriageAlert(alert) {
     }
     return alert.hasAny ? alert.text : null;
   }, 'triage_alert');
+  return byPod + byGroup;
 }
 
 // Preview the alert text (does NOT send to LINE).

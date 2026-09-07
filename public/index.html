@@ -3694,6 +3694,24 @@ textarea{resize:vertical;min-height:80px}
   </div>
 </div>
 
+<!-- MODAL: เลือกปลายทางแจ้งเตือนของกลุ่ม LINE -->
+<div class="overlay" id="modal-lgp-notify">
+  <div class="modal" style="max-width:440px;padding:1.2rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
+      <div style="font-size:1rem;font-weight:800">🔔 ส่งแจ้งเตือนของกลุ่มนี้ไปที่</div>
+      <button class="modal-close" onclick="closeModal('modal-lgp-notify')">×</button>
+    </div>
+    <div style="font-size:.8rem;color:var(--muted);margin-bottom:.6rem">
+      กลุ่ม LINE: <b id="lgp-notify-group" style="color:var(--text)">—</b>
+    </div>
+    <div id="lgp-notify-list" style="max-height:46vh;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:.35rem .5rem"></div>
+    <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:.9rem">
+      <button class="btn btn-ghost" onclick="closeModal('modal-lgp-notify')">ยกเลิก</button>
+      <button class="btn btn-primary" id="lgp-notify-save" onclick="saveLgpNotify()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: Pod form -->
 <div class="overlay" id="modal-pod-form">
   <div class="modal" style="max-width:480px;padding:1.2rem">
@@ -5937,6 +5955,15 @@ function lgpActivityDot(g) {
   const title = `${when} · ${a.t}`;
   return `<span title="${title}" style="width:9px;height:9px;border-radius:50%;background:${a.c};flex-shrink:0;box-shadow:0 0 0 2px ${a.c}22"></span>`;
 }
+// กระดิ่งบอกว่ากลุ่มนี้ตั้งปลายทางแจ้งเตือนไว้กี่ที่ (0 = ยังไม่ส่ง)
+function lgpNotifyBtn(g, gid, gname) {
+  const n = (g.notifyTargetIds || []).length;
+  const on = n > 0;
+  return `<button onclick="event.stopPropagation();openLgpNotify(${gid}, ${gname})"
+    title="${on ? 'ส่งแจ้งเตือนไป ' + n + ' กลุ่ม — คลิกเพื่อแก้' : 'ยังไม่ส่งแจ้งเตือน — คลิกเพื่อเลือกปลายทาง'}"
+    style="flex-shrink:0;border:none;background:none;cursor:pointer;padding:0 .1rem;font-size:.8rem;line-height:1;filter:${on ? 'none' : 'grayscale(1)'};opacity:${on ? 1 : .45}">${on ? '🔔' : '🔕'}</button>`;
+}
+
 function lgpChip(g, canManage) {
   const gid = JSON.stringify(g.id).replace(/"/g,'&quot;');
   const gname = JSON.stringify(g.name).replace(/"/g,'&quot;');
@@ -5950,6 +5977,7 @@ function lgpChip(g, canManage) {
     ${patternBadge}
     <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1" title="${esc(g.name)}">${esc(g.name)}</span>
     <span style="flex-shrink:0;color:#475569;font-size:.72rem" title="เฉลี่ย ${lgpAvgFmt(avg)}/วัน · รวม ${g.total.toLocaleString()} ข้อความ">${avgDisp}</span>
+    ${canManage ? lgpNotifyBtn(g, gid, gname) : ''}
   </div>`;
 }
 function renderLgpLegend() {
@@ -6088,6 +6116,58 @@ async function assignLineGroupPod(sel, groupId, groupName) {
   sel.disabled = false;
   renderLineGroupPodBoard();
   renderLineBotTable();
+}
+
+// ── เลือกปลายทางแจ้งเตือนของกลุ่ม LINE (event: triage_alert_groups) ──
+// ปลายทางที่ไม่ได้ติ๊ก event นี้ไว้จะไม่โผล่ในรายการ ตามที่ตกลงว่า "ให้แสดงตาม LINE นี้เท่านั้น"
+const LGP_NOTIFY_EVENT = 'triage_alert_groups';
+let _lgpNotifyGid = null, _lgpNotifyGname = null;
+
+function lgpHasEvent(t, key) {
+  return String(t.events || '').split(',').map(x => x.trim()).includes(key);
+}
+
+async function openLgpNotify(groupId, groupName) {
+  _lgpNotifyGid = groupId; _lgpNotifyGname = groupName;
+  document.getElementById('lgp-notify-group').textContent = groupName || groupId;
+  const box = document.getElementById('lgp-notify-list');
+  box.innerHTML = '<div style="font-size:.83rem;color:var(--muted)">กำลังโหลด...</div>';
+  openModal('modal-lgp-notify');
+
+  const all = (await api('/api/settings/line/targets', { silent: true })) || [];
+  const targets = all.filter(t => t.active && lgpHasEvent(t, LGP_NOTIFY_EVENT));
+  const g = _lbGroups.find(x => x.id === groupId);
+  const cur = new Set(g?.notifyTargetIds || []);
+
+  box.innerHTML = targets.length
+    ? targets.map(t => `
+      <label style="display:flex;align-items:center;gap:.55rem;padding:.4rem .2rem;font-size:.85rem;cursor:pointer">
+        <input type="checkbox" class="lgp-notify-cb" value="${t.id}" ${cur.has(t.id) ? 'checked' : ''}/>
+        <span style="flex:1">${esc(t.name)}</span>
+        <span style="font-size:.72rem;color:var(--muted)">${esc(t.group_id || '')}</span>
+      </label>`).join('')
+    : `<div style="font-size:.83rem;color:var(--muted);line-height:1.7">
+         ยังไม่มีกลุ่มแจ้งเตือนที่ติ๊ก <b>"แจ้งเตือนตามกลุ่ม LINE ที่เลือก"</b> ไว้<br>
+         ไปที่ <b>ตั้งค่า → กลุ่มแจ้งเตือน</b> ติ๊ก event นี้ให้กลุ่มปลายทางก่อน แล้วกลับมาเลือกที่นี่
+       </div>`;
+}
+
+async function saveLgpNotify() {
+  const ids = [...document.querySelectorAll('.lgp-notify-cb:checked')].map(cb => parseInt(cb.value, 10));
+  const btn = document.getElementById('lgp-notify-save');
+  btn.disabled = true;
+  try {
+    const r = await api('/api/linebot/group-notify', {
+      method: 'POST',
+      body: { groupId: _lgpNotifyGid, groupName: _lgpNotifyGname, targetIds: ids },
+    });
+    if (r && !r.error) {
+      const g = _lbGroups.find(x => x.id === _lgpNotifyGid);
+      if (g) g.notifyTargetIds = ids;
+      closeModal('modal-lgp-notify');
+      renderLineGroupPodBoard();
+    }
+  } finally { btn.disabled = false; }
 }
 
 // Monitor — ticket trend by company × month (LicenseDB SP)
@@ -11765,6 +11845,7 @@ const LINE_EVENTS = [
   { key: 'service_request',  label: '📋 แจ้งงานบริการ' },
   { key: 'empcal_summary',   label: '🗓️ ตารางงานพนักงาน (สรุปรายวัน 08:00)' },
   { key: 'triage_alert',     label: '🔔 Ticket ไลน์ค้าง (เกิน 15/30 นาที)' },
+  { key: 'triage_alert_groups', label: '🎯 แจ้งเตือนตามกลุ่ม LINE ที่เลือก' },
   { key: 'uat_job',          label: '🧪 แจ้งงาน UAT ใหม่' },
   { key: 'uat_issue',        label: '🐞 พบ Issue จาก UAT' },
 ];
