@@ -131,34 +131,45 @@ async function aiGenerate(prompt, { parse = (t) => t, geminiConfig = null, prefe
   throw new Error('AI ไม่สำเร็จ — ' + errs.join(' | '));
 }
 
-// เวอร์ชัน stream — ถอยไป Gemini ได้เฉพาะตอนที่ยังไม่ส่งอะไรออกไป
-// (หลุดกลางคันแล้วเริ่มใหม่ = ผู้ใช้เห็นข้อความซ้ำ)
-async function aiGenerateStream(prompt, onDelta) {
-  let firstErr = null;
-  if (GROQ_API_KEY) {
+// เวอร์ชัน stream — prefer เลือกตัวหลักได้เหมือน aiGenerate()
+// ถอยไปอีกเจ้าได้เฉพาะตอนที่ยังไม่ส่งอะไรออกไป (หลุดกลางคันแล้วเริ่มใหม่ = ผู้ใช้เห็นข้อความซ้ำ)
+async function aiGenerateStream(prompt, onDelta, { prefer = 'groq' } = {}) {
+  const runGroq = async () => {
     let sent = 0;
     try {
       await groqGenerateStream(prompt, (t) => { sent++; onDelta(t); });
       return GROQ_MODEL;
+    } catch (e) { e.alreadySent = sent > 0; throw e; }
+  };
+  const runGemini = async () => {
+    let sent = 0;
+    try {
+      const model  = genAI.getGenerativeModel({ model: AI_MODEL });
+      const stream = await model.generateContentStream(prompt);
+      for await (const chunk of stream.stream) { const t = chunk.text(); if (t) { sent++; onDelta(t); } }
+      return AI_MODEL;
+    } catch (e) { e.alreadySent = sent > 0; throw e; }
+  };
+  const groq   = { name: 'Groq',   hasKey: () => !!GROQ_API_KEY,               run: runGroq };
+  const gemini = { name: 'Gemini', hasKey: () => !!process.env.GEMINI_API_KEY, run: runGemini };
+  const order = prefer === 'gemini' ? [gemini, groq] : [groq, gemini];
+
+  const errs = [];
+  for (const p of order) {
+    if (!p.hasKey()) { errs.push(`${p.name}: ยังไม่ได้ตั้ง API key`); continue; }
+    try {
+      const used = await p.run();
+      if (errs.length) console.log(`AI stream: fallback ไป ${p.name} สำเร็จ →`, used);
+      return used;
     } catch (e) {
-      if (sent) throw new Error(`Groq หลุดกลางคัน: ${aiErrText(e)}`);
-      firstErr = e;
-      console.warn('AI stream: Groq ไม่สำเร็จ →', aiErrText(e),
-        process.env.GEMINI_API_KEY ? '(ลอง Gemini ต่อ)' : '(ไม่มี GEMINI_API_KEY ให้ fallback)');
+      // ส่งข้อความออกไปแล้วบางส่วน — เริ่มใหม่กับอีกเจ้าไม่ได้ ผู้ใช้จะเห็นซ้ำ
+      if (e.alreadySent) throw new Error(`${p.name} หลุดกลางคัน: ${aiErrText(e)}`);
+      errs.push(`${p.name}: ${aiErrText(e)}`);
+      console.warn(`AI stream: ${p.name} ไม่สำเร็จ →`, aiErrText(e));
     }
   }
-  if (!process.env.GEMINI_API_KEY) throw firstErr || new Error('ยังไม่ได้ตั้งค่า GROQ_API_KEY ใน .env');
-  try {
-    const model  = genAI.getGenerativeModel({ model: AI_MODEL });
-    const stream = await model.generateContentStream(prompt);
-    for await (const chunk of stream.stream) { const t = chunk.text(); if (t) onDelta(t); }
-    if (firstErr) console.log('AI stream: fallback ไป Gemini สำเร็จ →', AI_MODEL);
-    return AI_MODEL;
-  } catch (e) {
-    throw new Error(`AI ไม่สำเร็จ — Groq: ${firstErr ? aiErrText(firstErr) : 'ไม่ได้ใช้'} | Gemini: ${aiErrText(e)}`);
-  }
+  throw new Error('AI ไม่สำเร็จ — ' + errs.join(' | '));
 }
-
 
 // ── File upload config ────────────────────────────────────
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
@@ -6711,8 +6722,16 @@ async function classifyTriageBatch(batchSize = 30) {
   `)).recordset;
   if (!cand.length) return { classified: 0, scanned: 0, hasKey: true };
 
+  // เดิมส่งให้ AI ทุกกลุ่มแล้วค่อยกรองตอนแสดงผล — ตอนนี้กรองก่อนเรียก AI
+  // จะได้ไม่เปลืองโควตากับกลุ่มที่ไม่ได้เฝ้า
+  const scopeRows = (await req().query(
+    'SELECT group_id, pod_id, notify_target_ids FROM line_group_pods')).recordset;
+  const scopeMap = new Map(scopeRows.map(r => [r.group_id, r]));
+  const inScope = cand.filter(r => triageGroupInScope(scopeMap.get(r.GroupId)));
+  if (!inScope.length) return { classified: 0, scanned: 0, hasKey: true, skippedOutOfScope: cand.length };
+
   // Filter out ids already classified (cross-DB, so anti-join in app; chunk the IN list)
-  const ids = cand.map(r => r.Id);
+  const ids = inScope.map(r => r.Id);
   const existing = new Set();
   for (let i = 0; i < ids.length; i += 200) {
     const chunk = ids.slice(i, i + 200);
@@ -6723,8 +6742,8 @@ async function classifyTriageBatch(batchSize = 30) {
     )).recordset;
     rows.forEach(x => existing.add(x.source_msg_id));
   }
-  const todo = cand.filter(r => !existing.has(r.Id)).slice(0, batchSize);
-  if (!todo.length) return { classified: 0, scanned: cand.length, hasKey: true };
+  const todo = inScope.filter(r => !existing.has(r.Id)).slice(0, batchSize);
+  if (!todo.length) return { classified: 0, scanned: inScope.length, hasKey: true, skippedOutOfScope: cand.length - inScope.length };
 
   const list = todo.map((m, i) =>
     `[${i}] ${String(m.CustomerMessage).replace(/\s+/g, ' ').slice(0, 500)}`
@@ -6808,22 +6827,26 @@ ${list}`;
       classified++;
     } catch (e) { console.error('triage insert failed for id', m.Id, e.message); }
   }
-  return { classified, scanned: cand.length, hasKey: true };
+  return { classified, scanned: inScope.length, hasKey: true, skippedOutOfScope: cand.length - inScope.length };
 }
 
 // ── ขอบเขต Pod ที่คัดกรอง AI ต้องเฝ้า ────────────────────
 // เอาเฉพาะ Pod ที่ขึ้นต้นตาม prefix (ลูกค้าจริง) + กลุ่มที่ยังไม่ผูก Pod
 // Pod อื่น (Backend, IMP ฯลฯ) เป็นกลุ่มภายใน ไม่ต้องติดตาม
-const TRIAGE_POD_PREFIXES = (process.env.TRIAGE_POD_PREFIXES || 'BKK,CNX')
-  .split(',').map(s => s.trim().replace(/[^A-Za-z0-9_-]/g, '')).filter(Boolean);
+// ขอบเขตที่คัดกรอง AI เฝ้า — เฉพาะกลุ่ม LINE ที่ตั้งกระดิ่งแจ้งเตือนไว้
+// (line_group_pods.notify_target_ids) กับกลุ่มที่ยังไม่ได้ assign Pod
+// ใช้ได้เฉพาะใน query ที่ join line_group_pods (lgp) ไว้แล้ว
+const TRIAGE_BELL_SQL = (lgp = 'lgp') =>
+  `(${lgp}.notify_target_ids IS NOT NULL AND LTRIM(RTRIM(${lgp}.notify_target_ids)) <> '')`;
+function triagePodScopeSql(lgp = 'lgp') {
+  return `(${lgp}.pod_id IS NULL OR ${TRIAGE_BELL_SQL(lgp)})`;
+}
 
-// ใช้ได้เฉพาะใน query ที่ join line_group_pods (lgp) และ pods (p) ไว้แล้ว
-// prefix ถูก sanitize เหลือ A-Z0-9_- จึงปลอดภัยที่จะต่อสตริง
-function triagePodScopeSql(lgp = 'lgp', p = 'p') {
-  if (!TRIAGE_POD_PREFIXES.length) return '1=1';
-  const likes = TRIAGE_POD_PREFIXES
-    .map(x => `${p}.code LIKE '${x}%' OR ${p}.display_name LIKE '${x}%'`).join(' OR ');
-  return `(${lgp}.pod_id IS NULL OR ${likes})`;
+// เวอร์ชัน JS ของกฎเดียวกัน สำหรับกรองผู้สมัครข้าม DB (LineBotMonitor → cs_team)
+function triageGroupInScope(row) {
+  if (!row) return true;                                       // ไม่เคยผูก Pod เลย
+  if (row.pod_id === null || row.pod_id === undefined) return true;  // ผูกไว้แต่ไม่มี Pod
+  return !!String(row.notify_target_ids || '').trim();          // มี Pod แล้ว → ต้องตั้งกระดิ่ง
 }
 
 // Apply inbox filters from query params onto a request; returns the WHERE clause.
@@ -6961,7 +6984,10 @@ app.get('/api/triage/stats', authRequired, async (request, res) => {
 
     res.json({
       byStatus, byCategory, byPriority, openAction, oldestOpenTicket, maybeResolved, totalClassified, backlog,
-      podPrefixes: TRIAGE_POD_PREFIXES,   // ให้หน้าจอกรองปุ่ม Pod ตามขอบเขตเดียวกัน
+      // Pod ที่มีกลุ่มตั้งกระดิ่งไว้อย่างน้อยหนึ่งกลุ่ม — ให้หน้าจอโชว์ปุ่มเฉพาะ Pod เหล่านี้
+      scopePodIds: (await req().query(
+        `SELECT DISTINCT lgp.pod_id FROM line_group_pods lgp
+         WHERE lgp.pod_id IS NOT NULL AND ${TRIAGE_BELL_SQL()}`)).recordset.map(r => r.pod_id),
       autoOn: (process.env.TRIAGE_AUTO || '').toLowerCase() === 'on',
       alertOn: (process.env.TRIAGE_ALERT || '').toLowerCase() === 'on',
       alertEveryMin: TRIAGE_ALERT_EVERY,
@@ -8352,7 +8378,7 @@ ${JSON.stringify(snap, null, 2)}
 
     send('start', { message: 'กำลังส่งข้อมูลให้ AI วิเคราะห์...' });
 
-    await aiGenerateStream(prompt, (text) => send('delta', { text }));
+    await aiGenerateStream(prompt, (text) => send('delta', { text }), { prefer: 'gemini' });
 
     send('done', { inputTokens: 0, outputTokens: 0 });
 

@@ -5444,12 +5444,12 @@ function switchPodTab(tab) {
 // ══════════════════════════════════════════════════════════
 let _trStatus = 'open', _trPage = 1, _trTotal = 0, _trPer = 30;
 let _trPods = new Set();   // selected pod ids (strings) for multi-select filter; empty = all
-let _trPodPrefixes = ['BKK', 'CNX'];   // ขอบเขตที่คัดกรอง AI เฝ้า — server ส่งค่าจริงมาทาง /api/triage/stats
+let _trScopePodIds = [];   // Pod ที่มีกลุ่มตั้งกระดิ่งไว้ — server ส่งมาทาง /api/triage/stats
 
 // Pod ที่อยู่ในขอบเขตคัดกรอง (ตรงกับ triagePodScopeSql() ฝั่ง server)
+// ขอบเขตคือ "กลุ่มที่ตั้งกระดิ่ง + กลุ่มที่ยังไม่ได้ assign Pod" จึงโชว์เฉพาะ Pod ที่มีกลุ่มตั้งกระดิ่งไว้
 function trIsTrackedPod(p) {
-  const s = String(p.code || p.display_name || '').toUpperCase();
-  return _trPodPrefixes.some(x => s.startsWith(String(x).toUpperCase()));
+  return _trScopePodIds.includes(p.id);
 }
 
 function renderTriagePodFilter() {
@@ -5655,10 +5655,10 @@ async function loadTriage() {
     api('/api/triage/inbox?' + q.toString(), { silent: true }),
   ]);
   if (stats && !stats.error) {
-    // ขอบเขต Pod มาจาก server — เผื่อมีการปรับ TRIAGE_POD_PREFIXES ใน .env
-    if (Array.isArray(stats.podPrefixes) && stats.podPrefixes.length) {
-      const changed = stats.podPrefixes.join(',') !== _trPodPrefixes.join(',');
-      _trPodPrefixes = stats.podPrefixes;
+    // ขอบเขต Pod มาจาก server — เปลี่ยนได้ทุกครั้งที่มีคนตั้ง/ปลดกระดิ่งของกลุ่ม
+    if (Array.isArray(stats.scopePodIds)) {
+      const changed = stats.scopePodIds.join(',') !== _trScopePodIds.join(',');
+      _trScopePodIds = stats.scopePodIds;
       if (changed) renderTriagePodFilter();
     }
     renderTriageStats(stats);
