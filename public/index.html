@@ -835,59 +835,39 @@ textarea{resize:vertical;min-height:80px}
       </div>
     </div>
 
-    <!-- Top 5 Customers -->
-    <div class="card" style="margin-bottom:.75rem">
-      <div class="card-title">👑 Top 5 ลูกค้าที่แจ้งปัญหามากสุด</div>
-      <div id="iss-top-customers" style="display:flex;flex-direction:column;gap:.45rem;margin-top:.25rem">
-        <div style="color:var(--muted);font-size:.82rem;text-align:center;padding:.75rem">กำลังโหลด...</div>
-      </div>
-    </div>
-
-    <!-- ── Trends & Peak Analysis ── -->
-    <div class="section-divider">📈 Trends &amp; Peak Analysis</div>
-
-    <!-- Row: Daily Trend (wide) + Day-of-Week (narrow) -->
-    <div class="grid-2" style="grid-template-columns:2fr 1fr;margin-bottom:.75rem">
-      <div class="card">
-        <div class="card-title">📅 แนวโน้มรายวัน
-          <span id="trend-summary" style="font-size:.72rem;font-weight:400;color:var(--muted);margin-left:.5rem"></span>
+    <!-- รายการงานของหัวข้อที่คลิกบนกราฟแท่ง -->
+    <div class="card" id="iss-tickets-card" style="display:none;margin-bottom:.75rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem">
+        <div class="card-title" style="margin:0">📄 รายการงาน — <span id="iss-tickets-subject" style="color:#1d4ed8"></span></div>
+        <div style="display:flex;align-items:center;gap:.6rem">
+          <span id="iss-tickets-count" style="font-size:.75rem;color:var(--muted)"></span>
+          <button onclick="issCloseTickets()" title="ปิด"
+                  style="border:none;background:#f1f5f9;color:#334155;border-radius:6px;padding:.15rem .5rem;cursor:pointer;font-size:.85rem">×</button>
         </div>
-        <canvas id="chart-daily-trend" height="160"></canvas>
       </div>
-      <div class="card">
-        <div class="card-title">📆 วันที่ยุ่งที่สุด</div>
-        <canvas id="chart-dow" height="160"></canvas>
-      </div>
-    </div>
-
-    <!-- Row: Peak Hour + Category Trend -->
-    <div class="grid-2" style="margin-bottom:.75rem">
-      <div class="card">
-        <div class="card-title">⏰ Peak Hour — ชั่วโมงที่ Ticket เยอะที่สุด
-          <span id="peak-hour-badge" style="font-size:.75rem;font-weight:700;padding:.1rem .55rem;border-radius:20px;background:#fef3c7;color:#92400e;margin-left:.4rem"></span>
-        </div>
-        <canvas id="chart-peak-hour" height="160"></canvas>
-      </div>
-      <div class="card">
-        <div class="card-title">📊 Category Trend — แนวโน้มประเภทปัญหา Top 5</div>
-        <canvas id="chart-cat-trend" height="160"></canvas>
+      <div style="overflow:auto;max-height:440px">
+        <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+          <thead><tr style="background:#f8fafc;border-bottom:2px solid var(--border);position:sticky;top:0;z-index:1">
+            <th style="text-align:left;padding:.45rem .7rem;font-weight:600;color:var(--muted);white-space:nowrap">เลขที่</th>
+            <th style="text-align:left;padding:.45rem .7rem;font-weight:600;color:var(--muted);white-space:nowrap">วันที่แจ้ง</th>
+            <th style="text-align:left;padding:.45rem .7rem;font-weight:600;color:var(--muted);min-width:150px">บริษัท</th>
+            <th style="text-align:left;padding:.45rem .7rem;font-weight:600;color:var(--muted);min-width:220px">รายละเอียด</th>
+            <th style="text-align:left;padding:.45rem .7rem;font-weight:600;color:var(--muted);white-space:nowrap">สถานะ</th>
+            <th style="text-align:left;padding:.45rem .7rem;font-weight:600;color:var(--muted);white-space:nowrap">ผู้รับผิดชอบ</th>
+          </tr></thead>
+          <tbody id="iss-tickets-tbody"></tbody>
+        </table>
       </div>
     </div>
 
-    <!-- Heatmap -->
-    <div class="card" style="padding:.75rem .9rem;margin-bottom:.75rem">
-      <div class="card-title">🔥 Heatmap ปัญหาตามวัน × ชั่วโมง</div>
-      <div id="iss-heatmap-wrap" style="overflow-x:auto;font-size:.73rem;margin-top:.5rem">
-        <div style="color:var(--muted)">กำลังโหลด...</div>
-      </div>
-    </div>
+    <!-- ── Trends ── -->
+    <div class="section-divider">📈 Trends</div>
 
-    <!-- ── Overdue Cases ── -->
     <div class="card" style="margin-bottom:.75rem">
-      <div class="card-title" style="color:#ef4444">⚠️ เคสค้างเกิน 24 ชม.
-        <span id="dash-overdue-badge" style="background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;padding:.1rem .5rem;border-radius:20px;font-size:.72rem;font-weight:700;margin-left:.4rem"></span>
+      <div class="card-title">📅 แนวโน้มรายวัน
+        <span id="trend-summary" style="font-size:.72rem;font-weight:400;color:var(--muted);margin-left:.5rem"></span>
       </div>
-      <div id="dash-overdue"><div class="empty"><div class="icon">⏳</div>กำลังโหลด...</div></div>
+      <canvas id="chart-daily-trend" height="160"></canvas>
     </div>
 
     <!-- Detail table -->
@@ -7361,28 +7341,6 @@ async function loadDashboard() {
   const _s = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   _s('ov-overdue', overdueCnt);
 
-  // ── Overdue Table ─────────────────────────────────────────
-  const od = d.overdueTickets || [];
-  document.getElementById('dash-overdue-badge').textContent = od.length > 0 ? `${od.length} เคส` : '';
-  const odEl = document.getElementById('dash-overdue');
-  if (od.length === 0) {
-    odEl.innerHTML = '<div class="empty" style="padding:1.25rem"><div class="icon">✅</div>ไม่มีเคสค้างนาน — ดีมาก!</div>';
-  } else {
-    odEl.innerHTML = `<div class="tbl-wrap"><table>
-      <thead><tr><th>#</th><th>ประเภท</th><th>Subject</th><th>Agent</th><th>สถานะ</th><th>เปิดมา</th><th>บริษัท</th></tr></thead>
-      <tbody>${od.map(t => `
-        <tr class="overdue-row">
-          <td style="white-space:nowrap"><b>#${t.id}</b></td>
-          <td style="font-size:.75rem;color:#fcd34d;white-space:nowrap">${t.IssueCategoryDesc||'—'}</td>
-          <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${t.title||''}">${t.title||'—'}</td>
-          <td style="white-space:nowrap">${dn(t.assigned_name)||'—'}</td>
-          <td><span class="badge badge-open">${t.status}</span></td>
-          <td style="white-space:nowrap;font-size:.75rem;color:#fca5a5"><b>${timeAgo(t.opened_at)}</b></td>
-          <td style="font-size:.75rem;color:var(--muted)">${t.CompanyName||'—'}</td>
-        </tr>`).join('')}
-      </tbody></table></div>`;
-  }
-
   // ── On Shift ─────────────────────────────────────────────
   // Team/time scoping now happens server-side (empcal schedule), so render as-is.
 
@@ -7535,7 +7493,7 @@ function fuGoToIssue(boardId, issueId, folderId) {
   setTimeout(tryClick, 300);
 }
 
-const dashCharts = { donut: null, bar: null, scatter: null, trend: null, dow: null, peak: null, catTrend: null, channel: null };
+const dashCharts = { donut: null, bar: null, scatter: null, trend: null, channel: null };
 
 // ── ช่องทางที่ลูกค้าติดต่อเข้ามา (Calllog.InformType) ──────
 // ค่าที่ระบบบันทึกไว้: Phone / Line / Email / Walk-in / Remote / Other
@@ -7626,7 +7584,7 @@ async function loadDashboardCharts() {
   if (data.nameMap) { Object.assign(nameMap, data.nameMap); if (data.nameMapById) Object.assign(nameMapById, data.nameMapById); }
 
   const { catStats = [], agentThis = [], agentLast = [], agentCat = [],
-          dailyTrend = [], hourlyStats = [], dowStats = [], catDailyTrend = [],
+          dailyTrend = [],
           closedThis = 0, closedLast = 0, hourlyAgentGrid = [], channelStats = [],
           daysThis = 30, daysPrev = 30,
           thisFrom = '', thisTo = '', prevFrom = '', prevTo = '' } = data;
@@ -7993,114 +7951,6 @@ async function loadDashboardCharts() {
     });
   }
 
-  // ── 5. Day-of-Week Bar ───────────────────────────────────
-  if (dashCharts.dow) { dashCharts.dow.destroy(); dashCharts.dow = null; }
-  const ctxDow = document.getElementById('chart-dow');
-  if (ctxDow) {
-    const dowLabels = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];  // Sun=1..Sat=7
-    const dowData   = Array(7).fill(0);
-    dowStats.forEach(r => { dowData[(r.dow - 1) % 7] = r.cnt; });
-    const maxDow    = Math.max(...dowData);
-    const dowColors = dowData.map(v => v === maxDow ? '#f59e0b' : '#38bdf8');
-    dashCharts.dow = new Chart(ctxDow, {
-      type: 'bar',
-      data: {
-        labels: dowLabels,
-        datasets: [{ label: 'Tickets', data: dowData, backgroundColor: dowColors, borderRadius: 5 }]
-      },
-      options: {
-        responsive: true,
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { ticks: { color: '#64748b', font: { size: 11 } }, grid: { display: false } },
-          y: { beginAtZero: true, ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#e2e8f0' } }
-        }
-      }
-    });
-  }
-
-  // ── 6. Peak Hour Bar ─────────────────────────────────────
-  if (dashCharts.peak) { dashCharts.peak.destroy(); dashCharts.peak = null; }
-  const ctxPeak = document.getElementById('chart-peak-hour');
-  if (ctxPeak) {
-    const hrData   = Array(24).fill(0);
-    hourlyStats.forEach(r => { hrData[r.hr] = r.cnt; });
-    const maxHr    = hrData.indexOf(Math.max(...hrData));
-    const peakBadge = document.getElementById('peak-hour-badge');
-    if (peakBadge && hrData[maxHr] > 0) peakBadge.textContent = `⏰ ${maxHr}:00–${maxHr}:59 น. (${hrData[maxHr]} tickets)`;
-    const hrColors = hrData.map((v, i) => {
-      if (i === maxHr) return '#ef4444';
-      if (v >= hrData[maxHr] * 0.7) return '#f97316';
-      if (v >= hrData[maxHr] * 0.4) return '#38bdf8';
-      return '#cbd5e1';
-    });
-    dashCharts.peak = new Chart(ctxPeak, {
-      type: 'bar',
-      data: {
-        labels: Array.from({ length: 24 }, (_, i) => i + ':00'),
-        datasets: [{ label: 'Tickets', data: hrData, backgroundColor: hrColors, borderRadius: 3 }]
-      },
-      options: {
-        responsive: true,
-        plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { label: ctx => `${ctx.parsed.y} tickets` } }
-        },
-        scales: {
-          x: { ticks: { color: '#64748b', font: { size: 9 } }, grid: { display: false } },
-          y: { beginAtZero: true, ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#e2e8f0' } }
-        }
-      }
-    });
-  }
-
-  // ── 7. Category Trend Multi-Line ─────────────────────────
-  if (dashCharts.catTrend) { dashCharts.catTrend.destroy(); dashCharts.catTrend = null; }
-  const ctxCatTrend = document.getElementById('chart-cat-trend');
-  if (ctxCatTrend && catDailyTrend.length) {
-    // Top 5 categories from catStats
-    const top5cats = catStats.slice(0, 5).map(r => r.category);
-    // All unique days
-    const allDays  = [...new Set(catDailyTrend.map(r => r.day))].sort();
-    // Build lookup: cat → day → cnt  (SQL returns field 'cat' not 'category')
-    const lookup   = {};
-    catDailyTrend.forEach(r => {
-      const key = r.cat || r.category || 'อื่นๆ';
-      if (!lookup[key]) lookup[key] = {};
-      const dayKey = typeof r.day === 'string' ? r.day.substring(0, 10) : new Date(String(r.day).replace('Z','')).toISOString().substring(0, 10);
-      lookup[key][dayKey] = r.cnt;
-    });
-    // Format day keys consistently
-    const dayKeys   = allDays.map(d => typeof d === 'string' ? d.substring(0, 10) : new Date(d).toISOString().substring(0, 10));
-    const dayLabels = dayKeys.map(d => new Date(d + 'T12:00:00').toLocaleDateString('th-TH', {day:'numeric', month:'short'}));
-    const catColors = ['#38bdf8','#818cf8','#34d399','#fb923c','#f472b6'];
-    const catDatasets = top5cats.map((cat, i) => ({
-      label: cat || 'อื่นๆ',
-      data: dayKeys.map(d => lookup[cat]?.[d] || 0),
-      borderColor: catColors[i],
-      backgroundColor: catColors[i] + '22',
-      borderWidth: 2,
-      pointRadius: allDays.length > 30 ? 0 : 3,
-      tension: 0.3,
-      fill: false
-    }));
-    dashCharts.catTrend = new Chart(ctxCatTrend, {
-      type: 'line',
-      data: { labels: dayLabels, datasets: catDatasets },
-      options: {
-        responsive: true,
-        interaction: { mode: 'index', intersect: false },
-        plugins: {
-          legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 10 } },
-          tooltip: { callbacks: { title: ctx => dayLabels[ctx[0].dataIndex] } }
-        },
-        scales: {
-          x: { ticks: { color: '#64748b', font: { size: 9 }, maxTicksLimit: 14 }, grid: { color: '#e2e8f0' } },
-          y: { beginAtZero: true, ticks: { color: '#64748b', font: { size: 10 }, precision: 0 }, grid: { color: '#e2e8f0' } }
-        }
-      }
-    });
-  }
 }
 
 
@@ -18947,11 +18797,75 @@ async function loadIssueAnalytics() {
     renderIssueKPI();
     renderIssueDonut();
     renderIssueBar();
-    renderIssueHeatmap();
     renderIssueTable();
-    renderIssueTopCustomers();
   } catch(e) { console.error('[issue analytics]', e); }
 }
+
+// ── รายการงานของหัวข้อที่คลิกบนกราฟแท่ง ────────────────────
+// ดึงจาก /api/dashboard/issue-tickets ด้วยช่วงวันที่เดียวกับที่หน้านี้กรองอยู่
+let _issTicketsSubject = null;
+
+function issCloseTickets() {
+  _issTicketsSubject = null;
+  const card = document.getElementById('iss-tickets-card');
+  if (card) card.style.display = 'none';
+}
+
+async function issLoadTickets(subject) {
+  const card = document.getElementById('iss-tickets-card');
+  const tb   = document.getElementById('iss-tickets-tbody');
+  if (!card || !tb) return;
+  _issTicketsSubject = subject;
+
+  document.getElementById('iss-tickets-subject').textContent = subject;
+  document.getElementById('iss-tickets-count').textContent = '';
+  tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:var(--muted)">กำลังโหลด...</td></tr>';
+  card.style.display = '';
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  const qs = new URLSearchParams({ subject });
+  if (_issFilterCat) qs.set('category', _issFilterCat);
+  const from = document.getElementById('dash-date-from')?.value || '';
+  const to   = document.getElementById('dash-date-to')?.value   || '';
+  if (from) qs.set('dateFrom', from);
+  if (to)   qs.set('dateTo', to);
+
+  const d = await api('/api/dashboard/issue-tickets?' + qs.toString(), { silent: true });
+  // ระหว่างโหลดผู้ใช้อาจคลิกแท่งอื่นแล้ว — ทิ้งผลของแท่งเก่าไป
+  if (_issTicketsSubject !== subject) return;
+  if (!d || d.error) {
+    tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:var(--muted)">โหลดไม่สำเร็จ (ถ้าเพิ่งอัปเดตโค้ด ให้รีสตาร์ท server ก่อน)</td></tr>';
+    return;
+  }
+  issRenderTickets(d);
+}
+
+function issRenderTickets(d) {
+  const tb = document.getElementById('iss-tickets-tbody');
+  const rows = d.rows || [];
+  document.getElementById('iss-tickets-count').textContent =
+    d.total > rows.length ? `${rows.length} จาก ${d.total.toLocaleString()} รายการ` : `${d.total.toLocaleString()} รายการ`;
+
+  if (!rows.length) {
+    tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:var(--muted)">— ไม่มีงานในหัวข้อนี้ —</td></tr>';
+    return;
+  }
+  const td = 'padding:.42rem .7rem;border-bottom:1px solid #f1f5f9;vertical-align:top';
+  tb.innerHTML = rows.map(r => {
+    const closed = /close|ปิด|complete/i.test(r.status || '');
+    return `<tr>
+      <td style="${td};white-space:nowrap;font-family:monospace;font-size:.76rem">#${r.id}</td>
+      <td style="${td};white-space:nowrap;font-size:.76rem">${fmtDT(r.opened_at)}</td>
+      <td style="${td}">${esc(r.company || '—')}</td>
+      <td style="${td};color:#475569">${esc((r.description || '').replace(/\s+/g, ' ').slice(0, 160)) || '—'}</td>
+      <td style="${td};white-space:nowrap">
+        <span style="font-size:.72rem;font-weight:700;padding:.1rem .45rem;border-radius:6px;background:${closed ? '#dcfce7' : '#fef3c7'};color:${closed ? '#16a34a' : '#b45309'}">${esc(r.status || '—')}</span>
+      </td>
+      <td style="${td};white-space:nowrap;font-size:.78rem">${esc(dn(r.agent) || r.agent || '—')}</td>
+    </tr>`;
+  }).join('');
+}
+
 
 // ── Level 1: click donut → filter bar, reset subject, update customers+table
 function issClickCategory(cat) {
@@ -18966,7 +18880,7 @@ function issClickCategory(cat) {
   issUpdateBreadcrumb();
   renderIssueDonut();          // highlight selected segment
   renderIssueBar();            // show subjects of this category
-  renderIssueTopCustomers();   // top5 by category (subject not chosen yet)
+  issCloseTickets();           // เปลี่ยนหมวด = รายการงานเดิมไม่เกี่ยวแล้ว
   filterIssueTable();
 }
 
@@ -18974,11 +18888,13 @@ function issClickCategory(cat) {
 function issClickSubject(subject) {
   if (_issFilterSubject === subject) {
     _issFilterSubject = null;  // toggle off
+    issCloseTickets();
   } else {
     _issFilterSubject = subject;
+    issLoadTickets(subject);   // คลิกแท่ง = อยากเห็นงานจริงในหัวข้อนั้น
   }
   issUpdateBreadcrumb();
-  renderIssueTopCustomers();   // top5 by this subject
+  renderIssueBar();            // เน้นแท่งที่เลือก
   filterIssueTable();
 }
 
@@ -18989,7 +18905,7 @@ function issClearFilter() {
   issUpdateBreadcrumb();
   renderIssueDonut();
   renderIssueBar();
-  renderIssueTopCustomers();
+  issCloseTickets();
   filterIssueTable();
 }
 
@@ -19121,7 +19037,12 @@ function renderIssueBar() {
   }
 
   const fullLabels = top15.map(s => s.subject);
-  const labels     = top15.map(s => s.subject.length>28 ? s.subject.substring(0,28)+'…' : s.subject);
+  // สัดส่วนติดไว้ที่ชื่อเลย จะได้ไม่ต้องเอาเมาส์ไปชี้ทีละแท่ง (ตัดชื่อสั้นลงเพื่อให้มีที่)
+  const pctTxt = (n) => {
+    const p = filtTotal ? (n / filtTotal * 100) : 0;
+    return p >= 0.05 ? p.toFixed(1) + '%' : '<0.1%';
+  };
+  const labels     = top15.map(s => (s.subject.length>22 ? s.subject.substring(0,22)+'…' : s.subject) + '  ' + pctTxt(s.cnt));
   const data       = top15.map(s => s.cnt);
 
   // Color: highlight active subject, dim others; alternating when no filter
@@ -19158,45 +19079,6 @@ function renderIssueBar() {
       }
     }
   });
-}
-
-function renderIssueHeatmap() {
-  const wrap = document.getElementById('iss-heatmap-wrap');
-  if (!wrap) return;
-  const { heatmap } = _issData;
-  // SQL Server: 1=Sun,2=Mon,...,7=Sat
-  const dowOrder  = [2,3,4,5,6,7,1];
-  const dowLabels = {1:'อา.',2:'จ.',3:'อ.',4:'พ.',5:'พฤ.',6:'ศ.',7:'ส.'};
-  const hours     = Array.from({length:24},(_,i)=>i);
-  const map = {};
-  let maxVal = 0;
-  for (const r of heatmap) {
-    const key = `${r.dow}_${r.hr}`;
-    map[key] = r.cnt;
-    if (r.cnt > maxVal) maxVal = r.cnt;
-  }
-  const cellHtml = (dow, hr) => {
-    const v = map[`${dow}_${hr}`] || 0;
-    if (!v) return `<td style="background:#f8fafc;text-align:center;padding:.2rem .25rem;font-size:.68rem;min-width:26px;border-radius:3px;color:#e2e8f0">·</td>`;
-    const pct = v/maxVal;
-    const bg  = pct>.75?'#dc2626':pct>.5?'#f97316':pct>.25?'#fbbf24':'#bfdbfe';
-    const fg  = pct>.5?'#fff':'#1e293b';
-    return `<td style="background:${bg};color:${fg};text-align:center;padding:.2rem .25rem;font-size:.68rem;min-width:26px;border-radius:3px;font-weight:600" title="${dowLabels[dow]} ${String(hr).padStart(2,'0')}:00 — ${v} tickets">${v}</td>`;
-  };
-  const hrHeader = hours.map(h=>`<th style="text-align:center;padding:.18rem .12rem;font-size:.65rem;color:var(--muted);min-width:26px">${String(h).padStart(2,'0')}</th>`).join('');
-  const rows = dowOrder.map(dow=>{
-    const cells = hours.map(h=>cellHtml(dow,h)).join('');
-    return `<tr><td style="font-weight:700;font-size:.72rem;color:var(--muted);white-space:nowrap;padding:.2rem .55rem;background:#f8fafc;border-radius:4px">${dowLabels[dow]}</td>${cells}</tr>`;
-  }).join('');
-  wrap.innerHTML = `<table style="border-collapse:separate;border-spacing:2px">
-    <thead><tr><th style="min-width:36px"></th>${hrHeader}</tr></thead>
-    <tbody>${rows}</tbody>
-  </table>
-  <div style="display:flex;align-items:center;gap:.5rem;margin-top:.55rem;font-size:.72rem;color:var(--muted)">
-    <span>น้อย</span>
-    ${['#bfdbfe','#fbbf24','#f97316','#dc2626'].map(c=>`<span style="width:14px;height:14px;background:${c};border-radius:2px;display:inline-block;vertical-align:middle"></span>`).join('')}
-    <span>มาก</span>
-  </div>`;
 }
 
 function renderIssueTable() {
@@ -19241,88 +19123,6 @@ function filterIssueTable() {
     : '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--muted)">ไม่พบข้อมูลที่ตรงกับ filter นี้</td></tr>';
 }
 
-function renderIssueTopCustomers() {
-  const wrap = document.getElementById('iss-top-customers');
-  if (!wrap) return;
-
-  let customers = [];
-  const detail  = _issData?.customers_detail || [];
-
-  if (_issFilterSubject) {
-    // Level 2: exact match by subject from customers_by_subject
-    const bySubject = _issData?.customers_by_subject || [];
-    const agg = {};
-    for (const row of bySubject) {
-      if (row.subject === _issFilterSubject) {
-        agg[row.customer_name] = (agg[row.customer_name] || 0) + row.cnt;
-      }
-    }
-    customers = Object.entries(agg)
-      .map(([customer_name, cnt]) => ({ customer_name, cnt }))
-      .sort((a,b) => b.cnt - a.cnt)
-      .slice(0,5);
-  } else if (_issFilterCat && detail.length) {
-    // Level 1: filter by category
-    const agg = {};
-    for (const row of detail) {
-      if (row.category === _issFilterCat) {
-        agg[row.customer_name] = (agg[row.customer_name] || 0) + row.cnt;
-      }
-    }
-    customers = Object.entries(agg)
-      .map(([customer_name, cnt]) => ({ customer_name, cnt }))
-      .sort((a,b) => b.cnt - a.cnt)
-      .slice(0,5);
-  } else {
-    customers = _issData?.customers || [];
-  }
-
-  // Update card title
-  const titleEl = document.querySelector('#iss-top-customers')?.closest('.card')?.querySelector('.card-title');
-  if (titleEl) {
-    if (_issFilterSubject) {
-      titleEl.innerHTML = `👑 Top 5 ลูกค้า &nbsp;<span style="background:#ede9fe;color:#6d28d9;border-radius:20px;padding:.1rem .55rem;font-size:.72rem;font-weight:600">📊 ${escHtml(_issFilterSubject)}</span>`;
-    } else if (_issFilterCat) {
-      titleEl.innerHTML = `👑 Top 5 ลูกค้า &nbsp;<span style="background:#dbeafe;color:#1d4ed8;border-radius:20px;padding:.1rem .55rem;font-size:.72rem;font-weight:600">🍩 ${escHtml(_issFilterCat)}</span>`;
-    } else {
-      titleEl.innerHTML = '👑 Top 5 ลูกค้าที่แจ้งปัญหามากสุด';
-    }
-  }
-
-  if (!customers.length) {
-    wrap.innerHTML = `<div style="color:var(--muted);font-size:.82rem;text-align:center;padding:.75rem">ไม่มีข้อมูลลูกค้าในหมวดนี้</div>`;
-    return;
-  }
-
-  const max = customers[0].cnt;
-  const medals = ['🥇','🥈','🥉','4','5'];
-  const barGrads = [
-    'linear-gradient(90deg,#f59e0b,#fbbf24)',
-    'linear-gradient(90deg,#94a3b8,#cbd5e1)',
-    'linear-gradient(90deg,#b45309,#d97706)',
-    'linear-gradient(90deg,#3b82f6,#6366f1)',
-    'linear-gradient(90deg,#3b82f6,#6366f1)'
-  ];
-  const cntColors = ['#f59e0b','#94a3b8','#b45309','#64748b','#64748b'];
-
-  wrap.innerHTML = customers.map((c,i) => {
-    const pct = Math.round((c.cnt/max)*100);
-    return `<div style="display:flex;align-items:center;gap:.65rem">
-      <span style="width:22px;text-align:center;font-size:${i<3?'.95rem':'.8rem'};flex-shrink:0">${medals[i]}</span>
-      <div style="flex:1;min-width:0">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.2rem">
-          <span style="font-size:.82rem;font-weight:600;color:#1e293b;word-break:break-word">${escHtml(c.customer_name)}</span>
-          <span style="font-size:.8rem;font-weight:700;color:${cntColors[i]};flex-shrink:0;margin-left:.5rem">${c.cnt.toLocaleString()} tickets</span>
-        </div>
-        <div style="background:#f1f5f9;border-radius:20px;height:6px;overflow:hidden">
-          <div style="width:${pct}%;background:${barGrads[i]};height:100%;border-radius:20px;transition:width .5s ease"></div>
-        </div>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-/* ── Shop Info: Export CSV ── */
 function siExportCSV() {
   if (!_siData || !_siData.length) { showToast('ไม่มีข้อมูลให้ export','error'); return; }
   const headers = ['brand_name','branch_name','branch_code','contact_name','telephone','terminal_type','terminal_name','anydesk_id','teamviewer_id','remote_password','ip_address','services','note'];

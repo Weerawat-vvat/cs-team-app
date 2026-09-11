@@ -11939,6 +11939,58 @@ app.delete('/api/shopinfo/entry/:id', authRequired, async (request, res) => {
 });
 
 // GET /api/dashboard/issues — Issue Analytics: subject breakdown + heatmap
+app.get('/api/dashboard/issue-tickets', authRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
+    const { subject, category, dateFrom, dateTo } = request.query;
+    if (!subject) return res.status(400).json({ error: 'subject required' });
+
+    const s = dateFrom ? new Date(dateFrom) : new Date(new Date().setHours(0, 0, 0, 0));
+    const e = dateTo ? new Date(new Date(dateTo).setHours(23, 59, 59, 999))
+                     : new Date(new Date().setHours(23, 59, 59, 999));
+
+    const r = extReq()
+      .input('s', sql.DateTime, s)
+      .input('e', sql.DateTime, e)
+      .input('sub', sql.NVarChar, subject);
+    let where = `WHERE cl.Active=1 AND cl.ReceiveDate>=@s AND cl.ReceiveDate<=@e AND cl.Subject=@sub`;
+    if (category) {
+      // '(ไม่ระบุ)' มาจาก ISNULL ฝั่งกราฟ — ตรงนี้จึงต้องแปลว่า "ไม่มี ProblemType"
+      if (category === '(ไม่ระบุ)') where += ' AND pt.ProblemTypeDetail IS NULL';
+      else { where += ' AND pt.ProblemTypeDetail=@cat'; r.input('cat', sql.NVarChar, category); }
+    }
+
+    const rows = (await r.query(`
+      SELECT TOP 300
+        cl.CalllogId            AS id,
+        cl.ReceiveDate          AS opened_at,
+        cl.CloseDate            AS closed_at,
+        cr.CompanyName          AS company,
+        cl.Subject              AS subject,
+        ISNULL(pt.ProblemTypeDetail, '(ไม่ระบุ)') AS category,
+        cs.StatusName           AS status,
+        u.UserName              AS agent,
+        LEFT(cl.CalllogDesc, 300) AS description,
+        LEFT(cl.Solution, 300)    AS solution
+      FROM Calllog cl
+      LEFT JOIN CustomerRegistration cr ON cr.RegistrationId = cl.RegistrationId
+      LEFT JOIN ProblemType pt ON pt.ProblemTypeId = cl.ProblemTypeId
+      LEFT JOIN CallStatus  cs ON cs.StatusId      = cl.StatusId
+      LEFT JOIN Users       u  ON u.UserId         = cl.SupportId
+      ${where}
+      ORDER BY cl.ReceiveDate DESC`)).recordset;
+
+    const total = (await extReq()
+      .input('s', sql.DateTime, s).input('e', sql.DateTime, e)
+      .input('sub', sql.NVarChar, subject)
+      .query(`SELECT COUNT(*) AS n FROM Calllog cl
+              LEFT JOIN ProblemType pt ON pt.ProblemTypeId = cl.ProblemTypeId
+              WHERE cl.Active=1 AND cl.ReceiveDate>=@s AND cl.ReceiveDate<=@e AND cl.Subject=@sub`)).recordset[0].n;
+
+    res.json({ rows, total, shown: rows.length });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/dashboard/issues', authRequired, async (request, res) => {
   try {
     const { dateFrom, dateTo } = request.query;
