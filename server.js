@@ -6830,28 +6830,26 @@ ${list}`;
   return { classified, scanned: inScope.length, hasKey: true, skippedOutOfScope: cand.length - inScope.length };
 }
 
-// ── ขอบเขต Pod ที่คัดกรอง AI ต้องเฝ้า ────────────────────
-// เอาเฉพาะ Pod ที่ขึ้นต้นตาม prefix (ลูกค้าจริง) + กลุ่มที่ยังไม่ผูก Pod
-// Pod อื่น (Backend, IMP ฯลฯ) เป็นกลุ่มภายใน ไม่ต้องติดตาม
-// ขอบเขตที่คัดกรอง AI เฝ้า — เฉพาะกลุ่ม LINE ที่ตั้งกระดิ่งแจ้งเตือนไว้
-// (line_group_pods.notify_target_ids) กับกลุ่มที่ยังไม่ได้ assign Pod
+// ── ขอบเขตที่คัดกรอง AI ต้องเฝ้า ─────────────────────────
+// สองอย่างเท่านั้น: กลุ่มที่ตั้งกระดิ่งแจ้งเตือนไว้ (line_group_pods.notify_target_ids)
+// และกลุ่มที่ยังไม่ได้ assign Pod (กลุ่มใหม่ที่ยังไม่มีใครรับไป — ต้องไม่ตกหล่น)
 // ใช้ได้เฉพาะใน query ที่ join line_group_pods (lgp) ไว้แล้ว
 const TRIAGE_BELL_SQL = (lgp = 'lgp') =>
   `(${lgp}.notify_target_ids IS NOT NULL AND LTRIM(RTRIM(${lgp}.notify_target_ids)) <> '')`;
-function triagePodScopeSql(lgp = 'lgp') {
+function triageScopeSql(lgp = 'lgp') {
   return `(${lgp}.pod_id IS NULL OR ${TRIAGE_BELL_SQL(lgp)})`;
 }
 
 // เวอร์ชัน JS ของกฎเดียวกัน สำหรับกรองผู้สมัครข้าม DB (LineBotMonitor → cs_team)
 function triageGroupInScope(row) {
-  if (!row) return true;                                       // ไม่เคยผูก Pod เลย
-  if (row.pod_id === null || row.pod_id === undefined) return true;  // ผูกไว้แต่ไม่มี Pod
-  return !!String(row.notify_target_ids || '').trim();          // มี Pod แล้ว → ต้องตั้งกระดิ่ง
+  if (!row) return true;                                  // ไม่มีแถวเลย = ยังไม่ได้ assign
+  if (row.pod_id === null || row.pod_id === undefined) return true;  // มีแถวแต่ยังไม่มี Pod
+  return !!String(row.notify_target_ids || '').trim();     // assign แล้ว → ต้องตั้งกระดิ่ง
 }
 
 // Apply inbox filters from query params onto a request; returns the WHERE clause.
 function buildTriageFilter(query, r) {
-  const where = [triagePodScopeSql()];   // เฝ้าเฉพาะ Pod ลูกค้า + ที่ยังไม่ผูก Pod
+  const where = [triageScopeSql()];   // เฝ้าเฉพาะกลุ่มที่ตั้งกระดิ่ง + ที่ยังไม่ได้ assign Pod
   if (TRIAGE_CATEGORIES.includes(query.category)) { where.push('t.category=@cat'); r.input('cat', sql.NVarChar, query.category); }
   if (TRIAGE_SENTIMENTS.includes(query.sentiment)) { where.push('t.sentiment=@sen'); r.input('sen', sql.NVarChar, query.sentiment); }
   if (TRIAGE_PRIORITIES.includes(query.priority)) { where.push('t.priority=@pri'); r.input('pri', sql.NVarChar, query.priority); }
@@ -6957,7 +6955,7 @@ app.get('/api/triage/stats', authRequired, async (request, res) => {
     // ทุกตัวเลขนับเฉพาะ Pod ที่คัดกรอง AI เฝ้าอยู่ — ให้ตรงกับที่เห็นในตาราง
     const SCOPE = `LEFT JOIN line_group_pods lgp ON lgp.group_id = t.group_id
                    LEFT JOIN pods p ON p.id = lgp.pod_id`;
-    const inScope = triagePodScopeSql();
+    const inScope = triageScopeSql();
     const byStatus   = (await req().query(`SELECT t.status, COUNT(*) AS n FROM line_msg_triage t ${SCOPE} WHERE ${inScope} GROUP BY t.status`)).recordset;
     const byCategory = (await req().query(`SELECT t.category, COUNT(*) AS n FROM line_msg_triage t ${SCOPE} WHERE t.status<>'done' AND ${inScope} GROUP BY t.category`)).recordset;
     const byPriority = (await req().query(`SELECT t.priority, COUNT(*) AS n FROM line_msg_triage t ${SCOPE} WHERE t.status<>'done' AND ${inScope} GROUP BY t.priority`)).recordset;
@@ -7015,7 +7013,7 @@ app.get('/api/triage/close-stale', authRequired, async (request, res) => {
       LEFT JOIN line_group_pods lgp ON lgp.group_id = t.group_id
       LEFT JOIN pods p ON p.id = lgp.pod_id
       WHERE t.status='open' AND t.needs_action=1 AND t.message_time IS NOT NULL
-        AND ${triagePodScopeSql()}`)).recordset[0];
+        AND ${triageScopeSql()}`)).recordset[0];
     res.json({ hours, will_close: r.will_close || 0, will_keep: r.will_keep || 0, total: r.total || 0 });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -7035,7 +7033,7 @@ app.post('/api/triage/close-stale', authRequired, managerRequired, async (reques
       `SELECT COUNT(*) AS n FROM line_msg_triage t
        LEFT JOIN line_group_pods lgp ON lgp.group_id = t.group_id
        LEFT JOIN pods p ON p.id = lgp.pod_id
-       WHERE t.status='open' AND t.needs_action=1 AND ${triagePodScopeSql()}`)).recordset[0].n;
+       WHERE t.status='open' AND t.needs_action=1 AND ${triageScopeSql()}`)).recordset[0].n;
     console.log(`🧹 triage: closed ${closed} stale ticket(s) older than ${hours}h — ${left} left open`);
     res.json({ ok: true, hours, closed, left });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -7432,7 +7430,7 @@ async function buildTriageAlert({ aiCalls = true } = {}) {
       LEFT JOIN line_group_pods lgp ON lgp.group_id = t.group_id
       LEFT JOIN pods p ON p.id = lgp.pod_id
       WHERE t.status='open' AND t.needs_action=1 AND t.message_time IS NOT NULL
-        AND ${triagePodScopeSql()}                       -- เฉพาะ Pod ลูกค้า + ที่ยังไม่ผูก Pod
+        AND ${triageScopeSql()}                       -- เฉพาะกลุ่มที่ตั้งกระดิ่ง + ที่ยังไม่ได้ assign
         AND NOT EXISTS (                                 -- exclude likely-resolved
           SELECT 1 FROM line_msg_triage t2
           WHERE t2.group_id = t.group_id AND t2.message_time > t.message_time
