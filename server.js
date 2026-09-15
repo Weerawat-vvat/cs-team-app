@@ -6913,7 +6913,7 @@ app.get('/api/triage/inbox', authRequired, async (request, res) => {
       st === 'done' ? 't.done_at DESC, t.updated_at DESC'
       : (st === 'open' || st === 'claimed') ? 't.message_time ASC'
       : 't.updated_at DESC';
-    const rows = (await r.query(`
+    const rowsQ = r.query(`
       SELECT t.id, t.source_msg_id, t.group_id, t.customer_name, t.message_text, t.message_time,
              COALESCE(t.group_name, lgp.group_name) AS group_name,
              t.category, t.sentiment, t.priority, t.summary, t.needs_action, t.status,
@@ -6937,57 +6937,88 @@ app.get('/api/triage/inbox', authRequired, async (request, res) => {
       ${wsql}
       ORDER BY ${orderBy}
       OFFSET @off ROWS FETCH NEXT @per ROWS ONLY
-    `)).recordset;
+    `);
 
+    // นับจำนวนทั้งหมดวิ่งคู่ไปกับการดึงแถว — เดิมรอให้ดึงแถวเสร็จก่อนค่อยนับ
+    // (ตาราง pods ไม่ได้ใช้ในเงื่อนไขนับ จึงไม่ต้อง join)
     const rc = req();
     const wsql2 = buildTriageFilter(request.query, rc);
-    const total = (await rc.query(`
+    const totalQ = rc.query(`
       SELECT COUNT(*) AS n FROM line_msg_triage t
       LEFT JOIN line_group_pods lgp ON lgp.group_id = t.group_id
-      LEFT JOIN pods p ON p.id = lgp.pod_id
-      ${wsql2}`)).recordset[0].n;
+      ${wsql2}`);
+    const [rowsRes, totalRes] = await Promise.all([rowsQ, totalQ]);
+    const rows = rowsRes.recordset;
+    const total = totalRes.recordset[0].n;
 
     res.json({ rows, total, page, per });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ประมาณการ backlog ต้องสแกนทั้งตารางฝั่ง LineBotMonitor (~450 ms) และเป็นแค่
+// ตัวเลขคร่าวๆ จึงจำไว้ 60 วินาที ไม่ต้องนับใหม่ทุกครั้งที่เปิดหน้า
+let _trBacklogCache = { at: 0, n: null };
+async function triageSourceTotal() {
+  if (_trBacklogCache.n !== null && Date.now() - _trBacklogCache.at < 60000) return _trBacklogCache.n;
+  const lb = getLineBotPool();
+  if (!lb) return null;
+  const n = (await lb.request().query(
+    `SELECT COUNT(*) AS n FROM dbo.LineWaitingReply
+     WHERE CustomerMessage IS NOT NULL AND LEN(LTRIM(RTRIM(CustomerMessage)))>0`)).recordset[0].n;
+  _trBacklogCache = { at: Date.now(), n };
+  return n;
+}
+
 // Summary counters for the cards on top of the inbox
+// เดิมยิงทีละ query 9 รอบ — DB อยู่คนละเครื่อง ค่าเดินทางอย่างเดียวก็ครึ่งวินาทีแล้ว
+// ตอนนี้รวบเป็นชุดเดียว (หลาย recordset) แล้ววิ่งคู่ไปกับการนับ backlog
 app.get('/api/triage/stats', authRequired, async (request, res) => {
   try {
-    // ทุกตัวเลขนับเฉพาะ Pod ที่คัดกรอง AI เฝ้าอยู่ — ให้ตรงกับที่เห็นในตาราง
-    const SCOPE = `LEFT JOIN line_group_pods lgp ON lgp.group_id = t.group_id
-                   LEFT JOIN pods p ON p.id = lgp.pod_id`;
+    // ทุกตัวเลขนับเฉพาะกลุ่มที่คัดกรอง AI เฝ้าอยู่ — ให้ตรงกับที่เห็นในตาราง
+    const SCOPE = `LEFT JOIN line_group_pods lgp ON lgp.group_id = t.group_id`;
     const inScope = triageScopeSql();
-    const byStatus   = (await req().query(`SELECT t.status, COUNT(*) AS n FROM line_msg_triage t ${SCOPE} WHERE ${inScope} GROUP BY t.status`)).recordset;
-    const byCategory = (await req().query(`SELECT t.category, COUNT(*) AS n FROM line_msg_triage t ${SCOPE} WHERE t.status<>'done' AND ${inScope} GROUP BY t.category`)).recordset;
-    const byPriority = (await req().query(`SELECT t.priority, COUNT(*) AS n FROM line_msg_triage t ${SCOPE} WHERE t.status<>'done' AND ${inScope} GROUP BY t.priority`)).recordset;
-    const openAction = (await req().query(`SELECT COUNT(*) AS n FROM line_msg_triage t ${SCOPE} WHERE t.status='open' AND t.needs_action=1 AND ${inScope}`)).recordset[0].n;
-    const oldestOpenTicket = (await req().query(`SELECT MIN(t.message_time) AS oldest FROM line_msg_triage t ${SCOPE} WHERE t.status='open' AND t.needs_action=1 AND ${inScope}`)).recordset[0].oldest;
-    const maybeResolved = (await req().query(`
+    const batch = `
+      -- หน้าจอใช้แค่ยอด "ปิดแล้ว" — เดิมนับครบทุกสถานะ + แยกตามประเภท/ความเร่งด่วน
+      -- ที่ไม่มีหน้าไหนเรียกดู เสียไปเปล่าๆ เกือบ 300 ms ทุกครั้งที่เปิดหน้า
       SELECT COUNT(*) AS n FROM line_msg_triage t ${SCOPE}
-      WHERE t.status='open' AND t.needs_action=1 AND ${inScope} AND EXISTS (
-        SELECT 1 FROM line_msg_triage t2
-        WHERE t2.group_id = t.group_id AND t2.message_time > t.message_time
-          AND t2.message_time <= DATEADD(hour, 24, t.message_time)
-          AND (t2.category='thank' OR t2.sentiment='positive'))`)).recordset[0].n;
-    const totalClassified = (await req().query(`SELECT COUNT(*) AS n FROM line_msg_triage`)).recordset[0].n;
+       WHERE t.status='done' AND ${inScope};
 
-    // Backlog estimate: total LINE messages with text minus what we've classified
-    let backlog = null;
-    const lb = getLineBotPool();
-    if (lb) {
-      const totalMsgs = (await lb.request().query(
-        `SELECT COUNT(*) AS n FROM dbo.LineWaitingReply WHERE CustomerMessage IS NOT NULL AND LEN(LTRIM(RTRIM(CustomerMessage)))>0`
-      )).recordset[0].n;
-      backlog = Math.max(0, totalMsgs - totalClassified);
-    }
+      -- สามตัวเลขของงานที่ยังค้าง อ่านตารางรอบเดียวพอ
+      -- (SUM ครอบ subquery ตรงๆ ไม่ได้ ต้องคิด CASE ในตารางย่อยก่อน)
+      SELECT COUNT(*) AS openAction, MIN(x.message_time) AS oldest, SUM(x.maybe) AS maybeResolved
+        FROM (
+          SELECT t.message_time,
+                 CASE WHEN EXISTS (
+                   SELECT 1 FROM line_msg_triage t2
+                   WHERE t2.group_id = t.group_id AND t2.message_time > t.message_time
+                     AND t2.message_time <= DATEADD(hour, 24, t.message_time)
+                     AND (t2.category='thank' OR t2.sentiment='positive')
+                 ) THEN 1 ELSE 0 END AS maybe
+            FROM line_msg_triage t ${SCOPE}
+           WHERE t.status='open' AND t.needs_action=1 AND ${inScope}
+        ) x;
+
+      SELECT COUNT(*) AS n FROM line_msg_triage;
+
+      -- Pod ที่มีกลุ่มตั้งกระดิ่งไว้อย่างน้อยหนึ่งกลุ่ม — หน้าจอโชว์ปุ่มเฉพาะ Pod เหล่านี้
+      SELECT DISTINCT lgp.pod_id FROM line_group_pods lgp
+       WHERE lgp.pod_id IS NOT NULL AND ${TRIAGE_BELL_SQL()};`;
+
+    const [rs, totalMsgs] = await Promise.all([
+      req().query(batch).then(r => r.recordsets),
+      triageSourceTotal(),
+    ]);
+    const [[done], [open], [classified], podRows] = rs;
+    const totalClassified = classified.n;
 
     res.json({
-      byStatus, byCategory, byPriority, openAction, oldestOpenTicket, maybeResolved, totalClassified, backlog,
-      // Pod ที่มีกลุ่มตั้งกระดิ่งไว้อย่างน้อยหนึ่งกลุ่ม — ให้หน้าจอโชว์ปุ่มเฉพาะ Pod เหล่านี้
-      scopePodIds: (await req().query(
-        `SELECT DISTINCT lgp.pod_id FROM line_group_pods lgp
-         WHERE lgp.pod_id IS NOT NULL AND ${TRIAGE_BELL_SQL()}`)).recordset.map(r => r.pod_id),
+      byStatus: [{ status: 'done', n: done.n }],
+      openAction: open.openAction || 0,
+      oldestOpenTicket: open.oldest || null,
+      maybeResolved: open.maybeResolved || 0,
+      totalClassified,
+      backlog: totalMsgs === null ? null : Math.max(0, totalMsgs - totalClassified),
+      scopePodIds: podRows.map(r => r.pod_id),
       autoOn: (process.env.TRIAGE_AUTO || '').toLowerCase() === 'on',
       alertOn: (process.env.TRIAGE_ALERT || '').toLowerCase() === 'on',
       alertEveryMin: TRIAGE_CFG.alertEveryMin,
@@ -7000,7 +7031,6 @@ app.get('/api/triage/stats', authRequired, async (request, res) => {
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
-
 // ── ล้าง backlog: ปิดงานค้างที่เก่ากว่า N ชั่วโมง ────────
 // GET  = dry-run นับจำนวน (ไม่แก้ข้อมูล)   POST = ปิดจริง
 // ใช้ตอนอยากเริ่มนับใหม่ เหลือไว้แต่ของสด ๆ ที่ยังตามได้ทัน

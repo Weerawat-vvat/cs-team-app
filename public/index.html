@@ -5694,6 +5694,8 @@ async function triageAction(id, action, needNote) {
   await loadTriage();   // resync list + counts (fresh, uncached)
 }
 
+let _trLoadSeq = 0;      // กันคำขอเก่ากลับมาทับของใหม่ตอนกดรัวๆ
+let _trHasRows = false;  // มีแถวอยู่บนจอแล้วหรือยัง — ใช้ตัดสินว่าจะหรี่หรือจะขึ้น "กำลังโหลด"
 async function loadTriage() {
   const tbody = document.getElementById('tr-tbody');
   if (!tbody) return;
@@ -5710,11 +5712,20 @@ async function loadTriage() {
   q.set('page', _trPage); q.set('per', _trPer);
   q.set('_t', Date.now());   // cache-buster so we never render a stale list
 
-  tbody.innerHTML = `<tr><td colspan="5" class="empty">กำลังโหลด...</td></tr>`;
+  // ตารางที่มีข้อมูลอยู่แล้วแค่หรี่ลง ไม่ล้างทิ้ง — กดกรอง/เปลี่ยนหน้าแล้วจอจะได้ไม่กระโดด
+  const seq = ++_trLoadSeq;
+  const tbl = tbody.closest('table') || tbody;
+  if (_trHasRows) { tbl.style.transition = 'opacity .12s'; tbl.style.opacity = '.45'; }
+  else tbody.innerHTML = `<tr><td colspan="5" class="empty">กำลังโหลด...</td></tr>`;
+
   const [stats, data] = await Promise.all([
     api('/api/triage/stats?_t=' + Date.now(), { silent: true }),
     api('/api/triage/inbox?' + q.toString(), { silent: true }),
   ]);
+  // กดรัวๆ แล้วคำขอเก่าอาจกลับมาทีหลัง — ของเก่าให้ทิ้งไป อย่าเอามาทับของใหม่
+  if (seq !== _trLoadSeq) return;
+  tbl.style.opacity = '';
+
   if (stats && !stats.error) {
     // ขอบเขต Pod มาจาก server — เปลี่ยนได้ทุกครั้งที่มีคนตั้ง/ปลดกระดิ่งของกลุ่ม
     if (Array.isArray(stats.scopePodIds)) {
@@ -5726,10 +5737,12 @@ async function loadTriage() {
   }
   if (!data || data.error) {
     tbody.innerHTML = `<tr><td colspan="5" class="empty">โหลดไม่สำเร็จ (${esc(data?.error || 'ไม่พร้อม')})</td></tr>`;
+    _trHasRows = false;
     return;
   }
   _trTotal = data.total; _trPer = data.per;
   renderTriageTable(data.rows || []);
+  _trHasRows = (data.rows || []).length > 0;
   const maxPage = Math.max(1, Math.ceil(_trTotal / _trPer));
   const info = document.getElementById('tr-pageinfo');
   if (info) info.textContent = `${_trTotal} รายการ · หน้า ${_trPage}/${maxPage}`;

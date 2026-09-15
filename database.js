@@ -305,6 +305,12 @@ async function init() {
         CREATE INDEX ix_triage_status ON line_msg_triage(status, needs_action, priority);
       IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='ix_triage_group')
         CREATE INDEX ix_triage_group ON line_msg_triage(group_id);
+      -- เพิ่มทีหลัง: หน้าคัดกรองช้าเพราะสองอันนี้ไม่มี (SQL Server เองก็แนะนำ)
+      -- ตัวแรกสำหรับนับ/เรียงงานที่ยังค้าง ตัวที่สองสำหรับเช็คว่ามีข้อความขอบคุณตามมาไหม
+      IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='ix_triage_open')
+        CREATE INDEX ix_triage_open ON line_msg_triage(needs_action, status) INCLUDE (group_id, message_time);
+      IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='ix_triage_group_time')
+        CREATE INDEX ix_triage_group_time ON line_msg_triage(group_id, message_time) INCLUDE (category, sentiment);
     `);
     // Added later: LINE group / chat display name (nullable; backfilled from LineWaitingReply.GroupName)
     await pool.request().query(`
