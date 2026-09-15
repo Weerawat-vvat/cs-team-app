@@ -3748,6 +3748,8 @@ textarea{resize:vertical;min-height:80px}
         <span id="tr-auto" style="font-size:.7rem;color:#94a3b8"></span>
         <button class="btn btn-sm btn-ghost" id="tr-close-maybe-btn" onclick="triageCloseMaybe()" style="display:none;color:#f59e0b">🧹 ปิดที่น่าจะแก้แล้ว</button>
         <button class="btn btn-sm btn-ghost" onclick="triageCloseStale()" style="color:#dc2626" title="ปิดงานค้างเก่าทั้งหมด เหลือไว้แต่ของใหม่">🧹 ล้างงานค้างเก่า</button>
+        <button class="btn btn-sm btn-ghost" onclick="triagePurgeOld()" style="color:#dc2626" title="ลบข้อมูลคัดกรองที่เก่ากว่าที่ตั้งไว้ทิ้งถาวร">🗑️ ล้างข้อมูลเก่า</button>
+        <button class="btn btn-sm btn-ghost" onclick="openTriageSettings()" title="ตั้งรอบส่งแจ้งเตือน LINE และอายุข้อมูลที่เก็บ">⚙️ ตั้งค่า</button>
         <button class="btn btn-sm btn-ghost" onclick="triagePreviewAlert()">🔔 แจ้งเตือน LINE</button>
         <button class="btn btn-sm btn-primary" id="tr-classify-btn" onclick="triageClassify()">✨ คัดกรองเดี๋ยวนี้</button>
         <button class="btn btn-sm btn-ghost" onclick="loadTriage()">🔄 รีเฟรช</button>
@@ -3877,6 +3879,65 @@ textarea{resize:vertical;min-height:80px}
       </div>
     </div>
     <div id="pod-capacity"><div class="empty" style="padding:2rem">กำลังโหลด...</div></div>
+  </div>
+</div>
+
+<!-- MODAL: ตั้งค่ารอบแจ้งเตือน LINE + การเก็บข้อมูลของกล่องคัดกรอง -->
+<div class="overlay" id="modal-tr-settings">
+  <div class="modal" style="max-width:460px;padding:1.2rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
+      <div style="font-size:1rem;font-weight:800">⚙️ ตั้งค่าคัดกรอง &amp; แจ้งเตือน</div>
+      <button class="modal-close" onclick="closeModal('modal-tr-settings')">×</button>
+    </div>
+
+    <div class="form-group">
+      <label>🔔 ส่งแจ้งเตือน LINE ทุกกี่นาที</label>
+      <div style="display:flex;gap:.4rem;align-items:center">
+        <input id="trs-every" type="number" min="1" max="720" step="1" oninput="trsEveryHint()"
+               style="width:110px;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.88rem;font-family:inherit;outline:none"/>
+        <span style="font-size:.8rem;color:var(--muted)">นาที</span>
+        <span style="margin-left:auto;display:flex;gap:.25rem">
+          <button type="button" class="btn btn-sm btn-ghost" onclick="trsSetEvery(15)">15</button>
+          <button type="button" class="btn btn-sm btn-ghost" onclick="trsSetEvery(30)">30</button>
+          <button type="button" class="btn btn-sm btn-ghost" onclick="trsSetEvery(60)">60</button>
+          <button type="button" class="btn btn-sm btn-ghost" onclick="trsSetEvery(120)">120</button>
+        </span>
+      </div>
+      <div id="trs-every-hint" style="font-size:.72rem;color:var(--muted);margin-top:.25rem"></div>
+    </div>
+
+    <div class="form-group">
+      <label>🕗 ส่งเฉพาะช่วงเวลา</label>
+      <div style="display:flex;gap:.4rem;align-items:center">
+        <input id="trs-from" type="time" style="border:1.5px solid var(--border);border-radius:8px;padding:.35rem .5rem;font-size:.88rem;font-family:inherit;outline:none"/>
+        <span style="color:var(--muted)">ถึง</span>
+        <input id="trs-to" type="time" style="border:1.5px solid var(--border);border-radius:8px;padding:.35rem .5rem;font-size:.88rem;font-family:inherit;outline:none"/>
+      </div>
+      <div style="font-size:.72rem;color:var(--muted);margin-top:.25rem">ถึง 00:00 = ส่งจนถึงเที่ยงคืน · นอกช่วงนี้จะเงียบ</div>
+    </div>
+
+    <div class="form-group" style="border-top:1px solid var(--border);padding-top:.7rem">
+      <label>🗑️ เก็บข้อมูลคัดกรองย้อนหลังกี่วัน</label>
+      <div style="display:flex;gap:.4rem;align-items:center">
+        <input id="trs-days" type="number" min="1" max="365" step="1"
+               style="width:110px;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.88rem;font-family:inherit;outline:none"/>
+        <span style="font-size:.8rem;color:var(--muted)">วัน</span>
+        <button type="button" class="btn btn-sm btn-ghost" style="margin-left:auto;color:#dc2626" onclick="triagePurgeOld()">🗑️ ล้างเดี๋ยวนี้</button>
+      </div>
+      <label style="display:flex;gap:.4rem;align-items:center;margin-top:.5rem;font-weight:500">
+        <input id="trs-autopurge" type="checkbox"/> ล้างให้อัตโนมัติวันละครั้ง
+      </label>
+      <div style="font-size:.72rem;color:var(--muted);margin-top:.35rem">
+        ลบเฉพาะผลคัดกรอง + สถานะที่ทีมกดไว้ · ข้อความต้นทางในระบบ LINE bot ไม่ถูกลบ
+      </div>
+      <div id="trs-purge-info" style="font-size:.72rem;color:var(--muted);margin-top:.25rem"></div>
+    </div>
+
+    <div id="trs-meta" style="font-size:.7rem;color:var(--muted);margin-top:.2rem"></div>
+    <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:.9rem">
+      <button class="btn btn-ghost" onclick="closeModal('modal-tr-settings')">ยกเลิก</button>
+      <button class="btn btn-primary" id="trs-save" onclick="saveTriageSettings()">บันทึก</button>
+    </div>
   </div>
 </div>
 
@@ -5704,7 +5765,8 @@ function renderTrAutoLabel() {
   const alertPart = alertOn
     ? ` · 🔔 แจ้งเตือนไลน์ทุก ${alertEveryMin} นาที (${alertWindow})`
     : ' · 🔕 แจ้งเตือนไลน์ปิดอยู่';
-  au.textContent = `🟢 auto ทุก ${minutes} นาที · ${what} · อัพเดทล่าสุด ${lastStr} · อีก ${etaStr}${alertPart}`;
+  const purgePart = _trAuto.autoPurge ? ` · 🗑️ ล้างข้อมูลเก่ากว่า ${_trAuto.retentionDays} วันอัตโนมัติ` : '';
+  au.textContent = `🟢 auto ทุก ${minutes} นาที · ${what} · อัพเดทล่าสุด ${lastStr} · อีก ${etaStr}${alertPart}${purgePart}`;
 }
 
 function renderTriageStats(s) {
@@ -5722,6 +5784,9 @@ function renderTriageStats(s) {
   _trAuto.minutes = s.autoMinutes || 15;
   _trAuto.alertEveryMin = s.alertEveryMin || 30;
   _trAuto.alertWindow = s.alertWindow || '08:00-00:00';
+  _trAuto.retentionDays = s.retentionDays || 7;
+  _trAuto.autoPurge = !!s.autoPurge;
+  _trAuto.canEdit = s.canEditSettings !== false;
   _trAuto.lastAt = s.lastAutoAt ? new Date(s.lastAutoAt) : null;
   _trAuto.refreshedForThisTick = false;
   renderTrAutoLabel();
@@ -5764,6 +5829,102 @@ async function triageCloseMaybe() {
   btn.disabled = false; btn.textContent = orig;
   if (r?.error) { alert('❌ ' + r.error); return; }
   alert(`✅ ปิดงานแล้ว ${r.closed || 0} รายการ`);
+  _trPage = 1;
+  await loadTriage();
+}
+
+// ── ตั้งค่ารอบแจ้งเตือน LINE + อายุข้อมูลที่เก็บ ──────────
+let _trSettings = null;
+
+function trsSetEvery(n) {
+  const el = document.getElementById('trs-every');
+  if (el) { el.value = n; trsEveryHint(); }
+}
+
+// ตัวจับเวลาใช้ "นาทีนับจากเที่ยงคืน % รอบ" — รอบที่หาร 1440 ไม่ลงตัวจะมีช่องสุดท้ายสั้นกว่าปกติ
+function trsEveryHint() {
+  const el = document.getElementById('trs-every-hint');
+  if (!el) return;
+  const n = parseInt(document.getElementById('trs-every')?.value) || 0;
+  if (n < 1) { el.textContent = ''; el.style.color = ''; return; }
+  const slot = (m) => String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+  if (1440 % n === 0) {
+    el.style.color = '';
+    el.textContent = `ยิงตรงนาฬิกา: ${slot(0)} · ${slot(n)} · ${slot(n * 2)} …`;
+  } else {
+    el.style.color = '#f59e0b';
+    el.textContent = `⚠️ 24 ชม. หารด้วย ${n} ไม่ลงตัว — ช่องสุดท้ายก่อนเที่ยงคืนจะสั้นกว่าปกติ`;
+  }
+}
+
+async function openTriageSettings() {
+  const s = await api('/api/triage/settings', { silent: true });
+  if (!s || s.error) { alert('❌ ' + (s?.error || 'โหลดค่าที่ตั้งไว้ไม่สำเร็จ')); return; }
+  _trSettings = s;
+  const [from, to] = String(s.alertWindow || '08:00-00:00').split('-');
+  document.getElementById('trs-every').value = s.alertEveryMin;
+  document.getElementById('trs-from').value  = (from || '08:00').trim();
+  document.getElementById('trs-to').value    = (to || '00:00').trim();
+  document.getElementById('trs-days').value  = s.retentionDays;
+  document.getElementById('trs-autopurge').checked = !!s.autoPurge;
+  document.getElementById('trs-purge-info').textContent = s.lastPurgeAt
+    ? `ล้างล่าสุด ${new Date(s.lastPurgeAt).toLocaleString('th-TH')}`
+    : 'ยังไม่เคยล้าง';
+  const meta = [];
+  if (!s.alertOn) meta.push('🔕 แจ้งเตือน LINE ปิดอยู่ (TRIAGE_ALERT=off) — ตั้งรอบไว้ได้ แต่ยังไม่ส่ง');
+  if (s.updatedAt) meta.push(`แก้ไขล่าสุด ${new Date(s.updatedAt).toLocaleString('th-TH')} โดย ${s.updatedBy || '—'}`);
+  document.getElementById('trs-meta').textContent = meta.join(' · ');
+  const save = document.getElementById('trs-save');
+  const can = _trAuto.canEdit !== false;
+  save.disabled = !can;
+  save.title = can ? '' : 'ต้องเป็นหัวหน้าทีมขึ้นไปจึงจะแก้ได้';
+  trsEveryHint();
+  openModal('modal-tr-settings');
+}
+
+async function saveTriageSettings() {
+  const every = Math.max(1, Math.min(720, parseInt(document.getElementById('trs-every').value) || 30));
+  const from  = document.getElementById('trs-from').value || '08:00';
+  const to    = document.getElementById('trs-to').value || '00:00';
+  const days  = Math.max(1, Math.min(365, parseInt(document.getElementById('trs-days').value) || 7));
+  const autoPurge = document.getElementById('trs-autopurge').checked;
+  if (autoPurge && !_trSettings?.autoPurge && !confirm(
+      `เปิดล้างอัตโนมัติ: ทุกวันระบบจะลบข้อมูลคัดกรองที่เก่ากว่า ${days} วันทิ้งเอง\n` +
+      `⚠️ ลบแล้วเอาคืนไม่ได้ (ข้อความต้นทางใน LINE ยังอยู่ครบ)\n\nยืนยันหรือไม่?`)) return;
+  const btn = document.getElementById('trs-save');
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = '⏳ กำลังบันทึก...';
+  const r = await api('/api/triage/settings', {
+    method: 'PUT',
+    body: { alertEveryMin: every, alertWindow: `${from}-${to}`, retentionDays: days, autoPurge },
+    silent: true });
+  btn.disabled = false; btn.textContent = orig;
+  if (!r || r.error) { alert('❌ ' + (r?.error || 'บันทึกไม่สำเร็จ')); return; }
+  closeModal('modal-tr-settings');
+  alert(`✅ บันทึกแล้ว — แจ้งเตือนทุก ${r.alertEveryMin} นาที (${r.alertWindow})` +
+        (r.notDivisible ? '\n⚠️ รอบนี้หารกับ 24 ชม. ไม่ลงตัว ช่องสุดท้ายก่อนเที่ยงคืนจะสั้นกว่าปกติ' : '') +
+        (r.autoPurge ? `\n🗑️ ล้างข้อมูลเก่ากว่า ${r.retentionDays} วันอัตโนมัติวันละครั้ง` : ''));
+  await loadTriage();
+}
+
+// ล้างข้อมูลคัดกรองที่เก่ากว่า N วัน — ลบถาวร จึงต้องเห็นตัวเลขก่อนยืนยัน
+async function triagePurgeOld() {
+  const def = _trSettings?.retentionDays || _trAuto.retentionDays || 7;
+  const ans = prompt('ล้างข้อมูลคัดกรองที่เก่ากว่ากี่วัน?\n(เก็บไว้เฉพาะข้อมูลที่ใหม่กว่านี้)', String(def));
+  if (ans === null) return;
+  const days = Math.max(1, Math.min(365, parseInt(ans) || def));
+  const dry = await api(`/api/triage/purge?days=${days}`, { silent: true });
+  if (!dry || dry.error) { alert('❌ ' + (dry?.error || 'ตรวจจำนวนไม่สำเร็จ')); return; }
+  if (!dry.will_delete) { alert(`ℹ️ ไม่มีข้อมูลที่เก่ากว่า ${days} วัน`); return; }
+  const oldest = dry.oldest ? new Date(dry.oldest).toLocaleDateString('th-TH') : '—';
+  if (!confirm(
+      `จะลบข้อมูลคัดกรอง ${dry.will_delete.toLocaleString()} รายการ ที่เก่ากว่า ${days} วัน\n` +
+      `เก่าสุด ${oldest} · ในนั้นเป็นงานที่ยังค้างอยู่ ${dry.still_open.toLocaleString()} รายการ\n` +
+      `เหลือในระบบ ${(dry.total - dry.will_delete).toLocaleString()} จาก ${dry.total.toLocaleString()} รายการ\n\n` +
+      `⚠️ ลบถาวร เอาคืนไม่ได้ — ข้อความต้นทางในระบบ LINE ยังอยู่ครบ\nยืนยันหรือไม่?`)) return;
+  const r = await api('/api/triage/purge', { method: 'POST', body: { days }, silent: true });
+  if (!r || r.error) { alert('❌ ' + (r?.error || 'ล้างไม่สำเร็จ')); return; }
+  alert(`✅ ล้างแล้ว ${(r.deleted || 0).toLocaleString()} รายการ — เหลือ ${(r.left || 0).toLocaleString()} รายการ`);
+  closeModal('modal-tr-settings');
   _trPage = 1;
   await loadTriage();
 }

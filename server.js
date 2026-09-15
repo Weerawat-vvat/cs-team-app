@@ -6718,6 +6718,8 @@ async function classifyTriageBatch(batchSize = 30) {
     SELECT TOP (${WINDOW}) Id, GroupId, GroupName, CustomerName, CustomerMessage, MessageTime, Answered
     FROM dbo.LineWaitingReply
     WHERE CustomerMessage IS NOT NULL AND LEN(LTRIM(RTRIM(CustomerMessage))) > 0
+      -- เก่ากว่าอายุที่เก็บไว้ = ถูกล้างไปแล้ว ไม่ต้องคัดกรองซ้ำให้เปลืองโควตา
+      AND (MessageTime IS NULL OR MessageTime >= DATEADD(day, -${TRIAGE_CFG.retentionDays}, GETDATE()))
     ORDER BY Answered ASC, MessageTime DESC
   `)).recordset;
   if (!cand.length) return { classified: 0, scanned: 0, hasKey: true };
@@ -6988,9 +6990,12 @@ app.get('/api/triage/stats', authRequired, async (request, res) => {
          WHERE lgp.pod_id IS NOT NULL AND ${TRIAGE_BELL_SQL()}`)).recordset.map(r => r.pod_id),
       autoOn: (process.env.TRIAGE_AUTO || '').toLowerCase() === 'on',
       alertOn: (process.env.TRIAGE_ALERT || '').toLowerCase() === 'on',
-      alertEveryMin: TRIAGE_ALERT_EVERY,
-      alertWindow: TRIAGE_ALERT_WINDOW,
+      alertEveryMin: TRIAGE_CFG.alertEveryMin,
+      alertWindow: TRIAGE_CFG.alertWindow,
       autoMinutes: TRIAGE_AUTO_MIN,
+      retentionDays: TRIAGE_CFG.retentionDays,
+      autoPurge: TRIAGE_CFG.autoPurge,
+      canEditSettings: ['manager', 'team_lead', 'admin'].includes(request.user?.role),
       lastAutoAt: _triageAutoLastAt ? _triageAutoLastAt.toISOString() : null,
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -7063,6 +7068,68 @@ app.post('/api/triage/close-maybe-resolved', authRequired, async (request, res) 
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── ตั้งค่ารอบแจ้งเตือน LINE + การเก็บข้อมูล ──────────────
+app.get('/api/triage/settings', authRequired, async (_, res) => {
+  try {
+    const c = await loadTriageSettings();
+    res.json({
+      alertOn: (process.env.TRIAGE_ALERT || '').toLowerCase() === 'on',
+      alertEveryMin: c.alertEveryMin, alertWindow: c.alertWindow,
+      retentionDays: c.retentionDays, autoPurge: c.autoPurge,
+      lastPurgeAt: c.lastPurgeAt, updatedAt: c.updatedAt, updatedBy: c.updatedBy,
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/triage/settings', authRequired, managerRequired, async (request, res) => {
+  const b = request.body || {};
+  const every = Math.max(1, Math.min(720, parseInt(b.alertEveryMin) || TRIAGE_ALERT_EVERY_DEFAULT));
+  const win   = String(b.alertWindow || TRIAGE_ALERT_WINDOW_DEFAULT).trim();
+  const days  = Math.max(1, Math.min(365, parseInt(b.retentionDays) || TRIAGE_RETENTION_DEFAULT));
+  const auto  = b.autoPurge ? 1 : 0;
+  if (!/^\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}$/.test(win))
+    return res.status(400).json({ error: 'ช่วงเวลาต้องอยู่ในรูปแบบ 08:00-00:00' });
+  try {
+    const who = request.user?.nickname || request.user?.name || request.user?.username || null;
+    await req()
+      .input('ev', sql.Int, every).input('wd', sql.NVarChar, win)
+      .input('rd', sql.Int, days).input('ap', sql.Bit, auto)
+      .input('by', sql.NVarChar, who)
+      .query(`UPDATE triage_settings
+                 SET alert_every_min=@ev, alert_window=@wd, retention_days=@rd,
+                     auto_purge=@ap, updated_at=GETDATE(), updated_by=@by
+               WHERE id=1`);
+    await loadTriageSettings();
+    console.log(`⚙️ triage settings → แจ้งเตือนทุก ${TRIAGE_CFG.alertEveryMin} นาที (${TRIAGE_CFG.alertWindow}) · เก็บ ${TRIAGE_CFG.retentionDays} วัน · ล้างอัตโนมัติ ${TRIAGE_CFG.autoPurge ? 'เปิด' : 'ปิด'} · โดย ${who || '—'}`);
+    res.json({
+      ok: true,
+      alertEveryMin: TRIAGE_CFG.alertEveryMin, alertWindow: TRIAGE_CFG.alertWindow,
+      retentionDays: TRIAGE_CFG.retentionDays, autoPurge: TRIAGE_CFG.autoPurge,
+      // รอบที่หาร 1440 ไม่ลงตัวจะยิงไม่ครบทุกชั่วโมง (เช่น 50 นาที) — บอกให้หน้าจอเตือน
+      notDivisible: 1440 % TRIAGE_CFG.alertEveryMin !== 0,
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── ล้างข้อมูลคัดกรองที่เก่ากว่า N วัน ───────────────────
+// GET = ดูก่อนว่าจะลบเท่าไหร่ (ไม่แตะข้อมูล)   POST = ลบจริง (หัวหน้าทีมขึ้นไป)
+app.get('/api/triage/purge', authRequired, async (request, res) => {
+  try {
+    const days = Math.max(1, Math.min(365, parseInt(request.query.days) || TRIAGE_CFG.retentionDays));
+    res.json({ days, ...(await countTriageOlderThan(days)) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/triage/purge', authRequired, managerRequired, async (request, res) => {
+  try {
+    const days = Math.max(1, Math.min(365, parseInt(request.body?.days) || TRIAGE_CFG.retentionDays));
+    const deleted = await purgeTriageOlderThan(days);
+    const left = (await req().query('SELECT COUNT(*) AS n FROM line_msg_triage')).recordset[0].n;
+    console.log(`🗑️ triage purge: ลบ ${deleted} รายการที่เก่ากว่า ${days} วัน โดย ${request.user?.username || '—'} — เหลือ ${left}`);
+    res.json({ ok: true, days, deleted, left });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Team action on a triaged message: claim / done / reopen / note
 app.post('/api/triage/:id/action', authRequired, async (request, res) => {
   const id = parseInt(request.params.id);
@@ -7116,6 +7183,9 @@ async function triageAutoTick() {
         if (closed) console.log(`💡 triage auto-close: ปิด ${closed} รายการที่น่าจะแก้แล้ว`);
       } catch (e) { console.error('triage auto-close error:', e.message); }
     }
+    // ล้างข้อมูลเก่าวันละครั้ง ถ้าเปิดสวิตช์ไว้ในหน้าตั้งค่า
+    try { await triageAutoPurgeTick(); }
+    catch (e) { console.error('triage auto-purge error:', e.message); }
     // (แจ้งเตือน LINE ย้ายไปอยู่ triageAlertSchedulerTick ด้านล่าง — ต้องยิงตรงนาฬิกา
     //  :00/:30 ซึ่ง setInterval ของรอบนี้ทำไม่ได้ เพราะนับจากเวลาที่ server เริ่มทำงาน)
   } catch (e) { console.error('triage auto tick error:', e.message); }
@@ -7125,9 +7195,11 @@ setInterval(triageAutoTick, TRIAGE_AUTO_MIN * 60 * 1000);
 
 // ── ตารางส่งแจ้งเตือน LINE ────────────────────────────────
 // ยิงตรงนาฬิกา เช่น ทุก 30 นาที = 08:00, 08:30, 09:00 … ภายในช่วงเวลาทำงาน
-// ตั้งได้ที่ .env: TRIAGE_ALERT_EVERY_MIN=30  TRIAGE_ALERT_WINDOW=08:00-00:00
-const TRIAGE_ALERT_EVERY = Math.max(1, Math.min(720, parseInt(process.env.TRIAGE_ALERT_EVERY_MIN) || 30));
-const TRIAGE_ALERT_WINDOW = (process.env.TRIAGE_ALERT_WINDOW || '08:00-00:00').trim();
+// ค่าใน .env เป็นแค่ค่าตั้งต้นครั้งแรก — หลังจากนั้นแก้ได้จากหน้าเว็บ (ตาราง
+// triage_settings) โดยไม่ต้องรีสตาร์ท server
+const TRIAGE_ALERT_EVERY_DEFAULT  = Math.max(1, Math.min(720, parseInt(process.env.TRIAGE_ALERT_EVERY_MIN) || 30));
+const TRIAGE_ALERT_WINDOW_DEFAULT = (process.env.TRIAGE_ALERT_WINDOW || '08:00-00:00').trim();
+const TRIAGE_RETENTION_DEFAULT    = Math.max(1, Math.min(365, parseInt(process.env.TRIAGE_RETENTION_DAYS) || 7));
 
 // "08:00-00:00" → { start: 480, end: 1440 } (นาทีนับจากเที่ยงคืน)
 // ปลายทางที่ <= ต้นทาง แปลว่าข้ามเที่ยงคืน จึงบวก 24 ชม.
@@ -7139,10 +7211,21 @@ function parseAlertWindow(str) {
   if (end <= start) end += 1440;
   return { start, end };
 }
-const TRIAGE_ALERT_WIN = parseAlertWindow(TRIAGE_ALERT_WINDOW);
+// ค่าที่ใช้อยู่จริงตอนนี้ — โหลดจาก triage_settings ตอนเปิดเครื่อง และทุกครั้งที่กดบันทึก
+// ตัวจับเวลาอ่านจากตัวนี้ทุก tick จึงเปลี่ยนรอบส่งได้ทันทีโดยไม่ต้องรีสตาร์ท
+const TRIAGE_CFG = {
+  alertEveryMin: TRIAGE_ALERT_EVERY_DEFAULT,
+  alertWindow:   TRIAGE_ALERT_WINDOW_DEFAULT,
+  win:           parseAlertWindow(TRIAGE_ALERT_WINDOW_DEFAULT),
+  retentionDays: TRIAGE_RETENTION_DEFAULT,
+  autoPurge:     false,
+  lastPurgeAt:   null,
+  updatedAt:     null,
+  updatedBy:     null,
+};
 
 function triageAlertInWindow(mins) {
-  const { start, end } = TRIAGE_ALERT_WIN;
+  const { start, end } = TRIAGE_CFG.win;
   return (mins >= start && mins < end) || (mins + 1440 >= start && mins + 1440 < end);
 }
 
@@ -7156,7 +7239,7 @@ async function triageAlertSchedulerTick() {
   const hhmm = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Bangkok' });
   const [hh, mm] = hhmm.split(':').map(Number);
   const mins = hh * 60 + mm;
-  if (mins % TRIAGE_ALERT_EVERY !== 0) return;      // ไม่ตรงช่องเวลา
+  if (mins % TRIAGE_CFG.alertEveryMin !== 0) return;      // ไม่ตรงช่องเวลา
   if (!triageAlertInWindow(mins)) return;           // นอกเวลาทำงาน
   const slot = `${bangkokToday()} ${hhmm}`;
   if (_triageAlertLastSlot === slot) return;        // ช่องนี้ยิงไปแล้ว
@@ -7172,6 +7255,102 @@ async function triageAlertSchedulerTick() {
   finally { _triageAlertRunning = false; }
 }
 setInterval(triageAlertSchedulerTick, 30 * 1000);
+
+// ── ตั้งค่าคัดกรอง / แจ้งเตือน ที่แก้ได้จากหน้าเว็บ ────────
+// เก็บเป็นแถวเดียว (id=1) แทนการแก้ .env แล้วรีสตาร์ท
+async function ensureTriageSettingsTable() {
+  try {
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='triage_settings' AND xtype='U')
+      CREATE TABLE triage_settings (
+        id              INT PRIMARY KEY,
+        alert_every_min INT NOT NULL,
+        alert_window    NVARCHAR(20) NOT NULL,
+        retention_days  INT NOT NULL,
+        auto_purge      BIT NOT NULL,
+        last_purge_at   DATETIME NULL,
+        updated_at      DATETIME DEFAULT GETDATE(),
+        updated_by      NVARCHAR(100) NULL
+      )`);
+    await req()
+      .input('ev', sql.Int, TRIAGE_ALERT_EVERY_DEFAULT)
+      .input('wd', sql.NVarChar, TRIAGE_ALERT_WINDOW_DEFAULT)
+      .input('rd', sql.Int, TRIAGE_RETENTION_DEFAULT)
+      .query(`IF NOT EXISTS (SELECT 1 FROM triage_settings WHERE id=1)
+                INSERT INTO triage_settings (id, alert_every_min, alert_window, retention_days, auto_purge)
+                VALUES (1, @ev, @wd, @rd, 0)`);
+    await loadTriageSettings();
+    console.log(`✅ triage_settings ready — แจ้งเตือนทุก ${TRIAGE_CFG.alertEveryMin} นาที (${TRIAGE_CFG.alertWindow}) · เก็บข้อมูล ${TRIAGE_CFG.retentionDays} วัน · ล้างอัตโนมัติ ${TRIAGE_CFG.autoPurge ? 'เปิด' : 'ปิด'}`);
+  } catch (e) { console.error('❌ triage_settings error:', e.message); }
+}
+
+async function loadTriageSettings() {
+  const row = (await req().query('SELECT TOP 1 * FROM triage_settings WHERE id=1')).recordset[0];
+  if (!row) return TRIAGE_CFG;
+  TRIAGE_CFG.alertEveryMin = Math.max(1, Math.min(720, row.alert_every_min || TRIAGE_ALERT_EVERY_DEFAULT));
+  TRIAGE_CFG.alertWindow   = String(row.alert_window || TRIAGE_ALERT_WINDOW_DEFAULT).trim();
+  TRIAGE_CFG.win           = parseAlertWindow(TRIAGE_CFG.alertWindow);
+  TRIAGE_CFG.retentionDays = Math.max(1, Math.min(365, row.retention_days || TRIAGE_RETENTION_DEFAULT));
+  TRIAGE_CFG.autoPurge     = !!row.auto_purge;
+  TRIAGE_CFG.lastPurgeAt   = row.last_purge_at || null;
+  TRIAGE_CFG.updatedAt     = row.updated_at || null;
+  TRIAGE_CFG.updatedBy     = row.updated_by || null;
+  return TRIAGE_CFG;
+}
+
+// ── ล้างข้อมูลคัดกรองที่เก่ากว่า N วัน ───────────────────
+// ลบเฉพาะตารางของแอป (line_msg_triage + ผลประเมินของ AI) ข้อความต้นทางใน
+// LineBotMonitor ไม่ถูกแตะ — ที่หายไปคือผลคัดกรองกับสถานะที่ทีมกดไว้เท่านั้น
+const TRIAGE_AGE_SQL = 'COALESCE(t.message_time, t.classified_at)';
+
+async function countTriageOlderThan(days) {
+  const row = (await req().input('d', sql.Int, days).query(`
+    SELECT COUNT(*) AS n,
+           SUM(CASE WHEN t.status='open' AND t.needs_action=1 THEN 1 ELSE 0 END) AS still_open,
+           MIN(${TRIAGE_AGE_SQL}) AS oldest
+    FROM line_msg_triage t
+    WHERE ${TRIAGE_AGE_SQL} < DATEADD(day, -@d, GETDATE())`)).recordset[0] || {};
+  const total = (await req().query('SELECT COUNT(*) AS n FROM line_msg_triage')).recordset[0].n;
+  return { will_delete: row.n || 0, still_open: row.still_open || 0, oldest: row.oldest || null, total };
+}
+
+// ลบทีละก้อน — ของเก่าสะสมเป็นหมื่นแถว ถ้าลบรวดเดียวจะล็อกตารางนานจนหน้าเว็บค้าง
+const TRIAGE_PURGE_BATCH = 5000;
+async function purgeTriageBatched(stmt, days) {
+  let total = 0;
+  for (let round = 0; round < 500; round++) {
+    const r = await req().input('d', sql.Int, days).query(stmt);
+    const n = r.rowsAffected?.[0] || 0;
+    total += n;
+    if (n < TRIAGE_PURGE_BATCH) break;
+  }
+  return total;
+}
+
+async function purgeTriageOlderThan(days) {
+  // ลบผลประเมินของ AI ที่ผูกกับข้อความที่กำลังจะหายไปก่อน จะได้ไม่เหลือแถวกำพร้า
+  await purgeTriageBatched(`
+    DELETE TOP (${TRIAGE_PURGE_BATCH}) s FROM triage_ai_screen s
+    JOIN line_msg_triage t ON t.source_msg_id = s.source_msg_id
+    WHERE ${TRIAGE_AGE_SQL} < DATEADD(day, -@d, GETDATE())`, days);
+  const deleted = await purgeTriageBatched(`
+    DELETE TOP (${TRIAGE_PURGE_BATCH}) t FROM line_msg_triage t
+    WHERE ${TRIAGE_AGE_SQL} < DATEADD(day, -@d, GETDATE())`, days);
+  await req().query('UPDATE triage_settings SET last_purge_at=GETDATE() WHERE id=1');
+  TRIAGE_CFG.lastPurgeAt = new Date();
+  return deleted;
+}
+
+// ล้างอัตโนมัติวันละครั้ง (ถ้าเปิดสวิตช์ไว้) — เรียกจากรอบ auto tick
+let _triagePurgeDay = null;
+async function triageAutoPurgeTick() {
+  if (!TRIAGE_CFG.autoPurge) return;
+  const today = bangkokToday();
+  if (_triagePurgeDay === today) return;
+  _triagePurgeDay = today;
+  const n = await purgeTriageOlderThan(TRIAGE_CFG.retentionDays);
+  if (n) console.log(`🗑️ triage purge: ลบข้อมูลเก่ากว่า ${TRIAGE_CFG.retentionDays} วัน ${n} รายการ`);
+}
 
 // ── Sync "answered in LINE" ───────────────────────────────
 // If a staff member already replied in the LINE group (LineWaitingReply.Answered=1),
@@ -12802,6 +12981,7 @@ init().then(async () => {
   await ensureImplRequestTables();
   await ensureUatTables();
   await ensureTriageScreenTable();
+  await ensureTriageSettingsTable();
   await ensureNewsTable();
   await fixGarbledServiceAttachmentNames();
 
