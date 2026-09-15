@@ -5975,8 +5975,15 @@ function renderTriageRow(r) {
   const msg = esc(r.message_text || '');
   const short = msg.length > 180 ? msg.slice(0, 180) + '…' : msg;
   const isDM = String(r.group_id || '').startsWith('U');
-  const chatName = r.group_name || (isDM ? (r.customer_name || 'แชทส่วนตัว') : (r.group_id || '(ไม่ทราบกลุ่ม)'));
-  const sender = (!isDM && r.customer_name) ? `<div style="color:#64748b;font-size:.64rem">โดย ${esc(r.customer_name)}</div>` : '';
+  // แชทส่วนตัวทุกห้องมี group_name เป็นคำว่า "แชทส่วนตัว" เหมือนกันหมด แยกไม่ออกว่าใครเป็นใคร
+  // จึงต้องเอาชื่อ LINE ของคนนั้น (customer_name) ขึ้นก่อน
+  const dmName = String(r.customer_name || '').trim();   // บางแถวเป็นช่องว่างล้วน
+  const chatName = isDM
+    ? (dmName || r.group_name || 'แชทส่วนตัว')
+    : (r.group_name || r.group_id || '(ไม่ทราบกลุ่ม)');
+  const sender = isDM
+    ? `<div style="color:#64748b;font-size:.64rem">แชทส่วนตัว (1:1)</div>`
+    : (r.customer_name ? `<div style="color:#64748b;font-size:.64rem">โดย ${esc(r.customer_name)}</div>` : '');
   const pod = r.pod_code
     ? `<div style="margin-top:2px"><span style="display:inline-block;padding:0 6px;border-radius:8px;font-size:.62rem;background:${r.pod_color || '#4f46e5'}22;color:${r.pod_color || '#818cf8'}">🧩 ${esc(r.pod_name || r.pod_code)}</span></div>`
     : '';

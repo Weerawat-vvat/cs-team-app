@@ -7629,7 +7629,7 @@ async function buildTriageAlert({ aiCalls = true } = {}) {
   // หนึ่งแถวต่อหนึ่งกลุ่ม = ข้อความที่ค้างนานที่สุดของกลุ่มนั้น (พร้อมสรุปจาก AI)
   const rows = (await req().query(`
     WITH pending AS (
-      SELECT COALESCE(t.group_name, lgp.group_name) AS group_name, t.group_id, t.source_msg_id,
+      SELECT COALESCE(t.group_name, lgp.group_name) AS group_name, t.customer_name, t.group_id, t.source_msg_id,
              lgp.pod_id, p.display_name AS pod_name,
              t.summary, t.message_text,
              ROW_NUMBER() OVER (PARTITION BY t.group_id ORDER BY t.message_time ASC) AS rn,
@@ -7646,14 +7646,17 @@ async function buildTriageAlert({ aiCalls = true } = {}) {
             AND t2.message_time <= DATEADD(hour, 24, t.message_time)
             AND (t2.category='thank' OR t2.sentiment='positive'))
     )
-    SELECT group_name, group_id, source_msg_id, pod_id, pod_name, summary, message_text, waitmin, cnt
+    SELECT group_name, customer_name, group_id, source_msg_id, pod_id, pod_name, summary, message_text, waitmin, cnt
     FROM pending WHERE rn = 1
   `)).recordset;
 
   const clean = (s) => String(s || '').replace(/\s+/g, ' ').trim();
   let items = rows.map(r => {
     const isDM = String(r.group_id || '').startsWith('U');
-    const name = r.group_name || (isDM ? '(แชทส่วนตัว)' : (r.group_id || '(ไม่ทราบกลุ่ม)'));
+    // แชทส่วนตัวใช้ชื่อ LINE ของคนนั้น — ไม่งั้นทุกห้องขึ้นว่า "แชทส่วนตัว" เหมือนกันหมด
+    const name = isDM
+      ? (clean(r.customer_name) ? `${clean(r.customer_name)} (แชทส่วนตัว)` : '(แชทส่วนตัว)')
+      : (r.group_name || r.group_id || '(ไม่ทราบกลุ่ม)');
     // สรุปจาก AI ก่อน ถ้าไม่มีค่อยใช้ข้อความจริงแบบตัดสั้น
     const detail = clean(r.summary) || clean(r.message_text).slice(0, 120) || '';
     return { name, groupId: r.group_id, sourceMsgId: r.source_msg_id,
