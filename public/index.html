@@ -14503,15 +14503,20 @@ function fuRenderByAssignee() {
         <span style="font-size:.72rem;font-weight:700;color:${headerColor};background:${isUnassigned?'#fde68a':'#bfdbfe'};border-radius:99px;padding:.1rem .55rem;white-space:nowrap">${total} งาน</span>
         ${statusChips}
       </div>
-      <table style="width:100%;border-collapse:collapse;font-size:.78rem;table-layout:fixed">
+      <div style="overflow-x:auto">
+      <table style="width:100%;min-width:1180px;border-collapse:collapse;font-size:.78rem;table-layout:fixed">
         <colgroup>
-          <col style="width:4%">
-          <col style="width:28%">
-          <col style="width:20%">
-          <col style="width:12%">
+          <col style="width:3%">
+          <col style="width:18%">
           <col style="width:14%">
+          <col style="width:9%">
+          <col style="width:9%">
+          <col style="width:7%">
+          <col style="width:7%">
           <col style="width:8%">
-          <col style="width:16%">
+          <col style="width:7%">
+          <col style="width:7%">
+          <col style="width:7%">
           <col style="width:4%">
         </colgroup>
         <thead><tr style="background:#f8fafc;border-bottom:1px solid #e2e8f0">
@@ -14521,7 +14526,7 @@ function fuRenderByAssignee() {
           <th style="padding:.35rem .6rem;text-align:left;color:#64748b;font-weight:600;font-size:.72rem;overflow:hidden">สร้างโดย</th>
           <th style="padding:.35rem .6rem;text-align:center;color:#64748b;font-weight:600;font-size:.72rem;overflow:hidden">สถานะ</th>
           <th style="padding:.35rem .4rem;text-align:center;color:#64748b;font-weight:600;font-size:.72rem;overflow:hidden">ความสำคัญ</th>
-          <th style="padding:.35rem .4rem;text-align:left;color:#64748b;font-weight:600;font-size:.72rem;overflow:hidden">แผน Release</th>
+          ${FU_REL_COLS.map(c=>`<th style="padding:.35rem .4rem;text-align:left;color:#64748b;font-weight:600;font-size:.72rem;white-space:nowrap;overflow:hidden">${c.head}</th>`).join('')}
           <th style="padding:.35rem .4rem;text-align:center;color:#64748b;font-weight:600;font-size:.72rem;overflow:hidden">ค้าง</th>
         </tr></thead><tbody>`;
 
@@ -14549,11 +14554,11 @@ function fuRenderByAssignee() {
           <span style="display:inline-block;background:${st.bg||st.color+'18'};color:${st.color};border-radius:20px;padding:.15rem .5rem;font-size:.7rem;font-weight:700;white-space:nowrap">${st.label}</span>
         </td>
         <td style="padding:.35rem .4rem;text-align:center;vertical-align:top;white-space:nowrap"><span style="color:${pri.color};font-size:.73rem">${pri.label}</span></td>
-        <td style="padding:.35rem .4rem;vertical-align:top">${fuReleasePlanCell(issue)}</td>
+        ${FU_REL_COLS.map(c=>`<td style="padding:.35rem .4rem;vertical-align:top;font-size:.73rem;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${fuRelValue(issue,c)}</td>`).join('')}
         <td style="padding:.35rem .4rem;text-align:center;vertical-align:top;font-size:.73rem;font-weight:700;color:${staleCol};white-space:nowrap">${staleDays > 0 ? staleDays+'d' : '—'}</td>
       </tr>`;
     });
-    html += '</tbody></table></div>'; // close table, card
+    html += '</tbody></table></div></div>'; // close table, scroller, card
   });
 
   body.innerHTML = html;
@@ -15572,20 +15577,28 @@ function fuReleaseChip(issue) {
   return `<span title="${f ? f.title : 'Release Version'}" style="font-size:.7rem;color:#7c3aed;font-weight:600">${parts.join(' · ')}</span>`;
 }
 
-// Release plan as a row of compact chips for the table cell
-function fuReleasePlanCell(issue) {
-  const d = v => parseDbDate(v).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'});
-  const chips = [
-    issue.release_date    && { title:'Release Date',    text:'💿 ' + d(issue.release_date) },
-    issue.release_version && { title:'Release Version', text:'🏷️ ' + esc(issue.release_version) },
-    issue.uat_date        && { title:'UAT Date',        text:'🧪 ' + d(issue.uat_date) },
-    issue.pilot_date      && { title:'Pilot Update',    text:'🚧 ' + d(issue.pilot_date) },
-    issue.golive_date     && { title:'Go live Update',  text:'🚀 ' + d(issue.golive_date) },
-  ].filter(Boolean);
-  if (!chips.length) return '<span style="color:#cbd5e1;font-size:.72rem">--</span>';
-  return `<div style="display:flex;flex-wrap:wrap;gap:.18rem">` + chips.map(c =>
-    `<span title="${c.title}" style="background:#f5f3ff;color:#7c3aed;border-radius:5px;padding:.06rem .32rem;font-size:.65rem;font-weight:600;white-space:nowrap">${c.text}</span>`
-  ).join('') + `</div>`;
+// Release plan — one table column per field
+const FU_REL_COLS = [
+  { key:'release_date',    head:'💿 Release', width:76 },
+  { key:'release_version', head:'🏷️ Version', width:94, text:true },
+  { key:'uat_date',        head:'🧪 UAT',     width:76 },
+  { key:'pilot_date',      head:'🚧 Pilot',   width:76 },
+  { key:'golive_date',     head:'🚀 Go live', width:76 },
+];
+
+function fuRelValue(issue, col) {
+  const v = issue[col.key];
+  if (!v) return '<span style="color:#cbd5e1">--</span>';
+  return col.text ? esc(v) : parseDbDate(v).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'});
+}
+
+// <th> set for the board table (fixed layout, so each carries its own width)
+function fuRelHeadCells() {
+  return FU_REL_COLS.map(c => `<th style="padding:.6rem .4rem;text-align:left;font-size:.7rem;color:#64748b;font-weight:700;width:${c.width}px;white-space:nowrap">${c.head}</th>`).join('');
+}
+
+function fuRelBodyCells(issue, onclick) {
+  return FU_REL_COLS.map(c => `<td style="padding:.6rem .4rem;vertical-align:top;font-size:.73rem;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"${onclick ? ` onclick="${onclick}"` : ''}>${fuRelValue(issue, c)}</td>`).join('');
 }
 
 function fuIssueRow(issue) {
@@ -15619,9 +15632,7 @@ function fuIssueRow(issue) {
       ${issue.last_comment_at ? `<div onclick="fuOpenPanel(${issue.id})" style="font-size:.7rem;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" title="${esc(issue.last_comment_body||'')}">💬 ${fuDateLabel(issue.last_comment_at)}</div>`
         : '<span onclick="fuOpenPanel('+issue.id+')" style="color:#cbd5e1;font-size:.75rem;cursor:pointer">--</span>'}
     </td>
-    <td style="padding:.6rem .4rem;vertical-align:top" onclick="fuOpenPanel(${issue.id})">
-      ${fuReleasePlanCell(issue)}
-    </td>
+    ${fuRelBodyCells(issue, `fuOpenPanel(${issue.id})`)}
     <td style="padding:.6rem .3rem;vertical-align:top;text-align:center">
       <span onclick="if(confirm('ลบ Issue นี้?'))fuDeleteIssue(${issue.id})" style="cursor:pointer;font-size:.75rem;color:#cbd5e1" title="ลบ" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#cbd5e1'">🗑</span>
     </td>
@@ -15669,10 +15680,10 @@ function fuRenderTable() {
     <th style="padding:.6rem .4rem;text-align:left;font-size:.7rem;color:#64748b;font-weight:700;width:96px">ผู้รับผิดชอบ</th>
     <th style="padding:.6rem .4rem;text-align:left;font-size:.7rem;color:#64748b;font-weight:700;width:96px">สถานะ</th>
     <th style="padding:.6rem .4rem;text-align:left;font-size:.7rem;color:#64748b;font-weight:700;width:100px">อัปเดตล่าสุด</th>
-    <th style="padding:.6rem .4rem;text-align:left;font-size:.7rem;color:#64748b;font-weight:700;width:128px">แผน Release</th>
+    ${fuRelHeadCells()}
     <th style="padding:.6rem .3rem;width:28px"></th>
   </tr></thead>`;
-  const addBtn = `<tr><td colspan="7" style="padding:.4rem .6rem"><button onclick="fuAddIssue()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:.78rem;padding:.2rem .4rem;border-radius:5px" onmouseover="this.style.color='#1d4ed8'" onmouseout="this.style.color='#94a3b8'">+ เพิ่ม Issue</button></td></tr>`;
+  const addBtn = `<tr><td colspan="11" style="padding:.4rem .6rem"><button onclick="fuAddIssue()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:.78rem;padding:.2rem .4rem;border-radius:5px" onmouseover="this.style.color='#1d4ed8'" onmouseout="this.style.color='#94a3b8'">+ เพิ่ม Issue</button></td></tr>`;
 
   let bodyHTML = '';
   if (_fuGroupBy) {
@@ -15685,7 +15696,7 @@ function fuRenderTable() {
     });
     Object.entries(groups).sort(([a],[b])=>String(a).localeCompare(String(b),'th')).forEach(([key, items]) => {
       const color = fuGroupColor(_fuGroupBy, key);
-      bodyHTML += `<tr><td colspan="7" style="padding:.4rem .75rem;background:#f8fafc;border-top:2px solid ${color}33;border-bottom:1px solid #e2e8f0">
+      bodyHTML += `<tr><td colspan="11" style="padding:.4rem .75rem;background:#f8fafc;border-top:2px solid ${color}33;border-bottom:1px solid #e2e8f0">
         <span style="font-size:.75rem;font-weight:700;color:${color}">${fuGroupLabel(_fuGroupBy, key)}</span>
         <span style="font-size:.68rem;color:#94a3b8;margin-left:.4rem">(${items.length})</span>
       </td></tr>`;
@@ -15695,7 +15706,7 @@ function fuRenderTable() {
     list.forEach(i => { bodyHTML += fuIssueRow(i); });
   }
 
-  wrap.innerHTML = `<table style="width:100%;table-layout:fixed;border-collapse:collapse;font-size:.8rem;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06)">${thead}<tbody>${bodyHTML}${addBtn}</tbody></table>`;
+  wrap.innerHTML = `<table style="width:100%;min-width:1120px;table-layout:fixed;border-collapse:collapse;font-size:.8rem;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06)">${thead}<tbody>${bodyHTML}${addBtn}</tbody></table>`;
 }
 
 // ── Kanban Board View ─────────────────────────────────────
