@@ -95,7 +95,7 @@ body { font-family: 'Segoe UI', 'Noto Sans Thai', sans-serif; background: #f8faf
 
 /* ── Table view ── */
 .table-wrap { padding:1rem 1.5rem; display:none; }
-.tbl-outer  { background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,.06),0 0 0 1px rgba(0,0,0,.04); }
+.tbl-outer  { background:#fff; border-radius:12px; overflow:auto; box-shadow:0 1px 4px rgba(0,0,0,.06),0 0 0 1px rgba(0,0,0,.04); }
 table  { width:100%; border-collapse:collapse; }
 th { background:#0f172a; color:#64748b; font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; padding:.55rem .9rem; text-align:left; }
 td { padding:.55rem .9rem; font-size:.8rem; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
@@ -113,6 +113,8 @@ tr:last-child td { border-bottom:none; }
 .td-issue-id { font-weight:700; color:#1d4ed8; text-decoration:none; font-family:monospace; font-size:.78rem; white-space:nowrap; }
 .td-issue-id:hover { text-decoration:underline; }
 .td-status { white-space:nowrap; }
+.td-release { display:flex; flex-wrap:wrap; gap:.2rem; max-width:180px; }
+.release-chip { background:#f5f3ff; color:#7c3aed; border-radius:5px; padding:.08rem .35rem; font-size:.67rem; font-weight:700; white-space:nowrap; }
 .status-pill { display:inline-flex; align-items:center; gap:.3rem; font-size:.72rem; font-weight:700; border-radius:20px; padding:.18rem .55rem; }
 
 /* ── Detail Modal ── */
@@ -246,6 +248,8 @@ tr:last-child td { border-bottom:none; }
   .board-wrap { padding:1rem; }
   .view-tabs { padding:0 1rem; }
   .meta-grid { grid-template-columns:1fr; }
+  .table-wrap { padding:1rem; }
+  .tbl-outer table { min-width:840px; }
   .modal-box { border-radius:14px 14px 0 0; max-height:95vh; position:fixed; bottom:0; left:0; right:0; border-radius:16px 16px 0 0; }
   .modal-overlay { align-items:flex-end; padding:0; }
 }
@@ -321,7 +325,7 @@ tr:last-child td { border-bottom:none; }
     <table>
       <thead><tr>
         <th>#</th><th>หัวข้อ / รายละเอียด</th><th>สถานะ</th>
-        <th>ความสำคัญ</th><th>Category</th><th>ผู้รับผิดชอบ</th><th>Due Date</th><th>Issue ID</th>
+        <th>ความสำคัญ</th><th>Category</th><th>ผู้รับผิดชอบ</th><th>Due Date</th><th>แผน Release</th><th>Issue ID</th>
       </tr></thead>
       <tbody id="tbl-body"></tbody>
     </table>
@@ -643,12 +647,12 @@ function openDetail(id) {
 }
 
 const RELEASE_PLAN_FIELDS = [
-  { key:'release_date',    label:'💿 Release Date' },
-  { key:'release_version', label:'🏷️ Release Version', text:true },
-  { key:'uat_date',        label:'🧪 UAT Date' },
-  { key:'pilot_date',      label:'🚧 Pilot Update' },
-  { key:'golive_date',     label:'🚀 Go live Update' },
-];
+  { key:'release_date',    icon:'💿', plain:'Release Date' },
+  { key:'release_version', icon:'🏷️', plain:'Release Version', text:true },
+  { key:'uat_date',        icon:'🧪', plain:'UAT Date' },
+  { key:'pilot_date',      icon:'🚧', plain:'Pilot Update' },
+  { key:'golive_date',     icon:'🚀', plain:'Go live Update' },
+].map(f => ({ ...f, label: f.icon + ' ' + f.plain }));
 
 function renderReleasePlan(issue) {
   const wrap = document.getElementById('dm-release-wrap');
@@ -1143,10 +1147,21 @@ function renderBoard(issues) {
   }).join('') + `</div>`;
 }
 
+// Release plan as a row of compact chips for the table cell
+function releasePlanCell(issue) {
+  const chips = RELEASE_PLAN_FIELDS
+    .filter(f => issue[f.key])
+    .map(f => ({ title: f.plain, text: f.icon + ' ' + (f.text ? esc(issue[f.key]) : fmtDate(issue[f.key])) }));
+  if (!chips.length) return '<span style="color:#cbd5e1">—</span>';
+  return `<div class="td-release">` + chips.map(c =>
+    `<span class="release-chip" title="${c.title}">${c.text}</span>`
+  ).join('') + `</div>`;
+}
+
 function renderTable(issues) {
   const tbody = document.getElementById('tbl-body');
   if (!issues.length) {
-    tbody.innerHTML = `<tr><td colspan="8" style="padding:3rem;text-align:center;color:#94a3b8"><div style="font-size:1.8rem;margin-bottom:.5rem">🔍</div>ไม่พบรายการที่ตรงกัน</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" style="padding:3rem;text-align:center;color:#94a3b8"><div style="font-size:1.8rem;margin-bottom:.5rem">🔍</div>ไม่พบรายการที่ตรงกัน</td></tr>`;
     return;
   }
   tbody.innerHTML = issues.map(i => {
@@ -1175,6 +1190,7 @@ function renderTable(issues) {
       <td>${i.category ? `<span class="badge badge-cat">${esc(i.category)}</span>` : '—'}</td>
       <td style="font-size:.78rem;color:#475569">${i.assigned_to_name ? `👤 ${esc(i.assigned_to_name)}` : '—'}</td>
       <td>${dueHtml}</td>
+      <td>${releasePlanCell(i)}</td>
       <td>${eid ? `<a class="td-issue-id" href="${esc(i.issue_url)}" target="_blank" onclick="event.stopPropagation()">#${esc(eid)}</a>` : '<span style="color:#cbd5e1">—</span>'}</td>
     </tr>`;
   }).join('');

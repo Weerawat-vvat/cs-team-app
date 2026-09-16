@@ -15563,6 +15563,22 @@ async function fuLoadIssues() {
   }
 }
 
+// Release plan as a row of compact chips for the table cell
+function fuReleasePlanCell(issue) {
+  const d = v => parseDbDate(v).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'});
+  const chips = [
+    issue.release_date    && { title:'Release Date',    text:'💿 ' + d(issue.release_date) },
+    issue.release_version && { title:'Release Version', text:'🏷️ ' + esc(issue.release_version) },
+    issue.uat_date        && { title:'UAT Date',        text:'🧪 ' + d(issue.uat_date) },
+    issue.pilot_date      && { title:'Pilot Update',    text:'🚧 ' + d(issue.pilot_date) },
+    issue.golive_date     && { title:'Go live Update',  text:'🚀 ' + d(issue.golive_date) },
+  ].filter(Boolean);
+  if (!chips.length) return '<span style="color:#cbd5e1;font-size:.72rem">--</span>';
+  return `<div style="display:flex;flex-wrap:wrap;gap:.18rem">` + chips.map(c =>
+    `<span title="${c.title}" style="background:#f5f3ff;color:#7c3aed;border-radius:5px;padding:.06rem .32rem;font-size:.65rem;font-weight:600;white-space:nowrap">${c.text}</span>`
+  ).join('') + `</div>`;
+}
+
 function fuIssueRow(issue, today) {
   const st  = FU_STATUS[issue.status]  || FU_STATUS.pending;
   const pri = FU_PRIORITY[issue.priority] || FU_PRIORITY.normal;
@@ -15596,6 +15612,9 @@ function fuIssueRow(issue, today) {
       ${due ? `<div onclick="fuInlineEdit(event,${issue.id},'due_date')" title="คลิกเพื่อแก้ไข" style="font-size:.73rem;color:${overdue?'#ef4444':'#475569'};font-weight:${overdue?'700':'600'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer">${overdue?'🔴 ':'📅 '}${due.toLocaleDateString('th-TH',{day:'2-digit',month:'short'})}</div>` : ''}
       ${issue.last_comment_at ? `<div onclick="fuOpenPanel(${issue.id})" style="font-size:.63rem;color:#94a3b8;margin-top:.15rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" title="${esc(issue.last_comment_body||'')}">💬 ${fuDateLabel(issue.last_comment_at)}</div>` : ''}
       ${!due && !issue.last_comment_at ? '<span onclick="fuOpenPanel('+issue.id+')" style="color:#cbd5e1;font-size:.75rem;cursor:pointer">--</span>' : ''}
+    </td>
+    <td style="padding:.6rem .4rem;vertical-align:top" onclick="fuOpenPanel(${issue.id})">
+      ${fuReleasePlanCell(issue)}
     </td>
     <td style="padding:.6rem .3rem;vertical-align:top;text-align:center">
       <span onclick="if(confirm('ลบ Issue นี้?'))fuDeleteIssue(${issue.id})" style="cursor:pointer;font-size:.75rem;color:#cbd5e1" title="ลบ" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#cbd5e1'">🗑</span>
@@ -15645,9 +15664,10 @@ function fuRenderTable() {
     <th style="padding:.6rem .4rem;text-align:left;font-size:.7rem;color:#64748b;font-weight:700;width:96px">ผู้รับผิดชอบ</th>
     <th style="padding:.6rem .4rem;text-align:left;font-size:.7rem;color:#64748b;font-weight:700;width:96px">สถานะ</th>
     <th style="padding:.6rem .4rem;text-align:left;font-size:.7rem;color:#64748b;font-weight:700;width:100px">กำหนด / อัปเดตล่าสุด</th>
+    <th style="padding:.6rem .4rem;text-align:left;font-size:.7rem;color:#64748b;font-weight:700;width:128px">แผน Release</th>
     <th style="padding:.6rem .3rem;width:28px"></th>
   </tr></thead>`;
-  const addBtn = `<tr><td colspan="6" style="padding:.4rem .6rem"><button onclick="fuAddIssue()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:.78rem;padding:.2rem .4rem;border-radius:5px" onmouseover="this.style.color='#1d4ed8'" onmouseout="this.style.color='#94a3b8'">+ เพิ่ม Issue</button></td></tr>`;
+  const addBtn = `<tr><td colspan="7" style="padding:.4rem .6rem"><button onclick="fuAddIssue()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:.78rem;padding:.2rem .4rem;border-radius:5px" onmouseover="this.style.color='#1d4ed8'" onmouseout="this.style.color='#94a3b8'">+ เพิ่ม Issue</button></td></tr>`;
 
   let bodyHTML = '';
   if (_fuGroupBy) {
@@ -15660,7 +15680,7 @@ function fuRenderTable() {
     });
     Object.entries(groups).sort(([a],[b])=>String(a).localeCompare(String(b),'th')).forEach(([key, items]) => {
       const color = fuGroupColor(_fuGroupBy, key);
-      bodyHTML += `<tr><td colspan="6" style="padding:.4rem .75rem;background:#f8fafc;border-top:2px solid ${color}33;border-bottom:1px solid #e2e8f0">
+      bodyHTML += `<tr><td colspan="7" style="padding:.4rem .75rem;background:#f8fafc;border-top:2px solid ${color}33;border-bottom:1px solid #e2e8f0">
         <span style="font-size:.75rem;font-weight:700;color:${color}">${fuGroupLabel(_fuGroupBy, key)}</span>
         <span style="font-size:.68rem;color:#94a3b8;margin-left:.4rem">(${items.length})</span>
       </td></tr>`;
