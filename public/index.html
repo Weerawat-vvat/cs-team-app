@@ -16331,10 +16331,10 @@ async function fuRenderPanel() {
     <!-- Attachments -->
     <div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem">
-        <div style="font-size:.72rem;font-weight:700;color:#94a3b8">📎 ไฟล์แนบ</div>
+        <div style="font-size:.72rem;font-weight:700;color:#94a3b8">📎 ไฟล์แนบ <span style="color:#cbd5e1;font-weight:500">· ลูกค้าเห็นไฟล์เหล่านี้บน CS Board</span></div>
         <label style="font-size:.72rem;color:#1d4ed8;cursor:pointer;background:#eff6ff;border:none;border-radius:6px;padding:.18rem .5rem;font-weight:600">
           + แนบไฟล์
-          <input type="file" multiple accept="image/*,.pdf" style="display:none" onchange="fuUploadFiles(this,${id})"/>
+          <input type="file" multiple accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.txt,.log,.csv,.json,.xml,.zip,.xls,.xlsx,.doc,.docx" style="display:none" onchange="fuUploadFiles(this,${id})"/>
         </label>
       </div>
       <div id="fu-attachments-wrap">
@@ -16498,6 +16498,11 @@ async function fuSaveAll() {
 // _fuLbImages stores [{url,name,aid,issueId}] for lightbox navigation
 let _fuLbImages = [], _fuLbIdx = 0;
 
+// A file with no app_users row behind it came in through the customer's board link
+function fuUploaderLabel(a) {
+  return a.uploaded_by_name ? `🛠️ ${esc(a.uploaded_by_name)}` : '👤 ลูกค้า';
+}
+
 function fuRenderAttachments(list, id) {
   if (!list.length) return '<div style="color:#cbd5e1;font-size:.75rem;padding:.2rem 0">ยังไม่มีไฟล์แนบ</div>';
   const imgs  = list.filter(a => /\.(jpg|jpeg|png|gif|webp)$/i.test(a.filename));
@@ -16508,12 +16513,15 @@ function fuRenderAttachments(list, id) {
   if (imgs.length) {
     const thumbs = imgs.map((a, i) => {
       const url = `/uploads/fu/${id}/${a.filename}`;
-      return `<div style="position:relative;flex-shrink:0">
-        <img src="${url}" onclick="fuLightbox(${id},${i})" title="${esc(a.original_name)}"
-          style="width:90px;height:90px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid #e2e8f0;transition:border-color .15s"
-          onmouseover="this.style.borderColor='#3b82f6'" onmouseout="this.style.borderColor='#e2e8f0'"/>
-        <button onclick="fuDeleteAttachment(${a.id},${id})" title="ลบ"
-          style="position:absolute;top:-5px;right:-5px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:.65rem;cursor:pointer;line-height:18px;text-align:center;font-weight:700">×</button>
+      return `<div style="flex-shrink:0;width:90px">
+        <div style="position:relative">
+          <img src="${url}" onclick="fuLightbox(${id},${i})" title="${esc(a.original_name)}"
+            style="width:90px;height:90px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid #e2e8f0;transition:border-color .15s"
+            onmouseover="this.style.borderColor='#3b82f6'" onmouseout="this.style.borderColor='#e2e8f0'"/>
+          <button onclick="fuDeleteAttachment(${a.id},${id})" title="ลบ"
+            style="position:absolute;top:-5px;right:-5px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:.65rem;cursor:pointer;line-height:18px;text-align:center;font-weight:700">×</button>
+        </div>
+        <div style="font-size:.6rem;color:#94a3b8;margin-top:.15rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${fuUploaderLabel(a)}</div>
       </div>`;
     }).join('');
     html += `<div style="display:flex;gap:.5rem;overflow-x:auto;padding:.25rem .05rem .5rem;scrollbar-width:thin">${thumbs}</div>`;
@@ -16527,7 +16535,8 @@ function fuRenderAttachments(list, id) {
       return `<div style="display:flex;align-items:center;gap:.4rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:.3rem .55rem;font-size:.74rem;margin-bottom:.3rem">
         <span style="font-size:.85rem">📄</span>
         <a href="${url}" target="_blank" style="color:#1d4ed8;text-decoration:none;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(a.original_name)}">${esc(a.original_name)}</a>
-        <span style="color:#94a3b8;font-size:.65rem;white-space:nowrap">${kb} KB</span>
+        <span style="color:#94a3b8;font-size:.65rem;white-space:nowrap">${fuUploaderLabel(a)}</span>
+        <span style="color:#cbd5e1;font-size:.65rem;white-space:nowrap">${kb} KB</span>
         <button onclick="fuDeleteAttachment(${a.id},${id})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:.9rem;padding:0;line-height:1;flex-shrink:0">×</button>
       </div>`;
     }).join('');

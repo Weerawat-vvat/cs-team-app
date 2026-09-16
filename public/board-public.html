@@ -220,6 +220,12 @@ tr:last-child td { border-bottom:none; }
 .attach-file:hover { border-color:#93c5fd; background:#eff6ff; }
 .attach-file .fname { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .attach-file .fsize { color:#94a3b8; font-size:.68rem; flex-shrink:0; }
+.cf-thumb { position:relative; display:inline-flex; }
+.cf-thumb-x { position:absolute; top:-6px; right:-6px; width:18px; height:18px; border-radius:50%; border:none; background:#ef4444; color:#fff; font-size:.7rem; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; }
+.cf-hint { font-size:.7rem; color:#94a3b8; font-weight:400; }
+.attach-cell { display:flex; flex-direction:column; gap:.2rem; max-width:220px; }
+.attach-from { font-size:.64rem; color:#94a3b8; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.attach-from.support { color:#1d4ed8; font-weight:700; }
 
 /* ── Image Lightbox ── */
 .img-lightbox {
@@ -228,7 +234,33 @@ tr:last-child td { border-bottom:none; }
   display:flex; align-items:center; justify-content:center; padding:2rem;
   animation:fadeIn .15s ease; cursor:zoom-out;
 }
-.img-lightbox img { max-width:90vw; max-height:88vh; border-radius:10px; box-shadow:0 24px 64px rgba(0,0,0,.4); cursor:default; }
+.img-lightbox img {
+  max-width:90vw; max-height:84vh; border-radius:10px; box-shadow:0 24px 64px rgba(0,0,0,.4);
+  cursor:zoom-in; user-select:none; -webkit-user-drag:none; touch-action:none;
+  transform-origin:center center; transition:transform .12s ease-out;
+}
+.img-lightbox img.zoomed { cursor:grab; }
+.img-lightbox img.dragging { cursor:grabbing; transition:none; }
+.lb-btn {
+  background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25); color:#fff;
+  border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  transition:background .12s; padding:0; font-family:inherit;
+}
+.lb-btn:hover:not(:disabled) { background:rgba(255,255,255,.22); }
+.lb-btn:disabled { opacity:.28; cursor:default; }
+.lb-nav { position:absolute; top:50%; transform:translateY(-50%); width:46px; height:46px; font-size:1.5rem; line-height:1; }
+.lb-prev { left:1rem; } .lb-next { right:1rem; }
+.lb-bar {
+  position:absolute; bottom:1.1rem; left:50%; transform:translateX(-50%);
+  display:flex; align-items:center; gap:.45rem;
+  background:rgba(15,23,42,.62); border:1px solid rgba(255,255,255,.18);
+  border-radius:99px; padding:.35rem .5rem; backdrop-filter:blur(6px);
+}
+.lb-bar .lb-btn { width:30px; height:30px; font-size:1rem; }
+.lb-zoom { color:#fff; font-size:.75rem; font-weight:700; min-width:46px; text-align:center; font-variant-numeric:tabular-nums; }
+.lb-count { color:#cbd5e1; font-size:.72rem; font-weight:600; padding:0 .3rem; border-left:1px solid rgba(255,255,255,.18); margin-left:.15rem; }
+.lb-name { position:absolute; top:1.2rem; left:1.3rem; right:5rem; color:#e2e8f0; font-size:.78rem; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+@media(max-width:600px){ .lb-nav { width:38px; height:38px; font-size:1.2rem; } .lb-prev { left:.4rem; } .lb-next { right:.4rem; } }
 .img-lightbox-close {
   position:absolute; top:1.1rem; right:1.3rem; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25);
   color:#fff; font-size:1.4rem; line-height:1; width:38px; height:38px; border-radius:50%; cursor:pointer;
@@ -426,7 +458,7 @@ tr:last-child td { border-bottom:none; }
           <div class="comments-loading"><div class="mini-spinner"></div> กำลังโหลด…</div>
         </div>
         <div style="margin-top:.65rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
-          <input type="file" id="dm-attach-input" accept="image/jpeg,image/png,image/gif,image/webp,.pdf" multiple style="display:none" onchange="uploadAttachments(this.files)">
+          <input type="file" id="dm-attach-input" accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.txt,.log,.csv,.json,.xml,.zip,.xls,.xlsx,.doc,.docx" multiple style="display:none" onchange="uploadAttachments(this.files)">
           <button class="btn-edit-issue" style="margin-top:0" onclick="document.getElementById('dm-attach-input').click()">📎 แนบไฟล์ (ไม่เกิน 2MB/ไฟล์)</button>
           <span class="form-err" id="dm-attach-err"></span>
         </div>
@@ -471,7 +503,7 @@ tr:last-child td { border-bottom:none; }
     <div class="modal-body">
       <div class="form-group">
         <label class="form-label">หัวข้อ / รายละเอียดปัญหา *</label>
-        <textarea class="form-textarea" id="cf-detail" placeholder="อธิบายปัญหาหรืองานที่ต้องการแจ้ง…"></textarea>
+        <textarea class="form-textarea" id="cf-detail" placeholder="อธิบายปัญหาหรืองานที่ต้องการแจ้ง…" onpaste="cfPaste(event)"></textarea>
       </div>
       <div class="form-row">
         <div class="form-group">
@@ -491,7 +523,13 @@ tr:last-child td { border-bottom:none; }
       </div>
       <div class="form-group">
         <label class="form-label">Note เพิ่มเติม</label>
-        <textarea class="form-textarea" id="cf-note" style="min-height:50px" placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)"></textarea>
+        <textarea class="form-textarea" id="cf-note" style="min-height:50px" placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)" onpaste="cfPaste(event)"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">📎 ไฟล์แนบ / รูป <span class="cf-hint">(สูงสุด 5 ไฟล์ · 2MB ต่อไฟล์ · วางรูปด้วย Ctrl+V ก็ได้)</span></label>
+        <input type="file" id="cf-attach-input" accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.txt,.log,.csv,.json,.xml,.zip,.xls,.xlsx,.doc,.docx" multiple style="display:none" onchange="cfAddFiles(this.files); this.value='';">
+        <button type="button" class="btn-edit-issue" style="margin-top:0" onclick="document.getElementById('cf-attach-input').click()">+ เลือกไฟล์</button>
+        <div class="attach-grid" id="cf-attach-list" style="margin-top:.5rem"></div>
       </div>
       <span class="form-err" id="cf-err"></span>
     </div>
@@ -503,9 +541,19 @@ tr:last-child td { border-bottom:none; }
 </div>
 
 <!-- ── Image Lightbox ── -->
-<div class="img-lightbox" id="img-lightbox" style="display:none" onclick="closeImageLightbox()">
+<div class="img-lightbox" id="img-lightbox" style="display:none" onclick="if(event.target===this)closeImageLightbox()">
+  <span class="lb-name" id="lb-name"></span>
   <button class="img-lightbox-close" onclick="closeImageLightbox()">×</button>
-  <img id="img-lightbox-img" src="" alt="">
+  <button class="lb-btn lb-nav lb-prev" id="lb-prev" title="ก่อนหน้า (←)" onclick="event.stopPropagation();lbNav(-1)">‹</button>
+  <img id="img-lightbox-img" src="" alt="" onclick="event.stopPropagation()" ondblclick="lbToggleZoom()">
+  <button class="lb-btn lb-nav lb-next" id="lb-next" title="ถัดไป (→)" onclick="event.stopPropagation();lbNav(1)">›</button>
+  <div class="lb-bar" onclick="event.stopPropagation()">
+    <button class="lb-btn" title="ย่อ" onclick="lbZoom(-1)">−</button>
+    <span class="lb-zoom" id="lb-zoom">100%</span>
+    <button class="lb-btn" title="ขยาย" onclick="lbZoom(1)">+</button>
+    <button class="lb-btn" title="ขนาดจริง" onclick="lbReset()" style="font-size:.9rem">↺</button>
+    <span class="lb-count" id="lb-count"></span>
+  </div>
 </div>
 
 <script>
@@ -671,13 +719,24 @@ async function loadAttachments(issueId) {
 
     if (!files.length) { body.innerHTML = `<div class="no-comments">ยังไม่มีไฟล์แนบ</div>`; return; }
 
+    // every image on this issue, so the lightbox can page through them
+    _lbAttach = files.filter(f => /^image\//.test(f.mime_type || ''))
+      .map(f => ({ url: `/uploads/fu/${issueId}/${f.filename}`, name: f.original_name }));
+
     body.innerHTML = `<div class="attach-grid">` + files.map(f => {
-      const url = `/uploads/fu/${issueId}/${f.filename}`;
+      const url   = `/uploads/fu/${issueId}/${f.filename}`;
       const isImg = /^image\//.test(f.mime_type || '');
-      if (isImg) return `<img class="attach-img" src="${url}" onclick="openImageLightbox('${url}')" title="${esc(f.original_name)}">`;
-      return `<a class="attach-file" href="${url}" target="_blank" title="${esc(f.original_name)}">
-        <span>📄</span><span class="fname">${esc(f.original_name)}</span><span class="fsize">${fmtFileSize(f.file_size)}</span>
-      </a>`;
+      const imgIdx = isImg ? _lbAttach.findIndex(x => x.url === url) : -1;
+      // no uploader name = it came in through this board link, i.e. from the customer
+      const from  = f.uploaded_by_name
+        ? `<span class="attach-from support" title="จากทีม Support">🛠️ Support · ${esc(f.uploaded_by_name)}</span>`
+        : `<span class="attach-from">👤 คุณแนบมา</span>`;
+      const body = isImg
+        ? `<img class="attach-img" src="${url}" onclick="openImageLightbox('${url}', _lbAttach, ${imgIdx})" title="${esc(f.original_name)}">`
+        : `<a class="attach-file" href="${url}" target="_blank" title="${esc(f.original_name)}">
+            <span>📄</span><span class="fname">${esc(f.original_name)}</span><span class="fsize">${fmtFileSize(f.file_size)}</span>
+          </a>`;
+      return `<div class="attach-cell">${body}${from}</div>`;
     }).join('') + `</div>`;
   } catch {
     if (body) body.innerHTML = `<div class="no-comments" style="color:#fca5a5">โหลดไฟล์แนบไม่สำเร็จ</div>`;
@@ -957,7 +1016,59 @@ async function saveEditIssue() {
 }
 
 // ── Create Issue ──────────────────────────────────────────────────────────
+// Files chosen before the issue exists — uploaded right after it is created
+const CF_MAX_FILES = 5, CF_MAX_SIZE = 2 * 1024 * 1024;
+let _cfFiles = [];
+
+function cfAddFiles(fileList) {
+  const errEl = document.getElementById('cf-err');
+  errEl.textContent = '';
+  for (const f of fileList) {
+    if (_cfFiles.length >= CF_MAX_FILES) { errEl.textContent = `แนบได้สูงสุด ${CF_MAX_FILES} ไฟล์`; break; }
+    if (f.size > CF_MAX_SIZE)  { errEl.textContent = `ไฟล์ "${f.name}" ใหญ่เกิน 2MB`; continue; }
+    _cfFiles.push(f);
+  }
+  renderCfFiles();
+}
+
+function cfRemoveFile(idx) {
+  const f = _cfFiles.splice(idx, 1)[0];
+  if (f && f._url) URL.revokeObjectURL(f._url);
+  renderCfFiles();
+}
+
+function cfClearFiles() {
+  _cfFiles.forEach(f => { if (f._url) URL.revokeObjectURL(f._url); });
+  _cfFiles = [];
+  const inp = document.getElementById('cf-attach-input');
+  if (inp) inp.value = '';
+  renderCfFiles();
+}
+
+function renderCfFiles() {
+  const box = document.getElementById('cf-attach-list');
+  if (!box) return;
+  box.innerHTML = _cfFiles.map((f, idx) => {
+    const x = `<button type="button" class="cf-thumb-x" title="เอาออก" onclick="cfRemoveFile(${idx})">×</button>`;
+    if (/^image\//.test(f.type)) {
+      f._url = f._url || URL.createObjectURL(f);
+      return `<div class="cf-thumb"><img class="attach-img" src="${f._url}" title="${esc(f.name)}">${x}</div>`;
+    }
+    return `<div class="cf-thumb"><span class="attach-file"><span class="fname">📄 ${esc(f.name)}</span><span class="fsize">${fmtFileSize(f.size)}</span></span>${x}</div>`;
+  }).join('');
+}
+
+// Screenshots usually arrive on the clipboard, not through a file picker
+function cfPaste(e) {
+  const files = [...(e.clipboardData?.items || [])]
+    .filter(i => i.kind === 'file').map(i => i.getAsFile()).filter(Boolean);
+  if (!files.length) return;   // plain text paste — leave it alone
+  e.preventDefault();
+  cfAddFiles(files);
+}
+
 function openCreateModal() {
+  cfClearFiles();
   document.getElementById('cf-detail').value   = '';
   document.getElementById('cf-category').value = '';
   document.getElementById('cf-priority').value = 'normal';
@@ -969,6 +1080,7 @@ function openCreateModal() {
 }
 
 function closeCreateModal() {
+  cfClearFiles();
   document.getElementById('create-modal').style.display = 'none';
   document.body.style.overflow = '';
 }
@@ -993,8 +1105,22 @@ async function submitCreateIssue() {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) { errEl.textContent = data.error || 'เพิ่มรายการไม่สำเร็จ'; return; }
+
+    // The issue exists now — a failed upload must not read as a failed submit
+    let attachErr = '';
+    if (_cfFiles.length && data.id) {
+      btn.textContent = 'กำลังแนบไฟล์…';
+      const fd = new FormData();
+      _cfFiles.forEach(f => fd.append('files', f));
+      try {
+        const up = await fetch(`/api/public/board/${boardToken()}/issues/${data.id}/attachments`, { method: 'POST', body: fd });
+        if (!up.ok) attachErr = (await up.json().catch(() => ({}))).error || 'แนบไฟล์ไม่สำเร็จ';
+      } catch(e2) { attachErr = 'แนบไฟล์ไม่สำเร็จ'; }
+    }
     closeCreateModal();
     await reloadData();
+    if (attachErr) alert(`เพิ่มรายการ #${data.id} แล้ว แต่${attachErr}
+ลองแนบไฟล์อีกครั้งจากหน้ารายละเอียด`);
   } catch(e) {
     errEl.textContent = 'เพิ่มรายการไม่สำเร็จ กรุณาลองใหม่';
   } finally {
@@ -1002,17 +1128,150 @@ async function submitCreateIssue() {
   }
 }
 
-function openImageLightbox(url) {
-  document.getElementById('img-lightbox-img').src = url;
+// ── Image Lightbox: zoom + step through the issue's images ──────
+const LB_MIN = 1, LB_MAX = 6, LB_STEP = 0.5;
+let _lbList = [], _lbIdx = 0, _lbAttach = [];
+let _lbScale = 1, _lbX = 0, _lbY = 0;
+let _lbDrag = null, _lbPinch = null;
+
+// url alone still works (the table thumbnail has nothing to page through)
+function openImageLightbox(url, list, idx) {
+  _lbList = (list && list.length) ? list : [{ url, name: '' }];
+  _lbIdx  = Math.max(0, Math.min(idx || 0, _lbList.length - 1));
   document.getElementById('img-lightbox').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  lbShow();
 }
+
+function lbShow() {
+  const cur = _lbList[_lbIdx] || {};
+  const img = document.getElementById('img-lightbox-img');
+  img.src = cur.url || '';
+  img.alt = cur.name || '';
+  document.getElementById('lb-name').textContent  = cur.name || '';
+  document.getElementById('lb-count').textContent = _lbList.length > 1 ? `${_lbIdx + 1} / ${_lbList.length}` : '';
+  const multi = _lbList.length > 1;
+  document.getElementById('lb-prev').style.display = multi ? '' : 'none';
+  document.getElementById('lb-next').style.display = multi ? '' : 'none';
+  lbReset();
+}
+
+function lbNav(delta) {
+  if (_lbList.length < 2) return;
+  _lbIdx = (_lbIdx + delta + _lbList.length) % _lbList.length;   // wraps around
+  lbShow();
+}
+
+function lbApply() {
+  const img = document.getElementById('img-lightbox-img');
+  if (!img) return;
+  if (_lbScale <= 1) { _lbScale = 1; _lbX = 0; _lbY = 0; }
+  img.style.transform = `translate(${_lbX}px, ${_lbY}px) scale(${_lbScale})`;
+  img.classList.toggle('zoomed', _lbScale > 1);
+  document.getElementById('lb-zoom').textContent = Math.round(_lbScale * 100) + '%';
+}
+
+function lbSetScale(next) {
+  _lbScale = Math.min(LB_MAX, Math.max(LB_MIN, next));
+  lbApply();
+}
+
+function lbZoom(dir)     { lbSetScale(_lbScale + dir * LB_STEP); }
+function lbReset()       { _lbScale = 1; _lbX = 0; _lbY = 0; lbApply(); }
+function lbToggleZoom()  { lbSetScale(_lbScale > 1 ? 1 : 2.5); }
 
 function closeImageLightbox() {
   document.getElementById('img-lightbox').style.display = 'none';
   document.getElementById('img-lightbox-img').src = '';
+  document.body.style.overflow = '';
+  _lbList = []; _lbDrag = null; _lbPinch = null;
 }
 
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeImageLightbox(); closeDetail(); closeCreateModal(); } });
+function lbIsOpen() {
+  return document.getElementById('img-lightbox')?.style.display === 'flex';
+}
+
+// Wheel zooms toward the cursor so the spot under it stays put
+function lbWheel(e) {
+  e.preventDefault();
+  const img  = document.getElementById('img-lightbox-img');
+  const rect = img.getBoundingClientRect();
+  const cx   = e.clientX - (rect.left + rect.width / 2);
+  const cy   = e.clientY - (rect.top + rect.height / 2);
+  const prev = _lbScale;
+  const next = Math.min(LB_MAX, Math.max(LB_MIN, prev * (e.deltaY < 0 ? 1.15 : 1 / 1.15)));
+  if (next === prev) return;
+  const k = next / prev;
+  _lbX = _lbX - cx * (k - 1);
+  _lbY = _lbY - cy * (k - 1);
+  _lbScale = next;
+  lbApply();
+}
+
+// Drag to pan while zoomed; two fingers pinch
+function lbPointerDown(e) {
+  const img = document.getElementById('img-lightbox-img');
+  if (e.touches && e.touches.length === 2) {
+    _lbPinch = { dist: lbTouchDist(e.touches), scale: _lbScale };
+    _lbDrag = null;
+    return;
+  }
+  if (_lbScale <= 1) return;
+  const pt = e.touches ? e.touches[0] : e;
+  _lbDrag = { x: pt.clientX - _lbX, y: pt.clientY - _lbY };
+  img.classList.add('dragging');
+}
+
+function lbPointerMove(e) {
+  if (_lbPinch && e.touches && e.touches.length === 2) {
+    e.preventDefault();
+    const d = lbTouchDist(e.touches);
+    if (_lbPinch.dist > 0) lbSetScale(_lbPinch.scale * (d / _lbPinch.dist));
+    return;
+  }
+  if (!_lbDrag) return;
+  e.preventDefault();
+  const pt = e.touches ? e.touches[0] : e;
+  _lbX = pt.clientX - _lbDrag.x;
+  _lbY = pt.clientY - _lbDrag.y;
+  lbApply();
+}
+
+function lbPointerUp() {
+  _lbDrag = null; _lbPinch = null;
+  document.getElementById('img-lightbox-img')?.classList.remove('dragging');
+}
+
+function lbTouchDist(t) {
+  return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+}
+
+(function bindLightbox() {
+  const box = document.getElementById('img-lightbox');
+  const img = document.getElementById('img-lightbox-img');
+  if (!box || !img) return;
+  box.addEventListener('wheel', e => { if (lbIsOpen()) lbWheel(e); }, { passive: false });
+  img.addEventListener('mousedown',  lbPointerDown);
+  img.addEventListener('touchstart', lbPointerDown, { passive: false });
+  window.addEventListener('mousemove',  lbPointerMove);
+  window.addEventListener('touchmove',  lbPointerMove, { passive: false });
+  window.addEventListener('mouseup',    lbPointerUp);
+  window.addEventListener('touchend',   lbPointerUp);
+})();
+
+
+document.addEventListener('keydown', e => {
+  if (lbIsOpen()) {
+    if (e.key === 'Escape')      { closeImageLightbox(); return; }
+    if (e.key === 'ArrowLeft')   { e.preventDefault(); lbNav(-1); return; }
+    if (e.key === 'ArrowRight')  { e.preventDefault(); lbNav(1);  return; }
+    if (e.key === '+' || e.key === '=') { e.preventDefault(); lbZoom(1);  return; }
+    if (e.key === '-' || e.key === '_') { e.preventDefault(); lbZoom(-1); return; }
+    if (e.key === '0')           { e.preventDefault(); lbReset(); return; }
+    return;                      // don't let the modals below react while zooming
+  }
+  if (e.key === 'Escape') { closeDetail(); closeCreateModal(); }
+});
 
 // ── Filtering ─────────────────────────────────────────────────────────────
 function applyFilters() {

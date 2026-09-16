@@ -209,22 +209,26 @@ const fuStorage = multer.diskStorage({
     cb(null, `${Date.now()}_${base}${ext}`);
   }
 });
+// Images, documents and the log/data files Support hands to customers.
+// Deliberately no .html/.htm/.svg — /uploads is public and serves those inline.
+const FU_ALLOWED_EXT = new Set([
+  '.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf',
+  '.txt', '.log', '.csv', '.json', '.xml', '.zip',
+  '.xls', '.xlsx', '.doc', '.docx',
+]);
+const fuFileFilter = (req, file, cb) =>
+  cb(null, FU_ALLOWED_EXT.has(path.extname(file.originalname).toLowerCase()));
+
 const fuUpload = multer({
   storage: fuStorage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB per file
-  fileFilter: (req, file, cb) => {
-    const allowed = /jpeg|jpg|png|gif|webp|pdf/;
-    cb(null, allowed.test(path.extname(file.originalname).toLowerCase()));
-  }
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB per file — logs run large
+  fileFilter: fuFileFilter,
 });
 // Same storage folder as fuUpload, smaller cap — customer-submitted via public board link
 const fuPublicUpload = multer({
   storage: fuStorage,
   limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB per file
-  fileFilter: (req, file, cb) => {
-    const allowed = /jpeg|jpg|png|gif|webp|pdf/;
-    cb(null, allowed.test(path.extname(file.originalname).toLowerCase()));
-  }
+  fileFilter: fuFileFilter,
 });
 
 // ── Case (Calllog) attachment upload config ──────────────
@@ -623,12 +627,15 @@ app.use(express.static(path.join(__dirname, 'public')));
 // - Office files: force download (avoid redirect to Office Online)
 app.use('/uploads', (req, res, next) => {
   const ext = path.extname(req.path).toLowerCase();
-  if (['.xlsx', '.xls', '.csv', '.doc', '.docx'].includes(ext)) {
+  if (['.xlsx', '.xls', '.csv', '.doc', '.docx', '.zip', '.xml'].includes(ext)) {
     const filename = path.basename(req.path);
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
     res.setHeader('Content-Type', 'application/octet-stream');
   } else if (ext === '.pdf') {
     res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline');
+  } else if (['.txt', '.log'].includes(ext)) {
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.setHeader('Content-Disposition', 'inline');
   } else if (['.html', '.htm'].includes(ext)) {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -9150,8 +9157,12 @@ app.get('/api/public/track/:token/fu-issue/:id/attachments', async (request, res
     if (g.error) return res.status(g.status).json({ error: g.error });
 
     const rows = (await req().input('id', sql.Int, id)
-      .query(`SELECT id, filename, original_name, file_size, mime_type, created_at
-              FROM fu_attachments WHERE issue_id=@id ORDER BY created_at`)).recordset;
+      .query(`SELECT a.id, a.filename, a.original_name, a.file_size, a.mime_type, a.created_at,
+                     ISNULL(e.nickname, e.name) AS uploaded_by_name
+              FROM fu_attachments a
+              LEFT JOIN app_users au ON au.id = a.created_by
+              LEFT JOIN employees e  ON e.id  = au.employee_id
+              WHERE a.issue_id=@id ORDER BY a.created_at`)).recordset;
     res.json(rows);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -9751,8 +9762,12 @@ app.get('/api/public/board/:token/issues/:id/attachments', async (request, res) 
     if (!issue) return res.status(403).json({ error: 'Issue ไม่พบหรือไม่มีสิทธิ์' });
 
     const rows = (await req().input('id', sql.Int, id)
-      .query(`SELECT id, filename, original_name, file_size, mime_type, created_at
-              FROM fu_attachments WHERE issue_id=@id ORDER BY created_at`)).recordset;
+      .query(`SELECT a.id, a.filename, a.original_name, a.file_size, a.mime_type, a.created_at,
+                     ISNULL(e.nickname, e.name) AS uploaded_by_name
+              FROM fu_attachments a
+              LEFT JOIN app_users au ON au.id = a.created_by
+              LEFT JOIN employees e  ON e.id  = au.employee_id
+              WHERE a.issue_id=@id ORDER BY a.created_at`)).recordset;
     res.json(rows);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
