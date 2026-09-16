@@ -16246,6 +16246,43 @@ async function fuRenderPanel() {
         onblur="this.style.borderColor='#e2e8f0';fuPanelSave(${id},'issue_url',this.value.trim()||null)"
         onkeydown="if(event.key==='Enter')this.blur()"/>
     </div>
+    <!-- Release plan -->
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.6rem .75rem">
+      <div style="font-size:.72rem;font-weight:700;color:#64748b;margin-bottom:.45rem">🗓️ แผน Release</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
+        <div>
+          <div style="font-size:.72rem;font-weight:700;color:#94a3b8;margin-bottom:.25rem">💿 Release Date</div>
+          <input id="fup-release" type="date" value="${issue.release_date?String(issue.release_date).split('T')[0]:''}"
+            style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:.35rem .5rem;font-size:.8rem;font-family:inherit;outline:none;background:#fff"
+            onchange="fuPanelSave(${id},'release_date',this.value||null)"/>
+        </div>
+        <div>
+          <div style="font-size:.72rem;font-weight:700;color:#94a3b8;margin-bottom:.25rem">🏷️ Release Version</div>
+          <input id="fup-release-ver" type="text" value="${esc(issue.release_version||'')}" placeholder="เช่น 3.0.2611.1"
+            style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:.35rem .5rem;font-size:.8rem;font-family:inherit;outline:none;background:#fff"
+            onblur="fuPanelSave(${id},'release_version',this.value.trim()||null)"
+            onkeydown="if(event.key==='Enter')this.blur()"/>
+        </div>
+        <div>
+          <div style="font-size:.72rem;font-weight:700;color:#94a3b8;margin-bottom:.25rem">🧪 UAT Date <span style="color:#cbd5e1;font-weight:500">(ถ้ามี)</span></div>
+          <input id="fup-uat" type="date" value="${issue.uat_date?String(issue.uat_date).split('T')[0]:''}"
+            style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:.35rem .5rem;font-size:.8rem;font-family:inherit;outline:none;background:#fff"
+            onchange="fuPanelSave(${id},'uat_date',this.value||null)"/>
+        </div>
+        <div>
+          <div style="font-size:.72rem;font-weight:700;color:#94a3b8;margin-bottom:.25rem">🚧 Pilot Update <span style="color:#cbd5e1;font-weight:500">(ถ้ามี)</span></div>
+          <input id="fup-pilot" type="date" value="${issue.pilot_date?String(issue.pilot_date).split('T')[0]:''}"
+            style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:.35rem .5rem;font-size:.8rem;font-family:inherit;outline:none;background:#fff"
+            onchange="fuPanelSave(${id},'pilot_date',this.value||null)"/>
+        </div>
+        <div>
+          <div style="font-size:.72rem;font-weight:700;color:#94a3b8;margin-bottom:.25rem">🚀 Go live Update</div>
+          <input id="fup-golive" type="date" value="${issue.golive_date?String(issue.golive_date).split('T')[0]:''}"
+            style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:.35rem .5rem;font-size:.8rem;font-family:inherit;outline:none;background:#fff"
+            onchange="fuPanelSave(${id},'golive_date',this.value||null)"/>
+        </div>
+      </div>
+    </div>
     <!-- Attachments -->
     <div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem">
@@ -16306,6 +16343,8 @@ async function fuPanelSaveTitle(val) {
   await fuPanelSave(_fuPanelId, 'detail', val.trim() || null);
 }
 
+const FU_DATE_FIELDS = new Set(['due_date','release_date','uat_date','pilot_date','golive_date']);
+
 // Save every field at once (one PUT with only the fields that changed)
 async function fuSaveAll() {
   const id    = _fuPanelId;
@@ -16324,6 +16363,11 @@ async function fuSaveAll() {
     assigned_to: g('fup-assigned')      ? (g('fup-assigned').value || null)              : undefined,
     due_date:    g('fup-due')           ? (g('fup-due').value || null)                   : undefined,
     issue_url:   g('fup-issue-url-inp') ? (g('fup-issue-url-inp').value.trim() || null)  : undefined,
+    release_date: g('fup-release') ? (g('fup-release').value || null)                    : undefined,
+    uat_date:     g('fup-uat')     ? (g('fup-uat').value     || null)                    : undefined,
+    pilot_date:   g('fup-pilot')   ? (g('fup-pilot').value   || null)                    : undefined,
+    golive_date:  g('fup-golive')  ? (g('fup-golive').value  || null)                    : undefined,
+    release_version: g('fup-release-ver') ? (g('fup-release-ver').value.trim() || null)   : undefined,
   };
 
   // Keep only fields that actually changed
@@ -16331,7 +16375,7 @@ async function fuSaveAll() {
   for (const [f, v] of Object.entries(raw)) {
     if (v === undefined) continue;
     let cur = issue[f];
-    if (f === 'due_date') cur = issue.due_date ? String(issue.due_date).split('T')[0] : null;
+    if (FU_DATE_FIELDS.has(f)) cur = issue[f] ? String(issue[f]).split('T')[0] : null;
     if (String(v ?? '') !== String(cur ?? '')) body[f] = v;
   }
 
@@ -16862,7 +16906,7 @@ function fuExportExcel() {
   };
   const FU_PRI_LABEL = { low:'ต่ำ', normal:'ปกติ', high:'สูง', urgent:'เร่งด่วน' };
 
-  const headers = ['ID','หัวข้อ / รายละเอียดปัญหา','Note','Category','ความสำคัญ','สถานะ','ผู้รับผิดชอบ','สร้างโดย','Due Date','Issue URL','Board'];
+  const headers = ['ID','หัวข้อ / รายละเอียดปัญหา','Note','Category','ความสำคัญ','สถานะ','ผู้รับผิดชอบ','สร้างโดย','Due Date','Release Date','Release Version','UAT Date','Pilot Update','Go live Update','Issue URL','Board'];
   const rows = list.map(i => [
     i.id,
     i.detail || '',
@@ -16873,6 +16917,11 @@ function fuExportExcel() {
     i.assigned_to_name || '',
     i.created_by_name || '',
     i.due_date ? i.due_date.split('T')[0] : '',
+    i.release_date ? String(i.release_date).split('T')[0] : '',
+    i.release_version || '',
+    i.uat_date    ? String(i.uat_date).split('T')[0]    : '',
+    i.pilot_date  ? String(i.pilot_date).split('T')[0]  : '',
+    i.golive_date ? String(i.golive_date).split('T')[0] : '',
     i.issue_url || '',
     _fuBoardName || ''
   ]);

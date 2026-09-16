@@ -346,6 +346,14 @@ tr:last-child td { border-bottom:none; }
         <!-- Meta grid: assignee, category, due date, created -->
         <div class="meta-grid" id="dm-meta"></div>
 
+        <!-- Release plan (read-only) -->
+        <div id="dm-release-wrap" style="display:none;margin-top:.9rem">
+          <div class="desc-box" style="background:#f5f3ff">
+            <div class="desc-label" style="color:#7c3aed">🗓️ แผน Release</div>
+            <div class="meta-grid" id="dm-release"></div>
+          </div>
+        </div>
+
         <!-- Description / รายละเอียด -->
         <div id="dm-note-wrap" style="display:none">
           <div class="desc-box">
@@ -585,6 +593,9 @@ function openDetail(id) {
     </div>`;
   }).join('');
 
+  // Release plan — only shown once at least one date has been filled in
+  renderReleasePlan(issue);
+
   // Note (รายละเอียดปัญหา)
   const noteWrap = document.getElementById('dm-note-wrap');
   if (issue.note && issue.note.trim()) {
@@ -629,6 +640,26 @@ function openDetail(id) {
   // Load comments + attachments async (don't await — show modal immediately)
   loadComments(id);
   loadAttachments(id);
+}
+
+const RELEASE_PLAN_FIELDS = [
+  { key:'release_date',    label:'💿 Release Date' },
+  { key:'release_version', label:'🏷️ Release Version', text:true },
+  { key:'uat_date',        label:'🧪 UAT Date' },
+  { key:'pilot_date',      label:'🚧 Pilot Update' },
+  { key:'golive_date',     label:'🚀 Go live Update' },
+];
+
+function renderReleasePlan(issue) {
+  const wrap = document.getElementById('dm-release-wrap');
+  const body = document.getElementById('dm-release');
+  if (!wrap || !body) return;
+  if (!RELEASE_PLAN_FIELDS.some(f => issue[f.key])) { wrap.style.display = 'none'; return; }
+  body.innerHTML = RELEASE_PLAN_FIELDS.map(f => `<div class="meta-item" style="background:#fff">
+    <div class="meta-label">${f.label}</div>
+    <div class="meta-value${issue[f.key] ? '' : ' muted'}">${issue[f.key] ? (f.text ? esc(issue[f.key]) : fmtDate(issue[f.key])) : 'ยังไม่ระบุ'}</div>
+  </div>`).join('');
+  wrap.style.display = '';
 }
 
 function fmtFileSize(bytes) {
@@ -1057,6 +1088,16 @@ function setView(v) {
 // ── Render ─────────────────────────────────────────────────────────────────
 function render() { _view === 'board' ? renderBoard(_filtered) : renderTable(_filtered); }
 
+// Card chip for the release plan — Go live wins, Release Date is the fallback
+function releasePlanChip(issue) {
+  const f = issue.golive_date ? { label:'🚀 Go live', val:issue.golive_date }
+          : issue.release_date ? { label:'💿 Release', val:issue.release_date }
+          : null;
+  const ver = issue.release_version ? `🏷️ v${esc(issue.release_version)}` : '';
+  if (!f) return ver ? `<div class="card-due" style="color:#7c3aed;font-weight:600">${ver}</div>` : '';
+  return `<div class="card-due" style="color:#7c3aed;font-weight:600">${f.label} ${fmtDate(f.val)}${ver ? ' · ' + ver : ''}</div>`;
+}
+
 function renderBoard(issues) {
   const bv = document.getElementById('board-view');
   if (!issues.length) {
@@ -1085,6 +1126,7 @@ function renderBoard(issues) {
               ${i.assigned_to_name ? `<span class="assignee">👤 ${esc(i.assigned_to_name)}</span>` : ''}
             </div>
             ${dm ? `<div class="card-due ${dm.cls}">📅 ${dm.label}</div>` : ''}
+            ${releasePlanChip(i)}
             <div class="card-hint">
               ${i.attachment_count > 0 ? `📎 ${i.attachment_count} · ` : ''}${i.comment_count > 0 ? `💬 ${i.comment_count} · ` : ''}คลิกดูรายละเอียด
             </div>

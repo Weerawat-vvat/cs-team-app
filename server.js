@@ -9592,6 +9592,11 @@ async function ensureFollowupV2Tables() {
     try { await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('fu_folders') AND name='group_name') ALTER TABLE fu_folders ADD group_name NVARCHAR(255) NULL`); } catch(e2) {}
     try { await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('fu_issues') AND name='sp_ref') ALTER TABLE fu_issues ADD sp_ref INT NULL`); } catch(e2) {}
     try { await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('fu_issues') AND name='issue_url') ALTER TABLE fu_issues ADD issue_url NVARCHAR(500) NULL`); } catch(e2) {}
+    // Release plan — filled in by hand once a fix has a schedule
+    for (const col of ['release_date','uat_date','pilot_date','golive_date']) {
+      try { await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('fu_issues') AND name='${col}') ALTER TABLE fu_issues ADD ${col} DATE NULL`); } catch(e2) {}
+    }
+    try { await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('fu_issues') AND name='release_version') ALTER TABLE fu_issues ADD release_version NVARCHAR(50) NULL`); } catch(e2) {}
     // Customer-submitted comments have no app_users row — allow NULL user_id + a free-text display name
     try { await req().query(`ALTER TABLE fu_comments ALTER COLUMN user_id INT NULL`); } catch(e2) {}
     try { await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('fu_comments') AND name='author_name') ALTER TABLE fu_comments ADD author_name NVARCHAR(200) NULL`); } catch(e2) {}
@@ -9658,6 +9663,7 @@ app.get('/api/public/board/:token/data', async (request, res) => {
     const issues = (await req().input('bid', sql.Int, row.board_id)
       .query(`SELECT i.id, i.detail AS title, i.branch, i.status, i.priority, i.category,
                      i.note, i.due_date, i.issue_url, i.created_at, i.updated_at,
+                     i.release_date, i.uat_date, i.pilot_date, i.golive_date, i.release_version,
                      ISNULL(e.nickname, e.name) AS assigned_to_name,
                      (SELECT COUNT(*) FROM fu_comments c WHERE c.issue_id = i.id) AS comment_count,
                      (SELECT COUNT(*) FROM fu_attachments a WHERE a.issue_id = i.id) AS attachment_count,
@@ -10240,6 +10246,11 @@ app.put('/api/fu/issues/:id', authRequired, async (request, res) => {
     if (b.hasOwnProperty('due_date'))    { r=r.input('dd',sql.Date,b.due_date||null);            updates.push('due_date=@dd'); }
     if (b.hasOwnProperty('fix_date'))    { r=r.input('fd',sql.Date,b.fix_date||null);            updates.push('fix_date=@fd'); }
     if (b.hasOwnProperty('note'))        { r=r.input('nt',sql.NVarChar,b.note??null);            updates.push('note=@nt'); }
+    if (b.hasOwnProperty('release_date')) { r=r.input('rd',sql.Date,b.release_date||null);        updates.push('release_date=@rd'); }
+    if (b.hasOwnProperty('uat_date'))    { r=r.input('ud',sql.Date,b.uat_date||null);            updates.push('uat_date=@ud'); }
+    if (b.hasOwnProperty('pilot_date'))  { r=r.input('pd',sql.Date,b.pilot_date||null);          updates.push('pilot_date=@pd'); }
+    if (b.hasOwnProperty('golive_date')) { r=r.input('gd',sql.Date,b.golive_date||null);         updates.push('golive_date=@gd'); }
+    if (b.hasOwnProperty('release_version')) { r=r.input('rv',sql.NVarChar,b.release_version??null); updates.push('release_version=@rv'); }
     if (b.hasOwnProperty('issue_url'))   { r=r.input('iu',sql.NVarChar,b.issue_url??null);       updates.push('issue_url=@iu'); }
     await r.query(`UPDATE fu_issues SET ${updates.join(',')} WHERE id=@id`);
 
