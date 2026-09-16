@@ -8989,6 +8989,7 @@ app.get('/api/public/track/:token/fu-issues', async (request, res) => {
       SELECT i.id, i.detail, i.category, i.priority, i.status,
              i.note, i.issue_url, i.created_at, i.updated_at,
              i.release_date, i.release_version, i.uat_date, i.pilot_date, i.golive_date,
+             i.fix_date, ISNULL(er.nickname, er.name) AS resolved_by_name,
              ISNULL(ea.nickname, ea.name) AS assigned_to_name,
              b.id AS board_id, b.name AS board_name,
              f.id AS folder_id, f.name AS folder_name,
@@ -8998,6 +8999,8 @@ app.get('/api/public/track/:token/fu-issues', async (request, res) => {
       JOIN fu_boards b ON b.id = i.board_id
       JOIN fu_folders f ON f.id = b.folder_id
       LEFT JOIN employees ea ON ea.id = i.assigned_to
+      LEFT JOIN app_users ur ON ur.id = i.resolved_by
+      LEFT JOIN employees er ON er.id = ur.employee_id
       WHERE f.group_id = @gid
       ORDER BY
         CASE i.status WHEN 'pending' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END,
@@ -9596,6 +9599,8 @@ async function ensureFollowupV2Tables() {
       try { await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('fu_issues') AND name='${col}') ALTER TABLE fu_issues ADD ${col} DATE NULL`); } catch(e2) {}
     }
     try { await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('fu_issues') AND name='release_version') ALTER TABLE fu_issues ADD release_version NVARCHAR(50) NULL`); } catch(e2) {}
+    // Who closed an issue — the date lives in the existing fix_date column
+    try { await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('fu_issues') AND name='resolved_by') ALTER TABLE fu_issues ADD resolved_by INT NULL`); } catch(e2) {}
     // Customer-submitted comments have no app_users row — allow NULL user_id + a free-text display name
     try { await req().query(`ALTER TABLE fu_comments ALTER COLUMN user_id INT NULL`); } catch(e2) {}
     try { await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('fu_comments') AND name='author_name') ALTER TABLE fu_comments ADD author_name NVARCHAR(200) NULL`); } catch(e2) {}
@@ -9663,6 +9668,7 @@ app.get('/api/public/board/:token/data', async (request, res) => {
       .query(`SELECT i.id, i.detail AS title, i.branch, i.status, i.priority, i.category,
                      i.note, i.issue_url, i.created_at, i.updated_at,
                      i.release_date, i.uat_date, i.pilot_date, i.golive_date, i.release_version,
+                     i.fix_date, ISNULL(er.nickname, er.name) AS resolved_by_name,
                      ISNULL(e.nickname, e.name) AS assigned_to_name,
                      (SELECT COUNT(*) FROM fu_comments c WHERE c.issue_id = i.id) AS comment_count,
                      (SELECT COUNT(*) FROM fu_attachments a WHERE a.issue_id = i.id) AS attachment_count,
@@ -9671,6 +9677,8 @@ app.get('/api/public/board/:token/data', async (request, res) => {
                      (SELECT TOP 1 a.original_name FROM fu_attachments a WHERE a.issue_id = i.id ORDER BY CASE WHEN a.mime_type LIKE 'image/%' THEN 0 ELSE 1 END, a.created_at, a.id) AS thumb_name
               FROM fu_issues i
               LEFT JOIN employees e ON e.id = i.assigned_to
+              LEFT JOIN app_users ur ON ur.id = i.resolved_by
+              LEFT JOIN employees er ON er.id = ur.employee_id
               WHERE i.board_id=@bid
               ORDER BY i.created_at DESC`)).recordset;
     res.set('Cache-Control', 'no-store');
@@ -9853,8 +9861,11 @@ app.put('/api/public/board/:token/issues/:id/status', async (request, res) => {
       .query(`SELECT id FROM fu_issues WHERE id=@id AND board_id=@bid`)).recordset[0];
     if (!issue) return res.status(403).json({ error: 'Issue ไม่พบหรือไม่มีสิทธิ์' });
 
+    // Same resolution stamp as the internal route — a customer has no app_users row to credit
+    const stamp = status === 'resolved' ? ', fix_date=CAST(GETDATE() AS DATE), resolved_by=NULL'
+                : ', fix_date=NULL, resolved_by=NULL';
     await req().input('id', sql.Int, id).input('st', sql.NVarChar, status)
-      .query(`UPDATE fu_issues SET status=@st, updated_at=GETDATE() WHERE id=@id`);
+      .query(`UPDATE fu_issues SET status=@st, updated_at=GETDATE()${stamp} WHERE id=@id`);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -9964,6 +9975,7 @@ app.get('/api/fu/by-assignee', authRequired, async (request, res) => {
         ISNULL(e.nickname, e.name)   AS assignee_name,
         ISNULL(e.nickname, e.name)   AS assigned_to_name,
         ISNULL(ec.nickname, ec.name) AS created_by_name,
+        i.fix_date, ISNULL(er.nickname, er.name) AS resolved_by_name,
         DATEDIFF(day, i.updated_at, GETDATE()) AS days_stale,
         (SELECT COUNT(*) FROM fu_comments c WHERE c.issue_id=i.id) AS comment_count,
         (SELECT TOP 1 c.created_at FROM fu_comments c WHERE c.issue_id=i.id ORDER BY c.created_at DESC) AS last_comment_at,
@@ -9974,6 +9986,8 @@ app.get('/api/fu/by-assignee', authRequired, async (request, res) => {
       LEFT JOIN employees  e  ON e.id  = i.assigned_to
       LEFT JOIN app_users  uc ON uc.id = i.created_by
       LEFT JOIN employees  ec ON ec.id = uc.employee_id
+      LEFT JOIN app_users  ur ON ur.id = i.resolved_by
+      LEFT JOIN employees  er ON er.id = ur.employee_id
       LEFT JOIN fu_boards  b  ON b.id  = i.board_id
       LEFT JOIN fu_folders f  ON f.id  = b.folder_id
       WHERE i.status NOT IN ('resolved','cancelled')
@@ -10167,6 +10181,7 @@ app.get('/api/fu/boards/:bid/issues', authRequired, async (request, res) => {
       SELECT i.*,
         ISNULL(ea.nickname, ea.name) AS assigned_to_name,
         ISNULL(ec.nickname, ec.name) AS created_by_name,
+        ISNULL(er.nickname, er.name) AS resolved_by_name,
         (SELECT COUNT(*) FROM fu_comments c WHERE c.issue_id=i.id) AS comment_count,
         (SELECT TOP 1 c.created_at FROM fu_comments c WHERE c.issue_id=i.id ORDER BY c.created_at DESC) AS last_comment_at,
         (SELECT TOP 1 c.body     FROM fu_comments c WHERE c.issue_id=i.id ORDER BY c.created_at DESC) AS last_comment_body
@@ -10174,6 +10189,8 @@ app.get('/api/fu/boards/:bid/issues', authRequired, async (request, res) => {
       LEFT JOIN employees ea ON ea.id=i.assigned_to
       LEFT JOIN app_users uc ON uc.id=i.created_by
       LEFT JOIN employees ec ON ec.id=uc.employee_id
+      LEFT JOIN app_users ur ON ur.id=i.resolved_by
+      LEFT JOIN employees er ON er.id=ur.employee_id
       WHERE i.board_id=@bid ORDER BY i.position,i.created_at`)).recordset;
     res.json(rows);
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -10187,6 +10204,7 @@ app.get('/api/fu/issues/:id', authRequired, async (request, res) => {
       SELECT i.*,
         ISNULL(ea.nickname, ea.name) AS assigned_to_name,
         ISNULL(ec.nickname, ec.name) AS created_by_name,
+        ISNULL(er.nickname, er.name) AS resolved_by_name,
         (SELECT COUNT(*) FROM fu_comments c WHERE c.issue_id=i.id) AS comment_count,
         (SELECT TOP 1 c.created_at FROM fu_comments c WHERE c.issue_id=i.id ORDER BY c.created_at DESC) AS last_comment_at,
         (SELECT TOP 1 c.body     FROM fu_comments c WHERE c.issue_id=i.id ORDER BY c.created_at DESC) AS last_comment_body
@@ -10194,6 +10212,8 @@ app.get('/api/fu/issues/:id', authRequired, async (request, res) => {
       LEFT JOIN employees ea ON ea.id=i.assigned_to
       LEFT JOIN app_users uc ON uc.id=i.created_by
       LEFT JOIN employees ec ON ec.id=uc.employee_id
+      LEFT JOIN app_users ur ON ur.id=i.resolved_by
+      LEFT JOIN employees er ON er.id=ur.employee_id
       WHERE i.id=@id`)).recordset;
     if (!rows.length) return res.status(404).json({ error: 'not found' });
     res.json(rows[0]);
@@ -10249,7 +10269,25 @@ app.put('/api/fu/issues/:id', authRequired, async (request, res) => {
     if (b.hasOwnProperty('golive_date')) { r=r.input('gd',sql.Date,b.golive_date||null);         updates.push('golive_date=@gd'); }
     if (b.hasOwnProperty('release_version')) { r=r.input('rv',sql.NVarChar,b.release_version??null); updates.push('release_version=@rv'); }
     if (b.hasOwnProperty('issue_url'))   { r=r.input('iu',sql.NVarChar,b.issue_url??null);       updates.push('issue_url=@iu'); }
+
+    // Closing an issue stamps the date and the person; reopening clears both
+    const statusChanged = b.hasOwnProperty('status') && b.status !== cur.status;
+    if (statusChanged) {
+      if (b.status === 'resolved')      { r=r.input('rby',sql.Int,uid); updates.push('fix_date=CAST(GETDATE() AS DATE)','resolved_by=@rby'); }
+      else if (cur.status === 'resolved') { updates.push('fix_date=NULL','resolved_by=NULL'); }
+    }
     await r.query(`UPDATE fu_issues SET ${updates.join(',')} WHERE id=@id`);
+
+    // Hand the new stamp back so the panel can show it without a reload
+    let stamp = null;
+    if (statusChanged) {
+      stamp = (await req().input('id',sql.Int,id).query(`
+        SELECT i.fix_date, ISNULL(er.nickname, er.name) AS resolved_by_name
+        FROM fu_issues i
+        LEFT JOIN app_users ur ON ur.id=i.resolved_by
+        LEFT JOIN employees er ON er.id=ur.employee_id
+        WHERE i.id=@id`)).recordset[0] || null;
+    }
 
     // Activity log for status/assignee changes
     const logFields = {status:'สถานะ',priority:'ความสำคัญ',assigned_to:'ผู้รับผิดชอบ',category:'Category'};
@@ -10264,7 +10302,7 @@ app.put('/api/fu/issues/:id', authRequired, async (request, res) => {
       try { await req().input('c',sql.NVarChar,b.category.trim())
         .query(`IF NOT EXISTS(SELECT 1 FROM fu_categories WHERE name=@c) INSERT INTO fu_categories(name) VALUES(@c)`); } catch {}
     }
-    res.json({ ok: true });
+    res.json({ ok: true, ...(stamp || {}) });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

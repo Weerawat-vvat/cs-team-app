@@ -112,6 +112,8 @@ tr:last-child td { border-bottom:none; }
 .td-issue-id:hover { text-decoration:underline; }
 .td-status { white-space:nowrap; }
 .td-rel { font-size:.74rem; color:#475569; white-space:nowrap; }
+.td-resolved { font-size:.66rem; color:#15803d; font-weight:600; margin-top:.15rem; white-space:nowrap; }
+.card-resolved { font-size:.67rem; color:#15803d; font-weight:600; margin-top:.3rem; }
 .status-pill { display:inline-flex; align-items:center; gap:.3rem; font-size:.72rem; font-weight:700; border-radius:20px; padding:.18rem .55rem; }
 
 /* ── Detail Modal ── */
@@ -290,6 +292,9 @@ tr:last-child td { border-bottom:none; }
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
     <input type="text" id="search-input" placeholder="ค้นหาหัวข้อ, category, ผู้รับผิดชอบ…" oninput="applyFilters()">
   </div>
+  <select class="filter-select" id="filter-status" onchange="pickStatusFilter(this.value)">
+    <option value="">สถานะทั้งหมด</option>
+  </select>
   <select class="filter-select" id="filter-prio" onchange="applyFilters()">
     <option value="">ความสำคัญทั้งหมด</option>
     <option value="urgent">🔴 เร่งด่วน</option>
@@ -299,6 +304,9 @@ tr:last-child td { border-bottom:none; }
   </select>
   <select class="filter-select" id="filter-cat" onchange="applyFilters()">
     <option value="">Category ทั้งหมด</option>
+  </select>
+  <select class="filter-select" id="filter-ver" onchange="applyFilters()">
+    <option value="">Release Version ทั้งหมด</option>
   </select>
   <button class="clear-btn" onclick="clearFilters()" id="clear-btn" style="display:none">✕ ล้างตัวกรอง</button>
   <span class="result-count" id="result-count"></span>
@@ -330,7 +338,7 @@ tr:last-child td { border-bottom:none; }
 </div>
 
 <!-- ── Detail Modal ── -->
-<div class="modal-overlay" id="detail-modal" style="display:none" onclick="if(event.target===this)closeDetail()">
+<div class="modal-overlay" id="detail-modal" style="display:none">
   <div class="modal-box">
     <div class="modal-header">
       <span class="modal-id" id="dm-id"></span>
@@ -454,7 +462,7 @@ tr:last-child td { border-bottom:none; }
 </div>
 
 <!-- ── Create Issue Modal ── -->
-<div class="modal-overlay" id="create-modal" style="display:none" onclick="if(event.target===this)closeCreateModal()">
+<div class="modal-overlay" id="create-modal" style="display:none">
   <div class="modal-box" style="max-width:520px">
     <div class="modal-header">
       <span class="modal-title">+ เพิ่มรายการใหม่</span>
@@ -519,7 +527,7 @@ const PRIO_CFG = {
 
 // ── State ─────────────────────────────────────────────────────────────────
 let _issues = [], _filtered = [], _view = 'board';
-let _statusFilter = new Set(), _prioFilter = '', _catFilter = '', _searchQ = '';
+let _statusFilter = new Set(), _prioFilter = '', _catFilter = '', _verFilter = '', _searchQ = '';
 let _currentDetailId = null;
 
 function boardToken() { return location.pathname.split('/public/board/')[1]; }
@@ -559,6 +567,10 @@ function openDetail(id) {
   // Meta grid
   const metaItems = [
     { label:'ผู้รับผิดชอบ', value: issue.assigned_to_name ? `👤 ${issue.assigned_to_name}` : null, empty:'ยังไม่ระบุ' },
+    ...(issue.status === 'resolved' ? [
+      { label:'แก้ไขเมื่อ', value: issue.fix_date ? fmtDate(issue.fix_date) : null, empty:'ไม่ระบุ' },
+      { label:'ผู้ดำเนินการ', value: issue.resolved_by_name ? `👤 ${issue.resolved_by_name}` : null, empty:'ไม่ระบุ' },
+    ] : []),
     { label:'สร้างเมื่อ', value: fmtDate(issue.created_at) },
     { label:'อัพเดตล่าสุด', value: fmtDate(issue.updated_at) },
   ];
@@ -821,8 +833,10 @@ async function changeStatus(newStatus) {
   const id = _currentDetailId;
   const issue = _issues.find(i => i.id === id);
   if (!issue || issue.status === newStatus) return;
-  const prev = issue.status;
+  const prev = issue.status, prevFix = issue.fix_date, prevBy = issue.resolved_by_name;
   issue.status = newStatus; // optimistic UI
+  issue.fix_date = newStatus === 'resolved' ? new Date().toISOString().slice(0,10) : null;
+  issue.resolved_by_name = null; // a customer has no staff account to credit
   renderPills(issue);
   updateSummary(_issues);
   render();
@@ -833,7 +847,7 @@ async function changeStatus(newStatus) {
     if (!res.ok) throw new Error();
     issue.updated_at = new Date().toISOString();
   } catch(e) {
-    issue.status = prev; // revert on failure
+    issue.status = prev; issue.fix_date = prevFix; issue.resolved_by_name = prevBy; // revert on failure
     renderPills(issue);
     updateSummary(_issues);
     render();
@@ -1005,11 +1019,13 @@ function applyFilters() {
   _searchQ    = document.getElementById('search-input').value.toLowerCase().trim();
   _prioFilter = document.getElementById('filter-prio').value;
   _catFilter  = document.getElementById('filter-cat').value;
+  _verFilter  = document.getElementById('filter-ver').value;
 
   _filtered = _issues.filter(i => {
     if (_statusFilter.size && !_statusFilter.has(i.status)) return false;
     if (_prioFilter   && i.priority !== _prioFilter)   return false;
     if (_catFilter    && i.category !== _catFilter)    return false;
+    if (_verFilter    && (i.release_version || '') !== _verFilter) return false;
     if (_searchQ) {
       const hay = [(i.title||''),(i.category||''),(i.assigned_to_name||''),(i.note||''),(i.branch||'')].join(' ').toLowerCase();
       if (!hay.includes(_searchQ)) return false;
@@ -1017,10 +1033,12 @@ function applyFilters() {
     return true;
   });
 
-  const hasFilter = _statusFilter.size || _prioFilter || _catFilter || _searchQ;
+  const hasFilter = _statusFilter.size || _prioFilter || _catFilter || _verFilter || _searchQ;
   document.getElementById('clear-btn').style.display = hasFilter ? '' : 'none';
   document.getElementById('result-count').textContent =
     hasFilter ? `แสดง ${_filtered.length} / ${_issues.length} รายการ` : `${_issues.length} รายการ`;
+
+  document.getElementById('filter-status').value = _statusFilter.size === 1 ? [..._statusFilter][0] : '';
 
   document.querySelectorAll('.stat-chip').forEach(c => c.classList.remove('active'));
   if (!_statusFilter.size) {
@@ -1032,6 +1050,19 @@ function applyFilters() {
   render();
 }
 
+function buildStatusFilter() {
+  document.getElementById('filter-status').innerHTML =
+    '<option value="">สถานะทั้งหมด</option>' +
+    STATUS_CFG.map(s => `<option value="${s.key}">${s.label}</option>`).join('');
+}
+
+// The dropdown picks exactly one status; the chips stay the way to combine several
+function pickStatusFilter(key) {
+  _statusFilter.clear();
+  if (key) _statusFilter.add(key);
+  applyFilters();
+}
+
 // Chips are multi-select toggles — clicking "ทั้งหมด" clears the selection, clicking a status toggles it in/out
 function setStatusFilter(key) {
   if (key === null) { _statusFilter.clear(); }
@@ -1041,10 +1072,11 @@ function setStatusFilter(key) {
 }
 
 function clearFilters() {
-  _statusFilter.clear(); _prioFilter = ''; _catFilter = ''; _searchQ = '';
+  _statusFilter.clear(); _prioFilter = ''; _catFilter = ''; _verFilter = ''; _searchQ = '';
   document.getElementById('search-input').value = '';
   document.getElementById('filter-prio').value  = '';
   document.getElementById('filter-cat').value   = '';
+  document.getElementById('filter-ver').value   = '';
   applyFilters();
 }
 
@@ -1098,6 +1130,7 @@ function renderBoard(issues) {
               ${i.assigned_to_name ? `<span class="assignee">👤 ${esc(i.assigned_to_name)}</span>` : ''}
             </div>
             ${releasePlanChip(i)}
+            ${resolvedStamp(i) ? `<div class="card-resolved">${resolvedStamp(i)}</div>` : ''}
             <div class="card-hint">
               ${i.attachment_count > 0 ? `📎 ${i.attachment_count} · ` : ''}${i.comment_count > 0 ? `💬 ${i.comment_count} · ` : ''}คลิกดูรายละเอียด
             </div>
@@ -1112,6 +1145,15 @@ function renderBoard(issues) {
       <div class="col-body">${cardHtml}</div>
     </div>`;
   }).join('') + `</div>`;
+}
+
+// "แก้ไขแล้ว" carries the date it was closed and who closed it
+function resolvedStamp(issue) {
+  if (issue.status !== 'resolved') return '';
+  const parts = [];
+  if (issue.fix_date)         parts.push('📅 ' + fmtDate(issue.fix_date));
+  if (issue.resolved_by_name) parts.push('👤 ' + esc(issue.resolved_by_name));
+  return parts.join(' · ');
 }
 
 // One table column per release-plan field — headers are swapped in once
@@ -1154,7 +1196,8 @@ function renderTable(issues) {
         ${i.note ? `<div class="td-subtitle" title="${esc(i.note)}">${esc(i.note)}</div>` : ''}
         ${attachHtml}
       </td>
-      <td class="td-status"><span class="status-pill" style="background:${sc.bg};color:${sc.text}"><span style="width:6px;height:6px;border-radius:50%;background:${sc.color};display:inline-block"></span>${sc.label}</span></td>
+      <td class="td-status"><span class="status-pill" style="background:${sc.bg};color:${sc.text}"><span style="width:6px;height:6px;border-radius:50%;background:${sc.color};display:inline-block"></span>${sc.label}</span>${
+        resolvedStamp(i) ? `<div class="td-resolved">${resolvedStamp(i)}</div>` : ''}</td>
       <td>${i.priority ? `<span class="badge ${p.cls}">${p.label}</span>` : '—'}</td>
       <td>${i.category ? `<span class="badge badge-cat">${esc(i.category)}</span>` : '—'}</td>
       <td style="font-size:.78rem;color:#475569">${i.assigned_to_name ? `👤 ${esc(i.assigned_to_name)}` : '—'}</td>
@@ -1177,6 +1220,14 @@ function buildCatFilter(issues) {
   const cats = [...new Set(issues.map(i => i.category).filter(Boolean))].sort();
   document.getElementById('filter-cat').innerHTML =
     '<option value="">Category ทั้งหมด</option>' + cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+}
+
+// Newest version first — "3.0.2611.1" sorts above "3.0.2608.1"
+function buildVerFilter(issues) {
+  const vers = [...new Set(issues.map(i => i.release_version).filter(Boolean))]
+    .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+  document.getElementById('filter-ver').innerHTML =
+    '<option value="">Release Version ทั้งหมด</option>' + vers.map(v => `<option value="${esc(v)}">🏷️ ${esc(v)}</option>`).join('');
 }
 
 // ── Load ──────────────────────────────────────────────────────────────────
@@ -1203,15 +1254,18 @@ async function loadData() {
     document.getElementById('view-tabs').style.display   = '';
 
     updateSummary(_issues);
+    buildStatusFilter();
     buildCatFilter(_issues);
+    buildVerFilter(_issues);
     document.getElementById('result-count').textContent = `${_issues.length} รายการ`;
-    renderBoard(_filtered);
+    setView(_view);
   } catch(e) { showError('โหลดข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'); }
 }
 
 async function reloadData() {
   document.getElementById('board-view').innerHTML = '<div class="center"><div class="spinner"></div></div>';
-  document.getElementById('table-view').style.display = 'none';
+  document.getElementById('tbl-body').innerHTML =
+    '<tr><td colspan="12" style="padding:2rem;text-align:center"><div class="mini-spinner"></div></td></tr>';
   clearFilters();
   await loadData();
 }

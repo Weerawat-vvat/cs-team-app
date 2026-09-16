@@ -1246,7 +1246,8 @@ function renderIssueTable(){
         </td>
         <td>${s.category?`<span style="background:#f0f9ff;color:#0369a1;border-radius:5px;padding:.1rem .4rem;font-size:.72rem;white-space:nowrap">${esc(s.category)}</span>`:'<span style="color:#cbd5e1">—</span>'}</td>
         <td><span style="color:${pri.col};font-size:.75rem;font-weight:600">${pri.label}</span></td>
-        <td><span style="background:${st.bg};color:${st.col};border-radius:20px;padding:.15rem .55rem;font-size:.7rem;font-weight:700;white-space:nowrap">${esc(st.label)}</span></td>
+        <td><span style="background:${st.bg};color:${st.col};border-radius:20px;padding:.15rem .55rem;font-size:.7rem;font-weight:700;white-space:nowrap">${esc(st.label)}</span>${
+          resolvedStamp(s) ? `<div style="font-size:.66rem;color:#15803d;font-weight:600;margin-top:.15rem;white-space:nowrap">${resolvedStamp(s)}</div>` : ''}</td>
         ${releasePlanCells(s)}
         <td>${s.assigned_to_name?`<span style="font-size:.75rem">👤 ${esc(s.assigned_to_name)}</span>`:'<span style="color:#cbd5e1;font-size:.72rem">—</span>'}</td>
         <td onclick="event.stopPropagation();openEditIssue(${s.id})" title="แก้ไข" style="text-align:center;cursor:pointer;color:#94a3b8;font-size:.85rem" onmouseover="this.style.color='#2563eb'" onmouseout="this.style.color='#94a3b8'">✏️</td>
@@ -1265,6 +1266,15 @@ function renderIssueTable(){
   });
 
   el.innerHTML = `<div class="tbl-wrap"><table class="iss-tbl">${thead}<tbody>${tbody}</tbody></table></div>`;
+}
+
+// "แก้ไขแล้ว" carries the date it was closed and who closed it
+function resolvedStamp(s){
+  if(s.status !== 'resolved') return '';
+  const parts = [];
+  if(s.fix_date)         parts.push('📅 ' + parseD(s.fix_date).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}));
+  if(s.resolved_by_name) parts.push('👤 ' + esc(s.resolved_by_name));
+  return parts.join(' · ');
 }
 
 // Release plan — one table column per field
@@ -1313,6 +1323,8 @@ function exportIssuesExcel(){
       'หัวข้อปัญหา':     s.detail||'',
       'รายละเอียด':      s.note||'',
       'สถานะ':           STAT_LABEL[s.status]||s.status||'',
+      'วันที่แก้ไข':     s.status==='resolved' && s.fix_date ? parseD(s.fix_date).toLocaleDateString('th-TH') : '',
+      'ผู้แก้ไข':        s.status==='resolved' ? (s.resolved_by_name||'') : '',
       'ผู้รับผิดชอบ':    s.assigned_to_name||'',
       'Release Date':    s.release_date ? parseD(s.release_date).toLocaleDateString('th-TH') : '',
       'Release Version': s.release_version||'',
