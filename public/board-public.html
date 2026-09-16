@@ -72,9 +72,7 @@ body { font-family: 'Segoe UI', 'Noto Sans Thai', sans-serif; background: #f8faf
 .card-id    { font-size:.65rem; color:#b0bac6; margin-bottom:.18rem; font-weight:600; letter-spacing:.02em; }
 .card-title { font-size:.82rem; font-weight:600; line-height:1.4; margin-bottom:.45rem; color:#1e293b; }
 .card-meta  { display:flex; align-items:center; gap:.35rem; flex-wrap:wrap; }
-.card-due   { font-size:.67rem; color:#94a3b8; margin-top:.3rem; display:flex; align-items:center; gap:.22rem; }
-.card-due.overdue { color:#ef4444; font-weight:600; }
-.card-due.soon    { color:#f59e0b; font-weight:600; }
+.card-release { font-size:.67rem; color:#7c3aed; font-weight:600; margin-top:.3rem; display:flex; align-items:center; gap:.22rem; }
 .card-hint  { font-size:.65rem; color:#cbd5e1; margin-top:.35rem; display:flex; align-items:center; gap:.2rem; }
 
 /* ── Badges ── */
@@ -325,7 +323,7 @@ tr:last-child td { border-bottom:none; }
     <table>
       <thead><tr>
         <th>#</th><th>หัวข้อ / รายละเอียด</th><th>สถานะ</th>
-        <th>ความสำคัญ</th><th>Category</th><th>ผู้รับผิดชอบ</th><th>Due Date</th><th>แผน Release</th><th>Issue ID</th>
+        <th>ความสำคัญ</th><th>Category</th><th>ผู้รับผิดชอบ</th><th>แผน Release</th><th>Issue ID</th>
       </tr></thead>
       <tbody id="tbl-body"></tbody>
     </table>
@@ -406,10 +404,6 @@ tr:last-child td { border-bottom:none; }
             </select>
           </div>
         </div>
-        <div class="form-group" style="margin-bottom:.6rem">
-          <label class="form-label">Due Date</label>
-          <input class="form-input" type="date" id="ef-due">
-        </div>
         <div class="form-group">
           <label class="form-label">Note เพิ่มเติม</label>
           <textarea class="form-textarea" id="ef-note" style="min-height:50px"></textarea>
@@ -489,10 +483,6 @@ tr:last-child td { border-bottom:none; }
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label">Due Date</label>
-        <input class="form-input" type="date" id="cf-due">
-      </div>
-      <div class="form-group">
         <label class="form-label">Note เพิ่มเติม</label>
         <textarea class="form-textarea" id="cf-note" style="min-height:50px" placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)"></textarea>
       </div>
@@ -543,17 +533,6 @@ function categoryOptionsHtml() {
 // ── Utils ─────────────────────────────────────────────────────────────────
 function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-function dueMeta(due) {
-  if (!due) return null;
-  const d = new Date(due), now = new Date();
-  now.setHours(0,0,0,0); d.setHours(0,0,0,0);
-  const diff = Math.round((d - now) / 86400000);
-  if (diff < 0)   return { cls:'overdue', label:`เกินกำหนด ${Math.abs(diff)} วัน` };
-  if (diff === 0) return { cls:'soon',    label:'ครบกำหนดวันนี้' };
-  if (diff <= 3)  return { cls:'soon',    label:`อีก ${diff} วัน` };
-  return { cls:'', label: d.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}) };
-}
-
 function fmtDate(iso) {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'});
@@ -572,8 +551,6 @@ function openDetail(id) {
   _currentDetailId = id;
   resetToViewMode();
 
-  const dm = issue.due_date ? dueMeta(issue.due_date) : null;
-
   document.getElementById('dm-id').textContent    = `#${issue.id}`;
   document.getElementById('dm-title').textContent = issue.title || '(ไม่มีหัวข้อ)';
 
@@ -583,9 +560,6 @@ function openDetail(id) {
   // Meta grid
   const metaItems = [
     { label:'ผู้รับผิดชอบ', value: issue.assigned_to_name ? `👤 ${issue.assigned_to_name}` : null, empty:'ยังไม่ระบุ' },
-    { label:'Due Date',
-      value: dm ? `<span style="font-weight:700;color:${dm.cls==='overdue'?'#ef4444':dm.cls==='soon'?'#f59e0b':'#1e293b'}">${dm.label}</span>` : null,
-      empty:'ไม่ระบุ', html:true },
     { label:'สร้างเมื่อ', value: fmtDate(issue.created_at) },
     { label:'อัพเดตล่าสุด', value: fmtDate(issue.updated_at) },
   ];
@@ -926,7 +900,6 @@ function enterEditMode() {
   document.getElementById('ef-detail').value    = issue.title || '';
   document.getElementById('ef-category').value  = issue.category || '';
   document.getElementById('ef-priority').value  = issue.priority || 'normal';
-  document.getElementById('ef-due').value       = issue.due_date ? issue.due_date.split('T')[0] : '';
   document.getElementById('ef-note').value      = issue.note || '';
   document.getElementById('ef-category-list').innerHTML = categoryOptionsHtml();
 
@@ -950,7 +923,6 @@ async function saveEditIssue() {
     detail,
     category: document.getElementById('ef-category').value.trim() || null,
     priority: document.getElementById('ef-priority').value,
-    due_date: document.getElementById('ef-due').value || null,
     note:     document.getElementById('ef-note').value.trim() || null,
   };
 
@@ -976,7 +948,6 @@ function openCreateModal() {
   document.getElementById('cf-detail').value   = '';
   document.getElementById('cf-category').value = '';
   document.getElementById('cf-priority').value = 'normal';
-  document.getElementById('cf-due').value      = '';
   document.getElementById('cf-note').value     = '';
   document.getElementById('cf-err').textContent = '';
   document.getElementById('cf-category-list').innerHTML = categoryOptionsHtml();
@@ -998,7 +969,6 @@ async function submitCreateIssue() {
     detail,
     category: document.getElementById('cf-category').value.trim() || null,
     priority: document.getElementById('cf-priority').value,
-    due_date: document.getElementById('cf-due').value || null,
     note:     document.getElementById('cf-note').value.trim() || null,
   };
 
@@ -1097,9 +1067,9 @@ function releasePlanChip(issue) {
   const f = issue.golive_date ? { label:'🚀 Go live', val:issue.golive_date }
           : issue.release_date ? { label:'💿 Release', val:issue.release_date }
           : null;
-  const ver = issue.release_version ? `🏷️ v${esc(issue.release_version)}` : '';
-  if (!f) return ver ? `<div class="card-due" style="color:#7c3aed;font-weight:600">${ver}</div>` : '';
-  return `<div class="card-due" style="color:#7c3aed;font-weight:600">${f.label} ${fmtDate(f.val)}${ver ? ' · ' + ver : ''}</div>`;
+  const ver = issue.release_version ? `🏷️ ${esc(issue.release_version)}` : '';
+  if (!f) return ver ? `<div class="card-release">${ver}</div>` : '';
+  return `<div class="card-release">${f.label} ${fmtDate(f.val)}${ver ? ' · ' + ver : ''}</div>`;
 }
 
 function renderBoard(issues) {
@@ -1120,7 +1090,6 @@ function renderBoard(issues) {
     const cardHtml = !cards.length ? `<div class="empty-col">ว่างอยู่</div>`
       : cards.map(i => {
           const p  = PRIO_CFG[i.priority] || PRIO_CFG.normal;
-          const dm = i.due_date ? dueMeta(i.due_date) : null;
           return `<div class="card" onclick="openDetail(${i.id})">
             <div class="card-id">#${i.id}</div>
             <div class="card-title">${esc(i.title)}</div>
@@ -1129,7 +1098,6 @@ function renderBoard(issues) {
               ${i.category ? `<span class="badge badge-cat">${esc(i.category)}</span>` : ''}
               ${i.assigned_to_name ? `<span class="assignee">👤 ${esc(i.assigned_to_name)}</span>` : ''}
             </div>
-            ${dm ? `<div class="card-due ${dm.cls}">📅 ${dm.label}</div>` : ''}
             ${releasePlanChip(i)}
             <div class="card-hint">
               ${i.attachment_count > 0 ? `📎 ${i.attachment_count} · ` : ''}${i.comment_count > 0 ? `💬 ${i.comment_count} · ` : ''}คลิกดูรายละเอียด
@@ -1161,14 +1129,12 @@ function releasePlanCell(issue) {
 function renderTable(issues) {
   const tbody = document.getElementById('tbl-body');
   if (!issues.length) {
-    tbody.innerHTML = `<tr><td colspan="9" style="padding:3rem;text-align:center;color:#94a3b8"><div style="font-size:1.8rem;margin-bottom:.5rem">🔍</div>ไม่พบรายการที่ตรงกัน</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" style="padding:3rem;text-align:center;color:#94a3b8"><div style="font-size:1.8rem;margin-bottom:.5rem">🔍</div>ไม่พบรายการที่ตรงกัน</td></tr>`;
     return;
   }
   tbody.innerHTML = issues.map(i => {
     const sc = STATUS_CFG.find(s => s.key === i.status) || { label:i.status, color:'#94a3b8', bg:'#f8fafc', text:'#475569' };
     const p  = PRIO_CFG[i.priority] || PRIO_CFG.normal;
-    const dm = i.due_date ? dueMeta(i.due_date) : null;
-    const dueHtml = dm ? `<span style="font-size:.72rem;font-weight:600;color:${dm.cls==='overdue'?'#ef4444':dm.cls==='soon'?'#f59e0b':'#64748b'}">${dm.label}</span>` : '—';
     const thumbUrl  = i.thumb_filename ? `/uploads/fu/${i.id}/${i.thumb_filename}` : null;
     const isImgThumb = thumbUrl && /^image\//.test(i.thumb_mime || '');
     const moreCount = (i.attachment_count || 0) - 1;
@@ -1189,7 +1155,6 @@ function renderTable(issues) {
       <td>${i.priority ? `<span class="badge ${p.cls}">${p.label}</span>` : '—'}</td>
       <td>${i.category ? `<span class="badge badge-cat">${esc(i.category)}</span>` : '—'}</td>
       <td style="font-size:.78rem;color:#475569">${i.assigned_to_name ? `👤 ${esc(i.assigned_to_name)}` : '—'}</td>
-      <td>${dueHtml}</td>
       <td>${releasePlanCell(i)}</td>
       <td>${eid ? `<a class="td-issue-id" href="${esc(i.issue_url)}" target="_blank" onclick="event.stopPropagation()">#${esc(eid)}</a>` : '<span style="color:#cbd5e1">—</span>'}</td>
     </tr>`;

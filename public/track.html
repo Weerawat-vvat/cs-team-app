@@ -1209,8 +1209,6 @@ function renderIssueTable(){
     return;
   }
 
-  const today = new Date(); today.setHours(0,0,0,0);
-
   // Group by board_name (with folder prefix)
   const groups = {};
   const groupOrder = [];
@@ -1226,7 +1224,7 @@ function renderIssueTable(){
     <th style="min-width:100px">Category</th>
     <th style="width:85px">ความสำคัญ</th>
     <th style="width:110px">สถานะ</th>
-    <th style="width:90px">Due Date</th>
+    <th style="width:150px">แผน Release</th>
     <th style="min-width:110px">ผู้รับผิดชอบ</th>
     <th style="width:36px"></th>
   </tr></thead>`;
@@ -1238,8 +1236,6 @@ function renderIssueTable(){
       <td colspan="8">📋 ${esc(key)} <span style="background:#e2e8f0;color:#64748b;border-radius:20px;padding:.02rem .45rem;font-size:.68rem;font-weight:700;margin-left:.3rem">${items.length}</span></td>
     </tr>`;
     items.forEach(s => {
-      const due = parseD(s.due_date);
-      const overdue = due && due < today && !['resolved','cancelled'].includes(s.status);
       const st  = FU_STATUS_MAP[s.status] || {label:s.status,bg:'#f1f5f9',col:'#475569'};
       const pri = FU_PRI_MAP[s.priority]  || FU_PRI_MAP.normal;
       tbody += `<tr data-iid="${s.id}" onclick="toggleIssueDetail(${s.id})" style="cursor:pointer">
@@ -1251,7 +1247,7 @@ function renderIssueTable(){
         <td>${s.category?`<span style="background:#f0f9ff;color:#0369a1;border-radius:5px;padding:.1rem .4rem;font-size:.72rem;white-space:nowrap">${esc(s.category)}</span>`:'<span style="color:#cbd5e1">—</span>'}</td>
         <td><span style="color:${pri.col};font-size:.75rem;font-weight:600">${pri.label}</span></td>
         <td><span style="background:${st.bg};color:${st.col};border-radius:20px;padding:.15rem .55rem;font-size:.7rem;font-weight:700;white-space:nowrap">${esc(st.label)}</span></td>
-        <td>${due?`<span style="font-size:.75rem;font-weight:${overdue?700:400};color:${overdue?'#ef4444':'#475569'}">${overdue?'🔴 ':''}${due.toLocaleDateString('th-TH',{day:'2-digit',month:'short'})}</span>`:'<span style="color:#cbd5e1;font-size:.75rem">—</span>'}</td>
+        <td>${releasePlanCell(s)}</td>
         <td>${s.assigned_to_name?`<span style="font-size:.75rem">👤 ${esc(s.assigned_to_name)}</span>`:'<span style="color:#cbd5e1;font-size:.72rem">—</span>'}</td>
         <td onclick="event.stopPropagation();openEditIssue(${s.id})" title="แก้ไข" style="text-align:center;cursor:pointer;color:#94a3b8;font-size:.85rem" onmouseover="this.style.color='#2563eb'" onmouseout="this.style.color='#94a3b8'">✏️</td>
       </tr>
@@ -1269,6 +1265,22 @@ function renderIssueTable(){
   });
 
   el.innerHTML = `<div class="tbl-wrap"><table class="iss-tbl">${thead}<tbody>${tbody}</tbody></table></div>`;
+}
+
+// Release plan chips for the issue table
+const RELEASE_PLAN_FIELDS = [
+  { key:'release_date',    icon:'💿', plain:'Release Date' },
+  { key:'release_version', icon:'🏷️', plain:'Release Version', text:true },
+  { key:'uat_date',        icon:'🧪', plain:'UAT Date' },
+  { key:'pilot_date',      icon:'🚧', plain:'Pilot Update' },
+  { key:'golive_date',     icon:'🚀', plain:'Go live Update' },
+];
+
+function releasePlanCell(s){
+  const chips = RELEASE_PLAN_FIELDS.filter(f => s[f.key]).map(f =>
+    `<span title="${f.plain}" style="background:#f5f3ff;color:#7c3aed;border-radius:5px;padding:.06rem .32rem;font-size:.67rem;font-weight:700;white-space:nowrap">${f.icon} ${f.text ? esc(s[f.key]) : parseD(s[f.key]).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'})}</span>`);
+  if(!chips.length) return '<span style="color:#cbd5e1;font-size:.75rem">—</span>';
+  return `<div style="display:flex;flex-wrap:wrap;gap:.18rem">${chips.join('')}</div>`;
 }
 
 function toggleIssueDetail(id){
@@ -1297,7 +1309,11 @@ function exportIssuesExcel(){
       'รายละเอียด':      s.note||'',
       'สถานะ':           STAT_LABEL[s.status]||s.status||'',
       'ผู้รับผิดชอบ':    s.assigned_to_name||'',
-      'กำหนด':           s.due_date ? parseD(s.due_date).toLocaleDateString('th-TH') : '',
+      'Release Date':    s.release_date ? parseD(s.release_date).toLocaleDateString('th-TH') : '',
+      'Release Version': s.release_version||'',
+      'UAT Date':        s.uat_date ? parseD(s.uat_date).toLocaleDateString('th-TH') : '',
+      'Pilot Update':    s.pilot_date ? parseD(s.pilot_date).toLocaleDateString('th-TH') : '',
+      'Go live Update':  s.golive_date ? parseD(s.golive_date).toLocaleDateString('th-TH') : '',
       'วันที่สร้าง':     fmtDateStr(s.created_at),
       'อัปเดตล่าสุด':    fmtDateStr(s.updated_at),
     }));
@@ -1525,7 +1541,6 @@ async function openEditIssue(id){
   document.getElementById('ti-category').value = s.category || '';
   document.getElementById('ti-priority').value = s.priority || 'normal';
   document.getElementById('ti-note').value     = s.note     || '';
-  document.getElementById('ti-due').value      = s.due_date ? s.due_date.substring(0,10) : '';
   document.getElementById('ti-submit-btn').textContent = '💾 บันทึกการแก้ไข';
   document.getElementById('ti-err').style.display = 'none';
   document.getElementById('modal-track-issue').classList.add('open');
@@ -1551,7 +1566,6 @@ async function openAddIssue(){
   document.getElementById('ti-category').value = '';
   document.getElementById('ti-priority').value = 'normal';
   document.getElementById('ti-note').value     = '';
-  document.getElementById('ti-due').value      = '';
   document.getElementById('ti-submit-btn').textContent = '💾 บันทึก';
   document.getElementById('ti-err').style.display = 'none';
   document.getElementById('modal-track-issue').classList.add('open');
@@ -1562,7 +1576,6 @@ async function submitTrackIssue(){
   const category = document.getElementById('ti-category').value.trim();
   const priority = document.getElementById('ti-priority').value;
   const note     = document.getElementById('ti-note').value.trim();
-  const due      = document.getElementById('ti-due').value;
   const errEl    = document.getElementById('ti-err');
   const btn      = document.getElementById('ti-submit-btn');
   const isEdit   = !!_editIssueId;
@@ -1577,14 +1590,14 @@ async function submitTrackIssue(){
     if(isEdit){
       r = await fetch(`/api/public/track/${token}/fu-issue/${_editIssueId}`, {
         method:'PUT', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ detail, category:category||null, priority, note:note||null, due_date:due||null })
+        body: JSON.stringify({ detail, category:category||null, priority, note:note||null })
       });
     } else {
       const boardId = parseInt(document.getElementById('ti-board').value);
       if(!boardId){ showTiErr('กรุณาเลือก Board'); btn.disabled=false; btn.textContent=prevText; return; }
       r = await fetch(`/api/public/track/${token}/fu-issue`, {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ board_id:boardId, detail, category:category||null, priority, note:note||null, due_date:due||null })
+        body: JSON.stringify({ board_id:boardId, detail, category:category||null, priority, note:note||null })
       });
     }
     let d;
@@ -1674,10 +1687,6 @@ async function submitTrackBoard(){
           <option value="low">🔵 ต่ำ</option>
         </select>
       </div>
-    </div>
-    <div class="track-form-group">
-      <label class="track-modal-label">กำหนดเสร็จ</label>
-      <input type="date" id="ti-due" class="track-modal-input"/>
     </div>
     <div class="track-form-group">
       <label class="track-modal-label">รายละเอียดเพิ่มเติม</label>

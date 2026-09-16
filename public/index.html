@@ -14474,7 +14474,6 @@ function fuRenderByAssignee() {
 
   const priorityOrder = { urgent:0, high:1, normal:2, low:3 };
   const statusOrd = { pending:0, in_progress:1, waiting:2 };
-  const today = new Date(); today.setHours(0,0,0,0);
 
   let html = '';
   sorted.forEach(([key, group]) => {
@@ -14510,9 +14509,9 @@ function fuRenderByAssignee() {
           <col style="width:28%">
           <col style="width:20%">
           <col style="width:12%">
+          <col style="width:14%">
+          <col style="width:8%">
           <col style="width:16%">
-          <col style="width:9%">
-          <col style="width:7%">
           <col style="width:4%">
         </colgroup>
         <thead><tr style="background:#f8fafc;border-bottom:1px solid #e2e8f0">
@@ -14522,16 +14521,13 @@ function fuRenderByAssignee() {
           <th style="padding:.35rem .6rem;text-align:left;color:#64748b;font-weight:600;font-size:.72rem;overflow:hidden">สร้างโดย</th>
           <th style="padding:.35rem .6rem;text-align:center;color:#64748b;font-weight:600;font-size:.72rem;overflow:hidden">สถานะ</th>
           <th style="padding:.35rem .4rem;text-align:center;color:#64748b;font-weight:600;font-size:.72rem;overflow:hidden">ความสำคัญ</th>
-          <th style="padding:.35rem .4rem;text-align:center;color:#64748b;font-weight:600;font-size:.72rem;overflow:hidden">Due Date</th>
+          <th style="padding:.35rem .4rem;text-align:left;color:#64748b;font-weight:600;font-size:.72rem;overflow:hidden">แผน Release</th>
           <th style="padding:.35rem .4rem;text-align:center;color:#64748b;font-weight:600;font-size:.72rem;overflow:hidden">ค้าง</th>
         </tr></thead><tbody>`;
 
     sortedIssues.forEach((issue, idx) => {
       const st  = FU_STATUS[issue.status]    || { label: issue.status, color: '#64748b', bg: '#f1f5f9' };
       const pri = FU_PRIORITY[issue.priority] || FU_PRIORITY.normal;
-      const due = issue.due_date ? parseDbDate(issue.due_date) : null;
-      const overdue   = due && due < today;
-      const dueStr    = due ? due.toLocaleDateString('th-TH',{day:'numeric',month:'short'}) : '—';
       const staleDays = issue.days_stale || 0;
       const staleCol  = staleDays >= 14 ? '#ef4444' : staleDays >= 7 ? '#f59e0b' : '#94a3b8';
       const rowBg = idx % 2 ? '#fafafa' : '#fff';
@@ -14553,7 +14549,7 @@ function fuRenderByAssignee() {
           <span style="display:inline-block;background:${st.bg||st.color+'18'};color:${st.color};border-radius:20px;padding:.15rem .5rem;font-size:.7rem;font-weight:700;white-space:nowrap">${st.label}</span>
         </td>
         <td style="padding:.35rem .4rem;text-align:center;vertical-align:top;white-space:nowrap"><span style="color:${pri.color};font-size:.73rem">${pri.label}</span></td>
-        <td style="padding:.35rem .4rem;text-align:center;vertical-align:top;font-size:.73rem;white-space:nowrap;color:${overdue?'#ef4444':'#475569'};font-weight:${overdue?'700':'400'}">${dueStr}${overdue?' ⚠️':''}</td>
+        <td style="padding:.35rem .4rem;vertical-align:top">${fuReleasePlanCell(issue)}</td>
         <td style="padding:.35rem .4rem;text-align:center;vertical-align:top;font-size:.73rem;font-weight:700;color:${staleCol};white-space:nowrap">${staleDays > 0 ? staleDays+'d' : '—'}</td>
       </tr>`;
     });
@@ -15563,6 +15559,19 @@ async function fuLoadIssues() {
   }
 }
 
+// The headline release date for a card — Go live wins, Release Date is the fallback
+function fuReleaseChip(issue) {
+  const d = v => parseDbDate(v).toLocaleDateString('th-TH',{day:'2-digit',month:'short'});
+  const f = issue.golive_date  ? { icon:'🚀', title:'Go live Update', text:d(issue.golive_date) }
+          : issue.release_date ? { icon:'💿', title:'Release Date',   text:d(issue.release_date) }
+          : null;
+  const parts = [];
+  if (f)   parts.push(f.icon + ' ' + f.text);
+  if (issue.release_version) parts.push('🏷️ ' + esc(issue.release_version));
+  if (!parts.length) return '';
+  return `<span title="${f ? f.title : 'Release Version'}" style="font-size:.7rem;color:#7c3aed;font-weight:600">${parts.join(' · ')}</span>`;
+}
+
 // Release plan as a row of compact chips for the table cell
 function fuReleasePlanCell(issue) {
   const d = v => parseDbDate(v).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'});
@@ -15579,11 +15588,9 @@ function fuReleasePlanCell(issue) {
   ).join('') + `</div>`;
 }
 
-function fuIssueRow(issue, today) {
+function fuIssueRow(issue) {
   const st  = FU_STATUS[issue.status]  || FU_STATUS.pending;
   const pri = FU_PRIORITY[issue.priority] || FU_PRIORITY.normal;
-  const due = issue.due_date ? parseDbDate(issue.due_date) : null;
-  const overdue = due && due < today && !['resolved','cancelled'].includes(issue.status);
   const eid = fuExtractIssueId(issue.issue_url);
   return `<tr data-id="${issue.id}" style="border-bottom:1px solid #f1f5f9;cursor:pointer${_fuPanelId===issue.id?';background:#eff6ff':''}"
     onmouseover="if(${_fuPanelId}!==${issue.id})this.style.background='#f8fafc'" onmouseout="if(${_fuPanelId}!==${issue.id})this.style.background=''">
@@ -15609,9 +15616,8 @@ function fuIssueRow(issue, today) {
       <span style="background:${st.bg};color:${st.color};border-radius:6px;padding:.2rem .4rem;font-size:.66rem;font-weight:700;line-height:1.3;white-space:normal;overflow-wrap:anywhere;display:block;box-sizing:border-box;cursor:pointer">${st.label}</span>
     </td>
     <td style="padding:.6rem .4rem;vertical-align:top;overflow:hidden">
-      ${due ? `<div onclick="fuInlineEdit(event,${issue.id},'due_date')" title="คลิกเพื่อแก้ไข" style="font-size:.73rem;color:${overdue?'#ef4444':'#475569'};font-weight:${overdue?'700':'600'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer">${overdue?'🔴 ':'📅 '}${due.toLocaleDateString('th-TH',{day:'2-digit',month:'short'})}</div>` : ''}
-      ${issue.last_comment_at ? `<div onclick="fuOpenPanel(${issue.id})" style="font-size:.63rem;color:#94a3b8;margin-top:.15rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" title="${esc(issue.last_comment_body||'')}">💬 ${fuDateLabel(issue.last_comment_at)}</div>` : ''}
-      ${!due && !issue.last_comment_at ? '<span onclick="fuOpenPanel('+issue.id+')" style="color:#cbd5e1;font-size:.75rem;cursor:pointer">--</span>' : ''}
+      ${issue.last_comment_at ? `<div onclick="fuOpenPanel(${issue.id})" style="font-size:.7rem;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" title="${esc(issue.last_comment_body||'')}">💬 ${fuDateLabel(issue.last_comment_at)}</div>`
+        : '<span onclick="fuOpenPanel('+issue.id+')" style="color:#cbd5e1;font-size:.75rem;cursor:pointer">--</span>'}
     </td>
     <td style="padding:.6rem .4rem;vertical-align:top" onclick="fuOpenPanel(${issue.id})">
       ${fuReleasePlanCell(issue)}
@@ -15657,13 +15663,12 @@ function fuRenderTable() {
     return;
   }
 
-  const today = new Date(); today.setHours(0,0,0,0);
   const thead = `<thead><tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0">
     <th style="padding:.6rem .8rem;text-align:left;font-size:.74rem;color:#475569;font-weight:700;letter-spacing:.01em;width:auto">หัวข้อ / รายละเอียดปัญหา</th>
     <th style="padding:.6rem .4rem;text-align:left;font-size:.7rem;color:#64748b;font-weight:700;width:64px">ความสำคัญ</th>
     <th style="padding:.6rem .4rem;text-align:left;font-size:.7rem;color:#64748b;font-weight:700;width:96px">ผู้รับผิดชอบ</th>
     <th style="padding:.6rem .4rem;text-align:left;font-size:.7rem;color:#64748b;font-weight:700;width:96px">สถานะ</th>
-    <th style="padding:.6rem .4rem;text-align:left;font-size:.7rem;color:#64748b;font-weight:700;width:100px">กำหนด / อัปเดตล่าสุด</th>
+    <th style="padding:.6rem .4rem;text-align:left;font-size:.7rem;color:#64748b;font-weight:700;width:100px">อัปเดตล่าสุด</th>
     <th style="padding:.6rem .4rem;text-align:left;font-size:.7rem;color:#64748b;font-weight:700;width:128px">แผน Release</th>
     <th style="padding:.6rem .3rem;width:28px"></th>
   </tr></thead>`;
@@ -15684,10 +15689,10 @@ function fuRenderTable() {
         <span style="font-size:.75rem;font-weight:700;color:${color}">${fuGroupLabel(_fuGroupBy, key)}</span>
         <span style="font-size:.68rem;color:#94a3b8;margin-left:.4rem">(${items.length})</span>
       </td></tr>`;
-      items.forEach(i => { bodyHTML += fuIssueRow(i, today); });
+      items.forEach(i => { bodyHTML += fuIssueRow(i); });
     });
   } else {
-    list.forEach(i => { bodyHTML += fuIssueRow(i, today); });
+    list.forEach(i => { bodyHTML += fuIssueRow(i); });
   }
 
   wrap.innerHTML = `<table style="width:100%;table-layout:fixed;border-collapse:collapse;font-size:.8rem;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06)">${thead}<tbody>${bodyHTML}${addBtn}</tbody></table>`;
@@ -15699,7 +15704,6 @@ function fuRenderKanban() {
   if (!wrap) return;
 
   const cols = Object.entries(FU_STATUS);
-  const today = new Date(); today.setHours(0,0,0,0);
 
   wrap.innerHTML = `
     <div style="display:flex;gap:0;height:100%;min-height:calc(100vh - 120px);overflow-x:auto">
@@ -15720,8 +15724,6 @@ function fuRenderKanban() {
             <div style="flex:1;padding:.5rem .45rem;overflow-y:auto;display:flex;flex-direction:column;gap:.4rem">
               ${cards.map(issue => {
                 const pri = FU_PRIORITY[issue.priority] || FU_PRIORITY.normal;
-                const due = issue.due_date ? parseDbDate(issue.due_date) : null;
-                const overdue = due && due < today && !['resolved','cancelled'].includes(issue.status);
                 return `
                   <div class="fu-kanban-card" data-id="${issue.id}" draggable="true"
                     ondragstart="fuDragStart(event,${issue.id})"
@@ -15740,7 +15742,7 @@ function fuRenderKanban() {
                     <!-- Footer -->
                     <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">
                       ${issue.assigned_to_name ? `<span style="font-size:.7rem;color:#475569;background:#f1f5f9;border-radius:20px;padding:.05rem .4rem">👤 ${esc(issue.assigned_to_name)}</span>` : ''}
-                      ${due ? `<span style="font-size:.7rem;color:${overdue?'#ef4444':'#94a3b8'};font-weight:${overdue?'700':'400'}">${overdue?'🔴 ':'📅 '}${due.toLocaleDateString('th-TH',{day:'2-digit',month:'short'})}</span>` : ''}
+                      ${fuReleaseChip(issue)}
                       ${issue.comment_count>0 ? `<span style="font-size:.7rem;color:#94a3b8;margin-left:auto">💬 ${issue.comment_count}</span>` : ''}
                     </div>
                   </div>`;
@@ -15828,14 +15830,13 @@ async function fuInlineEdit(e, id, field) {
   if (!cell) { fuOpenPanel(id); return; }
 
   cell.style.display = 'none';
-  const isDate = field === 'due_date';
-  const isCat  = field === 'category';
+  const isCat = field === 'category';
 
-  const editor = document.createElement(isDate ? 'input' : 'textarea');
+  const editor = document.createElement('textarea');
   editor.className = 'fu-inline-editor';
-  editor.style.cssText = 'width:100%;border:2px solid #3b82f6;border-radius:6px;padding:.35rem .5rem;font-size:.8rem;font-family:inherit;outline:none;resize:vertical;min-height:' + (isDate?'auto':'52px');
-  if (isDate) { editor.type='date'; editor.value = issue[field] ? issue[field].split('T')[0] : ''; }
-  else { editor.value = issue[field] || ''; editor.rows = 2; }
+  editor.style.cssText = 'width:100%;border:2px solid #3b82f6;border-radius:6px;padding:.35rem .5rem;font-size:.8rem;font-family:inherit;outline:none;resize:vertical;min-height:52px';
+  editor.value = issue[field] || '';
+  editor.rows = 2;
   cell.parentNode.insertBefore(editor, cell.nextSibling);
   editor.focus();
 
@@ -15860,7 +15861,7 @@ async function fuInlineEdit(e, id, field) {
   editor.addEventListener('blur', save);
   editor.addEventListener('keydown', e2 => {
     if (e2.key === 'Escape') { editor.removeEventListener('blur', save); editor.remove(); cell.style.display=''; }
-    if (e2.key === 'Enter' && (isDate || e2.ctrlKey)) { e2.preventDefault(); editor.removeEventListener('blur', save); save(); }
+    if (e2.key === 'Enter' && e2.ctrlKey) { e2.preventDefault(); editor.removeEventListener('blur', save); save(); }
   });
 }
 
@@ -16239,12 +16240,6 @@ async function fuRenderPanel() {
           ${issue.created_by_name ? `✍️ ${esc(issue.created_by_name)}` : '<span style="color:#cbd5e1">— ไม่ระบุ —</span>'}
         </div>
       </div>
-      <div>
-        <div style="font-size:.72rem;font-weight:700;color:#94a3b8;margin-bottom:.25rem">Due Date</div>
-        <input id="fup-due" type="date" value="${issue.due_date?issue.due_date.split('T')[0]:''}"
-          style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:.35rem .5rem;font-size:.8rem;font-family:inherit;outline:none"
-          onchange="fuPanelSave(${id},'due_date',this.value||null)"/>
-      </div>
     </div>
     <!-- SP Queue Reference -->
     ${issue.sp_ref ? `
@@ -16363,7 +16358,7 @@ async function fuPanelSaveTitle(val) {
   await fuPanelSave(_fuPanelId, 'detail', val.trim() || null);
 }
 
-const FU_DATE_FIELDS = new Set(['due_date','release_date','uat_date','pilot_date','golive_date']);
+const FU_DATE_FIELDS = new Set(['release_date','uat_date','pilot_date','golive_date']);
 
 // Save every field at once (one PUT with only the fields that changed)
 async function fuSaveAll() {
@@ -16381,7 +16376,6 @@ async function fuSaveAll() {
     priority:    g('fup-priority')      ? g('fup-priority').value                        : undefined,
     status:      g('fup-status')        ? g('fup-status').value                          : undefined,
     assigned_to: g('fup-assigned')      ? (g('fup-assigned').value || null)              : undefined,
-    due_date:    g('fup-due')           ? (g('fup-due').value || null)                   : undefined,
     issue_url:   g('fup-issue-url-inp') ? (g('fup-issue-url-inp').value.trim() || null)  : undefined,
     release_date: g('fup-release') ? (g('fup-release').value || null)                    : undefined,
     uat_date:     g('fup-uat')     ? (g('fup-uat').value     || null)                    : undefined,
@@ -16780,8 +16774,8 @@ function fuShowImportPreview(rows) {
   const header = hasHeader ? rows[0] : null;
   const dataRows = hasHeader ? rows.slice(1) : rows;
 
-  // Map column indices from header (fallback to export format: ID,หัวข้อ,Note,Category,ความสำคัญ,สถานะ,ผู้รับผิดชอบ,สร้างโดย,DueDate,IssueURL,Board)
-  let colDetail = 1, colNote = 2, colCat = 3, colPri = 4, colDue = 8, colUrl = 9;
+  // Map column indices from header (fallback to export format: ID,หัวข้อ,Note,Category,ความสำคัญ,สถานะ,ผู้รับผิดชอบ,สร้างโดย,…,IssueURL,Board)
+  let colDetail = 1, colNote = 2, colCat = 3, colPri = 4, colUrl = 13;
   if (header) {
     header.forEach((h, i) => {
       const hl = h.toLowerCase().trim();
@@ -16789,7 +16783,6 @@ function fuShowImportPreview(rows) {
       else if (hl === 'note') colNote = i;
       else if (hl.includes('category') || hl.includes('cat')) colCat = i;
       else if (hl.includes('ความสำคัญ') || hl.includes('priority')) colPri = i;
-      else if (hl.includes('due') || hl.includes('วันครบ')) colDue = i;
       else if (hl.includes('url') || hl.includes('issue_url')) colUrl = i;
     });
   }
@@ -16806,7 +16799,6 @@ function fuShowImportPreview(rows) {
       note:     (row[colNote] || '').trim(),
       category: (row[colCat]  || '').trim(),
       priority: FU_IMPORT_PRI_MAP[(row[colPri]||'').trim().toLowerCase()] || 'normal',
-      due_date: (row[colDue]  || '').trim() || null,
       issue_url:(row[colUrl]  || '').trim() || null,
     });
   });
@@ -16824,7 +16816,7 @@ function fuShowImportPreview(rows) {
 
   // Render preview table
   const escH = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const PHEAD = ['#','หัวข้อ / รายละเอียด','Category','ความสำคัญ','Due Date','Note'];
+  const PHEAD = ['#','หัวข้อ / รายละเอียด','Category','ความสำคัญ','Note'];
   const PRI_BADGE = { low:'#dcfce7;color:#166534', normal:'#f1f5f9;color:#374151', high:'#fef2f2;color:#b91c1c', urgent:'#7f1d1d;color:#fef2f2' };
   const PRI_TH = { low:'ต่ำ', normal:'ปกติ', high:'สูง', urgent:'เร่งด่วน' };
 
@@ -16838,10 +16830,9 @@ function fuShowImportPreview(rows) {
       <td style="padding:.3rem .6rem;font-size:.78rem;font-weight:600;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(r.detail)}</td>
       <td style="padding:.3rem .6rem;font-size:.75rem">${r.category ? `<span style="background:#eff6ff;color:#1d4ed8;border-radius:20px;padding:.1rem .45rem;font-size:.7rem;font-weight:700">${escH(r.category)}</span>` : '—'}</td>
       <td style="padding:.3rem .6rem"><span style="background:${bgs};border-radius:20px;padding:.1rem .45rem;font-size:.7rem;font-weight:700">${PRI_TH[r.priority]||r.priority}</span></td>
-      <td style="padding:.3rem .6rem;font-size:.75rem;color:#475569">${r.due_date||'—'}</td>
       <td style="padding:.3rem .6rem;font-size:.75rem;color:#64748b;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(r.note)||'—'}</td>
     </tr>`;
-  }).join('') + (valid.length > 200 ? `<tr><td colspan="6" style="padding:.5rem .6rem;color:#94a3b8;font-size:.75rem;text-align:center">… แสดง 200/${valid.length} รายการ</td></tr>` : '');
+  }).join('') + (valid.length > 200 ? `<tr><td colspan="5" style="padding:.5rem .6rem;color:#94a3b8;font-size:.75rem;text-align:center">… แสดง 200/${valid.length} รายการ</td></tr>` : '');
 
   // Stats
   document.getElementById('fu-import-stats').textContent =
@@ -16871,8 +16862,7 @@ async function fuConfirmImport() {
         method: 'POST', silent: true,
         body: { board_id: _fuBoardId, detail: row.detail,
                 note: row.note || null, category: row.category || null,
-                priority: row.priority, due_date: row.due_date || null,
-                issue_url: row.issue_url || null }
+                priority: row.priority, issue_url: row.issue_url || null }
       });
       ok++;
     } catch { fail++; }
@@ -16926,7 +16916,7 @@ function fuExportExcel() {
   };
   const FU_PRI_LABEL = { low:'ต่ำ', normal:'ปกติ', high:'สูง', urgent:'เร่งด่วน' };
 
-  const headers = ['ID','หัวข้อ / รายละเอียดปัญหา','Note','Category','ความสำคัญ','สถานะ','ผู้รับผิดชอบ','สร้างโดย','Due Date','Release Date','Release Version','UAT Date','Pilot Update','Go live Update','Issue URL','Board'];
+  const headers = ['ID','หัวข้อ / รายละเอียดปัญหา','Note','Category','ความสำคัญ','สถานะ','ผู้รับผิดชอบ','สร้างโดย','Release Date','Release Version','UAT Date','Pilot Update','Go live Update','Issue URL','Board'];
   const rows = list.map(i => [
     i.id,
     i.detail || '',
@@ -16936,7 +16926,6 @@ function fuExportExcel() {
     FU_STATUS_LABEL[i.status] || i.status || '',
     i.assigned_to_name || '',
     i.created_by_name || '',
-    i.due_date ? i.due_date.split('T')[0] : '',
     i.release_date ? String(i.release_date).split('T')[0] : '',
     i.release_version || '',
     i.uat_date    ? String(i.uat_date).split('T')[0]    : '',

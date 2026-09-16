@@ -8987,7 +8987,8 @@ app.get('/api/public/track/:token/fu-issues', async (request, res) => {
 
     const rows = (await req().input('gid',sql.Int,link.group_id).query(`
       SELECT i.id, i.detail, i.category, i.priority, i.status,
-             i.due_date, i.note, i.issue_url, i.created_at, i.updated_at,
+             i.note, i.issue_url, i.created_at, i.updated_at,
+             i.release_date, i.release_version, i.uat_date, i.pilot_date, i.golive_date,
              ISNULL(ea.nickname, ea.name) AS assigned_to_name,
              b.id AS board_id, b.name AS board_name,
              f.id AS folder_id, f.name AS folder_name,
@@ -9060,7 +9061,7 @@ app.post('/api/public/track/:token/fu-board', async (request, res) => {
 app.post('/api/public/track/:token/fu-issue', async (request, res) => {
   try {
     const tok  = request.params.token;
-    const { board_id, detail, category, priority, note, due_date } = request.body;
+    const { board_id, detail, category, priority, note } = request.body;
     if (!board_id)       return res.status(400).json({ error: 'กรุณาระบุ Board' });
     if (!detail?.trim()) return res.status(400).json({ error: 'กรุณาระบุหัวข้อปัญหา' });
 
@@ -9081,21 +9082,20 @@ app.post('/api/public/track/:token/fu-issue', async (request, res) => {
       .input('det',sql.NVarChar,detail.trim())
       .input('cat',sql.NVarChar,category||null)
       .input('pri',sql.NVarChar,priority||'normal')
-      .input('dd', sql.Date,    due_date||null)
       .input('nt', sql.NVarChar,note||null)
-      .query(`INSERT INTO fu_issues(board_id,detail,category,priority,due_date,note)
-              OUTPUT INSERTED.id VALUES(@bid,@det,@cat,@pri,@dd,@nt)`);
+      .query(`INSERT INTO fu_issues(board_id,detail,category,priority,note)
+              OUTPUT INSERTED.id VALUES(@bid,@det,@cat,@pri,@nt)`);
     res.json({ id: r.recordset[0].id });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── PUT /api/public/track/:token/fu-issue/:id ────────────
-// Customer edits their own issue (detail, category, priority, due_date, note)
+// Customer edits their own issue (detail, category, priority, note)
 app.put('/api/public/track/:token/fu-issue/:id', async (request, res) => {
   try {
     const tok = request.params.token;
     const id  = parseInt(request.params.id);
-    const { detail, category, priority, note, due_date } = request.body;
+    const { detail, category, priority, note } = request.body;
     if (!detail?.trim()) return res.status(400).json({ error: 'กรุณาระบุหัวข้อปัญหา' });
 
     const link = (await req().input('tok',sql.NVarChar,tok)
@@ -9116,9 +9116,8 @@ app.put('/api/public/track/:token/fu-issue/:id', async (request, res) => {
       .input('det', sql.NVarChar, detail.trim())
       .input('cat', sql.NVarChar, category||null)
       .input('pri', sql.NVarChar, priority||'normal')
-      .input('dd',  sql.Date,    due_date||null)
       .input('nt',  sql.NVarChar, note||null)
-      .query(`UPDATE fu_issues SET detail=@det,category=@cat,priority=@pri,due_date=@dd,note=@nt,updated_at=GETDATE() WHERE id=@id`);
+      .query(`UPDATE fu_issues SET detail=@det,category=@cat,priority=@pri,note=@nt,updated_at=GETDATE() WHERE id=@id`);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -9662,7 +9661,7 @@ app.get('/api/public/board/:token/data', async (request, res) => {
     if (!row) return res.status(404).json({ error: 'invalid or expired link' });
     const issues = (await req().input('bid', sql.Int, row.board_id)
       .query(`SELECT i.id, i.detail AS title, i.branch, i.status, i.priority, i.category,
-                     i.note, i.due_date, i.issue_url, i.created_at, i.updated_at,
+                     i.note, i.issue_url, i.created_at, i.updated_at,
                      i.release_date, i.uat_date, i.pilot_date, i.golive_date, i.release_version,
                      ISNULL(e.nickname, e.name) AS assigned_to_name,
                      (SELECT COUNT(*) FROM fu_comments c WHERE c.issue_id = i.id) AS comment_count,
@@ -9683,7 +9682,7 @@ app.get('/api/public/board/:token/data', async (request, res) => {
 app.post('/api/public/board/:token/issues', async (request, res) => {
   try {
     const tok = request.params.token;
-    const { detail, category, priority, note, due_date } = request.body;
+    const { detail, category, priority, note } = request.body;
     if (!detail?.trim()) return res.status(400).json({ error: 'กรุณาระบุหัวข้อปัญหา' });
 
     const tokenRow = (await req().input('tok', sql.NVarChar, tok)
@@ -9695,10 +9694,9 @@ app.post('/api/public/board/:token/issues', async (request, res) => {
       .input('det', sql.NVarChar, detail.trim())
       .input('cat', sql.NVarChar, category || null)
       .input('pri', sql.NVarChar, priority || 'normal')
-      .input('dd',  sql.Date,     due_date || null)
       .input('nt',  sql.NVarChar, note || null)
-      .query(`INSERT INTO fu_issues(board_id,detail,category,priority,due_date,note)
-              OUTPUT INSERTED.id VALUES(@bid,@det,@cat,@pri,@dd,@nt)`);
+      .query(`INSERT INTO fu_issues(board_id,detail,category,priority,note)
+              OUTPUT INSERTED.id VALUES(@bid,@det,@cat,@pri,@nt)`);
     res.json({ id: r.recordset[0].id });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -9708,7 +9706,7 @@ app.put('/api/public/board/:token/issues/:id', async (request, res) => {
   try {
     const tok = request.params.token;
     const id  = parseInt(request.params.id);
-    const { detail, category, priority, note, due_date } = request.body;
+    const { detail, category, priority, note } = request.body;
     if (!detail?.trim()) return res.status(400).json({ error: 'กรุณาระบุหัวข้อปัญหา' });
 
     const tokenRow = (await req().input('tok', sql.NVarChar, tok)
@@ -9725,9 +9723,8 @@ app.put('/api/public/board/:token/issues/:id', async (request, res) => {
       .input('det', sql.NVarChar, detail.trim())
       .input('cat', sql.NVarChar, category || null)
       .input('pri', sql.NVarChar, priority || 'normal')
-      .input('dd',  sql.Date,     due_date || null)
       .input('nt',  sql.NVarChar, note || null)
-      .query(`UPDATE fu_issues SET detail=@det,category=@cat,priority=@pri,due_date=@dd,note=@nt,updated_at=GETDATE() WHERE id=@id`);
+      .query(`UPDATE fu_issues SET detail=@det,category=@cat,priority=@pri,note=@nt,updated_at=GETDATE() WHERE id=@id`);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -9962,7 +9959,8 @@ app.get('/api/fu/by-assignee', authRequired, async (request, res) => {
     const result = await req().query(`
       SELECT
         i.id, i.detail, i.note, i.branch, i.status, i.priority, i.category,
-        i.due_date, i.issue_url, i.assigned_to, i.created_by,
+        i.issue_url, i.assigned_to, i.created_by,
+        i.release_date, i.release_version, i.uat_date, i.pilot_date, i.golive_date,
         ISNULL(e.nickname, e.name)   AS assignee_name,
         ISNULL(e.nickname, e.name)   AS assigned_to_name,
         ISNULL(ec.nickname, ec.name) AS created_by_name,
@@ -9995,7 +9993,7 @@ app.get('/api/fu/search', authRequired, async (request, res) => {
       .input('idQ', sql.NVarChar, idOnly)
       .query(`
         SELECT TOP 50
-          i.id, i.detail, i.note, i.status, i.priority, i.category, i.due_date,
+          i.id, i.detail, i.note, i.status, i.priority, i.category,
           ISNULL(e.nickname, e.name) AS assigned_to_name,
           b.id AS board_id, b.name AS board_name,
           f.id AS folder_id, f.name AS folder_name
@@ -10210,10 +10208,10 @@ app.post('/api/fu/issues', authRequired, async (request, res) => {
       .input('bid',sql.Int,b.board_id).input('br',sql.NVarChar,b.branch||null)
       .input('det',sql.NVarChar,b.detail||null).input('cat',sql.NVarChar,b.category||null)
       .input('pri',sql.NVarChar,b.priority||'normal').input('at',sql.Int,b.assigned_to||null)
-      .input('dd',sql.Date,b.due_date||null).input('nt',sql.NVarChar,b.note||null)
+      .input('nt',sql.NVarChar,b.note||null)
       .input('cb',sql.Int,request.user.id).input('spref',sql.Int,b.sp_ref||null)
       .input('iu',sql.NVarChar,b.issue_url||null)
-      .query(`INSERT INTO fu_issues(board_id,branch,detail,category,priority,assigned_to,due_date,note,created_by,sp_ref,issue_url) OUTPUT INSERTED.id VALUES(@bid,@br,@det,@cat,@pri,@at,@dd,@nt,@cb,@spref,@iu)`);
+      .query(`INSERT INTO fu_issues(board_id,branch,detail,category,priority,assigned_to,note,created_by,sp_ref,issue_url) OUTPUT INSERTED.id VALUES(@bid,@br,@det,@cat,@pri,@at,@nt,@cb,@spref,@iu)`);
     const newId = r.recordset[0].id;
     if (b.category?.trim()) {
       try { await req().input('c',sql.NVarChar,b.category.trim())
@@ -10243,7 +10241,6 @@ app.put('/api/fu/issues/:id', authRequired, async (request, res) => {
     if (b.hasOwnProperty('priority'))    { r=r.input('pri',sql.NVarChar,b.priority);             updates.push('priority=@pri'); }
     if (b.hasOwnProperty('assigned_to')) { r=r.input('at',sql.Int,b.assigned_to??null);          updates.push('assigned_to=@at'); }
     if (b.hasOwnProperty('status'))      { r=r.input('st',sql.NVarChar,b.status);                updates.push('status=@st'); }
-    if (b.hasOwnProperty('due_date'))    { r=r.input('dd',sql.Date,b.due_date||null);            updates.push('due_date=@dd'); }
     if (b.hasOwnProperty('fix_date'))    { r=r.input('fd',sql.Date,b.fix_date||null);            updates.push('fix_date=@fd'); }
     if (b.hasOwnProperty('note'))        { r=r.input('nt',sql.NVarChar,b.note??null);            updates.push('note=@nt'); }
     if (b.hasOwnProperty('release_date')) { r=r.input('rd',sql.Date,b.release_date||null);        updates.push('release_date=@rd'); }
@@ -12748,8 +12745,8 @@ const FU_DIGEST_STATUSES = [
   { key: 'in_progress', label: 'กำลังตรวจสอบ' },
 ];
 
-function fmtDigestDueDate(d) {
-  if (!d) return 'ไม่มีกำหนด';
+function fmtDigestPlanDate(d) {
+  if (!d) return 'ยังไม่มีแผน Release';
   const dt = new Date(String(d).replace('Z',''));
   return `${dt.getDate()}.${dt.getMonth()+1}.${dt.getFullYear()}`;
 }
@@ -12765,12 +12762,13 @@ function fmtDigestOverdue(d) {
 async function sendFollowUpDigest() {
   try {
     const rows = (await req().query(`
-      SELECT i.id, i.due_date, i.status, ISNULL(e.nickname, e.name) AS assigned_to_name
+      SELECT i.id, COALESCE(i.golive_date, i.release_date) AS plan_date, i.status,
+             ISNULL(e.nickname, e.name) AS assigned_to_name
       FROM fu_issues i
       LEFT JOIN app_users au ON au.id = i.assigned_to
       LEFT JOIN employees e  ON e.id  = au.employee_id
       WHERE i.status IN ('pending','in_progress')
-      ORDER BY i.due_date ASC`)).recordset;
+      ORDER BY plan_date ASC`)).recordset;
 
     if (!rows.length) return; // ไม่มีอะไร ไม่ส่ง
 
@@ -12790,7 +12788,7 @@ async function sendFollowUpDigest() {
       Object.keys(byAssignee).sort().forEach(name => {
         msg += `${name}\n`;
         msg += byAssignee[name]
-          .map(r => `#${r.id} , ${fmtDigestDueDate(r.due_date)}${fmtDigestOverdue(r.due_date)}`)
+          .map(r => `#${r.id} , ${fmtDigestPlanDate(r.plan_date)}${fmtDigestOverdue(r.plan_date)}`)
           .join('\n') + '\n';
       });
     }
