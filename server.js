@@ -7630,6 +7630,7 @@ async function buildTriageAlert({ aiCalls = true } = {}) {
   const rows = (await req().query(`
     WITH pending AS (
       SELECT COALESCE(t.group_name, lgp.group_name) AS group_name, t.customer_name, t.group_id, t.source_msg_id,
+             t.message_time,
              lgp.pod_id, p.display_name AS pod_name,
              t.summary, t.message_text,
              ROW_NUMBER() OVER (PARTITION BY t.group_id ORDER BY t.message_time ASC) AS rn,
@@ -7646,7 +7647,7 @@ async function buildTriageAlert({ aiCalls = true } = {}) {
             AND t2.message_time <= DATEADD(hour, 24, t.message_time)
             AND (t2.category='thank' OR t2.sentiment='positive'))
     )
-    SELECT group_name, customer_name, group_id, source_msg_id, pod_id, pod_name, summary, message_text, waitmin, cnt
+    SELECT group_name, customer_name, group_id, source_msg_id, message_time, pod_id, pod_name, summary, message_text, waitmin, cnt
     FROM pending WHERE rn = 1
   `)).recordset;
 
@@ -7659,7 +7660,7 @@ async function buildTriageAlert({ aiCalls = true } = {}) {
       : (r.group_name || r.group_id || '(ไม่ทราบกลุ่ม)');
     // สรุปจาก AI ก่อน ถ้าไม่มีค่อยใช้ข้อความจริงแบบตัดสั้น
     const detail = clean(r.summary) || clean(r.message_text).slice(0, 120) || '';
-    return { name, groupId: r.group_id, sourceMsgId: r.source_msg_id,
+    return { name, groupId: r.group_id, sourceMsgId: r.source_msg_id, messageTime: r.message_time,
              podId: r.pod_id || null, pod: r.pod_name || 'ไม่มี Pod',
              waitMin: r.waitmin, cnt: r.cnt, detail };
   });
@@ -7699,6 +7700,35 @@ async function buildTriageAlert({ aiCalls = true } = {}) {
 // LINE รับข้อความละไม่เกิน 5,000 ตัวอักษร — ลิสต์ยาว ๆ ต้องตัดไม่ให้ push ถูกปฏิเสธ
 const TRIAGE_ALERT_MAX_PER_BUCKET = 12;
 
+// "รอ 2 ชม. 15 นาที" — บอกเป็นหน่วยที่อ่านแล้วเห็นภาพ ไม่ใช่ 135 นาที
+function triageWaitText(min) {
+  const m = Math.max(0, Math.round(min || 0));
+  if (m < 60) return `รอ ${m} นาที`;
+  const h = Math.floor(m / 60), mm = m % 60;
+  if (h < 24) return mm ? `รอ ${h} ชม. ${mm} นาที` : `รอ ${h} ชม.`;
+  const d = Math.floor(h / 24), hh = h % 24;
+  return hh ? `รอ ${d} วัน ${hh} ชม.` : `รอ ${d} วัน`;
+}
+
+// เวลาที่ลูกค้าทักเข้ามา + รอมานานแค่ไหน
+// DATETIME ในฐานข้อมูลเก็บเวลาไทยแบบเปลือยๆ (ไม่มี timezone) แต่ driver ติดป้าย UTC มาให้
+// จึงต้องอ่านกลับด้วย getUTC* ถึงจะได้ตัวเลขเดิมที่บันทึกไว้ — ถ้าใช้ toLocaleTimeString
+// แบบ Asia/Bangkok จะบวก 7 ชม. ซ้ำอีกรอบ (หน้าเว็บแก้ปัญหาเดียวกันด้วยการตัด 'Z' ทิ้ง)
+function triageTimeText(when, waitMin) {
+  const wait = triageWaitText(waitMin);
+  if (!when) return wait;
+  const d = new Date(when);
+  if (isNaN(d)) return wait;
+  const p2 = (n) => String(n).padStart(2, '0');
+  const hhmm = `${p2(d.getUTCHours())}:${p2(d.getUTCMinutes())}`;
+  const ymd  = `${d.getUTCFullYear()}-${p2(d.getUTCMonth() + 1)}-${p2(d.getUTCDate())}`;
+  // ข้ามวันแล้วต้องมีวันที่กำกับ ไม่งั้น "08:05 น." ของเมื่อวานอ่านแล้วนึกว่าเช้านี้
+  const stamp = ymd === bangkokToday()
+    ? `${hhmm} น.`
+    : `${p2(d.getUTCDate())}/${p2(d.getUTCMonth() + 1)} ${hhmm} น.`;
+  return `${stamp} · ${wait}`;
+}
+
 function formatTriageAlert(items, podLabel = null, perLinePod = false, minWait = 0) {
   // ขั้นต่ำที่จะแจ้ง — ตั้งต่อกลุ่มได้ เช่น 30 = ไม่ต้องกวนด้วยของที่เพิ่งรอ 15–30 นาที
   // (ของที่ค้างนานกว่านั้นยังส่งเสมอ ไม่หายไปไหน)
@@ -7716,7 +7746,10 @@ function formatTriageAlert(items, podLabel = null, perLinePod = false, minWait =
     if (showPod) rows.push(x.pod);
     rows.push(x.name + (x.cnt > 1 ? ` (${x.cnt} ข้อความ)` : ''));
     // เลข TASK = id ข้อความต้นทางจาก LineBotMonitor — ทีมใช้อ้างอิงกลับไปหาข้อความได้
-    if (x.sourceMsgId) rows.push('TASK #' + x.sourceMsgId);
+    // ต่อด้วยเวลาที่ลูกค้าทัก + รอมานานแค่ไหน จะได้รู้ว่าเร่งแค่ไหนโดยไม่ต้องเปิดระบบ
+    const when = triageTimeText(x.messageTime, x.waitMin);
+    if (x.sourceMsgId) rows.push('TASK #' + x.sourceMsgId + (when ? ' · ' + when : ''));
+    else if (when) rows.push(when);
     if (x.detail) rows.push(x.detail);
     return rows.join('\n');
   };
