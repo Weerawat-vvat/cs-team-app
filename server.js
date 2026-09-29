@@ -11111,6 +11111,8 @@ async function ensureServiceRequestsTable() {
     await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='project_id') ALTER TABLE service_requests ADD project_id INT NULL`);
     await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='requester_phone') ALTER TABLE service_requests ADD requester_phone NVARCHAR(50) NULL`);
     await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='requester_line_id') ALTER TABLE service_requests ADD requester_line_id NVARCHAR(200) NULL`);
+    await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='cancel_reason') ALTER TABLE service_requests ADD cancel_reason NVARCHAR(MAX) NULL`);
+    await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('service_requests') AND name='cancelled_at') ALTER TABLE service_requests ADD cancelled_at DATETIME NULL`);
     console.log('✅ service_requests table ready');
   } catch(e) { console.error('❌ service_requests error:', e.message); }
 }
@@ -11659,7 +11661,8 @@ app.get('/api/public/project/:token', async (request, res) => {
       .input('pid', sql.Int, proj.id)
       .query(`SELECT id, job_no, request_no, title, serve_type, status, request_date,
                      requester_name, requester_position, requester_phone, requester_line_id,
-                     brands, branches, period_start, period_end, objective, condition, created_at
+                     brands, branches, period_start, period_end, objective, condition, created_at,
+                     cancel_reason, cancelled_at
               FROM service_requests
               WHERE project_id=@pid
               ORDER BY created_at DESC`)).recordset;
@@ -11886,6 +11889,45 @@ app.put('/api/public/project/:token/jobs/:id', svcPubUpload.array('files', 10), 
                   VALUES(@sid,@fn,@fp,@fs,@mt)`);
       }
     }
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── POST /api/public/project/:token/jobs/:id/cancel ──────────
+// Public: customer cancels a job only while status is still 'received'
+app.post('/api/public/project/:token/jobs/:id/cancel', async (request, res) => {
+  try {
+    const token = request.params.token;
+    const id    = parseInt(request.params.id);
+    const proj  = (await req()
+      .input('token', sql.NVarChar, token)
+      .query(`SELECT id FROM service_projects WHERE public_token=@token AND is_active=1`))
+      .recordset[0];
+    if (!proj) return res.status(404).json({ error: 'Project not found' });
+    const reason = String((request.body && request.body.reason) || '').trim().slice(0, 1000) || null;
+    // Conditional update so a job picked up by staff in the meantime can't be cancelled
+    const result = await req()
+      .input('id',     sql.Int,      id)
+      .input('pid',    sql.Int,      proj.id)
+      .input('reason', sql.NVarChar, reason)
+      .query(`UPDATE service_requests SET status='cancelled', cancel_reason=@reason,
+                cancelled_at=GETDATE(), updated_at=GETDATE()
+              OUTPUT INSERTED.job_no, INSERTED.title, INSERTED.requester_name, INSERTED.serve_type
+              WHERE id=@id AND project_id=@pid AND status='received'`);
+    const row = result.recordset[0];
+    if (!row) {
+      const exists = (await req().input('id', sql.Int, id).input('pid', sql.Int, proj.id)
+        .query(`SELECT status FROM service_requests WHERE id=@id AND project_id=@pid`)).recordset[0];
+      if (!exists) return res.status(404).json({ error: 'Job not found' });
+      return res.status(403).json({ error: 'ไม่สามารถยกเลิกได้ เนื่องจากมีเจ้าหน้าที่รับงานแล้ว' });
+    }
+    try {
+      const msg = `\n🚫 [ลูกค้ายกเลิกงานบริการ] ${row.job_no}` +
+        (row.title          ? `\nหัวข้อ: ${row.title}` : '') +
+        (row.requester_name ? `\nผู้แจ้ง: ${row.requester_name}` : '') +
+        (reason             ? `\nเหตุผล: ${reason}` : '');
+      await sendLineNotify(msg, 'service_request', { serveType: row.serve_type, projectId: proj.id });
+    } catch(e) { console.warn('service_request cancel line notify failed:', e.message); }
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

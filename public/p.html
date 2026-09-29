@@ -107,6 +107,14 @@ tbody td{padding:.65rem .9rem;font-size:.83rem;color:var(--text);vertical-align:
 .badge.in_progress{background:#fef3c7;color:#b45309}
 .badge.testing{background:#ffedd5;color:#c2410c}
 .badge.delivered{background:#dcfce7;color:#15803d}
+.badge.cancelled{background:#f1f5f9;color:#64748b}
+.btn-cancel-row{
+  background:none;border:1.5px solid #fecaca;border-radius:7px;
+  padding:.22rem .6rem;font-size:.72rem;font-weight:700;cursor:pointer;
+  color:#b91c1c;font-family:inherit;transition:.15s;white-space:nowrap;
+}
+.btn-cancel-row:hover{border-color:#ef4444;background:#fef2f2}
+.btn-cancel-row:disabled{opacity:.5;cursor:wait}
 .stype-chip{display:inline-block;font-size:.7rem;font-weight:700;padding:.1rem .42rem;border-radius:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .stype-chip.promo{background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0}
 .stype-chip.quick{background:#fef9c3;color:#92400e;border:1px solid #fde68a}
@@ -346,6 +354,9 @@ tbody td{padding:.65rem .9rem;font-size:.83rem;color:var(--text);vertical-align:
     </div>
     <div class="stat-chip" data-filter="delivered" onclick="setFilter('delivered',this)">
       ✅ ส่งมอบ <span class="cnt" id="cnt-delivered">0</span>
+    </div>
+    <div class="stat-chip" data-filter="cancelled" onclick="setFilter('cancelled',this)">
+      🚫 ยกเลิก <span class="cnt" id="cnt-cancelled">0</span>
     </div>
   </div>
 
@@ -644,6 +655,7 @@ const STATUS_META = {
   in_progress: { label:'⚙️ กำลังทำ',   cls:'in_progress' },
   testing:     { label:'🧪 ทดสอบ',      cls:'testing'     },
   delivered:   { label:'✅ ส่งมอบ',     cls:'delivered'   },
+  cancelled:   { label:'🚫 ยกเลิก',     cls:'cancelled'   },
 };
 
 /* ══ INIT ══════════════════════════════════════════════ */
@@ -689,7 +701,7 @@ function buildSuggestions(jobs){
 
 /* ══ STATS & FILTER ═════════════════════════════════════ */
 function updateStats(jobs){
-  const keys=['received','in_progress','testing','delivered'];
+  const keys=['received','in_progress','testing','delivered','cancelled'];
   const counts={all:jobs.length};
   keys.forEach(k=>counts[k]=jobs.filter(j=>j.status===k).length);
   document.getElementById('cnt-all').textContent=counts.all;
@@ -752,6 +764,7 @@ function renderTable(){
     const hasDocs  = ['testing','delivered'].includes(j.status);
     const actionCell = [
       canEdit  ? `<button class="btn-edit-row" onclick="openEdit(${j.id},'${esc(j.job_no||'')}')">✏️ แก้ไข</button>` : '',
+      canEdit  ? `<button class="btn-cancel-row" onclick="cancelJob(${j.id},'${esc(j.job_no||'')}',this)">🚫 ยกเลิก</button>` : '',
       hasDocs  ? `<button class="btn-docs"     onclick="openDocViewer(${j.id},'${esc(j.job_no||'')}','${esc(j.title||'')}')">📄 เอกสาร</button>` : '',
     ].filter(Boolean).join(' ');
     return `<tr>
@@ -763,7 +776,7 @@ function renderTable(){
       <td class="col-hide" style="font-size:.78rem;color:#374151;white-space:nowrap">${esc(j.requester_name||'—')}</td>
       <td class="col-hide" style="font-size:.76rem;color:#475569;white-space:nowrap">${period}</td>
       <td class="col-hide"><span class="stype-chip ${stm.cls}">${stm.label}</span></td>
-      <td><span class="badge ${sm.cls}">${sm.label}</span></td>
+      <td><span class="badge ${sm.cls}"${j.cancel_reason?` title="เหตุผล: ${esc(j.cancel_reason)}"`:''}>${sm.label}</span></td>
       <td style="font-size:.78rem;color:var(--sub);white-space:nowrap">${dt}</td>
       <td style="white-space:nowrap;text-align:right">${actionCell}</td>
     </tr>`;
@@ -832,6 +845,23 @@ async function openEdit(jobId, jobNo){
     document.getElementById('form-overlay').classList.add('open');
     document.body.style.overflow='hidden';
   }catch(e){ alert('โหลดข้อมูลไม่สำเร็จ'); }
+}
+
+/* ══ CANCEL ══════════════════════════════════════════════ */
+async function cancelJob(jobId, jobNo, btn){
+  const reason = prompt(`ยืนยันยกเลิกรายการ ${jobNo} ?\n\nระบุเหตุผล (ไม่บังคับ) แล้วกด OK เพื่อยืนยัน`, '');
+  if(reason===null) return;
+  if(btn) btn.disabled=true;
+  try{
+    const r = await fetch(`/api/public/project/${TOKEN}/jobs/${jobId}/cancel`,{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ reason: reason.trim() })
+    });
+    let res;
+    try { res = await r.json(); } catch { res = { ok:false, error:`Server error (HTTP ${r.status})` }; }
+    if(!res.ok) alert('ยกเลิกไม่สำเร็จ: '+(res.error||'unknown'));
+  }catch(e){ alert('ยกเลิกไม่สำเร็จ: '+e.message); }
+  refreshJobs();
 }
 
 /* ══ COMBO ═══════════════════════════════════════════════ */

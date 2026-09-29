@@ -475,6 +475,7 @@ textarea{resize:vertical;min-height:80px}
 .svc-status-in_progress{background:#fef9c3;color:#854d0e}
 .svc-status-testing{background:#ffedd5;color:#c2410c}
 .svc-status-delivered{background:#dcfce7;color:#15803d}
+.svc-status-cancelled{background:#f1f5f9;color:#64748b}
 </style>
 </head>
 <body>
@@ -2338,6 +2339,10 @@ textarea{resize:vertical;min-height:80px}
     <div style="background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem">
       <span style="font-size:.72rem;color:#15803d">✅ ส่งมอบ</span>
       <span style="font-size:1.1rem;font-weight:800;color:#15803d" id="svc-stat-delivered">—</span>
+    </div>
+    <div style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem">
+      <span style="font-size:.72rem;color:#64748b">🚫 ยกเลิก</span>
+      <span style="font-size:1.1rem;font-weight:800;color:#64748b" id="svc-stat-cancelled">—</span>
     </div>
   </div>
 
@@ -20262,6 +20267,7 @@ const SVC_STATUSES = [
   {key:'in_progress', label:'⚙️ กำลังทำ',  col:'#b45309', bg:'#fef9c3'},
   {key:'testing',     label:'🧪 ทดสอบ',    col:'#c2410c', bg:'#ffedd5'},
   {key:'delivered',   label:'✅ ส่งมอบ',   col:'#15803d', bg:'#dcfce7'},
+  {key:'cancelled',   label:'🚫 ยกเลิก',   col:'#64748b', bg:'#f1f5f9'},
 ];
 const SVC_CTYPE_LABEL = {fixed:'💵 เงินสด',discount:'🏷️ ส่วนลด',redeem:'🎁 แลกซื้อ'};
 let _svcAllRows = [];
@@ -20336,7 +20342,7 @@ async function svcLoadList(){
   const all = _svcAllRows;
   const el = id=>document.getElementById(id);
   if(el('svc-stat-total'))       el('svc-stat-total').textContent = all.length;
-  ['received','in_progress','testing','delivered'].forEach(s=>{
+  ['received','in_progress','testing','delivered','cancelled'].forEach(s=>{
     if(el('svc-stat-'+s)) el('svc-stat-'+s).textContent = all.filter(r=>r.status===s).length;
   });
 
@@ -20936,6 +20942,7 @@ async function svcOpenDetail(id){
             onchange="const s=SVC_STATUSES.find(x=>x.key===this.value)||{bg:'#f1f5f9',col:'#64748b'};this.style.background=s.bg;this.style.color=s.col;this.style.borderColor=s.col+'40';svcToggleProofUpload(this.value)">
             ${statusOpts}
           </select>
+          ${r.status==='cancelled'&&(r.cancel_reason||r.cancelled_at)?`<div style="margin-top:.4rem;font-size:.75rem;color:#64748b;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:.4rem .6rem">🚫 ลูกค้ายกเลิก${r.cancelled_at?` เมื่อ ${new Date(r.cancelled_at).toLocaleString('th-TH',{day:'numeric',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'})}`:''}${r.cancel_reason?`<br>เหตุผล: ${escHtml(r.cancel_reason)}`:''}</div>`:''}
         </div>
 
         <!-- Proof upload area — shown for testing / delivered -->
