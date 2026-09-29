@@ -91,9 +91,9 @@ table{width:100%;border-collapse:collapse;table-layout:fixed;min-width:1100px}
 colgroup .cw-jobno  {width:124px}
 colgroup .cw-reqno  {width:96px}
 colgroup .cw-title  {width:auto}
-colgroup .cw-person {width:110px}
-colgroup .cw-period {width:168px}
-colgroup .cw-type   {width:104px}
+colgroup .cw-person {width:150px}
+colgroup .cw-period {width:172px}
+colgroup .cw-type   {width:124px}
 colgroup .cw-status {width:92px}
 colgroup .cw-date   {width:88px}
 colgroup .cw-action {width:120px}
@@ -107,6 +107,7 @@ tbody tr:hover{background:var(--soft)}
 tbody td{padding:.9rem 1rem;font-size:.85rem;color:var(--ink);vertical-align:middle}
 .td-jobno{font-family:'IBM Plex Mono',monospace;font-size:.76rem;font-weight:500;color:var(--ink-2);white-space:nowrap}
 .td-title{font-weight:500;white-space:normal;overflow-wrap:anywhere;line-height:1.45;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.td-clip{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .td-sub{font-size:.75rem;color:var(--ink-3);margin-top:.1rem}
 .badge{display:inline-flex;align-items:center;gap:.4rem;font-size:.78rem;color:var(--ink-2);white-space:nowrap}
 .badge::before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0}
@@ -810,9 +811,9 @@ function renderTable(){
       <td>
         <div class="td-title" title="${esc(j.title||'')}">${esc(j.title||'(ไม่มีชื่อ)')}</div>
       </td>
-      <td class="col-hide" style="font-size:.78rem;color:#374151;white-space:nowrap">${esc(j.requester_name||'—')}</td>
-      <td class="col-hide" style="font-size:.76rem;color:#475569;white-space:nowrap">${period}</td>
-      <td class="col-hide"><span class="stype-chip ${stm.cls}">${stm.label}</span></td>
+      <td class="col-hide td-clip" style="font-size:.8rem;color:var(--ink-2)" title="${esc(j.requester_name||'')}">${esc(j.requester_name||'—')}</td>
+      <td class="col-hide td-clip" style="font-size:.78rem;color:var(--ink-2)">${period}</td>
+      <td class="col-hide"><span class="stype-chip ${stm.cls}" title="${esc(stm.label)}">${stm.label}</span></td>
       <td><span class="badge ${sm.cls}"${j.cancel_reason?` title="เหตุผล: ${esc(j.cancel_reason)}"`:''}>${sm.label}</span></td>
       <td style="font-size:.78rem;color:var(--sub);white-space:nowrap">${dt}</td>
       <td style="white-space:nowrap;text-align:right">${actionCell}</td>
