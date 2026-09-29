@@ -165,10 +165,10 @@ tr:hover td{background:#faf9f6}
 
 /* ── FORMS ── */
 .form-group{margin-bottom:.9rem}
-.form-group label{display:block;font-size:.82rem;font-weight:600;margin-bottom:.3rem;color:var(--muted)}
+.form-group label{display:block;font-size:.8rem;font-weight:500;margin-bottom:.35rem;color:#5b616b}
 .form-group input,.form-group select,.form-group textarea{
-  width:100%;padding:.52rem .75rem;border:1.5px solid var(--border);border-radius:8px;
-  font-size:.85rem;font-family:inherit;background:#fff;color:var(--text);transition:.2s
+  width:100%;padding:.58rem .8rem;border:1px solid var(--border);border-radius:10px;
+  font-size:.86rem;font-family:inherit;background:#fff;color:var(--text);transition:border-color .15s,box-shadow .15s
 }
 .form-group input:focus,.form-group select:focus,.form-group textarea:focus{
   outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-soft)
@@ -176,16 +176,17 @@ tr:hover td{background:#faf9f6}
 textarea{resize:vertical;min-height:80px}
 
 /* ── BUTTONS ── */
-.btn{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem 1rem;border-radius:8px;border:none;cursor:pointer;font-size:.83rem;font-weight:600;transition:.2s;white-space:nowrap}
-.btn:hover{opacity:.85;transform:translateY(-1px)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;padding:.5rem 1.05rem;border-radius:999px;border:none;cursor:pointer;font-size:.83rem;font-weight:500;transition:background .15s,border-color .15s,color .15s,opacity .15s;white-space:nowrap;font-family:inherit}
+.btn:hover{opacity:.9}
+.btn:disabled{opacity:.55;cursor:not-allowed}
 .btn-primary{background:var(--primary);color:#fff}
 .btn-primary:hover{background:var(--primary-dk);opacity:1}
-.btn-success{background:var(--success);color:#fff}
-.btn-danger{background:var(--danger);color:#fff}
-.btn-warn{background:var(--warn);color:#fff}
+.btn-success{background:#3f7a5a;color:#fff}
+.btn-danger{background:#b04a40;color:#fff}
+.btn-warn{background:#a2702a;color:#fff}
 .btn-cc{background:var(--cc);color:#fff}
-.btn-sm{padding:.3rem .65rem;font-size:.75rem}
-.btn-ghost{background:transparent;border:1.5px solid var(--border);color:var(--text)}
+.btn-sm{padding:.34rem .8rem;font-size:.76rem}
+.btn-ghost{background:#fff;border:1px solid var(--border);color:#3a3f46}
 .btn-ghost:hover{background:#f0eee9;border-color:#d6d2c9}
 .btn-group{display:flex;gap:.5rem;flex-wrap:wrap}
 /* ── DATE RANGE BAR ── */
@@ -196,12 +197,14 @@ textarea{resize:vertical;min-height:80px}
 .drb-custom{display:none;align-items:center;gap:.45rem;flex-wrap:wrap;margin-top:.35rem}
 
 /* ── MODAL ── */
-.overlay{display:none;position:fixed;inset:0;background:#0006;z-index:200;align-items:center;justify-content:center}
+.overlay{display:none;position:fixed;inset:0;background:rgba(36,39,44,.32);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);z-index:200;align-items:center;justify-content:center;padding:1rem}
 .overlay.open{display:flex}
-.modal{background:#fff;border:1px solid var(--border);border-radius:16px;padding:1.5rem;max-width:520px;width:95%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px #0003}
-.modal-title{font-size:1rem;font-weight:700;margin-bottom:1.2rem;display:flex;justify-content:space-between;align-items:center;color:var(--text)}
-.modal-close{background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--muted);line-height:1}
-.modal-close:hover{color:var(--danger)}
+.modal{background:#fff;border:1px solid var(--border);border-radius:18px;padding:1.5rem 1.6rem;max-width:520px;width:95%;max-height:90vh;overflow-y:auto;box-shadow:0 1px 2px rgba(0,0,0,.04),0 24px 64px -16px rgba(36,39,44,.28);animation:modalRise .24s cubic-bezier(.2,.8,.2,1)}
+@keyframes modalRise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.modal-head{display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding-bottom:.85rem;margin-bottom:1.1rem;border-bottom:1px solid var(--line-2)}
+.modal-title{font-size:1.08rem;font-weight:600;letter-spacing:-.005em;margin-bottom:1.1rem;padding-bottom:.85rem;border-bottom:1px solid var(--line-2);display:flex;justify-content:space-between;align-items:center;gap:.75rem;color:var(--text)}
+.modal-close{background:none;border:none;font-size:1.35rem;cursor:pointer;color:#8a8f97;line-height:1;width:32px;height:32px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s,color .15s}
+.modal-close:hover{background:#f0eee9;color:var(--text)}
 
 /* ── WEEK NAV ── */
 .week-nav{display:flex;align-items:center;gap:.75rem;margin-bottom:1rem}
@@ -438,7 +441,7 @@ textarea{resize:vertical;min-height:80px}
 .agent-chip{display:inline-flex;align-items:center;gap:.35rem;background:#f0eee9;border:1px solid var(--border);border-radius:20px;padding:.2rem .65rem;font-size:.75rem;cursor:default}
 .agent-chip b{color:var(--text)}
 /* peak/trend section */
-.section-divider{font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin:1.25rem 0 .6rem;display:flex;align-items:center;gap:.5rem}
+.section-divider{font-size:.72rem;font-weight:700;color:var(--muted);letter-spacing:.02em;margin:1.25rem 0 .6rem;display:flex;align-items:center;gap:.5rem}
 .section-divider::after{content:'';flex:1;height:1px;background:var(--border)}
 /* target tracker */
 .target-tracker-bar{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:.6rem 1rem;margin-bottom:.75rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
@@ -1706,7 +1709,7 @@ textarea{resize:vertical;min-height:80px}
 
     <!-- Step indicator -->
     <div style="display:flex;gap:0;margin-bottom:1rem;border-radius:8px;overflow:hidden;border:1px solid var(--border)">
-      <div id="tk-imp-step1-tab" style="flex:1;text-align:center;padding:.35rem;font-size:.76rem;font-weight:700;background:#eff6ff;color:#1d4ed8;border-right:1px solid var(--border)">① เตรียมไฟล์</div>
+      <div id="tk-imp-step1-tab" style="flex:1;text-align:center;padding:.35rem;font-size:.76rem;font-weight:700;background:#eef4f1;color:#2a544d;border-right:1px solid var(--border)">① เตรียมไฟล์</div>
       <div id="tk-imp-step2-tab" style="flex:1;text-align:center;padding:.35rem;font-size:.76rem;font-weight:600;background:#faf9f6;color:#8a8f97;border-right:1px solid var(--border)">② ตรวจสอบ</div>
       <div id="tk-imp-step3-tab" style="flex:1;text-align:center;padding:.35rem;font-size:.76rem;font-weight:600;background:#faf9f6;color:#8a8f97">③ ผลลัพธ์</div>
     </div>
@@ -1734,7 +1737,7 @@ textarea{resize:vertical;min-height:80px}
       <div id="tk-imp-dropzone"
         style="border:2px dashed #d6d2c9;border-radius:10px;padding:2rem;text-align:center;cursor:pointer;transition:border .2s;background:#fafafa"
         onclick="document.getElementById('tk-imp-file').click()"
-        ondragover="event.preventDefault();this.style.borderColor='#3b82f6';this.style.background='#eff6ff'"
+        ondragover="event.preventDefault();this.style.borderColor='#35685f';this.style.background='#eef4f1'"
         ondragleave="this.style.borderColor='#d6d2c9';this.style.background='#fafafa'"
         ondrop="tkImpDrop(event)">
         <svg style="width:32px;height:32px;color:#8a8f97;margin-bottom:.5rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -1789,8 +1792,8 @@ textarea{resize:vertical;min-height:80px}
 <!-- ═══════════════════ MODAL: CREATE CASE ═══════════════════ -->
 <div class="overlay" id="modal-create-case">
   <div class="modal" style="max-width:820px;max-height:92vh;overflow-y:auto;padding:1.25rem">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
-      <div style="font-size:1rem;font-weight:800">เปิด Case</div>
+    <div class="modal-head">
+      <div style="font-size:1.08rem;font-weight:600;letter-spacing:-.005em">เปิด Case</div>
       <div style="display:flex;align-items:center;gap:.6rem">
         <div id="cc-saved-msg" style="font-size:.78rem;color:#16a34a;display:none">บันทึกแล้ว — Case #<span id="cc-saved-id"></span></div>
         <button class="modal-close" onclick="closeModal('modal-create-case')">×</button>
@@ -1816,18 +1819,18 @@ textarea{resize:vertical;min-height:80px}
       <div class="card" style="padding:.85rem 1rem;margin-bottom:.65rem">
         <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">ประเภท / หัวข้อ</div>
         <div class="form-group">
-          <label>ประเภทปัญหา <span style="color:#ef4444">*</span></label>
+          <label>ประเภทปัญหา <span style="color:#b04a40">*</span></label>
           <select id="cc-problem-type" onchange="ccFilterSubjects()">
             <option value="">— เลือกประเภทปัญหา —</option>
           </select>
         </div>
         <div class="form-group">
-          <label>หัวข้อ <span style="color:#ef4444">*</span></label>
+          <label>หัวข้อ <span style="color:#b04a40">*</span></label>
           <select id="cc-subject" onchange="ccOnSubjectChange()">
             <option value="">— เลือกหัวข้อ —</option>
           </select>
           <div id="cc-time-hint" style="display:none;margin-top:.3rem;background:#fef3c7;border:1px solid #fde68a;border-radius:6px;padding:.3rem .65rem;font-size:.75rem;color:#92400e;font-weight:600">
-            ⏱️ ต้องดำเนินการภายใน <span id="cc-time-value"></span> นาที
+            ต้องดำเนินการภายใน <span id="cc-time-value"></span> นาที
           </div>
         </div>
         <div class="form-group">
@@ -1842,11 +1845,11 @@ textarea{resize:vertical;min-height:80px}
       <div class="card" style="padding:.85rem 1rem;margin-bottom:.65rem">
         <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">รายละเอียด</div>
         <div class="form-group">
-          <label>อาการ / รายละเอียดปัญหา <span style="color:#ef4444">*</span></label>
+          <label>อาการ / รายละเอียดปัญหา <span style="color:#b04a40">*</span></label>
           <textarea id="cc-description" rows="3" placeholder="อธิบายปัญหา..."></textarea>
         </div>
         <div class="form-group">
-          <label>Solution ที่แก้ไข <span style="color:#ef4444">*</span></label>
+          <label>Solution ที่แก้ไข <span style="color:#b04a40">*</span></label>
           <textarea id="cc-solution" rows="3" placeholder="วิธีแก้ไขที่ดำเนินการ..."></textarea>
         </div>
       </div>
@@ -1914,10 +1917,10 @@ textarea{resize:vertical;min-height:80px}
       <!-- Submit -->
       <div style="display:flex;gap:.5rem">
         <button class="btn btn-ghost" style="flex:0 0 auto;padding:.65rem 1rem" onclick="resetCreateCase()">
-          🔄 ล้างฟอร์ม
+          ล้างฟอร์ม
         </button>
         <button class="btn btn-primary" style="flex:1;padding:.65rem;font-size:.9rem" onclick="saveCreateCase()">
-          💾 บันทึก Case
+          บันทึก Case
         </button>
       </div>
     </div>
@@ -2017,12 +2020,12 @@ textarea{resize:vertical;min-height:80px}
 <div class="overlay" id="modal-fu-import" onclick="if(event.target===this)closeModal('modal-fu-import')">
   <div class="modal" style="max-width:820px;width:95vw;padding:1.2rem;max-height:88vh;display:flex;flex-direction:column">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem;flex-shrink:0">
-      <div style="font-size:1rem;font-weight:800">Import Issues จาก CSV</div>
+      <div style="font-size:1.08rem;font-weight:600;letter-spacing:-.005em">Import Issues จาก CSV</div>
       <button onclick="closeModal('modal-fu-import')" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#8a8f97;line-height:1">×</button>
     </div>
 
     <!-- Info bar -->
-    <div id="fu-import-info" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:.6rem .9rem;font-size:.78rem;color:#1e40af;margin-bottom:.75rem;flex-shrink:0">
+    <div id="fu-import-info" style="background:#eef4f1;border:1px solid #c9dbd5;border-radius:8px;padding:.6rem .9rem;font-size:.78rem;color:#2a544d;margin-bottom:.75rem;flex-shrink:0">
       กำลังรอไฟล์…
     </div>
 
@@ -2039,7 +2042,7 @@ textarea{resize:vertical;min-height:80px}
       <button onclick="closeModal('modal-fu-import')" style="background:#f0eee9;color:#3a3f46;border:none;border-radius:7px;padding:.45rem 1rem;font-size:.82rem;font-weight:600;cursor:pointer">ยกเลิก</button>
       <button id="fu-import-confirm-btn" onclick="fuConfirmImport()" disabled
         style="background:#ea580c;color:#fff;border:none;border-radius:7px;padding:.45rem 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer;opacity:.5">
-        ✅ Import ทั้งหมด
+        Import ทั้งหมด
       </button>
     </div>
   </div>
@@ -2047,8 +2050,8 @@ textarea{resize:vertical;min-height:80px}
 
 <div class="overlay" id="modal-fu-add-issue">
   <div class="modal" style="max-width:500px;padding:1.2rem">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
-      <div style="font-size:1rem;font-weight:800">เพิ่ม Issue ใหม่</div>
+    <div class="modal-head">
+      <div style="font-size:1.08rem;font-weight:600;letter-spacing:-.005em">เพิ่ม Issue ใหม่</div>
       <button class="modal-close" onclick="closeModal('modal-fu-add-issue')">×</button>
     </div>
 
@@ -2063,7 +2066,7 @@ textarea{resize:vertical;min-height:80px}
           style="white-space:nowrap;border:1.5px solid #7c3aed;background:#faf5ff;color:#7c3aed;border-radius:7px;padding:.35rem .8rem;font-size:.78rem;font-weight:700;cursor:pointer;font-family:inherit">
           ดึงข้อมูล
         </button>
-        <button id="fu-add-sp-clear" onclick="fuClearSpRef()" style="display:none;border:1px solid #fecaca;background:#fef2f2;color:#dc2626;border-radius:7px;padding:.35rem .6rem;font-size:.78rem;cursor:pointer;font-family:inherit">✕</button>
+        <button id="fu-add-sp-clear" onclick="fuClearSpRef()" style="display:none;border:1px solid #e8c9c3;background:#f7ebe8;color:#b04a40;border-radius:7px;padding:.35rem .6rem;font-size:.78rem;cursor:pointer;font-family:inherit">✕</button>
       </div>
       <div id="fu-add-sp-preview" style="display:none;margin-top:.45rem;padding:.4rem .6rem;background:#fff;border:1px solid #e9d5ff;border-radius:7px;font-size:.78rem">
         <div style="font-weight:700;color:#24272c" id="fu-add-sp-company"></div>
@@ -2072,7 +2075,7 @@ textarea{resize:vertical;min-height:80px}
     </div>
 
     <div class="form-group">
-      <label>หัวข้อ <span style="color:#ef4444">*</span></label>
+      <label>หัวข้อ <span style="color:#b04a40">*</span></label>
       <input id="fu-add-title" placeholder="ระบุหัวข้อปัญหา..."
         style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.88rem;font-family:inherit;outline:none"/>
     </div>
@@ -2105,8 +2108,8 @@ textarea{resize:vertical;min-height:80px}
       <input id="fu-add-issue-url" type="url" placeholder="https://dev.azure.com/.../_workitems/edit/13415/"
         style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.83rem;font-family:inherit;outline:none"
         oninput="fuAddIssueUrlPreview(this.value)"/>
-      <div id="fu-add-issue-url-preview" style="display:none;margin-top:.3rem;font-size:.75rem;color:#1d4ed8">
-        🆔 Issue ID: <a id="fu-add-issue-url-link" href="" target="_blank" style="font-weight:700;color:#1d4ed8"></a>
+      <div id="fu-add-issue-url-preview" style="display:none;margin-top:.3rem;font-size:.75rem;color:#2a544d">
+        Issue ID: <a id="fu-add-issue-url-link" href="" target="_blank" style="font-weight:700;color:#2a544d"></a>
       </div>
     </div>
     <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:.75rem">
@@ -2120,8 +2123,8 @@ textarea{resize:vertical;min-height:80px}
 <!-- Edit Ticket Modal -->
 <div class="overlay" id="modal-edit-ticket-full">
   <div class="modal" style="max-width:700px;max-height:92vh;overflow-y:auto;padding:1.2rem">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
-      <div style="font-size:1rem;font-weight:800">แก้ไข Case <span id="etf-id" style="color:var(--hd)"></span></div>
+    <div class="modal-head">
+      <div style="font-size:1.08rem;font-weight:600;letter-spacing:-.005em">แก้ไข Case <span id="etf-id" style="color:#6f747c;font-family:'IBM Plex Mono',monospace;font-weight:500"></span></div>
       <button class="modal-close" onclick="closeModal('modal-edit-ticket-full')">×</button>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
@@ -2134,7 +2137,7 @@ textarea{resize:vertical;min-height:80px}
         <div class="form-group"><label>หัวข้อ</label>
           <select id="etf-subject"><option value="">— เลือก —</option></select>
           <div id="etf-time-hint" style="display:none;margin-top:.25rem;background:#fef3c7;border:1px solid #fde68a;border-radius:6px;padding:.25rem .6rem;font-size:.73rem;color:#92400e;font-weight:600">
-            ⏱️ ต้องดำเนินการภายใน <span id="etf-time-val"></span> นาที
+            ต้องดำเนินการภายใน <span id="etf-time-val"></span> นาที
           </div>
         </div>
         <div class="form-group"><label>ประเภทโปรแกรม</label>
@@ -2244,8 +2247,8 @@ textarea{resize:vertical;min-height:80px}
 <!-- ═══════════════════ MODAL: ADD SP STANDALONE ═══════════════════ -->
 <div class="overlay" id="modal-add-sp">
   <div class="modal" style="max-width:820px;max-height:92vh;overflow-y:auto;padding:1.25rem">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
-      <div style="font-size:1rem;font-weight:800">เปิดงาน Specialist</div>
+    <div class="modal-head">
+      <div style="font-size:1.08rem;font-weight:600;letter-spacing:-.005em">เปิดงาน Specialist</div>
       <button class="modal-close" onclick="closeModal('modal-add-sp')">×</button>
     </div>
     <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:.85rem">
@@ -2274,7 +2277,7 @@ textarea{resize:vertical;min-height:80px}
           </select>
         </div>
         <div class="form-group" style="margin-bottom:0">
-          <label>หัวข้อ <span style="color:#ef4444">*</span></label>
+          <label>หัวข้อ <span style="color:#b04a40">*</span></label>
           <select id="sps-subject">
             <option value="">— เลือกหัวข้อ —</option>
           </select>
@@ -2324,7 +2327,7 @@ textarea{resize:vertical;min-height:80px}
       <div class="card" style="padding:.85rem 1rem;margin-bottom:.65rem">
         <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">มอบหมาย</div>
         <div class="form-group">
-          <label>ทีม Specialist <span style="color:#ef4444">*</span></label>
+          <label>ทีม Specialist <span style="color:#b04a40">*</span></label>
           <select id="sps-team">
             <option value="">เลือกทีม</option>
           </select>
@@ -2346,7 +2349,7 @@ textarea{resize:vertical;min-height:80px}
 
       <!-- Buttons -->
       <button class="btn btn-primary" style="width:100%;padding:.65rem;font-size:.9rem" onclick="saveAddSpStandalone()">
-        💾 บันทึกงาน SP
+        บันทึกงาน SP
       </button>
       <button class="btn btn-ghost" style="width:100%;margin-top:.4rem" onclick="closeModal('modal-add-sp')">
         ยกเลิก
@@ -2360,8 +2363,8 @@ textarea{resize:vertical;min-height:80px}
 <!-- ═══════════════════ MODAL: EDIT SP STANDALONE ═══════════════════ -->
 <div class="overlay" id="modal-edit-sp">
   <div class="modal" style="max-width:820px;max-height:92vh;overflow-y:auto;padding:1.25rem">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
-      <div style="font-size:1rem;font-weight:800">แก้ไขงาน Specialist</div>
+    <div class="modal-head">
+      <div style="font-size:1.08rem;font-weight:600;letter-spacing:-.005em">แก้ไขงาน Specialist</div>
       <button class="modal-close" onclick="closeModal('modal-edit-sp')">×</button>
     </div>
     <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:.85rem">
@@ -2459,7 +2462,7 @@ textarea{resize:vertical;min-height:80px}
 
       <!-- Buttons -->
       <button class="btn btn-primary" style="width:100%;padding:.65rem;font-size:.9rem" onclick="saveEditSp()">
-        💾 บันทึกการแก้ไข
+        บันทึกการแก้ไข
       </button>
       <button class="btn btn-ghost" style="width:100%;margin-top:.4rem" onclick="closeModal('modal-edit-sp')">
         ยกเลิก
@@ -2600,16 +2603,16 @@ textarea{resize:vertical;min-height:80px}
 
 <!-- ═══════════════════ MODAL: SERVICE FORM ═══════════════════ -->
 <div class="overlay" id="modal-svc-form" onclick="if(event.target===this)event.stopPropagation()">
-  <div class="modal" style="max-width:680px;max-height:94vh;overflow-y:auto;padding:0;background:#faf9f6;border-radius:16px;box-shadow:0 24px 64px rgba(0,0,0,.22)">
+  <div class="modal" style="max-width:680px;max-height:94vh;overflow-y:auto;padding:0;background:#faf9f6">
 
     <!-- Header -->
-    <div style="background:linear-gradient(135deg,#1b1d21 0%,#1e40af 60%,#2563eb 100%);padding:1.1rem 1.4rem;display:flex;align-items:center;gap:.8rem;position:sticky;top:0;z-index:10;border-radius:16px 16px 0 0">
-      <div style="width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;backdrop-filter:blur(4px)"><i class=i-bell></i></div>
+    <div style="background:#fff;padding:1.2rem 1.5rem 1rem;display:flex;align-items:flex-start;gap:.8rem;position:sticky;top:0;z-index:10;border-bottom:1px solid var(--line-2)">
       <div style="flex:1">
-        <div style="color:#fff;font-size:.95rem;font-weight:700;letter-spacing:.01em">แจ้งขอบริการใหม่</div>
-        <div style="color:#93c5fd;font-size:.7rem;margin-top:.1rem;font-weight:400">Service Request · กรุณากรอกข้อมูลให้ครบถ้วน</div>
+        <div class="svc-kicker" style="margin-bottom:.2rem">Service request</div>
+        <div style="color:var(--text);font-size:1.12rem;font-weight:600;letter-spacing:-.005em">แจ้งขอบริการใหม่</div>
+        <div style="color:#6f747c;font-size:.78rem;margin-top:.15rem">กรุณากรอกข้อมูลให้ครบถ้วน</div>
       </div>
-      <button onclick="closeModal('modal-svc-form')" style="width:28px;height:28px;border-radius:8px;background:rgba(255,255,255,.12);border:none;color:#d6d2c9;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s;line-height:1" onmouseover="this.style.background='rgba(255,255,255,.22)'" onmouseout="this.style.background='rgba(255,255,255,.12)'">×</button>
+      <button class="modal-close" onclick="closeModal('modal-svc-form')" aria-label="ปิด">×</button>
     </div>
 
     <div style="padding:1.1rem 1.2rem;display:flex;flex-direction:column;gap:.9rem">
@@ -2617,12 +2620,12 @@ textarea{resize:vertical;min-height:80px}
       <!-- 1. ประเภทคำขอ -->
       <div class="svc-card" style="border-radius:12px;border:1px solid #e6e3dc;overflow:hidden;padding:0">
         <div style="background:#f0eee9;padding:.55rem .9rem;border-bottom:1px solid #e6e3dc;display:flex;align-items:center;gap:.5rem">
-          <span style="width:20px;height:20px;background:#3b82f6;border-radius:50%;color:#fff;font-size:.65rem;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">1</span>
-          <span style="font-size:.7rem;font-weight:700;color:#4d535b;text-transform:uppercase;letter-spacing:.07em">ประเภทคำขอบริการ</span>
+          <span style="width:20px;height:20px;background:var(--primary);border-radius:50%;color:#fff;font-size:.65rem;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">1</span>
+          <span style="font-size:.7rem;font-weight:700;color:#4d535b;letter-spacing:.02em">ประเภทคำขอบริการ</span>
         </div>
         <div style="padding:.85rem .9rem;display:grid;grid-template-columns:1fr 1fr;gap:.65rem">
           <div>
-            <label class="svc-lbl">Serve Type <span style="color:#ef4444">*</span></label>
+            <label class="svc-lbl">Serve Type <span style="color:#b04a40">*</span></label>
             <select id="svc-serve-type" style="width:100%">
               <option value="">— เลือกประเภทคำขอ —</option>
               <optgroup label="สร้างใหม่">
@@ -2651,24 +2654,24 @@ textarea{resize:vertical;min-height:80px}
       <!-- 2. ข้อมูลคำขอ -->
       <div class="svc-card" style="border-radius:12px;border:1px solid #e6e3dc;overflow:hidden;padding:0">
         <div style="background:#f0eee9;padding:.55rem .9rem;border-bottom:1px solid #e6e3dc;display:flex;align-items:center;gap:.5rem">
-          <span style="width:20px;height:20px;background:#3b82f6;border-radius:50%;color:#fff;font-size:.65rem;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">2</span>
-          <span style="font-size:.7rem;font-weight:700;color:#4d535b;text-transform:uppercase;letter-spacing:.07em">ข้อมูลคำขอ</span>
+          <span style="width:20px;height:20px;background:var(--primary);border-radius:50%;color:#fff;font-size:.65rem;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">2</span>
+          <span style="font-size:.7rem;font-weight:700;color:#4d535b;letter-spacing:.02em">ข้อมูลคำขอ</span>
         </div>
         <div style="padding:.85rem .9rem;display:flex;flex-direction:column;gap:.6rem">
 
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:.65rem">
             <div>
-              <label class="svc-lbl">แบรนด์ <span style="color:#ef4444">*</span></label>
+              <label class="svc-lbl">แบรนด์ <span style="color:#b04a40">*</span></label>
               <div class="svc-combo" id="svc-brands-combo" data-field="brands"></div>
             </div>
             <div>
-              <label class="svc-lbl">สาขา <span style="color:#ef4444">*</span></label>
+              <label class="svc-lbl">สาขา <span style="color:#b04a40">*</span></label>
               <div class="svc-combo" id="svc-branches-combo" data-field="branches"></div>
             </div>
           </div>
 
           <div>
-            <label class="svc-lbl">ชื่อ / Title <span style="color:#ef4444">*</span></label>
+            <label class="svc-lbl">ชื่อ / Title <span style="color:#b04a40">*</span></label>
             <input id="svc-title" type="text" style="width:100%" placeholder="ระบุชื่อโปรโมชัน / คำขอบริการ..."/>
           </div>
 
@@ -2678,11 +2681,11 @@ textarea{resize:vertical;min-height:80px}
               <input id="svc-job-no" type="text" style="width:100%;background:#faf9f6;color:#5b616b;font-family:monospace;font-size:.8rem" readonly placeholder="JOB-2026-0001"/>
             </div>
             <div>
-              <label class="svc-lbl">Request No. <span style="color:#ef4444">*</span></label>
+              <label class="svc-lbl">Request No. <span style="color:#b04a40">*</span></label>
               <input id="svc-request-no" type="text" style="width:100%" placeholder="เลขจากลูกค้า"/>
             </div>
             <div>
-              <label class="svc-lbl">วันที่ <span style="color:#ef4444">*</span></label>
+              <label class="svc-lbl">วันที่ <span style="color:#b04a40">*</span></label>
               <input id="svc-request-date" type="date" style="width:100%"/>
             </div>
           </div>
@@ -2693,8 +2696,8 @@ textarea{resize:vertical;min-height:80px}
       <!-- 3. ผู้ขอ / Team -->
       <div class="svc-card" style="border-radius:12px;border:1px solid #e6e3dc;overflow:hidden;padding:0">
         <div style="background:#f0eee9;padding:.55rem .9rem;border-bottom:1px solid #e6e3dc;display:flex;align-items:center;gap:.5rem">
-          <span style="width:20px;height:20px;background:#3b82f6;border-radius:50%;color:#fff;font-size:.65rem;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">3</span>
-          <span style="font-size:.7rem;font-weight:700;color:#4d535b;text-transform:uppercase;letter-spacing:.07em">ผู้ขอ / Team</span>
+          <span style="width:20px;height:20px;background:var(--primary);border-radius:50%;color:#fff;font-size:.65rem;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">3</span>
+          <span style="font-size:.7rem;font-weight:700;color:#4d535b;letter-spacing:.02em">ผู้ขอ / Team</span>
         </div>
         <div style="padding:.85rem .9rem;display:grid;grid-template-columns:1fr 2fr;gap:.65rem">
           <div>
@@ -2702,7 +2705,7 @@ textarea{resize:vertical;min-height:80px}
             <input id="svc-req-position" type="text" style="width:100%" placeholder="เช่น Manager"/>
           </div>
           <div>
-            <label class="svc-lbl">ชื่อ-สกุล / Name <span style="color:#ef4444">*</span></label>
+            <label class="svc-lbl">ชื่อ-สกุล / Name <span style="color:#b04a40">*</span></label>
             <input id="svc-req-name" type="text" style="width:100%" placeholder="ชื่อผู้รับผิดชอบ"/>
           </div>
         </div>
@@ -2711,13 +2714,13 @@ textarea{resize:vertical;min-height:80px}
       <!-- 4. รายละเอียด -->
       <div class="svc-card" style="border-radius:12px;border:1px solid #e6e3dc;overflow:hidden;padding:0">
         <div style="background:#f0eee9;padding:.55rem .9rem;border-bottom:1px solid #e6e3dc;display:flex;align-items:center;gap:.5rem">
-          <span style="width:20px;height:20px;background:#3b82f6;border-radius:50%;color:#fff;font-size:.65rem;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">4</span>
-          <span style="font-size:.7rem;font-weight:700;color:#4d535b;text-transform:uppercase;letter-spacing:.07em">รายละเอียด</span>
+          <span style="width:20px;height:20px;background:var(--primary);border-radius:50%;color:#fff;font-size:.65rem;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">4</span>
+          <span style="font-size:.7rem;font-weight:700;color:#4d535b;letter-spacing:.02em">รายละเอียด</span>
         </div>
         <div style="padding:.85rem .9rem;display:flex;flex-direction:column;gap:.6rem">
 
           <div>
-            <label class="svc-lbl">ช่วงเวลา / Period <span style="color:#ef4444">*</span></label>
+            <label class="svc-lbl">ช่วงเวลา / Period <span style="color:#b04a40">*</span></label>
             <div style="display:flex;align-items:center;gap:.5rem">
               <input id="svc-period-start" type="date" style="flex:1"/>
               <span style="color:#8a8f97;font-size:.85rem;flex-shrink:0;font-weight:600">→</span>
@@ -2736,14 +2739,14 @@ textarea{resize:vertical;min-height:80px}
       <!-- 5. ไฟล์แนบ -->
       <div class="svc-card" style="border-radius:12px;border:1px solid #e6e3dc;overflow:hidden;padding:0">
         <div style="background:#f0eee9;padding:.55rem .9rem;border-bottom:1px solid #e6e3dc;display:flex;align-items:center;gap:.5rem">
-          <span style="width:20px;height:20px;background:#3b82f6;border-radius:50%;color:#fff;font-size:.65rem;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">5</span>
-          <span style="font-size:.7rem;font-weight:700;color:#4d535b;text-transform:uppercase;letter-spacing:.07em">ไฟล์แนบ</span>
+          <span style="width:20px;height:20px;background:var(--primary);border-radius:50%;color:#fff;font-size:.65rem;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">5</span>
+          <span style="font-size:.7rem;font-weight:700;color:#4d535b;letter-spacing:.02em">ไฟล์แนบ</span>
           <span style="margin-left:auto;font-size:.67rem;color:#8a8f97;font-weight:500">ไม่บังคับ</span>
         </div>
         <div style="padding:.85rem .9rem">
           <div id="svc-upload-area"
             onclick="document.getElementById('svc-file-input').click()"
-            ondragover="event.preventDefault();this.style.borderColor='#3b82f6';this.style.background='#eff6ff'"
+            ondragover="event.preventDefault();this.style.borderColor='#35685f';this.style.background='#eef4f1'"
             ondragleave="this.style.borderColor='#d6d2c9';this.style.background='#faf9f6'"
             ondrop="svcHandleDrop(event)"
             style="border:2px dashed #d6d2c9;border-radius:10px;padding:1.4rem 1rem;text-align:center;cursor:pointer;transition:all .2s;background:#faf9f6">
@@ -2763,7 +2766,7 @@ textarea{resize:vertical;min-height:80px}
       <button type="button" class="btn btn-ghost" onclick="closeModal('modal-svc-form')" style="color:#5b616b;font-size:.8rem">ยกเลิก</button>
       <div style="display:flex;gap:.5rem">
         <button type="button" class="btn btn-ghost" onclick="svcSaveDraft()" style="font-size:.8rem;color:#4d535b;border:1.5px solid #e6e3dc">บันทึกร่าง</button>
-        <button type="button" class="btn btn-primary" onclick="svcSubmit()" style="font-size:.8rem;background:#2563eb;border:none;padding:.5rem 1.2rem;border-radius:8px;font-weight:700">ส่งคำขอ</button>
+        <button type="button" class="btn btn-primary" onclick="svcSubmit()" style="font-size:.8rem;background:#35685f;border:none;padding:.5rem 1.2rem;border-radius:8px;font-weight:700">ส่งคำขอ</button>
       </div>
     </div>
   </div>
@@ -4035,8 +4038,8 @@ textarea{resize:vertical;min-height:80px}
 <!-- MODAL: ตั้งค่ารอบแจ้งเตือน LINE + การเก็บข้อมูลของกล่องคัดกรอง -->
 <div class="overlay" id="modal-tr-settings">
   <div class="modal" style="max-width:460px;padding:1.2rem">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
-      <div style="font-size:1rem;font-weight:800">ตั้งค่าคัดกรอง &amp; แจ้งเตือน</div>
+    <div class="modal-head">
+      <div style="font-size:1.08rem;font-weight:600;letter-spacing:-.005em">ตั้งค่าคัดกรอง &amp; แจ้งเตือน</div>
       <button class="modal-close" onclick="closeModal('modal-tr-settings')">×</button>
     </div>
 
@@ -4072,7 +4075,7 @@ textarea{resize:vertical;min-height:80px}
         <input id="trs-days" type="number" min="1" max="365" step="1"
                style="width:110px;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.88rem;font-family:inherit;outline:none"/>
         <span style="font-size:.8rem;color:var(--muted)">วัน</span>
-        <button type="button" class="btn btn-sm btn-ghost" style="margin-left:auto;color:#dc2626" onclick="triagePurgeOld()">ล้างเดี๋ยวนี้</button>
+        <button type="button" class="btn btn-sm btn-ghost" style="margin-left:auto;color:#b04a40" onclick="triagePurgeOld()">ล้างเดี๋ยวนี้</button>
       </div>
       <label style="display:flex;gap:.4rem;align-items:center;margin-top:.5rem;font-weight:500">
         <input id="trs-autopurge" type="checkbox"/> ล้างให้อัตโนมัติวันละครั้ง
@@ -4095,7 +4098,7 @@ textarea{resize:vertical;min-height:80px}
 <div class="overlay" id="modal-lgp-notify">
   <div class="modal" style="max-width:440px;padding:1.2rem">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
-      <div style="font-size:1rem;font-weight:800">ส่งแจ้งเตือนของกลุ่มนี้ไปที่</div>
+      <div style="font-size:1.08rem;font-weight:600;letter-spacing:-.005em">ส่งแจ้งเตือนของกลุ่มนี้ไปที่</div>
       <button class="modal-close" onclick="closeModal('modal-lgp-notify')">×</button>
     </div>
     <div style="font-size:.8rem;color:var(--muted);margin-bottom:.6rem">
@@ -4112,15 +4115,15 @@ textarea{resize:vertical;min-height:80px}
 <!-- MODAL: Pod form -->
 <div class="overlay" id="modal-pod-form">
   <div class="modal" style="max-width:480px;padding:1.2rem">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
-      <div style="font-size:1rem;font-weight:800" id="pod-form-title">สร้าง Pod</div>
+    <div class="modal-head">
+      <div style="font-size:1.08rem;font-weight:600;letter-spacing:-.005em" id="pod-form-title">สร้าง Pod</div>
       <button class="modal-close" onclick="closeModal('modal-pod-form')">×</button>
     </div>
     <input type="hidden" id="pod-id"/>
     <input type="hidden" id="pod-code"/>
     <input type="hidden" id="pod-region"/>
     <div class="form-group">
-      <label>ชื่อแสดง <span style="color:#ef4444">*</span></label>
+      <label>ชื่อแสดง <span style="color:#b04a40">*</span></label>
       <input id="pod-name" placeholder="เช่น Pod BKK-1" style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.88rem;font-family:inherit;outline:none"/>
     </div>
     <div class="grid-2">
@@ -4131,13 +4134,13 @@ textarea{resize:vertical;min-height:80px}
       <div class="form-group">
         <label>สี / ลำดับ</label>
         <div style="display:flex;gap:.4rem;align-items:center">
-          <input id="pod-color" type="color" value="#1d4ed8" style="width:44px;height:38px;padding:2px;border:1.5px solid var(--border);border-radius:8px"/>
+          <input id="pod-color" type="color" value="#2a544d" style="width:44px;height:38px;padding:2px;border:1.5px solid var(--border);border-radius:8px"/>
           <input id="pod-sort" type="number" value="0" title="ลำดับ" style="flex:1;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.88rem;font-family:inherit;outline:none"/>
         </div>
       </div>
     </div>
     <div style="display:flex;justify-content:space-between;gap:.5rem;margin-top:.75rem">
-      <button class="btn btn-ghost btn-sm" id="pod-del-btn" style="color:#dc2626;display:none" onclick="deletePod()">ลบ Pod</button>
+      <button class="btn btn-ghost btn-sm" id="pod-del-btn" style="color:#b04a40;display:none" onclick="deletePod()">ลบ Pod</button>
       <div style="display:flex;gap:.5rem;margin-left:auto">
         <button class="btn btn-ghost" onclick="closeModal('modal-pod-form')">ยกเลิก</button>
         <button class="btn btn-primary" onclick="savePod()">บันทึก</button>
@@ -4149,13 +4152,13 @@ textarea{resize:vertical;min-height:80px}
 <!-- MODAL: Customer form -->
 <div class="overlay" id="modal-cust-form">
   <div class="modal" style="max-width:460px;padding:1.2rem">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
-      <div style="font-size:1rem;font-weight:800" id="cust-form-title">เพิ่มกลุ่มลูกค้า</div>
+    <div class="modal-head">
+      <div style="font-size:1.08rem;font-weight:600;letter-spacing:-.005em" id="cust-form-title">เพิ่มกลุ่มลูกค้า</div>
       <button class="modal-close" onclick="closeModal('modal-cust-form')">×</button>
     </div>
     <input type="hidden" id="cust-id"/>
     <div class="form-group">
-      <label>ชื่อกลุ่มลูกค้า <span style="color:#ef4444">*</span></label>
+      <label>ชื่อกลุ่มลูกค้า <span style="color:#b04a40">*</span></label>
       <input id="cust-name" placeholder="เช่น KAMU TEA" style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.88rem;font-family:inherit;outline:none"/>
     </div>
     <div class="grid-2">
@@ -4187,7 +4190,7 @@ textarea{resize:vertical;min-height:80px}
 <div class="overlay" id="modal-cust-detail">
   <div class="modal" style="max-width:560px;max-height:90vh;overflow-y:auto;padding:1.2rem">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
-      <div style="font-size:1.05rem;font-weight:800" id="cust-detail-name">—</div>
+      <div style="font-size:1.08rem;font-weight:600;letter-spacing:-.005em" id="cust-detail-name">—</div>
       <button class="modal-close" onclick="closeModal('modal-cust-detail')">×</button>
     </div>
     <div id="cust-detail-meta" style="font-size:.8rem;color:#5b616b;margin-bottom:.85rem"></div>
@@ -4200,7 +4203,7 @@ textarea{resize:vertical;min-height:80px}
         <label>การจัดการ</label>
         <div style="display:flex;gap:.4rem">
           <button class="btn btn-sm btn-ghost" onclick="editCustFromDetail()" style="flex:1">แก้ไข</button>
-          <button class="btn btn-sm btn-ghost" style="color:#dc2626" onclick="deleteCust()"><i class=i-trash></i></button>
+          <button class="btn btn-sm btn-ghost" style="color:#b04a40" onclick="deleteCust()"><i class=i-trash></i></button>
         </div>
       </div>
     </div>
@@ -4309,16 +4312,16 @@ textarea{resize:vertical;min-height:80px}
     <div class="modal-title">บันทึกการสอนเพื่อนร่วมทีม <button class="modal-close" onclick="closeModal('modal-tr-add')">×</button></div>
     <div class="grid-2">
       <div class="form-group">
-        <label>ผู้สอน <span style="color:#ef4444">*</span></label>
+        <label>ผู้สอน <span style="color:#b04a40">*</span></label>
         <select id="tr-trainer" class="emp-select"></select>
       </div>
       <div class="form-group">
-        <label>วันที่สอน <span style="color:#ef4444">*</span></label>
+        <label>วันที่สอน <span style="color:#b04a40">*</span></label>
         <input type="date" id="tr-date"/>
       </div>
     </div>
     <div class="form-group">
-      <label>หัวข้อที่สอน <span style="color:#ef4444">*</span></label>
+      <label>หัวข้อที่สอน <span style="color:#b04a40">*</span></label>
       <input type="text" id="tr-topic" placeholder="เช่น วิธีปิดเคส, การใช้ระบบ Calllog"/>
     </div>
     <div class="form-group" style="position:relative">
@@ -4419,7 +4422,7 @@ textarea{resize:vertical;min-height:80px}
         <input id="rl-search" type="text" placeholder="ค้นหาชื่อกลุ่ม / GroupCode..." oninput="rlSearchDebounce()" autocomplete="off" style="width:100%"/>
         <div id="rl-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 12px #0002;z-index:999;max-height:220px;overflow-y:auto"></div>
       </div>
-      <div id="rl-selected-box" style="display:none;background:#dbeafe;border-radius:6px;padding:.45rem .75rem;margin-bottom:.5rem;font-size:.82rem;align-items:center;justify-content:space-between">
+      <div id="rl-selected-box" style="display:none;background:#e7efec;border-radius:6px;padding:.45rem .75rem;margin-bottom:.5rem;font-size:.82rem;align-items:center;justify-content:space-between">
         <span id="rl-selected-label" style="font-weight:600"></span>
         <button onclick="rlClearSelected()" style="background:none;border:none;cursor:pointer;color:#5b616b;font-size:1.1rem;padding:0;line-height:1">×</button>
       </div>
@@ -4441,7 +4444,7 @@ textarea{resize:vertical;min-height:80px}
 
     <!-- ค้นหาร้านค้า -->
     <div style="position:relative;margin-bottom:.6rem">
-      <label style="font-size:.75rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.25rem">ร้านค้า / License <span style="color:#ef4444">*</span></label>
+      <label style="font-size:.75rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.25rem">ร้านค้า / License <span style="color:#b04a40">*</span></label>
       <input id="rf-shop-search" type="text" placeholder="พิมพ์ชื่อร้านเพื่อค้นหา..." oninput="rpShopSearch()" autocomplete="off" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.38rem .65rem;font-size:.83rem;outline:none"/>
       <div id="rf-shop-results" style="position:absolute;z-index:200;background:#fff;border:1px solid var(--border);border-radius:8px;max-height:180px;overflow-y:auto;width:100%;display:none;box-shadow:0 4px 12px #0002"></div>
       <input type="hidden" id="rf-registration-id"/>
@@ -4494,7 +4497,7 @@ textarea{resize:vertical;min-height:80px}
 
     <!-- อาการเสีย -->
     <div style="margin-bottom:.5rem">
-      <label style="font-size:.72rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.2rem">อาการเสีย <span style="color:#ef4444">*</span></label>
+      <label style="font-size:.72rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.2rem">อาการเสีย <span style="color:#b04a40">*</span></label>
       <textarea id="rf-symptom" rows="2" placeholder="อธิบายอาการ..." style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.35rem .6rem;font-size:.82rem;resize:vertical;font-family:inherit"></textarea>
     </div>
     <div style="margin-bottom:.5rem">
@@ -4558,14 +4561,14 @@ textarea{resize:vertical;min-height:80px}
         style="width:100%;padding:.5rem .7rem;border:1px solid #e6e3dc;border-radius:7px;font-size:.85rem;outline:none;font-family:inherit"/>
       <div id="fu-lg-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e6e3dc;border-radius:7px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:999;max-height:200px;overflow-y:auto"></div>
     </div>
-    <div id="fu-lg-selected-box" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;border-radius:7px;padding:.45rem .75rem;margin-bottom:.6rem;align-items:center;gap:.5rem">
-      <span id="fu-lg-selected-label" style="flex:1;font-size:.83rem;font-weight:600;color:#1d4ed8"></span>
+    <div id="fu-lg-selected-box" style="display:none;background:#eef4f1;border:1px solid #c9dbd5;border-radius:7px;padding:.45rem .75rem;margin-bottom:.6rem;align-items:center;gap:.5rem">
+      <span id="fu-lg-selected-label" style="flex:1;font-size:.83rem;font-weight:600;color:#2a544d"></span>
       <button onclick="_fuLinkGroupSelected=null;document.getElementById('fu-lg-selected-box').style.display='none';document.getElementById('fu-lg-unlink-btn').style.display='none'"
         style="background:none;border:none;cursor:pointer;color:#5b616b;font-size:1rem;line-height:1">×</button>
     </div>
     <div style="display:flex;gap:.5rem;justify-content:space-between;align-items:center;margin-top:.5rem">
-      <button id="fu-lg-unlink-btn" onclick="fuLgUnlink()" style="display:none;background:#fee2e2;color:#dc2626;border:1px solid #fecaca;border-radius:7px;padding:.4rem .85rem;font-size:.82rem;cursor:pointer;font-weight:600">
-        🔗 ยกเลิกการผูก
+      <button id="fu-lg-unlink-btn" onclick="fuLgUnlink()" style="display:none;background:#f7ebe8;color:#b04a40;border:1px solid #e8c9c3;border-radius:7px;padding:.4rem .85rem;font-size:.82rem;cursor:pointer;font-weight:600">
+        ยกเลิกการผูก
       </button>
       <div style="display:flex;gap:.5rem;margin-left:auto">
         <button class="btn btn-ghost" onclick="closeModal('modal-fu-link-group')">ยกเลิก</button>
@@ -4578,10 +4581,10 @@ textarea{resize:vertical;min-height:80px}
 <!-- Modal: Create Follow Up -->
 <div class="overlay" id="modal-create-followup">
   <div class="modal" style="max-width:540px;max-height:90vh;overflow-y:auto;padding:1.1rem 1.25rem">
-    <div class="modal-title" style="margin-bottom:.85rem;color:#0369a1">สร้าง Issue Follow Up <button class="modal-close" onclick="closeModal('modal-create-followup')">×</button></div>
+    <div class="modal-title">สร้าง Issue Follow Up <button class="modal-close" onclick="closeModal('modal-create-followup')">×</button></div>
     <input type="hidden" id="fu-create-sp-id"/>
     <div class="form-group" style="margin-bottom:.7rem">
-      <label style="font-size:.78rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.25rem">หัวข้อ <span style="color:#ef4444">*</span></label>
+      <label style="font-size:.78rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.25rem">หัวข้อ <span style="color:#b04a40">*</span></label>
       <input type="text" id="fu-create-subject" placeholder="หัวข้อปัญหา / งานที่ต้องติดตาม" style="width:100%;padding:.5rem .7rem;border:1px solid #d6d2c9;border-radius:7px;font-size:.85rem"/>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.7rem">
@@ -4610,7 +4613,7 @@ textarea{resize:vertical;min-height:80px}
       </div>
     </div>
     <div style="margin-bottom:.7rem">
-      <label style="font-size:.78rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.25rem">ทีมที่รับงาน <span style="color:#ef4444">*</span></label>
+      <label style="font-size:.78rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.25rem">ทีมที่รับงาน <span style="color:#b04a40">*</span></label>
       <select id="fu-create-team" onchange="fuFillMemberSelect()" style="width:100%;padding:.5rem .7rem;border:1px solid #d6d2c9;border-radius:7px;font-size:.85rem">
         <option value="">— เลือกทีม —</option>
       </select>
@@ -4635,7 +4638,7 @@ textarea{resize:vertical;min-height:80px}
 <!-- Modal: Follow Up Detail / Action -->
 <div class="overlay" id="modal-followup-detail">
   <div class="modal" style="max-width:520px;max-height:90vh;overflow-y:auto;padding:1.1rem 1.25rem">
-    <div class="modal-title" style="margin-bottom:.85rem;color:#0369a1">รายละเอียด Follow Up <button class="modal-close" onclick="closeModal('modal-followup-detail')">×</button></div>
+    <div class="modal-title">รายละเอียด Follow Up <button class="modal-close" onclick="closeModal('modal-followup-detail')">×</button></div>
     <div id="fu-detail-body" style="font-size:.85rem;color:#3a3f46;margin-bottom:1rem"></div>
     <!-- Action buttons for helpdesk -->
     <div id="fu-action-area" style="border-top:1px solid #e6e3dc;padding-top:.85rem;display:flex;flex-direction:column;gap:.6rem">
@@ -4655,20 +4658,20 @@ textarea{resize:vertical;min-height:80px}
 <!-- Modal: สร้างลิงค์ร้องเรียน -->
 <div class="overlay" id="modal-complaint-link">
   <div class="modal" style="max-width:560px;max-height:88vh;overflow-y:auto;padding:1.1rem 1.25rem">
-    <div class="modal-title" style="margin-bottom:.75rem;color:#dc2626">ลิงค์ร้องเรียนสำหรับลูกค้า <button class="modal-close" onclick="closeModal('modal-complaint-link')">×</button></div>
+    <div class="modal-title">ลิงค์ร้องเรียนสำหรับลูกค้า <button class="modal-close" onclick="closeModal('modal-complaint-link')">×</button></div>
 
     <!-- สร้างลิงค์ใหม่ -->
-    <div style="background:#fff5f5;border:1px solid #fecaca;border-radius:8px;padding:.85rem;margin-bottom:1rem">
-      <div style="font-size:.8rem;font-weight:700;color:#991b1b;margin-bottom:.6rem">สร้างลิงค์ใหม่ (กลุ่มลูกค้า)</div>
+    <div style="background:#fff5f5;border:1px solid #e8c9c3;border-radius:8px;padding:.85rem;margin-bottom:1rem">
+      <div style="font-size:.8rem;font-weight:700;color:#963d34;margin-bottom:.6rem">สร้างลิงค์ใหม่ (กลุ่มลูกค้า)</div>
       <div style="position:relative;margin-bottom:.5rem">
         <input id="cl-search" type="text" placeholder="ค้นหาชื่อกลุ่ม / GroupCode..." oninput="clSearchDebounce()" autocomplete="off" style="width:100%"/>
         <div id="cl-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 12px #0002;z-index:999;max-height:220px;overflow-y:auto"></div>
       </div>
-      <div id="cl-selected-box" style="display:none;background:#fee2e2;border-radius:6px;padding:.45rem .75rem;margin-bottom:.5rem;font-size:.82rem;align-items:center;justify-content:space-between">
-        <span id="cl-selected-label" style="font-weight:600;color:#991b1b"></span>
+      <div id="cl-selected-box" style="display:none;background:#f7ebe8;border-radius:6px;padding:.45rem .75rem;margin-bottom:.5rem;font-size:.82rem;align-items:center;justify-content:space-between">
+        <span id="cl-selected-label" style="font-weight:600;color:#963d34"></span>
         <button onclick="clClearSelected()" style="background:none;border:none;cursor:pointer;color:#5b616b;font-size:1.1rem;padding:0;line-height:1">×</button>
       </div>
-      <button class="btn btn-sm" style="background:#dc2626;color:#fff;width:100%" onclick="clCreateLink()" id="cl-create-btn" disabled>สร้าง / คัดลอกลิงค์</button>
+      <button class="btn btn-sm" style="background:#b04a40;color:#fff;width:100%" onclick="clCreateLink()" id="cl-create-btn" disabled>สร้าง / คัดลอกลิงค์</button>
     </div>
 
     <!-- รายการที่มีอยู่ -->
@@ -4682,21 +4685,21 @@ textarea{resize:vertical;min-height:80px}
 <!-- Modal: ลบงาน Specialist -->
 <div class="overlay" id="modal-delete-sp">
   <div class="modal" style="max-width:420px">
-    <div class="modal-title" style="color:#dc2626">ลบงาน Specialist <button class="modal-close" onclick="closeModal('modal-delete-sp')">×</button></div>
+    <div class="modal-title" style="color:#b04a40">ลบงาน Specialist <button class="modal-close" onclick="closeModal('modal-delete-sp')">×</button></div>
     <div style="padding:.75rem 0">
       <div id="delete-sp-info" style="font-weight:600;font-size:.88rem;margin-bottom:.75rem;color:#24272c"></div>
-      <div style="font-size:.82rem;color:#dc2626;background:#fef2f2;border-radius:8px;padding:.6rem .85rem;margin-bottom:1rem">
-        ⚠️ การลบจะลบข้อมูลถาวร — ไม่สามารถกู้คืนได้
+      <div style="font-size:.82rem;color:#b04a40;background:#f7ebe8;border-radius:8px;padding:.6rem .85rem;margin-bottom:1rem">
+        การลบจะลบข้อมูลถาวร — ไม่สามารถกู้คืนได้
       </div>
       <label style="font-size:.82rem;font-weight:600;color:#3a3f46;display:block;margin-bottom:.35rem">
-        หมายเหตุการลบ <span style="color:#dc2626">*</span>
+        หมายเหตุการลบ <span style="color:#b04a40">*</span>
       </label>
       <textarea id="delete-sp-reason" rows="3" placeholder="ระบุเหตุผลที่ลบ เช่น งานซ้ำ, เปิดผิด..."
         style="width:100%;border:1.5px solid #e6e3dc;border-radius:8px;padding:.55rem .75rem;font-size:.83rem;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box"
-        onfocus="this.style.borderColor='#dc2626'" onblur="this.style.borderColor='#e6e3dc'"></textarea>
+        onfocus="this.style.borderColor='#b04a40'" onblur="this.style.borderColor='#e6e3dc'"></textarea>
       <div style="display:flex;gap:.5rem;margin-top:.85rem;justify-content:flex-end">
         <button class="btn btn-ghost" onclick="closeModal('modal-delete-sp')">ยกเลิก</button>
-        <button class="btn" style="background:#dc2626;color:#fff" onclick="confirmDeleteSpJob()">ยืนยันลบ</button>
+        <button class="btn" style="background:#b04a40;color:#fff" onclick="confirmDeleteSpJob()">ยืนยันลบ</button>
       </div>
     </div>
   </div>
@@ -4709,7 +4712,7 @@ textarea{resize:vertical;min-height:80px}
     <input type="hidden" id="rsp-id"/>
     <div id="rsp-job-info" style="background:#faf9f6;border-radius:8px;padding:.6rem .85rem;font-size:.82rem;margin-bottom:.85rem;color:#3a3f46"></div>
     <div class="form-group">
-      <label>ทีมใหม่ <span style="color:#dc2626">*</span></label>
+      <label>ทีมใหม่ <span style="color:#b04a40">*</span></label>
       <select id="rsp-team" onchange="onRspTeamChange()">
         <option value="">เลือกทีม</option>
       </select>
@@ -4734,21 +4737,21 @@ textarea{resize:vertical;min-height:80px}
 <!-- Modal: ยืนยันลบร้องเรียน -->
 <div class="overlay" id="modal-delete-complaint">
   <div class="modal" style="max-width:420px">
-    <div class="modal-title" style="color:#dc2626">ลบร้องเรียน <button class="modal-close" onclick="closeModal('modal-delete-complaint')">×</button></div>
+    <div class="modal-title" style="color:#b04a40">ลบร้องเรียน <button class="modal-close" onclick="closeModal('modal-delete-complaint')">×</button></div>
     <div style="padding:.75rem 0">
       <div id="delete-complaint-info" style="font-size:.82rem;font-weight:600;margin-bottom:.75rem;color:#24272c"></div>
-      <div style="font-size:.82rem;color:#dc2626;background:#fef2f2;border-radius:8px;padding:.6rem .85rem;margin-bottom:1rem">
-        ⚠️ การลบจะลบข้อมูลถาวร — ไม่สามารถกู้คืนได้
+      <div style="font-size:.82rem;color:#b04a40;background:#f7ebe8;border-radius:8px;padding:.6rem .85rem;margin-bottom:1rem">
+        การลบจะลบข้อมูลถาวร — ไม่สามารถกู้คืนได้
       </div>
       <label style="font-size:.82rem;font-weight:600;color:#3a3f46;display:block;margin-bottom:.35rem">
-        หมายเหตุการลบ <span style="color:#dc2626">*</span>
+        หมายเหตุการลบ <span style="color:#b04a40">*</span>
       </label>
       <textarea id="delete-complaint-reason" rows="3" placeholder="ระบุเหตุผลที่ลบ เช่น ร้องเรียนซ้ำ, ข้อมูลผิดพลาด..."
         style="width:100%;border:1.5px solid #e6e3dc;border-radius:8px;padding:.55rem .75rem;font-size:.83rem;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box"
-        onfocus="this.style.borderColor='#dc2626'" onblur="this.style.borderColor='#e6e3dc'"></textarea>
+        onfocus="this.style.borderColor='#b04a40'" onblur="this.style.borderColor='#e6e3dc'"></textarea>
       <div style="display:flex;gap:.5rem;margin-top:.85rem;justify-content:flex-end">
         <button class="btn btn-ghost" onclick="closeModal('modal-delete-complaint')">ยกเลิก</button>
-        <button class="btn" style="background:#dc2626;color:#fff" onclick="confirmDeleteComplaint()">ยืนยันลบ</button>
+        <button class="btn" style="background:#b04a40;color:#fff" onclick="confirmDeleteComplaint()">ยืนยันลบ</button>
       </div>
     </div>
   </div>
@@ -4757,21 +4760,21 @@ textarea{resize:vertical;min-height:80px}
 <!-- Modal: ยืนยันลบงานซ่อม -->
 <div class="overlay" id="modal-delete-repair">
   <div class="modal" style="max-width:420px">
-    <div class="modal-title" style="color:#dc2626">ลบงานซ่อม <button class="modal-close" onclick="closeModal('modal-delete-repair')">×</button></div>
+    <div class="modal-title" style="color:#b04a40">ลบงานซ่อม <button class="modal-close" onclick="closeModal('modal-delete-repair')">×</button></div>
     <div style="padding:.75rem 0">
       <div id="delete-repair-jobno" style="font-weight:700;font-size:.95rem;margin-bottom:.75rem;color:#24272c"></div>
-      <div style="font-size:.82rem;color:#dc2626;background:#fef2f2;border-radius:8px;padding:.6rem .85rem;margin-bottom:1rem">
-        ⚠️ การลบจะลบข้อมูลและไฟล์แนบทั้งหมดถาวร — ไม่สามารถกู้คืนได้
+      <div style="font-size:.82rem;color:#b04a40;background:#f7ebe8;border-radius:8px;padding:.6rem .85rem;margin-bottom:1rem">
+        การลบจะลบข้อมูลและไฟล์แนบทั้งหมดถาวร — ไม่สามารถกู้คืนได้
       </div>
       <label style="font-size:.82rem;font-weight:600;color:#3a3f46;display:block;margin-bottom:.35rem">
-        หมายเหตุการลบ <span style="color:#dc2626">*</span>
+        หมายเหตุการลบ <span style="color:#b04a40">*</span>
       </label>
       <textarea id="delete-repair-reason" rows="3" placeholder="ระบุเหตุผลที่ลบ เช่น แจ้งซ่อมซ้ำ, ข้อมูลผิดพลาด..."
         style="width:100%;border:1.5px solid #e6e3dc;border-radius:8px;padding:.55rem .75rem;font-size:.83rem;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box"
-        onfocus="this.style.borderColor='#dc2626'" onblur="this.style.borderColor='#e6e3dc'"></textarea>
+        onfocus="this.style.borderColor='#b04a40'" onblur="this.style.borderColor='#e6e3dc'"></textarea>
       <div style="display:flex;gap:.5rem;margin-top:.85rem;justify-content:flex-end">
         <button class="btn btn-ghost" onclick="closeModal('modal-delete-repair')">ยกเลิก</button>
-        <button class="btn" style="background:#dc2626;color:#fff" onclick="confirmDeleteRepair()">ยืนยันลบ</button>
+        <button class="btn" style="background:#b04a40;color:#fff" onclick="confirmDeleteRepair()">ยืนยันลบ</button>
       </div>
     </div>
   </div>
@@ -4971,7 +4974,7 @@ textarea{resize:vertical;min-height:80px}
     <input type="password" id="hr-password-input" placeholder="รหัสผ่าน"
       onkeydown="if(event.key==='Enter')hrPasswordConfirm()"
       style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.45rem .75rem;font-size:.9rem;text-align:center;margin-bottom:.75rem;font-family:inherit"/>
-    <div id="hr-password-error" style="color:#dc2626;font-size:.78rem;margin-bottom:.5rem;display:none">รหัสผ่านไม่ถูกต้อง</div>
+    <div id="hr-password-error" style="color:#b04a40;font-size:.78rem;margin-bottom:.5rem;display:none">รหัสผ่านไม่ถูกต้อง</div>
     <div class="btn-group">
       <button class="btn btn-primary" onclick="hrPasswordConfirm()">ยืนยัน</button>
       <button class="btn btn-ghost" onclick="hrPasswordCancel()">ยกเลิก</button>
@@ -5037,8 +5040,8 @@ textarea{resize:vertical;min-height:80px}
       <div class="form-group">
         <label>สี (hex color)</label>
         <div style="display:flex;gap:.5rem;align-items:center">
-          <input type="color" id="tm-color-picker" value="#2563eb" oninput="document.getElementById('tm-color').value=this.value" style="width:40px;height:36px;border:none;cursor:pointer;padding:0;border-radius:6px"/>
-          <input id="tm-color" value="#2563eb" placeholder="#2563eb" oninput="document.getElementById('tm-color-picker').value=this.value" style="flex:1"/>
+          <input type="color" id="tm-color-picker" value="#35685f" oninput="document.getElementById('tm-color').value=this.value" style="width:40px;height:36px;border:none;cursor:pointer;padding:0;border-radius:6px"/>
+          <input id="tm-color" value="#35685f" placeholder="#35685f" oninput="document.getElementById('tm-color-picker').value=this.value" style="flex:1"/>
         </div>
       </div>
       <div class="form-group">
@@ -5054,7 +5057,7 @@ textarea{resize:vertical;min-height:80px}
       </select>
     </div>
     <div style="font-size:.8rem;color:var(--muted);background:#faf9f6;padding:.6rem .8rem;border-radius:8px;margin-bottom:.9rem">
-      💡 หลังสร้างทีม ไปที่ <b>พนักงาน</b> แล้วเลือกทีมนี้ให้กับพนักงานได้เลย
+      หลังสร้างทีม ไปที่ <b>พนักงาน</b> แล้วเลือกทีมนี้ให้กับพนักงานได้เลย
     </div>
     <div class="btn-group">
       <button class="btn btn-primary" onclick="saveTeam()">บันทึก</button>
@@ -23215,8 +23218,8 @@ async function generateFromPattern() {
 <!-- ═══ MODAL: SHOP INFO CREATE FOLDER ═══ -->
 <div class="overlay" id="modal-si-folder">
   <div class="modal" style="max-width:420px;padding:1.25rem">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
-      <div style="font-size:1rem;font-weight:800">สร้างโฟลเดอร์ใหม่</div>
+    <div class="modal-head">
+      <div style="font-size:1.08rem;font-weight:600;letter-spacing:-.005em">สร้างโฟลเดอร์ใหม่</div>
       <button class="modal-close" onclick="closeModal('modal-si-folder')">×</button>
     </div>
     <div class="form-group">
@@ -23234,8 +23237,8 @@ async function generateFromPattern() {
 <!-- ═══ MODAL: SHOP INFO IMPORT PREVIEW ═══ -->
 <div class="overlay" id="modal-si-import">
   <div class="modal" style="max-width:920px;max-height:92vh;overflow-y:auto;padding:1.25rem">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
-      <div style="font-size:1rem;font-weight:800">Import ข้อมูลร้าน</div>
+    <div class="modal-head">
+      <div style="font-size:1.08rem;font-weight:600;letter-spacing:-.005em">Import ข้อมูลร้าน</div>
       <button class="modal-close" onclick="closeModal('modal-si-import')">×</button>
     </div>
     <div id="si-import-summary" style="font-size:.83rem;color:var(--muted);margin-bottom:.75rem"></div>
@@ -23252,7 +23255,7 @@ async function generateFromPattern() {
     <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:.85rem">
       <button class="btn btn-ghost" onclick="closeModal('modal-si-import')">ยกเลิก</button>
       <button class="btn btn-primary" onclick="siImportConfirm()" id="si-import-confirm-btn">
-        ✅ นำเข้าข้อมูล
+        นำเข้าข้อมูล
       </button>
     </div>
   </div>
@@ -23260,8 +23263,8 @@ async function generateFromPattern() {
 
 <div class="overlay" id="modal-si-entry">
   <div class="modal" style="max-width:780px;max-height:92vh;overflow-y:auto;padding:1.25rem">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
-      <div id="si-entry-modal-title" style="font-size:1rem;font-weight:800">เพิ่มรายการ</div>
+    <div class="modal-head">
+      <div id="si-entry-modal-title" style="font-size:1.08rem;font-weight:600;letter-spacing:-.005em">เพิ่มรายการ</div>
       <button class="modal-close" onclick="closeModal('modal-si-entry')">×</button>
     </div>
     <input type="hidden" id="si-entry-id"/>
@@ -23349,14 +23352,14 @@ async function generateFromPattern() {
 <!-- ══ SHOP KNOWLEDGE MODAL ══ -->
 <div class="overlay" id="modal-sk-entry">
   <div class="modal" style="max-width:620px;max-height:92vh;overflow-y:auto;padding:1.2rem">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
-      <div id="sk-modal-title" style="font-size:1rem;font-weight:800">เพิ่มบทความ</div>
+    <div class="modal-head">
+      <div id="sk-modal-title" style="font-size:1.08rem;font-weight:600;letter-spacing:-.005em">เพิ่มบทความ</div>
       <button class="modal-close" onclick="closeModal('modal-sk-entry')">×</button>
     </div>
     <input type="hidden" id="sk-entry-id"/>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.65rem">
       <div class="form-group" style="margin:0">
-        <label>แบรนด์ / เครือ <span style="color:#ef4444">*</span></label>
+        <label>แบรนด์ / เครือ <span style="color:#b04a40">*</span></label>
         <input id="sk-brand" list="sk-brand-list" placeholder="เช่น MK Restaurant" autocomplete="off"
           style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.88rem;font-family:inherit;outline:none"/>
         <datalist id="sk-brand-list"></datalist>
@@ -23369,7 +23372,7 @@ async function generateFromPattern() {
     </div>
     <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:.75rem;margin-bottom:.65rem">
       <div class="form-group" style="margin:0">
-        <label>หัวข้อ <span style="color:#ef4444">*</span></label>
+        <label>หัวข้อ <span style="color:#b04a40">*</span></label>
         <input id="sk-title" placeholder="ระบุหัวข้อบทความ..."
           style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.88rem;font-family:inherit;outline:none"/>
       </div>
@@ -23390,7 +23393,7 @@ async function generateFromPattern() {
         <label style="margin:0">เนื้อหา / รายละเอียด</label>
         <div style="display:flex;gap:.35rem">
           <button type="button" onclick="skModalInsertLink()"
-            style="font-size:.72rem;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:5px;padding:.15rem .55rem;cursor:pointer">แนบลิงค์</button>
+            style="font-size:.72rem;background:#eef4f1;color:#35685f;border:1px solid #c9dbd5;border-radius:5px;padding:.15rem .55rem;cursor:pointer">แนบลิงค์</button>
           <span style="font-size:.68rem;color:#8a8f97;align-self:center">หรือ Ctrl+V วางรูปได้เลย</span>
         </div>
       </div>
@@ -23409,7 +23412,7 @@ async function generateFromPattern() {
   <div id="shift-pick-title" style="font-size:.82rem;font-weight:700;color:#3a3f46;margin-bottom:.6rem">—</div>
   <div id="shift-pick-btns" style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.45rem"></div>
   <div style="display:flex;gap:.4rem;margin-top:.4rem">
-    <button id="shift-pick-del" class="btn btn-sm" style="background:#fef2f2;color:#b91c1c;font-weight:700" onclick="deleteDragShift()">ลบ</button>
+    <button id="shift-pick-del" class="btn btn-sm" style="background:#f7ebe8;color:#963d34;font-weight:700" onclick="deleteDragShift()">ลบ</button>
     <button class="btn btn-ghost btn-sm" onclick="cancelDragShift()">ยกเลิก</button>
   </div>
 </div>
@@ -23418,19 +23421,19 @@ async function generateFromPattern() {
 <!-- ══════════ UAT JOB FORM MODAL ══════════ -->
 <div class="overlay" id="modal-uat-form">
   <div class="modal" style="max-width:720px;max-height:92vh;overflow-y:auto;padding:1.1rem 1.25rem">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
-      <div id="modal-uat-form-title" style="font-size:1rem;font-weight:800">เปิดรอบทดสอบ UAT</div>
+    <div class="modal-head">
+      <div id="modal-uat-form-title" style="font-size:1.08rem;font-weight:600;letter-spacing:-.005em">เปิดรอบทดสอบ UAT</div>
       <button class="modal-close" onclick="closeModal('modal-uat-form')">×</button>
     </div>
     <input type="hidden" id="uat-edit-id"/>
-    <div style="font-size:.73rem;color:#0369a1;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:.45rem .6rem;margin-bottom:.7rem;line-height:1.5">
+    <div style="font-size:.73rem;color:#2a544d;background:#f4f8f6;border:1px solid #c9dbd5;border-radius:8px;padding:.45rem .6rem;margin-bottom:.7rem;line-height:1.5">
       กรอกแค่หน้านี้พอครับ — พอบันทึกแล้วจะได้ปุ่ม <strong>เอกสาร draft</strong> ไปกรอกรายละเอียดทั้งหมด<br>
       (วัตถุประสงค์ · ขอบเขต · FTP · Remote · ขั้นตอนทดสอบ · เกณฑ์ผ่าน) แล้วอัพโหลดกลับเข้าระบบ
     </div>
 
     <!-- เรื่องที่ขอทดสอบ -->
     <div style="margin-bottom:.6rem">
-      <label style="font-size:.75rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.25rem">เรื่องที่ขอทดสอบ <span style="color:#ef4444">*</span></label>
+      <label style="font-size:.75rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.25rem">เรื่องที่ขอทดสอบ <span style="color:#b04a40">*</span></label>
       <input id="uat-title" type="text" placeholder="เช่น Kouen — อัพเดท Version HQ และทดสอบ Sync ระหว่าง Version"
         style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.38rem .65rem;font-size:.83rem;outline:none"/>
     </div>
@@ -23498,8 +23501,8 @@ async function generateFromPattern() {
 <!-- ══════════ UAT DETAIL MODAL ══════════ -->
 <div class="overlay" id="modal-uat-detail">
   <div class="modal" style="max-width:900px;width:100%;max-height:92vh;overflow-y:auto;padding:1.1rem 1.25rem">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
-      <div id="modal-uat-detail-title" style="font-size:1rem;font-weight:800">รายละเอียดรอบทดสอบ</div>
+    <div class="modal-head">
+      <div id="modal-uat-detail-title" style="font-size:1.08rem;font-weight:600;letter-spacing:-.005em">รายละเอียดรอบทดสอบ</div>
       <button class="modal-close" onclick="closeModal('modal-uat-detail')">×</button>
     </div>
     <div id="uat-detail-body"></div>
@@ -23510,7 +23513,7 @@ async function generateFromPattern() {
 <div class="overlay" id="modal-uat-issue-form">
   <div class="modal" style="max-width:640px;width:100%;max-height:92vh;overflow-y:auto;padding:1.1rem 1.25rem">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.35rem">
-      <div id="modal-uat-issue-title" style="font-size:1rem;font-weight:800">บันทึกปัญหา (Issue)</div>
+      <div id="modal-uat-issue-title" style="font-size:1.08rem;font-weight:600;letter-spacing:-.005em">บันทึกปัญหา (Issue)</div>
       <button class="modal-close" onclick="closeModal('modal-uat-issue-form')">×</button>
     </div>
     <div style="font-size:.72rem;color:var(--muted);margin-bottom:.75rem">รูปแบบตามเอกสาร: Topic / Description / Expected Behavior / Actual Behavior</div>
@@ -23518,7 +23521,7 @@ async function generateFromPattern() {
     <input type="hidden" id="uat-issue-job-id"/>
 
     <div style="margin-bottom:.55rem">
-      <label style="font-size:.75rem;font-weight:700;color:#3a3f46;display:block;margin-bottom:.2rem">Topic — หัวข้อ/ชื่อปัญหาโดยสรุป <span style="color:#ef4444">*</span></label>
+      <label style="font-size:.75rem;font-weight:700;color:#3a3f46;display:block;margin-bottom:.2rem">Topic — หัวข้อ/ชื่อปัญหาโดยสรุป <span style="color:#b04a40">*</span></label>
       <input id="uat-issue-topic" type="text" placeholder="เช่น Sync สต๊อกจาก HQ ไปสาขา Version เดิมไม่ครบ"
         style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.38rem .65rem;font-size:.83rem"/>
     </div>
@@ -23533,17 +23536,17 @@ async function generateFromPattern() {
         style="width:100%;border:1px solid #bbf7d0;background:#f0fdf4;border-radius:7px;padding:.35rem .6rem;font-size:.82rem;resize:vertical;font-family:inherit"></textarea>
     </div>
     <div style="margin-bottom:.55rem">
-      <label style="font-size:.75rem;font-weight:700;color:#b91c1c;display:block;margin-bottom:.2rem">Actual Behavior — พฤติกรรมที่ระบบทำงานจริง (ผิดปกติ)</label>
+      <label style="font-size:.75rem;font-weight:700;color:#963d34;display:block;margin-bottom:.2rem">Actual Behavior — พฤติกรรมที่ระบบทำงานจริง (ผิดปกติ)</label>
       <textarea id="uat-issue-actual" rows="2"
-        style="width:100%;border:1px solid #fecaca;background:#fef2f2;border-radius:7px;padding:.35rem .6rem;font-size:.82rem;resize:vertical;font-family:inherit"></textarea>
+        style="width:100%;border:1px solid #e8c9c3;background:#f7ebe8;border-radius:7px;padding:.35rem .6rem;font-size:.82rem;resize:vertical;font-family:inherit"></textarea>
     </div>
     <div style="margin-bottom:.55rem">
-      <label style="font-size:.75rem;font-weight:700;color:#1d4ed8;display:block;margin-bottom:.2rem">
-        🛠 แนวทางการแก้ไข
+      <label style="font-size:.75rem;font-weight:700;color:#2a544d;display:block;margin-bottom:.2rem">
+        แนวทางการแก้ไข
         <span style="font-weight:400;color:#8a8f97;font-size:.7rem">(ฝั่ง Developer — กรอกทีหลังได้)</span>
       </label>
       <textarea id="uat-issue-resolution" rows="3" placeholder="เช่น แก้ query ที่ดึงสต๊อกให้กรองตามสาขา / รอ patch เวอร์ชันถัดไป / ตั้งค่าใหม่ให้ลูกค้าแล้ว"
-        style="width:100%;border:1px solid #bfdbfe;background:#eff6ff;border-radius:7px;padding:.35rem .6rem;font-size:.82rem;resize:vertical;font-family:inherit"></textarea>
+        style="width:100%;border:1px solid #c9dbd5;background:#eef4f1;border-radius:7px;padding:.35rem .6rem;font-size:.82rem;resize:vertical;font-family:inherit"></textarea>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.55rem">
@@ -23607,8 +23610,8 @@ async function generateFromPattern() {
 
 <div class="overlay" id="modal-sw-update-form">
   <div class="modal" style="max-width:620px;max-height:90vh;overflow-y:auto;padding:1.1rem 1.25rem">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
-      <div id="modal-sw-update-form-title" style="font-size:1rem;font-weight:800">แจ้งงานอัพเดท Software</div>
+    <div class="modal-head">
+      <div id="modal-sw-update-form-title" style="font-size:1.08rem;font-weight:600;letter-spacing:-.005em">แจ้งงานอัพเดท Software</div>
       <button class="modal-close" onclick="closeModal('modal-sw-update-form')">×</button>
     </div>
     <input type="hidden" id="swu-edit-id"/>
@@ -23619,7 +23622,7 @@ async function generateFromPattern() {
 
     <!-- ร้านค้า -->
     <div style="position:relative;margin-bottom:.6rem">
-      <label style="font-size:.75rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.25rem">ร้านค้า <span style="color:#ef4444">*</span></label>
+      <label style="font-size:.75rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.25rem">ร้านค้า <span style="color:#b04a40">*</span></label>
       <input id="swu-company" type="text" placeholder="พิมพ์ชื่อร้านเพื่อค้นหา..." oninput="swuShopSearch()" autocomplete="off"
         style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.38rem .65rem;font-size:.83rem;outline:none"/>
       <div id="swu-shop-results" style="position:absolute;z-index:200;background:#fff;border:1px solid var(--border);border-radius:8px;max-height:180px;overflow-y:auto;width:100%;display:none;box-shadow:0 4px 12px #0002"></div>
@@ -23701,8 +23704,8 @@ async function generateFromPattern() {
     </div>
 
     <!-- ผู้ดำเนินการ (แสดงเมื่อสถานะ = done) -->
-    <div id="swu-assignees-section" style="display:none;margin-bottom:.75rem;border:1px solid #bfdbfe;border-radius:9px;padding:.65rem .75rem;background:#eff6ff">
-      <label style="font-size:.75rem;font-weight:700;color:#1d4ed8;display:block;margin-bottom:.45rem">ผู้ดำเนินการ (นับ KPI SW Update)</label>
+    <div id="swu-assignees-section" style="display:none;margin-bottom:.75rem;border:1px solid #c9dbd5;border-radius:9px;padding:.65rem .75rem;background:#eef4f1">
+      <label style="font-size:.75rem;font-weight:700;color:#2a544d;display:block;margin-bottom:.45rem">ผู้ดำเนินการ (นับ KPI SW Update)</label>
       <div id="swu-assignees-list" style="display:flex;flex-wrap:wrap;gap:.35rem .75rem;max-height:160px;overflow-y:auto"></div>
     </div>
 
@@ -23815,7 +23818,7 @@ async function generateFromPattern() {
         </div>
       </div>
     </div>
-    <div id="add-shift-err" style="display:none;background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;border-radius:7px;padding:.5rem .75rem;font-size:.82rem;margin-bottom:.5rem"></div>
+    <div id="add-shift-err" style="display:none;background:#f7ebe8;border:1px solid #e8c9c3;color:#963d34;border-radius:7px;padding:.5rem .75rem;font-size:.82rem;margin-bottom:.5rem"></div>
     <div class="btn-group">
       <button class="btn btn-primary" onclick="saveNewShift()">บันทึก</button>
       <button class="btn btn-ghost" onclick="closeModal('modal-add-shift-type')">ยกเลิก</button>
@@ -23848,7 +23851,7 @@ async function generateFromPattern() {
       <button class="btn btn-sm" style="background:#7c3aed;color:#fff;margin-left:auto" onclick="generateFromPattern()">เจนตารางทั้งเดือน</button>
     </div>
     <div style="padding:.6rem 1.25rem;font-size:.75rem;color:#5b616b;background:#fffbeb;border-bottom:1px solid #fde68a">
-      💡 กำหนดกะที่แต่ละคนทำในแต่ละวันของสัปดาห์ — ระบบจะเจนทุกวันในเดือนที่เลือกอัตโนมัติ &nbsp;|&nbsp; เว้นว่าง = ไม่กำหนด (ข้ามวันนั้น)
+      กำหนดกะที่แต่ละคนทำในแต่ละวันของสัปดาห์ — ระบบจะเจนทุกวันในเดือนที่เลือกอัตโนมัติ &nbsp;|&nbsp; เว้นว่าง = ไม่กำหนด (ข้ามวันนั้น)
     </div>
     <div style="flex:1;overflow:auto;padding:1rem 1.25rem">
       <div id="pattern-table-wrap"></div>
