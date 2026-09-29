@@ -221,8 +221,8 @@ textarea{resize:vertical;min-height:80px}
 .progress-bar{height:100%;border-radius:99px;transition:width .5s}
 
 /* ── OVERDUE ── */
-.overdue-row{background:#fff7f7!important}
-.overdue-row td{color:#7f1d1d}
+.overdue-row{background:#fdf8f6!important}
+.overdue-row td{color:inherit}
 
 /* ── SECTION HEADER ── */
 .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem}
@@ -387,7 +387,7 @@ textarea{resize:vertical;min-height:80px}
 .tk-row-main td:last-child{cursor:default}
 .tk-row-main .tk-toggle{cursor:pointer;user-select:none;color:var(--muted);font-size:.9rem;transition:.2s}
 .tk-row-main:hover td{background:#faf9f6}
-.tk-row-detail td{background:#faf9f6;border-bottom:2px solid var(--border)}
+.tk-row-detail td{background:#faf9f6;border-bottom:1px solid var(--border)}
 .sp-row-detail td{border-bottom:2px solid #e9d5ff}
 .sp-row-main:hover{background:#faf5ff!important}
 .fu-kanban-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.12)!important;transform:translateY(-1px)}
@@ -396,11 +396,11 @@ textarea{resize:vertical;min-height:80px}
 .rp-kanban-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.12)!important;transform:translateY(-1px)}
 .rp-kanban-card{transition:box-shadow .15s,transform .15s,opacity .15s}
 .rp-kanban-col.drag-over{outline:2px dashed #3b82f6}
-.tk-detail-box{padding:.75rem 1rem;border-radius:8px;background:#fff;border:1px solid var(--border)}
-.tk-detail-label{font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:.25rem}
+.tk-detail-box{padding:.8rem 1rem;border-radius:12px;background:#fff;border:1px solid var(--border)}
+.tk-detail-label{font-size:.74rem;font-weight:600;color:#5b616b;margin-bottom:.3rem}
 .tk-detail-text{font-size:.84rem;line-height:1.7;color:var(--text);white-space:pre-wrap}
-.tk-solution-box{background:#f0fdf4;border:1px solid #86efac}
-.tk-solution-box .tk-detail-label{color:#15803d}
+.tk-solution-box{background:#f4f8f5;border:1px solid #cfe0d5}
+.tk-solution-box .tk-detail-label{color:#356b4e}
 /* ── TICKET REVIEW (stars) ── */
 .star-picker{display:flex;gap:.15rem;margin:.25rem 0}
 .star-picker span{font-size:1.4rem;cursor:pointer;color:#d6d2c9;transition:color .1s;user-select:none;line-height:1}
@@ -531,6 +531,73 @@ textarea{resize:vertical;min-height:80px}
 .impl-comment-input{flex:1;height:38px;border:1px solid var(--border);border-radius:10px;padding:0 .8rem;font-size:.84rem;outline:none;background:#fff;color:var(--text)}
 .impl-comment-input:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-soft)}
 .impl-mfoot{display:flex;align-items:center;gap:.5rem;padding:.9rem 1.5rem;border-top:1px solid var(--line-2);background:#fff}
+/* tickets (ติดตามเคส) */
+.tk-tabbar{display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;flex-wrap:wrap;border-bottom:1px solid var(--border);margin-bottom:1rem}
+.tk-tabbar .svc-tab{margin-bottom:-1px}
+.tk-metrics{display:flex;gap:1.25rem;font-size:.8rem;color:#5b616b;padding-bottom:.6rem;flex-wrap:wrap}
+.tk-metrics b{font-family:'IBM Plex Mono',monospace;font-weight:500;color:var(--text);margin-left:.2rem}
+.tk-metric-note{font-size:.72rem;color:#6f747c}
+.tk-tbl td{vertical-align:top}
+.tk-case{font-family:'IBM Plex Mono',monospace;font-size:.78rem;color:var(--text);font-weight:500;white-space:nowrap}
+.tk-sub{font-size:.72rem;color:#6f747c;margin-top:.15rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tk-desc{font-size:.78rem;color:#5b616b;line-height:1.5;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.tk-desc-main{font-size:.85rem;color:var(--text);font-weight:500;line-height:1.45;overflow-wrap:anywhere}
+.tk-ptype{display:inline-block;font-size:.7rem;padding:.08rem .45rem;border-radius:5px;background:#e7f0ea;color:#356b4e;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;vertical-align:.05em}
+.tk-linkbtn{border:none;background:none;cursor:pointer;padding:0 .15rem;color:#8a8f97;font-size:.78rem;line-height:1;vertical-align:-.1em}
+.tk-linkbtn:hover{color:var(--primary)}
+.tk-st{display:inline-flex;align-items:center;gap:.4rem;font-size:.74rem;font-weight:500;padding:.2rem .6rem;border-radius:999px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.tk-st::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+.tk-flag{display:inline-block;font-size:.68rem;font-weight:500;padding:.05rem .42rem;border-radius:5px;background:#f7ebe8;color:#b04a40;margin-top:.3rem}
+.tk-sp-btn{margin-top:.35rem;border:1px solid #d9d4ec;background:#f4f2fa;color:#5a4f8f;border-radius:999px;font-family:inherit;font-size:.7rem;padding:.18rem .6rem;cursor:pointer;white-space:nowrap}
+.tk-sp-btn:hover{background:#ebe7f6}
+.tk-time{font-family:'IBM Plex Mono',monospace;font-size:.8rem;white-space:nowrap}
+.tk-toggle-btn{width:30px;height:30px;border:none;background:none;border-radius:8px;color:#8a8f97;display:flex;align-items:center;justify-content:center;transition:transform .2s,background .15s}
+.tk-row-main:hover .tk-toggle-btn{background:#f0eee9;color:var(--text)}
+.tk-toggle-btn.open{transform:rotate(180deg)}
+.tk-foot{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-top:.85rem}
+.tk-pg{min-width:32px;height:32px;padding:0 .55rem;border-radius:8px;border:1px solid var(--border);background:#fff;color:var(--text);font-size:.8rem;cursor:pointer;font-family:inherit}
+.tk-pg:hover:not(:disabled){background:#f0eee9}
+.tk-pg.on{background:var(--primary);border-color:var(--primary);color:#fff;font-weight:500}
+.tk-pg:disabled{opacity:.45;cursor:default}
+/* follow up */
+.fu-board-header{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;padding:0 0 .85rem}
+.fu-pick-btn{max-width:420px;height:38px}
+.fu-pick-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.fu-pick-menu{left:0;right:auto;width:340px}
+#fu-pick.open .fu-pick-menu{display:block}
+.fu-folder-tree{max-height:min(58vh,460px);overflow-y:auto;padding:.1rem 0}
+.fu-gsearch-results{position:absolute;top:calc(100% - .1rem);left:.3rem;right:.3rem;max-height:340px;overflow-y:auto;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 32px -10px rgba(36,39,44,.25);z-index:210}
+.fu-f-row{display:flex;align-items:center;gap:.45rem;padding:.45rem .55rem;border-radius:9px;cursor:pointer;font-size:.83rem;font-weight:500;color:#3a3f46;user-select:none}
+.fu-f-row:hover{background:#f6f5f1}
+.fu-f-row .chev{width:14px;display:inline-flex;justify-content:center;color:#8a8f97;transition:transform .15s}
+.fu-f-row .chev.open{transform:rotate(90deg)}
+.fu-f-row .cnt,.fu-b-row .cnt{font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:#6f747c}
+.fu-f-act{padding:.1rem .3rem;color:#8a8f97;border-radius:5px;cursor:pointer;line-height:1}
+.fu-f-act:hover{background:#fff;color:var(--text)}
+.fu-b-row{display:flex;align-items:center;gap:.45rem;padding:.42rem .55rem .42rem 1.9rem;border-radius:9px;cursor:pointer;font-size:.81rem;color:#4d535b;margin-bottom:1px}
+.fu-b-row:hover{background:#f6f5f1;color:var(--text)}
+.fu-b-row.active{background:var(--primary-soft);color:var(--text);font-weight:500}
+.fu-b-row.active .cnt{color:var(--primary)}
+.fu-dd-menu{position:absolute;top:calc(100% + 6px);left:0;min-width:180px;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 32px -10px rgba(36,39,44,.25);z-index:9999;padding:.3rem;overflow:hidden}
+.fu-dd-opt{padding:.42rem .6rem;font-size:.8rem;cursor:pointer;display:flex;align-items:center;gap:.5rem;color:#3a3f46;border-radius:8px}
+.fu-dd-opt:hover{background:#f6f5f1}
+.fu-empty{text-align:center;padding:4.5rem 1rem;color:#6f747c;font-size:.88rem;background:#fff;border:1px solid var(--border);border-radius:16px}
+.fu-tbl{width:100%;min-width:1120px;table-layout:fixed;border-collapse:collapse;font-size:.8rem;background:#fff}
+.fu-tbl th{padding:.75rem .5rem;text-align:left;font-size:.72rem;color:#6f747c;font-weight:500;white-space:nowrap;border-bottom:1px solid var(--border);text-transform:none;letter-spacing:0}
+.fu-tbl th:first-child{padding-left:1rem}
+.fu-tbl tbody tr{border-bottom:1px solid var(--line-2)}
+.fu-tbl td:first-child{padding-left:1rem!important}
+.fu-cat{background:#f0eee9;color:#4d535b;border-radius:5px;padding:.08rem .45rem;font-size:.68rem;white-space:nowrap}
+.fu-kcol{min-width:230px;flex:1;background:#efede7;border-radius:14px;padding:.4rem;display:flex;flex-direction:column}
+/* uat */
+.uat-tbl td{vertical-align:top}
+.uat-st{display:inline-block;font-size:.72rem;font-weight:500;padding:.2rem .55rem;border-radius:8px;line-height:1.35;max-width:100%}
+.uat-pri{display:flex;align-items:center;gap:.35rem;font-size:.72rem;margin-top:.35rem}
+.uat-pri::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+.uat-tag{display:inline-block;font-size:.7rem;font-weight:500;padding:.08rem .45rem;border-radius:5px;white-space:nowrap;margin:0 .25rem .25rem 0}
+.uat-act{width:30px;height:30px;border:none;background:none;border-radius:8px;color:#8a8f97;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.uat-act:hover{background:#f0eee9;color:var(--text)}
+.uat-act.danger:hover{background:#f7ebe8;color:#b04a40}
 /* status tabs */
 .svc-tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:1rem;overflow-x:auto;scrollbar-width:none}
 .svc-tab{border:none;background:none;font-family:inherit;font-size:.86rem;color:#5b616b;padding:.55rem .85rem;margin-bottom:-1px;border-bottom:2px solid transparent;cursor:pointer;display:flex;align-items:center;gap:.45rem;white-space:nowrap;transition:color .15s,border-color .15s}
@@ -1186,108 +1253,86 @@ textarea{resize:vertical;min-height:80px}
 
 <!-- ═══════════════════ PAGE: TICKETS ═══════════════════ -->
 <div id="page-tickets" class="page">
-  <div class="section-header" style="margin-bottom:.75rem">
-    <div class="section-title">ติดตามเคส — Calllog</div>
-    <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
-      <div style="font-size:.78rem;color:var(--muted)" id="tk-count-label"></div>
-      <button class="btn btn-ghost btn-sm" onclick="tkExportCSV()" title="Export ข้อมูลที่กรองอยู่เป็น CSV">
-        <svg style="width:13px;height:13px;margin-right:.3rem;vertical-align:middle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export
-      </button>
-      <button class="btn btn-ghost btn-sm" onclick="openModal('modal-tk-import')" title="Import Case จาก CSV">
-        <svg style="width:13px;height:13px;margin-right:.3rem;vertical-align:middle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Import
-      </button>
-      <button class="btn btn-primary btn-sm" onclick="openCreateCaseModal()">เปิด Case</button>
+  <div class="svc-hdr">
+    <div>
+      <div class="svc-kicker">Calllog</div>
+      <h1 class="svc-h1">ติดตามเคส</h1>
+      <div class="svc-sub" id="tk-count-label">เคสจาก Calllog ในช่วงที่เลือก</div>
+    </div>
+    <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+      <button class="svc-btn-ghost" onclick="tkExportCSV()" title="Export ข้อมูลที่กรองอยู่เป็น CSV"><i class=i-download></i> Export</button>
+      <button class="svc-btn-ghost" onclick="openModal('modal-tk-import')" title="Import Case จาก CSV"><i class=i-upload></i> Import</button>
+      <button class="svc-btn-primary" onclick="openCreateCaseModal()"><span style="font-size:1.05rem;line-height:1;font-weight:400">+</span> เปิด Case</button>
     </div>
   </div>
 
-  <!-- Date & Filter Bar (top) -->
-  <div class="page-datebar" style="flex-direction:column;align-items:flex-start;gap:.45rem">
-    <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;width:100%">
-      <div class="drb" id="tk-drb">
-        <button class="drb-btn active" onclick="tkRange('today',this)">วันนี้</button>
-        <button class="drb-btn" onclick="tkRange('yesterday',this)">เมื่อวานนี้</button>
-        <button class="drb-btn" onclick="tkRange('thisweek',this)">สัปดาห์นี้</button>
-        <button class="drb-btn" onclick="tkRange('thismonth',this)">เดือนนี้</button>
-        <button class="drb-btn" onclick="tkRange('lastmonth',this)">เดือนที่แล้ว</button>
-        <button class="drb-btn" onclick="tkRange('7d',this)">7 วันที่แล้ว</button>
-        <button class="drb-btn" onclick="tkRange('30d',this)">30 วันที่ผ่านมา</button>
-        <button class="drb-btn" onclick="tkRange('custom',this)">กำหนดเอง</button>
-      </div>
-      <span style="color:var(--border)">|</span>
-      <select id="tk-filter-team" onchange="loadTickets()">
-        <option value="">ทุกทีม</option>
-      </select>
-      <select id="tk-filter-problem-type" onchange="loadTickets()">
-        <option value="">ทุกประเภทปัญหา</option>
-      </select>
-      <select id="tk-filter-status" onchange="loadTickets()">
-        <option value="">ทุกสถานะ</option>
-      </select>
-      <select id="tk-filter-agent" onchange="loadTickets()">
-        <option value="">ทุก Agent</option>
-      </select>
-      <input id="tk-search" type="text" placeholder="ค้นหา หรือพิมพ์ #CallID ข้ามวันที่..." oninput="tkSearchDebounce()" style="min-width:200px;flex:1"/>
+  <!-- Open/closed tabs + headline metrics -->
+  <div class="tk-tabbar">
+    <div class="svc-tabs" id="tk-tabs" style="margin-bottom:0;border-bottom:none">
+      <button class="svc-tab on" data-st="" onclick="tkSetTab('')">ทั้งหมด <span class="c" id="tk-stat-total">—</span></button>
+      <button class="svc-tab" data-st="open" onclick="tkSetTab('open')"><span class="svc-dot" style="background:#5b7fb3"></span>เปิดอยู่ <span class="c" id="tk-stat-open">—</span></button>
+      <button class="svc-tab" data-st="closed" onclick="tkSetTab('closed')"><span class="svc-dot" style="background:#4d8c6a"></span>ปิดแล้ว <span class="c" id="tk-stat-closed">—</span></button>
     </div>
-    <div class="drb-custom" id="tk-custom-range">
-      <input id="tk-date-from" type="date" style="max-width:135px" title="วันที่เริ่มต้น"/>
-      <span style="color:var(--muted);font-size:.8rem">ถึง</span>
-      <input id="tk-date-to" type="date" style="max-width:135px" title="วันที่สิ้นสุด"/>
-      <button class="btn btn-sm btn-primary" onclick="loadTickets()">ค้นหา</button>
+    <div class="tk-metrics">
+      <span>ค้างเกิน 24 ชม. <span class="tk-metric-note">(ทั้งระบบ)</span> <b id="tk-stat-overdue" style="color:#a2562f">—</b></span>
+      <span>เฉลี่ยแก้ไข <b id="tk-stat-avg">—</b></span>
     </div>
   </div>
 
-  <!-- Stat Bar (compact) -->
-  <div id="tk-stats" style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.6rem;margin-bottom:.1rem">
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">ทั้งหมด</span>
-      <span style="font-size:1.1rem;font-weight:800;color:var(--hd)" id="tk-stat-total">—</span>
-    </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">เปิดอยู่</span>
-      <span style="font-size:1.1rem;font-weight:800;color:var(--danger)" id="tk-stat-open">—</span>
-    </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">ค้าง &gt;24ชม. (ทั้งระบบ)</span>
-      <span style="font-size:1.1rem;font-weight:800;color:#dc2626" id="tk-stat-overdue">—</span>
-    </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">ปิดแล้ว</span>
-      <span style="font-size:1.1rem;font-weight:800;color:var(--success)" id="tk-stat-closed">—</span>
-    </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">เฉลี่ยแก้ไข</span>
-      <span style="font-size:1.1rem;font-weight:800;color:#7c3aed" id="tk-stat-avg">—</span>
-    </div>
-  </div>
-
-  <!-- Per-page selector -->
-  <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
-    <span style="font-size:.78rem;color:var(--muted)">แสดง</span>
-    <select id="tk-per-page" onchange="tkPerPageChange()" style="padding:.25rem .5rem;border:1px solid var(--border);border-radius:6px;font-size:.78rem;background:#fff;color:var(--text)">
-      <option value="20">20</option>
-      <option value="50" selected>50</option>
-      <option value="100">100</option>
-      <option value="200">200</option>
+  <!-- Filters -->
+  <div class="svc-filters">
+    <label class="svc-search">
+      <i class=i-search style="color:#8a8f97"></i>
+      <input id="tk-search" type="text" placeholder="ค้นหา หรือพิมพ์ #CallID ข้ามวันที่" oninput="tkSearchDebounce()"/>
+    </label>
+    <select id="tk-filter-team" class="svc-select" onchange="loadTickets()" aria-label="ทีม">
+      <option value="">ทุกทีม</option>
     </select>
-    <span style="font-size:.78rem;color:var(--muted)">รายการต่อหน้า</span>
+    <select id="tk-filter-problem-type" class="svc-select" onchange="loadTickets()" aria-label="ประเภทปัญหา" style="max-width:220px">
+      <option value="">ทุกประเภทปัญหา</option>
+    </select>
+    <select id="tk-filter-status" class="svc-select" onchange="loadTickets()" aria-label="สถานะ" style="max-width:200px">
+      <option value="">ทุกสถานะ</option>
+    </select>
+    <select id="tk-filter-agent" class="svc-select" onchange="loadTickets()" aria-label="Agent" style="max-width:180px">
+      <option value="">ทุก Agent</option>
+    </select>
+  </div>
+  <div class="svc-filters" style="margin-top:-.35rem">
+    <div class="drb" id="tk-drb">
+      <button class="drb-btn active" onclick="tkRange('today',this)">วันนี้</button>
+      <button class="drb-btn" onclick="tkRange('yesterday',this)">เมื่อวาน</button>
+      <button class="drb-btn" onclick="tkRange('thisweek',this)">สัปดาห์นี้</button>
+      <button class="drb-btn" onclick="tkRange('thismonth',this)">เดือนนี้</button>
+      <button class="drb-btn" onclick="tkRange('lastmonth',this)">เดือนที่แล้ว</button>
+      <button class="drb-btn" onclick="tkRange('7d',this)">7 วัน</button>
+      <button class="drb-btn" onclick="tkRange('30d',this)">30 วัน</button>
+      <button class="drb-btn" onclick="tkRange('custom',this)">กำหนดเอง</button>
+    </div>
+    <div class="drb-custom" id="tk-custom-range" style="margin-top:0">
+      <input id="tk-date-from" type="date" class="svc-date" title="วันที่เริ่มต้น"/>
+      <span style="color:var(--muted);font-size:.8rem">ถึง</span>
+      <input id="tk-date-to" type="date" class="svc-date" title="วันที่สิ้นสุด"/>
+      <button class="svc-btn-primary" style="height:34px;padding:0 1rem" onclick="loadTickets()">ค้นหา</button>
+    </div>
   </div>
 
-  <div class="card" style="padding:.5rem 0">
+  <!-- Table -->
+  <div class="svc-tbl-card">
     <div class="tbl-wrap">
-      <table id="ticket-table">
+      <table id="ticket-table" class="svc-tbl tk-tbl">
+        <colgroup>
+          <col style="width:150px"><col><col style="width:140px"><col style="width:140px"><col style="width:108px"><col style="width:116px"><col style="width:44px">
+        </colgroup>
         <thead>
           <tr>
-            <th style="width:24px"></th>
-            <th>#</th>
-            <th>วันที่รับ</th>
-            <th>ลูกค้า</th>
-            <th>ประเภท / หัวข้อ</th>
-            <th>รายละเอียดปัญหา</th>
+            <th>เคส</th>
+            <th>รายละเอียดปัญหา / ลูกค้า</th>
             <th>Agent</th>
             <th>สถานะ</th>
-            <th>วันที่ปิด</th>
-            <th title="เวลาแก้ไขตามที่ตั้งไว้">เป้าหมาย</th>
-            <th title="ใช้เวลาไปจริงๆ">ใช้เวลาจริง</th>
+            <th>ปิดเมื่อ</th>
+            <th title="ใช้เวลาจริง เทียบกับเป้าหมาย">เวลาแก้ไข</th>
+            <th></th>
           </tr>
         </thead>
         <tbody id="ticket-tbody"></tbody>
@@ -1295,8 +1340,20 @@ textarea{resize:vertical;min-height:80px}
     </div>
   </div>
 
-  <!-- Pagination -->
-  <div id="tk-pagination" style="display:flex;align-items:center;justify-content:center;gap:.35rem;margin-top:.75rem;flex-wrap:wrap"></div>
+  <!-- Pagination + page size -->
+  <div class="tk-foot">
+    <div style="display:flex;align-items:center;gap:.45rem;font-size:.78rem;color:#6f747c">
+      แสดง
+      <select id="tk-per-page" class="svc-select" onchange="tkPerPageChange()" style="height:32px;padding:0 .5rem" aria-label="จำนวนต่อหน้า">
+        <option value="20">20</option>
+        <option value="50" selected>50</option>
+        <option value="100">100</option>
+        <option value="200">200</option>
+      </select>
+      รายการต่อหน้า
+    </div>
+    <div id="tk-pagination" style="display:flex;align-items:center;gap:.3rem;flex-wrap:wrap"></div>
+  </div>
 </div>
 
 <!-- ═══════════════════ PAGE: KPI ═══════════════════ -->
@@ -2741,129 +2798,109 @@ textarea{resize:vertical;min-height:80px}
 <!-- ═══════════════════ PAGE: FOLLOW UP ═══════════════════ -->
 <div id="page-followup" class="page">
 
+  <div class="svc-hdr" style="margin-bottom:.9rem">
+    <div>
+      <div class="svc-kicker">Issue tracking</div>
+      <h1 class="svc-h1">Follow Up</h1>
+    </div>
+  </div>
+
   <!-- Tab bar -->
-  <div style="display:flex;align-items:center;gap:0;background:#fff;border-bottom:2px solid #e6e3dc;padding:0 1rem">
-    <button id="fu-tab-btn-1" onclick="fuSwitchTab(1)"
-      style="padding:.6rem 1.1rem;font-size:.82rem;font-weight:700;border:none;background:none;cursor:pointer;color:#1d4ed8;border-bottom:2px solid #1d4ed8;margin-bottom:-2px;transition:all .18s">
-      📋 จัดการงาน
-    </button>
-    <button id="fu-tab-btn-2" onclick="fuSwitchTab(2)"
-      style="padding:.6rem 1.1rem;font-size:.82rem;font-weight:700;border:none;background:none;cursor:pointer;color:#5b616b;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .18s">
-      📊 ภาพรวม
-    </button>
-    <button id="fu-tab-btn-3" onclick="fuSwitchTab(3)"
-      style="padding:.6rem 1.1rem;font-size:.82rem;font-weight:700;border:none;background:none;cursor:pointer;color:#5b616b;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .18s">
-      👤 งานตามพนักงาน
-    </button>
-    <button id="fu-tab-btn-4" onclick="fuSwitchTab(4)"
-      style="padding:.6rem 1.1rem;font-size:.82rem;font-weight:700;border:none;background:none;cursor:pointer;color:#5b616b;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .18s">
-      📎 Azure Issues
-    </button>
+  <div class="svc-tabs" style="margin-bottom:1rem">
+    <button id="fu-tab-btn-1" class="svc-tab on" onclick="fuSwitchTab(1)">จัดการงาน</button>
+    <button id="fu-tab-btn-2" class="svc-tab" onclick="fuSwitchTab(2)">ภาพรวม</button>
+    <button id="fu-tab-btn-3" class="svc-tab" onclick="fuSwitchTab(3)">งานตามพนักงาน</button>
+    <button id="fu-tab-btn-4" class="svc-tab" onclick="fuSwitchTab(4)">Azure Issues</button>
   </div>
 
   <!-- Tab 1: Manage -->
-  <div id="fu-tab-1" style="display:flex;height:calc(100vh - 100px);overflow:hidden">
-
-    <!-- ── Sidebar ── -->
-    <div id="fu-sidebar" style="width:230px;min-width:230px;background:#fff;border-right:1px solid #e6e3dc;display:flex;flex-direction:column;overflow:hidden">
-      <div style="padding:.75rem .85rem .5rem;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #f0eee9">
-        <span style="font-weight:700;font-size:.85rem;color:#24272c">Folders</span>
-        <button onclick="fuOpenCreateFolder()" title="สร้างโฟลเดอร์ใหม่" style="background:#eff6ff;color:#1d4ed8;border:none;border-radius:6px;padding:.2rem .5rem;font-size:.8rem;cursor:pointer;font-weight:700">+ Folder</button>
-      </div>
-      <div style="padding:.55rem .7rem;border-bottom:1px solid #f0eee9;position:relative">
-        <input id="fu-global-search" type="text" placeholder="ค้นหาทั้งหมด..."
-          oninput="fuGlobalSearchInput()" onfocus="fuGlobalSearchInput()"
-          style="width:100%;font-size:.78rem;padding:.4rem .6rem;border:1px solid #d6d2c9;border-radius:7px;outline:none;font-family:inherit;box-sizing:border-box"/>
-        <div id="fu-global-search-results" style="display:none;position:absolute;top:calc(100% + 2px);left:.7rem;right:.7rem;max-height:360px;overflow-y:auto;background:#fff;border:1px solid #e6e3dc;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:200"></div>
-      </div>
-      <div id="fu-folder-tree" style="flex:1;overflow-y:auto;padding:.4rem .5rem"></div>
-    </div>
+  <div id="fu-tab-1" style="display:flex;height:calc(100vh - 190px);overflow:hidden">
 
     <!-- ── Main ── -->
-    <div id="fu-main-area" style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:#faf9f6">
+    <div id="fu-main-area" style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0">
 
-      <!-- Board header -->
-      <div id="fu-board-header" style="background:#fff;border-bottom:1px solid #e6e3dc;padding:.65rem 1rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;min-height:52px">
-        <span id="fu-board-title" style="font-weight:700;font-size:.95rem;color:#24272c">เลือก Board จาก Sidebar</span>
+      <!-- Board header: folder/board picker (was the sidebar) + actions -->
+      <div id="fu-board-header" class="fu-board-header">
+        <div class="svc-proj-dd" id="fu-pick">
+          <button class="svc-btn-ghost fu-pick-btn" id="fu-pick-btn" onclick="fuTogglePicker(event)" aria-haspopup="true" aria-expanded="false">
+            <i class=i-folder style="color:#8a8f97"></i>
+            <span id="fu-board-title" class="fu-pick-label">เลือก Board</span>
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#8a8f97" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="svc-proj-menu fu-pick-menu" role="menu">
+            <div style="position:relative;padding:.3rem .3rem .4rem">
+              <label class="svc-search" style="max-width:none;min-width:0;height:34px">
+                <i class=i-search style="color:#8a8f97"></i>
+                <input id="fu-global-search" type="text" placeholder="ค้นหา Issue ทุก Board"
+                  oninput="fuGlobalSearchInput()" onfocus="fuGlobalSearchInput()"/>
+              </label>
+              <div id="fu-global-search-results" class="fu-gsearch-results" style="display:none"></div>
+            </div>
+            <div id="fu-folder-tree" class="fu-folder-tree"></div>
+            <div class="svc-proj-menu-foot">
+              <button onclick="fuClosePicker();fuOpenCreateFolder()"><span style="font-size:1rem;line-height:1;width:1.05em;text-align:center">+</span> สร้าง Folder ใหม่</button>
+            </div>
+          </div>
+        </div>
         <div style="flex:1"></div>
-        <div id="fu-board-actions" style="display:none;gap:.4rem;align-items:center">
+        <div id="fu-board-actions" style="display:none;gap:.45rem;align-items:center;flex-wrap:wrap;justify-content:flex-end">
           <!-- View toggle -->
-          <div style="display:flex;border:1px solid #e6e3dc;border-radius:7px;overflow:hidden;background:#faf9f6">
-            <button id="fu-view-table" onclick="fuSetView('table')" style="padding:.3rem .65rem;font-size:.78rem;border:none;cursor:pointer;background:#1d4ed8;color:#fff;font-weight:700">Table</button>
-            <button id="fu-view-board" onclick="fuSetView('board')" style="padding:.3rem .65rem;font-size:.78rem;border:none;cursor:pointer;background:transparent;color:#5b616b">Board</button>
+          <div class="svc-seg">
+            <button id="fu-view-table" class="on" onclick="fuSetView('table')">ตาราง</button>
+            <button id="fu-view-board" onclick="fuSetView('board')">บอร์ด</button>
           </div>
           <!-- Group by (table only) -->
-          <select id="fu-groupby" onchange="_fuGroupBy=this.value;fuRender()" style="font-size:.75rem;padding:.3rem .5rem;border:1px solid #d6d2c9;border-radius:6px;background:#fff">
-            <option value="">จัดกลุ่ม: ไม่มี</option>
-            <option value="status">จัดกลุ่มตาม สถานะ</option>
+          <select id="fu-groupby" class="svc-select" onchange="_fuGroupBy=this.value;fuRender()" aria-label="จัดกลุ่ม">
+            <option value="">ไม่จัดกลุ่ม</option>
+            <option value="status">จัดกลุ่มตามสถานะ</option>
             <option value="category">จัดกลุ่มตาม Category</option>
-            <option value="assigned_to_name">จัดกลุ่มตาม ผู้รับผิดชอบ</option>
-            <option value="priority">จัดกลุ่มตาม ความสำคัญ</option>
+            <option value="assigned_to_name">จัดกลุ่มตามผู้รับผิดชอบ</option>
+            <option value="priority">จัดกลุ่มตามความสำคัญ</option>
           </select>
           <!-- Multi-select status dropdown -->
           <div style="position:relative" id="fu-status-dd-wrap">
-            <button id="fu-status-dd-btn" onclick="fuToggleStatusDrop()"
-              style="font-size:.75rem;padding:.3rem .6rem;border:1px solid #d6d2c9;border-radius:6px;background:#fff;cursor:pointer;display:flex;align-items:center;gap:.35rem;min-width:120px;font-family:inherit;color:#3a3f46">
+            <button id="fu-status-dd-btn" class="svc-select" onclick="fuToggleStatusDrop()" style="display:flex;align-items:center;gap:.45rem;min-width:130px">
               <span id="fu-status-dd-label">ทุกสถานะ</span>
-              <span style="margin-left:auto;font-size:.6rem;color:#8a8f97">▼</span>
+              <svg style="margin-left:auto" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="#8a8f97" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
             </button>
-            <div id="fu-status-dd-menu" style="display:none;position:absolute;top:calc(100% + 3px);left:0;min-width:160px;background:#fff;border:1px solid #e6e3dc;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.1);z-index:9999;overflow:hidden">
-              <div onclick="fuStatusDdAll()" id="fu-status-opt-all"
-                style="padding:.35rem .7rem;font-size:.78rem;cursor:pointer;display:flex;align-items:center;gap:.5rem;border-bottom:1px solid #f0eee9;font-weight:600;color:#3a3f46"
-                onmouseover="this.style.background='#faf9f6'" onmouseout="this.style.background=''">
+            <div id="fu-status-dd-menu" class="fu-dd-menu" style="display:none">
+              <div onclick="fuStatusDdAll()" id="fu-status-opt-all" class="fu-dd-opt" style="border-bottom:1px solid #efede7;font-weight:600">
                 <span style="font-size:.8rem">☑</span> ทุกสถานะ
               </div>
-              <div onclick="fuStatusDdToggle('pending')" id="fu-status-opt-pending"
-                style="padding:.32rem .7rem;font-size:.78rem;cursor:pointer;display:flex;align-items:center;gap:.5rem;color:#92400e"
-                onmouseover="this.style.background='#fffbeb'" onmouseout="this.style.background=''">
-                <span class="fu-dd-chk">☐</span> รอดำเนินการ
-              </div>
-              <div onclick="fuStatusDdToggle('in_progress')" id="fu-status-opt-in_progress"
-                style="padding:.32rem .7rem;font-size:.78rem;cursor:pointer;display:flex;align-items:center;gap:.5rem;color:#1e40af"
-                onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background=''">
-                <span class="fu-dd-chk">☐</span> กำลังตรวจสอบ
-              </div>
-              <div onclick="fuStatusDdToggle('waiting')" id="fu-status-opt-waiting"
-                style="padding:.32rem .7rem;font-size:.78rem;cursor:pointer;display:flex;align-items:center;gap:.5rem;color:#5b21b6"
-                onmouseover="this.style.background='#f5f3ff'" onmouseout="this.style.background=''">
-                <span class="fu-dd-chk">☐</span> รอข้อมูล
-              </div>
-              <div onclick="fuStatusDdToggle('resolved')" id="fu-status-opt-resolved"
-                style="padding:.32rem .7rem;font-size:.78rem;cursor:pointer;display:flex;align-items:center;gap:.5rem;color:#166534"
-                onmouseover="this.style.background='#f0fdf4'" onmouseout="this.style.background=''">
-                <span class="fu-dd-chk">☐</span> แก้แล้ว
-              </div>
-              <div onclick="fuStatusDdToggle('cancelled')" id="fu-status-opt-cancelled"
-                style="padding:.32rem .7rem;font-size:.78rem;cursor:pointer;display:flex;align-items:center;gap:.5rem;color:#5b616b"
-                onmouseover="this.style.background='#faf9f6'" onmouseout="this.style.background=''">
-                <span class="fu-dd-chk">☐</span> ยกเลิก
-              </div>
+              <div onclick="fuStatusDdToggle('pending')" id="fu-status-opt-pending" class="fu-dd-opt"><span class="fu-dd-chk">☐</span> รอดำเนินการ</div>
+              <div onclick="fuStatusDdToggle('in_progress')" id="fu-status-opt-in_progress" class="fu-dd-opt"><span class="fu-dd-chk">☐</span> กำลังตรวจสอบ</div>
+              <div onclick="fuStatusDdToggle('waiting')" id="fu-status-opt-waiting" class="fu-dd-opt"><span class="fu-dd-chk">☐</span> รอข้อมูล</div>
+              <div onclick="fuStatusDdToggle('resolved')" id="fu-status-opt-resolved" class="fu-dd-opt"><span class="fu-dd-chk">☐</span> แก้แล้ว</div>
+              <div onclick="fuStatusDdToggle('cancelled')" id="fu-status-opt-cancelled" class="fu-dd-opt"><span class="fu-dd-chk">☐</span> ยกเลิก</div>
             </div>
           </div>
           <!-- Search (table only) -->
-          <input id="fu-search" type="text" placeholder="ค้นหาหัวข้อ / Category / ผู้รับผิดชอบ..."
-            oninput="_fuSearchQ=this.value.toLowerCase();fuRenderTable()"
-            style="font-size:.75rem;padding:.3rem .6rem;border:1px solid #d6d2c9;border-radius:6px;width:220px;outline:none;font-family:inherit"/>
-          <button onclick="fuShareBoard()" id="fu-share-btn" title="แชร์ลิงค์ภายนอก (อ่านอย่างเดียว)" style="background:#7c3aed;color:#fff;border:none;border-radius:7px;padding:.35rem .75rem;font-size:.8rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.3rem">แชร์</button>
-          <button onclick="fuExportExcel()" title="Export ข้อมูลเป็น Excel" style="background:#16a34a;color:#fff;border:none;border-radius:7px;padding:.35rem .75rem;font-size:.8rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.3rem">Excel</button>
-          <button onclick="document.getElementById('fu-import-file').click()" title="Import Issues จากไฟล์ CSV" style="background:#ea580c;color:#fff;border:none;border-radius:7px;padding:.35rem .75rem;font-size:.8rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.3rem">Import</button>
+          <label class="svc-search" id="fu-search-wrap" style="min-width:200px;max-width:260px;height:36px">
+            <i class=i-search style="color:#8a8f97"></i>
+            <input id="fu-search" type="text" placeholder="ค้นหาใน Board นี้"
+              oninput="_fuSearchQ=this.value.toLowerCase();fuRenderTable()"/>
+          </label>
+          <button onclick="fuShareBoard()" id="fu-share-btn" class="svc-btn-ghost" title="แชร์ลิงค์ภายนอก (อ่านอย่างเดียว)"><i class=i-link></i> แชร์</button>
+          <button onclick="fuExportExcel()" class="svc-btn-ghost" title="Export ข้อมูลเป็น Excel"><i class=i-download></i> Excel</button>
+          <button onclick="document.getElementById('fu-import-file').click()" class="svc-btn-ghost" title="Import Issues จากไฟล์ CSV"><i class=i-upload></i> Import</button>
           <input type="file" id="fu-import-file" accept=".csv,.tsv,text/csv" style="display:none" onchange="fuImportCSV(this)">
-          <button onclick="fuAddIssue()" style="background:#1d4ed8;color:#fff;border:none;border-radius:7px;padding:.35rem .85rem;font-size:.8rem;font-weight:700;cursor:pointer">+ Issue</button>
+          <button onclick="fuAddIssue()" class="svc-btn-primary"><span style="font-size:1.05rem;line-height:1;font-weight:400">+</span> Issue</button>
         </div>
       </div>
       <!-- Content area (table or kanban) -->
-      <div id="fu-content-area" style="flex:1;overflow:auto;padding:.75rem 1rem">
+      <div id="fu-content-area" style="flex:1;overflow:auto;padding:0">
         <div id="fu-table-wrap">
-          <div style="text-align:center;padding:4rem 1rem;color:#8a8f97">
-            <div style="font-size:2.5rem;margin-bottom:.5rem"><i class=i-folder></i></div>
-            <div>เลือก Board จาก Sidebar เพื่อดู Issues</div>
+          <div class="fu-empty">
+            <div style="font-size:1.6rem;color:#8a8f97;margin-bottom:.6rem"><i class=i-folder></i></div>
+            <div style="margin-bottom:.9rem">เลือก Folder และ Board เพื่อดู Issues</div>
+            <button class="svc-btn-ghost" onclick="fuTogglePicker(event)">เลือก Board</button>
           </div>
         </div>
       </div>
     </div>
 
     <!-- ── Slide Panel ── -->
-    <div id="fu-panel" style="width:0;min-width:0;background:#fff;border-left:1px solid #e6e3dc;display:flex;flex-direction:column;overflow:hidden;transition:width .22s ease">
+    <div id="fu-panel" style="width:0;min-width:0;background:#fff;border:none;display:flex;flex-direction:column;overflow:hidden;transition:width .22s ease">
       <div style="padding:.5rem .85rem;border-bottom:1px solid #e6e3dc;display:flex;align-items:center;gap:.5rem">
         <!-- ‹ Prev / Next › navigation -->
         <div id="fu-nav-group" style="display:none;align-items:center;gap:.15rem">
@@ -2873,15 +2910,10 @@ textarea{resize:vertical;min-height:80px}
         </div>
         <span id="fu-panel-title" style="font-size:.78rem;color:#8a8f97"></span>
         <div style="flex:1"></div>
-        <button id="fu-save-btn" onclick="fuSaveAll()" title="บันทึกทุกช่อง (Ctrl+S)"
-          style="background:#1d4ed8;color:#fff;border:none;border-radius:7px;padding:.32rem .8rem;font-size:.78rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:.3rem;transition:background .15s"
-          onmouseover="this.style.background='#1e40af'" onmouseout="this.style.background='#1d4ed8'">บันทึก</button>
+        <button id="fu-save-btn" onclick="fuSaveAll()" title="บันทึกทุกช่อง (Ctrl+S)" class="svc-btn-primary" style="height:32px;padding:0 .9rem;font-size:.8rem">บันทึก</button>
         <div style="position:relative">
           <button id="fu-move-btn" onclick="fuToggleMovePopover(_fuPanelId)" title="ย้ายไปยัง Board อื่น"
-            style="background:#f0eee9;border:1px solid #e6e3dc;font-size:.7rem;cursor:pointer;color:#4d535b;padding:.2rem .5rem;border-radius:6px;font-weight:600;display:flex;align-items:center;gap:.25rem;transition:all .15s"
-            onmouseover="this.style.background='#e6e3dc'" onmouseout="this.style.background='#f0eee9'">
-            📦 ย้าย
-          </button>
+            class="svc-btn-ghost" style="height:32px;padding:0 .75rem;font-size:.78rem"><i class=i-folder></i> ย้าย</button>
           <div id="fu-move-popover" style="display:none;position:absolute;top:calc(100% + 4px);right:0;width:240px;background:#fff;border:1px solid #e6e3dc;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:9999;overflow:hidden">
             <div style="padding:.5rem .7rem;border-bottom:1px solid #f0eee9;font-size:.72rem;font-weight:700;color:#8a8f97;display:flex;align-items:center;justify-content:space-between">
               <span>ย้ายไปยัง Board</span>
@@ -2901,8 +2933,8 @@ textarea{resize:vertical;min-height:80px}
       <!-- Comment input -->
       <div style="padding:.6rem .9rem;border-top:1px solid #e6e3dc">
         <div style="display:flex;gap:.4rem;align-items:flex-end">
-          <textarea id="fu-comment-input" rows="2" placeholder="พิมพ์ comment... @ชื่อ เพื่อ mention" style="flex:1;border:1px solid #d6d2c9;border-radius:7px;padding:.4rem .6rem;font-size:.8rem;font-family:inherit;resize:none;outline:none"></textarea>
-          <button onclick="fuPostComment()" style="background:#1d4ed8;color:#fff;border:none;border-radius:7px;padding:.45rem .7rem;font-size:.8rem;cursor:pointer;white-space:nowrap"><i class=i-upload></i></button>
+          <textarea id="fu-comment-input" rows="2" placeholder="พิมพ์ comment... @ชื่อ เพื่อ mention" style="flex:1;border:1px solid #e6e3dc;border-radius:10px;padding:.4rem .6rem;font-size:.8rem;font-family:inherit;resize:none;outline:none"></textarea>
+          <button onclick="fuPostComment()" class="svc-btn-primary" style="height:38px;padding:0 .8rem" title="ส่ง comment" aria-label="ส่ง comment"><i class=i-upload></i></button>
         </div>
       </div>
     </div>
@@ -2910,14 +2942,14 @@ textarea{resize:vertical;min-height:80px}
   </div><!-- /fu-tab-1 -->
 
   <!-- Tab 2: Overview -->
-  <div id="fu-tab-2" style="display:none;height:calc(100vh - 100px);overflow-y:auto;padding:1rem">
+  <div id="fu-tab-2" style="display:none;height:calc(100vh - 190px);overflow-y:auto;padding:1rem">
     <div id="fu-overview-body" style="display:flex;flex-direction:column;gap:1rem">
       <div style="color:#8a8f97;font-size:.85rem">กำลังโหลดภาพรวม...</div>
     </div>
   </div>
 
   <!-- Tab 3: By Assignee -->
-  <div id="fu-tab-3" style="display:none;height:calc(100vh - 100px);overflow:hidden;flex-direction:column">
+  <div id="fu-tab-3" style="display:none;height:calc(100vh - 190px);overflow:hidden;flex-direction:column">
     <!-- Filter bar -->
     <div style="background:#faf9f6;border-bottom:2px solid #e6e3dc;padding:.6rem 1.1rem;display:flex;align-items:center;gap:.45rem;flex-shrink:0;flex-wrap:wrap">
 
@@ -3049,7 +3081,7 @@ textarea{resize:vertical;min-height:80px}
   </div>
 
   <!-- Tab 4: Azure Issues -->
-  <div id="fu-tab-4" style="display:none;height:calc(100vh - 100px);overflow-y:auto;padding:1rem">
+  <div id="fu-tab-4" style="display:none;height:calc(100vh - 190px);overflow-y:auto;padding:1rem">
     <!-- Search bar -->
     <div style="display:flex;align-items:center;gap:.55rem;margin-bottom:.75rem;flex-wrap:wrap">
       <div style="position:relative;flex:1;min-width:200px;max-width:420px">
@@ -3072,47 +3104,40 @@ textarea{resize:vertical;min-height:80px}
 
 <!-- ═══════════════════ PAGE: REPAIR ═══════════════════ -->
 <div id="page-repair" class="page">
-  <div class="section-header" style="margin-bottom:.75rem">
-    <div class="section-title">งานซ่อม</div>
-    <div style="display:flex;gap:.5rem;align-items:center">
-      <!-- View toggle -->
-      <div style="display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden">
-        <button id="rp-view-table" onclick="rpSetView('table')"
-          style="padding:.28rem .7rem;font-size:.78rem;font-weight:700;border:none;cursor:pointer;background:#2563eb;color:#fff;font-family:inherit;transition:all .15s" title="มุมมองตาราง">☰ ตาราง</button>
-        <button id="rp-view-board" onclick="rpSetView('board')"
-          style="padding:.28rem .7rem;font-size:.78rem;font-weight:700;border:none;cursor:pointer;background:#fff;color:#8a8f97;font-family:inherit;transition:all .15s" title="มุมมองบอร์ด">บอร์ด</button>
+  <div class="svc-hdr">
+    <div>
+      <div class="svc-kicker">Repair</div>
+      <h1 class="svc-h1">งานซ่อม</h1>
+      <div class="svc-sub">รับเครื่อง ประเมิน เสนอราคา ซ่อม และส่งคืนลูกค้า</div>
+    </div>
+    <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+      <div class="svc-seg">
+        <button id="rp-view-table" class="on" onclick="rpSetView('table')" title="มุมมองตาราง">ตาราง</button>
+        <button id="rp-view-board" onclick="rpSetView('board')" title="มุมมองบอร์ด">บอร์ด</button>
       </div>
-      <button class="btn btn-ghost btn-sm" onclick="openRepairLinkModal()">ลิงก์แจ้งซ่อม</button>
-      <button class="btn btn-primary btn-sm" onclick="openRepairForm()">+ แจ้งซ่อมใหม่</button>
+      <button class="svc-btn-ghost" onclick="openRepairLinkModal()"><i class=i-link></i> ลิงก์แจ้งซ่อม</button>
+      <button class="svc-btn-primary" onclick="openRepairForm()"><span style="font-size:1.05rem;line-height:1;font-weight:400">+</span> แจ้งซ่อมใหม่</button>
     </div>
   </div>
 
-  <!-- Stat Bar -->
-  <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem" id="repair-stats">
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">ทั้งหมด</span>
-      <span style="font-size:1.1rem;font-weight:800;color:var(--hd)" id="rp-stat-total">—</span>
-    </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">กำลังดำเนินการ</span>
-      <span style="font-size:1.1rem;font-weight:800;color:#b45309" id="rp-stat-active">—</span>
-    </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">ส่งคืนแล้ว</span>
-      <span style="font-size:1.1rem;font-weight:800;color:#16a34a" id="rp-stat-closed">—</span>
-    </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">รอชำระ</span>
-      <span style="font-size:1.1rem;font-weight:800;color:#dc2626" id="rp-stat-unpaid">—</span>
-    </div>
+  <!-- Quick tabs (client-side) -->
+  <div class="svc-tabs" id="rp-tabs">
+    <button class="svc-tab on" data-tab="" onclick="rpSetTab('')">ทั้งหมด <span class="c" id="rp-stat-total">—</span></button>
+    <button class="svc-tab" data-tab="active" onclick="rpSetTab('active')"><span class="svc-dot" style="background:#c29a3c"></span>กำลังดำเนินการ <span class="c" id="rp-stat-active">—</span></button>
+    <button class="svc-tab" data-tab="closed" onclick="rpSetTab('closed')"><span class="svc-dot" style="background:#4d8c6a"></span>ส่งคืนแล้ว <span class="c" id="rp-stat-closed">—</span></button>
+    <button class="svc-tab" data-tab="unpaid" onclick="rpSetTab('unpaid')"><span class="svc-dot" style="background:#c0584c"></span>รอชำระ <span class="c" id="rp-stat-unpaid">—</span></button>
   </div>
 
-  <!-- Filter -->
-  <div class="page-datebar" style="margin-bottom:.75rem;gap:.5rem;flex-wrap:wrap">
-    <select id="rp-filter-group" onchange="loadRepair()" style="min-width:130px">
+  <!-- Filters -->
+  <div class="svc-filters" id="repair-stats">
+    <label class="svc-search">
+      <i class=i-search style="color:#8a8f97"></i>
+      <input id="rp-search" type="text" placeholder="ค้นหา Job No, ร้าน หรือ S/N" oninput="rpSearchDebounce()"/>
+    </label>
+    <select id="rp-filter-group" class="svc-select" onchange="loadRepair()" style="min-width:130px" aria-label="Group">
       <option value="">ทุก Group</option>
     </select>
-    <select id="rp-filter-status" onchange="loadRepair()">
+    <select id="rp-filter-status" class="svc-select" onchange="loadRepair()" aria-label="สถานะ">
       <option value="">ทุกสถานะ</option>
       <option value="received">รับเรื่อง</option>
       <option value="spared">สแปร์แล้ว</option>
@@ -3129,7 +3154,7 @@ textarea{resize:vertical;min-height:80px}
       <option value="returned_to_customer">ส่งคืนลูกค้า</option>
       <option value="closed">ปิดงาน</option>
     </select>
-    <select id="rp-filter-finance" onchange="loadRepair()">
+    <select id="rp-filter-finance" class="svc-select" onchange="loadRepair()" aria-label="การเงิน">
       <option value="">ทุกการเงิน</option>
       <option value="pending">รอดำเนินการ</option>
       <option value="quoted">เสนอราคาแล้ว</option>
@@ -3138,18 +3163,20 @@ textarea{resize:vertical;min-height:80px}
       <option value="paid">ชำระแล้ว</option>
       <option value="free">ฟรี / ไม่คิดเงิน</option>
     </select>
-    <input id="rp-search" type="text" placeholder="ค้นหา Job No / ร้าน / S/N..." oninput="rpSearchDebounce()" style="min-width:180px;flex:1"/>
-    <button class="btn btn-ghost btn-sm" onclick="loadRepair()"><i class=i-refresh></i></button>
+    <button class="svc-icon-btn" onclick="loadRepair()" title="โหลดใหม่" aria-label="โหลดใหม่"><i class=i-refresh></i></button>
   </div>
 
   <!-- Table view -->
   <div id="rp-panel-table">
-    <div class="card" style="padding:.5rem 0">
+    <div class="svc-tbl-card">
       <div class="tbl-wrap">
-        <table>
+        <table class="svc-tbl rp-tbl">
+          <colgroup>
+            <col style="width:150px"><col><col style="width:140px"><col style="width:176px"><col style="width:130px"><col style="width:120px"><col style="width:80px"><col style="width:88px">
+          </colgroup>
           <thead><tr>
-            <th>Job No</th><th>ร้านค้า</th><th>อุปกรณ์</th><th>S/N</th>
-            <th>สถานะ</th><th>การเงิน</th><th>ผู้แจ้ง</th><th>วันที่แจ้ง</th>
+            <th>Job No</th><th>ร้านค้า / อุปกรณ์</th><th>S/N</th>
+            <th>สถานะ</th><th>การเงิน</th><th>ผู้แจ้ง</th>
             <th title="รับทราบและประสานงานเรียบร้อยแล้ว" style="white-space:nowrap">รับทราบ</th><th></th>
           </tr></thead>
           <tbody id="repair-tbody"></tbody>
@@ -3159,9 +3186,9 @@ textarea{resize:vertical;min-height:80px}
   </div>
 
   <!-- Board view -->
-  <div id="rp-panel-board" style="display:none;overflow-x:auto;margin:0 -.5rem">
-    <div id="rp-kanban-wrap" style="min-height:calc(100vh - 260px)">
-      <div style="text-align:center;color:var(--muted);padding:3rem">กำลังโหลด...</div>
+  <div id="rp-panel-board" style="display:none;overflow-x:auto">
+    <div id="rp-kanban-wrap" style="min-height:calc(100vh - 300px)">
+      <div style="text-align:center;color:var(--muted);padding:3rem">กำลังโหลด…</div>
     </div>
   </div>
 </div>
@@ -3169,45 +3196,37 @@ textarea{resize:vertical;min-height:80px}
 <!-- ═══════════════════ PAGE: SW UPDATE ═══════════════════ -->
 <!-- ═══════════════════ PAGE: UAT ═══════════════════ -->
 <div id="page-uat" class="page">
-  <div class="section-header" style="margin-bottom:.75rem">
-    <div class="section-title">แจ้งงาน UAT</div>
-    <div style="display:flex;gap:.5rem;align-items:center">
-      <!-- View toggle -->
-      <div style="display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden">
-        <button id="uat-view-table" onclick="uatSetView('table')"
-          style="padding:.28rem .7rem;font-size:.78rem;font-weight:700;border:none;cursor:pointer;background:#2563eb;color:#fff;font-family:inherit;transition:all .15s" title="มุมมองตาราง">☰ ตาราง</button>
-        <button id="uat-view-board" onclick="uatSetView('board')"
-          style="padding:.28rem .7rem;font-size:.78rem;font-weight:700;border:none;cursor:pointer;background:#fff;color:#8a8f97;font-family:inherit;transition:all .15s" title="มุมมองบอร์ด">บอร์ด</button>
-        <button id="uat-view-cal" onclick="uatSetView('cal')"
-          style="padding:.28rem .7rem;font-size:.78rem;font-weight:700;border:none;cursor:pointer;background:#fff;color:#8a8f97;font-family:inherit;transition:all .15s" title="ปฏิทินตามวันที่ยืนยันกับลูกค้า">ปฏิทิน</button>
+  <div class="svc-hdr">
+    <div>
+      <div class="svc-kicker">User acceptance testing</div>
+      <h1 class="svc-h1">แจ้งงาน UAT</h1>
+      <div class="svc-sub">ขอรอบทดสอบ นัด slot กับลูกค้า และติดตาม Issue จนส่งต่อทีม Update</div>
+    </div>
+    <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+      <div class="svc-seg">
+        <button id="uat-view-table" class="on" onclick="uatSetView('table')" title="มุมมองตาราง">ตาราง</button>
+        <button id="uat-view-board" onclick="uatSetView('board')" title="มุมมองบอร์ด">บอร์ด</button>
+        <button id="uat-view-cal" onclick="uatSetView('cal')" title="ปฏิทินตามวันที่ยืนยันกับลูกค้า">ปฏิทิน</button>
       </div>
-      <button class="btn btn-primary btn-sm" onclick="openUatForm()">+ แจ้ง Request UAT</button>
+      <button class="svc-btn-primary" onclick="openUatForm()"><span style="font-size:1.05rem;line-height:1;font-weight:400">+</span> แจ้ง Request UAT</button>
     </div>
   </div>
 
-  <!-- Stat Bar -->
-  <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem">
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">ทั้งหมด</span>
-      <span style="font-size:1.1rem;font-weight:800;color:var(--hd)" id="uat-stat-total">—</span>
-    </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">รอ slot / รอยืนยัน</span>
-      <span style="font-size:1.1rem;font-weight:800;color:#b45309" id="uat-stat-testing">—</span>
-    </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">Issue ค้าง</span>
-      <span style="font-size:1.1rem;font-weight:800;color:#dc2626" id="uat-stat-issues">—</span>
-    </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">UAT ผ่าน / ส่งต่อแล้ว</span>
-      <span style="font-size:1.1rem;font-weight:800;color:#16a34a" id="uat-stat-passed">—</span>
-    </div>
+  <!-- Quick tabs (client-side, apply to all three views) -->
+  <div class="svc-tabs" id="uat-tabs">
+    <button class="svc-tab on" data-tab="" onclick="uatSetTab('')">ทั้งหมด <span class="c" id="uat-stat-total">—</span></button>
+    <button class="svc-tab" data-tab="waiting" onclick="uatSetTab('waiting')"><span class="svc-dot" style="background:#c29a3c"></span>รอ slot / รอยืนยัน <span class="c" id="uat-stat-testing">—</span></button>
+    <button class="svc-tab" data-tab="issues" onclick="uatSetTab('issues')"><span class="svc-dot" style="background:#c0584c"></span>มี Issue ค้าง <span class="c" id="uat-stat-issues" title="จำนวน Issue ที่ยังไม่จบ">—</span></button>
+    <button class="svc-tab" data-tab="passed" onclick="uatSetTab('passed')"><span class="svc-dot" style="background:#4d8c6a"></span>ผ่าน / ส่งต่อแล้ว <span class="c" id="uat-stat-passed">—</span></button>
   </div>
 
   <!-- Filters -->
-  <div class="page-datebar" style="margin-bottom:.75rem;gap:.5rem;flex-wrap:wrap">
-    <select id="uat-filter-status" onchange="loadUat()">
+  <div class="svc-filters">
+    <label class="svc-search">
+      <i class=i-search style="color:#8a8f97"></i>
+      <input id="uat-search" type="text" placeholder="ค้นหาเลขงาน ชื่อรอบ version หรือผู้ประสานงาน" oninput="uatSearchDebounce()"/>
+    </label>
+    <select id="uat-filter-status" class="svc-select" onchange="loadUat()" aria-label="สถานะ">
       <option value="">ทุกสถานะ</option>
       <option value="requested">รอทีม UAT แจ้ง slot</option>
       <option value="slot_proposed">รอ Support ยืนยันลูกค้า</option>
@@ -3220,7 +3239,7 @@ textarea{resize:vertical;min-height:80px}
       <option value="closed">ปิดงาน</option>
       <option value="cancelled">ยกเลิก</option>
     </select>
-    <select id="uat-filter-type" onchange="loadUat()">
+    <select id="uat-filter-type" class="svc-select" onchange="loadUat()" aria-label="ประเภทงาน">
       <option value="">ทุกประเภทงาน</option>
       <option value="version_update">อัพเดท Version</option>
       <option value="sync_test">ทดสอบ Sync ข้าม Version</option>
@@ -3228,35 +3247,31 @@ textarea{resize:vertical;min-height:80px}
       <option value="hotfix">Hotfix</option>
       <option value="other">อื่น ๆ</option>
     </select>
-    <select id="uat-filter-priority" onchange="loadUat()">
+    <select id="uat-filter-priority" class="svc-select" onchange="loadUat()" aria-label="ความสำคัญ">
       <option value="">ทุกระดับ</option>
       <option value="urgent">เร่งด่วน</option>
       <option value="high">สูง</option>
       <option value="normal">ปกติ</option>
       <option value="low">ต่ำ</option>
     </select>
-    <input id="uat-search" type="text" placeholder="ค้นหาเลขงาน / ชื่อรอบ / version / ผู้ประสานงาน..." oninput="uatSearchDebounce()" style="min-width:220px;flex:1"/>
-    <button class="btn btn-ghost btn-sm" onclick="loadUat()"><i class=i-refresh></i></button>
+    <button class="svc-icon-btn" onclick="loadUat()" title="โหลดใหม่" aria-label="โหลดใหม่"><i class=i-refresh></i></button>
   </div>
 
   <!-- Table view -->
   <div id="uat-panel-table">
-    <div class="card" style="padding:.5rem 0">
+    <div class="svc-tbl-card">
       <div class="tbl-wrap">
-        <table>
+        <table class="svc-tbl uat-tbl">
+          <colgroup>
+            <col style="width:132px"><col><col style="width:150px"><col style="width:176px"><col style="width:150px"><col style="width:118px"><col style="width:112px">
+          </colgroup>
           <thead><tr>
             <th>เลขงาน</th>
             <th>เรื่องที่ขอทดสอบ</th>
-            <th>ประเภทงาน</th>
-            <th>Version</th>
-            <th>วันที่ต้องการ</th>
             <th>Slot ทดสอบ</th>
             <th>สถานะ</th>
-            <th>ความสำคัญ</th>
-            <th title="เอกสาร Kickoff / เอกสารผล UAT">เอกสาร</th>
-            <th>Issue</th>
-            <th title="ผู้เปิดงาน (Support / Team)">ผู้แจ้ง</th>
-            <th title="ทีม UAT ที่รับงาน — บันทึกอัตโนมัติตอนกดแจ้ง slot">ผู้ UAT</th>
+            <th title="ผู้เปิดงาน / ทีม UAT ที่รับงาน">ผู้แจ้ง / ผู้ UAT</th>
+            <th title="เอกสาร Kickoff / ผล UAT และ Issue">เอกสาร / Issue</th>
             <th></th>
           </tr></thead>
           <tbody id="uat-tbody"></tbody>
@@ -3266,27 +3281,27 @@ textarea{resize:vertical;min-height:80px}
   </div>
 
   <!-- Board view -->
-  <div id="uat-panel-board" style="display:none;overflow-x:auto;margin:0 -.5rem">
-    <div id="uat-kanban-wrap" style="min-height:calc(100vh - 260px)">
-      <div style="text-align:center;color:var(--muted);padding:3rem">กำลังโหลด...</div>
+  <div id="uat-panel-board" style="display:none;overflow-x:auto">
+    <div id="uat-kanban-wrap" style="min-height:calc(100vh - 300px)">
+      <div style="text-align:center;color:var(--muted);padding:3rem">กำลังโหลด…</div>
     </div>
   </div>
 
   <!-- Calendar view — วางตามช่วงวันทดสอบที่ยืนยันกับลูกค้าแล้ว -->
   <div id="uat-panel-cal" style="display:none">
-    <div class="card" style="padding:.6rem .8rem">
-      <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem">
-        <button class="btn btn-ghost btn-sm" onclick="uatCalMove(-1)">‹</button>
-        <div id="uat-cal-label" style="font-size:.9rem;font-weight:800;color:var(--hd);min-width:130px;text-align:center">—</div>
-        <button class="btn btn-ghost btn-sm" onclick="uatCalMove(1)">›</button>
-        <button class="btn btn-ghost btn-sm" onclick="uatCalToday()">วันนี้</button>
-        <label style="display:flex;align-items:center;gap:.3rem;font-size:.75rem;color:#4d535b;cursor:pointer;margin-left:.4rem">
-          <input type="checkbox" id="uat-cal-tentative" onchange="uatRenderCalendar()" style="accent-color:#0284c7;width:14px;height:14px">
+    <div class="svc-tbl-card" style="padding:.9rem 1rem 1rem">
+      <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.8rem">
+        <button class="svc-icon-btn" onclick="uatCalMove(-1)" aria-label="เดือนก่อน"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+        <div id="uat-cal-label" style="font-size:.95rem;font-weight:600;color:var(--text);min-width:140px;text-align:center">—</div>
+        <button class="svc-icon-btn" onclick="uatCalMove(1)" aria-label="เดือนถัดไป"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>
+        <button class="svc-btn-ghost" style="height:36px" onclick="uatCalToday()">วันนี้</button>
+        <label style="display:flex;align-items:center;gap:.35rem;font-size:.78rem;color:#4d535b;cursor:pointer;margin-left:.4rem">
+          <input type="checkbox" id="uat-cal-tentative" onchange="uatRenderCalendar()" style="accent-color:var(--primary);width:14px;height:14px">
           แสดงที่ยังรอยืนยันด้วย
         </label>
-        <span style="margin-left:auto;display:flex;gap:.6rem;align-items:center;font-size:.68rem;color:var(--muted)">
-          <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#16a34a;vertical-align:middle"></span> ยืนยันแล้ว</span>
-          <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;border:1px dashed #b45309;vertical-align:middle"></span> รอยืนยัน</span>
+        <span style="margin-left:auto;display:flex;gap:.8rem;align-items:center;font-size:.72rem;color:#6f747c">
+          <span><span style="display:inline-block;width:9px;height:9px;border-radius:3px;background:#e7f0ea;border:1px solid #9cc2ac;vertical-align:-.05em"></span> ยืนยันแล้ว</span>
+          <span><span style="display:inline-block;width:9px;height:9px;border-radius:3px;border:1px dashed #b89a55;vertical-align:-.05em"></span> รอยืนยัน</span>
         </span>
       </div>
       <div id="uat-cal-grid"></div>
@@ -8944,6 +8959,8 @@ async function tkImpSubmit() {
 }
 
 let _tkSearchTimer = null;
+let _tkTab = '';   // '' | 'open' | 'closed' — client-side, like the service page tabs
+function tkSetTab(tab) { _tkTab = tab; _tkPage = 1; renderTickets(); }
 function tkSearchDebounce() {
   clearTimeout(_tkSearchTimer);
   // Always fetch from server so search parameter is sent properly
@@ -9013,18 +9030,17 @@ function renderTickets() {
       || (t.problem_type_detail||'').toLowerCase().includes(q);
   });
 
-  // Update ticket stat cards
+  // Tab counts come from everything that matches the filters; the tab then narrows the list
   const isClosed  = t => (t.status || '').toLowerCase().includes('close');
   const tkTotal   = filtered.length;
   const tkClosed  = filtered.filter(isClosed).length;
-  const tkOpen    = filtered.filter(t => !isClosed(t)).length;
-  const now24h    = Date.now() - 24 * 3600 * 1000;
+  const tkOpen    = tkTotal - tkClosed;
   // overdue count is fetched separately (see loadTicketOverdue) — don't recalculate from filtered
   const closedWithTime = filtered.filter(t => isClosed(t) && t.TimeDiff_Minutes != null && t.TimeDiff_Minutes >= 0);
   let tkAvg = '—';
   if (closedWithTime.length) {
     const avgMin = closedWithTime.reduce((s, t) => s + t.TimeDiff_Minutes, 0) / closedWithTime.length;
-    tkAvg = avgMin >= 60 ? `${Math.floor(avgMin/60)}ชม.${Math.round(avgMin%60)}น.` : `${Math.round(avgMin)}น.`;
+    tkAvg = avgMin >= 60 ? `${Math.floor(avgMin/60)}ชม. ${Math.round(avgMin%60)}น.` : `${Math.round(avgMin)} น.`;
   }
   const _setEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   _setEl('tk-stat-total',  tkTotal);
@@ -9032,28 +9048,40 @@ function renderTickets() {
   _setEl('tk-stat-closed', tkClosed);
   _setEl('tk-stat-avg',    tkAvg);
   // tk-stat-overdue is updated by loadTicketOverdue() independently
+  document.querySelectorAll('#tk-tabs .svc-tab').forEach(b => b.classList.toggle('on', (b.dataset.st || '') === _tkTab));
+
+  const listed = _tkTab === 'open' ? filtered.filter(t => !isClosed(t))
+               : _tkTab === 'closed' ? filtered.filter(isClosed) : filtered;
 
   // Sort newest → oldest
-  filtered.sort((a, b) => parseDbDate(b.opened_at) - parseDbDate(a.opened_at));
+  listed.sort((a, b) => parseDbDate(b.opened_at) - parseDbDate(a.opened_at));
 
   // Pagination
-  const totalPages = Math.max(1, Math.ceil(filtered.length / _tkPerPage));
+  const totalPages = Math.max(1, Math.ceil(listed.length / _tkPerPage));
   if (_tkPage > totalPages) _tkPage = totalPages;
   const pageStart  = (_tkPage - 1) * _tkPerPage;
   const pageEnd    = pageStart + _tkPerPage;
-  const paginated  = filtered.slice(pageStart, pageEnd);
+  const paginated  = listed.slice(pageStart, pageEnd);
 
   const lbl = document.getElementById('tk-count-label');
-  if (lbl) lbl.textContent = `แสดง ${pageStart+1}–${Math.min(pageEnd, filtered.length)} จาก ${filtered.length} เคส (ทั้งหมด ${allTickets.length})`;
+  if (lbl) lbl.textContent = listed.length
+    ? `แสดง ${pageStart+1}–${Math.min(pageEnd, listed.length)} จาก ${listed.length} เคส · โหลดมาทั้งหมด ${allTickets.length}`
+    : `ไม่มีเคสที่ตรงเงื่อนไข · โหลดมาทั้งหมด ${allTickets.length}`;
 
-  renderTkPagination(totalPages, filtered.length);
+  renderTkPagination(totalPages, listed.length);
 
   const tbody = document.getElementById('ticket-tbody');
-  if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="11" class="empty"><div class="icon"><i class=i-tag></i></div>ไม่พบเคส</td></tr>';
+  if (listed.length === 0) {
+    tbody.innerHTML = '<tr style="cursor:default"><td colspan="7" style="text-align:center;color:var(--muted);padding:3.5rem 1rem">ไม่พบเคส</td></tr>';
     return;
   }
 
+  const fmtMin = m => m == null ? '—' : m >= 60 ? `${Math.floor(m/60)}ชม. ${m%60}น.` : `${m} น.`;
+  const fmtSpDT = d => { if (!d) return ''; const dt = parseDbDate(d);
+    const isTdy = dt.toDateString() === new Date().toDateString();
+    return (isTdy ? '' : dt.toLocaleDateString('th-TH',{day:'numeric',month:'short'}) + ' ')
+         + dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}) + ' น.';
+  };
   const rows = [];
   paginated.forEach(t => {
     const opened = parseDbDate(t.opened_at);
@@ -9068,80 +9096,54 @@ function renderTickets() {
     const closeDateStr = closeD ? closeD.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}) : '—';
     const closeTimeStr = closeD ? closeD.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}) : '';
 
-    // Resolution time — show hr:min if >= 60 min
-    const fmtMin = m => m == null ? '—' : m >= 60 ? `${Math.floor(m/60)}ชม. ${m%60}น.` : `${m} น.`;
-    let diffDisp   = fmtMin(t.TimeDiff_Minutes);
-    let targetDisp = fmtMin(t.time_to_resolve);
-
     const isOverTarget = t.time_to_resolve != null && t.TimeDiff_Minutes != null && t.TimeDiff_Minutes > t.time_to_resolve;
-    const isClosed     = (t.status||'').match(/close|ปิด|complete|เสร็จ/i);
     const isSpecialist = (t.status||'').toLowerCase().includes('specialist');
+    const company = t.CompanyName || '';
+    const companyArg = escHtml(company).replace(/'/g,"\\'");
+    // Calllog rarely fills a title — lead with the problem description, fall back to the title
+    const problemText = (t.description||'').trim() || (t.title||'').trim();
 
-    const descShort    = (t.description||'').trim().slice(0,60) + ((t.description||'').length>60?'…':'');
-    const solShort     = (t.Solution||'').trim().slice(0,70) + ((t.Solution||'').length>70?'…':'');
-    const commentShort = (t.ticket_comment||'').trim().slice(0,40) + ((t.ticket_comment||'').length>40?'…':'');
-
-    // Customer tag
-    const custTag = t.CompanyName
-      ? `<div style="display:flex;align-items:center;gap:.3rem">
-           <span style="display:inline-block;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:4px;font-size:.68rem;padding:.05rem .38rem;white-space:nowrap;max-width:110px;overflow:hidden;text-overflow:ellipsis" title="${escHtml(t.CompanyName)}">${escHtml(t.CompanyName)}</span>
-           <button onclick="genCustomerLink(event,'${escHtml(t.CompanyName).replace(/'/g,"\\'")}',this)" title="สร้าง/Copy link ลูกค้า" style="border:none;background:none;cursor:pointer;padding:.1rem;color:#5b616b;font-size:.78rem;line-height:1" tabindex="-1"><i class=i-link></i></button>
-         </div>`
-      : '—';
-
-    // Main row
     rows.push(`<tr class="tk-row-main${isOverdue?' overdue-row':''}" style="cursor:${hasDetail?'pointer':'default'}"
         onclick="${hasDetail?`toggleTicketDetail(${t.id})`:''}">
-      <td style="text-align:center;padding:.4rem .25rem;color:var(--muted);font-size:.72rem">
-        ${hasDetail ? (expanded?'▼':'▶') : ''}
+      <td>
+        <div class="tk-case">#${t.id}</div>
+        <div class="tk-sub">${dateStr} · ${timeStr}</div>
       </td>
-      <td style="font-size:.8rem;white-space:nowrap"><b>#${t.id}</b></td>
-      <td style="font-size:.78rem;white-space:nowrap">
-        <div>${dateStr}</div><div style="color:var(--muted);font-size:.72rem">${timeStr}</div>
+      <td style="min-width:0">
+        <div class="tk-desc tk-desc-main" title="${escHtml(problemText)}">${escHtml(problemText) || '<span style="color:#8a8f97">—</span>'}</div>
+        <div class="tk-sub" style="display:flex;align-items:center;gap:.35rem;margin-top:.25rem">
+          <span style="overflow:hidden;text-overflow:ellipsis" title="${escHtml(company)}">${escHtml(company||'—')}</span>
+          ${company ? `<button class="tk-linkbtn" onclick="genCustomerLink(event,'${companyArg}',this)" title="สร้าง/Copy link ลูกค้า" aria-label="Copy link ลูกค้า" tabindex="-1"><i class=i-link></i></button>` : ''}
+          ${t.problem_type_detail ? `<span class="tk-ptype" title="${escHtml(t.problem_type_detail)}">${escHtml(t.problem_type_detail)}</span>` : ''}
+        </div>
       </td>
-      <td style="max-width:160px">
-        <div style="font-size:.82rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(t.CompanyName||'')}">${escHtml(t.CompanyName||'—')}</div>
-        <button onclick="genCustomerLink(event,'${escHtml(t.CompanyName||'').replace(/'/g,"\\'")}',this)" title="Copy link ลูกค้า" style="border:none;background:none;cursor:pointer;padding:0;color:#8a8f97;font-size:.7rem;line-height:1.4" tabindex="-1">link</button>
-      </td>
-      <td style="max-width:180px">
-        ${t.problem_type_detail
-          ? `<div style="margin-bottom:.18rem"><span style="display:inline-block;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;font-size:.67rem;padding:.03rem .35rem;white-space:nowrap;max-width:100%">${escHtml(t.problem_type_detail)}</span></div>`
-          : ''}
-        <div style="font-size:.83rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(t.title||'').replace(/"/g,'&quot;')}">${t.title||'—'}</div>
-      </td>
-      <td style="max-width:160px;font-size:.78rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(t.description||'')}">
-        ${descShort || '—'}
-      </td>
-      <td style="font-size:.82rem;white-space:nowrap">
-        <div>${dn(t.assigned_name)||'—'}</div>
+      <td style="font-size:.8rem">
+        <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(dn(t.assigned_name)||'—')}</div>
         ${t.specialist ? (() => {
           const sp = t.specialist;
-          const fmtDT = d => { if (!d) return ''; const dt = parseDbDate(d);
-            const isTdy = dt.toDateString() === new Date().toDateString();
-            return isTdy
-              ? dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}) + ' น.'
-              : dt.toLocaleDateString('th-TH',{day:'numeric',month:'short'}) + ' ' + dt.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}) + ' น.';
-          };
-          return `<div style="font-size:.67rem;color:#7c3aed;margin-top:.15rem">#SP-${sp.sp_id}</div>
-            <div style="font-size:.65rem;color:#8a8f97">${sp.sp_assigned_by||'—'} ${fmtDT(sp.assigned_at)}</div>
-            ${sp.sp_resolved_by ? `<div style="font-size:.65rem;color:#16a34a">${sp.sp_resolved_by} ${fmtDT(sp.resolved_at)}</div>` : ''}`;
+          return `<div class="tk-sub" style="color:#5a4f8f">#SP-${sp.sp_id}</div>
+            <div class="tk-sub">${escHtml(sp.sp_assigned_by||'—')} ${fmtSpDT(sp.assigned_at)}</div>
+            ${sp.sp_resolved_by ? `<div class="tk-sub" style="color:#356b4e">${escHtml(sp.sp_resolved_by)} ${fmtSpDT(sp.resolved_at)}</div>` : ''}`;
         })() : ''}
       </td>
       <td>
         ${tkStatusBadge(t.status)}
-        ${isOverdue ? `<div style="font-size:.68rem;color:#fca5a5;font-weight:700">ค้างนาน</div>` : ''}
+        ${isOverdue ? `<div><span class="tk-flag">ค้างนาน</span></div>` : ''}
         ${isSpecialist && !t.specialist ? `
-          <button class="btn btn-sm" style="margin-top:.25rem;background:#7c3aed;color:#fff;font-size:.68rem;padding:.15rem .45rem;width:100%"
+          <div><button class="tk-sp-btn"
             onclick="event.stopPropagation();spAutoAssign(${JSON.stringify({id:t.id,title:t.title,CompanyName:t.CompanyName,problem_type_detail:t.problem_type_detail,category:t.category,InformName:t.InformName,InformTel:t.InformTel,description:t.description||'',solution:t.Solution||''}).replace(/"/g,'&quot;')})">
-            🎯 ส่ง Specialist
-          </button>` : ''}
+            ส่ง Specialist
+          </button></div>` : ''}
       </td>
-      <td style="font-size:.78rem;white-space:nowrap">
-        ${closeD ? `<div>${closeDateStr}</div><div style="color:var(--muted);font-size:.72rem">${closeTimeStr}</div>` : '—'}
+      <td>
+        ${closeD ? `<div style="font-size:.8rem;white-space:nowrap">${closeDateStr}</div><div class="tk-sub">${closeTimeStr}</div>` : '<span style="color:#8a8f97">—</span>'}
       </td>
-      <td style="font-size:.8rem;white-space:nowrap;text-align:center;color:var(--muted)">${targetDisp}</td>
-      <td style="font-size:.8rem;white-space:nowrap;text-align:center;color:${isOverTarget?'#dc2626':t.TimeDiff_Minutes!=null?'#16a34a':'var(--text)'}">
-        ${diffDisp}${isOverTarget?` <span style="font-size:.65rem"><i class=i-alert></i></span>`:''}
+      <td>
+        <div class="tk-time" style="color:${isOverTarget?'#b04a40':t.TimeDiff_Minutes!=null?'#356b4e':'var(--text)'}">${fmtMin(t.TimeDiff_Minutes)}</div>
+        <div class="tk-sub">เป้า ${fmtMin(t.time_to_resolve)}</div>
+      </td>
+      <td style="vertical-align:middle">
+        ${hasDetail ? `<span class="tk-toggle-btn${expanded?' open':''}" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>` : ''}
       </td>
     </tr>`);
 
@@ -9151,7 +9153,6 @@ function renderTickets() {
       const sol  = (t.Solution||'').trim();
       const canReview = isLeadRole();
       const curStars   = t.Stars || 0;
-      const curComment = escHtml(t.ticket_comment || '');
 
       // Auto-star: calculate and apply immediately if no stars yet + ticket closed + has TimeToResolve
       if (!curStars && t.time_to_resolve && t.TimeDiff_Minutes != null && t.TimeDiff_Minutes >= 0 && t.CloseDate) {
@@ -9177,21 +9178,21 @@ function renderTickets() {
 
       // Attachments (lazy-loaded on expand — see toggleTicketDetail)
       const atts = _tkAttachments[t.id];
-      const attHtml = atts && atts.length ? `<div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.65rem">
+      const attHtml = atts && atts.length ? `<div style="display:flex;flex-wrap:wrap;gap:.45rem;margin-bottom:.65rem">
         ${atts.map(a => (a.mime_type||'').startsWith('image/') ? `
           <a href="/uploads/cases/${t.id}/${encodeURIComponent(a.filename)}" target="_blank" title="${escHtml(a.original_name)}">
-            <img src="/uploads/cases/${t.id}/${encodeURIComponent(a.filename)}" style="width:52px;height:52px;object-fit:cover;border-radius:6px;border:1px solid #e6e3dc"/>
+            <img src="/uploads/cases/${t.id}/${encodeURIComponent(a.filename)}" style="width:56px;height:56px;object-fit:cover;border-radius:10px;border:1px solid #e6e3dc"/>
           </a>` : `
-          <a href="/uploads/cases/${t.id}/${encodeURIComponent(a.filename)}" target="_blank" style="display:inline-flex;align-items:center;gap:.3rem;background:#f0eee9;border-radius:6px;padding:.22rem .5rem;font-size:.72rem;color:#2563eb;text-decoration:none">${escHtml(a.original_name)}</a>`
+          <a href="/uploads/cases/${t.id}/${encodeURIComponent(a.filename)}" target="_blank" style="display:inline-flex;align-items:center;gap:.35rem;background:#fff;border:1px solid #e6e3dc;border-radius:9px;padding:.3rem .6rem;font-size:.74rem;color:var(--text);text-decoration:none"><i class=i-file style="color:#8a8f97"></i>${escHtml(a.original_name)}</a>`
         ).join('')}
       </div>` : '';
 
       rows.push(`<tr class="tk-row-detail" onclick="event.stopPropagation()">
-        <td colspan="11" style="padding:.65rem .9rem .85rem">
-          <div style="background:#faf9f6;border-radius:7px;padding:.38rem .7rem;margin-bottom:.55rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;border:1px solid #e6e3dc">
-            <span style="font-size:.8rem;font-weight:700;color:#24272c">${escHtml(t.CompanyName||'—')}</span>
-            ${t.problem_type_detail?`<span style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;font-size:.7rem;padding:.05rem .38rem">${escHtml(t.problem_type_detail)}</span>`:''}
-            <span style="font-size:.75rem;color:var(--muted);margin-left:auto">Agent: ${dn(t.assigned_name)||'—'}</span>
+        <td colspan="7" style="padding:.85rem 1rem 1rem">
+          <div style="display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;margin-bottom:.65rem">
+            <span style="font-size:.84rem;font-weight:600;color:#24272c">${escHtml(t.CompanyName||'—')}</span>
+            ${t.problem_type_detail?`<span class="tk-ptype">${escHtml(t.problem_type_detail)}</span>`:''}
+            <span style="font-size:.76rem;color:#6f747c;margin-left:auto">Agent: ${escHtml(dn(t.assigned_name)||'—')}</span>
           </div>
           ${(desc||sol) ? `<div style="display:grid;grid-template-columns:${sol?'1fr 1fr':'1fr'};gap:.75rem;margin-bottom:.65rem">
             ${desc ? `<div class="tk-detail-box">
@@ -9199,23 +9200,20 @@ function renderTickets() {
               <div class="tk-detail-text">${escHtml(desc)}</div>
             </div>` : ''}
             ${sol ? `<div class="tk-detail-box tk-solution-box">
-              <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;margin-bottom:.25rem">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;margin-bottom:.3rem">
                 <div class="tk-detail-label" style="margin-bottom:0">วิธีแก้ไข</div>
                 ${starPickerHtml}
               </div>
               <div class="tk-detail-text">${escHtml(sol)}</div>
             </div>` : ''}
           </div>` : ''}
-          ${!sol ? `<div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.65rem" onclick="event.stopPropagation()">
+          ${!sol ? `<div style="display:flex;align-items:center;gap:.45rem;margin-bottom:.65rem" onclick="event.stopPropagation()">
             <span class="tk-detail-label" style="margin-bottom:0">ประเมินเคส</span>${starPickerHtml}
           </div>` : ''}
           ${attHtml}
           ${isLeadRole() ? `
-          <div style="margin-top:.55rem;padding-top:.5rem;border-top:1px solid #f0eee9;display:flex;justify-content:flex-end;gap:.4rem" onclick="event.stopPropagation()">
-            <button class="btn btn-sm" style="background:#f59e0b;color:#fff"
-              onclick="openEditTicket(${t.id})">
-              ✏️ แก้ไข
-            </button>
+          <div style="margin-top:.55rem;padding-top:.6rem;border-top:1px solid #efede7;display:flex;justify-content:flex-end;gap:.4rem" onclick="event.stopPropagation()">
+            <button class="svc-btn-ghost" style="height:34px" onclick="openEditTicket(${t.id})"><i class=i-pencil></i> แก้ไข</button>
           </div>` : ''}
         </td>
       </tr>`);
@@ -9230,8 +9228,7 @@ function renderTkPagination(totalPages, total) {
   if (!el) return;
   if (totalPages <= 1) { el.innerHTML = ''; return; }
 
-  const btnStyle = (active) =>
-    `style="min-width:32px;height:32px;padding:0 .5rem;border-radius:6px;border:1px solid ${active ? 'var(--hd)' : 'var(--border)'};background:${active ? 'var(--hd)' : '#fff'};color:${active ? '#fff' : 'var(--text)'};font-size:.8rem;font-weight:${active ? '700' : '400'};cursor:pointer"`;
+  const btnStyle = (active) => `class="tk-pg${active ? ' on' : ''}"`;
 
   let html = '';
 
@@ -9282,14 +9279,14 @@ function tkPerPageChange() {
 
 async function genCustomerLink(e, companyName, btn) {
   e.stopPropagation();
-  btn.textContent = '⏳';
+  btn.innerHTML = '<i class=i-clock></i>';
   try {
     const data = await api('/api/customer-links', {
       method: 'POST', silent: true,
       body: { company_name: companyName }
     });
     if (data && data.error) {
-      btn.textContent = '🔗';
+      btn.innerHTML = '<i class=i-link></i>';
       showToast('❌ ' + data.error, 'error');
       return;
     }
@@ -9302,10 +9299,10 @@ async function genCustomerLink(e, companyName, btn) {
     } catch {
       prompt(`Copy link ${isGroup ? 'กลุ่มลูกค้า' : ''} ส่งให้ลูกค้า:`, link);
     }
-    btn.textContent = '✅';
-    setTimeout(() => { btn.textContent = '🔗'; }, 2500);
+    btn.innerHTML = '<i class=i-check></i>';
+    setTimeout(() => { btn.innerHTML = '<i class=i-link></i>'; }, 2500);
   } catch(err) {
-    btn.textContent = '🔗';
+    btn.innerHTML = '<i class=i-link></i>';
     showToast('❌ ' + (err.message || 'ไม่สามารถสร้าง link ได้'), 'error');
   }
 }
@@ -9314,17 +9311,17 @@ function tkStatusBadge(status) {
   const s = (status || '').toLowerCase();
   let bg, color;
   if (s.includes('close') || s.includes('complete') || s.includes('done')) {
-    bg = '#dcfce7'; color = '#15803d';
+    bg = '#e7f0ea'; color = '#356b4e';
   } else if (s.includes('progress') || s.includes('working') || s.includes('กำลัง')) {
-    bg = '#fef3c7'; color = '#92400e';
+    bg = '#f6f0e2'; color = '#86671f';
   } else if (s.includes('wait') || s.includes('pending') || s.includes('รอ') || s.includes('hold')) {
-    bg = '#f3e8ff'; color = '#7e22ce';
+    bg = '#efedf7'; color = '#5a4f8f';
   } else if (s.includes('open') || s.includes('new') || s.includes('ใหม่')) {
-    bg = '#dbeafe'; color = '#1d4ed8';
+    bg = '#eaf0f7'; color = '#3f5f8f';
   } else {
     bg = '#f0eee9'; color = '#4d535b';
   }
-  return `<span style="background:${bg};color:${color};padding:.18rem .55rem;border-radius:20px;font-size:.72rem;font-weight:700;white-space:nowrap">${escHtml(status||'—')}</span>`;
+  return `<span class="tk-st" style="background:${bg};color:${color}" title="${escHtml(status||'')}">${escHtml(status||'—')}</span>`;
 }
 
 function escHtml(str) {
@@ -11206,6 +11203,15 @@ async function loadUsers() { await loadPeople(); }
 // ══════════════════════════════════════════════════════════
 let allRepairJobs = [];
 let _rpSearchTimer = null;
+let _rpTab = '';   // '' | active | closed | unpaid — client-side, mirrors the counts on the tabs
+const RP_DONE_ST = ['returned','cancelled','closed','returned_to_customer'];
+const RP_TAB_TEST = {
+  active: j => !RP_DONE_ST.includes(j.status),
+  closed: j => RP_DONE_ST.includes(j.status),
+  unpaid: j => !['paid','free','cancelled'].includes(j.finance_status) && !['cancelled'].includes(j.status),
+};
+function rpVisible() { const t = RP_TAB_TEST[_rpTab]; return t ? (allRepairJobs || []).filter(t) : (allRepairJobs || []); }
+function rpSetTab(tab) { _rpTab = tab; renderRepairTable(); if (_rpView === 'board') rpRenderKanban(); }
 
 const REPAIR_STATUS = {
   received:         'รับเรื่อง',
@@ -11223,24 +11229,24 @@ const REPAIR_STATUS = {
   closed:'ปิดงาน'
 };
 const REPAIR_STATUS_COLOR = {
-  received:'#dbeafe',         spared:'#e0f2fe',
-  assessing:'#fef3c7',        quoted:'#ede9fe',
-  waiting_approval:'#fef9c3', repairing:'#dcfce7',
-  waiting_return:'#d1fae5',   returned:'#bbf7d0',
-  cancelled:'#fee2e2',
+  received:'#eaf0f7',         spared:'#e5f0f0',
+  assessing:'#f6f0e2',        quoted:'#efedf7',
+  waiting_approval:'#f6f0e2', repairing:'#f7ece4',
+  waiting_return:'#e7f0ea',   returned:'#e7f0ea',
+  cancelled:'#f0eee9',
   // legacy
-  device_received:'#dcfce7', sent_supplier:'#e0f2fe',
-  returned_from_supplier:'#d1fae5', returned_to_customer:'#bbf7d0', closed:'#f0fdf4'
+  device_received:'#eaf0f7', sent_supplier:'#e5f0f0',
+  returned_from_supplier:'#e7f0ea', returned_to_customer:'#e7f0ea', closed:'#f0eee9'
 };
 const REPAIR_STATUS_TEXT = {
-  received:'#1d4ed8',         spared:'#0369a1',
-  assessing:'#92400e',        quoted:'#6d28d9',
-  waiting_approval:'#854d0e', repairing:'#166534',
-  waiting_return:'#15803d',   returned:'#15803d',
-  cancelled:'#b91c1c',
+  received:'#3f5f8f',         spared:'#2f6f73',
+  assessing:'#8f6d1f',        quoted:'#5a4f8f',
+  waiting_approval:'#8f6d1f', repairing:'#9a5530',
+  waiting_return:'#356b4e',   returned:'#356b4e',
+  cancelled:'#6f747c',
   // legacy
-  device_received:'#166534', sent_supplier:'#0369a1',
-  returned_from_supplier:'#15803d', returned_to_customer:'#15803d', closed:'#166534'
+  device_received:'#3f5f8f', sent_supplier:'#2f6f73',
+  returned_from_supplier:'#356b4e', returned_to_customer:'#356b4e', closed:'#5b616b'
 };
 const FINANCE_STATUS = {
   pending:'รอเสนอราคา', quoted:'เสนอราคาแล้ว', approved:'อนุมัติแล้ว',
@@ -11251,13 +11257,14 @@ function rpStatusBadge(st) {
   if (!st) return `<span style="color:#8a8f97;font-size:.72rem">—</span>`;
   const bg  = REPAIR_STATUS_COLOR[st] || '#f0eee9';
   const col = REPAIR_STATUS_TEXT[st]  || '#4d535b';
-  return `<span style="background:${bg};color:${col};padding:.15rem .5rem;border-radius:20px;font-size:.72rem;font-weight:700;white-space:nowrap">${REPAIR_STATUS[st]||st}</span>`;
+  return `<span style="display:inline-block;background:${bg};color:${col};padding:.2rem .55rem;border-radius:8px;font-size:.72rem;font-weight:500;line-height:1.35;max-width:100%">${REPAIR_STATUS[st]||st}</span>`;
 }
 function rpFinanceBadge(fs) {
-  const colors = { pending:'#fef3c7|#92400e', quoted:'#ede9fe|#6d28d9',
-    approved:'#dcfce7|#166534', so_issued:'#dbeafe|#1d4ed8', paid:'#f0fdf4|#15803d' };
+  if (!fs) return '<span style="color:#b9bcc2">—</span>';
+  const colors = { pending:'#f6f0e2|#8f6d1f', quoted:'#efedf7|#5a4f8f',
+    approved:'#e7f0ea|#356b4e', so_issued:'#eaf0f7|#3f5f8f', paid:'#e7f0ea|#356b4e' };
   const [bg,col] = (colors[fs]||'#f0eee9|#4d535b').split('|');
-  return `<span style="background:${bg};color:${col};padding:.12rem .45rem;border-radius:20px;font-size:.7rem;font-weight:600;white-space:nowrap">${FINANCE_STATUS[fs]||fs}</span>`;
+  return `<span style="display:inline-flex;align-items:center;gap:.35rem;color:${col};font-size:.74rem;white-space:nowrap"><span style="width:6px;height:6px;border-radius:50%;background:${col};flex-shrink:0"></span>${FINANCE_STATUS[fs]||fs}</span>`;
 }
 
 function rpSearchDebounce() {
@@ -11298,47 +11305,47 @@ function renderRepairTable() {
   const tbody = document.getElementById('repair-tbody');
   if (!tbody) return;
 
-  // Stats
-  const DONE_ST = ['returned','cancelled','closed','returned_to_customer'];
-  const total   = allRepairJobs.length;
-  const active  = allRepairJobs.filter(j => !DONE_ST.includes(j.status)).length;
-  const closed  = allRepairJobs.filter(j => DONE_ST.includes(j.status)).length;
-  const unpaid  = allRepairJobs.filter(j => !['paid','free','cancelled'].includes(j.finance_status) && !['cancelled'].includes(j.status)).length;
+  // Counts on the tabs — same rules as before, now shared with the tab filter
+  const all = allRepairJobs || [];
   const _s = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
-  _s('rp-stat-total',  total);
-  _s('rp-stat-active', active);
-  _s('rp-stat-closed', closed);
-  _s('rp-stat-unpaid', unpaid);
+  _s('rp-stat-total',  all.length);
+  _s('rp-stat-active', all.filter(RP_TAB_TEST.active).length);
+  _s('rp-stat-closed', all.filter(RP_TAB_TEST.closed).length);
+  _s('rp-stat-unpaid', all.filter(RP_TAB_TEST.unpaid).length);
+  document.querySelectorAll('#rp-tabs .svc-tab').forEach(t => t.classList.toggle('on', (t.dataset.tab || '') === _rpTab));
 
-  if (!allRepairJobs.length) {
-    tbody.innerHTML = '<tr><td colspan="9" class="empty"><div class="icon"><i class=i-wrench></i></div>ไม่พบงานซ่อม</td></tr>';
+  const rows = rpVisible();
+  if (!rows.length) {
+    tbody.innerHTML = `<tr style="cursor:default"><td colspan="8" style="text-align:center;color:var(--muted);padding:3.5rem 1rem">${all.length ? 'ไม่มีงานซ่อมในแท็บนี้' : 'ไม่พบงานซ่อม'}</td></tr>`;
     return;
   }
 
   // Build set of jobs needing action
   const _needsAction = new Set((_repairUnread||[]).map(r=>r.repair_id));
   setTimeout(renderRepairUnreadHighlight, 50);
-  tbody.innerHTML = allRepairJobs.map(j => `
-    <tr style="cursor:pointer;${_needsAction.has(j.id)?'background:#fff5f5;':''}\" onclick="openRepairDetail(${j.id})">
-      <td style="white-space:nowrap">
-        <b style="color:var(--hd)">${j.job_no}</b>
-        ${_needsAction.has(j.id)?'<span style="display:inline-block;width:9px;height:9px;background:#ef4444;border-radius:50%;margin-left:.35rem;vertical-align:middle;animation:pulse 1.5s infinite" title="รอตอบข้อความลูกค้า"></span>':''}
+  tbody.innerHTML = rows.map(j => `
+    <tr style="cursor:pointer;${_needsAction.has(j.id)?'background:#fdf6f3;':''}" onclick="openRepairDetail(${j.id})">
+      <td>
+        <div style="white-space:nowrap"><span class="svc-jobno" style="color:#24272c;font-weight:500">${escHtml(j.job_no||'')}</span>
+        ${_needsAction.has(j.id)?'<span style="display:inline-block;width:8px;height:8px;background:#c0584c;border-radius:50%;margin-left:.35rem;vertical-align:middle;animation:pulse 1.5s infinite" title="รอตอบข้อความลูกค้า"></span>':''}</div>
+        <div class="tk-sub">${fmtDT(j.reported_at)}</div>
       </td>
-      <td style="font-size:.83rem;word-break:break-word;min-width:120px">${escHtml(j.company_name||'—')}</td>
-      <td style="font-size:.8rem">${escHtml(j.device_type||'—')} ${j.device_model?`<span style="color:var(--muted)">${escHtml(j.device_model)}</span>`:''}</td>
-      <td style="font-size:.78rem;font-family:monospace">${escHtml(j.serial_no||'—')}</td>
+      <td style="min-width:0">
+        <div class="svc-title" style="white-space:normal;line-height:1.4" title="${escHtml(j.company_name||'')}">${escHtml(j.company_name||'—')}</div>
+        ${(j.device_type||j.device_model) ? `<div class="svc-meta">${[j.device_type, j.device_model].filter(Boolean).map(v => escHtml(v)).join(' · ')}</div>` : ''}
+      </td>
+      <td><span style="font-family:'IBM Plex Mono',monospace;font-size:.76rem;color:#4d535b;overflow-wrap:anywhere">${escHtml(j.serial_no||'—')}</span></td>
       <td>${rpStatusBadge(j.status)}</td>
       <td>${rpFinanceBadge(j.finance_status)}</td>
-      <td style="font-size:.78rem">${escHtml(j.reporter_name||'—')}</td>
-      <td style="font-size:.75rem;white-space:nowrap">${fmtDT(j.reported_at)}</td>
-      <td onclick="event.stopPropagation()" style="text-align:center">
-        <input type="checkbox" ${j.acknowledged?'checked':''} title="รับทราบและประสานงานเรียบร้อยแล้ว"
-          style="width:16px;height:16px;cursor:pointer;accent-color:#16a34a"
+      <td style="font-size:.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(j.reporter_name||'—')}</td>
+      <td onclick="event.stopPropagation()" style="text-align:center;vertical-align:middle">
+        <input type="checkbox" ${j.acknowledged?'checked':''} title="รับทราบและประสานงานเรียบร้อยแล้ว" aria-label="รับทราบ"
+          style="width:16px;height:16px;cursor:pointer;accent-color:var(--primary)"
           onchange="rpToggleAck(${j.id},this.checked)">
       </td>
-      <td onclick="event.stopPropagation()" style="white-space:nowrap">
-        <button class="btn btn-ghost btn-sm" onclick="openRepairDetail(${j.id})" title="ดูรายละเอียด"><i class=i-clipboard></i></button>
-        <button class="btn btn-ghost btn-sm" onclick="genRepairLink(${j.id},'${j.public_token||''}')" title="Copy link ส่งลูกค้า" style="color:#2563eb"><i class=i-link></i></button>
+      <td onclick="event.stopPropagation()" style="white-space:nowrap;vertical-align:middle">
+        <button class="uat-act" onclick="openRepairDetail(${j.id})" title="ดูรายละเอียด" aria-label="ดูรายละเอียด"><i class=i-eye></i></button>
+        <button class="uat-act" onclick="genRepairLink(${j.id},'${j.public_token||''}')" title="Copy link ส่งลูกค้า" aria-label="Copy link ส่งลูกค้า"><i class=i-link></i></button>
       </td>
     </tr>`).join('');
 }
@@ -11351,15 +11358,15 @@ let _rpView    = 'table'; // 'table' | 'board'
 let _rpDragId  = null;
 
 const REPAIR_KANBAN_COLS = [
-  { key:'received',         label:'รับเรื่อง',            bg:'#dbeafe', col:'#1d4ed8' },
-  { key:'spared',           label:'สแปร์แล้ว',            bg:'#e0f2fe', col:'#0369a1' },
-  { key:'assessing',        label:'ประเมินงาน',            bg:'#fef3c7', col:'#92400e' },
-  { key:'quoted',           label:'เสนอราคา',              bg:'#ede9fe', col:'#6d28d9' },
-  { key:'waiting_approval', label:'รออนุมัติ',             bg:'#fef9c3', col:'#854d0e' },
-  { key:'repairing',        label:'กำลังซ่อม',            bg:'#dcfce7', col:'#166534' },
-  { key:'waiting_return',   label:'รอส่งคืน',             bg:'#d1fae5', col:'#15803d' },
-  { key:'returned',         label:'ส่งคืนแล้ว',            bg:'#f0fdf4', col:'#15803d' },
-  { key:'cancelled',        label:'ยกเลิก',               bg:'#fee2e2', col:'#b91c1c' },
+  { key:'received',         label:'รับเรื่อง',            bg:'#eaf0f7', col:'#3f5f8f' },
+  { key:'spared',           label:'สแปร์แล้ว',            bg:'#e5f0f0', col:'#2f6f73' },
+  { key:'assessing',        label:'ประเมินงาน',            bg:'#f6f0e2', col:'#8f6d1f' },
+  { key:'quoted',           label:'เสนอราคา',              bg:'#efedf7', col:'#5a4f8f' },
+  { key:'waiting_approval', label:'รออนุมัติ',             bg:'#f6f0e2', col:'#8f6d1f' },
+  { key:'repairing',        label:'กำลังซ่อม',            bg:'#f7ece4', col:'#9a5530' },
+  { key:'waiting_return',   label:'รอส่งคืน',             bg:'#e7f0ea', col:'#356b4e' },
+  { key:'returned',         label:'ส่งคืนแล้ว',            bg:'#e7f0ea', col:'#356b4e' },
+  { key:'cancelled',        label:'ยกเลิก',               bg:'#f0eee9', col:'#6f747c' },
 ];
 
 function rpSetView(view) {
@@ -11371,14 +11378,12 @@ function rpSetView(view) {
   if (view === 'board') {
     table.style.display = 'none';
     board.style.display = '';
-    btnT.style.background = '#fff';     btnT.style.color = '#8a8f97';
-    btnB.style.background = '#2563eb';  btnB.style.color = '#fff';
+    btnT.classList.remove('on'); btnB.classList.add('on');
     rpRenderKanban();
   } else {
     table.style.display = '';
     board.style.display = 'none';
-    btnT.style.background = '#2563eb';  btnT.style.color = '#fff';
-    btnB.style.background = '#fff';     btnB.style.color = '#8a8f97';
+    btnT.classList.add('on'); btnB.classList.remove('on');
     renderRepairTable();
   }
 }
@@ -11386,28 +11391,28 @@ function rpSetView(view) {
 function rpRenderKanban() {
   const wrap = document.getElementById('rp-kanban-wrap');
   if (!wrap) return;
-  const jobs = allRepairJobs || [];
+  const jobs = rpVisible();
 
   wrap.innerHTML = `
-    <div style="display:flex;gap:0;min-height:calc(100vh - 260px);overflow-x:auto">
+    <div style="display:flex;gap:.75rem;min-height:calc(100vh - 300px);overflow-x:auto;padding-bottom:.5rem">
       ${REPAIR_KANBAN_COLS.map(col => {
         const cards = jobs.filter(j => j.status === col.key);
         return `
-          <div class="rp-kanban-col" data-status="${col.key}"
-            style="min-width:210px;flex:1;border-right:1px solid #e6e3dc;display:flex;flex-direction:column;background:${col.bg}10"
+          <div class="rp-kanban-col fu-kcol" data-status="${col.key}" style="min-width:215px"
             ondragover="rpDragOver(event)" ondrop="rpDrop(event,'${col.key}')" ondragleave="rpDragLeave(event)">
             <!-- Column header -->
-            <div style="padding:.55rem .75rem;background:#fff;border-bottom:2px solid ${col.col}44;position:sticky;top:0;z-index:1">
-              <div style="display:flex;align-items:center;gap:.4rem">
-                <span style="font-size:.78rem;font-weight:700;color:${col.col}">${col.label}</span>
-                <span style="background:${col.col}22;color:${col.col};border-radius:20px;font-size:.68rem;padding:.05rem .4rem;font-weight:700">${cards.length}</span>
+            <div style="padding:.5rem .55rem .6rem;position:sticky;top:0;z-index:1;background:#efede7">
+              <div style="display:flex;align-items:center;gap:.45rem">
+                <span style="width:7px;height:7px;border-radius:50%;background:${col.col};flex-shrink:0"></span>
+                <span style="font-size:.8rem;font-weight:500;color:#24272c">${col.label}</span>
+                <span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:.72rem;color:#6f747c">${cards.length}</span>
               </div>
             </div>
             <!-- Cards -->
-            <div style="flex:1;padding:.45rem .4rem;overflow-y:auto;display:flex;flex-direction:column;gap:.35rem">
+            <div style="flex:1;padding:0 .05rem .2rem;overflow-y:auto;display:flex;flex-direction:column;gap:.45rem">
               ${cards.map(j => rpKanbanCard(j, col)).join('')}
               <!-- Drop placeholder -->
-              <div class="rp-drop-placeholder" style="display:none;height:56px;border:2px dashed ${col.col}66;border-radius:8px;background:${col.bg}44"></div>
+              <div class="rp-drop-placeholder" style="display:none;height:56px;border:2px dashed ${col.col}66;border-radius:11px;background:${col.bg}"></div>
             </div>
           </div>`;
       }).join('')}
@@ -11425,21 +11430,21 @@ function rpKanbanCard(j, col) {
       ondragstart="rpDragStart(event,${j.id})"
       ondragend="rpDragEnd(event)"
       onclick="openRepairDetail(${j.id})"
-      style="background:#fff;border-radius:8px;padding:.55rem .65rem;box-shadow:0 1px 3px rgba(0,0,0,.07);cursor:pointer;border-left:3px solid ${col.col};user-select:none">
+      style="background:#fff;border:1px solid #e6e3dc;border-radius:11px;padding:.65rem .75rem;cursor:pointer;user-select:none">
       <!-- Job No + alert dot -->
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.25rem">
-        <span style="font-size:.75rem;font-weight:800;color:${col.col};font-family:monospace">${escHtml(j.job_no||'')}</span>
-        ${hasMsg ? '<span style="width:8px;height:8px;background:#ef4444;border-radius:50%;display:inline-block;animation:pulse 1.5s infinite" title="รอตอบข้อความ"></span>' : ''}
+        <span style="font-size:.72rem;color:#4d535b;font-family:'IBM Plex Mono',monospace">${escHtml(j.job_no||'')}</span>
+        ${hasMsg ? '<span style="width:8px;height:8px;background:#c0584c;border-radius:50%;display:inline-block;animation:pulse 1.5s infinite" title="รอตอบข้อความ"></span>' : ''}
       </div>
       <!-- ร้าน -->
-      <div style="font-size:.8rem;font-weight:600;color:#24272c;line-height:1.35;margin-bottom:.2rem;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden">${escHtml(j.company_name||'—')}</div>
+      <div style="font-size:.82rem;font-weight:500;color:#24272c;line-height:1.45;margin-bottom:.2rem;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden">${escHtml(j.company_name||'—')}</div>
       <!-- อุปกรณ์ -->
-      <div style="font-size:.72rem;color:#5b616b;margin-bottom:.3rem;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden">${escHtml(j.device_type||'')}${j.device_model?' '+j.device_model:''}</div>
+      <div style="font-size:.74rem;color:#5b616b;margin-bottom:.35rem;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden">${escHtml(j.device_type||'')}${j.device_model?' · '+escHtml(j.device_model):''}</div>
       <!-- Footer -->
       <div style="display:flex;align-items:center;gap:.3rem;flex-wrap:wrap">
-        ${notPaid ? `<span style="font-size:.65rem;background:#fef3c7;color:#92400e;border-radius:20px;padding:.05rem .35rem;font-weight:700">${FINANCE_STATUS[j.finance_status]||j.finance_status}</span>` : ''}
-        ${j.reporter_name ? `<span style="font-size:.65rem;color:#8a8f97">${escHtml(j.reporter_name)}</span>` : ''}
-        ${dateTxt ? `<span style="font-size:.65rem;color:#d6d2c9;margin-left:auto">${dateTxt}</span>` : ''}
+        ${notPaid ? `<span class="uat-tag" style="background:#f6f0e2;color:#8f6d1f;margin:0">${FINANCE_STATUS[j.finance_status]||j.finance_status}</span>` : ''}
+        ${j.reporter_name ? `<span style="font-size:.68rem;color:#6f747c">${escHtml(j.reporter_name)}</span>` : ''}
+        ${dateTxt ? `<span style="font-size:.68rem;color:#6f747c;margin-left:auto">${dateTxt}</span>` : ''}
       </div>
     </div>`;
 }
@@ -12031,12 +12036,12 @@ function renderRepairUnreadHighlight() {
     const onclick = tr.getAttribute('onclick') || '';
     const match = onclick.match(/openRepairDetail\((\d+)\)/);
     if (match && unreadIds.has(parseInt(match[1]))) {
-      tr.style.background = '#eff6ff';
+      tr.style.background = '#fdf6f3';
       // Add 💬 badge if not already there
       const firstTd = tr.querySelector('td:first-child');
       if (firstTd && !firstTd.querySelector('.msg-dot')) {
         firstTd.insertAdjacentHTML('beforeend',
-          '<span class="msg-dot" style="display:inline-block;width:8px;height:8px;background:#ef4444;border-radius:50%;margin-left:.4rem;vertical-align:middle" title="มีข้อความจากลูกค้า"></span>');
+          '<span class="msg-dot" style="display:inline-block;width:8px;height:8px;background:#c0584c;border-radius:50%;margin-left:.4rem;vertical-align:middle" title="มีข้อความจากลูกค้า"></span>');
       }
     }
   });
@@ -14314,18 +14319,18 @@ async function openSpecialistDetail(id) {
 //  ISSUE FOLLOW UP v2
 // ══════════════════════════════════════════════════════════
 const FU_STATUS = {
-  pending:              { label:'รอดำเนินการ',        color:'#f59e0b', bg:'#fffbeb' },
-  in_progress:          { label:'กำลังตรวจสอบ',       color:'#3b82f6', bg:'#eff6ff' },
-  waiting:              { label:'รอ Release',          color:'#8b5cf6', bg:'#f5f3ff' },
-  fixed_waiting_update: { label:'แก้ไขแล้วรออัพเดท', color:'#0891b2', bg:'#ecfeff' },
-  resolved:             { label:'แก้แล้ว',              color:'#22c55e', bg:'#f0fdf4' },
-  cancelled:            { label:'ยกเลิก',              color:'#8a8f97', bg:'#faf9f6' },
+  pending:              { label:'รอดำเนินการ',        color:'#8f6d1f', bg:'#f6f0e2' },
+  in_progress:          { label:'กำลังตรวจสอบ',       color:'#3f5f8f', bg:'#eaf0f7' },
+  waiting:              { label:'รอ Release',          color:'#5a4f8f', bg:'#efedf7' },
+  fixed_waiting_update: { label:'แก้ไขแล้วรออัพเดท', color:'#2f6f73', bg:'#e5f0f0' },
+  resolved:             { label:'แก้แล้ว',              color:'#356b4e', bg:'#e7f0ea' },
+  cancelled:            { label:'ยกเลิก',              color:'#6f747c', bg:'#f0eee9' },
 };
 const FU_PRIORITY = {
-  urgent: { label:'เร่งด่วน', color:'#ef4444' },
-  high:   { label:'สูง',      color:'#f97316' },
-  normal: { label:'ปกติ',     color:'#f59e0b' },
-  low:    { label:'ต่ำ',      color:'#3b82f6' },
+  urgent: { label:'เร่งด่วน', color:'#b04a40' },
+  high:   { label:'สูง',      color:'#a2562f' },
+  normal: { label:'ปกติ',     color:'#86671f' },
+  low:    { label:'ต่ำ',      color:'#4a6c9e' },
 };
 
 let _fuFolders    = [];
@@ -14371,8 +14376,7 @@ function fuSwitchTab(n) {
     if (!tab || !btn) return;
     const active = (i === n);
     tab.style.display = active ? (i === 1 || i === 3 ? 'flex' : 'block') : 'none';
-    btn.style.color = active ? '#1d4ed8' : '#5b616b';
-    btn.style.borderBottomColor = active ? '#1d4ed8' : 'transparent';
+    btn.classList.toggle('on', active);
   });
   if (n === 2) fuLoadOverview();
   if (n === 3) fuLoadByAssignee();
@@ -15008,7 +15012,7 @@ function fuClosePanelModal() {
   const tab1  = document.getElementById('fu-tab-1');
   if (tab1) tab1.appendChild(panel);
   panel.style.cssText = `
-    width:0;min-width:0;background:#fff;border-left:1px solid #e6e3dc;
+    width:0;min-width:0;background:#fff;border:none;
     display:flex;flex-direction:column;overflow:hidden;transition:width .22s ease;
   `;
   document.getElementById('fu-panel-backdrop').style.display = 'none';
@@ -15336,10 +15340,10 @@ function fuUpdateStatusDdUI() {
   } else if (_fuStatusFilter.size === 1) {
     const k = [..._fuStatusFilter][0];
     lbl.textContent = _fuStatusLabels[k] || k;
-    lbl.style.color = '#1d4ed8';
+    lbl.style.color = 'var(--primary)';
   } else {
     lbl.textContent = `${_fuStatusFilter.size} สถานะ`;
-    lbl.style.color = '#1d4ed8';
+    lbl.style.color = 'var(--primary)';
   }
 }
 
@@ -15373,11 +15377,11 @@ async function fuGlobalSearchRun(q) {
     const loc = r.folder_name ? `${esc(r.folder_name)} / ${esc(r.board_name||'')}` : esc(r.board_name||'');
     const detail = (r.detail || 'ยังไม่มีหัวข้อ').slice(0, 70);
     return `<div onclick="fuGlobalSearchGo(${r.board_id},${r.id},${r.folder_id})"
-        style="padding:.5rem .7rem;cursor:pointer;border-bottom:1px solid #f0eee9"
-        onmouseover="this.style.background='#faf9f6'" onmouseout="this.style.background=''">
+        style="padding:.55rem .75rem;cursor:pointer;border-bottom:1px solid #efede7"
+        onmouseover="this.style.background='#f6f5f1'" onmouseout="this.style.background=''">
       <div style="font-size:.68rem;color:#8a8f97;margin-bottom:.15rem">#${r.id} · ${loc}</div>
       <div style="font-size:.8rem;font-weight:600;color:#24272c;line-height:1.35">${esc(detail)}</div>
-      <div style="margin-top:.25rem"><span style="background:${st.bg};color:${st.color};border-radius:20px;padding:.08rem .5rem;font-size:.66rem;font-weight:700">${st.label}</span></div>
+      <div style="margin-top:.3rem"><span style="background:${st.bg};color:${st.color};border-radius:6px;padding:.1rem .5rem;font-size:.68rem;font-weight:500">${st.label}</span></div>
     </div>`;
   }).join('');
 }
@@ -15394,6 +15398,28 @@ document.addEventListener('click', (e) => {
   if (!wrap || !box) return;
   if (e.target !== wrap && !box.contains(e.target)) box.style.display = 'none';
 });
+
+// ── Folder/Board picker (header dropdown; the tree lives inside it) ──
+function fuTogglePicker(e) {
+  if (e) e.stopPropagation();
+  const dd = document.getElementById('fu-pick'); if (!dd) return;
+  const open = dd.classList.toggle('open');
+  document.getElementById('fu-pick-btn')?.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open) setTimeout(() => document.getElementById('fu-global-search')?.focus(), 30);
+}
+function fuClosePicker() {
+  const dd = document.getElementById('fu-pick'); if (!dd) return;
+  dd.classList.remove('open');
+  document.getElementById('fu-pick-btn')?.setAttribute('aria-expanded', 'false');
+}
+document.addEventListener('click', e => {
+  const dd = document.getElementById('fu-pick');
+  if (!dd || !dd.classList.contains('open')) return;
+  // expanding a folder re-renders the tree, detaching the clicked node — that is not an outside click
+  if (!document.contains(e.target)) return;
+  if (!dd.contains(e.target)) fuClosePicker();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') fuClosePicker(); });
 
 async function fuLoadSidebar() {
   try {
@@ -15413,36 +15439,30 @@ function fuRenderSidebar() {
   const el = document.getElementById('fu-folder-tree');
   if (!el) return;
   if (!_fuFolders.length) {
-    el.innerHTML = `<div style="padding:.75rem .5rem;color:#8a8f97;font-size:.78rem;text-align:center">ยังไม่มีโฟลเดอร์<br><button onclick="fuOpenCreateFolder()" style="margin-top:.4rem;background:#eff6ff;color:#1d4ed8;border:none;border-radius:6px;padding:.3rem .7rem;font-size:.75rem;cursor:pointer">+ สร้าง Folder</button></div>`;
+    el.innerHTML = `<div style="padding:.75rem .6rem;color:#6f747c;font-size:.8rem">ยังไม่มีโฟลเดอร์</div>`;
     return;
   }
   el.innerHTML = _fuFolders.map(f => {
     const boards = _fuBoards[f.id] || [];
     const isOpen = _fuExpanded.has(f.id);
+    const col = f.color || '#8a8f97';
     return `
-      <div style="margin-bottom:.15rem">
-        <div onclick="fuToggleFolder(${f.id})" style="display:flex;align-items:center;gap:.35rem;padding:.3rem .45rem;border-radius:6px;cursor:pointer;font-size:.8rem;font-weight:600;color:#3a3f46;user-select:none"
-          onmouseover="this.style.background='#f0eee9'" onmouseout="this.style.background=''">
-          <span style="color:${f.color||'#3b82f6'};font-size:.75rem">${isOpen?'▼':'▶'}</span>
-          <span style="color:${f.color||'#3b82f6'}"><i class=i-folder></i></span>
+      <div>
+        <div class="fu-f-row" onclick="fuToggleFolder(${f.id})">
+          <span class="chev${isOpen?' open':''}"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
+          <span style="color:${col}"><i class=i-folder></i></span>
           <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</span>
-          <span style="font-size:.65rem;color:#8a8f97">${f.board_count||0}</span>
-          ${f.group_id ? `<span onclick="event.stopPropagation();fuFolderLinkGroup(${f.id})" title="ผูกกับ: ${esc(f.group_name||'')}"
-            style="padding:.1rem .2rem;border-radius:4px;color:#3b82f6;font-size:.75rem;cursor:pointer"><i class=i-link></i></span>` : ''}
-          <span onclick="event.stopPropagation();fuFolderMenu(event,${f.id},'${esc(f.name).replace(/'/g,"\\'")}','${f.color||'#3b82f6'}')" style="padding:.1rem .2rem;color:#8a8f97;border-radius:4px;cursor:pointer" title="จัดการ">⋯</span>
+          <span class="cnt">${f.board_count||0}</span>
+          ${f.group_id ? `<span class="fu-f-act" onclick="event.stopPropagation();fuFolderLinkGroup(${f.id})" title="ผูกกับ: ${esc(f.group_name||'')}"><i class=i-link></i></span>` : ''}
+          <span class="fu-f-act" onclick="event.stopPropagation();fuFolderMenu(event,${f.id},'${esc(f.name).replace(/'/g,"\\'")}','${f.color||'#3b82f6'}')" title="จัดการ">⋯</span>
         </div>
-        ${isOpen ? `
-        <div style="padding-left:.9rem">
-          ${boards.map(b=>`
-            <div onclick="fuSelectBoard(${b.id},'${esc(b.name).replace(/'/g,"\\'")}',${f.id})" id="fu-board-item-${b.id}" data-board-id="${b.id}"
-              style="display:flex;align-items:center;gap:.3rem;padding:.28rem .5rem;border-radius:6px;cursor:pointer;font-size:.78rem;color:#4d535b;margin-bottom:.08rem${_fuBoardId===b.id?';background:#eff6ff;color:#1d4ed8;font-weight:600':''}"
-              onmouseover="this.style.background='#f0eee9'" onmouseout="this.style.background='${_fuBoardId===b.id?'#eff6ff':''}'">
-              <span><i class=i-clipboard></i></span>
+        ${isOpen ? (boards.length ? boards.map(b=>`
+            <div class="fu-b-row${_fuBoardId===b.id?' active':''}" onclick="fuSelectBoard(${b.id},'${esc(b.name).replace(/'/g,"\\'")}',${f.id})" id="fu-board-item-${b.id}" data-board-id="${b.id}">
               <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(b.name)}</span>
-              <span style="font-size:.65rem;color:#8a8f97">${b.issue_count||0}</span>
-              <span onclick="event.stopPropagation();fuBoardMenu(${b.id},'${esc(b.name).replace(/'/g,"\\'")}',${f.id})" style="padding:.1rem .2rem;color:#8a8f97;border-radius:4px" title="จัดการ Board">⋯</span>
-            </div>`).join('')}
-        </div>` : ''}
+              <span class="cnt">${b.issue_count||0}</span>
+              <span class="fu-f-act" onclick="event.stopPropagation();fuBoardMenu(${b.id},'${esc(b.name).replace(/'/g,"\\'")}',${f.id})" title="จัดการ Board">⋯</span>
+            </div>`).join('')
+          : `<div style="padding:.35rem .55rem .45rem 1.9rem;font-size:.76rem;color:#8a8f97">ยังไม่มี Board</div>`) : ''}
       </div>`;
   }).join('');
 }
@@ -15459,6 +15479,7 @@ async function fuToggleFolder(fid) {
 }
 
 async function fuSelectBoard(bid, name, fid) {
+  fuClosePicker();
   _fuBoardId      = bid;
   _fuBoardName    = name;
   _fuSearchQ      = '';
@@ -15472,9 +15493,7 @@ async function fuSelectBoard(bid, name, fid) {
   const titleEl  = document.getElementById('fu-board-title');
   if (titleEl) {
     titleEl.innerHTML = folder
-      ? `<span style="color:#8a8f97;font-weight:500">${esc(folder.name)}</span>
-         <span style="color:#d6d2c9;margin:0 .35rem">/</span>
-         <span>${esc(name)}</span>`
+      ? `<span style="color:#6f747c">${esc(folder.name)}</span><span style="color:#b9bcc2;margin:0 .35rem">/</span><span style="font-weight:500">${esc(name)}</span>`
       : `${esc(name)}`;
   }
 
@@ -15514,20 +15533,20 @@ function fuFolderMenu(e, fid, name, color) {
   const folder = _fuFolders.find(f => f.id === fid);
   const menu   = document.createElement('div');
   menu.className = 'fu-ctx-menu';
-  menu.style.cssText = `position:fixed;z-index:9999;background:#fff;border:1px solid #e6e3dc;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.12);padding:.3rem;min-width:185px;font-size:.8rem`;
+  menu.style.cssText = `position:fixed;z-index:9999;background:#fff;border:1px solid #e6e3dc;border-radius:12px;box-shadow:0 12px 32px -10px rgba(36,39,44,.25);padding:.3rem;min-width:195px;font-size:.8rem`;
   const safeName = name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   const items = [
-    { icon:'➕', label:'เพิ่ม Board ใหม่',     fn:`fuOpenCreateBoard(${fid})` },
-    { icon:'✏️', label:'เปลี่ยนชื่อ Folder',   fn:`fuFolderRename(${fid},'${safeName}','${color}')` },
-    { icon:'🔗', label: folder?.group_id ? 'แก้ไข Customer Group' : 'ผูก Customer Group', fn:`fuFolderLinkGroup(${fid})` },
+    { icon:'<span style="width:1.05em;text-align:center">+</span>', label:'เพิ่ม Board ใหม่', fn:`fuOpenCreateBoard(${fid})` },
+    { icon:'<i class=i-pencil></i>', label:'เปลี่ยนชื่อ Folder',   fn:`fuFolderRename(${fid},'${safeName}','${color}')` },
+    { icon:'<i class=i-link></i>', label: folder?.group_id ? 'แก้ไข Customer Group' : 'ผูก Customer Group', fn:`fuFolderLinkGroup(${fid})` },
     { divider: true },
-    { icon:'🗑', label:'ลบ Folder', fn:`fuFolderDelete(${fid},'${safeName}')`, danger:true },
+    { icon:'<i class=i-trash></i>', label:'ลบ Folder', fn:`fuFolderDelete(${fid},'${safeName}')`, danger:true },
   ];
   menu.innerHTML = items.map(it => it.divider
     ? `<div style="border-top:1px solid #f0eee9;margin:.25rem 0"></div>`
     : `<div onclick="${it.fn};document.querySelectorAll('.fu-ctx-menu').forEach(m=>m.remove())"
-        style="display:flex;align-items:center;gap:.55rem;padding:.38rem .65rem;border-radius:7px;cursor:pointer;color:${it.danger?'#dc2626':'#3a3f46'}"
-        onmouseover="this.style.background='${it.danger?'#fef2f2':'#f0eee9'}'" onmouseout="this.style.background=''">
+        style="display:flex;align-items:center;gap:.55rem;padding:.45rem .65rem;border-radius:8px;cursor:pointer;color:${it.danger?'#b04a40':'#3a3f46'}"
+        onmouseover="this.style.background='${it.danger?'#f7ebe8':'#f6f5f1'}'" onmouseout="this.style.background=''">
         <span>${it.icon}</span><span>${it.label}</span>
       </div>`
   ).join('');
@@ -15652,7 +15671,7 @@ async function fuBoardMenu(bid, name, fid) {
     showToast('ลบ Board แล้ว');
     if (_fuBoardId === bid) {
       _fuBoardId = null; _fuBoardName = '';
-      document.getElementById('fu-board-title').textContent = 'เลือก Board จาก Sidebar';
+      document.getElementById('fu-board-title').textContent = 'เลือก Board';
       document.getElementById('fu-board-actions').style.display = 'none';
       document.getElementById('fu-table-wrap').innerHTML = '';
       fuClosePanel();
@@ -15665,7 +15684,7 @@ async function fuBoardMenu(bid, name, fid) {
     showToast('เปลี่ยนชื่อ Board แล้ว');
     if (_fuBoardId === bid) {
       _fuBoardName = newName;
-      document.getElementById('fu-board-title').textContent = '📋 ' + newName;
+      document.getElementById('fu-board-title').textContent = newName;
     }
     _fuBoards[fid] = await api(`/api/fu/folders/${fid}/boards`) || [];
     fuRenderSidebar();
@@ -15688,14 +15707,13 @@ function fuSetView(v) {
   localStorage.setItem('fu_view', v);
   const tb = document.getElementById('fu-view-table');
   const bb = document.getElementById('fu-view-board');
-  if (tb) { tb.style.background = v==='table' ? '#1d4ed8' : 'transparent'; tb.style.color = v==='table' ? '#fff' : '#5b616b'; }
-  if (bb) { bb.style.background = v==='board' ? '#1d4ed8' : 'transparent'; bb.style.color = v==='board' ? '#fff' : '#5b616b'; }
+  if (tb) tb.classList.toggle('on', v==='table');
+  if (bb) bb.classList.toggle('on', v==='board');
   const sd = document.getElementById('fu-status-dd-wrap'); if (sd) sd.style.display = v==='table' ? '' : 'none';
   const gb = document.getElementById('fu-groupby'); if (gb) gb.style.display = v==='table' ? '' : 'none';
-  const sq = document.getElementById('fu-search');  if (sq) sq.style.display = v==='table' ? '' : 'none';
+  const sq = document.getElementById('fu-search-wrap');  if (sq) sq.style.display = v==='table' ? '' : 'none';
   // Board view is full-width — close panel
-  if (v==='board') { fuClosePanel(); document.getElementById('fu-content-area').style.padding = '0'; }
-  else { document.getElementById('fu-content-area').style.padding = '.75rem 1rem'; }
+  if (v==='board') fuClosePanel();
   fuRender();
 }
 
@@ -15722,14 +15740,14 @@ async function fuLoadIssues() {
 // The headline release date for a card — Go live wins, Release Date is the fallback
 function fuReleaseChip(issue) {
   const d = v => parseDbDate(v).toLocaleDateString('th-TH',{day:'2-digit',month:'short'});
-  const f = issue.golive_date  ? { icon:'🚀', title:'Go live Update', text:d(issue.golive_date) }
-          : issue.release_date ? { icon:'💿', title:'Release Date',   text:d(issue.release_date) }
+  const f = issue.golive_date  ? { icon:'Go live', title:'Go live Update', text:d(issue.golive_date) }
+          : issue.release_date ? { icon:'Release', title:'Release Date',   text:d(issue.release_date) }
           : null;
   const parts = [];
   if (f)   parts.push(f.icon + ' ' + f.text);
-  if (issue.release_version) parts.push('🏷️ ' + esc(issue.release_version));
+  if (issue.release_version) parts.push('v' + esc(issue.release_version).replace(/^v/i, ''));
   if (!parts.length) return '';
-  return `<span title="${f ? f.title : 'Release Version'}" style="font-size:.7rem;color:#7c3aed;font-weight:600">${parts.join(' · ')}</span>`;
+  return `<span title="${f ? f.title : 'Release Version'}" style="font-size:.7rem;color:#5a4f8f">${parts.join(' · ')}</span>`;
 }
 
 // Release plan — one table column per field
@@ -15743,13 +15761,13 @@ const FU_REL_COLS = [
 
 function fuRelValue(issue, col) {
   const v = issue[col.key];
-  if (!v) return '<span style="color:#d6d2c9">--</span>';
+  if (!v) return '<span style="color:#b9bcc2">—</span>';
   return col.text ? esc(v) : parseDbDate(v).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'});
 }
 
 // <th> set for the board table (fixed layout, so each carries its own width)
 function fuRelHeadCells() {
-  return FU_REL_COLS.map(c => `<th style="padding:.6rem .4rem;text-align:left;font-size:.7rem;color:#5b616b;font-weight:700;width:${c.width}px;white-space:nowrap">${c.head}</th>`).join('');
+  return FU_REL_COLS.map(c => `<th style="width:${c.width}px">${c.head}</th>`).join('');
 }
 
 function fuRelBodyCells(issue, onclick) {
@@ -15762,44 +15780,44 @@ function fuResolvedStamp(issue) {
   const when = issue.fix_date ? parseDbDate(issue.fix_date).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}) : null;
   const who  = issue.resolved_by_name || null;
   if (!when && !who) return '';
-  return [when ? '📅 ' + when : '', who ? '👤 ' + esc(who) : ''].filter(Boolean).join(' · ');
+  return [when || '', who ? esc(who) : ''].filter(Boolean).join(' · ');
 }
 
 function fuIssueRow(issue) {
   const st  = FU_STATUS[issue.status]  || FU_STATUS.pending;
   const pri = FU_PRIORITY[issue.priority] || FU_PRIORITY.normal;
   const eid = fuExtractIssueId(issue.issue_url);
-  return `<tr data-id="${issue.id}" style="border-bottom:1px solid #f0eee9;cursor:pointer${_fuPanelId===issue.id?';background:#eff6ff':''}"
+  return `<tr data-id="${issue.id}" style="cursor:pointer${_fuPanelId===issue.id?';background:var(--primary-soft)':''}"
     onmouseover="if(${_fuPanelId}!==${issue.id})this.style.background='#faf9f6'" onmouseout="if(${_fuPanelId}!==${issue.id})this.style.background=''">
-    <td style="padding:.6rem .8rem;vertical-align:top;border-left:3px solid ${pri.color}">
-      <div onclick="fuOpenPanel(${issue.id})" title="${issue.detail ? esc(issue.detail) : ''}" style="font-weight:600;color:#24272c;line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${issue.detail ? esc(issue.detail) : '<span style="color:#d6d2c9;font-weight:400">ยังไม่มีหัวข้อ...</span>'}</div>
+    <td style="padding:.7rem .8rem;vertical-align:top">
+      <div onclick="fuOpenPanel(${issue.id})" title="${issue.detail ? esc(issue.detail) : ''}" style="font-weight:500;color:#24272c;line-height:1.45;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${issue.detail ? esc(issue.detail) : '<span style="color:#d6d2c9;font-weight:400">ยังไม่มีหัวข้อ...</span>'}</div>
       <div style="display:flex;align-items:center;gap:.45rem;margin-top:.32rem;flex-wrap:wrap">
-        <span style="color:#d6d2c9;font-size:.66rem;font-family:monospace">#${issue.id}</span>
+        <span style="color:#6f747c;font-size:.68rem;font-family:'IBM Plex Mono',monospace">#${issue.id}</span>
         <span onclick="fuInlineEdit(event,${issue.id},'category')" title="คลิกเพื่อแก้ไข Category" style="cursor:pointer">
-          ${issue.category ? `<span style="background:#f0f9ff;color:#0369a1;border-radius:5px;padding:.08rem .4rem;font-size:.66rem;font-weight:600;white-space:nowrap">${esc(issue.category)}</span>` : '<span style="color:#d6d2c9;font-size:.66rem">+ Category</span>'}
+          ${issue.category ? `<span class="fu-cat">${esc(issue.category)}</span>` : '<span style="color:#8a8f97;font-size:.68rem">+ Category</span>'}
         </span>
-        ${eid ? `<a href="${esc(issue.issue_url||'')}" target="_blank" onclick="event.stopPropagation()" style="font-size:.66rem;font-weight:700;color:#1d4ed8;text-decoration:none;font-family:monospace" title="${esc(issue.issue_url||'')}">#${esc(eid)}</a>` : ''}
+        ${eid ? `<a href="${esc(issue.issue_url||'')}" target="_blank" onclick="event.stopPropagation()" style="font-size:.68rem;color:var(--primary);text-decoration:none;font-family:'IBM Plex Mono',monospace" title="${esc(issue.issue_url||'')}">#${esc(eid)}</a>` : ''}
         ${issue.note ? `<span style="font-size:.66rem;color:#8a8f97;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(issue.note)}">${esc(issue.note)}</span>` : ''}
       </div>
     </td>
     <td style="padding:.6rem .4rem;vertical-align:top;overflow:hidden" onclick="fuInlineEditSelect(event,${issue.id},'priority')" title="คลิกเพื่อแก้ไข">
-      <span style="color:${pri.color};font-size:.72rem;font-weight:600;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block">${pri.label}</span>
+      <span style="color:${pri.color};font-size:.74rem;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:.35rem"><span style="width:6px;height:6px;border-radius:50%;background:${pri.color};flex-shrink:0"></span>${pri.label}</span>
     </td>
     <td style="padding:.6rem .4rem;vertical-align:top;overflow:hidden" onclick="fuInlineEditSelect(event,${issue.id},'assigned_to')" title="คลิกเพื่อแก้ไข">
-      ${issue.assigned_to_name ? `<div style="font-size:.76rem;font-weight:600;color:#24272c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(issue.assigned_to_name)}</div>` : '<div style="font-size:.76rem;color:#d6d2c9">ไม่ระบุ</div>'}
+      ${issue.assigned_to_name ? `<div style="font-size:.78rem;color:#24272c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(issue.assigned_to_name)}</div>` : '<div style="font-size:.78rem;color:#8a8f97">ไม่ระบุ</div>'}
       ${issue.created_by_name ? `<div style="font-size:.63rem;color:#8a8f97;margin-top:.15rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">สร้างโดย ${esc(issue.created_by_name)}</div>` : ''}
     </td>
     <td style="padding:.6rem .4rem;vertical-align:top" onclick="fuInlineEditSelect(event,${issue.id},'status')" title="${esc(st.label)}">
-      <span style="background:${st.bg};color:${st.color};border-radius:6px;padding:.2rem .4rem;font-size:.66rem;font-weight:700;line-height:1.3;white-space:normal;overflow-wrap:anywhere;display:block;box-sizing:border-box;cursor:pointer">${st.label}</span>
-      ${fuResolvedStamp(issue) ? `<div style="font-size:.62rem;color:#15803d;margin-top:.15rem;line-height:1.3;overflow-wrap:anywhere">${fuResolvedStamp(issue)}</div>` : ''}
+      <span style="background:${st.bg};color:${st.color};border-radius:8px;padding:.22rem .5rem;font-size:.7rem;font-weight:500;line-height:1.3;white-space:normal;overflow-wrap:anywhere;display:block;box-sizing:border-box;cursor:pointer">${st.label}</span>
+      ${fuResolvedStamp(issue) ? `<div style="font-size:.66rem;color:#356b4e;margin-top:.2rem;line-height:1.35;overflow-wrap:anywhere">${fuResolvedStamp(issue)}</div>` : ''}
     </td>
     <td style="padding:.6rem .4rem;vertical-align:top;overflow:hidden">
       ${issue.last_comment_at ? `<div onclick="fuOpenPanel(${issue.id})" style="font-size:.7rem;color:#8a8f97;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" title="${esc(issue.last_comment_body||'')}">${fuDateLabel(issue.last_comment_at)}</div>`
-        : '<span onclick="fuOpenPanel('+issue.id+')" style="color:#d6d2c9;font-size:.75rem;cursor:pointer">--</span>'}
+        : '<span onclick="fuOpenPanel('+issue.id+')" style="color:#b9bcc2;font-size:.75rem;cursor:pointer">—</span>'}
     </td>
     ${fuRelBodyCells(issue, `fuOpenPanel(${issue.id})`)}
     <td style="padding:.6rem .3rem;vertical-align:top;text-align:center">
-      <span onclick="if(confirm('ลบ Issue นี้?'))fuDeleteIssue(${issue.id})" style="cursor:pointer;font-size:.75rem;color:#d6d2c9" title="ลบ" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#d6d2c9'"><i class=i-trash></i></span>
+      <span onclick="if(confirm('ลบ Issue นี้?'))fuDeleteIssue(${issue.id})" style="cursor:pointer;font-size:.78rem;color:#b9bcc2" title="ลบ" onmouseover="this.style.color='#b04a40'" onmouseout="this.style.color='#b9bcc2'"><i class=i-trash></i></span>
     </td>
   </tr>`;
 }
@@ -15814,7 +15832,7 @@ function fuGroupColor(field, val) {
   if (!val) return '#8a8f97';
   if (field === 'status')   return FU_STATUS[val]?.color   || '#5b616b';
   if (field === 'priority') return FU_PRIORITY[val]?.color || '#5b616b';
-  return '#1d4ed8';
+  return '#4d535b';
 }
 
 function fuRenderTable() {
@@ -15831,24 +15849,23 @@ function fuRenderTable() {
   if (!wrap) return;
 
   if (!list.length) {
-    wrap.innerHTML = `<div style="text-align:center;padding:3rem 1rem;color:#8a8f97">
-      <div style="font-size:2rem;margin-bottom:.5rem"><i class=i-pin></i></div>
-      <div style="margin-bottom:.75rem">${_fuStatusFilter.size ? 'ไม่มี Issue ในสถานะที่เลือก' : 'ยังไม่มี Issue'}</div>
-      <button onclick="fuAddIssue()" style="background:#1d4ed8;color:#fff;border:none;border-radius:7px;padding:.45rem 1.1rem;font-size:.82rem;font-weight:700;cursor:pointer">+ เพิ่ม Issue แรก</button>
+    wrap.innerHTML = `<div class="fu-empty">
+      <div style="margin-bottom:.9rem">${_fuStatusFilter.size ? 'ไม่มี Issue ในสถานะที่เลือก' : 'ยังไม่มี Issue ใน Board นี้'}</div>
+      <button onclick="fuAddIssue()" class="svc-btn-primary"><span style="font-size:1.05rem;line-height:1;font-weight:400">+</span> เพิ่ม Issue แรก</button>
     </div>`;
     return;
   }
 
-  const thead = `<thead><tr style="background:#faf9f6;border-bottom:2px solid #e6e3dc">
-    <th style="padding:.6rem .8rem;text-align:left;font-size:.74rem;color:#4d535b;font-weight:700;letter-spacing:.01em;width:auto">หัวข้อ / รายละเอียดปัญหา</th>
-    <th style="padding:.6rem .4rem;text-align:left;font-size:.7rem;color:#5b616b;font-weight:700;width:64px">ความสำคัญ</th>
-    <th style="padding:.6rem .4rem;text-align:left;font-size:.7rem;color:#5b616b;font-weight:700;width:96px">ผู้รับผิดชอบ</th>
-    <th style="padding:.6rem .4rem;text-align:left;font-size:.7rem;color:#5b616b;font-weight:700;width:96px">สถานะ</th>
-    <th style="padding:.6rem .4rem;text-align:left;font-size:.7rem;color:#5b616b;font-weight:700;width:100px">อัปเดตล่าสุด</th>
+  const thead = `<thead><tr>
+    <th style="width:auto">หัวข้อ / รายละเอียดปัญหา</th>
+    <th style="width:78px">ความสำคัญ</th>
+    <th style="width:104px">ผู้รับผิดชอบ</th>
+    <th style="width:112px">สถานะ</th>
+    <th style="width:100px">อัปเดตล่าสุด</th>
     ${fuRelHeadCells()}
-    <th style="padding:.6rem .3rem;width:28px"></th>
+    <th style="width:32px"></th>
   </tr></thead>`;
-  const addBtn = `<tr><td colspan="11" style="padding:.4rem .6rem"><button onclick="fuAddIssue()" style="background:none;border:none;color:#8a8f97;cursor:pointer;font-size:.78rem;padding:.2rem .4rem;border-radius:5px" onmouseover="this.style.color='#1d4ed8'" onmouseout="this.style.color='#8a8f97'">+ เพิ่ม Issue</button></td></tr>`;
+  const addBtn = `<tr><td colspan="11" style="padding:.5rem .6rem"><button onclick="fuAddIssue()" style="background:none;border:none;color:#6f747c;cursor:pointer;font-size:.8rem;padding:.25rem .5rem;border-radius:7px;font-family:inherit" onmouseover="this.style.color='var(--primary)';this.style.background='var(--primary-soft)'" onmouseout="this.style.color='#6f747c';this.style.background='none'">+ เพิ่ม Issue</button></td></tr>`;
 
   let bodyHTML = '';
   if (_fuGroupBy) {
@@ -15861,8 +15878,8 @@ function fuRenderTable() {
     });
     Object.entries(groups).sort(([a],[b])=>String(a).localeCompare(String(b),'th')).forEach(([key, items]) => {
       const color = fuGroupColor(_fuGroupBy, key);
-      bodyHTML += `<tr><td colspan="11" style="padding:.4rem .75rem;background:#faf9f6;border-top:2px solid ${color}33;border-bottom:1px solid #e6e3dc">
-        <span style="font-size:.75rem;font-weight:700;color:${color}">${fuGroupLabel(_fuGroupBy, key)}</span>
+      bodyHTML += `<tr><td colspan="11" style="padding:.55rem 1rem;background:#faf9f6;border-bottom:1px solid #e6e3dc">
+        <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${color};margin-right:.4rem;vertical-align:.05em"></span><span style="font-size:.78rem;font-weight:600;color:#3a3f46">${fuGroupLabel(_fuGroupBy, key)}</span>
         <span style="font-size:.68rem;color:#8a8f97;margin-left:.4rem">(${items.length})</span>
       </td></tr>`;
       items.forEach(i => { bodyHTML += fuIssueRow(i); });
@@ -15871,7 +15888,7 @@ function fuRenderTable() {
     list.forEach(i => { bodyHTML += fuIssueRow(i); });
   }
 
-  wrap.innerHTML = `<table style="width:100%;min-width:1120px;table-layout:fixed;border-collapse:collapse;font-size:.8rem;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06)">${thead}<tbody>${bodyHTML}${addBtn}</tbody></table>`;
+  wrap.innerHTML = `<div class="svc-tbl-card"><div class="tbl-wrap"><table class="fu-tbl">${thead}<tbody>${bodyHTML}${addBtn}</tbody></table></div></div>`;
 }
 
 // ── Kanban Board View ─────────────────────────────────────
@@ -15882,22 +15899,23 @@ function fuRenderKanban() {
   const cols = Object.entries(FU_STATUS);
 
   wrap.innerHTML = `
-    <div style="display:flex;gap:0;height:100%;min-height:calc(100vh - 120px);overflow-x:auto">
+    <div style="display:flex;gap:.75rem;height:100%;min-height:calc(100vh - 260px);overflow-x:auto;padding-bottom:.5rem">
       ${cols.map(([status, st]) => {
         const cards = _fuIssues.filter(i => i.status === status);
         return `
           <div class="fu-kanban-col" data-status="${status}"
-            style="min-width:220px;flex:1;border-right:1px solid #e6e3dc;display:flex;flex-direction:column;background:${st.bg}08"
+            class="fu-kcol"
             ondragover="fuDragOver(event)" ondrop="fuDrop(event,'${status}')" ondragleave="fuDragLeave(event)">
             <!-- Column header -->
-            <div style="padding:.6rem .75rem;background:#fff;border-bottom:2px solid ${st.color}33;position:sticky;top:0;z-index:1">
-              <div style="display:flex;align-items:center;gap:.4rem">
-                <span style="font-size:.78rem;font-weight:700;color:${st.color}">${st.label}</span>
-                <span style="background:${st.color}22;color:${st.color};border-radius:20px;font-size:.68rem;padding:.05rem .4rem;font-weight:700">${cards.length}</span>
+            <div style="padding:.5rem .55rem .6rem;position:sticky;top:0;z-index:1;background:#efede7">
+              <div style="display:flex;align-items:center;gap:.45rem">
+                <span style="width:7px;height:7px;border-radius:50%;background:${st.color}"></span>
+                <span style="font-size:.82rem;font-weight:500;color:#24272c">${st.label}</span>
+                <span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:.72rem;color:#6f747c">${cards.length}</span>
               </div>
             </div>
             <!-- Cards -->
-            <div style="flex:1;padding:.5rem .45rem;overflow-y:auto;display:flex;flex-direction:column;gap:.4rem">
+            <div style="flex:1;padding:0 .05rem .2rem;overflow-y:auto;display:flex;flex-direction:column;gap:.45rem">
               ${cards.map(issue => {
                 const pri = FU_PRIORITY[issue.priority] || FU_PRIORITY.normal;
                 return `
@@ -15905,31 +15923,31 @@ function fuRenderKanban() {
                     ondragstart="fuDragStart(event,${issue.id})"
                     ondragend="fuDragEnd(event)"
                     onclick="fuOpenPanel(${issue.id})"
-                    style="background:#fff;border-radius:8px;padding:.6rem .7rem;box-shadow:0 1px 3px rgba(0,0,0,.07);cursor:pointer;border-left:3px solid ${pri.color};transition:box-shadow .15s;user-select:none${_fuPanelId===issue.id?';box-shadow:0 0 0 2px #3b82f6':''}">
+                    style="background:#fff;border:1px solid #e6e3dc;border-radius:11px;padding:.65rem .75rem;cursor:pointer;transition:box-shadow .15s,border-color .15s;user-select:none${_fuPanelId===issue.id?';border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-soft)':''}">
                     <!-- Priority dot + category -->
                     <div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.3rem">
-                      <span style="font-size:.65rem;color:${pri.color}">${pri.label.split(' ')[0]}</span>
-                      ${issue.category ? `<span style="background:#f0f9ff;color:#0369a1;border-radius:4px;padding:.05rem .35rem;font-size:.65rem">${esc(issue.category)}</span>` : ''}
+                      <span style="display:inline-flex;align-items:center;gap:.3rem;font-size:.68rem;color:${pri.color}"><span style="width:6px;height:6px;border-radius:50%;background:${pri.color}"></span>${pri.label.split(' ')[0]}</span>
+                      ${issue.category ? `<span class="fu-cat">${esc(issue.category)}</span>` : ''}
                     </div>
                     <!-- Detail -->
-                    <div style="font-size:.8rem;font-weight:600;color:#24272c;line-height:1.4;margin-bottom:.35rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">
+                    <div style="font-size:.82rem;font-weight:500;color:#24272c;line-height:1.45;margin-bottom:.35rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">
                       ${issue.detail ? esc(issue.detail) : '<span style="color:#d6d2c9">ไม่มีรายละเอียด</span>'}
                     </div>
                     <!-- Footer -->
                     <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">
                       ${issue.assigned_to_name ? `<span style="font-size:.7rem;color:#4d535b;background:#f0eee9;border-radius:20px;padding:.05rem .4rem">${esc(issue.assigned_to_name)}</span>` : ''}
                       ${fuReleaseChip(issue)}
-                      ${fuResolvedStamp(issue) ? `<span style="font-size:.66rem;color:#15803d;font-weight:600">${fuResolvedStamp(issue)}</span>` : ''}
+                      ${fuResolvedStamp(issue) ? `<span style="font-size:.68rem;color:#356b4e">${fuResolvedStamp(issue)}</span>` : ''}
                       ${issue.comment_count>0 ? `<span style="font-size:.7rem;color:#8a8f97;margin-left:auto">${issue.comment_count}</span>` : ''}
                     </div>
                   </div>`;
               }).join('')}
               <!-- Drop zone placeholder -->
-              <div class="fu-drop-placeholder" style="display:none;height:60px;border:2px dashed ${st.color}66;border-radius:8px;background:${st.bg}"></div>
+              <div class="fu-drop-placeholder" style="display:none;height:60px;border:2px dashed ${st.color}66;border-radius:11px;background:${st.bg}"></div>
               <!-- Add button -->
               <button onclick="fuAddIssueToStatus('${status}')"
-                style="background:none;border:1px dashed #e6e3dc;border-radius:8px;padding:.4rem;font-size:.75rem;color:#8a8f97;cursor:pointer;text-align:center;margin-top:.1rem"
-                onmouseover="this.style.borderColor='${st.color}';this.style.color='${st.color}'" onmouseout="this.style.borderColor='#e6e3dc';this.style.color='#8a8f97'">
+                style="background:none;border:1px dashed #d6d2c9;border-radius:10px;padding:.45rem;font-size:.78rem;color:#6f747c;cursor:pointer;text-align:center;margin-top:.1rem;font-family:inherit"
+                onmouseover="this.style.borderColor='var(--primary)';this.style.color='var(--primary)'" onmouseout="this.style.borderColor='#d6d2c9';this.style.color='#6f747c'">
                 + Issue
               </button>
             </div>
@@ -21324,10 +21342,10 @@ const SWU_STATUS = {
   cancelled:  { label: 'ยกเลิก',         color: '#8a8f97', bg: '#f0eee9' },
 };
 const SWU_PRIORITY = {
-  urgent: { label: 'เร่งด่วน', color: '#dc2626' },
-  high:   { label: 'สูง',      color: '#ea580c' },
-  normal: { label: 'ปกติ',     color: '#b45309' },
-  low:    { label: 'ต่ำ',       color: '#8a8f97' },
+  urgent: { label: 'เร่งด่วน', color: '#b04a40' },
+  high:   { label: 'สูง',      color: '#a2562f' },
+  normal: { label: 'ปกติ',     color: '#86671f' },
+  low:    { label: 'ต่ำ',       color: '#6f747c' },
 };
 
 let _swuData = [];
@@ -21676,16 +21694,16 @@ async function swuUpdateBadge() {
 // ════════════════════════════════════════════════════════════════
 
 const UAT_STATUS = {
-  requested:        { label: 'รอทีม UAT แจ้ง slot',    color: '#b45309', bg: '#fef3c7' },
-  slot_proposed:    { label: 'รอ Support ยืนยันลูกค้า', color: '#0369a1', bg: '#e0f2fe' },
-  confirmed:        { label: 'ยืนยันวันแล้ว',           color: '#15803d', bg: '#dcfce7' },
-  testing:          { label: 'กำลังทดสอบ',              color: '#0891b2', bg: '#ecfeff' },
-  issues_found:     { label: 'พบปัญหา',                 color: '#dc2626', bg: '#fef2f2' },
-  retesting:        { label: 'ทดสอบซ้ำ',                color: '#7c3aed', bg: '#ede9fe' },
-  passed:           { label: 'UAT ผ่าน',                 color: '#15803d', bg: '#dcfce7' },
-  handed_to_update: { label: 'ส่งต่อทีม Update',         color: '#4f46e5', bg: '#eef2ff' },
+  requested:        { label: 'รอทีม UAT แจ้ง slot',    color: '#8f6d1f', bg: '#f6f0e2' },
+  slot_proposed:    { label: 'รอ Support ยืนยันลูกค้า', color: '#3f5f8f', bg: '#eaf0f7' },
+  confirmed:        { label: 'ยืนยันวันแล้ว',           color: '#356b4e', bg: '#e7f0ea' },
+  testing:          { label: 'กำลังทดสอบ',              color: '#2f6f73', bg: '#e5f0f0' },
+  issues_found:     { label: 'พบปัญหา',                 color: '#a3463c', bg: '#f7ebe8' },
+  retesting:        { label: 'ทดสอบซ้ำ',                color: '#5a4f8f', bg: '#efedf7' },
+  passed:           { label: 'UAT ผ่าน',                 color: '#356b4e', bg: '#e7f0ea' },
+  handed_to_update: { label: 'ส่งต่อทีม Update',         color: '#4a5a8f', bg: '#ecedf6' },
   closed:           { label: 'ปิดงาน',                  color: '#5b616b', bg: '#f0eee9' },
-  cancelled:        { label: 'ยกเลิก',                  color: '#8a8f97', bg: '#f0eee9' },
+  cancelled:        { label: 'ยกเลิก',                  color: '#6f747c', bg: '#f0eee9' },
 };
 const UAT_TYPE = {
   version_update: 'อัพเดท Version',
@@ -21701,27 +21719,35 @@ const UAT_PRIORITY = {
   low:    { label: 'ต่ำ',       color: '#8a8f97' },
 };
 const UAT_ISSUE_STATUS = {
-  open:          { label: 'เปิดใหม่',              color: '#b91c1c', bg: '#fee2e2' },
-  sent_dev:      { label: 'ส่ง Developer แล้ว',    color: '#1d4ed8', bg: '#dbeafe' },
-  fixing:        { label: 'กำลังแก้ไข',            color: '#c2410c', bg: '#ffedd5' },
-  fixed:         { label: 'แก้แล้ว — รอ Re-test',  color: '#7c3aed', bg: '#ede9fe' },
-  retest_passed: { label: 'Re-test ผ่าน',           color: '#15803d', bg: '#dcfce7' },
-  retest_failed: { label: 'Re-test ไม่ผ่าน',        color: '#b91c1c', bg: '#fee2e2' },
+  open:          { label: 'เปิดใหม่',              color: '#a3463c', bg: '#f7ebe8' },
+  sent_dev:      { label: 'ส่ง Developer แล้ว',    color: '#3f5f8f', bg: '#eaf0f7' },
+  fixing:        { label: 'กำลังแก้ไข',            color: '#9a5530', bg: '#f7ece4' },
+  fixed:         { label: 'แก้แล้ว — รอ Re-test',  color: '#5a4f8f', bg: '#efedf7' },
+  retest_passed: { label: 'Re-test ผ่าน',           color: '#356b4e', bg: '#e7f0ea' },
+  retest_failed: { label: 'Re-test ไม่ผ่าน',        color: '#a3463c', bg: '#f7ebe8' },
   wont_fix:      { label: 'ไม่แก้ไข',              color: '#5b616b', bg: '#f0eee9' },
 };
 const UAT_SEVERITY = {
-  critical: { label: 'Critical', color: '#dc2626' },
-  high:     { label: 'High',     color: '#ea580c' },
-  medium:   { label: 'Medium',   color: '#b45309' },
+  critical: { label: 'Critical', color: '#b04a40' },
+  high:     { label: 'High',     color: '#a2562f' },
+  medium:   { label: 'Medium',   color: '#86671f' },
   low:      { label: 'Low',       color: '#8a8f97' },
 };
 const UAT_DOC_TYPE = {
-  kickoff: { label: 'เอกสาร Kickoff', color: '#1d4ed8', bg: '#dbeafe' },
-  result:  { label: 'เอกสารผล UAT',    color: '#15803d', bg: '#dcfce7' },
+  kickoff: { label: 'เอกสาร Kickoff', color: '#3f5f8f', bg: '#eaf0f7' },
+  result:  { label: 'เอกสารผล UAT',    color: '#356b4e', bg: '#e7f0ea' },
   other:   { label: 'อื่น ๆ',          color: '#5b616b', bg: '#f0eee9' },
 };
 
 let _uatData = [], _uatUsers = [], _uatSearchTimer = null;
+let _uatTab = '';   // '' | waiting | issues | passed — narrows every view on the client
+const UAT_TAB_TEST = {
+  waiting: r => ['requested','slot_proposed'].includes(r.status),
+  issues:  r => (r.issue_open || 0) > 0,
+  passed:  r => ['passed','handed_to_update','closed'].includes(r.status),
+};
+function uatVisible() { const t = UAT_TAB_TEST[_uatTab]; return t ? (_uatData || []).filter(t) : (_uatData || []); }
+function uatSetTab(tab) { _uatTab = tab; renderUat(); }
 let _uatDetail = null;   // งานที่เปิดอยู่ใน modal รายละเอียด
 
 function uatDate(d) {
@@ -21733,7 +21759,7 @@ function uatDateTime(d) {
 // escape ก่อน แล้วค่อยทำลิงก์ — ลิงก์ Scenario ที่แนบมาในโน้ตจะกดได้เลย
 function uatLinkify(t) {
   return escHtml(t).replace(/https?:\/\/[^\s<]+/g, u =>
-    `<a href="${u}" target="_blank" rel="noopener" style="color:#0369a1;word-break:break-all">${u}</a>`);
+    `<a href="${u}" target="_blank" rel="noopener" style="color:var(--primary);word-break:break-all">${u}</a>`);
 }
 function uatMultiline(t) { return t ? uatLinkify(t).replace(/\n/g, '<br>') : '<span style="color:#8a8f97">—</span>'; }
 
@@ -21765,6 +21791,7 @@ function renderUat() {
   set('uat-stat-testing', all.filter(r => ['requested','slot_proposed'].includes(r.status)).length);
   set('uat-stat-issues',  all.reduce((n, r) => n + (r.issue_open || 0), 0));
   set('uat-stat-passed',  all.filter(r => ['passed','handed_to_update','closed'].includes(r.status)).length);
+  document.querySelectorAll('#uat-tabs .svc-tab').forEach(t => t.classList.toggle('on', (t.dataset.tab || '') === _uatTab));
   renderUatTable();
   if (_uatView === 'board')    uatRenderKanban();
   else if (_uatView === 'cal') uatRenderCalendar();
@@ -21774,48 +21801,54 @@ function renderUat() {
 function renderUatTable() {
   const tbody = document.getElementById('uat-tbody');
   if (!tbody) return;
-  const all = _uatData;
+  const all = uatVisible();
   if (!all.length) {
-    tbody.innerHTML = '<tr><td colspan="13" class="empty"><div class="icon"><i class=i-flask></i></div>ยังไม่มี Request UAT — กด “+ แจ้ง Request UAT” เพื่อเริ่ม</td></tr>';
+    tbody.innerHTML = `<tr style="cursor:default"><td colspan="7" style="text-align:center;color:var(--muted);padding:3.5rem 1rem">${
+      (_uatData || []).length ? 'ไม่มีงานในแท็บนี้' : 'ยังไม่มี Request UAT — กด “+ แจ้ง Request UAT” เพื่อเริ่ม'}</td></tr>`;
     return;
   }
   tbody.innerHTML = all.map(r => {
     const st  = UAT_STATUS[r.status]     || UAT_STATUS.requested;
     const pri = UAT_PRIORITY[r.priority] || UAT_PRIORITY.normal;
     const ver = (r.version_from || r.version_to)
-      ? `<span style="font-family:monospace;font-size:.73rem;color:#1d4ed8">${escHtml(r.version_from || '—')} → <b>${escHtml(r.version_to || '—')}</b></span>`
-      : '<span style="color:#d6d2c9">—</span>';
+      ? `<span class="mono">${escHtml(r.version_from || '—')} → ${escHtml(r.version_to || '—')}</span>` : '';
+    const meta = [escHtml(UAT_TYPE[r.job_type] || UAT_TYPE.other), ver].filter(Boolean).join(' · ');
     const slot = r.test_date_from
-      ? `${uatDate(r.test_date_from)}${r.test_date_to && r.test_date_to !== r.test_date_from ? ' – ' + uatDate(r.test_date_to) : ''}`
-      : '<span style="color:#b45309">รอ slot</span>';
-    return `<tr style="cursor:pointer" onclick="openUatDetail(${r.id})"
-        onmouseover="this.style.background='#faf9f6'" onmouseout="this.style.background=''">
-      <td style="white-space:nowrap"><b style="color:var(--hd);font-family:monospace;font-size:.78rem">${escHtml(r.job_no || '')}</b></td>
-      <td style="font-size:.83rem;font-weight:600;word-break:break-word;min-width:180px;max-width:320px">${escHtml(r.title || '—')}</td>
-      <td style="font-size:.75rem;color:#5b616b;white-space:nowrap">${escHtml(UAT_TYPE[r.job_type] || UAT_TYPE.other)}</td>
-      <td style="white-space:nowrap">${ver}</td>
-      <td style="font-size:.77rem;white-space:nowrap">${uatDate(r.requested_date)}</td>
-      <td style="font-size:.77rem;white-space:nowrap">${slot}</td>
-      <td><span style="background:${st.bg};color:${st.color};border-radius:20px;padding:.15rem .55rem;font-size:.72rem;font-weight:700;white-space:nowrap">${st.label}</span></td>
-      <td><span style="font-size:.74rem;font-weight:700;color:${pri.color};white-space:nowrap">${pri.label}</span></td>
-      <td style="white-space:nowrap">
-        ${r.kickoff_docs ? `<span title="มีเอกสาร Kickoff ${r.kickoff_docs} ไฟล์" style="font-size:.72rem;background:#dbeafe;color:#1d4ed8;border-radius:10px;padding:.1rem .4rem;font-weight:700">${r.kickoff_docs}</span>` : ''}
-        ${r.result_docs  ? `<span title="มีเอกสารผล UAT ${r.result_docs} ไฟล์" style="font-size:.72rem;background:#dcfce7;color:#15803d;border-radius:10px;padding:.1rem .4rem;font-weight:700;margin-left:.15rem">${r.result_docs}</span>` : ''}
-        ${!r.kickoff_docs && !r.result_docs ? '<span style="color:#d6d2c9">—</span>' : ''}
+      ? `<div style="font-size:.8rem;color:#24272c;white-space:nowrap">${uatDate(r.test_date_from)}${r.test_date_to && r.test_date_to !== r.test_date_from ? ' – ' + uatDate(r.test_date_to) : ''}</div>`
+      : '<div style="font-size:.8rem;color:#8f6d1f">รอ slot</div>';
+    const urgentTag = ['urgent','high'].includes(r.priority)
+      ? `<span class="impl-tag urgent">${escHtml(pri.label)}</span>` : '';
+    const docs = [
+      r.kickoff_docs ? `<span class="uat-tag" style="background:#eaf0f7;color:#3f5f8f" title="เอกสาร Kickoff ${r.kickoff_docs} ไฟล์">Kickoff ${r.kickoff_docs}</span>` : '',
+      r.result_docs  ? `<span class="uat-tag" style="background:#e7f0ea;color:#356b4e" title="เอกสารผล UAT ${r.result_docs} ไฟล์">ผล ${r.result_docs}</span>` : '',
+      r.issue_open   ? `<span class="uat-tag" style="background:#f7ebe8;color:#a3463c" title="Issue ที่ยังไม่จบ">Issue ค้าง ${r.issue_open}${r.issue_total ? '/' + r.issue_total : ''}</span>`
+        : (r.issue_total ? `<span class="uat-tag" style="background:#f0eee9;color:#5b616b">Issue ${r.issue_total}</span>` : ''),
+    ].filter(Boolean).join('');
+    return `<tr onclick="openUatDetail(${r.id})">
+      <td>
+        <div class="svc-jobno" style="color:#24272c;font-weight:500">${escHtml(r.job_no || '')}</div>
+        <div class="tk-sub">ต้องการ ${uatDate(r.requested_date)}</div>
       </td>
-      <td style="white-space:nowrap">
-        ${r.issue_open  ? `<span title="Issue ที่ยังไม่จบ" style="font-size:.72rem;background:#fee2e2;color:#b91c1c;border-radius:10px;padding:.1rem .4rem;font-weight:700">${r.issue_open} ค้าง</span>` : ''}
-        ${r.issue_total ? `<span style="font-size:.72rem;color:#5b616b;margin-left:.2rem">/ ${r.issue_total}</span>` : '<span style="color:#d6d2c9">—</span>'}
+      <td style="min-width:0">
+        <div class="svc-title" style="white-space:normal;line-height:1.45" title="${escHtml(r.title || '')}">${urgentTag}${escHtml(r.title || '—')}</div>
+        <div class="svc-meta">${meta}</div>
       </td>
-      <td style="font-size:.77rem;white-space:nowrap">${escHtml(r.reporter_name || '—')}</td>
-      <td style="font-size:.77rem;white-space:nowrap">${r.slot_by_name
-          ? `${escHtml(r.slot_by_name)}${r.uat_passed_by_name && r.uat_passed_by_name !== r.slot_by_name
-              ? `<div style="font-size:.68rem;color:#15803d">ปิดผล: ${escHtml(r.uat_passed_by_name)}</div>` : ''}`
-          : '<span style="color:#b45309">ยังไม่รับงาน</span>'}</td>
-      <td onclick="event.stopPropagation()" style="white-space:nowrap">
-        <button class="btn btn-ghost btn-sm" onclick="uatDownloadDraft(${r.id})" title="ดาวน์โหลดเอกสาร draft"><i class=i-download></i></button>
-        <button class="btn btn-ghost btn-sm" onclick="openUatEdit(${r.id})" title="แก้ไข"><i class=i-pencil></i></button>
-        <button class="btn btn-ghost btn-sm" style="color:#dc2626" onclick="deleteUat(${r.id})" title="ลบ"><i class=i-trash></i></button>
+      <td>${slot}</td>
+      <td>
+        <span class="uat-st" style="background:${st.bg};color:${st.color}">${st.label}</span>
+        ${['urgent','high'].includes(r.priority) ? '' : `<div class="uat-pri" style="color:${pri.color}">${pri.label}</div>`}
+      </td>
+      <td style="font-size:.8rem">
+        <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="ผู้แจ้ง">${escHtml(r.reporter_name || '—')}</div>
+        <div class="tk-sub" title="ผู้ UAT">${r.slot_by_name
+          ? 'UAT: ' + escHtml(r.slot_by_name) + (r.uat_passed_by_name && r.uat_passed_by_name !== r.slot_by_name ? ' · ปิดผล: ' + escHtml(r.uat_passed_by_name) : '')
+          : '<span style="color:#8f6d1f">ยังไม่มีผู้ UAT รับงาน</span>'}</div>
+      </td>
+      <td>${docs || '<span style="color:#b9bcc2">—</span>'}</td>
+      <td onclick="event.stopPropagation()" style="white-space:nowrap;vertical-align:middle">
+        <button class="uat-act" onclick="uatDownloadDraft(${r.id})" title="ดาวน์โหลดเอกสาร draft" aria-label="ดาวน์โหลดเอกสาร draft"><i class=i-download></i></button>
+        <button class="uat-act" onclick="openUatEdit(${r.id})" title="แก้ไข" aria-label="แก้ไข"><i class=i-pencil></i></button>
+        <button class="uat-act danger" onclick="deleteUat(${r.id})" title="ลบ" aria-label="ลบ"><i class=i-trash></i></button>
       </td>
     </tr>`;
   }).join('');
@@ -21829,16 +21862,16 @@ let _uatView   = 'table';   // 'table' | 'board'
 let _uatDragId = null;
 
 const UAT_KANBAN_COLS = [
-  { key:'requested',        label:'รอแจ้ง slot',     bg:'#fef3c7', col:'#b45309' },
-  { key:'slot_proposed',    label:'รอยืนยันลูกค้า',   bg:'#e0f2fe', col:'#0369a1' },
-  { key:'confirmed',        label:'ยืนยันวันแล้ว',    bg:'#dcfce7', col:'#15803d' },
-  { key:'testing',          label:'กำลังทดสอบ',       bg:'#ecfeff', col:'#0891b2' },
-  { key:'issues_found',     label:'พบปัญหา',          bg:'#fef2f2', col:'#dc2626' },
-  { key:'retesting',        label:'Re-test',          bg:'#ede9fe', col:'#7c3aed' },
-  { key:'passed',           label:'UAT ผ่าน',          bg:'#f0fdf4', col:'#16a34a' },
-  { key:'handed_to_update', label:'ส่งต่อ Update',     bg:'#eef2ff', col:'#4f46e5' },
+  { key:'requested',        label:'รอแจ้ง slot',     bg:'#f6f0e2', col:'#8f6d1f' },
+  { key:'slot_proposed',    label:'รอยืนยันลูกค้า',   bg:'#eaf0f7', col:'#3f5f8f' },
+  { key:'confirmed',        label:'ยืนยันวันแล้ว',    bg:'#e7f0ea', col:'#356b4e' },
+  { key:'testing',          label:'กำลังทดสอบ',       bg:'#e5f0f0', col:'#2f6f73' },
+  { key:'issues_found',     label:'พบปัญหา',          bg:'#f7ebe8', col:'#a3463c' },
+  { key:'retesting',        label:'Re-test',          bg:'#efedf7', col:'#5a4f8f' },
+  { key:'passed',           label:'UAT ผ่าน',          bg:'#e7f0ea', col:'#356b4e' },
+  { key:'handed_to_update', label:'ส่งต่อ Update',     bg:'#ecedf6', col:'#4a5a8f' },
   { key:'closed',           label:'ปิดงาน',           bg:'#f0eee9', col:'#5b616b' },
-  { key:'cancelled',        label:'ยกเลิก',           bg:'#f0eee9', col:'#8a8f97' },
+  { key:'cancelled',        label:'ยกเลิก',           bg:'#f0eee9', col:'#6f747c' },
 ];
 // คอลัมน์ที่ลากเข้าไม่ได้ — ต้องใช้ปุ่มในหน้ารายละเอียดเพราะต้องบันทึกวัน/ผู้ยืนยันด้วย
 const UAT_DROP_BLOCKED = {
@@ -21854,10 +21887,7 @@ function uatSetView(view) {
     const pane = document.getElementById(panels[k]);
     const btn  = document.getElementById(btns[k]);
     if (pane) pane.style.display = (k === view) ? '' : 'none';
-    if (btn) {
-      btn.style.background = (k === view) ? '#2563eb' : '#fff';
-      btn.style.color      = (k === view) ? '#fff'    : '#8a8f97';
-    }
+    if (btn) btn.classList.toggle('on', k === view);
   }
   if (view === 'board')     uatRenderKanban();
   else if (view === 'cal')  uatRenderCalendar();
@@ -21893,7 +21923,7 @@ function uatRenderCalendar() {
 
   const showTentative = document.getElementById('uat-cal-tentative')?.checked;
   // วางงานตามช่วงวันทดสอบ — ยึด "ยืนยันกับลูกค้าแล้ว" เป็นหลัก
-  const jobs = (_uatData || []).filter(j => {
+  const jobs = uatVisible().filter(j => {
     if (!j.test_date_from) return false;
     if (j.status === 'cancelled') return false;
     return j.confirmed_at ? true : !!showTentative;
@@ -21918,10 +21948,10 @@ function uatRenderCalendar() {
   const thDows   = ['อา','จ','อ','พ','พฤ','ศ','ส'];
 
   const cell = (inner, bg = '#fff') =>
-    `<div style="border:1px solid var(--border);border-radius:8px;min-height:96px;padding:.3rem .35rem;background:${bg};overflow:hidden">${inner}</div>`;
+    `<div style="border:1px solid var(--border);border-radius:10px;min-height:100px;padding:.4rem .45rem;background:${bg};overflow:hidden">${inner}</div>`;
 
   let html = `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:.3rem;margin-bottom:.3rem">` +
-    thDows.map((d,i) => `<div style="text-align:center;font-size:.72rem;font-weight:700;color:${i===0||i===6?'#dc2626':'#4d535b'};padding:.15rem 0">${d}</div>`).join('') +
+    thDows.map((d,i) => `<div style="text-align:center;font-size:.72rem;font-weight:500;color:${i===0||i===6?'#a3463c':'#6f747c'};padding:.15rem 0">${d}</div>`).join('') +
     `</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:.3rem">`;
 
   for (let i = 0; i < firstDow; i++) html += cell('', '#faf9f6');
@@ -21933,20 +21963,20 @@ function uatRenderCalendar() {
     const isToday = iso === todayIso;
     const list = byDay[iso] || [];
     monthCount += list.length;
-    const head = `<div style="font-size:.72rem;font-weight:${isToday?'800':'600'};color:${isToday?'#1d4ed8':(dow===0||dow===6?'#dc2626':'#3a3f46')};margin-bottom:.2rem">
-      ${isToday ? `<span style="background:#1d4ed8;color:#fff;border-radius:50%;padding:.05rem .35rem">${d}</span>` : d}</div>`;
+    const head = `<div style="font-size:.74rem;font-weight:${isToday?'600':'500'};color:${isToday?'var(--primary)':(dow===0||dow===6?'#a3463c':'#3a3f46')};margin-bottom:.25rem">
+      ${isToday ? `<span style="background:var(--primary);color:#fff;border-radius:50%;padding:.05rem .38rem">${d}</span>` : d}</div>`;
     const items = list.slice(0, 3).map(j => {
       const st  = UAT_STATUS[j.status] || UAT_STATUS.requested;
       const ok  = !!j.confirmed_at;
       return `<div onclick="openUatDetail(${j.id})" title="${escHtml(j.job_no + ' · ' + (j.title||''))}"
-        style="cursor:pointer;font-size:.63rem;line-height:1.3;margin-bottom:.15rem;padding:.12rem .3rem;border-radius:4px;
-               background:${ok ? st.bg : '#fff'};color:${st.color};font-weight:600;
-               border:1px ${ok ? 'solid' : 'dashed'} ${ok ? 'transparent' : '#b45309'};
+        style="cursor:pointer;font-size:.66rem;line-height:1.35;margin-bottom:.18rem;padding:.14rem .35rem;border-radius:5px;
+               background:${ok ? st.bg : '#fff'};color:${st.color};font-weight:500;
+               border:1px ${ok ? 'solid' : 'dashed'} ${ok ? 'transparent' : '#b89a55'};
                white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-        ${ok ? '✅' : '⏳'} ${escHtml(j.title || j.job_no)}</div>`;
+        ${escHtml(j.title || j.job_no)}</div>`;
     }).join('');
     const more = list.length > 3 ? `<div style="font-size:.6rem;color:var(--muted)">+ อีก ${list.length - 3}</div>` : '';
-    html += cell(head + items + more, isToday ? '#eff6ff' : '#fff');
+    html += cell(head + items + more, isToday ? '#f4f8f6' : '#fff');
   }
   const tail = (7 - ((firstDow + lastDay) % 7)) % 7;
   for (let i = 0; i < tail; i++) html += cell('', '#faf9f6');
@@ -21962,24 +21992,24 @@ function uatRenderCalendar() {
 function uatRenderKanban() {
   const wrap = document.getElementById('uat-kanban-wrap');
   if (!wrap) return;
-  const jobs = _uatData || [];
+  const jobs = uatVisible();
   wrap.innerHTML = `
-    <div style="display:flex;gap:0;min-height:calc(100vh - 260px);overflow-x:auto">
+    <div style="display:flex;gap:.75rem;min-height:calc(100vh - 300px);overflow-x:auto;padding-bottom:.5rem">
       ${UAT_KANBAN_COLS.map(col => {
         const cards = jobs.filter(j => j.status === col.key);
         return `
-          <div class="uat-kanban-col" data-status="${col.key}"
-            style="min-width:195px;flex:1;border-right:1px solid #e6e3dc;display:flex;flex-direction:column;background:${col.bg}10"
+          <div class="uat-kanban-col fu-kcol" data-status="${col.key}" style="min-width:205px"
             ondragover="uatDragOver(event)" ondrop="uatDrop(event,'${col.key}')" ondragleave="uatDragLeave(event)">
-            <div style="padding:.55rem .7rem;background:#fff;border-bottom:2px solid ${col.col}44;position:sticky;top:0;z-index:1">
-              <div style="display:flex;align-items:center;gap:.35rem">
-                <span style="font-size:.75rem;font-weight:700;color:${col.col};white-space:nowrap">${col.label}</span>
-                <span style="background:${col.col}22;color:${col.col};border-radius:20px;font-size:.66rem;padding:.05rem .38rem;font-weight:700">${cards.length}</span>
+            <div style="padding:.5rem .55rem .6rem;position:sticky;top:0;z-index:1;background:#efede7">
+              <div style="display:flex;align-items:center;gap:.45rem">
+                <span style="width:7px;height:7px;border-radius:50%;background:${col.col};flex-shrink:0"></span>
+                <span style="font-size:.8rem;font-weight:500;color:#24272c;white-space:nowrap">${col.label}</span>
+                <span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:.72rem;color:#6f747c">${cards.length}</span>
               </div>
             </div>
-            <div style="flex:1;padding:.45rem .4rem;overflow-y:auto;display:flex;flex-direction:column;gap:.35rem">
+            <div style="flex:1;padding:0 .05rem .2rem;overflow-y:auto;display:flex;flex-direction:column;gap:.45rem">
               ${cards.map(j => uatKanbanCard(j, col)).join('')}
-              <div class="uat-drop-placeholder" style="display:none;height:56px;border:2px dashed ${col.col}66;border-radius:8px;background:${col.bg}44"></div>
+              <div class="uat-drop-placeholder" style="display:none;height:56px;border:2px dashed ${col.col}66;border-radius:11px;background:${col.bg}"></div>
             </div>
           </div>`;
       }).join('')}
@@ -21995,18 +22025,18 @@ function uatKanbanCard(j, col) {
       ondragstart="uatDragStart(event,${j.id})"
       ondragend="uatDragEnd(event)"
       onclick="openUatDetail(${j.id})"
-      style="background:#fff;border-radius:8px;padding:.55rem .65rem;box-shadow:0 1px 3px rgba(0,0,0,.07);cursor:pointer;border-left:3px solid ${col.col};user-select:none">
+      style="background:#fff;border:1px solid #e6e3dc;border-radius:11px;padding:.65rem .75rem;cursor:pointer;user-select:none">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.25rem;gap:.3rem">
-        <span style="font-size:.72rem;font-weight:800;color:${col.col};font-family:monospace">${escHtml(j.job_no||'')}</span>
-        <span style="font-size:.66rem;font-weight:700;color:${pri.color};white-space:nowrap">${pri.label}</span>
+        <span style="font-size:.72rem;color:#4d535b;font-family:'IBM Plex Mono',monospace">${escHtml(j.job_no||'')}</span>
+        <span style="display:inline-flex;align-items:center;gap:.3rem;font-size:.68rem;color:${pri.color};white-space:nowrap"><span style="width:6px;height:6px;border-radius:50%;background:${pri.color}"></span>${pri.label}</span>
       </div>
-      <div style="font-size:.79rem;font-weight:600;color:#24272c;line-height:1.35;margin-bottom:.2rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${escHtml(j.title||'—')}</div>
-      ${j.version_to ? `<div style="font-size:.69rem;color:#1d4ed8;font-family:monospace;margin-bottom:.25rem">→ ${escHtml(j.version_to)}</div>` : ''}
+      <div style="font-size:.82rem;font-weight:500;color:#24272c;line-height:1.45;margin-bottom:.2rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${escHtml(j.title||'—')}</div>
+      ${j.version_to ? `<div style="font-size:.7rem;color:#5b616b;font-family:'IBM Plex Mono',monospace;margin-bottom:.3rem">→ ${escHtml(j.version_to)}</div>` : ''}
       <div style="display:flex;align-items:center;gap:.25rem;flex-wrap:wrap">
-        ${j.kickoff_docs ? `<span title="เอกสาร Kickoff" style="font-size:.63rem;background:#dbeafe;color:#1d4ed8;border-radius:20px;padding:.05rem .32rem;font-weight:700"><i class=i-file></i></span>` : ''}
-        ${j.result_docs  ? `<span title="เอกสารผล UAT" style="font-size:.63rem;background:#dcfce7;color:#15803d;border-radius:20px;padding:.05rem .32rem;font-weight:700"><i class=i-check></i></span>` : ''}
-        ${j.issue_open   ? `<span title="Issue ค้าง" style="font-size:.63rem;background:#fee2e2;color:#b91c1c;border-radius:20px;padding:.05rem .32rem;font-weight:700">${j.issue_open}</span>` : ''}
-        ${when ? `<span style="font-size:.63rem;color:#8a8f97;margin-left:auto;white-space:nowrap">${when}</span>` : ''}
+        ${j.kickoff_docs ? `<span title="เอกสาร Kickoff" class="uat-tag" style="background:#eaf0f7;color:#3f5f8f;margin:0">Kickoff</span>` : ''}
+        ${j.result_docs  ? `<span title="เอกสารผล UAT" class="uat-tag" style="background:#e7f0ea;color:#356b4e;margin:0">ผล UAT</span>` : ''}
+        ${j.issue_open   ? `<span title="Issue ค้าง" class="uat-tag" style="background:#f7ebe8;color:#a3463c;margin:0">Issue ${j.issue_open}</span>` : ''}
+        ${when ? `<span style="font-size:.68rem;color:#6f747c;margin-left:auto;white-space:nowrap">${when}</span>` : ''}
       </div>
     </div>`;
 }
