@@ -473,14 +473,82 @@ textarea{resize:vertical;min-height:80px}
 /* ─── SERVICE PAGE ──────────────────────────────────────────── */
 .svc-card{background:#fff;border:1px solid #eef1f7;border-radius:10px;padding:.9rem 1rem}
 /* Project sidebar */
-.svc-proj-item{display:flex;align-items:center;justify-content:space-between;padding:.48rem .8rem;font-size:.82rem;cursor:pointer;color:#4d535b;transition:.12s;gap:.4rem;border-left:3px solid transparent;position:relative}
-.svc-proj-item:hover{background:#f0f9ff;color:#1d4ed8}
-.svc-proj-item.active{background:#dbeafe;color:#1d4ed8;font-weight:700;border-left-color:#3b82f6}
-.svc-proj-count{background:#e6e3dc;color:#5b616b;border-radius:20px;padding:.05rem .45rem;font-size:.7rem;font-weight:700;flex-shrink:0}
-.svc-proj-item.active .svc-proj-count{background:#bfdbfe;color:#1d4ed8}
-.svc-proj-copy{opacity:0;pointer-events:none;background:none;border:none;cursor:pointer;color:#8a8f97;font-size:.85rem;padding:.1rem .2rem;border-radius:4px;line-height:1;flex-shrink:0;transition:.12s}
+/* ── Service page (calm) ── */
+.svc-hdr{display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin:.35rem 0 1.25rem}
+.svc-kicker{font-family:'IBM Plex Mono',monospace;font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;color:#6f747c;margin-bottom:.3rem}
+.svc-h1{font-size:1.45rem;font-weight:600;letter-spacing:-.01em;line-height:1.25;color:var(--text);margin:0}
+.svc-sub{font-size:.82rem;color:#5b616b;margin-top:.2rem}
+.svc-seg{display:flex;background:#efede7;border-radius:999px;padding:3px}
+.svc-seg button{border:none;background:none;border-radius:999px;padding:.38rem .95rem;font-size:.8rem;color:#5b616b;cursor:pointer;font-family:inherit;transition:background .15s,color .15s}
+.svc-seg button.on{background:#fff;color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.06);font-weight:500}
+.svc-btn-ghost,.svc-btn-primary{height:38px;border-radius:999px;padding:0 1rem;font-size:.83rem;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:.45rem;white-space:nowrap;transition:background .15s,border-color .15s}
+.svc-btn-ghost{background:#fff;border:1px solid var(--border);color:#3a3f46}
+.svc-btn-ghost:hover{background:#f0eee9;border-color:#d6d2c9}
+.svc-btn-primary{background:var(--primary);border:none;color:#fff;font-weight:500}
+.svc-btn-primary:hover{background:var(--primary-dk)}
+.svc-icon-btn{width:36px;height:36px;border-radius:10px;border:1px solid var(--border);background:#fff;color:#5b616b;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.svc-icon-btn:hover{background:#f0eee9;color:var(--text)}
+/* project picker (dropdown in the header) */
+.svc-proj-dd{position:relative}
+#svc-proj-btn{max-width:340px}
+.svc-proj-menu{display:none;position:absolute;right:0;top:calc(100% + 6px);width:280px;background:#fff;border:1px solid var(--border);border-radius:14px;padding:.35rem;box-shadow:0 1px 2px rgba(0,0,0,.04),0 18px 44px -14px rgba(36,39,44,.28);z-index:60}
+.svc-proj-dd.open .svc-proj-menu{display:block}
+#svc-proj-list{max-height:320px;overflow-y:auto}
+.svc-proj-menu-foot{border-top:1px solid var(--line-2);margin-top:.3rem;padding-top:.3rem;display:flex;flex-direction:column}
+.svc-proj-menu-foot button{border:none;background:none;font-family:inherit;font-size:.8rem;color:#4d535b;text-align:left;padding:.5rem .6rem;border-radius:9px;cursor:pointer;display:flex;align-items:center;gap:.5rem}
+.svc-proj-menu-foot button:hover{background:#f6f5f1;color:var(--text)}
+.svc-proj-item{display:flex;align-items:center;justify-content:space-between;padding:.5rem .6rem;font-size:.83rem;cursor:pointer;color:#4d535b;transition:background .12s,color .12s;gap:.4rem;border-radius:9px;position:relative}
+.svc-proj-item:hover{background:#f6f5f1;color:var(--text)}
+.svc-proj-item.active{background:var(--primary-soft);color:var(--text);font-weight:500}
+.svc-proj-count{font-family:'IBM Plex Mono',monospace;color:#6f747c;font-size:.7rem;flex-shrink:0}
+.svc-proj-item.active .svc-proj-count{color:var(--primary)}
+.svc-proj-copy{opacity:0;pointer-events:none;background:none;border:none;cursor:pointer;color:#8a8f97;font-size:.82rem;width:24px;height:24px;border-radius:6px;line-height:1;flex-shrink:0;transition:.12s;display:flex;align-items:center;justify-content:center}
 .svc-proj-item:hover .svc-proj-copy{opacity:1;pointer-events:auto}
-.svc-proj-copy:hover{color:#2563eb;background:#bfdbfe}
+.svc-proj-menu .svc-proj-copy{opacity:.55;pointer-events:auto}
+.svc-proj-copy:hover{color:var(--primary);background:#fff}
+/* status tabs */
+.svc-tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:1rem;overflow-x:auto;scrollbar-width:none}
+.svc-tab{border:none;background:none;font-family:inherit;font-size:.86rem;color:#5b616b;padding:.55rem .85rem;margin-bottom:-1px;border-bottom:2px solid transparent;cursor:pointer;display:flex;align-items:center;gap:.45rem;white-space:nowrap;transition:color .15s,border-color .15s}
+.svc-tab:hover{color:var(--text)}
+.svc-tab.on{color:var(--text);font-weight:500;border-bottom-color:var(--primary)}
+.svc-tab .c{font-family:'IBM Plex Mono',monospace;font-size:.72rem;color:#6f747c}
+.svc-tab.on .c{color:var(--primary)}
+.svc-dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0}
+/* filters */
+.svc-filters{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.9rem}
+.svc-search{display:flex;align-items:center;gap:.5rem;height:36px;padding:0 .75rem;background:#fff;border:1px solid var(--border);border-radius:10px;flex:1;min-width:220px;max-width:380px;cursor:text;transition:border-color .15s,box-shadow .15s}
+.svc-search:focus-within{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-soft)}
+.svc-search input{border:none;outline:none;background:none;font-size:.82rem;color:var(--text);flex:1;min-width:0}
+.svc-date{height:34px;border:1px solid var(--border);border-radius:9px;padding:0 .6rem;font-size:.8rem;background:#fff;color:var(--text)}
+/* table */
+.svc-tbl-card{background:#fff;border:1px solid var(--border);border-radius:16px;overflow:hidden}
+.svc-tbl{table-layout:fixed;min-width:760px}
+.svc-tbl thead tr{background:none}
+.svc-tbl th{font-size:.72rem;font-weight:500;color:#6f747c;text-transform:none;letter-spacing:0;padding:.8rem 1rem;border-bottom:1px solid var(--border)}
+.svc-tbl td{padding:.75rem 1rem;border-bottom:1px solid var(--line-2);font-size:.84rem}
+.svc-tbl tbody tr{cursor:pointer;transition:background .12s}
+.svc-tbl tbody tr:hover{background:#faf9f6}
+.svc-tbl tbody tr:last-child td{border-bottom:none}
+.svc-jobno{font-family:'IBM Plex Mono',monospace;font-size:.76rem;color:#4d535b;white-space:nowrap}
+.svc-title{font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4}
+.svc-meta{font-size:.74rem;color:#6f747c;margin-top:.15rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.svc-meta .mono{font-family:'IBM Plex Mono',monospace}
+.svc-type{display:inline-block;font-size:.72rem;padding:.16rem .55rem;border-radius:6px;background:#f0eee9;color:#4d535b;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.svc-type.quick{background:#f6f0e2;color:#7d5f1f}
+.svc-owner{display:flex;align-items:center;gap:.5rem;min-width:0}
+.svc-owner .av{width:24px;height:24px;border-radius:50%;background:#f0eee9;color:#4d535b;font-size:.68rem;font-weight:500;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.svc-owner .nm{font-size:.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.svc-st{appearance:none;-webkit-appearance:none;font-family:inherit;font-size:.76rem;font-weight:500;border-radius:999px;padding:.28rem 1.6rem .28rem .75rem;border:1px solid transparent;cursor:pointer;outline:none;max-width:100%;background-repeat:no-repeat;background-position:right .55rem center;background-size:10px}
+.svc-st:focus{box-shadow:0 0 0 3px var(--primary-soft)}
+.svc-date-cell{font-size:.78rem;color:#5b616b;white-space:nowrap}
+.svc-open{width:30px;height:30px;border:none;background:none;border-radius:8px;color:#8a8f97;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.svc-open:hover{background:#f0eee9;color:var(--text)}
+/* board */
+.svc-board{display:flex;gap:.75rem;min-height:calc(100vh - 280px);padding-bottom:.5rem}
+.svc-col{min-width:230px;flex:1;background:#efede7;border-radius:14px;padding:.4rem;display:flex;flex-direction:column}
+.svc-col-head{display:flex;align-items:center;gap:.45rem;padding:.5rem .55rem .6rem;font-size:.82rem;font-weight:500;color:var(--text)}
+.svc-col-head .c{font-family:'IBM Plex Mono',monospace;font-size:.72rem;color:#6f747c;margin-left:auto}
+.svc-kanban-card{background:#fff;border:1px solid var(--border);border-radius:11px;padding:.65rem .75rem;cursor:pointer;user-select:none}
 .svc-section-head{font-size:.68rem;font-weight:700;color:#8a8f97;text-transform:uppercase;letter-spacing:.09em;margin-bottom:.65rem;display:flex;align-items:center;gap:.45rem;border-left:3px solid #3b82f6;padding-left:.5rem}
 .svc-badge{display:none}
 .svc-lbl{font-size:.75rem;font-weight:600;color:#5b616b;margin-bottom:.3rem;display:block}
@@ -518,13 +586,13 @@ textarea{resize:vertical;min-height:80px}
   border-color:var(--hd);box-shadow:0 0 0 3px #2563eb22;
 }
 .svc-card input[type=radio],.svc-card input[type=checkbox]{width:auto;padding:0;border:none;border-radius:0;box-shadow:none}
-.svc-kanban-card{transition:box-shadow .15s,transform .15s}
-.svc-kanban-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.12)!important;transform:translateY(-1px)}
+.svc-kanban-card{transition:box-shadow .15s,border-color .15s}
+.svc-kanban-card:hover{border-color:#d6d2c9;box-shadow:0 6px 16px -8px rgba(36,39,44,.2)}
 .svc-status-badge{display:inline-block;padding:.12rem .55rem;border-radius:20px;font-size:.7rem;font-weight:700}
-.svc-status-received{background:#dbeafe;color:#1d4ed8}
-.svc-status-in_progress{background:#fef9c3;color:#854d0e}
-.svc-status-testing{background:#ffedd5;color:#c2410c}
-.svc-status-delivered{background:#dcfce7;color:#15803d}
+.svc-status-received{background:#eaf0f7;color:#3f5f8f}
+.svc-status-in_progress{background:#f6f0e2;color:#86671f}
+.svc-status-testing{background:#f7ece4;color:#9a5530}
+.svc-status-delivered{background:#e7f0ea;color:#356b4e}
 .svc-status-cancelled{background:#f0eee9;color:#5b616b}
 </style>
 </head>
@@ -2331,121 +2399,105 @@ textarea{resize:vertical;min-height:80px}
 <!-- ═══════════════════ PAGE: SERVICE ═══════════════════ -->
 <div id="page-service" class="page">
   <!-- Header -->
-  <div class="section-header" style="margin-bottom:.75rem">
+  <div class="svc-hdr">
     <div>
-      <div class="section-title">บริการ Support Package</div>
-      <div style="font-size:.75rem;color:var(--muted);margin-top:.1rem">จัดการโปรโมชัน / คูปอง / เมนู</div>
+      <div class="svc-kicker">Service Requests</div>
+      <h1 class="svc-h1">บริการ Support Package</h1>
+      <div class="svc-sub">จัดการโปรโมชัน คูปอง และปุ่มขายด่วนที่ลูกค้าแจ้งเข้ามา</div>
     </div>
-    <div style="display:flex;gap:.5rem;align-items:center">
-      <div style="display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden">
-        <button id="svc-view-table" onclick="svcSetView('table')"
-          style="padding:.28rem .7rem;font-size:.78rem;font-weight:700;border:none;cursor:pointer;background:#2563eb;color:#fff;font-family:inherit;transition:all .15s">☰ ตาราง</button>
-        <button id="svc-view-board" onclick="svcSetView('board')"
-          style="padding:.28rem .7rem;font-size:.78rem;font-weight:700;border:none;cursor:pointer;background:#fff;color:#8a8f97;font-family:inherit;transition:all .15s">บอร์ด</button>
+    <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+      <!-- Project picker (was a sidebar) -->
+      <div class="svc-proj-dd" id="svc-proj-dd">
+        <button class="svc-btn-ghost" id="svc-proj-btn" onclick="svcToggleProjMenu(event)" aria-haspopup="true" aria-expanded="false">
+          <i class=i-folder style="color:#8a8f97"></i>
+          <span style="color:#6f747c">โปรเจกต์</span>
+          <span id="svc-proj-current" style="font-weight:500;max-width:180px;overflow:hidden;text-overflow:ellipsis">งานทั้งหมด</span>
+          <span class="svc-proj-count" id="svc-proj-current-count"></span>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#8a8f97" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="svc-proj-menu" id="svc-proj-menu" role="menu">
+          <div class="svc-proj-item active" id="svc-proj-item-all" onclick="svcSelectProject(null)">
+            <span>งานทั้งหมด</span>
+            <span class="svc-proj-count" id="svc-proj-count-all">—</span>
+          </div>
+          <div id="svc-proj-list"></div>
+          <div id="svc-proj-empty" style="display:none;padding:.6rem .7rem;font-size:.75rem;color:#6f747c">ยังไม่มี Project</div>
+          <div class="svc-proj-menu-foot">
+            <button onclick="svcCloseProjMenu();svcCreateProjectSidebar()"><span style="font-size:1rem;line-height:1;width:1.05em;text-align:center">+</span> สร้าง Project ใหม่</button>
+            <button onclick="svcCloseProjMenu();svcOpenProjects()"><i class=i-pencil></i> จัดการ Projects และลิงก์</button>
+          </div>
+        </div>
       </div>
-      <button class="btn btn-ghost btn-sm" onclick="svcOpenProjects()">Projects</button>
-      <button class="btn btn-primary btn-sm" onclick="svcOpenForm()">แจ้งขอบริการใหม่</button>
-    </div>
-  </div>
-
-  <!-- Main layout: sidebar + content -->
-  <div style="display:flex;gap:.85rem;align-items:flex-start">
-
-  <!-- ── LEFT SIDEBAR ── -->
-  <div style="width:192px;flex-shrink:0;background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden;position:sticky;top:.5rem">
-    <div style="padding:.55rem .8rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
-      <span style="font-size:.72rem;font-weight:700;color:#5b616b;text-transform:uppercase;letter-spacing:.05em">Projects</span>
-      <button onclick="svcCreateProjectSidebar()" title="สร้าง Project ใหม่"
-        style="background:none;border:none;cursor:pointer;color:#3b82f6;font-size:1.1rem;line-height:1;padding:.1rem .2rem;border-radius:4px" >+</button>
-    </div>
-    <!-- All jobs -->
-    <div class="svc-proj-item active" id="svc-proj-item-all" onclick="svcSelectProject(null)">
-      <span>งานทั้งหมด</span>
-      <span class="svc-proj-count" id="svc-proj-count-all">—</span>
-    </div>
-    <!-- Dynamic project list -->
-    <div id="svc-proj-list"></div>
-    <!-- No projects hint -->
-    <div id="svc-proj-empty" style="display:none;padding:.75rem .8rem;font-size:.75rem;color:#8a8f97;text-align:center">ยังไม่มี Project<br><span style="font-size:.7rem">กด + เพื่อสร้าง</span></div>
-  </div>
-
-  <!-- ── RIGHT CONTENT ── -->
-  <div style="flex:1;min-width:0">
-
-  <!-- Stat bar -->
-  <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem">
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">ทั้งหมด</span>
-      <span style="font-size:1.1rem;font-weight:800;color:var(--hd)" id="svc-stat-total">—</span>
-    </div>
-    <div style="background:#dbeafe;border:1px solid #bfdbfe;border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem">
-      <span style="font-size:.72rem;color:#1d4ed8">รับเรื่อง</span>
-      <span style="font-size:1.1rem;font-weight:800;color:#1d4ed8" id="svc-stat-received">—</span>
-    </div>
-    <div style="background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem">
-      <span style="font-size:.72rem;color:#854d0e">กำลังทำ</span>
-      <span style="font-size:1.1rem;font-weight:800;color:#854d0e" id="svc-stat-in_progress">—</span>
-    </div>
-    <div style="background:#ffedd5;border:1px solid #fdba74;border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem">
-      <span style="font-size:.72rem;color:#c2410c">ทดสอบ</span>
-      <span style="font-size:1.1rem;font-weight:800;color:#c2410c" id="svc-stat-testing">—</span>
-    </div>
-    <div style="background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem">
-      <span style="font-size:.72rem;color:#15803d">ส่งมอบ</span>
-      <span style="font-size:1.1rem;font-weight:800;color:#15803d" id="svc-stat-delivered">—</span>
-    </div>
-    <div style="background:#f0eee9;border:1px solid #d6d2c9;border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem">
-      <span style="font-size:.72rem;color:#5b616b">ยกเลิก</span>
-      <span style="font-size:1.1rem;font-weight:800;color:#5b616b" id="svc-stat-cancelled">—</span>
-    </div>
-  </div>
-
-  <!-- Filter bar -->
-  <div class="page-datebar" style="margin-bottom:.75rem;flex-direction:column;align-items:flex-start;gap:.45rem">
-    <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;width:100%">
-      <div class="drb" id="svc-drb">
-        <button class="drb-btn" onclick="svcRange('today',this)">วันนี้</button>
-        <button class="drb-btn" onclick="svcRange('yesterday',this)">เมื่อวานนี้</button>
-        <button class="drb-btn" onclick="svcRange('thisweek',this)">สัปดาห์นี้</button>
-        <button class="drb-btn active" onclick="svcRange('thismonth',this)">เดือนนี้</button>
-        <button class="drb-btn" onclick="svcRange('lastmonth',this)">เดือนที่แล้ว</button>
-        <button class="drb-btn" onclick="svcRange('7d',this)">7 วันที่แล้ว</button>
-        <button class="drb-btn" onclick="svcRange('30d',this)">30 วันที่ผ่านมา</button>
-        <button class="drb-btn" onclick="svcRange('custom',this)">กำหนดเอง</button>
+      <div class="svc-seg">
+        <button id="svc-view-table" class="on" onclick="svcSetView('table')">ตาราง</button>
+        <button id="svc-view-board" onclick="svcSetView('board')">บอร์ด</button>
       </div>
-      <span style="color:var(--border)">|</span>
-      <select id="svc-filter-status" onchange="svcLoadList()">
-        <option value="">ทุกสถานะ</option>
-        <option value="received">รับเรื่อง</option>
-        <option value="in_progress">กำลังทำ</option>
-        <option value="testing">ทดสอบ</option>
-        <option value="delivered">ส่งมอบ</option>
-      </select>
-      <input id="svc-search" type="text" placeholder="ค้นหาชื่อ / Request No. / แบรนด์..." oninput="svcSearchDebounce()" style="flex:1;min-width:180px"/>
-      <button class="btn btn-ghost btn-sm" onclick="svcLoadList()"><i class=i-refresh></i></button>
+      <button class="svc-btn-primary" onclick="svcOpenForm()"><span style="font-size:1.05rem;line-height:1;font-weight:400">+</span> แจ้งขอบริการใหม่</button>
     </div>
-    <div class="drb-custom" id="svc-custom-range">
-      <input id="svc-date-from" type="date" style="max-width:135px" title="วันที่เริ่มต้น"/>
-      <span style="color:var(--muted);font-size:.8rem">ถึง</span>
-      <input id="svc-date-to" type="date" style="max-width:135px" title="วันที่สิ้นสุด"/>
-      <button class="btn btn-sm btn-primary" onclick="svcLoadList()">ค้นหา</button>
+  </div>
+
+  <!-- ── CONTENT ── -->
+  <div>
+
+  <!-- Status tabs (counts are filled by svcLoadList) -->
+  <div class="svc-tabs" id="svc-tabs">
+    <button class="svc-tab on" data-st="" onclick="svcQuickFilter('')">ทั้งหมด <span class="c" id="svc-stat-total">—</span></button>
+    <button class="svc-tab" data-st="received" onclick="svcQuickFilter('received')"><span class="svc-dot" style="background:#5b7fb3"></span>รับเรื่อง <span class="c" id="svc-stat-received">—</span></button>
+    <button class="svc-tab" data-st="in_progress" onclick="svcQuickFilter('in_progress')"><span class="svc-dot" style="background:#c29a3c"></span>กำลังทำ <span class="c" id="svc-stat-in_progress">—</span></button>
+    <button class="svc-tab" data-st="testing" onclick="svcQuickFilter('testing')"><span class="svc-dot" style="background:#c47a4b"></span>ทดสอบ <span class="c" id="svc-stat-testing">—</span></button>
+    <button class="svc-tab" data-st="delivered" onclick="svcQuickFilter('delivered')"><span class="svc-dot" style="background:#4d8c6a"></span>ส่งมอบ <span class="c" id="svc-stat-delivered">—</span></button>
+    <button class="svc-tab" data-st="cancelled" onclick="svcQuickFilter('cancelled')"><span class="svc-dot" style="background:#b3b6bb"></span>ยกเลิก <span class="c" id="svc-stat-cancelled">—</span></button>
+  </div>
+
+  <!-- Filters -->
+  <div class="svc-filters">
+    <label class="svc-search">
+      <i class=i-search style="color:#8a8f97"></i>
+      <input id="svc-search" type="text" placeholder="ค้นหา Job No., ชื่องาน, Request No., แบรนด์" oninput="svcSearchDebounce()"/>
+    </label>
+    <div class="drb" id="svc-drb">
+      <button class="drb-btn" onclick="svcRange('today',this)">วันนี้</button>
+      <button class="drb-btn" onclick="svcRange('yesterday',this)">เมื่อวาน</button>
+      <button class="drb-btn" onclick="svcRange('thisweek',this)">สัปดาห์นี้</button>
+      <button class="drb-btn active" onclick="svcRange('thismonth',this)">เดือนนี้</button>
+      <button class="drb-btn" onclick="svcRange('lastmonth',this)">เดือนที่แล้ว</button>
+      <button class="drb-btn" onclick="svcRange('7d',this)">7 วัน</button>
+      <button class="drb-btn" onclick="svcRange('30d',this)">30 วัน</button>
+      <button class="drb-btn" onclick="svcRange('custom',this)">กำหนดเอง</button>
     </div>
+    <button class="svc-icon-btn" onclick="svcLoadList()" title="โหลดใหม่" aria-label="โหลดใหม่"><i class=i-refresh></i></button>
+    <!-- status filter is driven by the tabs above; kept for svcLoadList() -->
+    <select id="svc-filter-status" onchange="svcLoadList()" hidden>
+      <option value="">ทุกสถานะ</option>
+      <option value="received">รับเรื่อง</option>
+      <option value="in_progress">กำลังทำ</option>
+      <option value="testing">ทดสอบ</option>
+      <option value="delivered">ส่งมอบ</option>
+      <option value="cancelled">ยกเลิก</option>
+    </select>
+  </div>
+  <div class="drb-custom" id="svc-custom-range" style="margin:-.35rem 0 .9rem">
+    <input id="svc-date-from" type="date" class="svc-date" title="วันที่เริ่มต้น"/>
+    <span style="color:var(--muted);font-size:.8rem">ถึง</span>
+    <input id="svc-date-to" type="date" class="svc-date" title="วันที่สิ้นสุด"/>
+    <button class="svc-btn-primary" style="height:34px;padding:0 1rem" onclick="svcLoadList()">ค้นหา</button>
   </div>
 
   <!-- Table view -->
   <div id="svc-panel-table">
-    <div class="card" style="padding:.5rem 0">
+    <div class="svc-tbl-card">
       <div class="tbl-wrap">
-        <table>
+        <table class="svc-tbl">
+          <colgroup>
+            <col style="width:128px"><col><col style="width:118px"><col style="width:150px"><col style="width:124px"><col style="width:92px"><col style="width:48px">
+          </colgroup>
           <thead><tr>
-            <th>ประเภท</th>
             <th>Job No.</th>
-            <th>Request No.</th>
-            <th>Title</th>
-            <th>แบรนด์</th>
-            <th>ผู้ขอ</th>
+            <th>ชื่องาน</th>
+            <th>ประเภท</th>
+            <th>ผู้รับผิดชอบ</th>
             <th>สถานะ</th>
-            <th>วันที่</th>
+            <th>วันที่แจ้ง</th>
             <th></th>
           </tr></thead>
           <tbody id="svc-tbody"></tbody>
@@ -2455,14 +2507,13 @@ textarea{resize:vertical;min-height:80px}
   </div>
 
   <!-- Board view -->
-  <div id="svc-panel-board" style="display:none;overflow-x:auto;margin:0 -.5rem">
-    <div id="svc-kanban-wrap" style="min-height:calc(100vh - 260px)">
-      <div style="text-align:center;color:var(--muted);padding:3rem">กำลังโหลด...</div>
+  <div id="svc-panel-board" style="display:none;overflow-x:auto">
+    <div id="svc-kanban-wrap" style="min-height:calc(100vh - 280px)">
+      <div style="text-align:center;color:var(--muted);padding:3rem">กำลังโหลด…</div>
     </div>
   </div>
 
-  </div><!-- /right content -->
-  </div><!-- /main layout flex -->
+  </div><!-- /content -->
 </div>
 
 <!-- ═══════════════════ MODAL: SERVICE FORM ═══════════════════ -->
@@ -19056,10 +19107,10 @@ async function siSaveFolderRename(oldName, newName, brandKey) {
 
 function siCopy(text, btn) {
   navigator.clipboard.writeText(text).then(() => {
-    const orig = btn.textContent;
-    btn.textContent = '✅';
-    btn.style.background = '#dcfce7';
-    setTimeout(() => { btn.textContent = orig; btn.style.background = ''; }, 1500);
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<i class=i-check></i>';
+    btn.style.background = 'var(--primary-soft)';
+    setTimeout(() => { btn.innerHTML = orig; btn.style.background = ''; }, 1500);
   }).catch(() => showToast('คัดลอกไม่สำเร็จ','error'));
 }
 
@@ -20318,12 +20369,31 @@ let _svcCGrpList   = [];   // [{group_id,group_name,group_code}]
 
 // ── Status config ─────────────────────────────────────────────────
 const SVC_STATUSES = [
-  {key:'received',    label:'รับเรื่อง', col:'#2563eb', bg:'#dbeafe'},
-  {key:'in_progress', label:'กำลังทำ',  col:'#b45309', bg:'#fef9c3'},
-  {key:'testing',     label:'ทดสอบ',    col:'#c2410c', bg:'#ffedd5'},
-  {key:'delivered',   label:'ส่งมอบ',   col:'#15803d', bg:'#dcfce7'},
-  {key:'cancelled',   label:'ยกเลิก',   col:'#5b616b', bg:'#f0eee9'},
+  {key:'received',    label:'รับเรื่อง', col:'#3f5f8f', bg:'#eaf0f7', dot:'#5b7fb3'},
+  {key:'in_progress', label:'กำลังทำ',  col:'#86671f', bg:'#f6f0e2', dot:'#c29a3c'},
+  {key:'testing',     label:'ทดสอบ',    col:'#9a5530', bg:'#f7ece4', dot:'#c47a4b'},
+  {key:'delivered',   label:'ส่งมอบ',   col:'#356b4e', bg:'#e7f0ea', dot:'#4d8c6a'},
+  {key:'cancelled',   label:'ยกเลิก',   col:'#5b616b', bg:'#f0eee9', dot:'#b3b6bb'},
 ];
+// serve_type → short label; quick-sale variants get the warm chip
+const SVC_STYPE_META = {
+  promo_coupon:        { label:'โปรฯ / คูปอง',   quick:false },
+  quick_sale:          { label:'ขายด่วน',        quick:true  },
+  edit_promo_coupon:   { label:'แก้ไขโปรฯ',      quick:false },
+  edit_quick_sale:     { label:'แก้ไขขายด่วน',   quick:true  },
+  cancel_promo_coupon: { label:'ยกเลิกโปรฯ',     quick:false },
+  cancel_quick_sale:   { label:'ยกเลิกขายด่วน',  quick:true  },
+};
+function svcTypeChip(t){
+  const m = SVC_STYPE_META[t] || { label: t || '—', quick:false };
+  return `<span class="svc-type${m.quick?' quick':''}" title="${escHtml(m.label)}">${escHtml(m.label)}</span>`;
+}
+function svcFmtDate(r, opts){
+  const v = r.request_date || r.created_at;
+  return v ? new Date(v).toLocaleDateString('th-TH', opts || {day:'2-digit',month:'short',year:'2-digit'}) : '—';
+}
+// chevron drawn into the native select's background (no raw quotes: it lands inside style="…")
+const SVC_ST_CHEVRON = c => `url('data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='${c}' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>`).replace(/'/g,'%27')}')`;
 const SVC_CTYPE_LABEL = {fixed:'เงินสด',discount:'ส่วนลด',redeem:'แลกซื้อ'};
 let _svcAllRows = [];
 let _svcView    = 'table';
@@ -20348,14 +20418,12 @@ function svcSetView(mode){
   _svcView = mode;
   const btnT=document.getElementById('svc-view-table'), btnB=document.getElementById('svc-view-board');
   const panT=document.getElementById('svc-panel-table'), panB=document.getElementById('svc-panel-board');
+  btnT.classList.toggle('on', mode==='table');
+  btnB.classList.toggle('on', mode!=='table');
   if(mode==='table'){
-    btnT.style.background='#2563eb'; btnT.style.color='#fff';
-    btnB.style.background='#fff';    btnB.style.color='#8a8f97';
     panT.style.display=''; panB.style.display='none';
     svcRenderTable(_svcAllRows);
   } else {
-    btnB.style.background='#2563eb'; btnB.style.color='#fff';
-    btnT.style.background='#fff';    btnT.style.color='#8a8f97';
     panT.style.display='none'; panB.style.display='';
     svcRenderBoard(_svcAllRows);
   }
@@ -20397,6 +20465,7 @@ async function svcLoadList(){
   const all = _svcAllRows;
   const el = id=>document.getElementById(id);
   if(el('svc-stat-total'))       el('svc-stat-total').textContent = all.length;
+  document.querySelectorAll('#svc-tabs .svc-tab').forEach(t=>t.classList.toggle('on', (t.dataset.st||'')===status));
   ['received','in_progress','testing','delivered','cancelled'].forEach(s=>{
     if(el('svc-stat-'+s)) el('svc-stat-'+s).textContent = all.filter(r=>r.status===s).length;
   });
@@ -20495,6 +20564,7 @@ function svcRenderProjectSidebar(){
   // Update "All" count
   const allCount = document.getElementById('svc-proj-count-all');
   if(allCount) allCount.textContent = _svcAllRows.length||'—';
+  svcUpdateProjLabel();
 
   if(!_svcProjects.length){
     list.innerHTML='';
@@ -20516,12 +20586,39 @@ function svcRenderProjectSidebar(){
 
 function svcSelectProject(id){
   _svcActiveProject = id;
-  // Update active state in sidebar
+  // Update active state in the project menu
   document.querySelectorAll('.svc-proj-item').forEach(el=>el.classList.remove('active'));
   const target = id ? document.getElementById(`svc-proj-item-${id}`) : document.getElementById('svc-proj-item-all');
   if(target) target.classList.add('active');
+  svcCloseProjMenu();
+  svcUpdateProjLabel();
   svcLoadList();
 }
+
+// ── Project picker (header dropdown) ──
+function svcUpdateProjLabel(){
+  const p = _svcActiveProject ? _svcProjects.find(x=>x.id==_svcActiveProject) : null;
+  const nameEl = document.getElementById('svc-proj-current');
+  const cntEl  = document.getElementById('svc-proj-current-count');
+  if(nameEl){ nameEl.textContent = p ? p.name : 'งานทั้งหมด'; nameEl.title = nameEl.textContent; }
+  if(cntEl) cntEl.textContent = p ? (p.job_count||0) : (_svcAllRows.length||'');
+}
+function svcToggleProjMenu(e){
+  if(e) e.stopPropagation();
+  const dd = document.getElementById('svc-proj-dd'); if(!dd) return;
+  const open = dd.classList.toggle('open');
+  document.getElementById('svc-proj-btn')?.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+function svcCloseProjMenu(){
+  const dd = document.getElementById('svc-proj-dd'); if(!dd) return;
+  dd.classList.remove('open');
+  document.getElementById('svc-proj-btn')?.setAttribute('aria-expanded', 'false');
+}
+document.addEventListener('click', e => {
+  const dd = document.getElementById('svc-proj-dd');
+  if (dd && dd.classList.contains('open') && !dd.contains(e.target)) svcCloseProjMenu();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') svcCloseProjMenu(); });
 
 function svcCopySidebarLink(projId, btn){
   const proj = _svcProjects.find(p=>p.id==projId);
@@ -20529,10 +20626,10 @@ function svcCopySidebarLink(projId, btn){
   const url = `${location.origin}/p.html?t=${proj.public_token}`;
 
   const onSuccess = () => {
-    const orig = btn.textContent;
-    btn.textContent = '✅';
-    btn.style.color = '#16a34a';
-    setTimeout(()=>{ btn.textContent = orig; btn.style.color=''; }, 1800);
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<i class=i-check></i>';
+    btn.style.color = 'var(--primary)';
+    setTimeout(()=>{ btn.innerHTML = orig; btn.style.color=''; }, 1800);
     showToast('คัดลอกลิงค์แล้ว','ok');
   };
 
@@ -20612,34 +20709,34 @@ function svcCopyLink(url){
 function svcRenderTable(rows){
   const tbody=document.getElementById('svc-tbody'); if(!tbody) return;
   if(!rows.length){
-    tbody.innerHTML=`<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:2rem">ยังไม่มีรายการ</td></tr>`;
+    tbody.innerHTML=`<tr style="cursor:default"><td colspan="7" style="text-align:center;color:var(--muted);padding:3.5rem 1rem">ยังไม่มีรายการในช่วงนี้</td></tr>`;
     return;
   }
   tbody.innerHTML=rows.map(r=>{
-    const brands=svcParseJSON(r.brands,[]).join(', ')||'—';
-    const dt=r.request_date
-      ? new Date(r.request_date).toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'})
-      : (r.created_at?new Date(r.created_at).toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'}):'—');
-    const m=SVC_STATUSES.find(s=>s.key===r.status)||{};
-    const stStyle = r.serve_type==='quick_sale'
-      ? 'background:#fef3c7;color:#b45309;border:1px solid #fcd34d'
-      : 'background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd';
-    const stLabel = r.serve_type==='quick_sale' ? 'ขายด่วน' : 'โปรฯ/คูปอง';
-    return `<tr>
-      <td><span style="display:inline-block;padding:.1rem .5rem;border-radius:20px;font-size:.7rem;font-weight:700;white-space:nowrap;${stStyle}">${stLabel}</span></td>
-      <td><code style="font-size:.78rem;background:#e0f2fe;color:#0369a1;padding:.1rem .35rem;border-radius:4px;font-weight:700">${escHtml(r.job_no||'—')}</code></td>
-      <td><code style="font-size:.78rem;background:#f0eee9;padding:.1rem .3rem;border-radius:4px">${escHtml(r.request_no||'—')}</code></td>
-      <td style="font-weight:600;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(r.title||r.promo_name||'(ไม่มีชื่อ)')}</td>
-      <td style="max-width:130px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.82rem">${escHtml(brands)}</td>
-      <td style="font-size:.82rem">${escHtml(r.requester_name||r.created_by_name||'—')}</td>
+    const brands=svcParseJSON(r.brands,[]).join(', ');
+    const who=r.requester_name||r.created_by_name||'';
+    const meta=[brands, who, r.request_no?`<span class="mono">${escHtml(r.request_no)}</span>`:''].filter(Boolean)
+      .map(x=>x.startsWith('<span')?x:escHtml(x)).join(' · ');
+    const m=SVC_STATUSES.find(s=>s.key===r.status)||{col:'#4d535b',bg:'#f0eee9'};
+    const owner=r.assigned_to_name
+      ? `<div class="svc-owner"><span class="av">${escHtml(r.assigned_to_name.charAt(0))}</span><span class="nm" title="${escHtml(r.assigned_to_name)}">${escHtml(r.assigned_to_name)}</span></div>`
+      : `<span style="font-size:.78rem;color:#8a8f97">ยังไม่มีผู้รับ</span>`;
+    return `<tr onclick="if(!event.target.closest('select,button'))svcOpenDetail(${r.id})">
+      <td><span class="svc-jobno">${escHtml(r.job_no||'—')}</span></td>
+      <td style="min-width:0">
+        <div class="svc-title" title="${escHtml(r.title||r.promo_name||'')}">${escHtml(r.title||r.promo_name||'(ไม่มีชื่อ)')}</div>
+        ${meta?`<div class="svc-meta">${meta}</div>`:''}
+      </td>
+      <td>${svcTypeChip(r.serve_type)}</td>
+      <td>${owner}</td>
       <td>
-        <select onchange="svcUpdateStatus(${r.id},this.value)"
-          style="font-size:.75rem;padding:.22rem .5rem;border-radius:20px;border:1.5px solid ${m.col||'#e6e3dc'}55;outline:none;cursor:pointer;font-family:inherit;background:${m.bg||'#faf9f6'};color:${m.col||'#4d535b'};font-weight:600">
+        <select class="svc-st" onchange="svcUpdateStatus(${r.id},this.value)" aria-label="สถานะ"
+          style="background-color:${m.bg};color:${m.col};background-image:${SVC_ST_CHEVRON(m.col)}">
           ${SVC_STATUSES.map(s=>`<option value="${s.key}"${r.status===s.key?' selected':''}>${s.label}</option>`).join('')}
         </select>
       </td>
-      <td style="font-size:.78rem;color:var(--muted)">${dt}</td>
-      <td><button class="si-action-btn" onclick="svcOpenDetail(${r.id})" title="ดูรายละเอียด"><i class=i-eye></i></button></td>
+      <td class="svc-date-cell">${svcFmtDate(r)}</td>
+      <td><button class="svc-open" onclick="svcOpenDetail(${r.id})" title="ดูรายละเอียด" aria-label="ดูรายละเอียด"><i class=i-eye></i></button></td>
     </tr>`;
   }).join('');
 }
@@ -20648,19 +20745,14 @@ function svcRenderTable(rows){
 function svcRenderBoard(rows){
   const wrap=document.getElementById('svc-kanban-wrap'); if(!wrap) return;
   wrap.innerHTML=`
-    <div style="display:flex;gap:0;min-height:calc(100vh - 260px)">
+    <div class="svc-board">
       ${SVC_STATUSES.map(col=>{
         const cards=rows.filter(r=>r.status===col.key);
         return `
-          <div style="min-width:220px;flex:1;border-right:1px solid #e6e3dc;display:flex;flex-direction:column;background:${col.bg}18">
-            <div style="padding:.55rem .75rem;background:#fff;border-bottom:3px solid ${col.col}55;position:sticky;top:0;z-index:1">
-              <div style="display:flex;align-items:center;gap:.4rem">
-                <span style="font-size:.8rem;font-weight:700;color:${col.col}">${col.label}</span>
-                <span style="background:${col.col}22;color:${col.col};border-radius:20px;font-size:.68rem;padding:.05rem .4rem;font-weight:700">${cards.length}</span>
-              </div>
-            </div>
-            <div style="flex:1;padding:.45rem .4rem;display:flex;flex-direction:column;gap:.35rem;overflow-y:auto">
-              ${cards.length?cards.map(r=>svcKanbanCard(r,col)).join(''):`<div style="text-align:center;color:var(--muted);font-size:.78rem;padding:1.5rem .5rem">ว่าง</div>`}
+          <div class="svc-col">
+            <div class="svc-col-head"><span class="svc-dot" style="background:${col.dot}"></span>${col.label}<span class="c">${cards.length}</span></div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:.45rem;overflow-y:auto">
+              ${cards.length?cards.map(r=>svcKanbanCard(r,col)).join(''):`<div style="text-align:center;color:#8a8f97;font-size:.78rem;padding:1.5rem .5rem">ว่าง</div>`}
             </div>
           </div>`;
       }).join('')}
@@ -20668,25 +20760,19 @@ function svcRenderBoard(rows){
 }
 
 function svcKanbanCard(r,col){
-  const brands=svcParseJSON(r.brands,[]).join(', ')||'—';
-  const dt=r.request_date
-    ? new Date(r.request_date).toLocaleDateString('th-TH',{day:'2-digit',month:'short'})
-    : (r.created_at?new Date(r.created_at).toLocaleDateString('th-TH',{day:'2-digit',month:'short'}):'');
-  const stStyle = r.serve_type==='quick_sale'
-    ? 'background:#fef3c7;color:#b45309' : 'background:#dbeafe;color:#1d4ed8';
-  const stLabel = r.serve_type==='quick_sale' ? 'ขายด่วน' : 'โปรฯ/คูปอง';
+  const brands=svcParseJSON(r.brands,[]).join(', ');
+  const who=r.requester_name||r.created_by_name||'';
   return `
-    <div class="svc-kanban-card" onclick="svcOpenDetail(${r.id})"
-      style="background:#fff;border-radius:8px;padding:.55rem .65rem;box-shadow:0 1px 3px rgba(0,0,0,.07);cursor:pointer;border-left:3px solid ${col.col};user-select:none">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.25rem">
-        <span style="font-size:.7rem;font-weight:700;padding:.05rem .4rem;border-radius:10px;${stStyle}">${stLabel}</span>
-        <span style="font-size:.68rem;color:#0369a1;font-weight:700;font-family:monospace">${escHtml(r.job_no||'')}</span>
+    <div class="svc-kanban-card" onclick="svcOpenDetail(${r.id})">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-bottom:.4rem">
+        <span class="svc-jobno" style="font-size:.7rem">${escHtml(r.job_no||'')}</span>
+        ${svcTypeChip(r.serve_type)}
       </div>
-      <div style="font-size:.83rem;font-weight:600;color:#24272c;margin-bottom:.15rem;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${escHtml(r.title||r.promo_name||'(ไม่มีชื่อ)')}</div>
-      <div style="font-size:.72rem;color:#5b616b;margin-bottom:.25rem;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${escHtml(brands)}</div>
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <span style="font-size:.68rem;color:#8a8f97">${escHtml(r.requester_name||r.created_by_name||'')}</span>
-        <span style="font-size:.68rem;color:#d6d2c9">${dt}</span>
+      <div style="font-size:.84rem;font-weight:500;color:var(--text);line-height:1.4;margin-bottom:.3rem;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${escHtml(r.title||r.promo_name||'(ไม่มีชื่อ)')}</div>
+      ${brands?`<div style="font-size:.74rem;color:#5b616b;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${escHtml(brands)}</div>`:''}
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-top:.45rem;font-size:.72rem;color:#6f747c">
+        <span style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${escHtml(r.assigned_to_name||who)}</span>
+        <span style="flex-shrink:0">${svcFmtDate(r,{day:'2-digit',month:'short'})}</span>
       </div>
     </div>`;
 }
