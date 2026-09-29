@@ -506,6 +506,31 @@ textarea{resize:vertical;min-height:80px}
 .svc-proj-item:hover .svc-proj-copy{opacity:1;pointer-events:auto}
 .svc-proj-menu .svc-proj-copy{opacity:.55;pointer-events:auto}
 .svc-proj-copy:hover{color:var(--primary);background:#fff}
+/* coordination (impl) page + modal */
+.svc-select{height:36px;border:1px solid var(--border);border-radius:10px;background:#fff;color:var(--text);font-size:.82rem;padding:0 .7rem;font-family:inherit;cursor:pointer;outline:none}
+.svc-select:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-soft)}
+.impl-tag{display:inline-block;font-size:.68rem;font-weight:500;padding:.05rem .42rem;border-radius:5px;margin-right:.35rem;vertical-align:.08em;white-space:nowrap}
+.impl-tag.urgent{background:#f7e6df;color:#9a3f26}
+.impl-tag.late{background:#f7ebe8;color:#b04a40}
+.impl-due{font-size:.8rem;color:#3a3f46;white-space:nowrap}
+.impl-due .sub{font-size:.72rem;color:#6f747c;margin-top:.1rem}
+.impl-assignee{appearance:none;-webkit-appearance:none;font-family:inherit;font-size:.78rem;color:#3a3f46;background:#fff no-repeat right .55rem center/10px;border:1px solid var(--border);border-radius:999px;padding:.28rem 1.6rem .28rem .7rem;max-width:100%;cursor:pointer;outline:none}
+.impl-assignee:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-soft)}
+.impl-assignee:disabled{opacity:.6;cursor:default}
+.impl-modal{max-width:720px!important;padding:0!important;max-height:92vh;display:flex;flex-direction:column;overflow:hidden!important;border-radius:18px!important}
+.impl-mhead{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;padding:1.3rem 1.5rem 1rem;border-bottom:1px solid var(--line-2)}
+.impl-mtitle{font-size:1.12rem;font-weight:600;line-height:1.35;color:var(--text)}
+.impl-mbody{padding:.25rem 1.5rem 1rem;overflow-y:auto;flex:1}
+.impl-sec{padding:1rem 0 .15rem;border-top:1px solid var(--line-2)}
+.impl-sec:first-child{border-top:none}
+.impl-sec-title{font-size:.8rem;font-weight:600;color:var(--text);margin-bottom:.7rem}
+.impl-grid2{display:grid;grid-template-columns:1fr 1fr;column-gap:.8rem}
+.impl-grid3{display:grid;grid-template-columns:1fr 1fr 1fr;column-gap:.8rem}
+@media(max-width:640px){.impl-grid2,.impl-grid3{grid-template-columns:1fr}}
+.impl-comments{max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:12px;padding:.6rem .75rem;background:#faf9f6;display:flex;flex-direction:column;gap:.6rem}
+.impl-comment-input{flex:1;height:38px;border:1px solid var(--border);border-radius:10px;padding:0 .8rem;font-size:.84rem;outline:none;background:#fff;color:var(--text)}
+.impl-comment-input:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-soft)}
+.impl-mfoot{display:flex;align-items:center;gap:.5rem;padding:.9rem 1.5rem;border-top:1px solid var(--line-2);background:#fff}
 /* status tabs */
 .svc-tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:1rem;overflow-x:auto;scrollbar-width:none}
 .svc-tab{border:none;background:none;font-family:inherit;font-size:.86rem;color:#5b616b;padding:.55rem .85rem;margin-bottom:-1px;border-bottom:2px solid transparent;cursor:pointer;display:flex;align-items:center;gap:.45rem;white-space:nowrap;transition:color .15s,border-color .15s}
@@ -3345,71 +3370,58 @@ textarea{resize:vertical;min-height:80px}
 <!-- ═══════════════════ PAGE: IMPLEMENT REQUESTS ═══════════════════ -->
 <!-- งานภายในที่รับเรื่องมาประสานให้ทีมที่เกี่ยวข้องทำ — แยกจาก "งานบริการ" ที่เป็นงานของลูกค้าที่ซื้อบริการ -->
 <div id="page-impl" class="page">
-  <div class="section-header" style="margin-bottom:.75rem">
-    <div class="section-title">รับเรื่องประสานงาน</div>
-    <div style="display:flex;gap:.5rem;align-items:center">
-      <button class="btn btn-primary btn-sm" onclick="openImplForm()">+ แจ้งงานใหม่</button>
+  <div class="svc-hdr">
+    <div>
+      <div class="svc-kicker">Coordination</div>
+      <h1 class="svc-h1">รับเรื่องประสานงาน</h1>
+      <div class="svc-sub">งานภายในทีม: เทรนนิ่ง ทำเทมเพลท ติดตั้งโปรแกรม และทำเมนูใหม่</div>
     </div>
+    <button class="svc-btn-primary" onclick="openImplForm()"><span style="font-size:1.05rem;line-height:1;font-weight:400">+</span> แจ้งงานใหม่</button>
   </div>
 
-  <!-- Stat Bar -->
-  <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem">
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">ทั้งหมด</span>
-      <span style="font-size:1.1rem;font-weight:800;color:var(--hd)" id="impl-stat-total">—</span>
-    </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">รอรับเรื่อง</span>
-      <span style="font-size:1.1rem;font-weight:800;color:#b45309" id="impl-stat-pending">—</span>
-    </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">กำลังดำเนินการ</span>
-      <span style="font-size:1.1rem;font-weight:800;color:#0369a1" id="impl-stat-doing">—</span>
-    </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">เสร็จสิ้น</span>
-      <span style="font-size:1.1rem;font-weight:800;color:#16a34a" id="impl-stat-done">—</span>
-    </div>
+  <!-- Status tabs: counts come from the loaded rows, filtering is client-side -->
+  <div class="svc-tabs" id="impl-tabs">
+    <button class="svc-tab on" data-st="open" onclick="implSetTab('open')">ยังไม่เสร็จ <span class="c" id="impl-stat-open">—</span></button>
+    <button class="svc-tab" data-st="pending" onclick="implSetTab('pending')"><span class="svc-dot" style="background:#c29a3c"></span>รอรับเรื่อง <span class="c" id="impl-stat-pending">—</span></button>
+    <button class="svc-tab" data-st="accepted" onclick="implSetTab('accepted')"><span class="svc-dot" style="background:#5b7fb3"></span>รับเรื่องแล้ว <span class="c" id="impl-stat-accepted">—</span></button>
+    <button class="svc-tab" data-st="in_progress" onclick="implSetTab('in_progress')"><span class="svc-dot" style="background:#7d72b3"></span>กำลังดำเนินการ <span class="c" id="impl-stat-in_progress">—</span></button>
+    <button class="svc-tab" data-st="done" onclick="implSetTab('done')"><span class="svc-dot" style="background:#4d8c6a"></span>เสร็จสิ้น <span class="c" id="impl-stat-done">—</span></button>
+    <button class="svc-tab" data-st="cancelled" onclick="implSetTab('cancelled')"><span class="svc-dot" style="background:#b3b6bb"></span>ยกเลิก <span class="c" id="impl-stat-cancelled">—</span></button>
+    <button class="svc-tab" data-st="" onclick="implSetTab('')">ทั้งหมด <span class="c" id="impl-stat-total">—</span></button>
   </div>
 
   <!-- Filters -->
-  <div class="page-datebar" style="margin-bottom:.75rem;gap:.5rem;flex-wrap:wrap">
-    <select id="impl-filter-status" onchange="loadImplRequests()">
-      <option value="open">ที่ยังไม่เสร็จ (รวมยกเลิก)</option>
-      <option value="">ทุกสถานะ</option>
-      <option value="pending">รอรับเรื่อง</option>
-      <option value="accepted">รับเรื่องแล้ว</option>
-      <option value="in_progress">กำลังดำเนินการ</option>
-      <option value="done">เสร็จสิ้น</option>
-      <option value="cancelled">ยกเลิก</option>
-    </select>
-    <select id="impl-filter-type" onchange="loadImplRequests()">
+  <div class="svc-filters">
+    <label class="svc-search">
+      <i class=i-search style="color:#8a8f97"></i>
+      <input id="impl-search" type="text" placeholder="ค้นหาเลขที่ เรื่อง หรือร้าน" oninput="implSearchDebounce()"/>
+    </label>
+    <select id="impl-filter-type" class="svc-select" onchange="loadImplRequests()" aria-label="ประเภทงาน">
       <option value="">ทุกประเภท</option>
       <option value="training">เทรนนิ่ง</option>
       <option value="template">ทำเทมเพลท</option>
       <option value="install">ติดตั้งโปรแกรมเพิ่มเติม</option>
       <option value="new_menu">ทำเมนูใหม่</option>
     </select>
-    <input id="impl-search" type="text" placeholder="ค้นหาเลขที่ / เรื่อง / ร้าน..." oninput="implSearchDebounce()" style="min-width:200px;flex:1"/>
-    <button class="btn btn-ghost btn-sm" onclick="loadImplRequests()"><i class=i-refresh></i></button>
+    <button class="svc-icon-btn" onclick="loadImplRequests()" title="โหลดใหม่" aria-label="โหลดใหม่"><i class=i-refresh></i></button>
   </div>
 
   <!-- Table -->
-  <div class="card" style="padding:.5rem 0">
+  <div class="svc-tbl-card">
     <div class="tbl-wrap">
-      <table>
+      <table class="svc-tbl">
+        <colgroup>
+          <col style="width:128px"><col><col style="width:150px"><col style="width:128px"><col style="width:156px"><col style="width:156px">
+        </colgroup>
         <thead><tr>
-          <th style="min-width:110px">เลขที่</th>
-          <th style="min-width:130px">ประเภท</th>
-          <th style="min-width:220px">เรื่อง</th>
-          <th style="min-width:150px">ร้าน / สาขา</th>
-          <th style="min-width:100px">วันที่ต้องการ</th>
-          <th style="min-width:80px">ความสำคัญ</th>
-          <th style="min-width:140px">สถานะ</th>
-          <th style="min-width:130px">ผู้รับผิดชอบ</th>
-          <th style="min-width:110px">ผู้แจ้ง</th>
+          <th>เลขที่</th>
+          <th>เรื่อง</th>
+          <th>ประเภท</th>
+          <th>วันที่ต้องการ</th>
+          <th>สถานะ</th>
+          <th>ผู้รับผิดชอบ</th>
         </tr></thead>
-        <tbody id="impl-tbody"><tr><td colspan="9" class="empty">— เลือกเมนูนี้เพื่อโหลด —</td></tr></tbody>
+        <tbody id="impl-tbody"><tr style="cursor:default"><td colspan="6" style="text-align:center;color:var(--muted);padding:3rem 1rem">กำลังโหลด…</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -3417,127 +3429,140 @@ textarea{resize:vertical;min-height:80px}
 
 <!-- MODAL: แจ้งเรื่อง / รายละเอียดเรื่องประสานงาน -->
 <div class="overlay" id="modal-impl-form">
-  <div class="modal" style="max-width:600px;padding:1.2rem;max-height:90vh;overflow-y:auto">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
-      <div style="font-size:1rem;font-weight:800" id="impl-form-title">+ แจ้งเรื่องประสานงาน</div>
-      <button class="modal-close" onclick="closeModal('modal-impl-form')">×</button>
+  <div class="modal impl-modal">
+    <div class="impl-mhead">
+      <div style="min-width:0">
+        <div class="svc-kicker" id="impl-form-kicker" style="margin-bottom:.2rem">Coordination</div>
+        <div class="impl-mtitle" id="impl-form-title">แจ้งเรื่องประสานงาน</div>
+        <div id="impl-form-chips" style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.45rem"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-impl-form')" aria-label="ปิด">×</button>
     </div>
     <input type="hidden" id="impl-id"/>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.65rem">
-      <div class="form-group">
-        <label>ประเภทงาน <span style="color:#ef4444">*</span></label>
-        <select id="impl-type" style="width:100%">
-          <option value="training">เทรนนิ่ง</option>
-          <option value="template">ทำเทมเพลท</option>
-          <option value="install">ติดตั้งโปรแกรมเพิ่มเติม</option>
-          <option value="new_menu">ทำเมนูใหม่</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>ความสำคัญ</label>
-        <select id="impl-priority" style="width:100%">
-          <option value="normal">ปกติ</option>
-          <option value="urgent">ด่วน</option>
-          <option value="low">ไม่เร่ง</option>
-        </select>
-      </div>
-    </div>
-
-    <div class="form-group">
-      <label>เรื่องที่ขอ <span style="color:#ef4444">*</span></label>
-      <input id="impl-title" type="text" style="width:100%" placeholder="เช่น เทรนการใช้งานหน้าขายให้พนักงานใหม่"/>
-    </div>
-
-    <div class="form-group">
-      <label>รายละเอียด</label>
-      <textarea id="impl-detail" rows="3" style="width:100%;resize:vertical" placeholder="ระบุรายละเอียด เช่น หัวข้อที่ต้องเทรน จำนวนผู้เข้าอบรม รูปแบบเทมเพลท โปรแกรมที่ต้องติดตั้ง เมนูที่ต้องการ..."></textarea>
-    </div>
-
-    <div style="display:grid;grid-template-columns:1fr 1fr 130px 130px;gap:.65rem">
-      <div class="form-group">
-        <label>ร้าน / ลูกค้า</label>
-        <input id="impl-customer" type="text" style="width:100%" placeholder="ไม่บังคับ"/>
-      </div>
-      <div class="form-group">
-        <label>สาขา</label>
-        <input id="impl-branch" type="text" style="width:100%" placeholder="ไม่บังคับ"/>
-      </div>
-      <div class="form-group">
-        <label>วันที่ต้องการ</label>
-        <input id="impl-want-date" type="date" style="width:100%"/>
-      </div>
-      <div class="form-group">
-        <label>วันที่นัดหมาย</label>
-        <input id="impl-appoint-date" type="date" style="width:100%" title="วันที่นัดกับลูกค้าได้จริง"/>
-      </div>
-    </div>
-
-    <!-- ข้อมูลติดต่อ — ทีมที่รับงานต้องโทรนัดหมายเอง -->
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.65rem">
-      <div class="form-group">
-        <label>ชื่อผู้ติดต่อ</label>
-        <input id="impl-contact-name" type="text" style="width:100%" placeholder="เช่น คุณสมชาย (ผู้จัดการร้าน)"/>
-      </div>
-      <div class="form-group">
-        <label>เบอร์โทร</label>
-        <input id="impl-contact-tel" type="text" style="width:100%" placeholder="08x-xxx-xxxx"/>
-      </div>
-      <div class="form-group">
-        <label>ช่องทางอื่น</label>
-        <input id="impl-contact-note" type="text" style="width:100%" placeholder="LINE / อีเมล / เวลาที่สะดวก"/>
-      </div>
-    </div>
-
-    <div class="form-group">
-      <label>ไฟล์แนบ</label>
-      <div id="impl-files" style="display:flex;flex-direction:column;gap:.3rem;margin-bottom:.4rem"></div>
-      <input type="file" id="impl-file-input" multiple style="display:none" onchange="implPickFiles(this.files)"
-             accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.txt,.log"/>
-      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('impl-file-input').click()">แนบไฟล์</button>
-      <span style="font-size:.72rem;color:var(--muted);margin-left:.4rem">ไม่เกิน 10 MB ต่อไฟล์</span>
-    </div>
-
-    <!-- ส่วนนี้โผล่เฉพาะตอนเปิดงานที่บันทึกแล้ว -->
-    <div id="impl-edit-only" style="display:none">
-      <div style="border-top:1px solid var(--border);margin:.5rem 0 .8rem"></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.65rem">
-        <div class="form-group">
-          <label>สถานะ</label>
-          <select id="impl-status" style="width:100%">
-            <option value="pending">รอรับเรื่อง</option>
-            <option value="accepted">รับเรื่องแล้ว</option>
-            <option value="in_progress">กำลังดำเนินการ</option>
-            <option value="done">เสร็จสิ้น</option>
-            <option value="cancelled">ยกเลิก</option>
-          </select>
+    <div class="impl-mbody">
+      <div class="impl-sec">
+        <div class="impl-sec-title">รายละเอียดงาน</div>
+        <div class="impl-grid2">
+          <div class="form-group">
+            <label>ประเภทงาน <span style="color:#b04a40">*</span></label>
+            <select id="impl-type" style="width:100%">
+              <option value="training">เทรนนิ่ง</option>
+              <option value="template">ทำเทมเพลท</option>
+              <option value="install">ติดตั้งโปรแกรมเพิ่มเติม</option>
+              <option value="new_menu">ทำเมนูใหม่</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>ความสำคัญ</label>
+            <select id="impl-priority" style="width:100%">
+              <option value="normal">ปกติ</option>
+              <option value="urgent">ด่วน</option>
+              <option value="low">ไม่เร่ง</option>
+            </select>
+          </div>
         </div>
         <div class="form-group">
-          <label>ผู้รับผิดชอบ</label>
-          <select id="impl-assignee" style="width:100%"><option value="">— ยังไม่ระบุ —</option></select>
+          <label>เรื่องที่ขอ <span style="color:#b04a40">*</span></label>
+          <input id="impl-title" type="text" style="width:100%" placeholder="เช่น เทรนการใช้งานหน้าขายให้พนักงานใหม่"/>
+        </div>
+        <div class="form-group">
+          <label>รายละเอียด</label>
+          <textarea id="impl-detail" rows="3" style="width:100%;resize:vertical" placeholder="หัวข้อที่ต้องเทรน จำนวนผู้เข้าอบรม รูปแบบเทมเพลท โปรแกรมที่ต้องติดตั้ง หรือเมนูที่ต้องการ"></textarea>
+        </div>
+        <div class="impl-grid2">
+          <div class="form-group">
+            <label>ร้าน / ลูกค้า</label>
+            <input id="impl-customer" type="text" style="width:100%" placeholder="ไม่บังคับ"/>
+          </div>
+          <div class="form-group">
+            <label>สาขา</label>
+            <input id="impl-branch" type="text" style="width:100%" placeholder="ไม่บังคับ"/>
+          </div>
+          <div class="form-group">
+            <label>วันที่ต้องการ</label>
+            <input id="impl-want-date" type="date" style="width:100%"/>
+          </div>
+          <div class="form-group">
+            <label>วันที่นัดหมาย</label>
+            <input id="impl-appoint-date" type="date" style="width:100%" title="วันที่นัดกับลูกค้าได้จริง"/>
+          </div>
         </div>
       </div>
-      <div class="form-group">
-        <label>บันทึกของผู้ทำงาน</label>
-        <textarea id="impl-note" rows="2" style="width:100%;resize:vertical" placeholder="ความคืบหน้า / สิ่งที่ทำไป..."></textarea>
-      </div>
-      <div class="form-group">
-        <label>ประวัติสนทนา</label>
-        <div id="impl-comments" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:.45rem .55rem;background:#faf9f6;display:flex;flex-direction:column;gap:.45rem"></div>
-        <div style="display:flex;gap:.4rem;margin-top:.4rem">
-          <input id="impl-comment-box" type="text" style="flex:1" placeholder="พิมพ์ข้อความแล้วกด Enter..."
-                 onkeydown="if(event.key==='Enter')implAddComment()"/>
-          <button class="btn btn-sm btn-primary" onclick="implAddComment()">ส่ง</button>
+
+      <!-- ข้อมูลติดต่อ — ทีมที่รับงานต้องโทรนัดหมายเอง -->
+      <div class="impl-sec">
+        <div class="impl-sec-title">ผู้ติดต่อ</div>
+        <div class="impl-grid3">
+          <div class="form-group">
+            <label>ชื่อผู้ติดต่อ</label>
+            <input id="impl-contact-name" type="text" style="width:100%" placeholder="เช่น คุณสมชาย (ผู้จัดการร้าน)"/>
+          </div>
+          <div class="form-group">
+            <label>เบอร์โทร</label>
+            <input id="impl-contact-tel" type="text" style="width:100%" placeholder="08x-xxx-xxxx"/>
+          </div>
+          <div class="form-group">
+            <label>ช่องทางอื่น</label>
+            <input id="impl-contact-note" type="text" style="width:100%" placeholder="LINE / อีเมล / เวลาที่สะดวก"/>
+          </div>
         </div>
       </div>
-      <div id="impl-meta" style="font-size:.74rem;color:var(--muted);line-height:1.7"></div>
+
+      <div class="impl-sec">
+        <div class="impl-sec-title">ไฟล์แนบ</div>
+        <div id="impl-files" style="display:flex;flex-direction:column;gap:.35rem;margin-bottom:.5rem"></div>
+        <input type="file" id="impl-file-input" multiple style="display:none" onchange="implPickFiles(this.files)"
+               accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.txt,.log"/>
+        <div style="display:flex;align-items:center;gap:.6rem">
+          <button class="svc-btn-ghost" style="height:34px" onclick="document.getElementById('impl-file-input').click()"><i class=i-clip></i> แนบไฟล์</button>
+          <span style="font-size:.74rem;color:#6f747c">ไม่เกิน 10 MB ต่อไฟล์</span>
+        </div>
+      </div>
+
+      <!-- ส่วนนี้โผล่เฉพาะตอนเปิดงานที่บันทึกแล้ว -->
+      <div id="impl-edit-only" style="display:none">
+        <div class="impl-sec">
+          <div class="impl-sec-title">การดำเนินงาน</div>
+          <div class="impl-grid2">
+            <div class="form-group">
+              <label>สถานะ</label>
+              <select id="impl-status" style="width:100%">
+                <option value="pending">รอรับเรื่อง</option>
+                <option value="accepted">รับเรื่องแล้ว</option>
+                <option value="in_progress">กำลังดำเนินการ</option>
+                <option value="done">เสร็จสิ้น</option>
+                <option value="cancelled">ยกเลิก</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>ผู้รับผิดชอบ</label>
+              <select id="impl-assignee" style="width:100%"><option value="">— ยังไม่ระบุ —</option></select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>บันทึกของผู้ทำงาน</label>
+            <textarea id="impl-note" rows="2" style="width:100%;resize:vertical" placeholder="ความคืบหน้า หรือสิ่งที่ทำไปแล้ว"></textarea>
+          </div>
+        </div>
+        <div class="impl-sec">
+          <div class="impl-sec-title">ประวัติสนทนา</div>
+          <div id="impl-comments" class="impl-comments"></div>
+          <div style="display:flex;gap:.45rem;margin-top:.5rem">
+            <input id="impl-comment-box" type="text" class="impl-comment-input" placeholder="พิมพ์ข้อความแล้วกด Enter"
+                   onkeydown="if(event.key==='Enter')implAddComment()"/>
+            <button class="svc-btn-primary" style="height:38px" onclick="implAddComment()">ส่ง</button>
+          </div>
+          <div id="impl-meta" style="font-size:.74rem;color:#6f747c;line-height:1.7;margin-top:.8rem"></div>
+        </div>
+      </div>
     </div>
 
-    <div style="display:flex;align-items:center;gap:.5rem;margin-top:1rem">
-      <button class="btn btn-ghost btn-sm" id="impl-del-btn" style="color:#dc2626;display:none" onclick="implDelete()">ลบ</button>
+    <div class="impl-mfoot">
+      <button class="svc-btn-ghost" id="impl-del-btn" style="color:#b04a40;display:none" onclick="implDelete()"><i class=i-trash></i> ลบ</button>
       <div style="margin-left:auto;display:flex;gap:.5rem">
-        <button class="btn btn-ghost" onclick="closeModal('modal-impl-form')">ยกเลิก</button>
-        <button class="btn btn-primary" id="impl-save-btn" onclick="implSave()">บันทึก</button>
+        <button class="svc-btn-ghost" onclick="closeModal('modal-impl-form')">ยกเลิก</button>
+        <button class="svc-btn-primary" id="impl-save-btn" onclick="implSave()">บันทึก</button>
       </div>
     </div>
   </div>
@@ -6655,16 +6680,16 @@ async function saveLgpNotify() {
 //  รับเรื่องประสานงาน (งานภายใน) — /api/impl-requests
 // ══════════════════════════════════════════════════════════
 const IMPL_TYPE_META = {
-  training: { label: 'เทรนนิ่ง',              fg: '#047857', bg: '#d1fae5' },
-  template: { label: 'ทำเทมเพลท',             fg: '#1d4ed8', bg: '#dbeafe' },
-  install:  { label: 'ติดตั้งโปรแกรมเพิ่มเติม', fg: '#7c3aed', bg: '#ede9fe' },
-  new_menu: { label: 'ทำเมนูใหม่',            fg: '#b45309', bg: '#fef3c7' },
+  training: { label: 'เทรนนิ่ง',              fg: '#356b4e', bg: '#e7f0ea' },
+  template: { label: 'ทำเทมเพลท',             fg: '#3f5f8f', bg: '#eaf0f7' },
+  install:  { label: 'ติดตั้งโปรแกรมเพิ่มเติม', fg: '#5a4f8f', bg: '#efedf7' },
+  new_menu: { label: 'ทำเมนูใหม่',            fg: '#86671f', bg: '#f6f0e2' },
 };
 const IMPL_STATUS_META = {
-  pending:     { label: 'รอรับเรื่อง',      fg: '#b45309', bg: '#fef3c7' },
-  accepted:    { label: 'รับเรื่องแล้ว',    fg: '#0369a1', bg: '#e0f2fe' },
-  in_progress: { label: 'กำลังดำเนินการ',   fg: '#1d4ed8', bg: '#dbeafe' },
-  done:        { label: 'เสร็จสิ้น',        fg: '#16a34a', bg: '#dcfce7' },
+  pending:     { label: 'รอรับเรื่อง',      fg: '#86671f', bg: '#f6f0e2' },
+  accepted:    { label: 'รับเรื่องแล้ว',    fg: '#3f5f8f', bg: '#eaf0f7' },
+  in_progress: { label: 'กำลังดำเนินการ',   fg: '#5a4f8f', bg: '#efedf7' },
+  done:        { label: 'เสร็จสิ้น',        fg: '#356b4e', bg: '#e7f0ea' },
   cancelled:   { label: 'ยกเลิก',           fg: '#5b616b', bg: '#f0eee9' },
 };
 const IMPL_PRIORITY_META = {
@@ -6673,9 +6698,16 @@ const IMPL_PRIORITY_META = {
   low:    { label: 'ไม่เร่ง',  fg: '#5b616b', bg: '#faf9f6' },
 };
 const implMeta = (map, k, fallback) => map[k] || { label: k || fallback, fg: '#4d535b', bg: '#f0eee9' };
-const implChip = (m) => `<span style="display:inline-block;font-size:.72rem;font-weight:700;padding:.1rem .45rem;border-radius:6px;background:${m.bg};color:${m.fg};white-space:nowrap">${m.label}</span>`;
+const implChip = (m) => `<span style="display:inline-block;font-size:.72rem;font-weight:500;padding:.16rem .55rem;border-radius:6px;background:${m.bg};color:${m.fg};white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis">${m.label}</span>`;
 
 let _implRows = [], _implUsers = null, _implSearchTimer = null;
+let _implTab = 'open';   // open = ยังไม่เสร็จ (pending/accepted/in_progress)
+const IMPL_OPEN = ['pending', 'accepted', 'in_progress'];
+
+function implSetTab(tab) {
+  _implTab = tab;
+  renderImplTable();
+}
 
 function implSearchDebounce() {
   clearTimeout(_implSearchTimer);
@@ -6686,53 +6718,58 @@ async function loadImplRequests() {
   const tb = document.getElementById('impl-tbody');
   if (!tb) return;
   const qs = new URLSearchParams();
-  const st = document.getElementById('impl-filter-status')?.value ?? 'open';
+  // สถานะกรองฝั่งหน้าเว็บจากแท็บ — โหลดครบทุกสถานะ จะได้นับตัวเลขบนแท็บได้
   const tp = document.getElementById('impl-filter-type')?.value || '';
   const q  = document.getElementById('impl-search')?.value.trim() || '';
-  if (st) qs.set('status', st);
   if (tp) qs.set('type', tp);
   if (q)  qs.set('q', q);
-  tb.innerHTML = '<tr><td colspan="9" class="empty">กำลังโหลด...</td></tr>';
+  tb.innerHTML = '<tr style="cursor:default"><td colspan="6" style="text-align:center;color:var(--muted);padding:3rem 1rem">กำลังโหลด…</td></tr>';
   // ต้องมีรายชื่อก่อนวาดตาราง เพราะช่องผู้รับผิดชอบเป็น dropdown ในแถว
   if (!_implUsers) _implUsers = (await api('/api/users', { silent: true })) || [];
   const rows = await api('/api/impl-requests?' + qs.toString(), { silent: true });
-  if (!rows || rows.error) { tb.innerHTML = '<tr><td colspan="9" class="empty">โหลดไม่สำเร็จ (ถ้าเพิ่งอัปเดตโค้ด ให้รีสตาร์ท server ก่อน)</td></tr>'; return; }
+  if (!rows || rows.error) { tb.innerHTML = '<tr style="cursor:default"><td colspan="6" style="text-align:center;color:var(--muted);padding:3rem 1rem">โหลดไม่สำเร็จ (ถ้าเพิ่งอัปเดตโค้ด ให้รีสตาร์ท server ก่อน)</td></tr>'; return; }
   _implRows = rows;
   renderImplTable();
 }
 
 function renderImplTable() {
   const tb = document.getElementById('impl-tbody');
-  if (!_implRows.length) {
-    tb.innerHTML = '<tr><td colspan="9" class="empty">— ไม่มีงานตามเงื่อนไขที่เลือก —</td></tr>';
+  const inTab = (r) => _implTab === 'open' ? IMPL_OPEN.includes(r.status)
+                     : _implTab ? r.status === _implTab : true;
+  const rows = _implRows.filter(inTab);
+  if (!rows.length) {
+    tb.innerHTML = '<tr style="cursor:default"><td colspan="6" style="text-align:center;color:var(--muted);padding:3.5rem 1rem">ไม่มีงานตามเงื่อนไขที่เลือก</td></tr>';
   } else {
-    tb.innerHTML = _implRows.map(r => {
-      const wd = r.want_date ? fmtDateShort(r.want_date) : '—';
+    tb.innerHTML = rows.map(r => {
       // มีวันนัดแล้วให้ยึดวันนัดเป็นตัวตัดสินว่าเลยกำหนดหรือยัง ไม่งั้นใช้วันที่ลูกค้าขอ
       const due = r.appointment_date || r.want_date;
       const late = due && !['done', 'cancelled'].includes(r.status)
                 && new Date(due) < new Date(new Date().toDateString());
-      const shop = [r.customer, r.branch].filter(Boolean).join(' / ') || '—';
-      return `<tr style="cursor:pointer" onclick="openImplForm(${r.id})">
-        <td style="font-family:monospace;font-size:.78rem">${esc(r.req_no || '#' + r.id)}</td>
+      const shop = [r.customer, r.branch].filter(Boolean).join(' / ');
+      const meta = [shop, r.creator_name ? 'แจ้งโดย ' + r.creator_name : '', r.priority === 'low' ? 'ไม่เร่ง' : '']
+        .filter(Boolean).map(esc).join(' · ');
+      const tags = (r.priority === 'urgent' ? '<span class="impl-tag urgent">ด่วน</span>' : '')
+                 + (late ? '<span class="impl-tag late">เลยกำหนด</span>' : '');
+      return `<tr onclick="if(!event.target.closest('select,button'))openImplForm(${r.id})">
+        <td><span class="svc-jobno">${esc(r.req_no || '#' + r.id)}</span></td>
+        <td style="min-width:0">
+          <div class="svc-title" title="${esc(r.title)}">${tags}${esc(r.title)}</div>
+          ${meta ? `<div class="svc-meta">${meta}</div>` : ''}
+        </td>
         <td>${implChip(implMeta(IMPL_TYPE_META, r.req_type, 'อื่นๆ'))}</td>
-        <td style="font-weight:600">${esc(r.title)}</td>
-        <td style="font-size:.8rem">${esc(shop)}</td>
-        <td style="font-size:.8rem;${late ? 'color:#dc2626;font-weight:700' : ''}">${wd}${late ? ' ⚠️' : ''}
-          ${r.appointment_date ? `<div style="font-size:.7rem;color:#0369a1;font-weight:600">นัด ${fmtDateShort(r.appointment_date)}</div>` : ''}</td>
-        <td>${implChip(implMeta(IMPL_PRIORITY_META, r.priority, 'ปกติ'))}</td>
+        <td><div class="impl-due" style="${late ? 'color:#b04a40' : ''}">${r.want_date ? fmtDateShort(r.want_date) : '—'}
+          ${r.appointment_date ? `<div class="sub">นัด ${fmtDateShort(r.appointment_date)}</div>` : ''}</div></td>
         <td>${implStatusSelect(r)}</td>
         <td>${implAssigneeSelect(r)}</td>
-        <td style="font-size:.8rem">${esc(r.creator_name || '—')}</td>
       </tr>`;
     }).join('');
   }
-  const n = (f) => _implRows.filter(f).length;
+  const n = (fn) => _implRows.filter(fn).length;
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   set('impl-stat-total', _implRows.length);
-  set('impl-stat-pending', n(r => r.status === 'pending'));
-  set('impl-stat-doing', n(r => r.status === 'accepted' || r.status === 'in_progress'));
-  set('impl-stat-done', n(r => r.status === 'done'));
+  set('impl-stat-open', n(r => IMPL_OPEN.includes(r.status)));
+  ['pending', 'accepted', 'in_progress', 'done', 'cancelled'].forEach(k => set('impl-stat-' + k, n(r => r.status === k)));
+  document.querySelectorAll('#impl-tabs .svc-tab').forEach(t => t.classList.toggle('on', (t.dataset.st || '') === _implTab));
 }
 
 // ── ไฟล์แนบ: แนบได้ตั้งแต่ตอนแจ้งเรื่อง ─────────────────────
@@ -6770,11 +6807,11 @@ function renderImplComments(list) {
   box.innerHTML = (list || []).length ? list.map(c => `
     <div style="font-size:.8rem;line-height:1.5">
       <div style="display:flex;align-items:baseline;gap:.4rem">
-        <span style="font-weight:700;color:#3a3f46">${esc(c.author_name || '—')}</span>
+        <span style="font-weight:600;color:#3a3f46">${esc(c.author_name || '—')}</span>
         <span style="font-size:.68rem;color:var(--muted)">${fmtDT(c.created_at)}</span>
-        ${(c.created_by === currentUser?.id || isManager())
+        ${(c.created_by === currentUser?.id || isManagerRole())
           ? `<button onclick="implDeleteComment(${c.id})" title="ลบข้อความ"
-               style="margin-left:auto;border:none;background:none;color:#d6d2c9;cursor:pointer;font-size:.8rem;line-height:1">×</button>` : ''}
+               style="margin-left:auto;border:none;background:none;color:#8a8f97;cursor:pointer;font-size:.9rem;line-height:1">×</button>` : ''}
       </div>
       <div style="white-space:pre-wrap;color:var(--text)">${esc(c.body)}</div>
     </div>`).join('')
@@ -6817,9 +6854,9 @@ function implAssigneeSelect(r) {
     (_implUsers || []).filter(u => u.active !== false).map(u =>
       `<option value="${u.id}"${String(r.assigned_to || '') === String(u.id) ? ' selected' : ''}>${esc(u.nickname || u.name || u.username)}</option>`)
   ).join('');
-  return `<select onclick="event.stopPropagation()" onchange="implSetAssignee(${r.id}, this.value, '${r.status}')"
-    ${done ? 'disabled' : ''} title="เลือกผู้รับผิดชอบ"
-    style="font-size:.76rem;padding:2px 4px;max-width:120px;${done ? 'opacity:.6' : ''}">${opts}</select>`;
+  return `<select class="impl-assignee" onclick="event.stopPropagation()" onchange="implSetAssignee(${r.id}, this.value, '${r.status}')"
+    ${done ? 'disabled' : ''} title="เลือกผู้รับผิดชอบ" aria-label="ผู้รับผิดชอบ"
+    style="background-image:${SVC_ST_CHEVRON('#8a8f97')}">${opts}</select>`;
 }
 
 // เลือกสถานะได้ทุกอันไม่ว่าจะเดินหน้าหรือย้อนกลับ — งานจริงมีทั้งรับผิดคนแล้วต้องคืน
@@ -6828,10 +6865,9 @@ function implStatusSelect(r) {
   const m = implMeta(IMPL_STATUS_META, r.status, '—');
   const opts = Object.entries(IMPL_STATUS_META).map(([k, v]) =>
     `<option value="${k}"${k === r.status ? ' selected' : ''}>${v.label}</option>`).join('');
-  return `<select onclick="event.stopPropagation()" onchange="implSetStatus(${r.id}, this.value, this)"
-    title="เปลี่ยนสถานะ (ย้อนกลับได้)"
-    style="font-size:.74rem;font-weight:700;padding:2px 4px;border-radius:6px;cursor:pointer;
-           background:${m.bg};color:${m.fg};border:1px solid ${m.fg}33">${opts}</select>`;
+  return `<select class="svc-st" onclick="event.stopPropagation()" onchange="implSetStatus(${r.id}, this.value, this)"
+    title="เปลี่ยนสถานะ (ย้อนกลับได้)" aria-label="สถานะ"
+    style="background-color:${m.bg};color:${m.fg};background-image:${SVC_ST_CHEVRON(m.fg)}">${opts}</select>`;
 }
 
 async function implPatch(id, body, okMsg) {
@@ -6872,9 +6908,11 @@ async function implFillAssignees(selected) {
 async function openImplForm(id) {
   const gv = (i) => document.getElementById(i);
   gv('impl-id').value = id || '';
-  gv('impl-form-title').textContent = id ? 'รายละเอียดเรื่องประสานงาน' : '+ แจ้งเรื่องประสานงาน';
+  gv('impl-form-title').textContent = id ? 'รายละเอียดเรื่องประสานงาน' : 'แจ้งเรื่องประสานงาน';
+  gv('impl-form-kicker').textContent = id ? 'Coordination' : 'New request';
+  gv('impl-form-chips').innerHTML = '';
   gv('impl-edit-only').style.display = id ? '' : 'none';
-  gv('impl-del-btn').style.display = (id && isManager()) ? '' : 'none';
+  gv('impl-del-btn').style.display = (id && isManagerRole()) ? '' : 'none';
   _implNewFiles = [];
   gv('impl-files').innerHTML = '';
   gv('impl-meta').innerHTML = '';
@@ -6911,6 +6949,11 @@ async function openImplForm(id) {
   await implFillAssignees(r.assigned_to);
   renderImplFiles(r.files || []);
   renderImplComments(r.comments || []);
+  gv('impl-form-kicker').textContent = r.req_no || ('#' + r.id);
+  gv('impl-form-title').textContent  = r.title || 'รายละเอียดเรื่องประสานงาน';
+  gv('impl-form-chips').innerHTML = implChip(implMeta(IMPL_STATUS_META, r.status, '—'))
+    + implChip(implMeta(IMPL_TYPE_META, r.req_type, 'อื่นๆ'))
+    + (r.priority === 'urgent' ? '<span class="impl-tag urgent" style="font-size:.72rem;padding:.16rem .55rem">ด่วน</span>' : '');
   gv('impl-meta').innerHTML = [
     `เลขที่ <b>${esc(r.req_no || '#' + r.id)}</b> · แจ้งโดย ${esc(r.creator_name || '—')} · ${fmtDT(r.created_at)}`,
     r.accepted_at ? `รับเรื่อง ${fmtDT(r.accepted_at)}` : '',
@@ -6925,18 +6968,19 @@ function renderImplFiles(files) {
   _implSavedFiles = files || [];
   const rid = document.getElementById('impl-id').value;
   const queued = _implNewFiles.map((f, i) => `
-    <div style="display:flex;align-items:center;gap:.45rem;font-size:.78rem;background:#fffbeb;border:1px dashed #fcd34d;border-radius:6px;padding:.25rem .5rem">
+    <div style="display:flex;align-items:center;gap:.5rem;font-size:.8rem;background:#fbf7ee;border:1px dashed #e3d3ae;border-radius:10px;padding:.45rem .7rem">
       <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</span>
-      <span style="color:#b45309;flex-shrink:0;font-size:.7rem">รอส่งเมื่อบันทึก</span>
+      <span style="color:#86671f;flex-shrink:0;font-size:.72rem">รอส่งเมื่อบันทึก</span>
       <button onclick="implDropQueued(${i})" title="เอาออก"
-              style="border:none;background:none;color:#dc2626;cursor:pointer;padding:0 .1rem;flex-shrink:0">×</button>
+              style="border:none;background:none;color:#8a8f97;cursor:pointer;padding:0 .15rem;flex-shrink:0;font-size:.95rem">×</button>
     </div>`).join('');
   box.innerHTML = (files.length ? files.map(f => `
-    <div style="display:flex;align-items:center;gap:.45rem;font-size:.78rem;background:#faf9f6;border:1px solid var(--border);border-radius:6px;padding:.25rem .5rem">
-      <a href="/uploads/impl/${rid}/${encodeURIComponent(f.stored_name || '')}" target="_blank" style="flex:1;color:#1d4ed8;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.file_name)}</a>
+    <div style="display:flex;align-items:center;gap:.5rem;font-size:.8rem;background:#fff;border:1px solid var(--border);border-radius:10px;padding:.45rem .7rem">
+      <i class=i-file style="color:#8a8f97"></i>
+      <a href="/uploads/impl/${rid}/${encodeURIComponent(f.stored_name || '')}" target="_blank" style="flex:1;color:var(--text);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.file_name)}</a>
       <span style="color:var(--muted);flex-shrink:0">${Math.round((f.size_bytes || 0) / 1024).toLocaleString()} KB</span>
       <button onclick="implDeleteFile(${f.id})" title="ลบไฟล์"
-              style="border:none;background:none;color:#dc2626;cursor:pointer;padding:0 .1rem;flex-shrink:0">×</button>
+              style="border:none;background:none;color:#8a8f97;cursor:pointer;padding:0 .15rem;flex-shrink:0;font-size:.95rem">×</button>
     </div>`).join('') : '') + queued
     || '<div style="font-size:.78rem;color:var(--muted)">— ยังไม่มีไฟล์แนบ —</div>';
 }
