@@ -28,7 +28,7 @@ button{font-family:inherit}
 
 /* ── Header ── */
 .hdr{
-  max-width:1200px;margin:0 auto;padding:2.25rem 1.25rem 1.5rem;
+  max-width:1400px;margin:0 auto;padding:2.25rem 1.25rem 1.5rem;
   display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;flex-wrap:wrap;
 }
 .hdr-left{display:flex;flex-direction:column;gap:.35rem;min-width:0}
@@ -45,7 +45,7 @@ button{font-family:inherit}
 .btn-new .plus{font-size:1.05rem;line-height:1;font-weight:400}
 
 /* ── Main ── */
-.main{max-width:1200px;margin:0 auto;padding:0 1.25rem 3rem}
+.main{max-width:1400px;margin:0 auto;padding:0 1.25rem 3rem}
 
 /* ── Status tabs ── */
 .stat-bar{
@@ -86,16 +86,17 @@ button{font-family:inherit}
 
 /* ── Table ── */
 .tbl-wrap{background:var(--surface);border-radius:16px;border:1px solid var(--line);overflow-x:auto}
-table{width:100%;border-collapse:collapse;table-layout:fixed;min-width:860px}
-colgroup .cw-jobno  {width:12%}
-colgroup .cw-reqno  {width:10%}
+table{width:100%;border-collapse:collapse;table-layout:fixed;min-width:1100px}
+/* fixed widths for the short columns; the title takes whatever is left */
+colgroup .cw-jobno  {width:124px}
+colgroup .cw-reqno  {width:96px}
 colgroup .cw-title  {width:auto}
-colgroup .cw-person {width:10%}
-colgroup .cw-period {width:14%}
-colgroup .cw-type   {width:12%}
-colgroup .cw-status {width:10%}
-colgroup .cw-date   {width:8%}
-colgroup .cw-action {width:13%}
+colgroup .cw-person {width:110px}
+colgroup .cw-period {width:168px}
+colgroup .cw-type   {width:104px}
+colgroup .cw-status {width:92px}
+colgroup .cw-date   {width:88px}
+colgroup .cw-action {width:120px}
 thead th{
   padding:.85rem 1rem;font-size:.72rem;font-weight:500;color:var(--ink-3);
   text-align:left;white-space:nowrap;overflow:hidden;border-bottom:1px solid var(--line);
@@ -105,7 +106,7 @@ tbody tr:last-child{border-bottom:none}
 tbody tr:hover{background:var(--soft)}
 tbody td{padding:.9rem 1rem;font-size:.85rem;color:var(--ink);vertical-align:middle}
 .td-jobno{font-family:'IBM Plex Mono',monospace;font-size:.76rem;font-weight:500;color:var(--ink-2);white-space:nowrap}
-.td-title{font-weight:500;white-space:normal;word-break:break-word;line-height:1.4}
+.td-title{font-weight:500;white-space:normal;overflow-wrap:anywhere;line-height:1.45;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .td-sub{font-size:.75rem;color:var(--ink-3);margin-top:.1rem}
 .badge{display:inline-flex;align-items:center;gap:.4rem;font-size:.78rem;color:var(--ink-2);white-space:nowrap}
 .badge::before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0}
