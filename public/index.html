@@ -625,43 +625,41 @@ textarea{resize:vertical;min-height:80px}
 .kpi-m{flex:1 1 140px;background:#fff;border:1px solid var(--border);border-radius:14px;padding:.8rem 1rem}
 .kpi-m .l{font-size:.78rem;color:#5b616b}
 .kpi-m .v{font-size:1.45rem;font-weight:600;letter-spacing:-.02em;color:var(--text);margin-top:.15rem;font-variant-numeric:tabular-nums}
-/* ── Office style (data-style="office"): Microsoft 365 web look — blue app bar, light nav pane,
+/* ── Office style (data-style="office"): Microsoft 365 web look — dark accent-tinted nav pane,
       Fluent controls, Excel-like grid tables. Always light (dark / auto belong to the minimal style). ── */
-.ofc-bar{display:none}
 :root[data-style="office"]{--bg:#f5f5f5;--card:#fff;--card2:#fafafa;--text:#242424;--muted:#616161;--border:#e0e0e0;--line-2:#f0f0f0;font-size:15px}
 :root[data-style="office"][data-size="small"]{font-size:14px}
 :root[data-style="office"][data-size="large"]{font-size:16.5px}
 :root[data-style="office"][data-contrast="high"]{--text:#000;--muted:#424242;--border:#9e9e9e;--line-2:#d6d6d6}
 :root[data-style="office"]:not([data-accent]){--primary:#0f6cbd;--primary-dk:#115ea3;--primary-soft:#ebf3fc}
-:root[data-style="office"] body{font-family:'Segoe UI','Leelawadee UI',Leelawadee,Tahoma,sans-serif;-webkit-font-smoothing:auto;flex-wrap:wrap;align-content:flex-start}
+:root[data-style="office"] body{font-family:'Segoe UI','Leelawadee UI',Leelawadee,Tahoma,sans-serif;-webkit-font-smoothing:auto}
 :root[data-style="office"] :is(.s-grp,.svc-kicker,.svc-tab .c,.svc-proj-count,.svc-col-head .c,.fu-f-row .cnt,.fu-b-row .cnt,.tk-metrics b,.sidebar-nav .s-tab span[id$="-badge"]){font-family:inherit!important}
 :root[data-style="office"] :is(.svc-jobno,.tk-case,.tk-time,.svc-meta .mono),:root[data-style="office"] [style*="IBM Plex Mono"]{font-family:Consolas,'Segoe UI','Leelawadee UI',monospace!important}
-/* app bar */
-:root[data-style="office"] .ofc-bar{display:flex;align-items:center;gap:.25rem;flex:0 0 100%;height:48px;background:var(--primary);color:#fff;position:sticky;top:0;z-index:150;padding-right:.75rem}
-.ofc-waffle{width:48px;height:48px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.ofc-waffle:hover{background:rgba(0,0,0,.12)}
-.ofc-app{font-size:16px;font-weight:600;white-space:nowrap;padding-right:1rem}
-.ofc-search{flex:0 1 460px;margin:0 auto;height:32px;display:flex;align-items:center;gap:.5rem;background:#fff;border-radius:4px;padding:0 .7rem;color:#616161;cursor:text}
-.ofc-search input{border:none;outline:none;background:none;flex:1;min-width:0;font:inherit;font-size:14px;color:#242424}
-.ofc-search input::placeholder{color:#707070}
-.ofc-user{display:flex;align-items:center;gap:.55rem;white-space:nowrap;font-size:13px;margin-left:auto}
-.ofc-av{width:32px;height:32px;border-radius:50%;background:#fff;color:var(--primary);font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center}
-@media(max-width:760px){.ofc-search{display:none}.ofc-user span:first-child{display:none}}
-/* nav pane */
-:root[data-style="office"] .sidebar{top:48px;height:calc(100vh - 48px);background:#fafafa;border-right-color:#e0e0e0}
-:root[data-style="office"] .main-wrap{min-height:calc(100vh - 48px)}
-:root[data-style="office"] .sidebar-brand{display:none}
-:root[data-style="office"] .sidebar-toggle{position:static;margin:.55rem .6rem .1rem auto;border-radius:4px;background:transparent;border-color:transparent}
-:root[data-style="office"] .sidebar-toggle:hover{background:#f0f0f0;border-color:transparent}
-:root[data-style="office"] .sidebar-nav{padding-top:0}
-:root[data-style="office"] .s-grp{text-transform:none;letter-spacing:0;font-size:12px;font-weight:600;color:#616161}
-:root[data-style="office"] :is(.s-tab,.s-sub){position:relative;border-radius:4px;color:#242424}
-:root[data-style="office"] .s-tab-icon{color:#616161}
-:root[data-style="office"] :is(.s-tab,.s-sub):hover{background:#f0f0f0}
-:root[data-style="office"] :is(.s-tab,.s-sub).active{background:#e6e6e6;font-weight:600}
-:root[data-style="office"] .s-tab.active .s-tab-icon{color:var(--primary)}
-:root[data-style="office"] :is(.s-tab,.s-sub).active::before{content:"";position:absolute;left:0;top:50%;height:18px;margin-top:-9px;width:3px;border-radius:2px;background:var(--primary)}
-:root[data-style="office"] :is(.sidebar-logout,.ui-prefs-btn){border-radius:4px;border-color:#d1d1d1;color:#242424}
+/* nav pane: dark, tinted by the chosen accent (--primary) */
+:root[data-style="office"]{--nav-bg:#292929;--nav-hv:#3d3d3d;--nav-on:#383838;--nav-ln:#474747;--nav-hi:#479ef5}
+@supports (color:color-mix(in srgb,red 50%,blue)){:root[data-style="office"]{--nav-bg:color-mix(in srgb,var(--primary) 24%,#141414);--nav-hv:color-mix(in srgb,var(--primary) 36%,#141414);--nav-on:color-mix(in srgb,var(--primary) 46%,#141414);--nav-ln:color-mix(in srgb,var(--primary) 40%,#2a2a2a);--nav-hi:color-mix(in srgb,var(--primary) 45%,#fff)}}
+:root[data-style="office"] .sidebar{background:var(--nav-bg);border-right-color:var(--nav-bg)}
+:root[data-style="office"] .sidebar-name{color:#fff}
+:root[data-style="office"] .sidebar-sub{color:rgba(255,255,255,.6)}
+:root[data-style="office"] .sidebar-toggle{border-radius:4px;background:transparent;border-color:transparent;color:rgba(255,255,255,.7)}
+:root[data-style="office"] .sidebar-toggle:hover{background:var(--nav-hv);border-color:transparent;color:#fff}
+:root[data-style="office"] .sidebar-nav{scrollbar-color:var(--nav-ln) transparent}
+:root[data-style="office"] .s-grp{text-transform:none;letter-spacing:0;font-size:12px;font-weight:600;color:rgba(255,255,255,.55)}
+:root[data-style="office"] .sidebar.collapsed .s-grp{border-top-color:var(--nav-ln)}
+:root[data-style="office"] :is(.s-tab,.s-sub){position:relative;border-radius:4px;color:rgba(255,255,255,.88)}
+:root[data-style="office"] :is(.s-tab-icon,.s-arrow){color:rgba(255,255,255,.65)}
+:root[data-style="office"] :is(.s-tab,.s-sub):hover{background:var(--nav-hv);color:#fff}
+:root[data-style="office"] .s-tab:hover .s-tab-icon{color:#fff}
+:root[data-style="office"] :is(.s-tab,.s-sub).active{background:var(--nav-on);color:#fff;font-weight:600}
+:root[data-style="office"] .s-tab.active .s-tab-icon{color:var(--nav-hi)}
+:root[data-style="office"] :is(.s-tab,.s-sub).active::before{content:"";position:absolute;left:0;top:50%;height:18px;margin-top:-9px;width:3px;border-radius:2px;background:var(--nav-hi)}
+:root[data-style="office"] .s-sub-menu{border-left-color:var(--nav-ln)}
+:root[data-style="office"] .sidebar-footer{border-top-color:var(--nav-ln)}
+:root[data-style="office"] .sidebar-footer [style*="color:var(--text)"]{color:#fff!important}
+:root[data-style="office"] .sidebar-footer [style*="color:#6f747c"]{color:rgba(255,255,255,.65)!important}
+:root[data-style="office"] :is(.sidebar-logout,.ui-prefs-btn){border-radius:4px;background:var(--nav-hv);border-color:var(--nav-ln);color:rgba(255,255,255,.9)}
+:root[data-style="office"] .ui-prefs-btn:hover{background:var(--nav-on);color:#fff}
+:root[data-style="office"] .sidebar-logout:hover{background:#c50f1f;border-color:#c50f1f;color:#fff}
 /* page header & pivots */
 :root[data-style="office"] .svc-kicker{display:none}
 :root[data-style="office"] .svc-h1{font-size:1.35rem;font-weight:600;letter-spacing:0}
@@ -1007,14 +1005,6 @@ textarea{resize:vertical;min-height:80px}
     <button class="btn btn-primary" style="width:100%;justify-content:center;padding:.65rem" onclick="doLogin()">เข้าสู่ระบบ</button>
   </div>
 </div>
-
-<!-- Office style app bar (only shown with data-style="office") -->
-<header class="ofc-bar">
-  <span class="ofc-waffle" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 18 18" fill="#fff"><circle cx="3" cy="3" r="1.6"/><circle cx="9" cy="3" r="1.6"/><circle cx="15" cy="3" r="1.6"/><circle cx="3" cy="9" r="1.6"/><circle cx="9" cy="9" r="1.6"/><circle cx="15" cy="9" r="1.6"/><circle cx="3" cy="15" r="1.6"/><circle cx="9" cy="15" r="1.6"/><circle cx="15" cy="15" r="1.6"/></svg></span>
-  <span class="ofc-app">CS Team Manager</span>
-  <label class="ofc-search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="ofc-search" placeholder="ค้นหาเมนู แล้วกด Enter" autocomplete="off" onkeydown="ofcSearchKey(event)"/></label>
-  <span class="ofc-user"><span id="ofc-user-name"></span><span class="ofc-av" id="ofc-av">—</span></span>
-</header>
 
 <!-- SIDEBAR -->
 <aside class="sidebar">
@@ -5761,24 +5751,6 @@ if (window.matchMedia) {
   const onOsTheme = () => { if (uiPrefsGet().theme === 'auto' && mq.matches !== (document.documentElement.getAttribute('data-theme') === 'dark')) location.reload(); };
   mq.addEventListener ? mq.addEventListener('change', onOsTheme) : mq.addListener && mq.addListener(onOsTheme);
 }
-// Office app bar: jump to the first menu item whose label matches, and mirror the signed-in user
-function ofcSearchKey(e) {
-  if (e.key !== 'Enter') return;
-  const q = e.target.value.trim().toLowerCase(); if (!q) return;
-  const hit = [...document.querySelectorAll('.sidebar-nav .s-tab, .sidebar-nav .s-sub')]
-    .find(b => b.style.display !== 'none' && !b.closest('[style*="display:none"]') && b.textContent.trim().toLowerCase().includes(q));
-  if (hit) { hit.click(); e.target.value = ''; e.target.blur(); }
-}
-(function ofcUserSync() {
-  const nm = document.getElementById('nav-display-name'), av = document.getElementById('nav-avatar');
-  const sync = () => {
-    const a = document.getElementById('ofc-user-name'), b = document.getElementById('ofc-av');
-    if (a && nm) a.textContent = nm.textContent === '—' ? '' : nm.textContent;
-    if (b && av) b.textContent = av.textContent;
-  };
-  sync();
-  [nm, av].forEach(n => n && new MutationObserver(sync).observe(n, { childList: true, characterData: true, subtree: true }));
-})();
 function uiPrefsToggle(e) {
   if (e) e.stopPropagation();
   const pop = document.getElementById('ui-prefs-pop'), btn = document.getElementById('ui-prefs-btn');
