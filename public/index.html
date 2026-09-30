@@ -10,6 +10,15 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <script src="/chart.umd.min.js"></script>
 <script>if(window.Chart){Chart.defaults.font.family="'IBM Plex Sans Thai','Segoe UI',sans-serif";Chart.defaults.color='#5b616b';}</script>
+<script>
+// Appearance prefs (per browser) — applied before first paint so the page never flashes the default look
+(function(){ try {
+  var p = JSON.parse(localStorage.getItem('cs_ui_prefs') || '{}'), d = document.documentElement;
+  if (p.accent)   d.setAttribute('data-accent', p.accent);
+  if (p.contrast) d.setAttribute('data-contrast', p.contrast);
+  if (p.size)     d.setAttribute('data-size', p.size);
+} catch (e) {} })();
+</script>
 <style>
 :root {
   --cc:#16a34a; --cc-light:#dcfce7; --cc-dark:#14532d;
@@ -17,7 +26,7 @@
   --rp:#ca8a04; --rp-light:#fef9c3; --rp-dark:#713f12;
   --bg:#f6f5f1; --card:#ffffff; --card2:#faf9f6;
   --text:#24272c; --muted:#5b616b; --border:#e6e3dc; --line-2:#efede7;
-  --danger:#ef4444; --warn:#f59e0b; --success:#22c55e; --accent:#35685f;
+  --danger:#ef4444; --warn:#f59e0b; --success:#22c55e; --accent:var(--primary);
   /* calm theme: one sage accent for primary actions and selection */
   --primary:#35685f; --primary-dk:#2a544d; --primary-soft:#e7efec;
 }
@@ -612,6 +621,35 @@ textarea{resize:vertical;min-height:80px}
 .kpi-m{flex:1 1 140px;background:#fff;border:1px solid var(--border);border-radius:14px;padding:.8rem 1rem}
 .kpi-m .l{font-size:.78rem;color:#5b616b}
 .kpi-m .v{font-size:1.45rem;font-weight:600;letter-spacing:-.02em;color:var(--text);margin-top:.15rem;font-variant-numeric:tabular-nums}
+/* ── Appearance prefs (data-* on <html>, set from localStorage) ── */
+:root[data-accent="blue"]      {--primary:#3f6fa8;--primary-dk:#315987;--primary-soft:#e8eef7}
+:root[data-accent="violet"]    {--primary:#5f58a0;--primary-dk:#4b457f;--primary-soft:#eeedf7}
+:root[data-accent="slate"]     {--primary:#4a5563;--primary-dk:#3a434e;--primary-soft:#eceef1}
+:root[data-accent="terracotta"]{--primary:#a65a3a;--primary-dk:#86472d;--primary-soft:#f6ece6}
+:root[data-size="small"]{font-size:15px}
+:root[data-size="large"]{font-size:17.5px}
+:root[data-contrast="high"]{--text:#15171a;--muted:#3a3f46;--border:#cbc6bb;--line-2:#dedad2}
+:root[data-contrast="high"] :is(.svc-sub,.svc-meta,.svc-kicker,.tk-sub,.tk-desc,.svc-tab,.svc-tab .c,th,.stat-flat .label,.stat-flat .sub,.kpi-m .l,.s-grp,.s-tab,.s-sub,.svc-jobno,.uat-pri,.svc-proj-count,.svc-date-cell,.form-group label,.card-title,.tk-metrics,.svc-proj-head span,.sidebar-sub,.sidebar-user-role,.svc-search input::placeholder){color:#33383f!important}
+:root[data-contrast="high"] [style*="color:#8a8f97"],:root[data-contrast="high"] [style*="color:#6f747c"],:root[data-contrast="high"] [style*="color:#b9bcc2"]{color:#4d535b!important}
+:root[data-contrast="high"] [style*="color:#5b616b"],:root[data-contrast="high"] [style*="color:var(--muted)"]{color:#33383f!important}
+:root[data-contrast="high"] :is(.card,.svc-tbl-card,.stat-flat,.kpi-m,.modal,.svc-search,.svc-select,.svc-btn-ghost,.drb-btn){border-color:#bfb9ad}
+:root[data-contrast="high"] td{border-bottom-color:#e2ded6}
+/* settings popover */
+.ui-prefs-btn{background:none;border:1px solid var(--border);color:#5b616b;cursor:pointer;padding:.4rem .7rem;border-radius:8px;font-size:.76rem;width:100%;margin-top:.2rem;transition:.15s;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:.4rem}
+.ui-prefs-btn:hover{background:#f0eee9;color:var(--text)}
+.sidebar.collapsed .ui-prefs-btn{display:none}
+.ui-prefs-pop{position:fixed;z-index:9500;width:280px;background:#fff;border:1px solid var(--border);border-radius:16px;padding:1rem 1.05rem 1.1rem;box-shadow:0 1px 2px rgba(0,0,0,.04),0 24px 64px -16px rgba(36,39,44,.3);display:none}
+.ui-prefs-pop.open{display:block;animation:modalRise .2s cubic-bezier(.2,.8,.2,1)}
+.ui-prefs-pop h4{margin:0 0 .15rem;font-size:.95rem;font-weight:600;color:var(--text)}
+.ui-prefs-pop .hint{font-size:.72rem;color:#6f747c;margin-bottom:.8rem}
+.ui-prefs-pop .grp{font-size:.74rem;color:#5b616b;margin:.75rem 0 .4rem}
+.ui-swatches{display:flex;gap:.45rem}
+.ui-swatch{width:30px;height:30px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px var(--border);cursor:pointer;padding:0}
+.ui-swatch.on{box-shadow:0 0 0 2px var(--text)}
+.ui-seg{display:flex;background:#efede7;border-radius:999px;padding:3px}
+.ui-seg button{flex:1;border:none;background:none;border-radius:999px;padding:.36rem .5rem;font-size:.78rem;color:#5b616b;cursor:pointer;font-family:inherit}
+.ui-seg button.on{background:#fff;color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.06);font-weight:500}
+.ui-prefs-reset{margin-top:.9rem;border:none;background:none;color:#6f747c;font-size:.74rem;cursor:pointer;padding:0;font-family:inherit;text-decoration:underline}
 /* status tabs */
 .svc-tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:1rem;overflow-x:auto;scrollbar-width:none}
 .svc-tab{border:none;background:none;font-family:inherit;font-size:.86rem;color:#5b616b;padding:.55rem .85rem;margin-bottom:-1px;border-bottom:2px solid transparent;cursor:pointer;display:flex;align-items:center;gap:.45rem;white-space:nowrap;transition:color .15s,border-color .15s}
@@ -858,9 +896,39 @@ textarea{resize:vertical;min-height:80px}
         <div id="nav-display-role" style="font-size:.7rem;color:#6f747c">—</div>
       </div>
     </div>
+    <button class="ui-prefs-btn" id="ui-prefs-btn" onclick="uiPrefsToggle(event)" aria-haspopup="true" aria-expanded="false">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 1 0 0 20c.9 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H16a6 6 0 0 0 6-6c0-4.9-4.5-8.6-10-8.6z"/></svg>
+      หน้าตา
+    </button>
     <button class="sidebar-logout" onclick="doLogout()" style="white-space:nowrap">ออกจากระบบ</button>
   </div>
 </aside>
+
+<!-- Appearance prefs popover (per browser) -->
+<div class="ui-prefs-pop" id="ui-prefs-pop" role="dialog" aria-label="ตั้งค่าหน้าตา">
+  <h4>หน้าตา</h4>
+  <div class="hint">บันทึกในเบราว์เซอร์นี้ของคุณเท่านั้น</div>
+  <div class="grp">สีหลัก</div>
+  <div class="ui-swatches" id="ui-accent">
+    <button class="ui-swatch" data-v="" style="background:#35685f" title="เขียวหม่น" aria-label="เขียวหม่น" onclick="uiPrefsSet('accent','')"></button>
+    <button class="ui-swatch" data-v="blue" style="background:#3f6fa8" title="ฟ้า" aria-label="ฟ้า" onclick="uiPrefsSet('accent','blue')"></button>
+    <button class="ui-swatch" data-v="violet" style="background:#5f58a0" title="ม่วง" aria-label="ม่วง" onclick="uiPrefsSet('accent','violet')"></button>
+    <button class="ui-swatch" data-v="slate" style="background:#4a5563" title="เทา" aria-label="เทา" onclick="uiPrefsSet('accent','slate')"></button>
+    <button class="ui-swatch" data-v="terracotta" style="background:#a65a3a" title="ส้มอิฐ" aria-label="ส้มอิฐ" onclick="uiPrefsSet('accent','terracotta')"></button>
+  </div>
+  <div class="grp">คอนทราสต์</div>
+  <div class="ui-seg" id="ui-contrast">
+    <button data-v="" onclick="uiPrefsSet('contrast','')">ปกติ</button>
+    <button data-v="high" onclick="uiPrefsSet('contrast','high')">สูง (ชัดขึ้น)</button>
+  </div>
+  <div class="grp">ขนาดตัวอักษร</div>
+  <div class="ui-seg" id="ui-size">
+    <button data-v="small" onclick="uiPrefsSet('size','small')">เล็ก</button>
+    <button data-v="" onclick="uiPrefsSet('size','')">ปกติ</button>
+    <button data-v="large" onclick="uiPrefsSet('size','large')">ใหญ่</button>
+  </div>
+  <button class="ui-prefs-reset" onclick="uiPrefsReset()">กลับเป็นค่าเริ่มต้น</button>
+</div>
 
 <main class="main-wrap">
 
@@ -1671,7 +1739,7 @@ textarea{resize:vertical;min-height:80px}
 
     <!-- Step indicator -->
     <div style="display:flex;gap:0;margin-bottom:1rem;border-radius:8px;overflow:hidden;border:1px solid var(--border)">
-      <div id="tk-imp-step1-tab" style="flex:1;text-align:center;padding:.35rem;font-size:.76rem;font-weight:700;background:#eef4f1;color:#2a544d;border-right:1px solid var(--border)">① เตรียมไฟล์</div>
+      <div id="tk-imp-step1-tab" style="flex:1;text-align:center;padding:.35rem;font-size:.76rem;font-weight:700;background:#eef4f1;color:var(--primary-dk);border-right:1px solid var(--border)">① เตรียมไฟล์</div>
       <div id="tk-imp-step2-tab" style="flex:1;text-align:center;padding:.35rem;font-size:.76rem;font-weight:600;background:#faf9f6;color:#8a8f97;border-right:1px solid var(--border)">② ตรวจสอบ</div>
       <div id="tk-imp-step3-tab" style="flex:1;text-align:center;padding:.35rem;font-size:.76rem;font-weight:600;background:#faf9f6;color:#8a8f97">③ ผลลัพธ์</div>
     </div>
@@ -1699,7 +1767,7 @@ textarea{resize:vertical;min-height:80px}
       <div id="tk-imp-dropzone"
         style="border:2px dashed #d6d2c9;border-radius:10px;padding:2rem;text-align:center;cursor:pointer;transition:border .2s;background:#fafafa"
         onclick="document.getElementById('tk-imp-file').click()"
-        ondragover="event.preventDefault();this.style.borderColor='#35685f';this.style.background='#eef4f1'"
+        ondragover="event.preventDefault();this.style.borderColor='var(--primary)';this.style.background='#eef4f1'"
         ondragleave="this.style.borderColor='#d6d2c9';this.style.background='#fafafa'"
         ondrop="tkImpDrop(event)">
         <svg style="width:32px;height:32px;color:#8a8f97;margin-bottom:.5rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -1984,7 +2052,7 @@ textarea{resize:vertical;min-height:80px}
     </div>
 
     <!-- Info bar -->
-    <div id="fu-import-info" style="background:#eef4f1;border:1px solid #c9dbd5;border-radius:8px;padding:.6rem .9rem;font-size:.78rem;color:#2a544d;margin-bottom:.75rem;flex-shrink:0">
+    <div id="fu-import-info" style="background:#eef4f1;border:1px solid #c9dbd5;border-radius:8px;padding:.6rem .9rem;font-size:.78rem;color:var(--primary-dk);margin-bottom:.75rem;flex-shrink:0">
       กำลังรอไฟล์…
     </div>
 
@@ -2067,8 +2135,8 @@ textarea{resize:vertical;min-height:80px}
       <input id="fu-add-issue-url" type="url" placeholder="https://dev.azure.com/.../_workitems/edit/13415/"
         style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.83rem;font-family:inherit;outline:none"
         oninput="fuAddIssueUrlPreview(this.value)"/>
-      <div id="fu-add-issue-url-preview" style="display:none;margin-top:.3rem;font-size:.75rem;color:#2a544d">
-        Issue ID: <a id="fu-add-issue-url-link" href="" target="_blank" style="font-weight:700;color:#2a544d"></a>
+      <div id="fu-add-issue-url-preview" style="display:none;margin-top:.3rem;font-size:.75rem;color:var(--primary-dk)">
+        Issue ID: <a id="fu-add-issue-url-link" href="" target="_blank" style="font-weight:700;color:var(--primary-dk)"></a>
       </div>
     </div>
     <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:.75rem">
@@ -2705,7 +2773,7 @@ textarea{resize:vertical;min-height:80px}
         <div style="padding:.85rem .9rem">
           <div id="svc-upload-area"
             onclick="document.getElementById('svc-file-input').click()"
-            ondragover="event.preventDefault();this.style.borderColor='#35685f';this.style.background='#eef4f1'"
+            ondragover="event.preventDefault();this.style.borderColor='var(--primary)';this.style.background='#eef4f1'"
             ondragleave="this.style.borderColor='#d6d2c9';this.style.background='#faf9f6'"
             ondrop="svcHandleDrop(event)"
             style="border:2px dashed #d6d2c9;border-radius:10px;padding:1.4rem 1rem;text-align:center;cursor:pointer;transition:all .2s;background:#faf9f6">
@@ -2725,7 +2793,7 @@ textarea{resize:vertical;min-height:80px}
       <button type="button" class="btn btn-ghost" onclick="closeModal('modal-svc-form')" style="color:#5b616b;font-size:.8rem">ยกเลิก</button>
       <div style="display:flex;gap:.5rem">
         <button type="button" class="btn btn-ghost" onclick="svcSaveDraft()" style="font-size:.8rem;color:#4d535b;border:1.5px solid #e6e3dc">บันทึกร่าง</button>
-        <button type="button" class="btn btn-primary" onclick="svcSubmit()" style="font-size:.8rem;background:#35685f;border:none;padding:.5rem 1.2rem;border-radius:8px;font-weight:700">ส่งคำขอ</button>
+        <button type="button" class="btn btn-primary" onclick="svcSubmit()" style="font-size:.8rem;background:var(--primary);border:none;padding:.5rem 1.2rem;border-radius:8px;font-weight:700">ส่งคำขอ</button>
       </div>
     </div>
   </div>
@@ -4313,7 +4381,7 @@ textarea{resize:vertical;min-height:80px}
 <div id="news-announce-popup" style="display:none;position:fixed;bottom:0;left:50%;transform:translateX(-50%) translateY(100%);width:min(520px,96vw);background:#fff;border-radius:16px 16px 0 0;box-shadow:0 -8px 40px #0003;z-index:501;transition:transform .4s cubic-bezier(.22,1,.36,1);padding:1.25rem 1.4rem 1.5rem;max-height:75vh;overflow-y:auto">
   <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:.85rem">
     <div style="display:flex;align-items:center;gap:.55rem">
-      <span id="news-announce-cat-badge" style="font-size:.72rem;font-weight:700;padding:.2rem .6rem;border-radius:20px;background:#eaf0f7;color:#2a544d">ข่าวสาร</span>
+      <span id="news-announce-cat-badge" style="font-size:.72rem;font-weight:700;padding:.2rem .6rem;border-radius:20px;background:#eaf0f7;color:var(--primary-dk)">ข่าวสาร</span>
       <span style="font-size:.7rem;color:#8a8f97" id="news-announce-date"></span>
     </div>
     <button onclick="newsAnnounceAck()" style="background:none;border:none;font-size:1.3rem;color:#8a8f97;cursor:pointer;line-height:1;padding:0">×</button>
@@ -4321,7 +4389,7 @@ textarea{resize:vertical;min-height:80px}
   <div style="font-size:1rem;font-weight:700;color:#24272c;margin-bottom:.55rem" id="news-announce-title"></div>
   <div style="font-size:.84rem;color:#4d535b;line-height:1.6;margin-bottom:1rem;white-space:pre-wrap" id="news-announce-body"></div>
   <div style="display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap">
-    <button onclick="newsAnnounceRead()" style="background:none;border:none;color:#35685f;cursor:pointer;font-size:.83rem;font-weight:600;padding:0;text-decoration:underline">อ่านรายละเอียด →</button>
+    <button onclick="newsAnnounceRead()" style="background:none;border:none;color:var(--primary);cursor:pointer;font-size:.83rem;font-weight:600;padding:0;text-decoration:underline">อ่านรายละเอียด →</button>
     <button onclick="newsAnnounceAck()" class="btn btn-primary" style="min-width:120px">รับทราบ</button>
   </div>
 </div>
@@ -4378,7 +4446,7 @@ textarea{resize:vertical;min-height:80px}
         <input id="rl-search" type="text" placeholder="ค้นหาชื่อกลุ่ม / GroupCode..." oninput="rlSearchDebounce()" autocomplete="off" style="width:100%"/>
         <div id="rl-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 12px #0002;z-index:999;max-height:220px;overflow-y:auto"></div>
       </div>
-      <div id="rl-selected-box" style="display:none;background:#e7efec;border-radius:6px;padding:.45rem .75rem;margin-bottom:.5rem;font-size:.82rem;align-items:center;justify-content:space-between">
+      <div id="rl-selected-box" style="display:none;background:var(--primary-soft);border-radius:6px;padding:.45rem .75rem;margin-bottom:.5rem;font-size:.82rem;align-items:center;justify-content:space-between">
         <span id="rl-selected-label" style="font-weight:600"></span>
         <button onclick="rlClearSelected()" style="background:none;border:none;cursor:pointer;color:#5b616b;font-size:1.1rem;padding:0;line-height:1">×</button>
       </div>
@@ -4518,7 +4586,7 @@ textarea{resize:vertical;min-height:80px}
       <div id="fu-lg-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e6e3dc;border-radius:7px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:999;max-height:200px;overflow-y:auto"></div>
     </div>
     <div id="fu-lg-selected-box" style="display:none;background:#eef4f1;border:1px solid #c9dbd5;border-radius:7px;padding:.45rem .75rem;margin-bottom:.6rem;align-items:center;gap:.5rem">
-      <span id="fu-lg-selected-label" style="flex:1;font-size:.83rem;font-weight:600;color:#2a544d"></span>
+      <span id="fu-lg-selected-label" style="flex:1;font-size:.83rem;font-weight:600;color:var(--primary-dk)"></span>
       <button onclick="_fuLinkGroupSelected=null;document.getElementById('fu-lg-selected-box').style.display='none';document.getElementById('fu-lg-unlink-btn').style.display='none'"
         style="background:none;border:none;cursor:pointer;color:#5b616b;font-size:1rem;line-height:1">×</button>
     </div>
@@ -5387,6 +5455,53 @@ async function api(path, opts = {}) {
   return data;
 }
 
+// ── Appearance prefs (accent / contrast / size) — per browser, localStorage ──
+const UI_PREF_KEYS = ['accent', 'contrast', 'size'];
+function uiPrefsGet() {
+  try { return JSON.parse(localStorage.getItem('cs_ui_prefs') || '{}') || {}; } catch (e) { return {}; }
+}
+function uiPrefsApply(p) {
+  const d = document.documentElement;
+  UI_PREF_KEYS.forEach(k => { if (p[k]) d.setAttribute('data-' + k, p[k]); else d.removeAttribute('data-' + k); });
+  [['ui-accent','accent'], ['ui-contrast','contrast'], ['ui-size','size']].forEach(([id, k]) => {
+    document.querySelectorAll('#' + id + ' [data-v]').forEach(b => b.classList.toggle('on', (b.dataset.v || '') === (p[k] || '')));
+  });
+}
+function uiPrefsSet(key, val) {
+  const p = uiPrefsGet();
+  if (val) p[key] = val; else delete p[key];
+  try { localStorage.setItem('cs_ui_prefs', JSON.stringify(p)); } catch (e) {}
+  uiPrefsApply(p);
+}
+function uiPrefsReset() {
+  try { localStorage.removeItem('cs_ui_prefs'); } catch (e) {}
+  uiPrefsApply({});
+}
+function uiPrefsToggle(e) {
+  if (e) e.stopPropagation();
+  const pop = document.getElementById('ui-prefs-pop'), btn = document.getElementById('ui-prefs-btn');
+  if (!pop || !btn) return;
+  const open = !pop.classList.contains('open');
+  if (open) {
+    uiPrefsApply(uiPrefsGet());
+    const r = btn.getBoundingClientRect();
+    pop.style.left = Math.min(r.right + 10, window.innerWidth - 296) + 'px';
+    pop.style.top  = '0px';
+    pop.classList.add('open');
+    const h = pop.offsetHeight;
+    pop.style.top = Math.max(12, Math.min(r.bottom - h, window.innerHeight - h - 12)) + 'px';
+  } else pop.classList.remove('open');
+  btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+document.addEventListener('click', e => {
+  const pop = document.getElementById('ui-prefs-pop');
+  if (pop && pop.classList.contains('open') && !pop.contains(e.target) && e.target.id !== 'ui-prefs-btn') {
+    pop.classList.remove('open');
+    document.getElementById('ui-prefs-btn')?.setAttribute('aria-expanded', 'false');
+  }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') document.getElementById('ui-prefs-pop')?.classList.remove('open'); });
+
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
@@ -6179,7 +6294,7 @@ function renderLbTop() {
     <div class="kpi-cat-bar">
       <span style="width:22px;text-align:right;font-size:.72rem;color:#8a8f97;flex-shrink:0">${start + i + 1}</span>
       <span style="width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.78rem" title="${esc(g.name)}">${esc(g.name)}</span>
-      <div class="kpi-cat-bar-track"><div class="kpi-cat-bar-fill" style="width:${maxTop ? g.total / maxTop * 100 : 0}%;background:#35685f"></div></div>
+      <div class="kpi-cat-bar-track"><div class="kpi-cat-bar-fill" style="width:${maxTop ? g.total / maxTop * 100 : 0}%;background:var(--primary)"></div></div>
       <span style="width:44px;text-align:right;font-size:.78rem;color:var(--muted)">${g.total.toLocaleString()}</span>
     </div>`).join('') || '<div style="font-size:.8rem;color:#8a8f97;padding:.4rem">ไม่มีข้อมูล</div>';
   const info = document.getElementById('lb-top-pageinfo');
@@ -6363,7 +6478,7 @@ function lgpPodBadgeHtml(g, canManage) {
   const gid = JSON.stringify(g.id).replace(/"/g,'&quot;');
   const gname = JSON.stringify(g.name).replace(/"/g,'&quot;');
   return podName
-    ? `<span class="badge" style="background:#35685f;color:#fff;cursor:pointer" onclick="lgpEditPod(this, ${gid}, ${gname})">${esc(podName)}</span>`
+    ? `<span class="badge" style="background:var(--primary);color:#fff;cursor:pointer" onclick="lgpEditPod(this, ${gid}, ${gname})">${esc(podName)}</span>`
     : `<span class="badge" style="background:#e6e3dc;color:#5b616b;cursor:pointer" onclick="lgpEditPod(this, ${gid}, ${gname})">— assign —</span>`;
 }
 // Expand a clicked pod pill into a live <select>; collapses back on change or blur
@@ -7219,7 +7334,7 @@ function renderCapacity() {
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:.5rem">
         <span style="width:90px;font-size:.76rem;color:var(--muted)">เป้า</span>
         <div style="flex:1;background:#f0eee9;border-radius:5px;height:22px"><div style="width:${Math.min(100, Math.round(target/Math.max(target,loadPerDay)*100))}%;height:100%;background:rgba(37,99,235,.25);border-radius:5px"></div></div>
-        <span style="width:54px;text-align:right;font-weight:600;color:#35685f">${target.toFixed(1)}</span>
+        <span style="width:54px;text-align:right;font-weight:600;color:var(--primary)">${target.toFixed(1)}</span>
       </div>
       <div style="display:flex;align-items:center;gap:10px">
         <span style="width:90px;font-size:.76rem;color:var(--muted)">จริง (avg)</span>
@@ -9940,7 +10055,7 @@ function kpiScoreGrade(score) {
 function kpiScoreGradeStyle(g) {
   const map = {
     A: 'background:#ecfdf5;color:#059669;border:1.5px solid #a7f3d0',
-    B: 'background:#f2f6fa;color:#35685f;border:1.5px solid #cddaea',
+    B: 'background:#f2f6fa;color:var(--primary);border:1.5px solid #cddaea',
     C: 'background:#fbf8f0;color:#a2702a;border:1.5px solid #e6d6a8',
     D: 'background:#faf1ef;color:#b04a40;border:1.5px solid #e8c9c3',
   };
@@ -9983,7 +10098,7 @@ function renderKpiScoreTable(data) {
     </div>`,
     `<div style="background:#fff;border:1px solid var(--border);border-radius:9px;padding:.4rem .85rem;display:flex;align-items:center;gap:.4rem;box-shadow:0 1px 3px #0001">
       <span style="font-size:.7rem;color:var(--muted)">เฉลี่ย</span>
-      <span style="font-size:1.05rem;font-weight:800;color:#35685f">${avg.toFixed(1)}</span>
+      <span style="font-size:1.05rem;font-weight:800;color:var(--primary)">${avg.toFixed(1)}</span>
     </div>`,
     `<div style="background:#fff;border:1px solid var(--border);border-radius:9px;padding:.4rem .85rem;display:flex;align-items:center;gap:.4rem;box-shadow:0 1px 3px #0001">
       <span style="font-size:.7rem;color:var(--muted)">สูงสุด</span>
@@ -13573,7 +13688,7 @@ function renderSpecialistTable(list) {
             <span style="font-size:.88rem;font-weight:700;color:#24272c">${escHtml(s.company_name||'—')}</span>
             ${s.problem_type?`<span style="background:#f1f6f2;color:#356b4e;border:1px solid #cfe0d5;border-radius:4px;font-size:.72rem;padding:.03rem .42rem">${escHtml(s.problem_type)}</span>`:''}
             <span style="font-size:.73rem;color:var(--muted)">${escHtml(s.agent_name||'—')}</span>
-            ${s.accepted_by_name?`<span style="font-size:.73rem;color:#35685f;font-weight:600">${escHtml(s.accepted_by_name)}</span>`:''}
+            ${s.accepted_by_name?`<span style="font-size:.73rem;color:var(--primary);font-weight:600">${escHtml(s.accepted_by_name)}</span>`:''}
             ${s.calllog_id?`<button onclick="event.stopPropagation();viewRefCase(${s.calllog_id})"
               class="svc-btn-ghost" style="margin-left:auto;height:30px;padding:0 .8rem;font-size:.76rem"><i class=i-link></i> ดูเคส #${s.calllog_id}</button>`:''}
           </div>
@@ -14207,7 +14322,7 @@ async function openSpecialistDetail(id) {
         ${[['ร้านค้า',s.company_name],['หัวข้อ',s.subject],['ประเภท',s.problem_type],
            ['ทีม',s.assigned_to_team],['Priority',SP_PRIORITY[s.priority]||s.priority],
            ['มอบหมายโดย',s.agent_name],['วันที่มอบหมาย',fmtDate(s.assigned_at)],
-           ['ผู้รับงาน', s.accepted_by_name ? `<b style="color:#35685f">${escHtml(s.accepted_by_name)}</b>` : '<span style="color:#8a8f97">ยังไม่มีผู้รับ</span>'],
+           ['ผู้รับงาน', s.accepted_by_name ? `<b style="color:var(--primary)">${escHtml(s.accepted_by_name)}</b>` : '<span style="color:#8a8f97">ยังไม่มีผู้รับ</span>'],
            ['เวลารับงาน', s.accepted_at ? fmtDate(s.accepted_at) : '—'],
           ].map(([k,v])=>`<div style="display:flex;gap:.5rem;padding:.2rem 0;font-size:.8rem;border-bottom:1px solid #f0eee9">
             <span style="color:var(--muted);min-width:95px">${k}</span>
@@ -14229,8 +14344,8 @@ async function openSpecialistDetail(id) {
 
     <!-- Ref CalllogId — click to view in tickets page -->
     ${s.calllog_id ? `<div style="background:#f2f6fa;border:1px solid #cddaea;border-radius:8px;padding:.5rem .85rem;margin-bottom:.65rem;display:flex;align-items:center;gap:.6rem">
-      <span style="font-size:.78rem;color:#2a544d;font-weight:600">อ้างอิง Case:</span>
-      <button onclick="viewRefCase(${s.calllog_id})" style="background:#35685f;color:#fff;border:none;border-radius:6px;padding:.22rem .65rem;font-size:.78rem;font-weight:600;cursor:pointer">
+      <span style="font-size:.78rem;color:var(--primary-dk);font-weight:600">อ้างอิง Case:</span>
+      <button onclick="viewRefCase(${s.calllog_id})" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:.22rem .65rem;font-size:.78rem;font-weight:600;cursor:pointer">
         #${s.calllog_id} — ดูรายละเอียด
       </button>
     </div>` : ''}
@@ -18920,7 +19035,7 @@ function renderShopInfo(data) {
     const branchesHtml = branchMap.size
       ? [...branchMap.entries()].map(([, terminals]) => renderSiBranchCard(terminals, bnJs)).join('')
       : `<div style="padding:.65rem 1rem 1rem;color:var(--muted);font-size:.82rem">
-           ยังไม่มีรายการ — กด <b style="color:#35685f">+ สร้างรายการ</b> ในหัวโฟลเดอร์เพื่อเพิ่ม
+           ยังไม่มีรายการ — กด <b style="color:var(--primary)">+ สร้างรายการ</b> ในหัวโฟลเดอร์เพื่อเพิ่ม
          </div>`;
 
     return `
@@ -18935,7 +19050,7 @@ function renderShopInfo(data) {
           title="ลบโฟลเดอร์"
           style="background:transparent;border:none;cursor:pointer;font-size:.8rem;padding:.15rem .35rem;border-radius:4px;color:#c0584c;line-height:1"><i class=i-trash></i></button>
         <button onclick="event.stopPropagation();openSiEntryModal(null,'${bnJs}')"
-          style="background:#f2f6fa;color:#35685f;border:1px solid #cddaea;border-radius:6px;padding:.18rem .6rem;font-size:.75rem;cursor:pointer;font-weight:600;white-space:nowrap">+ สร้างรายการ</button>
+          style="background:#f2f6fa;color:var(--primary);border:1px solid #cddaea;border-radius:6px;padding:.18rem .6rem;font-size:.75rem;cursor:pointer;font-weight:600;white-space:nowrap">+ สร้างรายการ</button>
         <span id="${brandKey}-arrow" style="color:var(--muted);font-size:.78rem;margin-left:.15rem">${isOpen?'▼':'▶'}</span>
       </div>
       <div id="${brandKey}" class="si-brand-body" style="${isOpen?'':'display:none'}">
@@ -19089,7 +19204,7 @@ function siStartRename(brandName, brandKey) {
   const input = document.createElement('input');
   input.value = brandName;
   input.id = brandKey + '-name';
-  input.style.cssText = 'flex:1;border:1.5px solid #35685f;border-radius:6px;padding:.15rem .5rem;font-size:.88rem;font-weight:700;outline:none;background:#f2f6fa;min-width:0;width:100%';
+  input.style.cssText = 'flex:1;border:1.5px solid var(--primary);border-radius:6px;padding:.15rem .5rem;font-size:.88rem;font-weight:700;outline:none;background:#f2f6fa;min-width:0;width:100%';
   input.onclick = e => e.stopPropagation();
 
   let saved = false;
@@ -19568,7 +19683,7 @@ function filterIssueTable() {
         return `<tr style="border-bottom:1px solid #f0eee9;${i%2?'background:#fafafa':''}">
           <td style="padding:.4rem .75rem;color:${rankColor};font-weight:700;font-size:.78rem">${i+1}</td>
           <td style="padding:.4rem .75rem;font-weight:${i<3?'700':'400'}">${escHtml(s.subject||'-')}${catBadge}</td>
-          <td style="padding:.4rem .75rem;text-align:right;font-weight:700;color:#35685f">${s.cnt.toLocaleString()}</td>
+          <td style="padding:.4rem .75rem;text-align:right;font-weight:700;color:var(--primary)">${s.cnt.toLocaleString()}</td>
           <td style="padding:.4rem .75rem;text-align:right;color:var(--muted)">${pct}%</td>
           <td style="padding:.4rem .75rem">
             <div style="background:#e6e3dc;border-radius:4px;height:7px;overflow:hidden">
@@ -19720,7 +19835,7 @@ function skRender(data) {
     wrap.innerHTML = `<div style="text-align:center;padding:3rem 1rem;color:#8a8f97">
       <div style="font-size:2rem;margin-bottom:.5rem"><i class=i-book></i></div>
       <div style="margin-bottom:.75rem">ยังไม่มีบทความ</div>
-      <button onclick="skOpenModal(null)" style="background:#2a544d;color:#fff;border:none;border-radius:7px;padding:.45rem 1.1rem;font-size:.82rem;font-weight:700;cursor:pointer">+ เพิ่มบทความแรก</button>
+      <button onclick="skOpenModal(null)" style="background:var(--primary-dk);color:#fff;border:none;border-radius:7px;padding:.45rem 1.1rem;font-size:.82rem;font-weight:700;cursor:pointer">+ เพิ่มบทความแรก</button>
     </div>`;
     return;
   }
@@ -19742,7 +19857,7 @@ function skRender(data) {
         <span style="font-weight:700;font-size:.9rem;flex:1">${escHtml(brand)}</span>
         <span style="font-size:.72rem;color:#8a8f97">${articles.length} บทความ</span>
         <button onclick="event.stopPropagation();skOpenModal(null,'${brandJs}')"
-          style="background:#f2f6fa;color:#35685f;border:1px solid #cddaea;border-radius:6px;padding:.15rem .55rem;font-size:.73rem;font-weight:700;cursor:pointer;white-space:nowrap">+ เพิ่ม</button>
+          style="background:#f2f6fa;color:var(--primary);border:1px solid #cddaea;border-radius:6px;padding:.15rem .55rem;font-size:.73rem;font-weight:700;cursor:pointer;white-space:nowrap">+ เพิ่ม</button>
         <span id="${key}-arrow" style="color:#8a8f97;font-size:.75rem">${isOpen?'▼':'▶'}</span>
       </div>
       <div id="${key}" style="${isOpen?'':'display:none'}">
@@ -19790,7 +19905,7 @@ function skArticleCard(a) {
         ${updatedAt ? `<span style="font-size:.65rem;color:#d6d2c9;white-space:nowrap">${updater ? escHtml(updater)+' · ' : ''}${updatedAt}</span>` : ''}
         <button onclick="event.stopPropagation();skOpenModal(${a.id})" title="แก้ไข"
           style="background:none;border:none;cursor:pointer;font-size:.78rem;color:#8a8f97;padding:.1rem .25rem;border-radius:4px"
-          onmouseover="this.style.color='#35685f'" onmouseout="this.style.color='#8a8f97'"><i class=i-pencil></i></button>
+          onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='#8a8f97'"><i class=i-pencil></i></button>
         <button onclick="event.stopPropagation();skDelete(${a.id})" title="ลบ"
           style="background:none;border:none;cursor:pointer;font-size:.78rem;color:#8a8f97;padding:.1rem .25rem;border-radius:4px"
           onmouseover="this.style.color='#c0584c'" onmouseout="this.style.color='#8a8f97'"><i class=i-trash></i></button>
@@ -19805,7 +19920,7 @@ function skArticleCard(a) {
       <!-- toolbar: upload + link -->
       <div style="margin-top:.5rem;display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
         <div onclick="skPickImage(${a.id})"
-             ondragover="event.preventDefault();this.style.borderColor='#35685f'"
+             ondragover="event.preventDefault();this.style.borderColor='var(--primary)'"
              ondragleave="this.style.borderColor='#e6e3dc'"
              ondrop="skDropImages(event,${a.id});this.style.borderColor='#e6e3dc'"
              style="flex:1;border:1.5px dashed #e6e3dc;border-radius:7px;padding:.38rem .7rem;display:flex;align-items:center;gap:.4rem;cursor:pointer;font-size:.74rem;color:#8a8f97;transition:border-color .15s;min-width:160px"
@@ -19814,7 +19929,7 @@ function skArticleCard(a) {
         </div>
         <button onclick="skAddLinkInline(${a.id})"
           style="border:1.5px dashed #e6e3dc;border-radius:7px;padding:.38rem .75rem;background:none;cursor:pointer;font-size:.74rem;color:#8a8f97;white-space:nowrap;transition:border-color .15s"
-          onmouseenter="this.style.borderColor='#8a8f97';this.style.color='#35685f'" onmouseleave="this.style.borderColor='#e6e3dc';this.style.color='#8a8f97'">
+          onmouseenter="this.style.borderColor='#8a8f97';this.style.color='var(--primary)'" onmouseleave="this.style.borderColor='#e6e3dc';this.style.color='#8a8f97'">
           เพิ่มลิงค์
         </button>
       </div>
@@ -20215,7 +20330,7 @@ function trRender(rows) {
   rows.forEach(r => { counts[r.trainer_ext] = (counts[r.trainer_ext]||0) + 1; });
   document.getElementById('tr-summary').innerHTML = Object.entries(counts)
     .sort((a,b) => b[1]-a[1])
-    .map(([u,c]) => `<span style="background:#eaf0f7;color:#2a544d;border-radius:20px;padding:.2rem .7rem;font-size:.75rem;font-weight:700">${escHtml(u)} · ${c} ครั้ง</span>`).join('');
+    .map(([u,c]) => `<span style="background:#eaf0f7;color:var(--primary-dk);border-radius:20px;padding:.2rem .7rem;font-size:.75rem;font-weight:700">${escHtml(u)} · ${c} ครั้ง</span>`).join('');
 
   const list = document.getElementById('tr-list');
   if (!rows.length) { list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem">ยังไม่มีบันทึก</div>'; return; }
@@ -20226,7 +20341,7 @@ function trRender(rows) {
         <div style="font-weight:700;color:#24272c;font-size:.88rem">${escHtml(r.topic)}</div>
         <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.2rem;font-size:.74rem;color:#5b616b">
           <span>${r.trained_date?.slice(0,10)||''}</span>
-          <span style="color:#35685f;font-weight:600">${escHtml(r.trainer_ext)}</span>
+          <span style="color:var(--primary);font-weight:600">${escHtml(r.trainer_ext)}</span>
           ${r.trainees ? `<span>${escHtml(r.trainees)}</span>` : ''}
           ${r.notes    ? `<span>${escHtml(r.notes)}</span>`    : ''}
         </div>
@@ -20234,7 +20349,7 @@ function trRender(rows) {
       </div>
       <div style="display:flex;gap:.35rem;flex-shrink:0">
         <button onclick="trOpenEdit(${r.id})"
-          style="font-size:.72rem;padding:2px 8px;border-radius:6px;border:1px solid #cddaea;background:#f2f6fa;color:#35685f;cursor:pointer"><i class=i-pencil></i></button>
+          style="font-size:.72rem;padding:2px 8px;border-radius:6px;border:1px solid #cddaea;background:#f2f6fa;color:var(--primary);cursor:pointer"><i class=i-pencil></i></button>
         <button onclick="trDelete(${r.id})"
           style="font-size:.72rem;padding:2px 8px;border-radius:6px;border:1px solid #e8c9c3;background:#fff5f5;color:#b04a40;cursor:pointer"><i class=i-trash></i></button>
       </div>
@@ -22690,10 +22805,10 @@ function newsRender() {
             onmouseover="this.style.background='#eaf0f7';this.style.borderColor='#2a544d'" onmouseout="this.style.background='#f2f6fa';this.style.borderColor='#cddaea'">
             <span style="font-size:1rem;flex-shrink:0"><i class=i-link></i></span>
             <span style="display:flex;flex-direction:column;min-width:0;gap:.05rem">
-              <span style="font-size:.76rem;font-weight:700;color:#2a544d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px">${escHtml(l.label||l.url)}</span>
+              <span style="font-size:.76rem;font-weight:700;color:var(--primary-dk);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px">${escHtml(l.label||l.url)}</span>
               ${l.label&&l.label!==l.url ? `<span style="font-size:.64rem;color:#8a8f97;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px">${escHtml(l.url)}</span>` : ''}
             </span>
-            <span style="font-size:.65rem;color:#2a544d;opacity:.6;flex-shrink:0">↗</span>
+            <span style="font-size:.65rem;color:var(--primary-dk);opacity:.6;flex-shrink:0">↗</span>
           </a>`).join('')}
         </div>` : '';
 
@@ -22714,7 +22829,7 @@ function newsRender() {
   </div>
   <div style="margin-top:.5rem;font-size:.83rem;color:#3a3f46;line-height:1.6">
     ${hasMore
-      ? `<span id="news-prev-${n.id}">${preview}</span><button style="background:none;border:none;color:#35685f;cursor:pointer;font-size:.78rem;padding:0 0 0 .25rem;font-family:inherit" onclick="newsExpand(${n.id},this)">อ่านต่อ</button><div id="news-full-${n.id}" style="display:none">${fullHtml}</div>`
+      ? `<span id="news-prev-${n.id}">${preview}</span><button style="background:none;border:none;color:var(--primary);cursor:pointer;font-size:.78rem;padding:0 0 0 .25rem;font-family:inherit" onclick="newsExpand(${n.id},this)">อ่านต่อ</button><div id="news-full-${n.id}" style="display:none">${fullHtml}</div>`
       : fullHtml}
   </div>
   ${attHtml}${linksHtml}
@@ -23356,7 +23471,7 @@ async function generateFromPattern() {
         <label style="margin:0">เนื้อหา / รายละเอียด</label>
         <div style="display:flex;gap:.35rem">
           <button type="button" onclick="skModalInsertLink()"
-            style="font-size:.72rem;background:#eef4f1;color:#35685f;border:1px solid #c9dbd5;border-radius:5px;padding:.15rem .55rem;cursor:pointer">แนบลิงค์</button>
+            style="font-size:.72rem;background:#eef4f1;color:var(--primary);border:1px solid #c9dbd5;border-radius:5px;padding:.15rem .55rem;cursor:pointer">แนบลิงค์</button>
           <span style="font-size:.68rem;color:#8a8f97;align-self:center">หรือ Ctrl+V วางรูปได้เลย</span>
         </div>
       </div>
@@ -23389,7 +23504,7 @@ async function generateFromPattern() {
       <button class="modal-close" onclick="closeModal('modal-uat-form')">×</button>
     </div>
     <input type="hidden" id="uat-edit-id"/>
-    <div style="font-size:.73rem;color:#2a544d;background:#f4f8f6;border:1px solid #c9dbd5;border-radius:8px;padding:.45rem .6rem;margin-bottom:.7rem;line-height:1.5">
+    <div style="font-size:.73rem;color:var(--primary-dk);background:#f4f8f6;border:1px solid #c9dbd5;border-radius:8px;padding:.45rem .6rem;margin-bottom:.7rem;line-height:1.5">
       กรอกแค่หน้านี้พอครับ — พอบันทึกแล้วจะได้ปุ่ม <strong>เอกสาร draft</strong> ไปกรอกรายละเอียดทั้งหมด<br>
       (วัตถุประสงค์ · ขอบเขต · FTP · Remote · ขั้นตอนทดสอบ · เกณฑ์ผ่าน) แล้วอัพโหลดกลับเข้าระบบ
     </div>
@@ -23504,7 +23619,7 @@ async function generateFromPattern() {
         style="width:100%;border:1px solid #e8c9c3;background:#f7ebe8;border-radius:7px;padding:.35rem .6rem;font-size:.82rem;resize:vertical;font-family:inherit"></textarea>
     </div>
     <div style="margin-bottom:.55rem">
-      <label style="font-size:.75rem;font-weight:700;color:#2a544d;display:block;margin-bottom:.2rem">
+      <label style="font-size:.75rem;font-weight:700;color:var(--primary-dk);display:block;margin-bottom:.2rem">
         แนวทางการแก้ไข
         <span style="font-weight:400;color:#8a8f97;font-size:.7rem">(ฝั่ง Developer — กรอกทีหลังได้)</span>
       </label>
@@ -23668,7 +23783,7 @@ async function generateFromPattern() {
 
     <!-- ผู้ดำเนินการ (แสดงเมื่อสถานะ = done) -->
     <div id="swu-assignees-section" style="display:none;margin-bottom:.75rem;border:1px solid #c9dbd5;border-radius:9px;padding:.65rem .75rem;background:#eef4f1">
-      <label style="font-size:.75rem;font-weight:700;color:#2a544d;display:block;margin-bottom:.45rem">ผู้ดำเนินการ (นับ KPI SW Update)</label>
+      <label style="font-size:.75rem;font-weight:700;color:var(--primary-dk);display:block;margin-bottom:.45rem">ผู้ดำเนินการ (นับ KPI SW Update)</label>
       <div id="swu-assignees-list" style="display:flex;flex-wrap:wrap;gap:.35rem .75rem;max-height:160px;overflow-y:auto"></div>
     </div>
 
