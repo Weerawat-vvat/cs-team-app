@@ -11392,12 +11392,22 @@ app.get('/api/service-requests', authRequired, async (request, res) => {
     const rows = (await req().query(`
       SELECT sr.*,
              ISNULL(ec.nickname, ec.name) AS created_by_name,
-             ISNULL(ea.nickname, ea.name) AS assigned_to_name
+             ISNULL(ea.nickname, ea.name) AS assigned_to_name,
+             dl.delivered_by_name, dl.delivered_at
       FROM service_requests sr
       LEFT JOIN app_users  uc ON uc.id = sr.created_by
       LEFT JOIN employees  ec ON ec.id = uc.employee_id
       LEFT JOIN app_users  ua ON ua.id = sr.assigned_to
       LEFT JOIN employees  ea ON ea.id = ua.employee_id
+      -- ผู้ส่งมอบ = คนที่แนบหลักฐาน "ส่งมอบ" ล่าสุด
+      OUTER APPLY (
+        SELECT TOP 1 COALESCE(ed.nickname, ed.name, ud.username) AS delivered_by_name, sa.uploaded_at AS delivered_at
+        FROM service_attachments sa
+        LEFT JOIN app_users ud ON ud.id = sa.uploaded_by
+        LEFT JOIN employees ed ON ed.id = ud.employee_id
+        WHERE sa.service_request_id = sr.id AND sa.stage = 'delivered'
+        ORDER BY sa.uploaded_at DESC
+      ) dl
       ${where}
       ORDER BY sr.created_at DESC`)).recordset;
     res.json(rows);
@@ -11529,8 +11539,12 @@ app.get('/api/service-requests/:id/attachments', authRequired, async (request, r
   try {
     const rows = (await req()
       .input('sid', sql.Int, parseInt(request.params.id))
-      .query(`SELECT id, file_name, file_path, file_size, mime_type, stage, uploaded_at
-              FROM service_attachments WHERE service_request_id=@sid ORDER BY uploaded_at`))
+      .query(`SELECT a.id, a.file_name, a.file_path, a.file_size, a.mime_type, a.stage, a.uploaded_at,
+                     COALESCE(e.nickname, e.name, u.username) AS uploaded_by_name
+              FROM service_attachments a
+              LEFT JOIN app_users u ON u.id = a.uploaded_by
+              LEFT JOIN employees e ON e.id = u.employee_id
+              WHERE a.service_request_id=@sid ORDER BY a.uploaded_at`))
       .recordset;
     res.json(rows);
   } catch(e) { res.status(500).json({ error: e.message }); }

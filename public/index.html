@@ -761,6 +761,10 @@ textarea{resize:vertical;min-height:80px}
 .svc-owner .nm{font-size:.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .svc-st{appearance:none;-webkit-appearance:none;font-family:inherit;font-size:.76rem;font-weight:500;border-radius:999px;padding:.28rem 1.6rem .28rem .75rem;border:1px solid transparent;cursor:pointer;outline:none;max-width:100%;background-repeat:no-repeat;background-position:right .55rem center;background-size:10px}
 .svc-st:focus{box-shadow:0 0 0 3px var(--primary-soft)}
+:root[data-theme="dark"] :is(.svc-st,#svc-det-status,.uat-st){background-color:color-mix(in srgb,currentColor 17%,var(--card))!important;border:1px solid color-mix(in srgb,currentColor 42%,transparent)!important}
+.svc-deliv{display:flex;flex-direction:column;min-width:0;line-height:1.3}
+.svc-deliv .nm{font-size:.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.svc-deliv .dt{font-size:.7rem;color:#6f747c;white-space:nowrap}
 .svc-date-cell{font-size:.78rem;color:#5b616b;white-space:nowrap}
 .svc-open{width:30px;height:30px;border:none;background:none;border-radius:8px;color:#8a8f97;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .svc-open:hover{background:#f0eee9;color:var(--text)}
@@ -866,7 +870,7 @@ textarea{resize:vertical;min-height:80px}
     if (c && c[3] > 0) {
       var hsl = toHsl(c[0], c[1], c[2]), h = hsl[0], s = hsl[1], l = hsl[2];
       // warm off-whites / greys read as muddy brown once darkened — treat every near-white as neutral
-      var neutral = s < .12 || (l > .82 && s < .35);
+      var neutral = s < .12 || (l > .82 && s < .35 && h > .055 && h < .18);
       if (role === 'bg') {
         if (l >= .72) { l = .115 + (1 - l) * .9; s = neutral ? .09 : s * .5; if (neutral) h = .6; res = out(toRgb(h, s, l), c[3]); }
       } else if (role === 'fg') {
@@ -2863,7 +2867,7 @@ textarea{resize:vertical;min-height:80px}
       <div class="tbl-wrap">
         <table class="svc-tbl">
           <colgroup>
-            <col style="width:128px"><col><col style="width:118px"><col style="width:150px"><col style="width:124px"><col style="width:92px"><col style="width:48px">
+            <col style="width:128px"><col><col style="width:118px"><col style="width:140px"><col style="width:124px"><col style="width:130px"><col style="width:92px"><col style="width:48px">
           </colgroup>
           <thead><tr>
             <th>Job No.</th>
@@ -2871,6 +2875,7 @@ textarea{resize:vertical;min-height:80px}
             <th>ประเภท</th>
             <th>ผู้รับผิดชอบ</th>
             <th>สถานะ</th>
+            <th>ผู้ส่งมอบ</th>
             <th>วันที่แจ้ง</th>
             <th></th>
           </tr></thead>
@@ -20827,7 +20832,7 @@ function svcFmtDate(r, opts){
   return v ? new Date(v).toLocaleDateString('th-TH', opts || {day:'2-digit',month:'short',year:'2-digit'}) : '—';
 }
 // chevron drawn into the native select's background (no raw quotes: it lands inside style="…")
-const SVC_ST_CHEVRON = c => `url('data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='${c}' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>`).replace(/'/g,'%27')}')`;
+const SVC_ST_CHEVRON = c => `url('data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='${window._thc ? _thc(c, 'fg') : c}' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>`).replace(/'/g,'%27')}')`;
 const SVC_CTYPE_LABEL = {fixed:'เงินสด',discount:'ส่วนลด',redeem:'แลกซื้อ'};
 let _svcAllRows = [];
 let _svcView    = 'table';
@@ -21143,7 +21148,7 @@ function svcCopyLink(url){
 function svcRenderTable(rows){
   const tbody=document.getElementById('svc-tbody'); if(!tbody) return;
   if(!rows.length){
-    tbody.innerHTML=`<tr style="cursor:default"><td colspan="7" style="text-align:center;color:var(--muted);padding:3.5rem 1rem">ยังไม่มีรายการในช่วงนี้</td></tr>`;
+    tbody.innerHTML=`<tr style="cursor:default"><td colspan="8" style="text-align:center;color:var(--muted);padding:3.5rem 1rem">ยังไม่มีรายการในช่วงนี้</td></tr>`;
     return;
   }
   tbody.innerHTML=rows.map(r=>{
@@ -21155,6 +21160,7 @@ function svcRenderTable(rows){
     const owner=r.assigned_to_name
       ? `<div class="svc-owner"><span class="av">${escHtml(r.assigned_to_name.charAt(0))}</span><span class="nm" title="${escHtml(r.assigned_to_name)}">${escHtml(r.assigned_to_name)}</span></div>`
       : `<span style="font-size:.78rem;color:#8a8f97">ยังไม่มีผู้รับ</span>`;
+    const deliv=svcDeliveredCell(r);
     return `<tr onclick="if(!event.target.closest('select,button'))svcOpenDetail(${r.id})">
       <td><span class="svc-jobno">${escHtml(r.job_no||'—')}</span></td>
       <td style="min-width:0">
@@ -21169,10 +21175,22 @@ function svcRenderTable(rows){
           ${SVC_STATUSES.map(s=>`<option value="${s.key}"${r.status===s.key?' selected':''}>${s.label}</option>`).join('')}
         </select>
       </td>
+      <td>${deliv}</td>
       <td class="svc-date-cell">${svcFmtDate(r)}</td>
       <td><button class="svc-open" onclick="svcOpenDetail(${r.id})" title="ดูรายละเอียด" aria-label="ดูรายละเอียด"><i class=i-eye></i></button></td>
     </tr>`;
   }).join('');
+}
+
+// ผู้ส่งมอบ = คนที่แนบหลักฐานส่งมอบล่าสุด (มาจาก API) — งานที่ส่งมอบแล้วแต่ไม่มีหลักฐานแนบ แสดง "ไม่ระบุ"
+function svcDeliveredCell(r){
+  if(r.delivered_by_name){
+    const dt=r.delivered_at?new Date(r.delivered_at).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}):'';
+    return `<div class="svc-deliv"><span class="nm" title="${escHtml(r.delivered_by_name)}">${escHtml(r.delivered_by_name)}</span>${dt?`<span class="dt">${dt}</span>`:''}</div>`;
+  }
+  return r.status==='delivered'
+    ? `<span style="font-size:.78rem;color:#8a8f97">ไม่ระบุ</span>`
+    : `<span style="font-size:.78rem;color:#b9bcc2">—</span>`;
 }
 
 // ── Board render ──────────────────────────────────────────────────
@@ -21205,7 +21223,7 @@ function svcKanbanCard(r,col){
       <div style="font-size:.84rem;font-weight:500;color:var(--text);line-height:1.4;margin-bottom:.3rem;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${escHtml(r.title||r.promo_name||'(ไม่มีชื่อ)')}</div>
       ${brands?`<div style="font-size:.74rem;color:#5b616b;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${escHtml(brands)}</div>`:''}
       <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-top:.45rem;font-size:.72rem;color:#6f747c">
-        <span style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${escHtml(r.assigned_to_name||who)}</span>
+        <span style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${r.status==='delivered'&&r.delivered_by_name?'ส่งมอบโดย '+escHtml(r.delivered_by_name):escHtml(r.assigned_to_name||who)}</span>
         <span style="flex-shrink:0">${svcFmtDate(r,{day:'2-digit',month:'short'})}</span>
       </div>
     </div>`;
@@ -21502,6 +21520,7 @@ async function svcOpenDetail(id){
         if(delFiles.length) html += `
         <div class="svc-card" style="border-left:3px solid #10b981">
           <div class="svc-section-head" style="border-left:none;color:#065f46">หลักฐาน — ส่งมอบ</div>
+          ${(()=>{ const last=delFiles[delFiles.length-1]; return last&&last.uploaded_by_name?`<div style="font-size:.8rem;color:#5b616b;margin:-.2rem 0 .5rem">ส่งมอบโดย <b style="color:var(--text);font-weight:600">${escHtml(last.uploaded_by_name)}</b>${last.uploaded_at?' · '+new Date(last.uploaded_at).toLocaleString('th-TH',{day:'numeric',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'}):''}</div>`:''; })()}
           <div style="display:flex;flex-direction:column;gap:.35rem">${renderFileList(delFiles)}</div>
         </div>`;
         return html;
