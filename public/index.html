@@ -81,11 +81,11 @@ button,input,select,textarea{font-family:inherit}
 .page.active{display:block}
 
 /* ── PAGE DATE BAR ── */
-.page-datebar{background:#fff;border:1px solid var(--border);border-radius:10px;padding:.6rem 1rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem;box-shadow:0 1px 3px #0001}
+.page-datebar{background:none;border:none;border-radius:0;padding:0;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.9rem}
 .page-datebar label{font-size:.75rem;color:var(--muted);white-space:nowrap}
-.page-datebar select,.page-datebar input[type=date]{background:#fff;border:1px solid var(--border);color:var(--text);padding:.28rem .65rem;border-radius:6px;font-size:.78rem;outline:none}
+.page-datebar select,.page-datebar input[type=date]{background:#fff;border:1px solid var(--border);color:var(--text);height:36px;padding:0 .7rem;border-radius:10px;font-size:.82rem;outline:none}
 .page-datebar select:focus,.page-datebar input[type=date]:focus{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-soft)}
-.page-datebar input[type=text],.page-datebar input[type=search]{background:#fff;border:1px solid var(--border);color:var(--text);padding:.28rem .65rem;border-radius:6px;font-size:.78rem;outline:none;flex:1;min-width:140px}
+.page-datebar input[type=text],.page-datebar input[type=search]{background:#fff;border:1px solid var(--border);color:var(--text);height:36px;padding:0 .8rem;border-radius:10px;font-size:.82rem;outline:none;flex:1;min-width:160px}
 .page-datebar input:focus{border-color:var(--primary)}
 
 /* ── STAT ROW ── */
@@ -149,9 +149,9 @@ button,input,select,textarea{font-family:inherit}
 /* ── TABLE ── */
 .tbl-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:.82rem}
-thead tr{background:#faf9f6}
-th{color:var(--muted);font-weight:600;padding:.5rem .7rem;text-align:left;border-bottom:2px solid var(--border);white-space:nowrap;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em}
-td{padding:.45rem .7rem;border-bottom:1px solid var(--border);vertical-align:middle}
+thead tr{background:none}
+th{color:#6f747c;font-weight:500;padding:.7rem .8rem;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;font-size:.74rem}
+td{padding:.6rem .8rem;border-bottom:1px solid var(--line-2);vertical-align:middle}
 tr:hover td{background:#faf9f6}
 
 /* ── SHIFT TABLE ── */
@@ -229,7 +229,7 @@ textarea{resize:vertical;min-height:80px}
 
 /* ── SECTION HEADER ── */
 .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem}
-.section-title{font-size:1.1rem;font-weight:700;color:var(--text)}
+.section-title{font-size:1.45rem;font-weight:600;letter-spacing:-.01em;line-height:1.25;color:var(--text)}
 
 /* ── TAB (sub-tabs) ── */
 .tabs{display:flex;gap:.25rem;margin-bottom:1rem;border-bottom:2px solid var(--border);padding-bottom:0}
@@ -354,7 +354,7 @@ textarea{resize:vertical;min-height:80px}
 .ai-suggest-box{background:#f0fdf4;border:1px solid #86efac;border-radius:12px;padding:1rem 1.25rem;margin-bottom:1rem;display:none}
 .ai-suggest-box.open{display:block}
 .ai-suggest-actions{display:flex;gap:.5rem;margin-top:.75rem;flex-wrap:wrap}
-.ai-forecast-box{background:#fffbeb;border:1px solid #fed7aa;border-radius:12px;padding:1.1rem 1.25rem;margin-top:1rem;display:none}
+.ai-forecast-box{background:#fff;border:1px solid var(--border);border-radius:16px;padding:1.15rem 1.3rem;margin:0 0 1rem;display:none}
 .ai-forecast-box.open{display:block}
 .ai-forecast-body{font-size:.86rem;line-height:1.75;white-space:pre-wrap;color:var(--text)}
 
@@ -546,6 +546,12 @@ textarea{resize:vertical;min-height:80px}
 .tk-desc{font-size:.78rem;color:#5b616b;line-height:1.5;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .tk-desc-main{font-size:.85rem;color:var(--text);font-weight:500;line-height:1.45;overflow-wrap:anywhere}
 .tk-ptype{display:inline-block;font-size:.7rem;padding:.08rem .45rem;border-radius:5px;background:#e7f0ea;color:#356b4e;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;vertical-align:.05em}
+.tk-ptype-path{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;margin:-.2rem 0 .75rem;font-size:.82rem}
+.tk-ptype-path .k{font-size:.74rem;color:#6f747c}
+.tk-ptype-path .tk-ptype{font-size:.76rem;padding:.14rem .55rem}
+.tk-ptype-path .sep{color:#b9bcc2}
+.tk-ptype-path .sub{color:var(--text);font-weight:500}
+.tk-ptype-path .note{font-size:.74rem;color:#6f747c}
 .tk-linkbtn{border:none;background:none;cursor:pointer;padding:0 .15rem;color:#8a8f97;font-size:.78rem;line-height:1;vertical-align:-.1em}
 .tk-linkbtn:hover{color:var(--primary)}
 .tk-st{display:inline-flex;align-items:center;gap:.4rem;font-size:.74rem;font-weight:500;padding:.2rem .6rem;border-radius:999px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
@@ -601,6 +607,11 @@ textarea{resize:vertical;min-height:80px}
 .uat-act{width:30px;height:30px;border:none;background:none;border-radius:8px;color:#8a8f97;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
 .uat-act:hover{background:#f0eee9;color:var(--text)}
 .uat-act.danger:hover{background:#f7ebe8;color:#b04a40}
+/* kpi metrics */
+.kpi-metrics{display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1rem}
+.kpi-m{flex:1 1 140px;background:#fff;border:1px solid var(--border);border-radius:14px;padding:.8rem 1rem}
+.kpi-m .l{font-size:.78rem;color:#5b616b}
+.kpi-m .v{font-size:1.45rem;font-weight:600;letter-spacing:-.02em;color:var(--text);margin-top:.15rem;font-variant-numeric:tabular-nums}
 /* status tabs */
 .svc-tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:1rem;overflow-x:auto;scrollbar-width:none}
 .svc-tab{border:none;background:none;font-family:inherit;font-size:.86rem;color:#5b616b;padding:.55rem .85rem;margin-bottom:-1px;border-bottom:2px solid transparent;cursor:pointer;display:flex;align-items:center;gap:.45rem;white-space:nowrap;transition:color .15s,border-color .15s}
@@ -829,12 +840,9 @@ textarea{resize:vertical;min-height:80px}
         <span class="s-arrow" id="settings-arrow">›</span>
       </button>
       <div class="s-sub-menu" id="settings-sub">
-        <button class="s-sub" id="nav-sub-schedule" onclick="navSettings('schedule',this)">ตารางงาน</button>
-        <button class="s-sub" id="nav-sub-shifts" onclick="navSettings('shifts',this)">กะ & วันหยุด</button>
         <button class="s-sub" id="nav-sub-subjects" onclick="navSettings('subjects',this)">หัวข้อ / ประเภทปัญหา</button>
         <button class="s-sub" id="nav-sub-users" onclick="navSettings('users',this)">จัดการ User</button>
         <button class="s-sub" id="nav-sub-line" onclick="navSettings('line',this)">LINE Notifications</button>
-        <button class="s-sub" id="nav-sub-kpi-targets" onclick="navSettings('kpi-targets',this)">เป้าหมาย KPI</button>
       </div>
     </div>
     <!-- hidden buttons for backward compat -->
@@ -1361,137 +1369,108 @@ textarea{resize:vertical;min-height:80px}
 
 <!-- ═══════════════════ PAGE: KPI ═══════════════════ -->
 <div id="page-kpi" class="page">
-  <div class="section-header" style="margin-bottom:.75rem">
-    <div class="section-title">ประเมินผลทีม (KPI)</div>
-    <div class="btn-group">
-      <button class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="loadAiForecast()">AI พยากรณ์</button>
+  <div class="svc-hdr">
+    <div>
+      <div class="svc-kicker">Team performance</div>
+      <h1 class="svc-h1">ประเมินผลทีม (KPI)</h1>
+      <div class="svc-sub">เคส การปิดงาน เวลาแก้ไข และความพึงพอใจของแต่ละคน</div>
     </div>
+    <button class="svc-btn-ghost" onclick="loadAiForecast()">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color:var(--primary)"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></svg>
+      AI พยากรณ์
+    </button>
   </div>
 
   <!-- Tab switcher -->
-  <div style="display:flex;gap:.35rem;margin-bottom:.85rem;border-bottom:2px solid #e6e3dc;padding-bottom:0">
-    <button id="kpi-tab-hd" onclick="kpiSwitchTab('helpdesk')"
-      style="padding:.45rem 1rem;font-size:.82rem;font-weight:700;border:none;background:none;cursor:pointer;color:#2563eb;border-bottom:2px solid #2563eb;margin-bottom:-2px;transition:all .15s">
-      📞 Helpdesk KPI
-    </button>
-    <button id="kpi-tab-sp" onclick="kpiSwitchTab('specialist')"
-      style="padding:.45rem 1rem;font-size:.82rem;font-weight:700;border:none;background:none;cursor:pointer;color:#8a8f97;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s">
-      🎯 Specialist KPI
-    </button>
-    <button id="kpi-tab-score" onclick="kpiSwitchTab('score')"
-      style="padding:.45rem 1rem;font-size:.82rem;font-weight:700;border:none;background:none;cursor:pointer;color:#8a8f97;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s">
-      🏆 คะแนนรายเดือน
-    </button>
+  <div class="svc-tabs" id="kpi-tabs">
+    <button id="kpi-tab-hd" class="svc-tab on" onclick="kpiSwitchTab('helpdesk')">Helpdesk KPI</button>
+    <button id="kpi-tab-sp" class="svc-tab" onclick="kpiSwitchTab('specialist')">Specialist KPI</button>
   </div>
 
-  <!-- Date & Filter Bar (top — same as Dashboard/Tickets) -->
-  <div class="page-datebar" style="flex-direction:column;align-items:flex-start;gap:.45rem">
-    <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;width:100%">
-      <div class="drb" id="kpi-drb">
-        <button class="drb-btn" onclick="kpiRange('today',this)">วันนี้</button>
-        <button class="drb-btn" onclick="kpiRange('yesterday',this)">เมื่อวาน</button>
-        <button class="drb-btn" onclick="kpiRange('thisweek',this)">สัปดาห์นี้</button>
-        <button class="drb-btn" onclick="kpiRange('thismonth',this)">เดือนนี้</button>
-        <button class="drb-btn" onclick="kpiRange('lastmonth',this)">เดือนที่แล้ว</button>
-        <button class="drb-btn" onclick="kpiRange('7d',this)">7 วันที่แล้ว</button>
-        <button class="drb-btn" onclick="kpiRange('30d',this)">30 วันที่ผ่านมา</button>
-        <button class="drb-btn" onclick="kpiRange('custom',this)">กำหนดเอง</button>
-      </div>
-      <span style="color:var(--border)">|</span>
-      <select id="kpi-filter-team" onchange="loadKpi()">
-        <option value="">ทุกทีม</option>
-      </select>
+  <!-- Date range + team -->
+  <div class="svc-filters" id="kpi-datebar">
+    <div class="drb" id="kpi-drb">
+      <button class="drb-btn" onclick="kpiRange('today',this)">วันนี้</button>
+      <button class="drb-btn" onclick="kpiRange('yesterday',this)">เมื่อวาน</button>
+      <button class="drb-btn" onclick="kpiRange('thisweek',this)">สัปดาห์นี้</button>
+      <button class="drb-btn" onclick="kpiRange('thismonth',this)">เดือนนี้</button>
+      <button class="drb-btn" onclick="kpiRange('lastmonth',this)">เดือนที่แล้ว</button>
+      <button class="drb-btn" onclick="kpiRange('7d',this)">7 วัน</button>
+      <button class="drb-btn" onclick="kpiRange('30d',this)">30 วัน</button>
+      <button class="drb-btn" onclick="kpiRange('custom',this)">กำหนดเอง</button>
     </div>
-    <div class="drb-custom" id="kpi-custom-range" style="display:none">
-      <input id="kpi-date-from" type="date" style="max-width:135px"/>
-      <span style="color:var(--muted);font-size:.8rem">ถึง</span>
-      <input id="kpi-date-to" type="date" style="max-width:135px"/>
-      <button class="btn btn-sm btn-primary" onclick="loadKpi()">ค้นหา</button>
-    </div>
+    <select id="kpi-filter-team" class="svc-select" onchange="loadKpi()" aria-label="ทีม">
+      <option value="">ทุกทีม</option>
+    </select>
+  </div>
+  <div class="drb-custom" id="kpi-custom-range" style="display:none;margin:-.35rem 0 .9rem">
+    <input id="kpi-date-from" type="date" class="svc-date"/>
+    <span style="color:var(--muted);font-size:.8rem">ถึง</span>
+    <input id="kpi-date-to" type="date" class="svc-date"/>
+    <button class="svc-btn-primary" style="height:34px;padding:0 1rem" onclick="loadKpi()">ค้นหา</button>
   </div>
 
-  <!-- Stat Bar (compact) -->
-  <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.6rem;margin-bottom:.75rem" id="kpi-stats">
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">เคสเฉลี่ย/คน</span>
-      <span style="font-size:1.1rem;font-weight:800;color:var(--hd)" id="kpi-stat-avg">—</span>
-    </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">ปิดงานเฉลี่ย</span>
-      <span style="font-size:1.1rem;font-weight:800;color:#16a34a" id="kpi-stat-close-rate">—</span>
-    </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">เฉลี่ยแก้ไข</span>
-      <span style="font-size:1.1rem;font-weight:800;color:#7c3aed" id="kpi-stat-resolve">—</span>
-    </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)" id="kpi-stars-label">คะแนนเฉลี่ย</span>
-      <span style="font-size:1.1rem;font-weight:800;color:#b45309" id="kpi-stat-stars">—</span>
-    </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">ค้าง &gt;24ชม.</span>
-      <span style="font-size:1.1rem;font-weight:800;color:var(--danger)" id="kpi-stat-overdue">—</span>
-    </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">ร้องเรียน</span>
-      <span style="font-size:1.1rem;font-weight:800;color:#dc2626" id="kpi-stat-complaints">—</span>
-    </div>
+  <!-- Headline metrics -->
+  <div class="kpi-metrics" id="kpi-stats">
+    <div class="kpi-m"><div class="l">เคสเฉลี่ย / คน</div><div class="v" id="kpi-stat-avg">—</div></div>
+    <div class="kpi-m"><div class="l">ปิดงานเฉลี่ย</div><div class="v" id="kpi-stat-close-rate" style="color:#356b4e">—</div></div>
+    <div class="kpi-m"><div class="l">เฉลี่ยแก้ไข</div><div class="v" id="kpi-stat-resolve">—</div></div>
+    <div class="kpi-m"><div class="l" id="kpi-stars-label">คะแนนเฉลี่ย</div><div class="v" id="kpi-stat-stars" style="color:#86671f">—</div></div>
+    <div class="kpi-m"><div class="l">ค้างเกิน 24 ชม.</div><div class="v" id="kpi-stat-overdue" style="color:#a2562f">—</div></div>
+    <div class="kpi-m"><div class="l">ร้องเรียน</div><div class="v" id="kpi-stat-complaints" style="color:#a3463c">—</div></div>
   </div>
 
   <!-- AI Forecast -->
   <div class="ai-forecast-box" id="ai-forecast-box">
-    <div style="font-weight:700;color:#fcd34d;margin-bottom:.6rem;font-size:.9rem">AI วิเคราะห์ KPI และพยากรณ์แนวโน้ม</div>
+    <div style="font-weight:600;color:var(--text);margin-bottom:.6rem;font-size:.92rem">AI วิเคราะห์ KPI และพยากรณ์แนวโน้ม</div>
     <div id="ai-forecast-body" class="ai-forecast-body"></div>
   </div>
 
   <!-- Charts (compact 3-col) -->
   <div id="kpi-charts-row1" class="grid-3" style="margin-bottom:.75rem">
     <div class="card">
-      <div class="card-title" style="font-size:.82rem">เคสต่อ Agent</div>
+      <div class="card-title">เคสต่อ Agent</div>
       <div style="position:relative;height:140px"><canvas id="chart-cases"></canvas></div>
     </div>
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.35rem">
-        <div class="card-title" style="font-size:.82rem;margin:0">คะแนนความพึงพอใจ</div>
+        <div class="card-title" style="margin:0;border:none;padding:0">คะแนนความพึงพอใจ</div>
         <div style="display:flex;gap:.3rem">
           <button onclick="kpiToggleEstStars()" id="kpi-est-stars-toggle"
             title="แสดงดาวประมาณใน chart (ไม่บันทึก)"
             style="font-size:.62rem;background:#f0eee9;color:#4d535b;border:1px solid #e6e3dc;border-radius:5px;padding:.15rem .4rem;cursor:pointer;font-weight:600;white-space:nowrap">
-            👁 ดูประมาณ
+            ดูประมาณ
           </button>
           <button onclick="kpiSaveEstStars(this)"
             title="คำนวณดาวแล้วบันทึกลง Calllog เฉพาะรายการที่ยังไม่มีดาว"
-            style="font-size:.62rem;background:#fefce8;color:#92400e;border:1px solid #fde68a;border-radius:5px;padding:.15rem .4rem;cursor:pointer;font-weight:600;white-space:nowrap">
-            🔮 คำนวณ+บันทึก
+            style="font-size:.62rem;background:#fbf8ee;color:#7a5a1c;border:1px solid #e6d6a8;border-radius:5px;padding:.15rem .4rem;cursor:pointer;font-weight:600;white-space:nowrap">
+            คำนวณ + บันทึก
           </button>
         </div>
       </div>
       <div style="position:relative;height:130px"><canvas id="chart-score"></canvas></div>
     </div>
     <div class="card">
-      <div class="card-title" style="font-size:.82rem">อัตราปิดงาน (%)</div>
+      <div class="card-title">อัตราปิดงาน (%)</div>
       <div style="position:relative;height:140px"><canvas id="chart-close-rate"></canvas></div>
     </div>
   </div>
   <div id="kpi-charts-row2" class="grid-2" style="margin-bottom:.75rem">
     <div class="card">
-      <div class="card-title" style="font-size:.82rem">เวลาแก้ไขเฉลี่ย (นาที)</div>
+      <div class="card-title">เวลาแก้ไขเฉลี่ย (นาที)</div>
       <div style="position:relative;height:130px"><canvas id="chart-resolve-time"></canvas></div>
     </div>
     <div class="card">
-      <div class="card-title" style="font-size:.82rem">กระจาย Stars</div>
+      <div class="card-title">กระจาย Stars</div>
       <div style="position:relative;height:130px"><canvas id="chart-stars-dist"></canvas></div>
     </div>
   </div>
 
   <!-- Table -->
   <div id="kpi-hd-table" class="card">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:.6rem .85rem .4rem;border-bottom:1px solid #f0eee9">
-      <span style="font-size:.8rem;font-weight:600;color:#4d535b">ตารางประเมินผล</span>
-      <button onclick="exportKpiCsv()" style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:7px;padding:.28rem .75rem;font-size:.76rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.35rem;transition:all .15s"
-        onmouseover="this.style.background='#dcfce7'" onmouseout="this.style.background='#f0fdf4'">
-        📥 Export CSV
-      </button>
+    <div class="card-title" style="justify-content:space-between">
+      <span>ตารางประเมินผล</span>
+      <button onclick="exportKpiCsv()" class="svc-btn-ghost" style="height:32px;font-size:.78rem"><i class=i-download></i> Export CSV</button>
     </div>
     <div class="tbl-wrap">
       <table>
@@ -1517,53 +1496,51 @@ textarea{resize:vertical;min-height:80px}
   <div id="kpi-sp-section" style="display:none">
     <!-- Stat bar -->
     <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem" id="kpi-sp-stats">
-      <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:.5rem .95rem;display:flex;align-items:center;gap:.55rem">
         <span style="font-size:.72rem;color:var(--muted)">งานทั้งหมด</span>
-        <span style="font-size:1.1rem;font-weight:800;color:var(--hd)" id="sp-kpi-total">—</span>
+        <span style="font-size:1.15rem;font-weight:600;color:var(--hd)" id="sp-kpi-total">—</span>
       </div>
-      <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:.5rem .95rem;display:flex;align-items:center;gap:.55rem">
         <span style="font-size:.72rem;color:var(--muted)">แก้ไขแล้ว%</span>
-        <span style="font-size:1.1rem;font-weight:800;color:#16a34a" id="sp-kpi-resolve-rate">—</span>
+        <span style="font-size:1.15rem;font-weight:600;color:#3f7a5a" id="sp-kpi-resolve-rate">—</span>
       </div>
-      <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:.5rem .95rem;display:flex;align-items:center;gap:.55rem">
         <span style="font-size:.72rem;color:var(--muted)">เวลาเฉลี่ย</span>
-        <span style="font-size:1.1rem;font-weight:800;color:#7c3aed" id="sp-kpi-avg-time">—</span>
+        <span style="font-size:1.15rem;font-weight:600;color:#5a4f8f" id="sp-kpi-avg-time">—</span>
       </div>
-      <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.4rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
+      <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:.5rem .95rem;display:flex;align-items:center;gap:.55rem">
         <span style="font-size:.72rem;color:var(--muted)">ค้างอยู่</span>
-        <span style="font-size:1.1rem;font-weight:800;color:#ef4444" id="sp-kpi-pending">—</span>
+        <span style="font-size:1.15rem;font-weight:600;color:#c0584c" id="sp-kpi-pending">—</span>
       </div>
     </div>
 
     <!-- Charts -->
     <div class="grid-2" style="margin-bottom:.75rem">
       <div class="card">
-        <div class="card-title" style="font-size:.82rem">งาน SP ต่อคน</div>
+        <div class="card-title">งาน SP ต่อคน</div>
         <div style="position:relative;height:140px"><canvas id="chart-sp-jobs"></canvas></div>
       </div>
       <div class="card">
-        <div class="card-title" style="font-size:.82rem">เวลาแก้ไขเฉลี่ย (นาที)</div>
+        <div class="card-title">เวลาแก้ไขเฉลี่ย (นาที)</div>
         <div style="position:relative;height:140px"><canvas id="chart-sp-time"></canvas></div>
       </div>
     </div>
     <div class="grid-2" style="margin-bottom:.75rem">
       <div class="card">
-        <div class="card-title" style="font-size:.82rem">อัตราแก้ไข (%)</div>
+        <div class="card-title">อัตราแก้ไข (%)</div>
         <div style="position:relative;height:130px"><canvas id="chart-sp-resolve"></canvas></div>
       </div>
       <div class="card">
-        <div class="card-title" style="font-size:.82rem">ประเภทปัญหาหลัก</div>
+        <div class="card-title">ประเภทปัญหาหลัก</div>
         <div style="position:relative;height:130px"><canvas id="chart-sp-problems"></canvas></div>
       </div>
     </div>
 
     <!-- Table -->
     <div class="card">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:.6rem .85rem .4rem;border-bottom:1px solid #f0eee9">
-        <span style="font-size:.8rem;font-weight:600;color:#4d535b">ตารางประเมิน Specialist</span>
-        <button onclick="exportSpKpiCsv()" style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:7px;padding:.28rem .75rem;font-size:.76rem;font-weight:600;cursor:pointer">
-          📥 Export CSV
-        </button>
+      <div class="card-title" style="justify-content:space-between">
+        <span>ตารางประเมิน Specialist</span>
+        <button onclick="exportSpKpiCsv()" class="svc-btn-ghost" style="height:32px;font-size:.78rem"><i class=i-download></i> Export CSV</button>
       </div>
       <div class="tbl-wrap">
         <table>
@@ -1590,35 +1567,20 @@ textarea{resize:vertical;min-height:80px}
     </div>
   </div>
 
-  <!-- ═══ Monthly KPI Score section ═══ -->
-  <div id="kpi-score-section" style="display:none">
-    <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-bottom:.85rem">
-      <div style="display:flex;align-items:center;gap:.3rem;background:#fff;border:1px solid var(--border);border-radius:9px;padding:.35rem .65rem;box-shadow:0 1px 3px #0001">
-        <button onclick="kpiScoreChangeMonth(-1)" style="background:none;border:none;cursor:pointer;font-size:1rem;color:var(--muted);padding:0 .2rem;line-height:1">‹</button>
-        <span id="kpi-score-month-label" style="font-family:monospace;font-size:.82rem;font-weight:600;min-width:90px;text-align:center">—</span>
-        <button onclick="kpiScoreChangeMonth(1)" style="background:none;border:none;cursor:pointer;font-size:1rem;color:var(--muted);padding:0 .2rem;line-height:1">›</button>
-      </div>
-      <div style="display:flex;gap:0;background:#f0eee9;border-radius:8px;padding:2px">
-        <button id="kscore-tab-hd" onclick="kpiScoreTeam('helpdesk')" style="padding:.3rem .85rem;font-size:.78rem;font-weight:700;border:none;cursor:pointer;border-radius:6px;background:#2563eb;color:#fff;transition:all .15s">Helpdesk</button>
-        <button id="kscore-tab-sp" onclick="kpiScoreTeam('specialist')" style="padding:.3rem .85rem;font-size:.78rem;font-weight:700;border:none;cursor:pointer;border-radius:6px;background:transparent;color:#5b616b;transition:all .15s">Specialist</button>
-      </div>
-      <button onclick="loadKpiMonthlyScores()" style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:8px;padding:.35rem .85rem;font-size:.78rem;font-weight:600;cursor:pointer">รีโหลด</button>
-      <div id="kpi-score-loading" style="display:none;font-size:.78rem;color:var(--muted)">กำลังโหลด...</div>
-    </div>
-    <div id="kpi-score-stats" style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem"></div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 1px 3px #0001">
-      <div id="kpi-score-body">
-        <div style="padding:2.5rem;text-align:center;color:var(--muted);font-size:.88rem">เลือกเดือนและกดรีโหลด</div>
-      </div>
-    </div>
-  </div>
 </div>
 
 <!-- ═══════════════════ PAGE: USERS ═══════════════════ -->
 <div id="page-users" class="page">
+  <div class="svc-hdr">
+    <div>
+      <div class="svc-kicker">Settings</div>
+      <h1 class="svc-h1">จัดการ User</h1>
+      <div class="svc-sub">พนักงาน บัญชีเข้าใช้งาน บทบาท และทีม</div>
+    </div>
+  </div>
 
   <!-- Sub-tabs -->
-  <div class="tabs" style="margin-bottom:1.25rem">
+  <div class="tabs" style="margin-bottom:1.1rem">
     <button class="tab active" id="utab-people" onclick="switchUserTab('people',this)">พนักงาน & บัญชี</button>
     <button class="tab"        id="utab-teams"  onclick="switchUserTab('teams',this)">จัดการทีม</button>
   </div>
@@ -1626,27 +1588,27 @@ textarea{resize:vertical;min-height:80px}
   <!-- ── Tab: People (merged Employee + Account) ── -->
   <div id="usertab-people">
     <div class="section-header" style="margin-bottom:.75rem">
-      <div class="section-title" style="font-size:1rem">พนักงานทั้งหมด</div>
+      <div class="section-title" style="font-size:1.02rem">พนักงานทั้งหมด</div>
       <button class="btn btn-primary btn-sm" onclick="openAddPerson()">+ เพิ่มคนใหม่</button>
     </div>
 
     <!-- Filter bar -->
     <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.75rem">
       <input id="ppl-search" type="text" placeholder="ค้นหาชื่อ / ชื่อเล่น / username…"
-        style="flex:1;min-width:180px;max-width:280px;padding:.35rem .65rem;border:1px solid var(--border);border-radius:8px;font-size:.82rem;font-family:inherit"
+        style="flex:1;min-width:200px;max-width:320px;height:36px;padding:0 .8rem;border:1px solid var(--border);border-radius:10px;font-size:.82rem;font-family:inherit;background:#fff"
         oninput="filterPeople()">
       <select id="ppl-filter-team" onchange="filterPeople()"
-        style="padding:.35rem .55rem;border:1px solid var(--border);border-radius:8px;font-size:.82rem;font-family:inherit">
+        class="svc-select">
         <option value="">ทุกทีม</option>
       </select>
       <select id="ppl-filter-status" onchange="filterPeople()"
-        style="padding:.35rem .55rem;border:1px solid var(--border);border-radius:8px;font-size:.82rem;font-family:inherit">
+        class="svc-select">
         <option value="">ทุกสถานะ</option>
         <option value="active">ทำงาน</option>
         <option value="inactive">ออกแล้ว</option>
       </select>
       <select id="ppl-filter-role" onchange="filterPeople()"
-        style="padding:.35rem .55rem;border:1px solid var(--border);border-radius:8px;font-size:.82rem;font-family:inherit">
+        class="svc-select">
         <option value="">ทุกบทบาท</option>
         <option value="staff">Staff</option>
         <option value="team_lead">Team Lead</option>
@@ -1684,7 +1646,7 @@ textarea{resize:vertical;min-height:80px}
   <!-- ── Tab: Teams ── -->
   <div id="usertab-teams" style="display:none">
     <div class="section-header" style="margin-bottom:.75rem">
-      <div class="section-title" style="font-size:1rem">ทีมทั้งหมด</div>
+      <div class="section-title" style="font-size:1.02rem">ทีมทั้งหมด</div>
       <button class="btn btn-primary btn-sm" onclick="openAddTeam()">+ สร้างทีมใหม่</button>
     </div>
     <div class="card">
@@ -1716,9 +1678,9 @@ textarea{resize:vertical;min-height:80px}
 
     <!-- Step 1: Prepare -->
     <div id="tk-imp-step1">
-      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:.7rem .9rem;margin-bottom:.9rem">
-        <div style="font-size:.8rem;font-weight:700;color:#15803d;margin-bottom:.4rem">รูปแบบไฟล์ CSV ที่รองรับ</div>
-        <div style="font-size:.76rem;color:#166534;line-height:1.7">
+      <div style="background:#f1f6f2;border:1px solid #cfe0d5;border-radius:8px;padding:.7rem .9rem;margin-bottom:.9rem">
+        <div style="font-size:.8rem;font-weight:700;color:#356b4e;margin-bottom:.4rem">รูปแบบไฟล์ CSV ที่รองรับ</div>
+        <div style="font-size:.76rem;color:#2f5e45;line-height:1.7">
           • ไฟล์ต้องเป็น <b>.csv</b> UTF-8 หรือ UTF-8 BOM<br>
           • แถวแรกต้องเป็น Header ตามที่กำหนด<br>
           • <b>ร้านค้า</b>, <b>วันที่รับแจ้ง</b>, <b>รายละเอียด</b>, <b>Agent</b> — จำเป็นต้องกรอก<br>
@@ -1745,7 +1707,7 @@ textarea{resize:vertical;min-height:80px}
         <div style="font-size:.72rem;color:#8a8f97;margin-top:.2rem">รองรับ .csv ขนาดไม่เกิน 2MB</div>
         <input type="file" id="tk-imp-file" accept=".csv" style="display:none" onchange="tkImpReadFile(this.files[0])"/>
       </div>
-      <div id="tk-imp-file-name" style="font-size:.76rem;color:#16a34a;margin-top:.4rem;text-align:center"></div>
+      <div id="tk-imp-file-name" style="font-size:.76rem;color:#3f7a5a;margin-top:.4rem;text-align:center"></div>
     </div>
 
     <!-- Step 2: Preview -->
@@ -1795,7 +1757,7 @@ textarea{resize:vertical;min-height:80px}
     <div class="modal-head">
       <div style="font-size:1.08rem;font-weight:600;letter-spacing:-.005em">เปิด Case</div>
       <div style="display:flex;align-items:center;gap:.6rem">
-        <div id="cc-saved-msg" style="font-size:.78rem;color:#16a34a;display:none">บันทึกแล้ว — Case #<span id="cc-saved-id"></span></div>
+        <div id="cc-saved-msg" style="font-size:.78rem;color:#3f7a5a;display:none">บันทึกแล้ว — Case #<span id="cc-saved-id"></span></div>
         <button class="modal-close" onclick="closeModal('modal-create-case')">×</button>
       </div>
     </div>
@@ -1811,7 +1773,7 @@ textarea{resize:vertical;min-height:80px}
             style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.4rem .65rem;font-size:.83rem;outline:none"/>
           <input type="hidden" id="cc-registration-id"/>
           <div id="cc-shop-results" style="position:absolute;z-index:200;background:#fff;border:1px solid var(--border);border-radius:8px;max-height:460px;overflow-y:auto;width:480px;max-width:80vw;display:none;box-shadow:0 4px 12px #0002"></div>
-          <div id="cc-shop-selected" style="font-size:.75rem;color:#16a34a;margin-top:.2rem"></div>
+          <div id="cc-shop-selected" style="font-size:.75rem;color:#3f7a5a;margin-top:.2rem"></div>
         </div>
       </div>
 
@@ -1829,7 +1791,7 @@ textarea{resize:vertical;min-height:80px}
           <select id="cc-subject" onchange="ccOnSubjectChange()">
             <option value="">— เลือกหัวข้อ —</option>
           </select>
-          <div id="cc-time-hint" style="display:none;margin-top:.3rem;background:#fef3c7;border:1px solid #fde68a;border-radius:6px;padding:.3rem .65rem;font-size:.75rem;color:#92400e;font-weight:600">
+          <div id="cc-time-hint" style="display:none;margin-top:.3rem;background:#f6f0e2;border:1px solid #e6d6a8;border-radius:6px;padding:.3rem .65rem;font-size:.75rem;color:#7a5a1c;font-weight:600">
             ต้องดำเนินการภายใน <span id="cc-time-value"></span> นาที
           </div>
         </div>
@@ -1978,17 +1940,17 @@ textarea{resize:vertical;min-height:80px}
 
   <!-- Stat bar (reflects current filter) -->
   <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem">
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">ทั้งหมด</span><span style="font-size:1.1rem;font-weight:800;color:var(--hd)" id="sp-stat-total">—</span>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:.5rem .95rem;display:flex;align-items:center;gap:.55rem">
+      <span style="font-size:.72rem;color:var(--muted)">ทั้งหมด</span><span style="font-size:1.15rem;font-weight:600;color:var(--hd)" id="sp-stat-total">—</span>
     </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">รอดำเนินการ</span><span style="font-size:1.1rem;font-weight:800;color:#b45309" id="sp-stat-pending">—</span>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:.5rem .95rem;display:flex;align-items:center;gap:.55rem">
+      <span style="font-size:.72rem;color:var(--muted)">รอดำเนินการ</span><span style="font-size:1.15rem;font-weight:600;color:#b45309" id="sp-stat-pending">—</span>
     </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">กำลังดำเนินการ</span><span style="font-size:1.1rem;font-weight:800;color:#2563eb" id="sp-stat-inprog">—</span>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:.5rem .95rem;display:flex;align-items:center;gap:.55rem">
+      <span style="font-size:.72rem;color:var(--muted)">กำลังดำเนินการ</span><span style="font-size:1.15rem;font-weight:600;color:#2563eb" id="sp-stat-inprog">—</span>
     </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">แก้ไขแล้ว</span><span style="font-size:1.1rem;font-weight:800;color:#16a34a" id="sp-stat-resolved">—</span>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:.5rem .95rem;display:flex;align-items:center;gap:.55rem">
+      <span style="font-size:.72rem;color:var(--muted)">แก้ไขแล้ว</span><span style="font-size:1.15rem;font-weight:600;color:#16a34a" id="sp-stat-resolved">—</span>
     </div>
   </div>
 
@@ -3313,36 +3275,30 @@ textarea{resize:vertical;min-height:80px}
 </div>
 
 <div id="page-sw-update" class="page">
-  <div class="section-header" style="margin-bottom:.75rem">
-    <div class="section-title">งานอัพเดท Software</div>
-    <div style="display:flex;gap:.5rem;align-items:center">
-      <button class="btn btn-primary btn-sm" onclick="openSwUpdateForm()">+ แจ้งงานอัพเดท</button>
+  <div class="svc-hdr">
+    <div>
+      <div class="svc-kicker">Software update</div>
+      <h1 class="svc-h1">งานอัพเดท Software</h1>
+      <div class="svc-sub">นัดหมายและติดตามการอัพเดทเวอร์ชั่นให้ร้านค้า</div>
     </div>
+    <button class="svc-btn-primary" onclick="openSwUpdateForm()"><span style="font-size:1.05rem;line-height:1;font-weight:400">+</span> แจ้งงานอัพเดท</button>
   </div>
 
-  <!-- Stat Bar -->
-  <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem">
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">ทั้งหมด</span>
-      <span style="font-size:1.1rem;font-weight:800;color:var(--hd)" id="swu-stat-total">—</span>
-    </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">รอดำเนินการ</span>
-      <span style="font-size:1.1rem;font-weight:800;color:#b45309" id="swu-stat-pending">—</span>
-    </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">นัดหมายแล้ว</span>
-      <span style="font-size:1.1rem;font-weight:800;color:#0369a1" id="swu-stat-scheduled">—</span>
-    </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.38rem .85rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 3px #0001">
-      <span style="font-size:.72rem;color:var(--muted)">เสร็จสิ้น</span>
-      <span style="font-size:1.1rem;font-weight:800;color:#16a34a" id="swu-stat-done">—</span>
-    </div>
+  <!-- Quick tabs (client-side) -->
+  <div class="svc-tabs" id="swu-tabs">
+    <button class="svc-tab on" data-tab="" onclick="swuSetTab('')">ทั้งหมด <span class="c" id="swu-stat-total">—</span></button>
+    <button class="svc-tab" data-tab="pending" onclick="swuSetTab('pending')"><span class="svc-dot" style="background:#c29a3c"></span>รอดำเนินการ <span class="c" id="swu-stat-pending">—</span></button>
+    <button class="svc-tab" data-tab="scheduled" onclick="swuSetTab('scheduled')"><span class="svc-dot" style="background:#5b7fb3"></span>นัดหมายแล้ว <span class="c" id="swu-stat-scheduled">—</span></button>
+    <button class="svc-tab" data-tab="done" onclick="swuSetTab('done')"><span class="svc-dot" style="background:#4d8c6a"></span>เสร็จสิ้น <span class="c" id="swu-stat-done">—</span></button>
   </div>
 
   <!-- Filters -->
-  <div class="page-datebar" style="margin-bottom:.75rem;gap:.5rem;flex-wrap:wrap">
-    <select id="swu-filter-status" onchange="loadSwUpdate()">
+  <div class="svc-filters">
+    <label class="svc-search">
+      <i class=i-search style="color:#8a8f97"></i>
+      <input id="swu-search" type="text" placeholder="ค้นหาร้าน หรือรายละเอียด" oninput="swuSearchDebounce()"/>
+    </label>
+    <select id="swu-filter-status" class="svc-select" onchange="loadSwUpdate()" aria-label="สถานะ">
       <option value="">ทุกสถานะ</option>
       <option value="pending">รอดำเนินการ</option>
       <option value="scheduling">กำลังนัดหมาย</option>
@@ -3351,31 +3307,31 @@ textarea{resize:vertical;min-height:80px}
       <option value="done">เสร็จสิ้น</option>
       <option value="cancelled">ยกเลิก</option>
     </select>
-    <select id="swu-filter-priority" onchange="loadSwUpdate()">
+    <select id="swu-filter-priority" class="svc-select" onchange="loadSwUpdate()" aria-label="ความสำคัญ">
       <option value="">ทุกระดับ</option>
       <option value="urgent">เร่งด่วน</option>
       <option value="high">สูง</option>
       <option value="normal">ปกติ</option>
       <option value="low">ต่ำ</option>
     </select>
-    <input id="swu-search" type="text" placeholder="ค้นหาร้าน / รายละเอียด..." oninput="swuSearchDebounce()" style="min-width:200px;flex:1"/>
-    <button class="btn btn-ghost btn-sm" onclick="loadSwUpdate()"><i class=i-refresh></i></button>
+    <button class="svc-icon-btn" onclick="loadSwUpdate()" title="โหลดใหม่" aria-label="โหลดใหม่"><i class=i-refresh></i></button>
   </div>
 
-  <!-- Table -->
-  <div class="card" style="padding:.5rem 0">
+  <!-- Table (grouped by shop) -->
+  <div class="svc-tbl-card">
     <div class="tbl-wrap">
-      <table>
+      <table class="svc-tbl swu-tbl">
+        <colgroup>
+          <col style="width:92px"><col><col style="width:108px"><col style="width:140px"><col style="width:110px"><col style="width:110px"><col style="width:156px"><col style="width:92px"><col style="width:80px">
+        </colgroup>
         <thead><tr>
           <th>#ID</th>
-          <th>ร้านค้า</th>
-          <th>รายละเอียด</th>
-          <th>เวอร์ชั่น</th>
+          <th>รายละเอียด / เวอร์ชั่น</th>
           <th>ความสำคัญ</th>
           <th>สถานะ</th>
           <th>วันรับแจ้ง</th>
           <th>วันนัดหมาย</th>
-          <th>ผู้แจ้ง</th>
+          <th>ผู้แจ้ง / ผู้รับผิดชอบ</th>
           <th>Azure</th>
           <th></th>
         </tr></thead>
@@ -4216,24 +4172,19 @@ textarea{resize:vertical;min-height:80px}
 
 <!-- ═══════════════════ PAGE: SHOP INFO ═══════════════════ -->
 <div id="page-shopinfo" class="page">
-  <div class="section-header" style="margin-bottom:.65rem">
-    <div class="section-title">ข้อมูลร้าน</div>
+  <div class="svc-hdr">
+    <div>
+      <div class="svc-kicker">Shop data</div>
+      <h1 class="svc-h1">ข้อมูลร้าน</h1>
+      <div class="svc-sub">ข้อมูลรีโมท สิ่งที่ควรรู้ของแต่ละแบรนด์ และบันทึกการเทรนนิ่ง</div>
+    </div>
   </div>
 
   <!-- ── Tab Bar ── -->
-  <div style="display:flex;border-bottom:2px solid #e6e3dc;margin-bottom:.75rem;gap:0">
-    <button id="si-tab-btn-remote" onclick="siSwitchTab('remote')"
-      style="padding:.45rem 1.1rem;font-size:.85rem;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:2px solid #2563eb;color:#2563eb;margin-bottom:-2px;font-family:inherit;transition:all .15s">
-      🖥️ ข้อมูลรีโมท
-    </button>
-    <button id="si-tab-btn-knowledge" onclick="siSwitchTab('knowledge')"
-      style="padding:.45rem 1.1rem;font-size:.85rem;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:#8a8f97;margin-bottom:-2px;font-family:inherit;transition:all .15s">
-      📖 สิ่งที่ควรรู้
-    </button>
-    <button id="si-tab-btn-training" onclick="siSwitchTab('training')"
-      style="padding:.45rem 1.1rem;font-size:.85rem;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:#8a8f97;margin-bottom:-2px;font-family:inherit;transition:all .15s">
-      🧑‍🏫 เทรนนิ่ง
-    </button>
+  <div class="svc-tabs">
+    <button id="si-tab-btn-remote" class="svc-tab on" onclick="siSwitchTab('remote')">ข้อมูลรีโมท</button>
+    <button id="si-tab-btn-knowledge" class="svc-tab" onclick="siSwitchTab('knowledge')">สิ่งที่ควรรู้</button>
+    <button id="si-tab-btn-training" class="svc-tab" onclick="siSwitchTab('training')">เทรนนิ่ง</button>
   </div>
 
   <!-- ── Tab 1: ข้อมูลรีโมท ── -->
@@ -4241,11 +4192,11 @@ textarea{resize:vertical;min-height:80px}
     <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.75rem">
       <input id="si-search" type="text" placeholder="ค้นหา แบรนด์ สาขา ผู้ติดต่อ ชื่อเครื่อง Anydesk IP..."
              oninput="siSearchDebounce()"
-             style="border:1px solid var(--border);border-radius:8px;padding:.38rem .75rem;font-size:.83rem;min-width:280px;outline:none;flex:1"/>
+             style="border:1px solid var(--border);border-radius:10px;height:36px;padding:0 .8rem;font-size:.82rem;min-width:280px;outline:none;flex:1"/>
       <button class="btn btn-primary btn-sm" onclick="openCreateFolderModal()">สร้างโฟลเดอร์</button>
       <button class="btn btn-ghost btn-sm" onclick="siExportCSV()" title="Export เป็น CSV">Export</button>
       <label class="btn btn-ghost btn-sm" style="cursor:pointer;margin:0" title="Import จาก CSV">
-        📤 Import<input type="file" id="si-import-file" accept=".csv" style="display:none" onchange="siImportPreview(this)"/>
+        <i class=i-upload></i> Import<input type="file" id="si-import-file" accept=".csv" style="display:none" onchange="siImportPreview(this)"/>
       </label>
       <button class="btn btn-ghost btn-sm" onclick="loadShopInfo()">รีเฟรช</button>
     </div>
@@ -4260,13 +4211,13 @@ textarea{resize:vertical;min-height:80px}
     <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.75rem">
       <input id="sk-search" type="text" placeholder="ค้นหาหัวข้อ / เนื้อหา..."
              oninput="skSearchDebounce()"
-             style="border:1px solid var(--border);border-radius:8px;padding:.38rem .75rem;font-size:.83rem;min-width:220px;outline:none;flex:1"/>
+             style="border:1px solid var(--border);border-radius:10px;height:36px;padding:0 .8rem;font-size:.82rem;min-width:220px;outline:none;flex:1"/>
       <select id="sk-filter-brand" onchange="skLoad()"
-        style="border:1px solid var(--border);border-radius:8px;padding:.38rem .65rem;font-size:.83rem;font-family:inherit;outline:none;background:#fff;min-width:140px">
+        style="border:1px solid var(--border);border-radius:10px;height:36px;padding:0 .7rem;font-size:.82rem;font-family:inherit;outline:none;background:#fff;min-width:140px">
         <option value="">ทุกแบรนด์</option>
       </select>
       <select id="sk-filter-cat" onchange="skLoad()"
-        style="border:1px solid var(--border);border-radius:8px;padding:.38rem .65rem;font-size:.83rem;font-family:inherit;outline:none;background:#fff;min-width:130px">
+        style="border:1px solid var(--border);border-radius:10px;height:36px;padding:0 .7rem;font-size:.82rem;font-family:inherit;outline:none;background:#fff;min-width:130px">
         <option value="">ทุกหมวด</option>
         <option value="โฟลการทำงาน">โฟลการทำงาน</option>
         <option value="ฟังก์ชันเฉพาะทาง">ฟังก์ชันเฉพาะทาง</option>
@@ -4289,11 +4240,11 @@ textarea{resize:vertical;min-height:80px}
     <!-- Filter bar -->
     <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.75rem">
       <select id="tr-filter-trainer" onchange="trLoad()"
-        style="border:1px solid var(--border);border-radius:8px;padding:.38rem .65rem;font-size:.83rem;font-family:inherit;outline:none;background:#fff;min-width:160px">
+        style="border:1px solid var(--border);border-radius:10px;height:36px;padding:0 .7rem;font-size:.82rem;font-family:inherit;outline:none;background:#fff;min-width:160px">
         <option value="">ทุกคน</option>
       </select>
       <input id="tr-filter-month" type="month" onchange="trLoad()"
-        style="border:1px solid var(--border);border-radius:8px;padding:.38rem .65rem;font-size:.83rem;outline:none"/>
+        style="border:1px solid var(--border);border-radius:10px;height:36px;padding:0 .7rem;font-size:.82rem;outline:none"/>
       <button class="btn btn-primary btn-sm" onclick="trOpenAdd()">+ บันทึกการสอน</button>
       <button class="btn btn-ghost btn-sm" onclick="trLoad()">รีเฟรช</button>
     </div>
@@ -4328,7 +4279,7 @@ textarea{resize:vertical;min-height:80px}
       <label>ผู้เรียน <span style="font-size:.72rem;color:#8a8f97">(เลือกได้หลายคน)</span></label>
       <!-- trigger button -->
       <div id="tr-trainees-trigger" onclick="trTraineesToggle()"
-        style="border:1px solid var(--border);border-radius:8px;padding:.38rem .75rem;font-size:.83rem;cursor:pointer;min-height:34px;display:flex;align-items:center;flex-wrap:wrap;gap:.3rem;background:#fff;user-select:none">
+        style="border:1px solid var(--border);border-radius:10px;height:36px;padding:0 .8rem;font-size:.82rem;cursor:pointer;min-height:34px;display:flex;align-items:center;flex-wrap:wrap;gap:.3rem;background:#fff;user-select:none">
         <span id="tr-trainees-placeholder" style="color:#8a8f97">-- คลิกเพื่อเลือกผู้เรียน --</span>
         <div id="tr-trainees-tags" style="display:contents"></div>
       </div>
@@ -4361,7 +4312,7 @@ textarea{resize:vertical;min-height:80px}
 <div id="news-announce-popup" style="display:none;position:fixed;bottom:0;left:50%;transform:translateX(-50%) translateY(100%);width:min(520px,96vw);background:#fff;border-radius:16px 16px 0 0;box-shadow:0 -8px 40px #0003;z-index:501;transition:transform .4s cubic-bezier(.22,1,.36,1);padding:1.25rem 1.4rem 1.5rem;max-height:75vh;overflow-y:auto">
   <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:.85rem">
     <div style="display:flex;align-items:center;gap:.55rem">
-      <span id="news-announce-cat-badge" style="font-size:.72rem;font-weight:700;padding:.2rem .6rem;border-radius:20px;background:#dbeafe;color:#1e40af">ข่าวสาร</span>
+      <span id="news-announce-cat-badge" style="font-size:.72rem;font-weight:700;padding:.2rem .6rem;border-radius:20px;background:#eaf0f7;color:#2a544d">ข่าวสาร</span>
       <span style="font-size:.7rem;color:#8a8f97" id="news-announce-date"></span>
     </div>
     <button onclick="newsAnnounceAck()" style="background:none;border:none;font-size:1.3rem;color:#8a8f97;cursor:pointer;line-height:1;padding:0">×</button>
@@ -4369,14 +4320,18 @@ textarea{resize:vertical;min-height:80px}
   <div style="font-size:1rem;font-weight:700;color:#24272c;margin-bottom:.55rem" id="news-announce-title"></div>
   <div style="font-size:.84rem;color:#4d535b;line-height:1.6;margin-bottom:1rem;white-space:pre-wrap" id="news-announce-body"></div>
   <div style="display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap">
-    <button onclick="newsAnnounceRead()" style="background:none;border:none;color:#2563eb;cursor:pointer;font-size:.83rem;font-weight:600;padding:0;text-decoration:underline">อ่านรายละเอียด →</button>
+    <button onclick="newsAnnounceRead()" style="background:none;border:none;color:#35685f;cursor:pointer;font-size:.83rem;font-weight:600;padding:0;text-decoration:underline">อ่านรายละเอียด →</button>
     <button onclick="newsAnnounceAck()" class="btn btn-primary" style="min-width:120px">รับทราบ</button>
   </div>
 </div>
 
 <div id="page-news" class="page">
-  <div class="section-header" style="margin-bottom:.65rem">
-    <div class="section-title">ข่าวสาร</div>
+  <div class="svc-hdr">
+    <div>
+      <div class="svc-kicker">Announcements</div>
+      <h1 class="svc-h1">ข่าวสาร</h1>
+      <div class="svc-sub">ประกาศและอัปเดตภายในทีม</div>
+    </div>
     <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
       <button class="btn btn-primary btn-sm" id="news-create-btn" onclick="openNewsModal(null)" style="display:none">+ สร้างประกาศ</button>
       <button class="btn btn-ghost btn-sm" onclick="loadNews()">รีเฟรช</button>
@@ -4387,9 +4342,9 @@ textarea{resize:vertical;min-height:80px}
   <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.75rem">
     <input id="news-search" type="text" placeholder="ค้นหาข่าวสาร..."
            oninput="newsRender()"
-           style="border:1px solid var(--border);border-radius:8px;padding:.38rem .75rem;font-size:.83rem;min-width:200px;outline:none;flex:1"/>
+           style="border:1px solid var(--border);border-radius:10px;height:36px;padding:0 .8rem;font-size:.82rem;min-width:200px;outline:none;flex:1"/>
     <select id="news-filter-cat" onchange="newsRender()"
-      style="border:1px solid var(--border);border-radius:8px;padding:.38rem .65rem;font-size:.83rem;font-family:inherit;outline:none;background:#fff">
+      style="border:1px solid var(--border);border-radius:10px;height:36px;padding:0 .7rem;font-size:.82rem;font-family:inherit;outline:none;background:#fff">
       <option value="">ทุกหมวด</option>
       <option value="ทั่วไป">ทั่วไป</option>
       <option value="งานด่วน">งานด่วน</option>
@@ -9194,9 +9149,15 @@ function renderTickets() {
         <td colspan="7" style="padding:.85rem 1rem 1rem">
           <div style="display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;margin-bottom:.65rem">
             <span style="font-size:.84rem;font-weight:600;color:#24272c">${escHtml(t.CompanyName||'—')}</span>
-            ${t.problem_type_detail?`<span class="tk-ptype">${escHtml(t.problem_type_detail)}</span>`:''}
             <span style="font-size:.76rem;color:#6f747c;margin-left:auto">Agent: ${escHtml(dn(t.assigned_name)||'—')}</span>
           </div>
+          ${(t.problem_type_detail || t.title) ? `
+          <div class="tk-ptype-path">
+            <span class="k">ประเภทปัญหา</span>
+            <span class="tk-ptype">${escHtml(t.problem_type_detail || 'ไม่ระบุ')}</span>
+            ${t.title ? `<span class="sep" aria-hidden="true">›</span><span class="sub" title="หัวข้อ (Subject)">${escHtml(t.title)}</span>` : ''}
+            ${t.problem_type && t.problem_type !== t.problem_type_detail ? `<span class="note">${escHtml(t.problem_type)}</span>` : ''}
+          </div>` : ''}
           ${(desc||sol) ? `<div style="display:grid;grid-template-columns:${sol?'1fr 1fr':'1fr'};gap:.75rem;margin-bottom:.65rem">
             ${desc ? `<div class="tk-detail-box">
               <div class="tk-detail-label">รายละเอียดปัญหา</div>
@@ -9516,10 +9477,8 @@ function kpiSwitchTab(tab) {
   _kpiActiveTab = tab;
 
   // toggle tab button styles
-  const hd = document.getElementById('kpi-tab-hd');
-  const sp = document.getElementById('kpi-tab-sp');
-  if (hd) { hd.style.color = tab==='helpdesk' ? '#2563eb' : '#8a8f97'; hd.style.borderBottomColor = tab==='helpdesk' ? '#2563eb' : 'transparent'; }
-  if (sp) { sp.style.color = tab==='specialist' ? '#7c3aed' : '#8a8f97'; sp.style.borderBottomColor = tab==='specialist' ? '#7c3aed' : 'transparent'; }
+  document.getElementById('kpi-tab-hd')?.classList.toggle('on', tab==='helpdesk');
+  document.getElementById('kpi-tab-sp')?.classList.toggle('on', tab==='specialist');
 
   // hide team filter + separator on specialist tab (not applicable)
   const teamSel = document.getElementById('kpi-filter-team');
@@ -9543,11 +9502,9 @@ function kpiSwitchTab(tab) {
   const scoreSection = document.getElementById('kpi-score-section');
   if (scoreSection) scoreSection.style.display = isScore ? '' : 'none';
   // hide date bar for score tab
-  const datebar = document.querySelector('#page-kpi .page-datebar');
+  const datebar = document.getElementById('kpi-datebar');
   if (datebar) datebar.style.display = isScore ? 'none' : '';
 
-  const sc = document.getElementById('kpi-tab-score');
-  if (sc) { sc.style.color = isScore ? '#b45309' : '#8a8f97'; sc.style.borderBottomColor = isScore ? '#f59e0b' : 'transparent'; }
 
   if (tab==='specialist') {
     if (!_kpiDateFrom) {
@@ -9627,7 +9584,7 @@ function calcEffScore(total_pts, graded_cases) {
   const volumeBonus = Math.min(graded_cases * 0.4, 20);
   const final       = Math.round(qualityPct + volumeBonus);
   const gl = final>=95?'S':final>=80?'A':final>=65?'B':final>=50?'C':'D';
-  const gc = final>=95?'#7c3aed':final>=80?'#16a34a':final>=65?'#2563eb':final>=50?'#b45309':'#dc2626';
+  const gc = final>=95?'#5a4f8f':final>=80?'#3f7a5a':final>=65?'#35685f':final>=50?'#86671f':'#b04a40';
   return { qualityPct: Math.round(qualityPct), volumeBonus: Math.round(volumeBonus*10)/10, final, gl, gc };
 }
 
@@ -9644,7 +9601,7 @@ function renderSpKpiTable() {
     if (Math.abs(prev) < 0.01 || Math.abs(d/prev) < 0.05) return `<span style="color:#8a8f97;font-size:.7rem">→</span>`;
     const up = d > 0;
     const good = higherGood ? up : !up;
-    return `<span style="color:${good?'#16a34a':'#ef4444'};font-size:.75rem;font-weight:700">${up?'▲':'▼'}</span>`;
+    return `<span style="color:${good?'#3f7a5a':'#c0584c'};font-size:.75rem;font-weight:700">${up?'▲':'▼'}</span>`;
   };
 
   _spKpiData.sort((a, b) => {
@@ -9673,16 +9630,16 @@ function renderSpKpiTable() {
   const spMedals = ['🥇','🥈','🥉'];
   tbody.innerHTML = _spKpiData.map((a, idx) => {
     const rate = a.total_jobs ? Math.round((a.resolved_jobs||0)/a.total_jobs*100) : 0;
-    const rateColor = rate>=80 ? '#16a34a' : rate>=50 ? '#b45309' : '#dc2626';
+    const rateColor = rate>=80 ? '#3f7a5a' : rate>=50 ? '#86671f' : '#b04a40';
     const prevRate  = a.prev_total ? Math.round((a.prev_resolved||0)/a.prev_total*100) : 0;
 
     // สถานะ band
     const jobDiff = a.prev_total > 0 ? (a.total_jobs - a.prev_total)/a.prev_total*100 : 0;
     let bandIcon, bandColor, bandLabel;
     if (!a.prev_total)        { bandIcon='🆕'; bandColor='#5b616b'; bandLabel='ใหม่'; }
-    else if (jobDiff > 10)    { bandIcon='🟢'; bandColor='#16a34a'; bandLabel='เพิ่มขึ้น'; }
-    else if (jobDiff < -10)   { bandIcon='🔴'; bandColor='#dc2626'; bandLabel='ลดลง'; }
-    else                      { bandIcon='🟡'; bandColor='#b45309'; bandLabel='คงที่'; }
+    else if (jobDiff > 10)    { bandIcon='🟢'; bandColor='#3f7a5a'; bandLabel='เพิ่มขึ้น'; }
+    else if (jobDiff < -10)   { bandIcon='🔴'; bandColor='#b04a40'; bandLabel='ลดลง'; }
+    else                      { bandIcon='🟡'; bandColor='#86671f'; bandLabel='คงที่'; }
 
     const rowId = `sp-drill-${idx}`;
     const isOpen = _spDrillOpen.has(idx);
@@ -9709,7 +9666,7 @@ function renderSpKpiTable() {
         ${a.avg_resolve_min!=null ? fmtMin(a.avg_resolve_min) : '—'}
         ${trendArrow(a.avg_resolve_min??0, a.prev_avg_min??0, false)}
       </td>
-      <td><b style="color:${(a.pending_jobs||0)>0?'#ef4444':'#16a34a'}">${a.pending_jobs||0}</b></td>
+      <td><b style="color:${(a.pending_jobs||0)>0?'#c0584c':'#3f7a5a'}">${a.pending_jobs||0}</b></td>
       ${(() => {
           const ext   = a.UserName || a.ext_username || '';
           const empId = String(a.emp_id || '');
@@ -9735,18 +9692,18 @@ function renderSpKpiTable() {
           const pt    = Math.min(punct ?? 0, 5);
           const sw    = Math.round(Math.min((act.sw_done||0)/swTgt*10, 10) * 10) / 10;
           const total = Math.round((noBacklog + agent + general + kb + tr + fu + pt + sw) * 10) / 10;
-          const tc = total >= 90 ? '#16a34a' : total >= 75 ? '#2563eb' : total >= 60 ? '#b45309' : '#dc2626';
+          const tc = total >= 90 ? '#3f7a5a' : total >= 75 ? '#35685f' : total >= 60 ? '#86671f' : '#b04a40';
           const mkBar = (score, max, color) => {
             const w = Math.min(Math.round(score/max*52), 52);
             return `<div style="background:#e6e3dc;border-radius:4px;height:3px;width:52px;margin-top:2px"><div style="background:${color};height:3px;border-radius:4px;width:${w}px"></div></div>`;
           };
-          const agentC   = agent >= 28 ? '#16a34a' : agent >= 18 ? '#b45309' : '#8a8f97';
-          const generalC = general >= 8 ? '#16a34a' : general >= 5 ? '#b45309' : '#8a8f97';
+          const agentC   = agent >= 28 ? '#3f7a5a' : agent >= 18 ? '#86671f' : '#8a8f97';
+          const generalC = general >= 8 ? '#3f7a5a' : general >= 5 ? '#86671f' : '#8a8f97';
           return `
           <td style="white-space:nowrap">
-            <div style="font-weight:800;color:${noBacklog>=5?'#16a34a':noBacklog>=3?'#b45309':'#dc2626'};font-size:.9rem">${noBacklog}<span style="font-size:.62rem;color:#8a8f97">/5</span></div>
+            <div style="font-weight:800;color:${noBacklog>=5?'#3f7a5a':noBacklog>=3?'#86671f':'#b04a40'};font-size:.9rem">${noBacklog}<span style="font-size:.62rem;color:#8a8f97">/5</span></div>
             <div style="font-size:.65rem;color:#5b616b">${a.pending_jobs||0} งานค้าง</div>
-            ${mkBar(noBacklog, 5, noBacklog>=5?'#16a34a':noBacklog>=3?'#b45309':'#dc2626')}
+            ${mkBar(noBacklog, 5, noBacklog>=5?'#3f7a5a':noBacklog>=3?'#86671f':'#b04a40')}
           </td>
           <td style="white-space:nowrap">
             <div style="font-weight:800;color:${agentC};font-size:.9rem">${agent}<span style="font-size:.62rem;color:#8a8f97">/35</span></div>
@@ -9767,14 +9724,14 @@ function renderSpKpiTable() {
               style="font-size:.62rem;padding:1px 5px;border-radius:4px;border:1px solid #e6e3dc;background:#faf9f6;cursor:pointer;color:#5b616b;margin-top:2px"><i class=i-pencil></i></button>
           </td>
           <td style="white-space:nowrap;text-align:center">
-            <div style="font-weight:700;color:${sw>=8?'#16a34a':sw>=4?'#b45309':'#8a8f97'};font-size:.9rem">${sw}</div>
+            <div style="font-weight:700;color:${sw>=8?'#3f7a5a':sw>=4?'#86671f':'#8a8f97'};font-size:.9rem">${sw}</div>
             <div style="font-size:.65rem;color:#8a8f97">${act.sw_done||0} งาน</div>
           </td>
           <td><div style="font-weight:800;color:${tc};font-size:.95rem">${total}<span style="font-size:.62rem;color:#8a8f97">/100</span></div></td>`;
         })()}
     </tr>
     <tr id="${rowId}" style="display:${isOpen?'':'none'}">
-      <td colspan="16" style="padding:0;background:#faf9f6;border-left:3px solid #7c3aed">
+      <td colspan="16" style="padding:0;background:#faf9f6;border-left:3px solid #5a4f8f">
         <div id="sp-drill-content-${idx}" style="padding:.6rem 1rem;font-size:.8rem;color:var(--muted)">กำลังโหลด...</div>
       </td>
     </tr>`;
@@ -9801,12 +9758,12 @@ function toggleSpDrill(idx, rowEl) {
       content.innerHTML = `
         <div style="display:flex;gap:1.5rem;flex-wrap:wrap;padding:.25rem 0">
           <div><span style="color:var(--muted)">งานทั้งหมด: </span><b>${a.total_jobs||0}</b></div>
-          <div><span style="color:var(--muted)">แก้แล้ว: </span><b style="color:#16a34a">${a.resolved_jobs||0}</b></div>
-          <div><span style="color:var(--muted)">ค้างอยู่: </span><b style="color:${(a.pending_jobs||0)>0?'#ef4444':'#16a34a'}">${a.pending_jobs||0}</b></div>
-          <div><span style="color:var(--muted)">ปฏิเสธ: </span><b style="color:${(a.rejected_jobs||0)>0?'#dc2626':'#8a8f97'}">${a.rejected_jobs||0}</b></div>
-          <div><span style="color:var(--muted)">เวลาเฉลี่ย: </span><b style="color:#7c3aed">${a.avg_resolve_min!=null?fmtMin(a.avg_resolve_min):'—'}</b></div>
+          <div><span style="color:var(--muted)">แก้แล้ว: </span><b style="color:#3f7a5a">${a.resolved_jobs||0}</b></div>
+          <div><span style="color:var(--muted)">ค้างอยู่: </span><b style="color:${(a.pending_jobs||0)>0?'#c0584c':'#3f7a5a'}">${a.pending_jobs||0}</b></div>
+          <div><span style="color:var(--muted)">ปฏิเสธ: </span><b style="color:${(a.rejected_jobs||0)>0?'#b04a40':'#8a8f97'}">${a.rejected_jobs||0}</b></div>
+          <div><span style="color:var(--muted)">เวลาเฉลี่ย: </span><b style="color:#5a4f8f">${a.avg_resolve_min!=null?fmtMin(a.avg_resolve_min):'—'}</b></div>
           <div><span style="color:var(--muted)">ช่วงก่อนหน้า: </span><b>${a.prev_total||0} งาน</b></div>
-          <div><span style="color:var(--muted)">ประเภทปัญหาหลัก: </span><b style="color:#7c3aed">${escHtml(a.top_problem_type||'—')}</b></div>
+          <div><span style="color:var(--muted)">ประเภทปัญหาหลัก: </span><b style="color:#5a4f8f">${escHtml(a.top_problem_type||'—')}</b></div>
         </div>`;
     }
   }
@@ -9825,10 +9782,10 @@ function renderSpKpiCharts(data) {
     el._chart = new Chart(el, { type:'bar', data:{ labels, datasets:[{ data:values, backgroundColor:color, borderRadius:4 }] }, options:BAR_OPTS });
   };
 
-  mkBar('chart-sp-jobs', names, agents.map(a=>a.total_jobs||0), '#6366f1');
+  mkBar('chart-sp-jobs', names, agents.map(a=>a.total_jobs||0), '#6f6aa8');
   mkBar('chart-sp-time', agents.filter(a=>a.avg_resolve_min!=null).map(a=>a.name||'?'),
-        agents.filter(a=>a.avg_resolve_min!=null).map(a=>Math.round(a.avg_resolve_min)), '#8b5cf6');
-  mkBar('chart-sp-resolve', names, agents.map(a=>a.total_jobs?Math.round((a.resolved_jobs||0)/a.total_jobs*100):0), '#22c55e');
+        agents.filter(a=>a.avg_resolve_min!=null).map(a=>Math.round(a.avg_resolve_min)), '#7d72b3');
+  mkBar('chart-sp-resolve', names, agents.map(a=>a.total_jobs?Math.round((a.resolved_jobs||0)/a.total_jobs*100):0), '#4d8c6a');
 
   // Problem type doughnut
   const pelEl = document.getElementById('chart-sp-problems');
@@ -9836,7 +9793,7 @@ function renderSpKpiCharts(data) {
     if (pelEl._chart) pelEl._chart.destroy();
     pelEl._chart = new Chart(pelEl, {
       type:'doughnut',
-      data:{ labels: problems.map(p=>p.problem_type||'?'), datasets:[{ data: problems.map(p=>p.cnt), backgroundColor:['#6366f1','#8b5cf6','#a78bfa','#c4b5fd','#ddd6fe','#ede9fe','#f5f3ff','#7c3aed','#4f46e5','#4338ca'] }] },
+      data:{ labels: problems.map(p=>p.problem_type||'?'), datasets:[{ data: problems.map(p=>p.cnt), backgroundColor:['#6f6aa8','#7d72b3','#a39cc9','#c4b5fd','#dcd8ee','#efedf7','#f4f3fa','#5a4f8f','#5a5f9a','#4338ca'] }] },
       options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'right', labels:{ font:{size:8}, boxWidth:10 } } } }
     });
   }
@@ -9949,8 +9906,8 @@ function kpiScoreTeam(team) {
   _kpiScoreTeam = team;
   const hd = document.getElementById('kscore-tab-hd');
   const sp = document.getElementById('kscore-tab-sp');
-  if (hd) { hd.style.background = team==='helpdesk' ? '#2563eb' : 'transparent'; hd.style.color = team==='helpdesk' ? '#fff' : '#5b616b'; }
-  if (sp) { sp.style.background = team==='specialist' ? '#7c3aed' : 'transparent'; sp.style.color = team==='specialist' ? '#fff' : '#5b616b'; }
+  if (hd) { hd.style.background = team==='helpdesk' ? '#35685f' : 'transparent'; hd.style.color = team==='helpdesk' ? '#fff' : '#5b616b'; }
+  if (sp) { sp.style.background = team==='specialist' ? '#5a4f8f' : 'transparent'; sp.style.color = team==='specialist' ? '#fff' : '#5b616b'; }
   _kpiScoreData = null;
   loadKpiMonthlyScores();
 }
@@ -9966,7 +9923,7 @@ async function loadKpiMonthlyScores() {
     renderKpiScoreTable(data);
   } catch(e) {
     const body = document.getElementById('kpi-score-body');
-    if (body) body.innerHTML = `<div style="padding:2rem;text-align:center;color:#ef4444;font-size:.85rem">${e.message||'โหลดไม่ได้'}</div>`;
+    if (body) body.innerHTML = `<div style="padding:2rem;text-align:center;color:#c0584c;font-size:.85rem">${e.message||'โหลดไม่ได้'}</div>`;
   } finally {
     if (loading) loading.style.display = 'none';
   }
@@ -9982,18 +9939,18 @@ function kpiScoreGrade(score) {
 function kpiScoreGradeStyle(g) {
   const map = {
     A: 'background:#ecfdf5;color:#059669;border:1.5px solid #a7f3d0',
-    B: 'background:#eff6ff;color:#2563eb;border:1.5px solid #bfdbfe',
-    C: 'background:#fffbeb;color:#d97706;border:1.5px solid #fde68a',
-    D: 'background:#fef2f2;color:#dc2626;border:1.5px solid #fecaca',
+    B: 'background:#f2f6fa;color:#35685f;border:1.5px solid #cddaea',
+    C: 'background:#fbf8f0;color:#a2702a;border:1.5px solid #e6d6a8',
+    D: 'background:#faf1ef;color:#b04a40;border:1.5px solid #e8c9c3',
   };
   return map[g] || map.D;
 }
 
 function kpiScoreBarColor(pct) {
-  if (pct >= .9)  return 'linear-gradient(90deg,#10b981,#34d399)';
-  if (pct >= .75) return 'linear-gradient(90deg,#3b82f6,#60a5fa)';
-  if (pct >= .6)  return 'linear-gradient(90deg,#f59e0b,#fbbf24)';
-  return 'linear-gradient(90deg,#ef4444,#f87171)';
+  if (pct >= .9)  return 'linear-gradient(90deg,#4d8c6a,#7fb394)';
+  if (pct >= .75) return 'linear-gradient(90deg,#5b7fb3,#8fb0cf)';
+  if (pct >= .6)  return 'linear-gradient(90deg,#c29a3c,#d4b25a)';
+  return 'linear-gradient(90deg,#c0584c,#d08a80)';
 }
 
 let _kpiScoreExpanded = null;
@@ -10025,7 +9982,7 @@ function renderKpiScoreTable(data) {
     </div>`,
     `<div style="background:#fff;border:1px solid var(--border);border-radius:9px;padding:.4rem .85rem;display:flex;align-items:center;gap:.4rem;box-shadow:0 1px 3px #0001">
       <span style="font-size:.7rem;color:var(--muted)">เฉลี่ย</span>
-      <span style="font-size:1.05rem;font-weight:800;color:#2563eb">${avg.toFixed(1)}</span>
+      <span style="font-size:1.05rem;font-weight:800;color:#35685f">${avg.toFixed(1)}</span>
     </div>`,
     `<div style="background:#fff;border:1px solid var(--border);border-radius:9px;padding:.4rem .85rem;display:flex;align-items:center;gap:.4rem;box-shadow:0 1px 3px #0001">
       <span style="font-size:.7rem;color:var(--muted)">สูงสุด</span>
@@ -10067,7 +10024,7 @@ function renderKpiScoreTable(data) {
   data.forEach((emp, idx) => {
     const g    = kpiScoreGrade(emp.total);
     const pct  = emp.total / 100;
-    const rankCls = idx===0 ? '#f59e0b' : idx===1 ? '#8a8f97' : idx===2 ? '#cd7c2e' : '#d6d2c9';
+    const rankCls = idx===0 ? '#c29a3c' : idx===1 ? '#8a8f97' : idx===2 ? '#cd7c2e' : '#d6d2c9';
     const isExp = _kpiScoreExpanded === emp.emp_id;
 
     // Detail rows
@@ -10078,7 +10035,7 @@ function renderKpiScoreTable(data) {
         const kpct   = k.max > 0 ? earned / k.max : 0;
         const rawVal = emp.raw ? emp.raw[k.rawKey] : undefined;
         const rawFmt = (rawVal === undefined || rawVal === null) ? '—' : (typeof rawVal === 'number' ? (rawVal % 1 ? rawVal.toFixed(1) : rawVal) : rawVal);
-        const barClr = kpct >= .8 ? '#10b981' : kpct >= .6 ? '#3b82f6' : kpct >= .4 ? '#f59e0b' : '#ef4444';
+        const barClr = kpct >= .8 ? '#4d8c6a' : kpct >= .6 ? '#5b7fb3' : kpct >= .4 ? '#c29a3c' : '#c0584c';
         return `<div style="background:#fff;border:1px solid #e6e3dc;border-radius:9px;padding:.6rem .8rem;display:flex;flex-direction:column;gap:.3rem">
           <div style="display:flex;align-items:center;gap:.4rem">
             <span style="font-size:.85rem">${k.icon}</span>
@@ -10148,7 +10105,7 @@ function calcSpTotal(sp, act, punct) {
 
 function scoreCell(pts, max, label) {
   const pct = max > 0 ? pts/max : 0;
-  const c = pct >= 0.8 ? '#16a34a' : pct >= 0.5 ? '#b45309' : '#8a8f97';
+  const c = pct >= 0.8 ? '#3f7a5a' : pct >= 0.5 ? '#86671f' : '#8a8f97';
   return `<div style="font-weight:800;color:${c};font-size:.85rem;white-space:nowrap">${pts}<span style="font-size:.62rem;color:#d6d2c9">/${max}</span></div>`;
 }
 
@@ -10336,17 +10293,17 @@ function renderKpiTable() {
 
   const hdMedals = ['🥇','🥈','🥉'];
   tbody.innerHTML = sortedKpi.map((k, idx) => {
-    const closeColor = k.close_rate >= 80 ? '#16a34a' : k.close_rate >= 50 ? '#b45309' : '#dc2626';
+    const closeColor = k.close_rate >= 80 ? '#3f7a5a' : k.close_rate >= 50 ? '#86671f' : '#b04a40';
     const starsVal   = _kpiUseEstStars ? calcEstimatedStars(k) : (k.avg_stars ?? null);
-    const starDisp   = starsVal != null ? `${(+starsVal).toFixed(1)}★${_kpiUseEstStars && !k.avg_stars ? '<span style="font-size:.6rem;color:#92400e" title="ประมาณค่า"><i class=i-spark></i></span>' : ''}` : '—';
+    const starDisp   = starsVal != null ? `${(+starsVal).toFixed(1)}★${_kpiUseEstStars && !k.avg_stars ? '<span style="font-size:.6rem;color:#7a5a1c" title="ประมาณค่า"><i class=i-spark></i></span>' : ''}` : '—';
 
     // Performance band (comparing to prev period)
     const caseDiff = k.prev_cases > 0 ? (k.total_cases - k.prev_cases) / k.prev_cases * 100 : 0;
     let bandColor, bandIcon, bandLabel;
     if (k.prev_cases === 0) { bandIcon='🆕'; bandColor='#5b616b'; bandLabel='ใหม่'; }
-    else if (caseDiff > 10)  { bandIcon='🟢'; bandColor='#16a34a'; bandLabel='ดีขึ้น'; }
-    else if (caseDiff < -10) { bandIcon='🔴'; bandColor='#dc2626'; bandLabel='ลดลง'; }
-    else                     { bandIcon='🟡'; bandColor='#b45309'; bandLabel='คงที่'; }
+    else if (caseDiff > 10)  { bandIcon='🟢'; bandColor='#3f7a5a'; bandLabel='ดีขึ้น'; }
+    else if (caseDiff < -10) { bandIcon='🔴'; bandColor='#b04a40'; bandLabel='ลดลง'; }
+    else                     { bandIcon='🟡'; bandColor='#86671f'; bandLabel='คงที่'; }
 
     // Trend arrow per metric
     const trendArrow = (cur, prev, higherGood=true) => {
@@ -10355,7 +10312,7 @@ function renderKpiTable() {
       if (Math.abs(d/prev) < 0.05) return `<span style="color:#8a8f97;font-size:.7rem">→</span>`;
       const up = d > 0;
       const good = higherGood ? up : !up;
-      return `<span style="color:${good?'#16a34a':'#ef4444'};font-size:.75rem;font-weight:700">${up?'▲':'▼'}</span>`;
+      return `<span style="color:${good?'#3f7a5a':'#c0584c'};font-size:.75rem;font-weight:700">${up?'▲':'▼'}</span>`;
     };
 
     // Sparkline SVG
@@ -10369,14 +10326,14 @@ function renderKpiTable() {
         return `${x.toFixed(1)},${y.toFixed(1)}`;
       }).join(' ');
       return `<svg width="${w}" height="${h}" style="vertical-align:middle">
-        <polyline points="${pts}" fill="none" stroke="#2563eb" stroke-width="1.5" stroke-linejoin="round"/>
-        <circle cx="${((counts.length-1)/(counts.length-1))*w}" cy="${(h-(counts[counts.length-1]/max)*h).toFixed(1)}" r="2" fill="#2563eb"/>
+        <polyline points="${pts}" fill="none" stroke="#35685f" stroke-width="1.5" stroke-linejoin="round"/>
+        <circle cx="${((counts.length-1)/(counts.length-1))*w}" cy="${(h-(counts[counts.length-1]/max)*h).toFixed(1)}" r="2" fill="#35685f"/>
       </svg>`;
     };
 
     // Consistency badge
     const cv = k.consistency_cv ?? 999;
-    const consColor = cv <= 40 ? '#16a34a' : cv <= 80 ? '#b45309' : '#dc2626';
+    const consColor = cv <= 40 ? '#3f7a5a' : cv <= 80 ? '#86671f' : '#b04a40';
     const consLabel = cv <= 40 ? 'สม่ำเสมอ' : cv <= 80 ? 'ปานกลาง' : 'ไม่สม่ำเสมอ';
 
     return `
@@ -10416,8 +10373,8 @@ function renderKpiTable() {
           const pt       = punct ?? 0;
           const sw       = Math.round(Math.min((act?.sw_done||0)/swTarget*10, 10) * 10) / 10;
           const total    = Math.round((sat + noBacklog + general + kb + pt + sw) * 10) / 10;
-          const tc  = total >= 90 ? '#16a34a' : total >= 75 ? '#2563eb' : total >= 60 ? '#b45309' : '#dc2626';
-          const gc  = general >= 48 ? '#16a34a' : general >= 30 ? '#b45309' : '#8a8f97';
+          const tc  = total >= 90 ? '#3f7a5a' : total >= 75 ? '#35685f' : total >= 60 ? '#86671f' : '#b04a40';
+          const gc  = general >= 48 ? '#3f7a5a' : general >= 30 ? '#86671f' : '#8a8f97';
           const pct = Math.min(Math.round(gs/target*100), 100);
           const mkBar = (score, max, color) => {
             const w = Math.min(Math.round(score/max*52), 52);
@@ -10425,14 +10382,14 @@ function renderKpiTable() {
           };
           return `
           <td style="white-space:nowrap">
-            <div style="font-weight:800;color:${sat>=4?'#16a34a':sat>=2?'#b45309':'#dc2626'};font-size:.9rem">${sat}<span style="font-size:.62rem;color:#8a8f97">/5</span></div>
+            <div style="font-weight:800;color:${sat>=4?'#3f7a5a':sat>=2?'#86671f':'#b04a40'};font-size:.9rem">${sat}<span style="font-size:.62rem;color:#8a8f97">/5</span></div>
             <div style="font-size:.65rem;color:#5b616b">${(+(k.avg_stars||0)).toFixed(1)} ★ เฉลี่ย</div>
-            ${mkBar(sat, 5, sat>=4?'#16a34a':sat>=2?'#b45309':'#dc2626')}
+            ${mkBar(sat, 5, sat>=4?'#3f7a5a':sat>=2?'#86671f':'#b04a40')}
           </td>
           <td style="white-space:nowrap">
-            <div style="font-weight:800;color:${noBacklog>=5?'#16a34a':noBacklog>=3?'#b45309':'#dc2626'};font-size:.9rem">${noBacklog}<span style="font-size:.62rem;color:#8a8f97">/5</span></div>
+            <div style="font-weight:800;color:${noBacklog>=5?'#3f7a5a':noBacklog>=3?'#86671f':'#b04a40'};font-size:.9rem">${noBacklog}<span style="font-size:.62rem;color:#8a8f97">/5</span></div>
             <div style="font-size:.65rem;color:#5b616b">${k.overdue_cases||0} งานค้าง</div>
-            ${mkBar(noBacklog, 5, noBacklog>=5?'#16a34a':noBacklog>=3?'#b45309':'#dc2626')}
+            ${mkBar(noBacklog, 5, noBacklog>=5?'#3f7a5a':noBacklog>=3?'#86671f':'#b04a40')}
           </td>
           <td style="white-space:nowrap">
             <div style="font-weight:800;color:${gc};font-size:.9rem">${general}<span style="font-size:.62rem;color:#8a8f97">/60</span></div>
@@ -10446,7 +10403,7 @@ function renderKpiTable() {
               style="font-size:.62rem;padding:1px 5px;border-radius:4px;border:1px solid #e6e3dc;background:#faf9f6;cursor:pointer;color:#5b616b;margin-top:2px"><i class=i-pencil></i></button>
           </td>
           <td style="white-space:nowrap;text-align:center">
-            <div style="font-weight:700;color:${sw>=8?'#16a34a':sw>=4?'#b45309':'#8a8f97'};font-size:.9rem">${sw}</div>
+            <div style="font-weight:700;color:${sw>=8?'#3f7a5a':sw>=4?'#86671f':'#8a8f97'};font-size:.9rem">${sw}</div>
             <div style="font-size:.65rem;color:#8a8f97">${act?.sw_done||0} งาน</div>
           </td>
           <td><div style="font-weight:800;color:${tc};font-size:.95rem">${total}<span style="font-size:.62rem;color:#8a8f97">/100</span></div></td>`;
@@ -10496,7 +10453,7 @@ async function toggleKpiDrill(username, month, rowEl) {
     // Category bars
     const catBars = categories.slice(0, 8).map(c => {
       const pct = Math.round((c.cnt / maxCnt) * 100);
-      const catStarStr = c.avg_stars ? ` <span style="color:#f59e0b;font-size:.72rem">${(+c.avg_stars).toFixed(1)}★</span>` : '';
+      const catStarStr = c.avg_stars ? ` <span style="color:#c29a3c;font-size:.72rem">${(+c.avg_stars).toFixed(1)}★</span>` : '';
       return `<div class="kpi-cat-bar">
         <span style="min-width:140px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
               title="${escHtml(c.category||'')}">${escHtml(c.category||'—')}</span>
@@ -10530,7 +10487,7 @@ async function toggleKpiDrill(username, month, rowEl) {
           <div class="kpi-stat-mini" style="margin-bottom:.6rem">
             <div class="kpi-stat-mini-item"><b>${summary.total||0}</b>เคสทั้งหมด</div>
             <div class="kpi-stat-mini-item"><b>${avgHr}</b>เฉลี่ยเวลาปิด</div>
-            <div class="kpi-stat-mini-item"><b><span style="color:#f59e0b">${starStr}</span> ${avgStar}</b>คะแนน (${ratedOf})</div>
+            <div class="kpi-stat-mini-item"><b><span style="color:#c29a3c">${starStr}</span> ${avgStar}</b>คะแนน (${ratedOf})</div>
             <div class="kpi-stat-mini-item"><b>${categories.length}</b>หมวด</div>
           </div>
           <div style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.35rem">ประเภทงานที่รับ (Top ${Math.min(8,categories.length)})</div>
@@ -10549,9 +10506,9 @@ async function toggleKpiDrill(username, month, rowEl) {
           datasets: [{
             data: Object.values(radarScore),
             backgroundColor: 'rgba(37,99,235,.15)',
-            borderColor: '#2563eb',
+            borderColor: '#35685f',
             borderWidth: 2,
-            pointBackgroundColor: '#2563eb',
+            pointBackgroundColor: '#35685f',
             pointRadius: 3
           }]
         },
@@ -10569,7 +10526,7 @@ async function toggleKpiDrill(username, month, rowEl) {
       });
     }, 50);
   } catch(e) {
-    if (content) content.innerHTML = `<span style="color:#ef4444;font-size:.82rem">โหลดไม่สำเร็จ: ${e.message}</span>`;
+    if (content) content.innerHTML = `<span style="color:#c0584c;font-size:.82rem">โหลดไม่สำเร็จ: ${e.message}</span>`;
   }
 }
 
@@ -10593,7 +10550,7 @@ function renderKpiCharts() {
 
   const sorted = [...allKpi].sort((a,b) => (b.total_cases||0) - (a.total_cases||0)).slice(0, 12);
   const labels = sorted.map(k => k.name || dn(k.UserName));
-  const teamClr = k => teamColor(k.team) || '#38bdf8';
+  const teamClr = k => teamColor(k.team) || '#7fa3c8';
 
   // Chart 1: เคสต่อ Agent
   chartCases = new Chart(document.getElementById('chart-cases'), {
@@ -10605,14 +10562,14 @@ function renderKpiCharts() {
   // Chart 2: ⭐ Stars เฉลี่ย
   chartScore = new Chart(document.getElementById('chart-score'), {
     type: 'bar',
-    data: { labels, datasets: [{ data: sorted.map(k=>{ const s = _kpiUseEstStars ? calcEstimatedStars(k) : (k.avg_stars ?? 0); return s ? (+s).toFixed(1) : 0; }), backgroundColor: sorted.map(k => _kpiUseEstStars && !k.avg_stars ? '#d97706' : '#fbbf24'), borderRadius:4 }] },
+    data: { labels, datasets: [{ data: sorted.map(k=>{ const s = _kpiUseEstStars ? calcEstimatedStars(k) : (k.avg_stars ?? 0); return s ? (+s).toFixed(1) : 0; }), backgroundColor: sorted.map(k => _kpiUseEstStars && !k.avg_stars ? '#a2702a' : '#d4b25a'), borderRadius:4 }] },
     options: { ...mkBarOpts('★'), scales: { ...mkBarOpts('★').scales, y: { beginAtZero:true, max:5, ticks:{ color:'#5b616b', font:{size:9} }, grid:{ color:'#f0eee9' } } } }
   });
 
   // Chart 3: ✅ Close rate %
   chartCloseRate = new Chart(document.getElementById('chart-close-rate'), {
     type: 'bar',
-    data: { labels, datasets: [{ data: sorted.map(k=>k.close_rate||0), backgroundColor: sorted.map(k=>k.close_rate>=80?'#4ade80':k.close_rate>=50?'#fbbf24':'#f87171'), borderRadius:4 }] },
+    data: { labels, datasets: [{ data: sorted.map(k=>k.close_rate||0), backgroundColor: sorted.map(k=>k.close_rate>=80?'#4ade80':k.close_rate>=50?'#d4b25a':'#d08a80'), borderRadius:4 }] },
     options: { ...mkBarOpts('%'), scales: { ...mkBarOpts('%').scales, y: { beginAtZero:true, max:100, ticks:{ color:'#5b616b', font:{size:9}, callback:v=>v+'%' }, grid:{ color:'#f0eee9' } } } }
   });
 
@@ -10632,7 +10589,7 @@ function renderKpiCharts() {
       type: 'doughnut',
       data: {
         labels: _kpiStarsDist.map(r=>`${r.Stars}★`),
-        datasets: [{ data: _kpiStarsDist.map(r=>r.cnt), backgroundColor:['#fecaca','#fed7aa','#fef08a','#bbf7d0','#34d399'], borderWidth:2, borderColor:'#fff' }]
+        datasets: [{ data: _kpiStarsDist.map(r=>r.cnt), backgroundColor:['#e8c9c3','#ecd3bd','#fef08a','#cfe0d5','#7fb394'], borderWidth:2, borderColor:'#fff' }]
       },
       options: { responsive:true, maintainAspectRatio:false, cutout:'55%',
         plugins:{ legend:{ position:'bottom', labels:{ color:'#5b616b', font:{size:9}, boxWidth:8, padding:6 } } } }
@@ -11071,7 +11028,7 @@ async function loadTeamsTab() {
       <td><b>${t.display_name}</b></td>
       <td><span style="display:inline-block;width:18px;height:18px;border-radius:4px;background:${t.color};vertical-align:middle;margin-right:.4rem"></span>${t.color}</td>
       <td>${t.sort_order}</td>
-      <td><span class="badge" style="background:${t.active?'#dcfce7':'#f0eee9'};color:${t.active?'#15803d':'#5b616b'}">${t.active?'ใช้งาน':'ปิดใช้'}</span></td>
+      <td><span class="badge" style="background:${t.active?'#e7f0ea':'#f0eee9'};color:${t.active?'#356b4e':'#5b616b'}">${t.active?'ใช้งาน':'ปิดใช้'}</span></td>
       <td style="text-align:center">
         <button onclick="toggleTeamSchedule(${t.id},${inSched?0:1})"
           style="border:none;background:none;cursor:pointer;font-size:1.1rem;line-height:1" title="${inSched?'คลิกเพื่อซ่อน':'คลิกเพื่อแสดง'}">
@@ -11091,8 +11048,8 @@ function openAddTeam() {
   document.getElementById('tm-id').value       = '';
   document.getElementById('tm-name').value     = '';
   document.getElementById('tm-display').value  = '';
-  document.getElementById('tm-color').value    = '#2563eb';
-  document.getElementById('tm-color-picker').value = '#2563eb';
+  document.getElementById('tm-color').value    = '#35685f';
+  document.getElementById('tm-color-picker').value = '#35685f';
   document.getElementById('tm-order').value    = allTeams.length + 1;
   document.getElementById('tm-active-wrap').style.display = 'none';
   openModal('modal-team');
@@ -12377,8 +12334,9 @@ function toggleSettingsMenu(btn) {
   arrow.textContent = isOpen ? '›' : '⌄';
   arrow.style.transform = isOpen ? '' : 'rotate(0deg)';
   if (!isOpen) {
-    // Activate settings page with default sub
-    navSettings('schedule', document.getElementById('nav-sub-schedule'));
+    // Open the first settings item this user can see (ตารางงาน / กะ / เป้าหมาย KPI were retired)
+    const first = [...sub.querySelectorAll('.s-sub')].find(b => b.style.display !== 'none');
+    if (first) first.click();
   }
 }
 
@@ -17861,7 +17819,7 @@ function renderPeopleTable(emps) {
         ${u?.calluserid ? `<span style="font-size:.7rem;background:#f0eee9;border-radius:4px;padding:.05rem .35rem;margin-left:.3rem;color:#4d535b">ID:${u.calluserid}</span>` : ''}
       </td>
       <td>
-        <span class="badge" style="${e.active ? 'background:#dcfce7;color:#166534' : 'background:#fef2f2;color:#b91c1c'}">
+        <span class="badge" style="${e.active ? 'background:#e7f0ea;color:#2f5e45' : 'background:#faf1ef;color:#963d34'}">
           ${e.active ? 'ทำงาน' : 'ออกแล้ว'}
         </span>
       </td>
@@ -17870,8 +17828,8 @@ function renderPeopleTable(emps) {
           <button class="btn btn-ghost btn-sm"
             onclick='openEditPerson(${JSON.stringify(e).replace(/'/g,"&#39;")}, ${u ? JSON.stringify(u).replace(/'/g,"&#39;") : 'null'})'>แก้ไข</button>
           ${e.active
-            ? `<button class="btn btn-sm" style="background:#fef2f2;color:#b91c1c" onclick="deletePerson(${e.id},'${e.name}',${u?.id||'null'})">ลบ</button>`
-            : `<button class="btn btn-sm" style="background:#f0fdf4;color:#15803d" onclick="restorePerson(${e.id})">คืน</button>`}
+            ? `<button class="btn btn-sm" style="background:#faf1ef;color:#963d34" onclick="deletePerson(${e.id},'${e.name}',${u?.id||'null'})">ลบ</button>`
+            : `<button class="btn btn-sm" style="background:#f1f6f2;color:#356b4e" onclick="restorePerson(${e.id})">คืน</button>`}
         </div>
       </td>
     </tr>`;
@@ -18926,7 +18884,7 @@ async function loadShopInfo() {
     renderShopInfo(data);
   } catch(e) {
     document.getElementById('shopinfo-list').innerHTML =
-      `<div style="color:#ef4444;padding:1rem;text-align:center">โหลดข้อมูลไม่สำเร็จ: ${escHtml(e.message)}</div>`;
+      `<div style="color:#c0584c;padding:1rem;text-align:center">โหลดข้อมูลไม่สำเร็จ: ${escHtml(e.message)}</div>`;
   }
 }
 
@@ -18964,7 +18922,7 @@ function renderShopInfo(data) {
     const branchesHtml = branchMap.size
       ? [...branchMap.entries()].map(([, terminals]) => renderSiBranchCard(terminals, bnJs)).join('')
       : `<div style="padding:.65rem 1rem 1rem;color:var(--muted);font-size:.82rem">
-           📭 ยังไม่มีรายการ — กด <b style="color:#2563eb">+ สร้างรายการ</b> ในหัวโฟลเดอร์เพื่อเพิ่ม
+           ยังไม่มีรายการ — กด <b style="color:#35685f">+ สร้างรายการ</b> ในหัวโฟลเดอร์เพื่อเพิ่ม
          </div>`;
 
     return `
@@ -18977,9 +18935,9 @@ function renderShopInfo(data) {
           style="background:transparent;border:none;cursor:pointer;font-size:.8rem;padding:.15rem .35rem;border-radius:4px;color:var(--muted);line-height:1"><i class=i-pencil></i></button>
         <button onclick="event.stopPropagation();siDeleteFolder('${bnJs}')"
           title="ลบโฟลเดอร์"
-          style="background:transparent;border:none;cursor:pointer;font-size:.8rem;padding:.15rem .35rem;border-radius:4px;color:#ef4444;line-height:1"><i class=i-trash></i></button>
+          style="background:transparent;border:none;cursor:pointer;font-size:.8rem;padding:.15rem .35rem;border-radius:4px;color:#c0584c;line-height:1"><i class=i-trash></i></button>
         <button onclick="event.stopPropagation();openSiEntryModal(null,'${bnJs}')"
-          style="background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:6px;padding:.18rem .6rem;font-size:.75rem;cursor:pointer;font-weight:600;white-space:nowrap">+ สร้างรายการ</button>
+          style="background:#f2f6fa;color:#35685f;border:1px solid #cddaea;border-radius:6px;padding:.18rem .6rem;font-size:.75rem;cursor:pointer;font-weight:600;white-space:nowrap">+ สร้างรายการ</button>
         <span id="${brandKey}-arrow" style="color:var(--muted);font-size:.78rem;margin-left:.15rem">${isOpen?'▼':'▶'}</span>
       </div>
       <div id="${brandKey}" class="si-brand-body" style="${isOpen?'':'display:none'}">
@@ -19133,7 +19091,7 @@ function siStartRename(brandName, brandKey) {
   const input = document.createElement('input');
   input.value = brandName;
   input.id = brandKey + '-name';
-  input.style.cssText = 'flex:1;border:1.5px solid #2563eb;border-radius:6px;padding:.15rem .5rem;font-size:.88rem;font-weight:700;outline:none;background:#eff6ff;min-width:0;width:100%';
+  input.style.cssText = 'flex:1;border:1.5px solid #35685f;border-radius:6px;padding:.15rem .5rem;font-size:.88rem;font-weight:700;outline:none;background:#f2f6fa;min-width:0;width:100%';
   input.onclick = e => e.stopPropagation();
 
   let saved = false;
@@ -19360,7 +19318,7 @@ function issRenderTickets(d) {
       <td style="${td}">${esc(r.company || '—')}</td>
       <td style="${td};color:#4d535b">${esc((r.description || '').replace(/\s+/g, ' ').slice(0, 160)) || '—'}</td>
       <td style="${td};white-space:nowrap">
-        <span style="font-size:.72rem;font-weight:700;padding:.1rem .45rem;border-radius:6px;background:${closed ? '#dcfce7' : '#fef3c7'};color:${closed ? '#16a34a' : '#b45309'}">${esc(r.status || '—')}</span>
+        <span style="font-size:.72rem;font-weight:700;padding:.1rem .45rem;border-radius:6px;background:${closed ? '#e7f0ea' : '#f6f0e2'};color:${closed ? '#3f7a5a' : '#86671f'}">${esc(r.status || '—')}</span>
       </td>
       <td style="${td};white-space:nowrap;font-size:.78rem">${esc(dn(r.agent) || r.agent || '—')}</td>
     </tr>`;
@@ -19605,18 +19563,18 @@ function filterIssueTable() {
     ? filtered.map((s,i)=>{
         const pct  = ((s.cnt/total)*100).toFixed(1);
         const barW = Math.round((s.cnt/maxCnt)*100);
-        const rankColor = i===0?'#f59e0b':i===1?'#8a8f97':i===2?'#b45309':'var(--muted)';
+        const rankColor = i===0?'#c29a3c':i===1?'#8a8f97':i===2?'#86671f':'var(--muted)';
         const catBadge = _issChartFilter.type !== 'category' && s.category
           ? `<span style="font-size:.67rem;background:#f0eee9;color:#5b616b;border-radius:4px;padding:.1rem .35rem;margin-left:.35rem">${escHtml(s.category)}</span>`
           : '';
         return `<tr style="border-bottom:1px solid #f0eee9;${i%2?'background:#fafafa':''}">
           <td style="padding:.4rem .75rem;color:${rankColor};font-weight:700;font-size:.78rem">${i+1}</td>
           <td style="padding:.4rem .75rem;font-weight:${i<3?'700':'400'}">${escHtml(s.subject||'-')}${catBadge}</td>
-          <td style="padding:.4rem .75rem;text-align:right;font-weight:700;color:#2563eb">${s.cnt.toLocaleString()}</td>
+          <td style="padding:.4rem .75rem;text-align:right;font-weight:700;color:#35685f">${s.cnt.toLocaleString()}</td>
           <td style="padding:.4rem .75rem;text-align:right;color:var(--muted)">${pct}%</td>
           <td style="padding:.4rem .75rem">
             <div style="background:#e6e3dc;border-radius:4px;height:7px;overflow:hidden">
-              <div style="width:${barW}%;background:linear-gradient(90deg,#3b82f6,#8b5cf6);height:100%;border-radius:4px"></div>
+              <div style="width:${barW}%;background:linear-gradient(90deg,#5b7fb3,#7d72b3);height:100%;border-radius:4px"></div>
             </div>
           </td>
         </tr>`;
@@ -19764,7 +19722,7 @@ function skRender(data) {
     wrap.innerHTML = `<div style="text-align:center;padding:3rem 1rem;color:#8a8f97">
       <div style="font-size:2rem;margin-bottom:.5rem"><i class=i-book></i></div>
       <div style="margin-bottom:.75rem">ยังไม่มีบทความ</div>
-      <button onclick="skOpenModal(null)" style="background:#1d4ed8;color:#fff;border:none;border-radius:7px;padding:.45rem 1.1rem;font-size:.82rem;font-weight:700;cursor:pointer">+ เพิ่มบทความแรก</button>
+      <button onclick="skOpenModal(null)" style="background:#2a544d;color:#fff;border:none;border-radius:7px;padding:.45rem 1.1rem;font-size:.82rem;font-weight:700;cursor:pointer">+ เพิ่มบทความแรก</button>
     </div>`;
     return;
   }
@@ -19786,7 +19744,7 @@ function skRender(data) {
         <span style="font-weight:700;font-size:.9rem;flex:1">${escHtml(brand)}</span>
         <span style="font-size:.72rem;color:#8a8f97">${articles.length} บทความ</span>
         <button onclick="event.stopPropagation();skOpenModal(null,'${brandJs}')"
-          style="background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:6px;padding:.15rem .55rem;font-size:.73rem;font-weight:700;cursor:pointer;white-space:nowrap">+ เพิ่ม</button>
+          style="background:#f2f6fa;color:#35685f;border:1px solid #cddaea;border-radius:6px;padding:.15rem .55rem;font-size:.73rem;font-weight:700;cursor:pointer;white-space:nowrap">+ เพิ่ม</button>
         <span id="${key}-arrow" style="color:#8a8f97;font-size:.75rem">${isOpen?'▼':'▶'}</span>
       </div>
       <div id="${key}" style="${isOpen?'':'display:none'}">
@@ -19815,7 +19773,7 @@ function skArticleCard(a) {
   const lines  = (a.content||'').split('\n');
   const preview = lines.slice(0,2).join(' ').substring(0,120);
   const branchBadge = a.branch_name
-    ? `<span style="font-size:.68rem;color:#7c3aed;background:#f3e8ff;border-radius:4px;padding:.05rem .35rem">${escHtml(a.branch_name)}</span>`
+    ? `<span style="font-size:.68rem;color:#5a4f8f;background:#f3e8ff;border-radius:4px;padding:.05rem .35rem">${escHtml(a.branch_name)}</span>`
     : `<span style="font-size:.68rem;color:#8a8f97;background:#f0eee9;border-radius:4px;padding:.05rem .35rem">ทุกสาขา</span>`;
   const updater = a.updated_by_name || a.created_by_name || '';
   const updatedAt = a.updated_at ? new Date(a.updated_at).toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'}) : '';
@@ -19834,10 +19792,10 @@ function skArticleCard(a) {
         ${updatedAt ? `<span style="font-size:.65rem;color:#d6d2c9;white-space:nowrap">${updater ? escHtml(updater)+' · ' : ''}${updatedAt}</span>` : ''}
         <button onclick="event.stopPropagation();skOpenModal(${a.id})" title="แก้ไข"
           style="background:none;border:none;cursor:pointer;font-size:.78rem;color:#8a8f97;padding:.1rem .25rem;border-radius:4px"
-          onmouseover="this.style.color='#2563eb'" onmouseout="this.style.color='#8a8f97'"><i class=i-pencil></i></button>
+          onmouseover="this.style.color='#35685f'" onmouseout="this.style.color='#8a8f97'"><i class=i-pencil></i></button>
         <button onclick="event.stopPropagation();skDelete(${a.id})" title="ลบ"
           style="background:none;border:none;cursor:pointer;font-size:.78rem;color:#8a8f97;padding:.1rem .25rem;border-radius:4px"
-          onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#8a8f97'"><i class=i-trash></i></button>
+          onmouseover="this.style.color='#c0584c'" onmouseout="this.style.color='#8a8f97'"><i class=i-trash></i></button>
         <span style="color:#8a8f97;font-size:.75rem">${isOpen?'▲':'▼'}</span>
       </div>
     </div>
@@ -19849,7 +19807,7 @@ function skArticleCard(a) {
       <!-- toolbar: upload + link -->
       <div style="margin-top:.5rem;display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
         <div onclick="skPickImage(${a.id})"
-             ondragover="event.preventDefault();this.style.borderColor='#2563eb'"
+             ondragover="event.preventDefault();this.style.borderColor='#35685f'"
              ondragleave="this.style.borderColor='#e6e3dc'"
              ondrop="skDropImages(event,${a.id});this.style.borderColor='#e6e3dc'"
              style="flex:1;border:1.5px dashed #e6e3dc;border-radius:7px;padding:.38rem .7rem;display:flex;align-items:center;gap:.4rem;cursor:pointer;font-size:.74rem;color:#8a8f97;transition:border-color .15s;min-width:160px"
@@ -19858,8 +19816,8 @@ function skArticleCard(a) {
         </div>
         <button onclick="skAddLinkInline(${a.id})"
           style="border:1.5px dashed #e6e3dc;border-radius:7px;padding:.38rem .75rem;background:none;cursor:pointer;font-size:.74rem;color:#8a8f97;white-space:nowrap;transition:border-color .15s"
-          onmouseenter="this.style.borderColor='#8a8f97';this.style.color='#2563eb'" onmouseleave="this.style.borderColor='#e6e3dc';this.style.color='#8a8f97'">
-          🔗 เพิ่มลิงค์
+          onmouseenter="this.style.borderColor='#8a8f97';this.style.color='#35685f'" onmouseleave="this.style.borderColor='#e6e3dc';this.style.color='#8a8f97'">
+          เพิ่มลิงค์
         </button>
       </div>
       <input type="file" id="${key}-file" accept="image/*" multiple style="display:none" onchange="skUploadImages(${a.id},this.files)">
@@ -20217,7 +20175,7 @@ function siSwitchTab(tab) {
   ['remote','knowledge','training'].forEach(t => {
     document.getElementById(`si-panel-${t}`).style.display = t === tab ? '' : 'none';
     const btn = document.getElementById(`si-tab-btn-${t}`);
-    if (btn) { btn.style.borderBottomColor = t === tab ? '#2563eb' : 'transparent'; btn.style.color = t === tab ? '#2563eb' : '#8a8f97'; }
+    if (btn) btn.classList.toggle('on', t === tab);
   });
   if (tab === 'knowledge') { skLoadBrandFilter(); skLoad(); }
   if (tab === 'training')  { trInitFilter(); trLoad(); }
@@ -20259,18 +20217,18 @@ function trRender(rows) {
   rows.forEach(r => { counts[r.trainer_ext] = (counts[r.trainer_ext]||0) + 1; });
   document.getElementById('tr-summary').innerHTML = Object.entries(counts)
     .sort((a,b) => b[1]-a[1])
-    .map(([u,c]) => `<span style="background:#dbeafe;color:#1e40af;border-radius:20px;padding:.2rem .7rem;font-size:.75rem;font-weight:700">${escHtml(u)} · ${c} ครั้ง</span>`).join('');
+    .map(([u,c]) => `<span style="background:#eaf0f7;color:#2a544d;border-radius:20px;padding:.2rem .7rem;font-size:.75rem;font-weight:700">${escHtml(u)} · ${c} ครั้ง</span>`).join('');
 
   const list = document.getElementById('tr-list');
   if (!rows.length) { list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem">ยังไม่มีบันทึก</div>'; return; }
   list.innerHTML = rows.map(r => `
     <div style="display:flex;align-items:flex-start;gap:.65rem;padding:.65rem .85rem;border-bottom:1px solid #f0eee9">
-      <div style="width:36px;height:36px;background:#dbeafe;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0"><i class=i-user></i></div>
+      <div style="width:36px;height:36px;background:#eaf0f7;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0"><i class=i-user></i></div>
       <div style="flex:1;min-width:0">
         <div style="font-weight:700;color:#24272c;font-size:.88rem">${escHtml(r.topic)}</div>
         <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.2rem;font-size:.74rem;color:#5b616b">
           <span>${r.trained_date?.slice(0,10)||''}</span>
-          <span style="color:#2563eb;font-weight:600">${escHtml(r.trainer_ext)}</span>
+          <span style="color:#35685f;font-weight:600">${escHtml(r.trainer_ext)}</span>
           ${r.trainees ? `<span>${escHtml(r.trainees)}</span>` : ''}
           ${r.notes    ? `<span>${escHtml(r.notes)}</span>`    : ''}
         </div>
@@ -20278,9 +20236,9 @@ function trRender(rows) {
       </div>
       <div style="display:flex;gap:.35rem;flex-shrink:0">
         <button onclick="trOpenEdit(${r.id})"
-          style="font-size:.72rem;padding:2px 8px;border-radius:6px;border:1px solid #bfdbfe;background:#eff6ff;color:#2563eb;cursor:pointer"><i class=i-pencil></i></button>
+          style="font-size:.72rem;padding:2px 8px;border-radius:6px;border:1px solid #cddaea;background:#f2f6fa;color:#35685f;cursor:pointer"><i class=i-pencil></i></button>
         <button onclick="trDelete(${r.id})"
-          style="font-size:.72rem;padding:2px 8px;border-radius:6px;border:1px solid #fecaca;background:#fff5f5;color:#dc2626;cursor:pointer"><i class=i-trash></i></button>
+          style="font-size:.72rem;padding:2px 8px;border-radius:6px;border:1px solid #e8c9c3;background:#fff5f5;color:#b04a40;cursor:pointer"><i class=i-trash></i></button>
       </div>
     </div>`).join('');
 }
@@ -21337,11 +21295,11 @@ async function svcUpdateStatus(id, newStatus){
 // ════════════════════════════════════════════════════════════════
 
 const SWU_STATUS = {
-  pending:    { label: 'รอดำเนินการ',   color: '#b45309', bg: '#fef3c7' },
-  scheduling: { label: 'กำลังนัดหมาย',  color: '#7c3aed', bg: '#ede9fe' },
-  scheduled:  { label: 'นัดหมายแล้ว',   color: '#0369a1', bg: '#e0f2fe' },
-  updating:   { label: 'กำลังอัพเดท',   color: '#0891b2', bg: '#ecfeff' },
-  done:       { label: 'เสร็จสิ้น',      color: '#16a34a', bg: '#f0fdf4' },
+  pending:    { label: 'รอดำเนินการ',   color: '#8f6d1f', bg: '#f6f0e2' },
+  scheduling: { label: 'กำลังนัดหมาย',  color: '#5a4f8f', bg: '#efedf7' },
+  scheduled:  { label: 'นัดหมายแล้ว',   color: '#3f5f8f', bg: '#eaf0f7' },
+  updating:   { label: 'กำลังอัพเดท',   color: '#2f6f73', bg: '#e5f0f0' },
+  done:       { label: 'เสร็จสิ้น',      color: '#356b4e', bg: '#e7f0ea' },
   cancelled:  { label: 'ยกเลิก',         color: '#8a8f97', bg: '#f0eee9' },
 };
 const SWU_PRIORITY = {
@@ -21353,6 +21311,13 @@ const SWU_PRIORITY = {
 
 let _swuData = [];
 let _swuSearchTimer = null;
+let _swuTab = '';   // '' | pending | scheduled | done — client-side, mirrors the tab counts
+const SWU_TAB_TEST = {
+  pending:   r => ['pending','scheduling'].includes(r.status),
+  scheduled: r => r.status === 'scheduled',
+  done:      r => r.status === 'done',
+};
+function swuSetTab(tab) { _swuTab = tab; renderSwUpdate(); }
 let _swuUsers = [];
 
 async function loadSwUpdate() {
@@ -21377,73 +21342,73 @@ function swuSearchDebounce() {
 }
 
 function renderSwUpdate() {
-  const all = _swuData;
-  const totalEl = document.getElementById('swu-stat-total');
-  const pendEl  = document.getElementById('swu-stat-pending');
-  const schedEl = document.getElementById('swu-stat-scheduled');
-  const doneEl  = document.getElementById('swu-stat-done');
-  if (totalEl) totalEl.textContent = all.length;
-  if (pendEl)  pendEl.textContent  = all.filter(r => ['pending','scheduling'].includes(r.status)).length;
-  if (schedEl) schedEl.textContent = all.filter(r => r.status === 'scheduled').length;
-  if (doneEl)  doneEl.textContent  = all.filter(r => r.status === 'done').length;
+  const all = _swuData || [];
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('swu-stat-total',     all.length);
+  set('swu-stat-pending',   all.filter(SWU_TAB_TEST.pending).length);
+  set('swu-stat-scheduled', all.filter(SWU_TAB_TEST.scheduled).length);
+  set('swu-stat-done',      all.filter(SWU_TAB_TEST.done).length);
+  document.querySelectorAll('#swu-tabs .svc-tab').forEach(t => t.classList.toggle('on', (t.dataset.tab || '') === _swuTab));
 
   const tbody = document.getElementById('swu-tbody');
   if (!tbody) return;
-  if (!all.length) {
-    tbody.innerHTML = '<tr><td colspan="11" class="empty">ไม่พบข้อมูล</td></tr>';
+  const list = SWU_TAB_TEST[_swuTab] ? all.filter(SWU_TAB_TEST[_swuTab]) : all;
+  if (!list.length) {
+    tbody.innerHTML = `<tr style="cursor:default"><td colspan="9" style="text-align:center;color:var(--muted);padding:3.5rem 1rem">${all.length ? 'ไม่มีงานในแท็บนี้' : 'ไม่พบข้อมูล'}</td></tr>`;
     return;
   }
   // Group by company_name
   const groups = [];
   const groupMap = {};
-  all.forEach(r => {
+  list.forEach(r => {
     const key = r.company_name || '—';
     if (!groupMap[key]) { groupMap[key] = []; groups.push(key); }
     groupMap[key].push(r);
   });
 
   const swuAzureCell = (azure_id) => {
-    if (!azure_id) return '—';
+    if (!azure_id) return '<span style="color:#b9bcc2">—</span>';
     const m = azure_id.match(/\/(\d+)\/?$/);
     const label = m ? m[1] : azure_id;
     const isUrl = azure_id.startsWith('http');
     return isUrl
-      ? `<a href="${escHtml(azure_id)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:#0369a1;font-weight:600;font-family:monospace">#${escHtml(label)}</a>`
-      : `<span style="color:#0369a1;font-family:monospace">${escHtml(label)}</span>`;
+      ? `<a href="${escHtml(azure_id)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--primary);font-family:'IBM Plex Mono',monospace;font-size:.76rem;text-decoration:none">#${escHtml(label)}</a>`
+      : `<span style="color:#4d535b;font-family:'IBM Plex Mono',monospace;font-size:.76rem">${escHtml(label)}</span>`;
   };
+  const fmtD = v => v ? new Date(v).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}) : '<span style="color:#b9bcc2">—</span>';
 
   tbody.innerHTML = groups.map(shopName => {
     const rows = groupMap[shopName];
     const pendingCount = rows.filter(r => !['done','cancelled'].includes(r.status)).length;
-    const header = `<tr>
-      <td colspan="11" style="background:#f0eee9;padding:.35rem .8rem;border-top:2px solid #e6e3dc;border-bottom:1px solid #e6e3dc">
-        <span style="font-weight:700;font-size:.82rem;color:#24272c">${escHtml(shopName)}</span>
-        <span style="margin-left:.6rem;font-size:.72rem;color:#5b616b">${rows.length} งาน</span>
-        ${pendingCount ? `<span style="margin-left:.4rem;font-size:.7rem;background:#fef9c3;color:#854d0e;border-radius:10px;padding:.1rem .45rem;font-weight:600">${pendingCount} รอดำเนินการ</span>` : ''}
+    const header = `<tr style="cursor:default">
+      <td colspan="9" style="background:#faf9f6;padding:.6rem 1rem;border-bottom:1px solid #e6e3dc">
+        <span style="font-weight:600;font-size:.84rem;color:#24272c">${escHtml(shopName)}</span>
+        <span style="margin-left:.55rem;font-size:.72rem;color:#6f747c;font-family:'IBM Plex Mono',monospace">${rows.length} งาน</span>
+        ${pendingCount ? `<span class="uat-tag" style="margin:0 0 0 .45rem;background:#f6f0e2;color:#86671f">${pendingCount} รอดำเนินการ</span>` : ''}
       </td>
     </tr>`;
     const dataRows = rows.map(r => {
       const st  = SWU_STATUS[r.status]    || SWU_STATUS.pending;
       const pri = SWU_PRIORITY[r.priority] || SWU_PRIORITY.normal;
-      const recv = r.received_date    ? new Date(r.received_date).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}) : '—';
-      const appt = r.appointment_date ? new Date(r.appointment_date).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}) : '—';
-      const ver  = r.version_recommend || '—';
-      return `<tr style="cursor:pointer" onclick="openSwUpdateDetail(${r.id})" onmouseover="this.style.background='#faf9f6'" onmouseout="this.style.background=''">
-        <td style="color:#8a8f97;font-size:.75rem;padding-left:1.2rem">#${r.id}</td>
-        <td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.82rem;font-weight:500" colspan="2" title="${escHtml(r.description||'')}">${escHtml(r.description||'—')}</td>
-        <td style="font-size:.75rem;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#4d535b" title="${escHtml(ver)}">${escHtml(ver)}</td>
-        <td><span style="font-size:.75rem;font-weight:700;color:${pri.color}">${pri.label}</span></td>
-        <td><span style="background:${st.bg};color:${st.color};border-radius:20px;padding:.15rem .6rem;font-size:.73rem;font-weight:700;white-space:nowrap">${st.label}</span></td>
-        <td style="font-size:.78rem;white-space:nowrap">${recv}</td>
-        <td style="font-size:.78rem;white-space:nowrap">${appt}</td>
-        <td style="font-size:.78rem">
-          ${escHtml(r.reporter_name||'—')}
-          ${r.assignees && r.assignees.length ? `<div style="font-size:.7rem;color:#6366f1;margin-top:.1rem">${r.assignees.map(a=>escHtml(a.name||'')).join(', ')}</div>` : ''}
+      const ver = r.version_recommend || '';
+      return `<tr onclick="openSwUpdateDetail(${r.id})">
+        <td><span class="svc-jobno">#${r.id}</span></td>
+        <td style="min-width:0">
+          <div class="svc-title" title="${escHtml(r.description||'')}">${escHtml(r.description||'—')}</div>
+          ${ver ? `<div class="svc-meta" title="${escHtml(ver)}"><span class="mono">${escHtml(ver)}</span></div>` : ''}
         </td>
-        <td style="font-size:.78rem">${swuAzureCell(r.azure_id)}</td>
-        <td>
-          <button class="btn btn-ghost btn-sm" style="font-size:.72rem;padding:.2rem .5rem" onclick="event.stopPropagation();openSwUpdateEdit(${r.id})"><i class=i-pencil></i></button>
-          <button class="btn btn-ghost btn-sm" style="font-size:.72rem;padding:.2rem .5rem;color:#dc2626" onclick="event.stopPropagation();deleteSwUpdate(${r.id})"><i class=i-trash></i></button>
+        <td><div class="uat-pri" style="color:${pri.color};margin:0">${pri.label}</div></td>
+        <td><span class="uat-st" style="background:${st.bg};color:${st.color}">${st.label}</span></td>
+        <td style="font-size:.8rem;white-space:nowrap">${fmtD(r.received_date)}</td>
+        <td style="font-size:.8rem;white-space:nowrap">${fmtD(r.appointment_date)}</td>
+        <td style="font-size:.8rem">
+          <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(r.reporter_name||'—')}</div>
+          ${r.assignees && r.assignees.length ? `<div class="tk-sub">${r.assignees.map(a=>escHtml(a.name||'')).join(', ')}</div>` : ''}
+        </td>
+        <td>${swuAzureCell(r.azure_id)}</td>
+        <td onclick="event.stopPropagation()" style="white-space:nowrap;vertical-align:middle">
+          <button class="uat-act" onclick="openSwUpdateEdit(${r.id})" title="แก้ไข" aria-label="แก้ไข"><i class=i-pencil></i></button>
+          <button class="uat-act danger" onclick="deleteSwUpdate(${r.id})" title="ลบ" aria-label="ลบ"><i class=i-trash></i></button>
         </td>
       </tr>`;
     }).join('');
@@ -22621,7 +22586,7 @@ async function loadNews() {
   list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-size:.9rem">กำลังโหลด...</div>';
   const data = await api('/api/news', { silent: true });
   if (!data || data.error) {
-    list.innerHTML = '<div style="text-align:center;color:#ef4444;padding:2rem">โหลดไม่สำเร็จ</div>';
+    list.innerHTML = '<div style="text-align:center;color:#c0584c;padding:2rem">โหลดไม่สำเร็จ</div>';
     return;
   }
   _newsData = Array.isArray(data) ? data : [];
@@ -22650,7 +22615,7 @@ function newsRender() {
 
   const isLead = isLeadRole();
   const uid    = currentUser?.id;
-  const catColor = { 'งานด่วน':'#ef4444','อัพเดทระบบ':'#2563eb','HR':'#8b5cf6','ทั่วไป':'#5b616b','อื่นๆ':'#f97316' };
+  const catColor = { 'งานด่วน':'#c0584c','อัพเดทระบบ':'#35685f','HR':'#7d72b3','ทั่วไป':'#5b616b','อื่นๆ':'#c47a4b' };
   const catEmoji = { 'งานด่วน':'🚨','อัพเดทระบบ':'⚙️','HR':'👥','ทั่วไป':'💬','อื่นๆ':'📌' };
 
   list.innerHTML = items.map(n => {
@@ -22670,9 +22635,9 @@ function newsRender() {
     function newsFileIcon(fname) {
       const e = (fname||'').split('.').pop().toLowerCase();
       if (e === 'pdf')               return { icon:'📕', bg:'#fff1f2', border:'#fecdd3', color:'#be123c', badge:'PDF' };
-      if (e === 'html' || e === 'htm') return { icon:'🌐', bg:'#eff6ff', border:'#bfdbfe', color:'#1d4ed8', badge:'HTML' };
-      if (e === 'doc'  || e === 'docx') return { icon:'📝', bg:'#eff6ff', border:'#bfdbfe', color:'#1d4ed8', badge:'Word' };
-      if (e === 'xls'  || e === 'xlsx') return { icon:'📊', bg:'#f0fdf4', border:'#bbf7d0', color:'#15803d', badge:'Excel' };
+      if (e === 'html' || e === 'htm') return { icon:'🌐', bg:'#f2f6fa', border:'#cddaea', color:'#2a544d', badge:'HTML' };
+      if (e === 'doc'  || e === 'docx') return { icon:'📝', bg:'#f2f6fa', border:'#cddaea', color:'#2a544d', badge:'Word' };
+      if (e === 'xls'  || e === 'xlsx') return { icon:'📊', bg:'#f1f6f2', border:'#cfe0d5', color:'#356b4e', badge:'Excel' };
       return { icon:'📄', bg:'#faf9f6', border:'#e6e3dc', color:'#3a3f46', badge: e.toUpperCase() };
     }
 
@@ -22687,7 +22652,7 @@ function newsRender() {
           const url = `/uploads/news/${n.id}/${a.filename}`;
           return `<a href="${url}" target="_blank" rel="noopener" title="${escHtml(a.original_name)}"
             style="display:block;position:relative;border-radius:8px;overflow:hidden;border:2px solid #e6e3dc;transition:border-color .15s;flex-shrink:0"
-            onmouseover="this.style.borderColor='#3b82f6'" onmouseout="this.style.borderColor='#e6e3dc'">
+            onmouseover="this.style.borderColor='#5b7fb3'" onmouseout="this.style.borderColor='#e6e3dc'">
             <img src="${url}" style="width:80px;height:80px;object-fit:cover;display:block"/>
           </a>`;
         }).join('')}
@@ -22723,35 +22688,35 @@ function newsRender() {
       ? `<div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.45rem">
           ${links.map(l => `<a href="${escHtml(l.url)}" target="_blank" rel="noopener noreferrer"
             title="${escHtml(l.url)}"
-            style="display:inline-flex;align-items:center;gap:.35rem;background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:8px;padding:.35rem .65rem;text-decoration:none;transition:all .15s;max-width:280px"
-            onmouseover="this.style.background='#dbeafe';this.style.borderColor='#1d4ed8'" onmouseout="this.style.background='#eff6ff';this.style.borderColor='#bfdbfe'">
+            style="display:inline-flex;align-items:center;gap:.35rem;background:#f2f6fa;border:1.5px solid #cddaea;border-radius:8px;padding:.35rem .65rem;text-decoration:none;transition:all .15s;max-width:280px"
+            onmouseover="this.style.background='#eaf0f7';this.style.borderColor='#2a544d'" onmouseout="this.style.background='#f2f6fa';this.style.borderColor='#cddaea'">
             <span style="font-size:1rem;flex-shrink:0"><i class=i-link></i></span>
             <span style="display:flex;flex-direction:column;min-width:0;gap:.05rem">
-              <span style="font-size:.76rem;font-weight:700;color:#1d4ed8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px">${escHtml(l.label||l.url)}</span>
+              <span style="font-size:.76rem;font-weight:700;color:#2a544d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px">${escHtml(l.label||l.url)}</span>
               ${l.label&&l.label!==l.url ? `<span style="font-size:.64rem;color:#8a8f97;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px">${escHtml(l.url)}</span>` : ''}
             </span>
-            <span style="font-size:.65rem;color:#1d4ed8;opacity:.6;flex-shrink:0">↗</span>
+            <span style="font-size:.65rem;color:#2a544d;opacity:.6;flex-shrink:0">↗</span>
           </a>`).join('')}
         </div>` : '';
 
-    return `<div class="card" id="news-item-${n.id}" style="margin-bottom:.65rem;border-left:3px solid ${color};${n.pinned?'background:#fffbeb;':''}transition:background .4s">
+    return `<div class="card" id="news-item-${n.id}" style="margin-bottom:.65rem;border-left:3px solid ${color};${n.pinned?'background:#fbf8f0;':''}transition:background .4s">
   <div style="display:flex;align-items:flex-start;gap:.5rem;flex-wrap:wrap">
     <div style="flex:1;min-width:0">
-      ${n.pinned?'<span style="font-size:.65rem;font-weight:700;color:#d97706;background:#fef3c7;border-radius:4px;padding:.08rem .35rem;margin-right:.3rem">ปักหมุด</span>':''}
+      ${n.pinned?'<span style="font-size:.65rem;font-weight:700;color:#a2702a;background:#f6f0e2;border-radius:4px;padding:.08rem .35rem;margin-right:.3rem">ปักหมุด</span>':''}
       ${newsIsStopped(n)?'<span style="font-size:.65rem;font-weight:700;color:#5b616b;background:#f0eee9;border:1px solid #d6d2c9;border-radius:4px;padding:.08rem .35rem;margin-right:.3rem">หยุดประกาศ</span>':''}
       <span style="font-size:.65rem;font-weight:700;color:#fff;background:${color};border-radius:4px;padding:.08rem .35rem">${emoji} ${escHtml(n.category)}</span>
       <div style="font-size:.95rem;font-weight:700;color:#24272c;margin-top:.3rem;line-height:1.3">${escHtml(n.title)}</div>
     </div>
     ${canEdit?`<div style="display:flex;gap:.25rem;flex-shrink:0">
       ${isLead?`<button class="btn btn-ghost btn-sm" style="padding:.18rem .45rem;font-size:.7rem" onclick="toggleNewsPin(${n.id})" title="${n.pinned?'เอาออกจากปักหมุด':'ปักหมุด'}">${n.pinned?'📌':'📍'}</button>`:''}
-      ${isLead?`<button class="btn btn-ghost btn-sm" style="padding:.18rem .45rem;font-size:.7rem${newsIsStopped(n)?';color:#dc2626':''}" onclick="toggleNewsAnnounce(${n.id})" title="${newsIsStopped(n)?'เปิดประกาศอีกครั้ง (ให้เด้งแจ้งเตือน)':'หยุดประกาศ (ไม่ให้เด้งแจ้งเตือน)'}">${newsIsStopped(n)?'🔕':'📢'}</button>`:''}
+      ${isLead?`<button class="btn btn-ghost btn-sm" style="padding:.18rem .45rem;font-size:.7rem${newsIsStopped(n)?';color:#b04a40':''}" onclick="toggleNewsAnnounce(${n.id})" title="${newsIsStopped(n)?'เปิดประกาศอีกครั้ง (ให้เด้งแจ้งเตือน)':'หยุดประกาศ (ไม่ให้เด้งแจ้งเตือน)'}">${newsIsStopped(n)?'🔕':'📢'}</button>`:''}
       <button class="btn btn-ghost btn-sm" style="padding:.18rem .45rem;font-size:.7rem" onclick="openNewsModal(${n.id})"><i class=i-pencil></i></button>
-      <button class="btn btn-ghost btn-sm" style="padding:.18rem .45rem;font-size:.7rem;color:#ef4444" onclick="deleteNews(${n.id})"><i class=i-trash></i></button>
+      <button class="btn btn-ghost btn-sm" style="padding:.18rem .45rem;font-size:.7rem;color:#c0584c" onclick="deleteNews(${n.id})"><i class=i-trash></i></button>
     </div>`:''}
   </div>
   <div style="margin-top:.5rem;font-size:.83rem;color:#3a3f46;line-height:1.6">
     ${hasMore
-      ? `<span id="news-prev-${n.id}">${preview}</span><button style="background:none;border:none;color:#2563eb;cursor:pointer;font-size:.78rem;padding:0 0 0 .25rem;font-family:inherit" onclick="newsExpand(${n.id},this)">อ่านต่อ</button><div id="news-full-${n.id}" style="display:none">${fullHtml}</div>`
+      ? `<span id="news-prev-${n.id}">${preview}</span><button style="background:none;border:none;color:#35685f;cursor:pointer;font-size:.78rem;padding:0 0 0 .25rem;font-family:inherit" onclick="newsExpand(${n.id},this)">อ่านต่อ</button><div id="news-full-${n.id}" style="display:none">${fullHtml}</div>`
       : fullHtml}
   </div>
   ${attHtml}${linksHtml}
