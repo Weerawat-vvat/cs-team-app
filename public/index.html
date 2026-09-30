@@ -3746,11 +3746,15 @@ textarea{resize:vertical;min-height:80px}
 
 <!-- ═══════════════════ PAGE: POD & CUSTOMERS ═══════════════════ -->
 <div id="page-pods" class="page">
-  <div class="section-header" style="margin-bottom:.75rem">
-    <div class="section-title">โครงสร้าง Pod &amp; การ Assign ลูกค้า</div>
-    <div class="btn-group" id="pod-actions">
-      <button class="btn btn-sm" style="background:#1d4ed8;color:#fff" onclick="openPodForm()">สร้าง Pod</button>
-      <button class="btn btn-sm btn-ghost" onclick="loadPods()">รีเฟรช</button>
+  <div class="svc-hdr">
+    <div>
+      <div class="svc-kicker">Pods &amp; customers</div>
+      <h1 class="svc-h1">Pod &amp; ลูกค้า</h1>
+      <div class="svc-sub">โครงสร้าง Pod การ Assign ลูกค้า กลุ่มไลน์ และการวิเคราะห์กำลังคน</div>
+    </div>
+    <div style="display:flex;gap:.5rem;align-items:center" id="pod-actions">
+      <button class="svc-icon-btn" onclick="loadPods()" title="รีเฟรช" aria-label="รีเฟรช"><i class=i-refresh></i></button>
+      <button class="svc-btn-primary" onclick="openPodForm()"><span style="font-size:1.05rem;line-height:1;font-weight:400">+</span> สร้าง Pod</button>
     </div>
   </div>
   <div class="dash-tabs">
@@ -3818,7 +3822,7 @@ textarea{resize:vertical;min-height:80px}
 
     <div class="card" style="padding:.7rem 1rem 1rem">
       <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.6rem">
-        <input id="lb-search" placeholder="ค้นหาชื่อกลุ่ม..." oninput="renderLineBotTable()" style="flex:1;min-width:180px"/>
+        <input id="lb-search" placeholder="ค้นหาชื่อกลุ่ม..." oninput="renderLineBotTable()" style="flex:1;min-width:200px;height:36px;padding:0 .8rem;border:1px solid var(--border);border-radius:10px;font-size:.82rem;background:#fff;outline:none"/>
         <div class="drb" id="lb-filter">
           <button class="drb-btn active" onclick="setLbFilter('all',this)">ทั้งหมด</button>
           <button class="drb-btn" onclick="setLbFilter('type:group',this)">เฉพาะกลุ่ม</button>
@@ -3852,9 +3856,9 @@ textarea{resize:vertical;min-height:80px}
       <div style="font-size:.78rem;color:var(--muted)">AI คัดกรองเฉพาะข้อความที่เป็น <b>ticket</b> (ต้องดำเนินการ) เรียงจาก <b>รอนานสุด → น้อยสุด</b> · ทีมกดรับเรื่อง &amp; ติ๊กเสร็จ</div>
       <div style="margin-left:auto;display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
         <span id="tr-auto" style="font-size:.7rem;color:#8a8f97"></span>
-        <button class="btn btn-sm btn-ghost" id="tr-close-maybe-btn" onclick="triageCloseMaybe()" style="display:none;color:#f59e0b">ปิดที่น่าจะแก้แล้ว</button>
-        <button class="btn btn-sm btn-ghost" onclick="triageCloseStale()" style="color:#dc2626" title="ปิดงานค้างเก่าทั้งหมด เหลือไว้แต่ของใหม่">ล้างงานค้างเก่า</button>
-        <button class="btn btn-sm btn-ghost" onclick="triagePurgeOld()" style="color:#dc2626" title="ลบข้อมูลคัดกรองที่เก่ากว่าที่ตั้งไว้ทิ้งถาวร">ล้างข้อมูลเก่า</button>
+        <button class="btn btn-sm btn-ghost" id="tr-close-maybe-btn" onclick="triageCloseMaybe()" style="display:none;color:#c29a3c">ปิดที่น่าจะแก้แล้ว</button>
+        <button class="btn btn-sm btn-ghost" onclick="triageCloseStale()" style="color:#b04a40" title="ปิดงานค้างเก่าทั้งหมด เหลือไว้แต่ของใหม่">ล้างงานค้างเก่า</button>
+        <button class="btn btn-sm btn-ghost" onclick="triagePurgeOld()" style="color:#b04a40" title="ลบข้อมูลคัดกรองที่เก่ากว่าที่ตั้งไว้ทิ้งถาวร">ล้างข้อมูลเก่า</button>
         <button class="btn btn-sm btn-ghost" onclick="openTriageSettings()" title="ตั้งรอบส่งแจ้งเตือน LINE และอายุข้อมูลที่เก็บ">ตั้งค่า</button>
         <button class="btn btn-sm btn-ghost" onclick="triagePreviewAlert()">แจ้งเตือน LINE</button>
         <button class="btn btn-sm btn-primary" id="tr-classify-btn" onclick="triageClassify()">คัดกรองเดี๋ยวนี้</button>
@@ -3864,8 +3868,8 @@ textarea{resize:vertical;min-height:80px}
 
     <div id="tr-kpi-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:.65rem;margin-bottom:.75rem">
       <div class="stat-flat"><div class="label">Ticket รอทำ</div><div class="value orange" id="tr-open-action">—</div><div class="sub">ยังไม่มีคนรับ</div></div>
-      <div class="stat-flat"><div class="label">รอนานสุด</div><div class="value" style="color:#f59e0b" id="tr-oldest">—</div><div class="sub">ticket ที่ค้างนานสุด</div></div>
-      <div class="stat-flat"><div class="label">ปิดแล้ว</div><div class="value" style="color:#22c55e" id="tr-done">—</div><div class="sub">ติ๊กเสร็จสะสม</div></div>
+      <div class="stat-flat"><div class="label">รอนานสุด</div><div class="value" style="color:#c29a3c" id="tr-oldest">—</div><div class="sub">ticket ที่ค้างนานสุด</div></div>
+      <div class="stat-flat"><div class="label">ปิดแล้ว</div><div class="value" style="color:#4d8c6a" id="tr-done">—</div><div class="sub">ติ๊กเสร็จสะสม</div></div>
       <div class="stat-flat"><div class="label">คัดกรองแล้ว</div><div class="value white" id="tr-classified">—</div><div class="sub" id="tr-backlog">—</div></div>
     </div>
 
@@ -3934,7 +3938,7 @@ textarea{resize:vertical;min-height:80px}
       </div>
     </div>
     <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.6rem">
-      <input id="lgp-search" placeholder="ค้นหาชื่อกลุ่ม..." oninput="renderLineGroupPodBoard()" style="flex:1;min-width:180px"/>
+      <input id="lgp-search" placeholder="ค้นหาชื่อกลุ่ม..." oninput="renderLineGroupPodBoard()" style="flex:1;min-width:200px;height:36px;padding:0 .8rem;border:1px solid var(--border);border-radius:10px;font-size:.82rem;background:#fff;outline:none"/>
       <div class="drb" id="lgp-filter">
         <button class="drb-btn active" onclick="setLgpFilter('all',this)">ทั้งหมด Pod</button>
         <button class="drb-btn" onclick="setLgpFilter('unassigned',this)">เฉพาะที่ยังไม่ assign</button>
@@ -5477,9 +5481,9 @@ function showPage(name, btn) {
 let _pods = [], _custByPod = {};
 // customer status (traffic-light): green=ปกติ, yellow=เฝ้าระวัง, red=มีปัญหา
 const CUST_STATUS = {
-  green:  { c:'#16a34a', label:'ปกติ' },
-  yellow: { c:'#eab308', label:'เฝ้าระวัง' },
-  red:    { c:'#dc2626', label:'มีปัญหา' },
+  green:  { c:'#3f7a5a', label:'ปกติ' },
+  yellow: { c:'#c29a3c', label:'เฝ้าระวัง' },
+  red:    { c:'#b04a40', label:'มีปัญหา' },
 };
 // normalize legacy values (normal/vip/secret) → traffic-light
 function custStat(p){
@@ -5554,7 +5558,7 @@ function renderUnassignedWorking() {
   if (!list.length) { el.style.display = 'none'; return; }
   el.style.display = '';
   el.innerHTML = `ทำงานวันนี้แต่ยังไม่ได้จัดเข้า Pod (${list.length}): `
-    + list.map(e => `<b>${esc(e.nickname || e.name)}</b><span style="color:#b45309">${e.shift_time ? ' ' + esc(e.shift_time) : ''}</span>`).join(' · ');
+    + list.map(e => `<b>${esc(e.nickname || e.name)}</b><span style="color:#86671f">${e.shift_time ? ' ' + esc(e.shift_time) : ''}</span>`).join(' · ');
 }
 function _ticketCell(name) {
   const t = _ticketsByName[name];
@@ -5584,7 +5588,7 @@ async function loadLicenseLoad() {
     el.innerHTML = `License ที่มี activity ย้อนหลัง 3 เดือน: <b>${d.licenses.toLocaleString()}</b>`
       + ` · ทีม CS <b>${n}</b> คน`
       + (n ? ` · เฉลี่ย ~<b>${avg.toLocaleString()}</b> license/คน` : '')
-      + ` <span style="color:#0369a1">(${(d.calls||0).toLocaleString()} เคส)</span>`;
+      + ` <span style="color:#3f5f8f">(${(d.calls||0).toLocaleString()} เคส)</span>`;
   }
   renderCapacity();
 }
@@ -5628,7 +5632,7 @@ function renderTriagePodFilter() {
       background:${active ? color : 'transparent'};color:${active ? '#fff' : color};font-weight:${active ? '600' : '400'}">${label}</button>`;
   let html = `<span style="font-size:.72rem;color:var(--muted)">Pod:</span>`;
   html += chip('all', 'ทุก Pod', '#5b616b', _trPods.size === 0);
-  html += pods.map(p => chip(p.id, esc(p.display_name), p.color || '#4f46e5', _trPods.has(String(p.id)))).join('');
+  html += pods.map(p => chip(p.id, esc(p.display_name), p.color || '#5a5f9a', _trPods.has(String(p.id)))).join('');
   html += chip('none', 'ไม่มี Pod', '#8a8f97', _trPods.has('none'));
   el.innerHTML = html;
 }
@@ -5642,23 +5646,23 @@ function toggleTriagePod(id) {
 }
 
 const TR_CAT = {
-  problem:   { label: 'แจ้งปัญหา', bg:'#1e3a8a', fg:'#bfdbfe' },
+  problem:   { label: 'แจ้งปัญหา', bg:'#2a544d', fg:'#cddaea' },
   question:  { label: 'คำถาม',     bg:'#3730a3', fg:'#c7d2fe' },
   request:   { label: 'ขอ',        bg:'#134e4a', fg:'#99f6e4' },
-  complaint: { label: 'ร้องเรียน', bg:'#7f1d1d', fg:'#fecaca' },
-  thank:     { label: 'ขอบคุณ',    bg:'#14532d', fg:'#bbf7d0' },
+  complaint: { label: 'ร้องเรียน', bg:'#7f1d1d', fg:'#e8c9c3' },
+  thank:     { label: 'ขอบคุณ',    bg:'#2f5e45', fg:'#cfe0d5' },
   other:     { label: 'อื่นๆ',     bg:'#3a3f46', fg:'#d6d2c9' },
 };
 const TR_SENT = { positive:'🟢', neutral:'⚪', negative:'🔴' };
 const TR_PRI  = {
-  urgent: { label:'ด่วน', bg:'#7f1d1d', fg:'#fecaca' },
+  urgent: { label:'ด่วน', bg:'#7f1d1d', fg:'#e8c9c3' },
   normal: { label:'ปกติ',    bg:'#3a3f46', fg:'#d6d2c9' },
   low:    { label:'ต่ำ',     bg:'#24272c', fg:'#8a8f97' },
 };
 const TR_ST = {
-  open:    { label:'รอทำ',    bg:'#1e3a8a', fg:'#bfdbfe' },
-  claimed: { label:'กำลังทำ', bg:'#78350f', fg:'#fde68a' },
-  done:    { label:'เสร็จ',   bg:'#14532d', fg:'#bbf7d0' },
+  open:    { label:'รอทำ',    bg:'#2a544d', fg:'#cddaea' },
+  claimed: { label:'กำลังทำ', bg:'#78350f', fg:'#e6d6a8' },
+  done:    { label:'เสร็จ',   bg:'#2f5e45', fg:'#cfe0d5' },
 };
 const trPill = (o) => o ? `<span style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:.68rem;background:${o.bg};color:${o.fg};white-space:nowrap">${o.label}</span>` : '';
 
@@ -5710,8 +5714,8 @@ async function triagePreviewAlert(view = {}) {
     : 'ยังไม่มี ticket ค้างที่ต้องรีบ';
 
   const chip = (onclick, label, count, active, dim) => `
-    <button onclick="${onclick}" style="border:1px solid ${active ? '#38bdf8' : '#24272c'};
-      background:${active ? '#0c4a6e' : '#0b1220'};color:${active ? '#e0f2fe' : (dim ? '#4d535b' : '#8a8f97')};
+    <button onclick="${onclick}" style="border:1px solid ${active ? '#7fa3c8' : '#24272c'};
+      background:${active ? '#34506f' : '#0b1220'};color:${active ? '#eaf0f7' : (dim ? '#4d535b' : '#8a8f97')};
       border-radius:20px;padding:.15rem .55rem;font-size:.68rem;font-weight:600;cursor:pointer;font-family:inherit">
       ${escHtml(label)}${count != null ? ` (${count})` : ''}</button>`;
 
@@ -5732,23 +5736,23 @@ async function triagePreviewAlert(view = {}) {
         + list.map(t => chip(`triagePreviewAlert({target:'${t.id}'})`,
             `${t.active ? (t.pod_names.length ? '🧩 ' : '📬 ') : '⏸ '}${t.name}${t.pod_names.length ? ' · ' + t.pod_names.join(', ') : ' · ทุก Pod'}${t.min_wait_min ? ` · ⏱>${t.min_wait_min}น.` : ''}${t.active ? '' : ' · ปิดอยู่'}`,
             t.count, String(_trAlertView.target) === String(t.id), !t.will_send)).join('')
-      : `<div style="font-size:.63rem;color:#b45309">ยังไม่มีกลุ่ม LINE ไหนติ๊ก event “🔔 Ticket ไลน์ค้าง” — ตั้งค่าที่ ตั้งค่า → LINE Notifications</div>`;
+      : `<div style="font-size:.63rem;color:#86671f">ยังไม่มีกลุ่ม LINE ไหนติ๊ก event “🔔 Ticket ไลน์ค้าง” — ตั้งค่าที่ ตั้งค่า → LINE Notifications</div>`;
   }
   // ผลการคัดกรองของ AI — เปิดดูได้ว่าตัดอะไรออกและเพราะอะไร
   const sc = document.getElementById('tr-alert-screen');
   if (sc) {
     const s = a.screen;
     if (!s) sc.innerHTML = '';
-    else if (s.error) sc.innerHTML = `<div style="font-size:.65rem;color:#f59e0b">AI คัดกรองไม่สำเร็จ — ส่งครบทุกรายการไว้ก่อน (${escHtml(s.error)})</div>`;
+    else if (s.error) sc.innerHTML = `<div style="font-size:.65rem;color:#c29a3c">AI คัดกรองไม่สำเร็จ — ส่งครบทุกรายการไว้ก่อน (${escHtml(s.error)})</div>`;
     else if (!s.on) sc.innerHTML = `<div style="font-size:.65rem;color:#5b616b">AI คัดกรองก่อนส่ง: ปิดอยู่ (<code>TRIAGE_AI_SCREEN=off</code>)</div>`;
     else {
       const rescan = s.pending
         ? `<button onclick="triagePreviewAlert({pods:'${_trAlertView.pods}',target:'${_trAlertView.target}',rescreen:1})"
              style="border:1px solid #24272c;background:#0b1220;color:#7dd3fc;border-radius:5px;padding:.1rem .4rem;font-size:.63rem;cursor:pointer;font-family:inherit;margin-left:.3rem">
-             🤖 คัดกรองอีก ${s.pending} รายการ</button>` : '';
+             คัดกรองอีก ${s.pending} รายการ</button>` : '';
       const head = s.filtered
         ? `<span style="color:#4ade80;cursor:pointer" onclick="const d=document.getElementById('tr-alert-screen-list');d.style.display=d.style.display==='none'?'':'none'">
-             🤖 AI กรองออก ${s.filtered} รายการ (น่าจะมีคนจัดการแล้ว) — กดดูรายละเอียด ▾</span>`
+             AI กรองออก ${s.filtered} รายการ (น่าจะมีคนจัดการแล้ว) — กดดูรายละเอียด ▾</span>`
         : `<span style="color:#5b616b">AI คัดกรองแล้ว — ยังไม่พบรายการที่น่าจะจบแล้ว</span>`;
       sc.innerHTML = `
         <div style="font-size:.65rem;color:#5b616b">${head}${rescan}</div>
@@ -5757,7 +5761,7 @@ async function triagePreviewAlert(view = {}) {
           ${(s.verdicts || []).map(v => `<div style="font-size:.65rem;color:#8a8f97;margin-bottom:.25rem">
             <span style="color:#e6e3dc">${escHtml(v.name)}</span>
             <span style="color:#5b616b">[${escHtml(v.pod)}]</span>
-            <span style="color:${v.confidence === 'high' ? '#4ade80' : '#fbbf24'}">·${escHtml(v.confidence)}</span><br>
+            <span style="color:${v.confidence === 'high' ? '#4ade80' : '#d4b25a'}">·${escHtml(v.confidence)}</span><br>
             <span style="padding-left:.4rem">${escHtml(v.reason || '')}</span>
           </div>`).join('')}
         </div>`;
@@ -5970,7 +5974,7 @@ function trsEveryHint() {
     el.style.color = '';
     el.textContent = `ยิงตรงนาฬิกา: ${slot(0)} · ${slot(n)} · ${slot(n * 2)} …`;
   } else {
-    el.style.color = '#f59e0b';
+    el.style.color = '#c29a3c';
     el.textContent = `24 ชม. หารด้วย ${n} ไม่ลงตัว — ช่องสุดท้ายก่อนเที่ยงคืนจะสั้นกว่าปกติ`;
   }
 }
@@ -6064,13 +6068,13 @@ function trWaiting(s) {
   else if (mins >= 60) txt = `${Math.floor(mins / 60)} ชม.`;
   else txt = `${Math.floor(mins)} นาที`;
   // ≤15 นาที เขียว · 15–30 นาที เหลือง · >30 นาที แดง
-  const color = mins > 30 ? '#ef4444' : mins > 15 ? '#eab308' : '#22c55e';
+  const color = mins > 30 ? '#c0584c' : mins > 15 ? '#c29a3c' : '#4d8c6a';
   return { txt, color };
 }
 
 function trCopyName(btn, enc) {
   const s = decodeURIComponent(enc);
-  const done = () => { const o = btn.textContent; btn.textContent = '✓'; btn.style.color = '#22c55e'; setTimeout(() => { btn.textContent = o; btn.style.color = '#8a8f97'; }, 1200); };
+  const done = () => { const o = btn.textContent; btn.textContent = '✓'; btn.style.color = '#4d8c6a'; setTimeout(() => { btn.textContent = o; btn.style.color = '#8a8f97'; }, 1200); };
   if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(s).then(done).catch(done);
   else { const t = document.createElement('textarea'); t.value = s; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); done(); }
 }
@@ -6090,7 +6094,7 @@ function renderTriageRow(r) {
     ? `<div style="color:#5b616b;font-size:.64rem">แชทส่วนตัว (1:1)</div>`
     : (r.customer_name ? `<div style="color:#5b616b;font-size:.64rem">โดย ${esc(r.customer_name)}</div>` : '');
   const pod = r.pod_code
-    ? `<div style="margin-top:2px"><span style="display:inline-block;padding:0 6px;border-radius:8px;font-size:.62rem;background:${r.pod_color || '#4f46e5'}22;color:${r.pod_color || '#818cf8'}">${esc(r.pod_name || r.pod_code)}</span></div>`
+    ? `<div style="margin-top:2px"><span style="display:inline-block;padding:0 6px;border-radius:8px;font-size:.62rem;background:${r.pod_color || '#5a5f9a'}22;color:${r.pod_color || '#818cf8'}">${esc(r.pod_name || r.pod_code)}</span></div>`
     : '';
   const cat = TR_CAT[r.category] || TR_CAT.other;
   const catChip = `<span style="display:inline-block;padding:0 6px;border-radius:8px;font-size:.62rem;background:${cat.bg};color:${cat.fg};margin-right:4px;white-space:nowrap">${cat.label}</span>`;
@@ -6118,12 +6122,12 @@ function renderTriageRow(r) {
     </td>
     <td>
       <div style="font-size:.8rem" title="${msg}">${catChip}${short || '<span style=\"color:#5b616b\">(ว่าง)</span>'}</div>
-      ${r.summary ? `<div style="font-size:.66rem;color:#38bdf8;margin-top:2px">↳ ${esc(r.summary)}</div>` : ''}
+      ${r.summary ? `<div style="font-size:.66rem;color:#7fa3c8;margin-top:2px">↳ ${esc(r.summary)}</div>` : ''}
     </td>
     <td>
       <div>${trPill(TR_ST[r.status] || TR_ST.open)}</div>
       ${who}
-      ${r.maybe_resolved ? `<div style="font-size:.62rem;color:#f59e0b;margin-top:2px" title="ในกลุ่มนี้มีข้อความขอบคุณ/บวกใหม่กว่า — ลูกค้าอาจแก้ได้แล้ว">น่าจะแก้แล้ว</div>` : ''}
+      ${r.maybe_resolved ? `<div style="font-size:.62rem;color:#c29a3c;margin-top:2px" title="ในกลุ่มนี้มีข้อความขอบคุณ/บวกใหม่กว่า — ลูกค้าอาจแก้ได้แล้ว">น่าจะแก้แล้ว</div>` : ''}
     </td>
     <td>${actions}</td>
   </tr>`;
@@ -6140,7 +6144,7 @@ function renderTriageTable(rows) {
 // ══════════════════════════════════════════════════════════
 let _lbGroups = [], _lbFilter = 'all', _lbSortKey = 'total', _lbSortDir = -1;
 let _lbCharts = {};
-const LB_PATTERN_COLOR = { 'เน้นมื้อเที่ยง': '#f97316', 'เน้นมื้อเย็น': '#7c3aed', 'เน้นเช้า': '#eab308', 'ดึก/นอกเวลา': '#1e3a5f', 'ไม่ระบุ': '#8a8f97' };
+const LB_PATTERN_COLOR = { 'เน้นมื้อเที่ยง': '#c47a4b', 'เน้นมื้อเย็น': '#5a4f8f', 'เน้นเช้า': '#c29a3c', 'ดึก/นอกเวลา': '#1e3a5f', 'ไม่ระบุ': '#8a8f97' };
 // Feather-style outline icons — matches the sidebar nav icon set
 function lbPatternIconSvg(path) {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;display:block">${path}</svg>`;
@@ -6175,7 +6179,7 @@ function renderLbTop() {
     <div class="kpi-cat-bar">
       <span style="width:22px;text-align:right;font-size:.72rem;color:#8a8f97;flex-shrink:0">${start + i + 1}</span>
       <span style="width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.78rem" title="${esc(g.name)}">${esc(g.name)}</span>
-      <div class="kpi-cat-bar-track"><div class="kpi-cat-bar-fill" style="width:${maxTop ? g.total / maxTop * 100 : 0}%;background:#2563eb"></div></div>
+      <div class="kpi-cat-bar-track"><div class="kpi-cat-bar-fill" style="width:${maxTop ? g.total / maxTop * 100 : 0}%;background:#35685f"></div></div>
       <span style="width:44px;text-align:right;font-size:.78rem;color:var(--muted)">${g.total.toLocaleString()}</span>
     </div>`).join('') || '<div style="font-size:.8rem;color:#8a8f97;padding:.4rem">ไม่มีข้อมูล</div>';
   const info = document.getElementById('lb-top-pageinfo');
@@ -6183,9 +6187,9 @@ function renderLbTop() {
 }
 function lbSegColor(h) {
   if (h >= 0 && h <= 6) return '#1e3a5f';
-  if (h >= 7 && h <= 10) return '#eab308';
-  if (h >= 11 && h <= 14) return '#f97316';
-  if (h >= 15 && h <= 22) return '#7c3aed';
+  if (h >= 7 && h <= 10) return '#c29a3c';
+  if (h >= 11 && h <= 14) return '#c47a4b';
+  if (h >= 15 && h <= 22) return '#5a4f8f';
   return '#1e3a5f';
 }
 // Heatmap: message volume per hour (0–23) × Pod (from LINE-group hourly data)
@@ -6195,7 +6199,7 @@ function renderPodHourHeatmap() {
   const groups = (_lbGroups || []).filter(g => g.type === 'group');
   const HOURS = Array.from({ length: 24 }, (_, h) => h);
   const sumHours = list => { const a = new Array(24).fill(0); list.forEach(g => { for (let h = 0; h < 24; h++) a[h] += (g.hourly && g.hourly[h]) || 0; }); return a; };
-  const rows = (_pods || []).map(p => ({ label: p.display_name, color: p.color || '#1d4ed8', hours: sumHours(groups.filter(g => g.podId === p.id)) }));
+  const rows = (_pods || []).map(p => ({ label: p.display_name, color: p.color || '#2a544d', hours: sumHours(groups.filter(g => g.podId === p.id)) }));
   const unassigned = groups.filter(g => !g.podId);
   if (unassigned.length) rows.push({ label: 'ยังไม่ assign', color: '#8a8f97', hours: sumHours(unassigned) });
   if (!rows.length || !groups.length) { host.innerHTML = '<div style="font-size:.8rem;color:#8a8f97;padding:.5rem">ไม่มีข้อมูล</div>'; return; }
@@ -6285,7 +6289,7 @@ async function loadLineBotMonitor() {
     const dowData = d.dow || [];
     _lbCharts.dow = new Chart(ctxDow, {
       type: 'bar',
-      data: { labels: dowData.map(x => x.label), datasets: [{ label: 'ข้อความ', data: dowData.map(x => x.count), backgroundColor: '#38bdf8', borderRadius: 5 }] },
+      data: { labels: dowData.map(x => x.label), datasets: [{ label: 'ข้อความ', data: dowData.map(x => x.count), backgroundColor: '#7fa3c8', borderRadius: 5 }] },
       options: { responsive: true, plugins: { legend: { display: false } },
         scales: { x: { ticks: { color: '#5b616b', font: { size: 11 } }, grid: { display: false } }, y: { beginAtZero: true, ticks: { color: '#5b616b', font: { size: 10 } }, grid: { color: '#e6e3dc' } } } }
     });
@@ -6332,7 +6336,7 @@ function renderLineBotTable() {
   const canManage = isManagerRole();
   tbody.innerHTML = rows.map(g => `
     <tr>
-      <td><span class="badge" style="background:${g.type === 'group' ? '#2563eb' : '#5b616b'};color:#fff">${g.type === 'group' ? 'กลุ่ม' : '1:1'}</span></td>
+      <td><span class="badge" style="background:${g.type === 'group' ? '#35685f' : '#5b616b'};color:#fff">${g.type === 'group' ? 'กลุ่ม' : '1:1'}</span></td>
       <td title="${esc(g.name)}" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(g.name)}</td>
       <td style="text-align:right">${g.total.toLocaleString()}</td>
       <td style="text-align:right">${g.customers}</td>
@@ -6359,7 +6363,7 @@ function lgpPodBadgeHtml(g, canManage) {
   const gid = JSON.stringify(g.id).replace(/"/g,'&quot;');
   const gname = JSON.stringify(g.name).replace(/"/g,'&quot;');
   return podName
-    ? `<span class="badge" style="background:#2563eb;color:#fff;cursor:pointer" onclick="lgpEditPod(this, ${gid}, ${gname})">${esc(podName)}</span>`
+    ? `<span class="badge" style="background:#35685f;color:#fff;cursor:pointer" onclick="lgpEditPod(this, ${gid}, ${gname})">${esc(podName)}</span>`
     : `<span class="badge" style="background:#e6e3dc;color:#5b616b;cursor:pointer" onclick="lgpEditPod(this, ${gid}, ${gname})">— assign —</span>`;
 }
 // Expand a clicked pod pill into a live <select>; collapses back on change or blur
@@ -6417,8 +6421,8 @@ function lbDaySpan() {
 const lgpAvgFmt = n => n.toLocaleString(undefined, { maximumFractionDigits: 1 });
 // Quiet-group indicator — colour by days since last message
 const LGP_ACT = {
-  active:   { c: '#22c55e', t: 'Active' },
-  quieting: { c: '#eab308', t: 'เริ่มเงียบ' },
+  active:   { c: '#4d8c6a', t: 'Active' },
+  quieting: { c: '#c29a3c', t: 'เริ่มเงียบ' },
   quiet:    { c: '#d6d2c9', t: 'เงียบ' },
 };
 function lgpActivityDot(g) {
@@ -6466,8 +6470,8 @@ function renderLgpLegend() {
   const dot = c => `<span style="width:9px;height:9px;border-radius:50%;background:${c};display:inline-block"></span>`;
   el.insertAdjacentHTML('beforeend',
     `<span style="border-left:1px dashed var(--border);padding-left:1rem;margin-left:.25rem;color:#8a8f97;font-weight:600">ความเคลื่อนไหว:</span>` +
-    `<span style="display:inline-flex;align-items:center;gap:.3rem">${dot('#22c55e')}<span style="color:var(--muted)">Active (≤3 วัน)</span></span>` +
-    `<span style="display:inline-flex;align-items:center;gap:.3rem">${dot('#eab308')}<span style="color:var(--muted)">เริ่มเงียบ (4–7 วัน)</span></span>` +
+    `<span style="display:inline-flex;align-items:center;gap:.3rem">${dot('#4d8c6a')}<span style="color:var(--muted)">Active (≤3 วัน)</span></span>` +
+    `<span style="display:inline-flex;align-items:center;gap:.3rem">${dot('#c29a3c')}<span style="color:var(--muted)">เริ่มเงียบ (4–7 วัน)</span></span>` +
     `<span style="display:inline-flex;align-items:center;gap:.3rem">${dot('#d6d2c9')}<span style="color:var(--muted)">เงียบ (>7 วัน)</span></span>`);
 }
 function renderLineGroupPodBoard() {
@@ -6514,14 +6518,14 @@ function renderLineGroupPodBoard() {
     const r = l.pct / maxPct;
     const pctDisp = l.pct.toLocaleString(undefined, { maximumFractionDigits: 1 }) + '%';
     let icon, bg;
-    if (pid === heaviestId) { icon = '🔥'; bg = '#dc2626'; }
-    else if (r >= 0.6)      { icon = '🟠'; bg = '#ea580c'; }
-    else if (r >= 0.35)     { icon = '🟡'; bg = '#ca8a04'; }
-    else                    { icon = '🟢'; bg = '#16a34a'; }
+    if (pid === heaviestId) { icon = '🔥'; bg = '#b04a40'; }
+    else if (r >= 0.6)      { icon = '🟠'; bg = '#a2562f'; }
+    else if (r >= 0.35)     { icon = '🟡'; bg = '#a2802a'; }
+    else                    { icon = '🟢'; bg = '#3f7a5a'; }
     const tip = `แบกงาน ${pctDisp} ของทั้งทีม · นับเฉพาะกลุ่ม Active (≤3 วัน) · อันดับ ${rankOf[pid]}/${ranked.length} · ${l.activeGroups} กลุ่ม Active · เฉลี่ย ${lgpAvgFmt(l.perDay)} ข้อความ/วัน`;
     return {
       icon: `<span title="${tip}" style="flex-shrink:0">${icon}</span>`,
-      chip: `<span title="${tip}" style="display:inline-flex;align-items:center;gap:.25rem;font-size:.64rem;font-weight:800;padding:.05rem .45rem;border-radius:20px;background:${bg};color:#fff">${icon} ${pctDisp}</span>`,
+      chip: `<span title="${tip}" style="display:inline-flex;align-items:center;gap:.25rem;font-size:.64rem;font-weight:600;padding:.05rem .45rem;border-radius:20px;background:${bg};color:#fff">${icon} ${pctDisp}</span>`,
     };
   }
 
@@ -6532,7 +6536,7 @@ function renderLineGroupPodBoard() {
     const chips = list.length ? list.map(g => lgpChip(g, canManage)).join('') : `<div style="font-size:.74rem;color:#d6d2c9;padding:.3rem .5rem">ยังไม่มีกลุ่มไลน์</div>`;
     // 👑 หัวหน้า Pod + จุดสถานะวันนี้ (เขียว=ทำงาน / แดง=หยุดลา / เทา=ยังไม่จัดกะ)
     const leadName = p.lead_nickname || p.lead_name;
-    const leadDot = p.lead_status === 'work' ? '#22c55e' : (p.lead_status === 'off' ? '#f87171' : 'rgba(255,255,255,.45)');
+    const leadDot = p.lead_status === 'work' ? '#4d8c6a' : (p.lead_status === 'off' ? '#d08a80' : 'rgba(255,255,255,.45)');
     const leadInner = leadName
       ? `<div title="หัวหน้า Pod${p.lead_status==='work'?' · ทำงานวันนี้':(p.lead_status==='off'?' · หยุด/ลาวันนี้':'')}" style="display:flex;align-items:center;gap:.3rem;font-size:.68rem;color:#fff;opacity:.95;min-width:0">
            <span style="flex-shrink:0"><i class=i-star></i></span>
@@ -6545,7 +6549,7 @@ function renderLineGroupPodBoard() {
       ? `<div style="display:flex;justify-content:space-between;align-items:center;gap:.4rem;margin-top:.22rem">${leadInner}${load.chip}</div>`
       : '';
     return `<div style="flex:0 0 232px;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:#fff;display:flex;flex-direction:column">
-      <div ${canManage ? `ondblclick="openPodForm(${p.id})" title="ดับเบิลคลิกเพื่อแก้ไข Pod" style="cursor:pointer;` : 'style="'}background:${p.color || '#1d4ed8'};color:#fff;padding:.5rem .6rem">
+      <div ${canManage ? `ondblclick="openPodForm(${p.id})" title="ดับเบิลคลิกเพื่อแก้ไข Pod" style="cursor:pointer;` : 'style="'}background:${p.color || '#2a544d'};color:#fff;padding:.5rem .6rem">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:.4rem">
           <div style="display:flex;align-items:center;gap:.3rem;min-width:0">
             ${load.icon}
@@ -6663,7 +6667,7 @@ const IMPL_STATUS_META = {
   cancelled:   { label: 'ยกเลิก',           fg: '#5b616b', bg: '#f0eee9' },
 };
 const IMPL_PRIORITY_META = {
-  urgent: { label: 'ด่วน', fg: '#b91c1c', bg: '#fee2e2' },
+  urgent: { label: 'ด่วน', fg: '#963d34', bg: '#f7ebe8' },
   normal: { label: 'ปกติ',    fg: '#4d535b', bg: '#f0eee9' },
   low:    { label: 'ไม่เร่ง',  fg: '#5b616b', bg: '#faf9f6' },
 };
@@ -7128,9 +7132,9 @@ function renderMonitorTrend() {
   host.innerHTML = `
     <div style="font-size:.72rem;color:#8a8f97;margin-bottom:.5rem">เดือนล่าสุด ${_monMonths[nM-1]} เทียบเฉลี่ย ${priorCount} เดือนก่อน (${_monMonths[pStart]}–${_monMonths[nM-2]}) · คิดเป็น <b>เคส/วัน</b> (เดือนล่าสุดใช้วันที่ผ่านมาจริง) · ราย${unit} · เกณฑ์ ±15% · เฉพาะ${unit}ที่ ≥6 ticket</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;align-items:start">
-      ${card('เพิ่มขึ้น', '#dc2626', up, true)}
+      ${card('เพิ่มขึ้น', '#b04a40', up, true)}
       ${card('คงที่', '#5b616b', stable, true)}
-      ${card('ลดลง', '#16a34a', down, true)}
+      ${card('ลดลง', '#3f7a5a', down, true)}
     </div>`;
 }
 function renderMonitor() {
@@ -7199,34 +7203,34 @@ function renderCapacity() {
   const loadPerDay      = (staff * workdays) ? callsPerMonth / (staff * workdays) : 0;
   const over            = util > 100;
   const r = n => Math.round(n).toLocaleString();
-  const utilColor = over ? '#dc2626' : (util >= 85 ? '#d97706' : '#16a34a');
+  const utilColor = over ? '#b04a40' : (util >= 85 ? '#a2702a' : '#3f7a5a');
   const barPct = Math.min(100, Math.round(loadPerDay / target * 100));
   el.innerHTML = `
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:1rem">
-      ${_capCard('Active licenses', r(licenses), '#2563eb', `~${r(licPerMonth)} / เดือน`)}
-      ${_capCard('ทีม CS', staff, '#16a34a', `~${r(licenses/(staff||1))} license/คน`)}
+      ${_capCard('Active licenses', r(licenses), '#35685f', `~${r(licPerMonth)} / เดือน`)}
+      ${_capCard('ทีม CS', staff, '#3f7a5a', `~${r(licenses/(staff||1))} license/คน`)}
       ${_capCard('เคสทั้งหมด', r(calls), null, `~${r(callsPerMonth)} / เดือน`)}
       ${_capCard('เคส / license', casesPerLicense.toFixed(1), null, `${months} เดือนรวม`)}
       ${_capCard('Utilization', `${Math.round(util)}%`, utilColor, over ? 'เกิน capacity' : 'อยู่ในเกณฑ์')}
-      ${_capCard('ต้องการคน', needed.toFixed(1), over ? '#dc2626' : '#16a34a', `มี ${staff} · ${over ? 'ขาด ' + (needed - staff).toFixed(1) : 'พอ'}`)}
+      ${_capCard('ต้องการคน', needed.toFixed(1), over ? '#b04a40' : '#3f7a5a', `มี ${staff} · ${over ? 'ขาด ' + (needed - staff).toFixed(1) : 'พอ'}`)}
     </div>
     <div class="card" style="padding:1rem 1.1rem;margin-bottom:1rem">
       <div style="font-size:.78rem;color:var(--muted);margin-bottom:.7rem">โหลดต่อคน/วัน เทียบเป้า</div>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:.5rem">
         <span style="width:90px;font-size:.76rem;color:var(--muted)">เป้า</span>
         <div style="flex:1;background:#f0eee9;border-radius:5px;height:22px"><div style="width:${Math.min(100, Math.round(target/Math.max(target,loadPerDay)*100))}%;height:100%;background:rgba(37,99,235,.25);border-radius:5px"></div></div>
-        <span style="width:54px;text-align:right;font-weight:600;color:#2563eb">${target.toFixed(1)}</span>
+        <span style="width:54px;text-align:right;font-weight:600;color:#35685f">${target.toFixed(1)}</span>
       </div>
       <div style="display:flex;align-items:center;gap:10px">
         <span style="width:90px;font-size:.76rem;color:var(--muted)">จริง (avg)</span>
         <div style="flex:1;background:#f0eee9;border-radius:5px;height:22px"><div style="width:${Math.min(100, Math.round(loadPerDay/Math.max(target,loadPerDay)*100))}%;height:100%;background:${over?'rgba(220,38,38,.25)':'rgba(22,163,74,.25)'};border-radius:5px"></div></div>
-        <span style="width:54px;text-align:right;font-weight:600;color:${over?'#dc2626':'#16a34a'}">${loadPerDay.toFixed(1)}</span>
+        <span style="width:54px;text-align:right;font-weight:600;color:${over?'#b04a40':'#3f7a5a'}">${loadPerDay.toFixed(1)}</span>
       </div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
       <div class="card" style="padding:.85rem 1rem">
         <div style="font-weight:600;font-size:.85rem;margin-bottom:3px">${over ? 'ทีมโหลดเกิน capacity' : 'กำลังคนยังพอ'}</div>
-        <div style="font-size:.78rem;color:var(--muted)">เคสจริง ${r(callsPerMonth)}/เดือน เทียบ capacity ทีม ${r(capacityMonth)}/เดือน → ${over ? `เกิน <b style="color:#dc2626">~${r(shortfall)} เคส/เดือน</b>` : `เหลือ <b style="color:#16a34a">~${r(-shortfall)} เคส/เดือน</b>`}</div>
+        <div style="font-size:.78rem;color:var(--muted)">เคสจริง ${r(callsPerMonth)}/เดือน เทียบ capacity ทีม ${r(capacityMonth)}/เดือน → ${over ? `เกิน <b style="color:#b04a40">~${r(shortfall)} เคส/เดือน</b>` : `เหลือ <b style="color:#3f7a5a">~${r(-shortfall)} เคส/เดือน</b>`}</div>
       </div>
       <div class="card" style="padding:.85rem 1rem">
         <div style="font-weight:600;font-size:.85rem;margin-bottom:3px">จำนวนคนที่ควรมี</div>
@@ -7241,8 +7245,8 @@ function renderCapacity() {
 
 // today work-status dot
 const POD_STATUS = {
-  work: { c:'#16a34a', t:'ทำงานวันนี้' },
-  off:  { c:'#dc2626', t:'หยุด / ลา' },
+  work: { c:'#3f7a5a', t:'ทำงานวันนี้' },
+  off:  { c:'#b04a40', t:'หยุด / ลา' },
   none: { c:'#d6d2c9', t:'ยังไม่จัดกะ' },
 };
 function statusDot(s){ const m = POD_STATUS[s]||POD_STATUS.none; return `<span title="${m.t}" style="width:9px;height:9px;border-radius:50%;background:${m.c};flex-shrink:0;display:inline-block"></span>`; }
@@ -7257,7 +7261,7 @@ function renderPodBoard(canManage) {
     const chips = list.map(c => {
       const st = custStat(c.priority);
       return `<div onclick="openCustDetail(${c.id})" style="display:flex;justify-content:space-between;gap:.4rem;align-items:center;cursor:pointer;font-size:.78rem;padding:.26rem .35rem;border-radius:6px" onmouseover="this.style.background='#f0eee9'" onmouseout="this.style.background='transparent'">
-        <span style="display:flex;align-items:center;gap:.35rem;overflow:hidden;min-width:0">${custDot(c.priority)}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${st==='red'?'color:#dc2626;font-weight:600':''}">${esc(c.name)}</span></span>
+        <span style="display:flex;align-items:center;gap:.35rem;overflow:hidden;min-width:0">${custDot(c.priority)}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${st==='red'?'color:#b04a40;font-weight:600':''}">${esc(c.name)}</span></span>
         <span style="flex-shrink:0;text-align:right;line-height:1.15"><span style="color:#4d535b;font-size:.72rem" title="จำนวนสาขา">${_branchOf(c)}</span>${_ticketCell(c.name) ? '<br>' + _ticketCell(c.name) : ''}</span>
       </div>`;
     }).join('') || `<div style="font-size:.74rem;color:#d6d2c9;padding:.3rem .5rem">ยังไม่มีลูกค้า</div>`;
@@ -7288,7 +7292,7 @@ function renderPodBoard(canManage) {
       const names = ppl.map((m, i) => `${i === 0 ? '★' : ''}${esc(m.nickname || m.name)}`).join(', ');
       return `<div style="padding:.12rem .1rem .25rem">
         <div style="display:flex;align-items:center;gap:.3rem;font-size:.66rem">
-          <span style="color:${ok?'#16a34a':'#d6d2c9'};font-size:.7rem">${ok?'●':'○'}</span>
+          <span style="color:${ok?'#3f7a5a':'#d6d2c9'};font-size:.7rem">${ok?'●':'○'}</span>
           <span style="color:#8a8f97">${ok ? timeTxt : per.key}</span>
         </div>
         <div style="font-size:.76rem;line-height:1.35;padding-left:.95rem;word-break:break-word;color:${ok?'#3a3f46':'#d6d2c9'}">${ok ? (names || '—') : '—'}</div>
@@ -7301,12 +7305,12 @@ function renderPodBoard(canManage) {
     let pill = '';
     if (mem.length) {
       const crit = working === 0;
-      pill = `<span style="font-size:.68rem;font-weight:700;padding:.08rem .4rem;border-radius:20px;background:${crit?'#dc2626':'rgba(255,255,255,.28)'};color:#fff">${crit?'ไม่มีคนวันนี้':`ทำงาน ${working}/${mem.length}`}</span>`;
+      pill = `<span style="font-size:.68rem;font-weight:700;padding:.08rem .4rem;border-radius:20px;background:${crit?'#b04a40':'rgba(255,255,255,.28)'};color:#fff">${crit?'ไม่มีคนวันนี้':`ทำงาน ${working}/${mem.length}`}</span>`;
     }
     const manageLink = '';
     // 👑 หัวหน้า Pod ประจำ (คนละบทบาทกับ ★ SR ประจำกะ) + จุดสถานะวันนี้
     const leadName = p.lead_nickname || p.lead_name;
-    const leadDot = p.lead_status === 'work' ? '#22c55e' : (p.lead_status === 'off' ? '#f87171' : 'rgba(255,255,255,.45)');
+    const leadDot = p.lead_status === 'work' ? '#4d8c6a' : (p.lead_status === 'off' ? '#d08a80' : 'rgba(255,255,255,.45)');
     const leadLine = leadName
       ? `<div title="หัวหน้า Pod${p.lead_status==='work'?' · ทำงานวันนี้':(p.lead_status==='off'?' · หยุด/ลาวันนี้':'')}" style="display:flex;align-items:center;gap:.3rem;font-size:.68rem;color:#fff;opacity:.95;margin-top:.18rem">
            <span style="flex-shrink:0"><i class=i-star></i></span>
@@ -7315,13 +7319,13 @@ function renderPodBoard(canManage) {
          </div>`
       : '';
     return `<div style="min-width:0;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:#fff;display:flex;flex-direction:column">
-      <div ${canManage?`ondblclick="openPodForm(${p.id})" title="ดับเบิลคลิกเพื่อแก้ไข Pod"`:''} style="background:${p.color||'#1d4ed8'};color:#fff;padding:.5rem .6rem;${canManage?'cursor:pointer':''}">
+      <div ${canManage?`ondblclick="openPodForm(${p.id})" title="ดับเบิลคลิกเพื่อแก้ไข Pod"`:''} style="background:${p.color||'#2a544d'};color:#fff;padding:.5rem .6rem;${canManage?'cursor:pointer':''}">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:.4rem">
           <div style="font-size:.85rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.display_name)}</div>${pill}
         </div>
         ${leadLine}
       </div>
-      <div style="padding:.4rem .5rem;display:flex;flex-direction:column;gap:.05rem;border-bottom:1px solid var(--border);background:${(p.color||'#1d4ed8')}14">
+      <div style="padding:.4rem .5rem;display:flex;flex-direction:column;gap:.05rem;border-bottom:1px solid var(--border);background:${(p.color||'#2a544d')}14">
         ${periodRows}${offLine}${staffEmpty}${manageLink}
       </div>
       <div style="padding:.45rem;display:flex;flex-direction:column;gap:.3rem;flex:1">
@@ -7351,7 +7355,7 @@ function openPodForm(id){
   document.getElementById('pod-code').value = p ? p.code : '';
   document.getElementById('pod-region').value = p ? p.region : 'BKK';
   document.getElementById('pod-name').value = p ? p.display_name : '';
-  document.getElementById('pod-color').value = p ? (p.color||'#1d4ed8') : '#1d4ed8';
+  document.getElementById('pod-color').value = p ? (p.color||'#2a544d') : '#2a544d';
   document.getElementById('pod-sort').value = p ? (p.sort_order||0) : 0;
   document.getElementById('pod-form-title').textContent = p ? 'แก้ไข Pod' : 'สร้าง Pod';
   document.getElementById('pod-del-btn').style.display = p ? '' : 'none';
@@ -7438,7 +7442,7 @@ async function openCustDetail(id){
   list.innerHTML = cmps.length ? cmps.map(c=>{
     const done = c.status==='resolved' || c.resolved_at;
     return `<div style="display:flex;gap:.5rem;padding:.45rem 0;border-bottom:1px solid #f0eee9">
-      <span style="flex-shrink:0;font-size:.66rem;padding:.1rem .45rem;border-radius:6px;height:fit-content;background:${done?'#dcfce7':'#fef9c3'};color:${done?'#15803d':'#a16207'}">${done?'เสร็จ':'ค้าง'}</span>
+      <span style="flex-shrink:0;font-size:.66rem;padding:.1rem .45rem;border-radius:6px;height:fit-content;background:${done?'#e7f0ea':'#f7f2e1'};color:${done?'#356b4e':'#a16207'}">${done?'เสร็จ':'ค้าง'}</span>
       <div style="flex:1;font-size:.8rem">
         <div>${esc(c.message||'').slice(0,200)}</div>
         <div style="font-size:.7rem;color:#8a8f97;margin-top:.15rem">${c.contact_name?esc(c.contact_name)+' · ':''}${(c.created_at||'').slice(0,10)}</div>
@@ -12643,15 +12647,15 @@ function renderLineBots(bots) {
   }
   const rows = bots.map(b => {
     const activeBadge = b.active
-      ? '<span style="color:#22c55e;font-size:.75rem">● เปิด</span>'
+      ? '<span style="color:#4d8c6a;font-size:.75rem">● เปิด</span>'
       : '<span style="color:#8a8f97;font-size:.75rem">○ ปิด</span>';
     return `<tr>
       <td style="font-size:.8rem">${escHtml(b.name)}</td>
-      <td style="font-size:.75rem;color:var(--muted);font-family:monospace">${b.has_token ? escHtml(b.token||'') : '<span style="color:#ef4444">ยังไม่มี Token</span>'}</td>
+      <td style="font-size:.75rem;color:var(--muted);font-family:monospace">${b.has_token ? escHtml(b.token||'') : '<span style="color:#c0584c">ยังไม่มี Token</span>'}</td>
       <td>${activeBadge}</td>
       <td>
         <button class="btn btn-sm" style="font-size:.72rem;padding:2px 8px;margin-right:2px" onclick="openLineBotForm(${JSON.stringify(b).replace(/"/g,'&quot;')})"><i class=i-pencil></i></button>
-        <button class="btn btn-sm" style="font-size:.72rem;padding:2px 8px;color:#ef4444" onclick="deleteLineBot(${b.id},'${escHtml(b.name.replace(/'/g,"\\'"))}')"><i class=i-trash></i></button>
+        <button class="btn btn-sm" style="font-size:.72rem;padding:2px 8px;color:#c0584c" onclick="deleteLineBot(${b.id},'${escHtml(b.name.replace(/'/g,"\\'"))}')"><i class=i-trash></i></button>
       </td>
     </tr>`;
   }).join('');
