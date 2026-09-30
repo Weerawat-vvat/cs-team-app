@@ -1893,74 +1893,71 @@ textarea{resize:vertical;min-height:80px}
 
 <!-- ═══════════════════ PAGE: SPECIALIST ═══════════════════ -->
 <div id="page-specialist" class="page">
-  <div class="section-header" style="margin-bottom:.75rem">
-    <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
-      <div class="section-title">Specialist Queue</div>
-      <button onclick="openAddSpecialist()" class="btn btn-primary" style="font-size:.78rem;padding:.3rem .85rem">เพิ่มงาน SP</button>
+  <div class="svc-hdr">
+    <div>
+      <div class="svc-kicker">Specialist queue</div>
+      <h1 class="svc-h1">Specialist</h1>
+      <div class="svc-sub">งานที่ Helpdesk ส่งต่อให้ทีม Specialist แก้ไข</div>
     </div>
+    <button onclick="openAddSpecialist()" class="svc-btn-primary"><span style="font-size:1.05rem;line-height:1;font-weight:400">+</span> เพิ่มงาน SP</button>
   </div>
 
-  <!-- Date & Filter Bar (top) -->
-  <div class="page-datebar" style="flex-direction:column;align-items:flex-start;gap:.45rem;margin-bottom:.65rem">
-    <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;width:100%">
-      <div class="drb" id="sp-drb">
-        <button class="drb-btn active" onclick="spRange('today',this)">วันนี้</button>
-        <button class="drb-btn" onclick="spRange('yesterday',this)">เมื่อวานนี้</button>
-        <button class="drb-btn" onclick="spRange('thisweek',this)">สัปดาห์นี้</button>
-        <button class="drb-btn" onclick="spRange('thismonth',this)">เดือนนี้</button>
-        <button class="drb-btn" onclick="spRange('lastmonth',this)">เดือนที่แล้ว</button>
-        <button class="drb-btn" onclick="spRange('7d',this)">7 วันที่แล้ว</button>
-        <button class="drb-btn" onclick="spRange('30d',this)">30 วันที่ผ่านมา</button>
-        <button class="drb-btn" onclick="spRange('custom',this)">กำหนดเอง</button>
-      </div>
+  <!-- Quick tabs (client-side; counts follow the filters below) -->
+  <div class="svc-tabs" id="sp-tabs">
+    <button class="svc-tab on" data-tab="" onclick="spSetTab('')">ทั้งหมด <span class="c" id="sp-stat-total">—</span></button>
+    <button class="svc-tab" data-tab="pending" onclick="spSetTab('pending')"><span class="svc-dot" style="background:#c29a3c"></span>รอดำเนินการ <span class="c" id="sp-stat-pending">—</span></button>
+    <button class="svc-tab" data-tab="in_progress" onclick="spSetTab('in_progress')"><span class="svc-dot" style="background:#5b7fb3"></span>กำลังดำเนินการ <span class="c" id="sp-stat-inprog">—</span></button>
+    <button class="svc-tab" data-tab="resolved" onclick="spSetTab('resolved')"><span class="svc-dot" style="background:#4d8c6a"></span>แก้ไขแล้ว <span class="c" id="sp-stat-resolved">—</span></button>
+  </div>
+
+  <!-- Filters -->
+  <div class="svc-filters">
+    <label class="svc-search">
+      <i class=i-search style="color:#8a8f97"></i>
+      <input id="sp-search" type="text" placeholder="ค้นหา ID ร้าน หัวข้อ หรือรายละเอียด" oninput="spSearchDebounce()"/>
+    </label>
+    <select id="sp-filter-status" class="svc-select" onchange="loadSpecialist()" aria-label="สถานะ">
+      <option value="">ทุกสถานะ</option>
+      <option value="pending">รอดำเนินการ</option>
+      <option value="in_progress">กำลังดำเนินการ</option>
+      <option value="need_more_info">Need more information</option>
+      <option value="assigned_to_programmer">Assign to Programmer</option>
+      <option value="resolved">แก้ไขแล้ว</option>
+      <option value="rejected">ปฏิเสธ</option>
+      <option value="cancelled">ยกเลิก</option>
+    </select>
+    <select id="sp-filter-member" class="svc-select" onchange="loadSpecialist()" style="min-width:150px" aria-label="ผู้รับงาน">
+      <option value="">ทุกพนักงาน</option>
+    </select>
+  </div>
+  <div class="svc-filters" style="margin-top:-.35rem">
+    <div class="drb" id="sp-drb">
+      <button class="drb-btn active" onclick="spRange('today',this)">วันนี้</button>
+      <button class="drb-btn" onclick="spRange('yesterday',this)">เมื่อวาน</button>
+      <button class="drb-btn" onclick="spRange('thisweek',this)">สัปดาห์นี้</button>
+      <button class="drb-btn" onclick="spRange('thismonth',this)">เดือนนี้</button>
+      <button class="drb-btn" onclick="spRange('lastmonth',this)">เดือนที่แล้ว</button>
+      <button class="drb-btn" onclick="spRange('7d',this)">7 วัน</button>
+      <button class="drb-btn" onclick="spRange('30d',this)">30 วัน</button>
+      <button class="drb-btn" onclick="spRange('custom',this)">กำหนดเอง</button>
     </div>
-    <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;width:100%">
-      <select id="sp-filter-status" onchange="loadSpecialist()">
-        <option value="">ทุกสถานะ</option>
-        <option value="pending">รอดำเนินการ</option>
-        <option value="in_progress">กำลังดำเนินการ</option>
-        <option value="need_more_info">Need more information</option>
-        <option value="assigned_to_programmer">Assign to Programmer</option>
-        <option value="resolved">แก้ไขแล้ว</option>
-        <option value="rejected">ปฏิเสธ</option>
-        <option value="cancelled">ยกเลิก</option>
-      </select>
-      <select id="sp-filter-member" onchange="loadSpecialist()" style="min-width:140px">
-        <option value="">ทุกพนักงาน</option>
-      </select>
-      <input id="sp-search" type="text" placeholder="ID / ร้าน / หัวข้อ / รายละเอียด..." oninput="spSearchDebounce()" style="min-width:160px;flex:1"/>
-    </div>
-    <div class="drb-custom" id="sp-custom-range">
-      <input id="sp-date-from" type="date" style="max-width:135px" title="วันที่เริ่มต้น"/>
+    <div class="drb-custom" id="sp-custom-range" style="margin-top:0">
+      <input id="sp-date-from" type="date" class="svc-date" title="วันที่เริ่มต้น"/>
       <span style="color:var(--muted);font-size:.8rem">ถึง</span>
-      <input id="sp-date-to" type="date" style="max-width:135px" title="วันที่สิ้นสุด"/>
-      <button class="btn btn-sm btn-primary" onclick="loadSpecialist()">ค้นหา</button>
+      <input id="sp-date-to" type="date" class="svc-date" title="วันที่สิ้นสุด"/>
+      <button class="svc-btn-primary" style="height:34px;padding:0 1rem" onclick="loadSpecialist()">ค้นหา</button>
     </div>
   </div>
 
-  <!-- Stat bar (reflects current filter) -->
-  <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem">
-    <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:.5rem .95rem;display:flex;align-items:center;gap:.55rem">
-      <span style="font-size:.72rem;color:var(--muted)">ทั้งหมด</span><span style="font-size:1.15rem;font-weight:600;color:var(--hd)" id="sp-stat-total">—</span>
-    </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:.5rem .95rem;display:flex;align-items:center;gap:.55rem">
-      <span style="font-size:.72rem;color:var(--muted)">รอดำเนินการ</span><span style="font-size:1.15rem;font-weight:600;color:#b45309" id="sp-stat-pending">—</span>
-    </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:.5rem .95rem;display:flex;align-items:center;gap:.55rem">
-      <span style="font-size:.72rem;color:var(--muted)">กำลังดำเนินการ</span><span style="font-size:1.15rem;font-weight:600;color:#2563eb" id="sp-stat-inprog">—</span>
-    </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:.5rem .95rem;display:flex;align-items:center;gap:.55rem">
-      <span style="font-size:.72rem;color:var(--muted)">แก้ไขแล้ว</span><span style="font-size:1.15rem;font-weight:600;color:#16a34a" id="sp-stat-resolved">—</span>
-    </div>
-  </div>
-
-  <div class="card" style="padding:.5rem 0">
+  <div class="svc-tbl-card">
     <div class="tbl-wrap">
-      <table>
+      <table class="svc-tbl sp-tbl">
+        <colgroup>
+          <col style="width:120px"><col><col style="width:24%"><col style="width:150px"><col style="width:150px"><col style="width:150px"><col style="width:44px">
+        </colgroup>
         <thead><tr>
-          <th style="width:20px"></th><th>#</th><th>ร้านค้า</th><th>หัวข้อ</th><th>รายละเอียด</th>
-          <th>ผู้ติดต่อ</th><th>ทีม / พนักงาน</th>
-          <th>สถานะ</th><th>วันที่มอบหมาย</th>
+          <th>งาน SP</th><th>ร้านค้า / หัวข้อ</th><th>รายละเอียด</th>
+          <th>ผู้ติดต่อ</th><th>ผู้รับงาน</th><th>สถานะ</th><th></th>
         </tr></thead>
         <tbody id="specialist-tbody"></tbody>
       </table>
@@ -2003,7 +2000,7 @@ textarea{resize:vertical;min-height:80px}
       <span id="fu-import-stats" style="font-size:.78rem;color:#5b616b;flex:1"></span>
       <button onclick="closeModal('modal-fu-import')" style="background:#f0eee9;color:#3a3f46;border:none;border-radius:7px;padding:.45rem 1rem;font-size:.82rem;font-weight:600;cursor:pointer">ยกเลิก</button>
       <button id="fu-import-confirm-btn" onclick="fuConfirmImport()" disabled
-        style="background:#ea580c;color:#fff;border:none;border-radius:7px;padding:.45rem 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer;opacity:.5">
+        style="background:#a2562f;color:#fff;border:none;border-radius:7px;padding:.45rem 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer;opacity:.5">
         Import ทั้งหมด
       </button>
     </div>
@@ -2025,14 +2022,14 @@ textarea{resize:vertical;min-height:80px}
           style="flex:1;border:1.5px solid var(--border);border-radius:7px;padding:.35rem .6rem;font-size:.85rem;font-family:inherit;outline:none"
           onkeydown="if(event.key==='Enter')fuFetchSpRef()"/>
         <button onclick="fuFetchSpRef()"
-          style="white-space:nowrap;border:1.5px solid #7c3aed;background:#faf5ff;color:#7c3aed;border-radius:7px;padding:.35rem .8rem;font-size:.78rem;font-weight:700;cursor:pointer;font-family:inherit">
+          style="white-space:nowrap;border:1.5px solid #5a4f8f;background:#f6f5fb;color:#5a4f8f;border-radius:7px;padding:.35rem .8rem;font-size:.78rem;font-weight:700;cursor:pointer;font-family:inherit">
           ดึงข้อมูล
         </button>
         <button id="fu-add-sp-clear" onclick="fuClearSpRef()" style="display:none;border:1px solid #e8c9c3;background:#f7ebe8;color:#b04a40;border-radius:7px;padding:.35rem .6rem;font-size:.78rem;cursor:pointer;font-family:inherit">✕</button>
       </div>
-      <div id="fu-add-sp-preview" style="display:none;margin-top:.45rem;padding:.4rem .6rem;background:#fff;border:1px solid #e9d5ff;border-radius:7px;font-size:.78rem">
+      <div id="fu-add-sp-preview" style="display:none;margin-top:.45rem;padding:.4rem .6rem;background:#fff;border:1px solid #e2def0;border-radius:7px;font-size:.78rem">
         <div style="font-weight:700;color:#24272c" id="fu-add-sp-company"></div>
-        <div style="color:#7c3aed;font-size:.73rem" id="fu-add-sp-subject"></div>
+        <div style="color:#5a4f8f;font-size:.73rem" id="fu-add-sp-subject"></div>
       </div>
     </div>
 
@@ -2098,7 +2095,7 @@ textarea{resize:vertical;min-height:80px}
           </select></div>
         <div class="form-group"><label>หัวข้อ</label>
           <select id="etf-subject"><option value="">— เลือก —</option></select>
-          <div id="etf-time-hint" style="display:none;margin-top:.25rem;background:#fef3c7;border:1px solid #fde68a;border-radius:6px;padding:.25rem .6rem;font-size:.73rem;color:#92400e;font-weight:600">
+          <div id="etf-time-hint" style="display:none;margin-top:.25rem;background:#f6f0e2;border:1px solid #e6d6a8;border-radius:6px;padding:.25rem .6rem;font-size:.73rem;color:#7a5a1c;font-weight:600">
             ต้องดำเนินการภายใน <span id="etf-time-val"></span> นาที
           </div>
         </div>
@@ -2225,7 +2222,7 @@ textarea{resize:vertical;min-height:80px}
             style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.4rem .65rem;font-size:.83rem;outline:none"/>
           <input type="hidden" id="sps-registration-id"/>
           <div id="sps-shop-results" style="position:absolute;z-index:200;background:#fff;border:1px solid var(--border);border-radius:8px;max-height:180px;overflow-y:auto;width:100%;display:none;box-shadow:0 4px 12px #0002"></div>
-          <div id="sps-shop-selected" style="font-size:.75rem;color:#16a34a;margin-top:.2rem"></div>
+          <div id="sps-shop-selected" style="font-size:.75rem;color:#3f7a5a;margin-top:.2rem"></div>
         </div>
       </div>
 
@@ -4403,7 +4400,7 @@ textarea{resize:vertical;min-height:80px}
       <input id="rf-shop-search" type="text" placeholder="พิมพ์ชื่อร้านเพื่อค้นหา..." oninput="rpShopSearch()" autocomplete="off" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.38rem .65rem;font-size:.83rem;outline:none"/>
       <div id="rf-shop-results" style="position:absolute;z-index:200;background:#fff;border:1px solid var(--border);border-radius:8px;max-height:180px;overflow-y:auto;width:100%;display:none;box-shadow:0 4px 12px #0002"></div>
       <input type="hidden" id="rf-registration-id"/>
-      <div id="rf-shop-selected" style="font-size:.75rem;color:#16a34a;margin-top:.15rem"></div>
+      <div id="rf-shop-selected" style="font-size:.75rem;color:#3f7a5a;margin-top:.15rem"></div>
     </div>
 
     <!-- S/N Search -->
@@ -4961,9 +4958,9 @@ textarea{resize:vertical;min-height:80px}
   <div class="modal" style="max-width:400px">
     <div class="modal-title">ความรู้และการแชร์ <button class="modal-close" onclick="closeModal('modal-activities')">×</button></div>
     <div style="font-size:.82rem;color:#5b616b;margin-bottom:1rem" id="act-label"></div>
-    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:1rem 1.2rem;text-align:center;margin-bottom:1rem">
-      <div style="font-size:.72rem;color:#15803d;font-weight:700;margin-bottom:.35rem">KB Article เดือนนี้ <span style="background:#dcfce7;border-radius:10px;padding:1px 6px">Auto</span></div>
-      <div style="font-size:2.5rem;font-weight:800;color:#15803d;line-height:1" id="act-kb-disp">0</div>
+    <div style="background:#f1f6f2;border:1px solid #cfe0d5;border-radius:12px;padding:1rem 1.2rem;text-align:center;margin-bottom:1rem">
+      <div style="font-size:.72rem;color:#356b4e;font-weight:700;margin-bottom:.35rem">KB Article เดือนนี้ <span style="background:#e7f0ea;border-radius:10px;padding:1px 6px">Auto</span></div>
+      <div style="font-size:2.5rem;font-weight:800;color:#356b4e;line-height:1" id="act-kb-disp">0</div>
       <div style="font-size:.75rem;color:#5b616b;margin-top:.3rem">บทความ</div>
     </div>
     <div style="background:#faf9f6;border:1px solid #e6e3dc;border-radius:10px;padding:.75rem 1rem;text-align:center;margin-bottom:1.25rem">
@@ -5031,7 +5028,7 @@ textarea{resize:vertical;min-height:80px}
     <input type="hidden" id="p-user-id"/>
 
     <!-- ── ข้อมูลพนักงาน ── -->
-    <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.6rem">ข้อมูลพนักงาน</div>
+    <div style="font-size:.78rem;font-weight:700;color:var(--muted);letter-spacing:0;margin-bottom:.6rem">ข้อมูลพนักงาน</div>
     <div class="grid-2">
       <div class="form-group">
         <label>ชื่อ-นามสกุล *</label>
@@ -5066,7 +5063,7 @@ textarea{resize:vertical;min-height:80px}
 
     <!-- ── บัญชี Login ── -->
     <hr style="border:none;border-top:1px solid var(--border);margin:.9rem 0 .75rem"/>
-    <div style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.6rem">บัญชี Login ระบบ</div>
+    <div style="font-size:.78rem;font-weight:700;color:var(--muted);letter-spacing:0;margin-bottom:.6rem">บัญชี Login ระบบ</div>
     <div class="grid-2">
       <div class="form-group">
         <label>Username</label>
@@ -13438,15 +13435,18 @@ function resetCreateCase() {
 //  SPECIALIST
 // ══════════════════════════════════════════════════════════
 const SP_STATUS = { pending:'รอดำเนินการ', in_progress:'กำลังดำเนินการ', need_more_info:'Need more information', assigned_to_programmer:'Assign to Programmer', resolved:'แก้ไขแล้ว', rejected:'ปฏิเสธ', cancelled:'ยกเลิก' };
-const SP_STATUS_COLOR = { pending:'#fef3c7|#92400e', in_progress:'#dbeafe|#1d4ed8', need_more_info:'#f3e8ff|#7c3aed', assigned_to_programmer:'#f0f9ff|#0369a1', resolved:'#dcfce7|#15803d', rejected:'#fee2e2|#b91c1c', cancelled:'#f0eee9|#4d535b' };
+const SP_STATUS_COLOR = { pending:'#f6f0e2|#86671f', in_progress:'#eaf0f7|#3f5f8f', need_more_info:'#efedf7|#5a4f8f', assigned_to_programmer:'#e5f0f0|#2f6f73', resolved:'#e7f0ea|#356b4e', rejected:'#f7ebe8|#a3463c', cancelled:'#f0eee9|#4d535b' };
 const SP_PRIORITY = { urgent:'Urgent', high:'High', normal:'Normal', low:'Low' };
 let _spSearchTimer = null;
 let _allSpecialist = [];
 const _spExpandedRows = new Set();
+let _spTab = '';   // '' | pending | in_progress | resolved — client-side, counts follow the filters
+function spSetTab(tab) { _spTab = tab; if (_spLastList) renderSpecialistTable(_spLastList); }
+let _spLastList = null;
 
 function spStatusBadge(st) {
   const [bg,col] = (SP_STATUS_COLOR[st]||'#f0eee9|#4d535b').split('|');
-  return `<span style="background:${bg};color:${col};padding:.15rem .5rem;border-radius:20px;font-size:.72rem;font-weight:700;white-space:nowrap">${SP_STATUS[st]||st}</span>`;
+  return `<span class="uat-st" style="background:${bg};color:${col}">${SP_STATUS[st]||st}</span>`;
 }
 
 function spSearchDebounce() {
@@ -13507,6 +13507,7 @@ async function loadSpecialist() {
 }
 
 function renderSpecialistTable(list) {
+  _spLastList = list;
   const total    = list.length;
   const pending  = list.filter(s=>s.status==='pending').length;
   const inprog   = list.filter(s=>s.status==='in_progress').length;
@@ -13516,12 +13517,14 @@ function renderSpecialistTable(list) {
   _s('sp-stat-pending', pending);
   _s('sp-stat-inprog',  inprog);
   _s('sp-stat-resolved',resolved);
+  document.querySelectorAll('#sp-tabs .svc-tab').forEach(t => t.classList.toggle('on', (t.dataset.tab || '') === _spTab));
+  if (_spTab) list = list.filter(s => s.status === _spTab);
 
   // Badge is managed by spPollBadge() via /api/specialist/badge (all-time count) — do not override here
 
   const tbody = document.getElementById('specialist-tbody');
   if (!tbody) return;
-  if (!list.length) { tbody.innerHTML='<tr><td colspan="9" class="empty">ไม่พบข้อมูล</td></tr>'; return; }
+  if (!list.length) { tbody.innerHTML=`<tr style="cursor:default"><td colspan="7" style="text-align:center;color:var(--muted);padding:3.5rem 1rem">${total ? 'ไม่มีงานในแท็บนี้' : 'ไม่พบข้อมูล'}</td></tr>`; return; }
 
   const spLead = isLeadRole();
   tbody.innerHTML = list.map(s=>{
@@ -13529,49 +13532,46 @@ function renderSpecialistTable(list) {
     const solText     = s.calllog_solution    || s.solution    || '';
     const descPreview = descText.slice(0,55) + (descText.length>55?'…':'');
     return `
-    <tr class="sp-row-main" id="sp-main-row-${s.id}" style="cursor:pointer;${s.status==='pending'?'background:#fffbeb':''}"
+    <tr class="sp-row-main" id="sp-main-row-${s.id}" style="cursor:pointer;${s.status==='pending'?'background:#fdfaf2':''}"
         onclick="toggleSpDetail(${s.id})">
-      <td style="text-align:center;padding:.4rem .3rem;color:var(--muted);font-size:.75rem;width:20px">
-        <span id="sp-ind-${s.id}">▶</span>
+      <td>
+        <div class="svc-jobno" style="color:#24272c;font-weight:500">SP-${s.id}</div>
+        <div class="tk-sub">${fmtDT(s.assigned_at)}</div>
       </td>
-      <td style="font-size:.78rem;color:var(--muted)">${s.id}</td>
-      <td style="max-width:130px">
-        <div style="font-weight:600;font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(s.company_name||'')}">${escHtml(s.company_name||'—')}</div>
-        ${s.calllog_id?`<div style="font-size:.7rem;color:var(--hd)">#${s.calllog_id}</div>`:''}
+      <td style="min-width:0">
+        <div class="svc-title" title="${escHtml(s.company_name||'')}">${escHtml(s.company_name||'—')}</div>
+        <div class="tk-sub" style="display:flex;align-items:center;gap:.35rem;white-space:nowrap;overflow:hidden">
+          ${s.problem_type?`<span class="tk-ptype">${escHtml(s.problem_type)}</span>`:''}
+          <span style="overflow:hidden;text-overflow:ellipsis">${escHtml(s.subject||'—')}</span>
+          ${s.calllog_id?`<span class="mono" style="color:#6f747c;flex-shrink:0">· #${s.calllog_id}</span>`:''}
+        </div>
       </td>
-      <td style="max-width:180px">
-        ${s.problem_type?`<div style="margin-bottom:.15rem"><span style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;font-size:.67rem;padding:.02rem .32rem">${escHtml(s.problem_type)}</span></div>`:''}
-        <span style="font-size:.8rem;font-weight:500">${escHtml(s.subject||'—')}</span>
+      <td>${descText?`<div class="tk-desc">${escHtml(descText)}</div>`:'<span style="color:#b9bcc2">—</span>'}</td>
+      <td style="font-size:.8rem">
+        <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(s.contact_name||'—')}</div>
+        ${s.contact_phone?`<div class="tk-sub">${escHtml(s.contact_phone)}</div>`:''}
+        ${s.line_id?`<div class="tk-sub">LINE: ${escHtml(s.line_id)}</div>`:''}
       </td>
-      <td style="max-width:200px;font-size:.78rem;color:var(--muted)">
-        ${descText?`<div style="line-height:1.45;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${escHtml(descText)}</div>`:'<span style="color:#d6d2c9">—</span>'}
-      </td>
-      <td style="font-size:.78rem">
-        <div>${escHtml(s.contact_name||'—')}</div>
-        ${s.contact_phone?`<div style="color:var(--muted);font-size:.72rem">${escHtml(s.contact_phone)}</div>`:''}
-        ${s.line_id?`<div style="color:var(--muted);font-size:.72rem">LINE: ${escHtml(s.line_id)}</div>`:''}
-      </td>
-      <td style="font-size:.8rem" onclick="event.stopPropagation();openSpAssignPop(${s.id},'${escHtml(s.assigned_to_team||'')}',${s.accepted_by||'null'})" title="คลิกเพื่อเปลี่ยนผู้รับงาน" style="cursor:pointer">
+      <td onclick="event.stopPropagation();openSpAssignPop(${s.id},'${escHtml(s.assigned_to_team||'')}',${s.accepted_by||'null'})" title="คลิกเพื่อเปลี่ยนผู้รับงาน" style="cursor:pointer">
         ${s.accepted_by_name
-          ? `<div style="color:#2563eb;font-weight:600;display:flex;align-items:center;gap:.25rem">${escHtml(s.accepted_by_name)} <span style="font-size:.65rem;color:#8a8f97"><i class=i-pencil></i></span></div>`
-          : `<div style="font-size:.75rem;color:#8a8f97;display:flex;align-items:center;gap:.25rem">ยังไม่มีผู้รับ <span style="font-size:.65rem">＋</span></div>`}
+          ? `<div class="svc-owner"><span class="av">${escHtml(s.accepted_by_name.charAt(0))}</span><span class="nm">${escHtml(s.accepted_by_name)}</span><i class=i-pencil style="color:#b9bcc2;font-size:.72rem"></i></div>`
+          : `<span style="display:inline-flex;align-items:center;gap:.3rem;font-size:.78rem;color:var(--primary);border:1px dashed #b9c9c3;border-radius:999px;padding:.18rem .65rem;white-space:nowrap">+ มอบหมาย</span>`}
       </td>
       <td>${spStatusBadge(s.status)}</td>
-      <td style="font-size:.75rem;white-space:nowrap">${fmtDT(s.assigned_at)}</td>
+      <td style="vertical-align:middle;text-align:center"><span id="sp-ind-${s.id}" style="font-size:.7rem;color:#8a8f97">▶</span></td>
     </tr>
     <tr id="sp-detail-row-${s.id}" class="sp-row-detail" style="display:none">
-      <td colspan="9" style="padding:0">
-        <div style="background:#faf9f6;border-left:3px solid #7c3aed;padding:.75rem 1.1rem .9rem 1.3rem">
+      <td colspan="7" style="padding:0">
+        <div style="background:#faf9f6;padding:1rem 1.2rem 1.1rem">
 
           <!-- Header -->
-          <div style="display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;margin-bottom:.65rem;padding-bottom:.55rem;border-bottom:1px solid #e9d5ff">
+          <div style="display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;margin-bottom:.65rem;padding-bottom:.55rem;border-bottom:1px solid #e2def0">
             <span style="font-size:.88rem;font-weight:700;color:#24272c">${escHtml(s.company_name||'—')}</span>
-            ${s.problem_type?`<span style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;font-size:.72rem;padding:.03rem .42rem">${escHtml(s.problem_type)}</span>`:''}
+            ${s.problem_type?`<span style="background:#f1f6f2;color:#356b4e;border:1px solid #cfe0d5;border-radius:4px;font-size:.72rem;padding:.03rem .42rem">${escHtml(s.problem_type)}</span>`:''}
             <span style="font-size:.73rem;color:var(--muted)">${escHtml(s.agent_name||'—')}</span>
-            ${s.accepted_by_name?`<span style="font-size:.73rem;color:#2563eb;font-weight:600">${escHtml(s.accepted_by_name)}</span>`:''}
+            ${s.accepted_by_name?`<span style="font-size:.73rem;color:#35685f;font-weight:600">${escHtml(s.accepted_by_name)}</span>`:''}
             ${s.calllog_id?`<button onclick="event.stopPropagation();viewRefCase(${s.calllog_id})"
-              style="margin-left:auto;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:6px;padding:.18rem .6rem;font-size:.73rem;font-weight:600;cursor:pointer">
-              🔗 ดูเคส #${s.calllog_id}</button>`:''}
+              class="svc-btn-ghost" style="margin-left:auto;height:30px;padding:0 .8rem;font-size:.76rem"><i class=i-link></i> ดูเคส #${s.calllog_id}</button>`:''}
           </div>
 
           <!-- Main grid: 3 cols -->
@@ -13580,32 +13580,32 @@ function renderSpecialistTable(list) {
             <!-- Col 1: Problem description -->
             <div>
               ${descText?`<div style="margin-bottom:.55rem">
-                <div style="font-size:.68rem;font-weight:700;color:#4d535b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.25rem">รายละเอียดปัญหา</div>
+                <div style="font-size:.68rem;font-weight:700;color:#4d535b;letter-spacing:0;margin-bottom:.25rem">รายละเอียดปัญหา</div>
                 <div style="font-size:.8rem;line-height:1.6;white-space:pre-wrap;color:var(--text)">${escHtml(descText)}</div>
               </div>`:''}
               ${solText?`<div>
-                <div style="font-size:.68rem;font-weight:700;color:#0369a1;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.25rem">แนวทางเบื้องต้น (Helpdesk)</div>
-                <div style="font-size:.8rem;line-height:1.6;white-space:pre-wrap;color:#0c4a6e">${escHtml(solText)}</div>
+                <div style="font-size:.68rem;font-weight:700;color:#3f5f8f;letter-spacing:0;margin-bottom:.25rem">แนวทางเบื้องต้น (Helpdesk)</div>
+                <div style="font-size:.8rem;line-height:1.6;white-space:pre-wrap;color:#34506f">${escHtml(solText)}</div>
               </div>`:''}
               ${!descText&&!solText?`<div style="color:var(--muted);font-size:.78rem;padding-top:.2rem">— ไม่มีรายละเอียดจาก Helpdesk —</div>`:''}
             </div>
 
             <!-- Col 2: Contact info -->
             <div>
-              <div style="font-size:.68rem;font-weight:700;color:#4d535b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.3rem">ข้อมูลติดต่อ</div>
+              <div style="font-size:.68rem;font-weight:700;color:#4d535b;letter-spacing:0;margin-bottom:.3rem">ข้อมูลติดต่อ</div>
               ${[['ผู้ติดต่อ',s.contact_name],['เบอร์โทร',s.contact_phone],['Line ID',s.line_id],['Line Group',s.line_group]]
                 .filter(([,v])=>v)
                 .map(([k,v])=>`<div style="font-size:.78rem;margin-bottom:.2rem"><span style="color:var(--muted);font-size:.72rem">${k}:</span><br>${escHtml(v)}</div>`)
                 .join('')||'<div style="font-size:.78rem;color:var(--muted)">—</div>'}
               ${s.note?`<div style="margin-top:.5rem">
-                <div style="font-size:.68rem;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.2rem">Note</div>
-                <div style="font-size:.78rem;color:#4c1d95;white-space:pre-wrap">${escHtml(s.note)}</div>
+                <div style="font-size:.68rem;font-weight:700;color:#5a4f8f;letter-spacing:0;margin-bottom:.2rem">Note</div>
+                <div style="font-size:.78rem;color:#453c70;white-space:pre-wrap">${escHtml(s.note)}</div>
               </div>`:''}
             </div>
 
             <!-- Col 3: Status -->
             <div>
-              <div style="font-size:.68rem;font-weight:700;color:#4d535b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.3rem">จัดการ</div>
+              <div style="font-size:.68rem;font-weight:700;color:#4d535b;letter-spacing:0;margin-bottom:.3rem">จัดการ</div>
               <div>
                 <div style="font-size:.72rem;color:var(--muted);margin-bottom:.2rem">สถานะ</div>
                 ${spLead
@@ -13619,24 +13619,24 @@ function renderSpecialistTable(list) {
           </div>
 
           <!-- Specialist resolution -->
-          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:.5rem .85rem;margin-bottom:.55rem" id="sp-res-box-${s.id}">
+          <div style="background:#f1f6f2;border:1px solid #cfe0d5;border-radius:8px;padding:.5rem .85rem;margin-bottom:.55rem" id="sp-res-box-${s.id}">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.22rem">
-              <div style="font-size:.68rem;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:.04em">การแก้ไขของ Specialist</div>
+              <div style="font-size:.68rem;font-weight:700;color:#356b4e;letter-spacing:0">การแก้ไขของ Specialist</div>
               ${spLead?`<button onclick="event.stopPropagation();spEditResolution(${s.id})"
-                style="background:none;border:none;cursor:pointer;font-size:.75rem;color:#15803d;padding:.1rem .35rem;border-radius:4px;line-height:1"
+                style="background:none;border:none;cursor:pointer;font-size:.75rem;color:#356b4e;padding:.1rem .35rem;border-radius:4px;line-height:1"
                 title="แก้ไขข้อความ"><i class=i-pencil></i></button>`:''}
             </div>
-            <div id="sp-res-text-${s.id}" style="font-size:.82rem;color:#14532d;white-space:pre-wrap;line-height:1.55">${s.resolution_note?escHtml(s.resolution_note):'<span style="color:#86efac;font-style:italic">— ยังไม่มีบันทึกการแก้ไข —</span>'}</div>
+            <div id="sp-res-text-${s.id}" style="font-size:.82rem;color:#2f5e45;white-space:pre-wrap;line-height:1.55">${s.resolution_note?escHtml(s.resolution_note):'<span style="color:#a9cbb5;font-style:italic">— ยังไม่มีบันทึกการแก้ไข —</span>'}</div>
             <div id="sp-res-edit-${s.id}" style="display:none;margin-top:.4rem">
               <textarea onclick="event.stopPropagation()" rows="3"
                 id="sp-res-input-${s.id}"
-                style="width:100%;border:1px solid #86efac;border-radius:6px;padding:.35rem .55rem;font-size:.8rem;font-family:inherit;resize:vertical;background:#fff"
+                style="width:100%;border:1px solid #a9cbb5;border-radius:6px;padding:.35rem .55rem;font-size:.8rem;font-family:inherit;resize:vertical;background:#fff"
               >${s.resolution_note?escHtml(s.resolution_note):''}</textarea>
               <div style="display:flex;gap:.4rem;margin-top:.3rem">
                 <button onclick="event.stopPropagation();spSaveResolution(${s.id})"
-                  style="background:#15803d;color:#fff;border:none;border-radius:6px;padding:.28rem .7rem;font-size:.75rem;font-weight:600;cursor:pointer">บันทึก</button>
+                  class="svc-btn-primary" style="height:30px;padding:0 .85rem;font-size:.78rem">บันทึก</button>
                 <button onclick="event.stopPropagation();spCancelResolution(${s.id})"
-                  style="background:#f0eee9;color:#4d535b;border:none;border-radius:6px;padding:.28rem .7rem;font-size:.75rem;cursor:pointer">ยกเลิก</button>
+                  class="svc-btn-ghost" style="height:30px;padding:0 .85rem;font-size:.78rem">ยกเลิก</button>
               </div>
             </div>
           </div>
@@ -13649,20 +13649,15 @@ function renderSpecialistTable(list) {
           </div>`:''}
 
           ${spLead?`<div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:.55rem;padding-top:.5rem;border-top:1px solid #f0eee9">
-            <button onclick="event.stopPropagation();openEditSp(${s.id})"
-              style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:7px;padding:.28rem .75rem;font-size:.75rem;font-weight:600;cursor:pointer">
-              ✏️ แก้ไข
-            </button>
+            <button onclick="event.stopPropagation();openEditSp(${s.id})" class="svc-btn-ghost" style="height:32px;font-size:.78rem"><i class=i-pencil></i> แก้ไข</button>
             <button onclick="event.stopPropagation();deleteSpJob(${s.id},'${escHtml(s.company_name||'')}','${escHtml((s.subject||'').substring(0,40))}')"
-              style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:7px;padding:.28rem .75rem;font-size:.75rem;font-weight:600;cursor:pointer">
-              🗑 ลบงานนี้
-            </button>
+              class="svc-btn-ghost" style="height:32px;font-size:.78rem;color:#b04a40"><i class=i-trash></i> ลบงานนี้</button>
           </div>`:''}
 
           <!-- ── Tracking Comments ── -->
-          <div style="margin-top:.8rem;border-top:2px solid #ede9fe;padding-top:.7rem" onclick="event.stopPropagation()">
-            <div style="font-size:.7rem;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.55rem">
-              📝 บันทึกการติดตาม
+          <div style="margin-top:.8rem;border-top:2px solid #efedf7;padding-top:.7rem" onclick="event.stopPropagation()">
+            <div style="font-size:.7rem;font-weight:700;color:#5a4f8f;letter-spacing:0;margin-bottom:.55rem">
+              บันทึกการติดตาม
             </div>
             <div id="sp-comments-${s.id}" style="display:flex;flex-direction:column;gap:.35rem;margin-bottom:.55rem">
               <div style="color:#8a8f97;font-size:.76rem;font-style:italic">กำลังโหลด...</div>
@@ -13670,12 +13665,11 @@ function renderSpecialistTable(list) {
             <div style="display:flex;gap:.4rem;align-items:center">
               <input id="sp-comment-inp-${s.id}" type="text"
                 placeholder="บันทึกการติดตาม / อัพเดทสถานะ... (Enter เพื่อส่ง)"
-                style="flex:1;border:1px solid #ddd8fe;border-radius:8px;padding:.32rem .6rem;font-size:.8rem;font-family:inherit;outline:none;transition:border .15s;background:#fff"
-                onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#ddd8fe'"
+                style="flex:1;height:34px;border:1px solid var(--border);border-radius:10px;padding:0 .75rem;font-size:.82rem;font-family:inherit;outline:none;transition:border .15s;background:#fff"
+                onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border)'"
                 onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();spAddComment(${s.id})}"/>
               <button onclick="spAddComment(${s.id})"
-                style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:.32rem .7rem;font-size:.78rem;font-weight:600;cursor:pointer;white-space:nowrap;transition:background .15s"
-                onmouseover="this.style.background='#6d28d9'" onmouseout="this.style.background='#7c3aed'">ส่ง</button>
+                class="svc-btn-primary" style="height:34px;padding:0 .9rem">ส่ง</button>
             </div>
           </div>
 
@@ -13755,23 +13749,23 @@ async function spLoadComments(spId) {
   const wrap = document.getElementById(`sp-comments-${spId}`);
   if (!wrap) return;
   const data = await api(`/api/specialist/${spId}/comments`);
-  if (!data) { wrap.innerHTML = '<div style="color:#ef4444;font-size:.75rem">โหลดไม่ได้</div>'; return; }
+  if (!data) { wrap.innerHTML = '<div style="color:#c0584c;font-size:.75rem">โหลดไม่ได้</div>'; return; }
   wrap.innerHTML = spRenderComments(data, spId);
 }
 
 function spRenderComments(list, spId) {
-  if (!list.length) return '<div style="color:#a78bfa;font-size:.76rem;font-style:italic;padding:.15rem 0">ยังไม่มีบันทึก — เพิ่มบันทึกแรกได้เลย</div>';
+  if (!list.length) return '<div style="color:#a39cc9;font-size:.76rem;font-style:italic;padding:.15rem 0">ยังไม่มีบันทึก — เพิ่มบันทึกแรกได้เลย</div>';
   const spLead = isLeadRole();
   return list.map(c => {
     const dt = new Date(c.created_at);
     const dtStr = isNaN(dt) ? '' : dt.toLocaleString('th-TH', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
-    return `<div style="background:#faf5ff;border:1px solid #ede9fe;border-radius:8px;padding:.38rem .65rem;position:relative">
+    return `<div style="background:#f6f5fb;border:1px solid #efedf7;border-radius:8px;padding:.38rem .65rem;position:relative">
       <div style="display:flex;align-items:center;gap:.45rem;margin-bottom:.2rem">
-        <span style="font-size:.72rem;font-weight:700;color:#7c3aed">${escHtml(c.author_name||'?')}</span>
-        <span style="font-size:.68rem;color:#a78bfa">${dtStr}</span>
+        <span style="font-size:.72rem;font-weight:700;color:#5a4f8f">${escHtml(c.author_name||'?')}</span>
+        <span style="font-size:.68rem;color:#a39cc9">${dtStr}</span>
         ${spLead ? `<button onclick="spDeleteComment(${spId},${c.id})" title="ลบ"
           style="margin-left:auto;background:none;border:none;color:#c4b5fd;cursor:pointer;font-size:.8rem;line-height:1;padding:0;transition:color .15s"
-          onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#c4b5fd'">✕</button>` : ''}
+          onmouseover="this.style.color='#c0584c'" onmouseout="this.style.color='#c4b5fd'">✕</button>` : ''}
       </div>
       <div style="font-size:.8rem;color:#3b0764;white-space:pre-wrap;line-height:1.5">${escHtml(c.body)}</div>
     </div>`;
@@ -13903,7 +13897,7 @@ function etfRenderAttachments(list) {
   el.innerHTML = list.map(f => `
     <span style="display:inline-flex;align-items:center;gap:.35rem;background:#f0eee9;border-radius:6px;padding:.25rem .55rem;font-size:.75rem">
       <a href="/uploads/cases/${_editTicketId}/${encodeURIComponent(f.filename)}" target="_blank" style="color:var(--hd);text-decoration:none">${esc(f.original_name)}</a>
-      <button type="button" onclick="etfDeleteAttachment(${f.id})" title="ลบไฟล์แนบ" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:.85rem;line-height:1;padding:0">×</button>
+      <button type="button" onclick="etfDeleteAttachment(${f.id})" title="ลบไฟล์แนบ" style="background:none;border:none;color:#c0584c;cursor:pointer;font-size:.85rem;line-height:1;padding:0">×</button>
     </span>`).join('');
 }
 async function etfPickFiles(input) {
@@ -14197,7 +14191,7 @@ async function openSpecialistDetail(id) {
   document.getElementById('spd-body').innerHTML = '<div style="padding:1rem;color:var(--muted)">กำลังโหลด...</div>';
   openModal('modal-specialist-detail');
   const s = _allSpecialist.find(x=>x.id===id);
-  if (!s) { document.getElementById('spd-body').innerHTML='<div style="color:#ef4444;padding:1rem">ไม่พบข้อมูล</div>'; return; }
+  if (!s) { document.getElementById('spd-body').innerHTML='<div style="color:#c0584c;padding:1rem">ไม่พบข้อมูล</div>'; return; }
   document.getElementById('spd-title').innerHTML = `งาน #${s.id} — ${escHtml(s.company_name||'—')} <button class="modal-close" onclick="closeModal('modal-specialist-detail')">×</button>`;
   const _calllogId = s.calllog_id;
 
@@ -14209,7 +14203,7 @@ async function openSpecialistDetail(id) {
         ${[['ร้านค้า',s.company_name],['หัวข้อ',s.subject],['ประเภท',s.problem_type],
            ['ทีม',s.assigned_to_team],['Priority',SP_PRIORITY[s.priority]||s.priority],
            ['มอบหมายโดย',s.agent_name],['วันที่มอบหมาย',fmtDate(s.assigned_at)],
-           ['ผู้รับงาน', s.accepted_by_name ? `<b style="color:#2563eb">${escHtml(s.accepted_by_name)}</b>` : '<span style="color:#8a8f97">ยังไม่มีผู้รับ</span>'],
+           ['ผู้รับงาน', s.accepted_by_name ? `<b style="color:#35685f">${escHtml(s.accepted_by_name)}</b>` : '<span style="color:#8a8f97">ยังไม่มีผู้รับ</span>'],
            ['เวลารับงาน', s.accepted_at ? fmtDate(s.accepted_at) : '—'],
           ].map(([k,v])=>`<div style="display:flex;gap:.5rem;padding:.2rem 0;font-size:.8rem;border-bottom:1px solid #f0eee9">
             <span style="color:var(--muted);min-width:95px">${k}</span>
@@ -14230,26 +14224,26 @@ async function openSpecialistDetail(id) {
     ${s.note?`<div style="background:#faf9f6;border-radius:8px;padding:.55rem .8rem;font-size:.82rem;margin-bottom:.6rem"><b>Note จาก Helpdesk:</b> ${escHtml(s.note)}</div>`:''}
 
     <!-- Ref CalllogId — click to view in tickets page -->
-    ${s.calllog_id ? `<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:.5rem .85rem;margin-bottom:.65rem;display:flex;align-items:center;gap:.6rem">
-      <span style="font-size:.78rem;color:#1d4ed8;font-weight:600">อ้างอิง Case:</span>
-      <button onclick="viewRefCase(${s.calllog_id})" style="background:#2563eb;color:#fff;border:none;border-radius:6px;padding:.22rem .65rem;font-size:.78rem;font-weight:600;cursor:pointer">
+    ${s.calllog_id ? `<div style="background:#f2f6fa;border:1px solid #cddaea;border-radius:8px;padding:.5rem .85rem;margin-bottom:.65rem;display:flex;align-items:center;gap:.6rem">
+      <span style="font-size:.78rem;color:#2a544d;font-weight:600">อ้างอิง Case:</span>
+      <button onclick="viewRefCase(${s.calllog_id})" style="background:#35685f;color:#fff;border:none;border-radius:6px;padding:.22rem .65rem;font-size:.78rem;font-weight:600;cursor:pointer">
         #${s.calllog_id} — ดูรายละเอียด
       </button>
     </div>` : ''}
 
     <!-- Issue ID / URL (bug tracking) -->
-    <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.65rem;background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px;padding:.55rem .85rem;flex-wrap:wrap">
-      <span style="font-size:.78rem;font-weight:700;color:#7c3aed;white-space:nowrap">Issue URL</span>
+    <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.65rem;background:#f6f5fb;border:1px solid #e2def0;border-radius:8px;padding:.55rem .85rem;flex-wrap:wrap">
+      <span style="font-size:.78rem;font-weight:700;color:#5a4f8f;white-space:nowrap">Issue URL</span>
       ${isLead ? `
       <input id="sp-issue-id" value="${escHtml(s.issue_id||'')}" placeholder="วาง URL หรือ Issue ID เช่น https://... / ISS-123"
-        style="flex:1;min-width:200px;border:1px solid #e9d5ff;border-radius:6px;padding:.28rem .55rem;font-size:.82rem;outline:none;background:#fff"
+        style="flex:1;min-width:200px;border:1px solid #e2def0;border-radius:6px;padding:.28rem .55rem;font-size:.82rem;outline:none;background:#fff"
         onblur="saveIssueId(${s.id},this.value)"/>
       ${s.issue_id && s.issue_id.startsWith('http') ? `<a href="${escHtml(s.issue_id)}" target="_blank" rel="noopener"
-        style="background:#7c3aed;color:#fff;border-radius:6px;padding:.25rem .6rem;font-size:.75rem;font-weight:600;text-decoration:none;white-space:nowrap">เปิด</a>` : ''}` :
+        style="background:#5a4f8f;color:#fff;border-radius:6px;padding:.25rem .6rem;font-size:.75rem;font-weight:600;text-decoration:none;white-space:nowrap">เปิด</a>` : ''}` :
       s.issue_id ? (s.issue_id.startsWith('http') ?
         `<a href="${escHtml(s.issue_id)}" target="_blank" rel="noopener"
-          style="color:#7c3aed;font-size:.82rem;font-weight:600;word-break:break-all">${escHtml(s.issue_id)}</a>` :
-        `<span style="font-family:monospace;font-size:.82rem;color:#7c3aed">${escHtml(s.issue_id)}</span>`)
+          style="color:#5a4f8f;font-size:.82rem;font-weight:600;word-break:break-all">${escHtml(s.issue_id)}</a>` :
+        `<span style="font-family:monospace;font-size:.82rem;color:#5a4f8f">${escHtml(s.issue_id)}</span>`)
       : `<span style="font-size:.78rem;color:#8a8f97">ยังไม่ระบุ</span>`}
     </div>
 
@@ -14260,15 +14254,15 @@ async function openSpecialistDetail(id) {
         ${Object.entries(SP_STATUS).map(([v,l])=>`<option value="${v}" ${s.status===v?'selected':''}>${l}</option>`).join('')}
       </select>
       <button onclick="openReassignSp(${s.id},'${escHtml(s.assigned_to_team||'')}',${s.assigned_to_user||'null'},'${escHtml(s.company_name||'')}','${escHtml(s.subject||'')}')"
-        style="background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;border-radius:8px;padding:.3rem .75rem;font-size:.78rem;font-weight:600;cursor:pointer;white-space:nowrap">
-        🔄 Reassign
+        style="background:#f2f6fa;color:#3f5f8f;border:1px solid #cddaea;border-radius:8px;padding:.3rem .75rem;font-size:.78rem;font-weight:600;cursor:pointer;white-space:nowrap">
+        Reassign
       </button>
       <button onclick="deleteSpJob(${s.id},'${escHtml(s.company_name||'')}','${escHtml((s.subject||'').substring(0,40))}')"
-        style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:8px;padding:.3rem .75rem;font-size:.78rem;font-weight:600;cursor:pointer;white-space:nowrap">
-        🗑 ลบ
+        style="background:#faf1ef;color:#b04a40;border:1px solid #e8c9c3;border-radius:8px;padding:.3rem .75rem;font-size:.78rem;font-weight:600;cursor:pointer;white-space:nowrap">
+        ลบ
       </button>` : spStatusBadge(s.status)}
     </div>
-    ${s.resolution_note?`<div style="background:#f0fdf4;border-radius:8px;padding:.55rem .8rem;font-size:.82rem"><b>Resolution:</b> ${escHtml(s.resolution_note)}</div>`:''}
+    ${s.resolution_note?`<div style="background:#f1f6f2;border-radius:8px;padding:.55rem .8rem;font-size:.82rem"><b>Resolution:</b> ${escHtml(s.resolution_note)}</div>`:''}
     <div id="sp-resolve-form" style="display:none;margin-top:.6rem">
       <textarea id="sp-resolution-note" rows="2" placeholder="สรุปการแก้ไข..." style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.4rem .6rem;font-size:.82rem;font-family:inherit;resize:vertical"></textarea>
       <button class="btn btn-success btn-sm" style="margin-top:.35rem;width:100%" onclick="saveSpResolve(${s.id})">ยืนยันแก้ไขแล้ว</button>
@@ -23496,9 +23490,9 @@ async function generateFromPattern() {
         style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.35rem .6rem;font-size:.82rem;resize:vertical;font-family:inherit"></textarea>
     </div>
     <div style="margin-bottom:.55rem">
-      <label style="font-size:.75rem;font-weight:700;color:#15803d;display:block;margin-bottom:.2rem">Expected Behavior — พฤติกรรมที่ระบบควรทำงาน</label>
+      <label style="font-size:.75rem;font-weight:700;color:#356b4e;display:block;margin-bottom:.2rem">Expected Behavior — พฤติกรรมที่ระบบควรทำงาน</label>
       <textarea id="uat-issue-expected" rows="2"
-        style="width:100%;border:1px solid #bbf7d0;background:#f0fdf4;border-radius:7px;padding:.35rem .6rem;font-size:.82rem;resize:vertical;font-family:inherit"></textarea>
+        style="width:100%;border:1px solid #cfe0d5;background:#f1f6f2;border-radius:7px;padding:.35rem .6rem;font-size:.82rem;resize:vertical;font-family:inherit"></textarea>
     </div>
     <div style="margin-bottom:.55rem">
       <label style="font-size:.75rem;font-weight:700;color:#963d34;display:block;margin-bottom:.2rem">Actual Behavior — พฤติกรรมที่ระบบทำงานจริง (ผิดปกติ)</label>
@@ -23583,7 +23577,7 @@ async function generateFromPattern() {
     <input type="hidden" id="swu-fu-issue-id"/>
 
     <!-- FU link badge -->
-    <div id="swu-fu-badge" style="display:none;font-size:.75rem;font-weight:600;color:#0891b2;background:#ecfeff;border:1px solid #a5f3fc;border-radius:7px;padding:.3rem .7rem;margin-bottom:.6rem"></div>
+    <div id="swu-fu-badge" style="display:none;font-size:.75rem;font-weight:600;color:#2f6f73;background:#e5f0f0;border:1px solid #a5f3fc;border-radius:7px;padding:.3rem .7rem;margin-bottom:.6rem"></div>
 
     <!-- ร้านค้า -->
     <div style="position:relative;margin-bottom:.6rem">
@@ -23592,7 +23586,7 @@ async function generateFromPattern() {
         style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.38rem .65rem;font-size:.83rem;outline:none"/>
       <div id="swu-shop-results" style="position:absolute;z-index:200;background:#fff;border:1px solid var(--border);border-radius:8px;max-height:180px;overflow-y:auto;width:100%;display:none;box-shadow:0 4px 12px #0002"></div>
       <input type="hidden" id="swu-registration-id"/>
-      <div id="swu-shop-selected" style="font-size:.75rem;color:#16a34a;margin-top:.15rem"></div>
+      <div id="swu-shop-selected" style="font-size:.75rem;color:#3f7a5a;margin-top:.15rem"></div>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.5rem">
@@ -23775,11 +23769,11 @@ async function generateFromPattern() {
       <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
         <div style="display:flex;align-items:center;gap:.35rem">
           <label style="font-size:.78rem;color:var(--muted)">พื้นหลัง</label>
-          <input type="color" id="add-shift-bg" value="#dcfce7" style="width:36px;height:28px;border:1px solid var(--border);border-radius:5px;cursor:pointer"/>
+          <input type="color" id="add-shift-bg" value="#e7f0ea" style="width:36px;height:28px;border:1px solid var(--border);border-radius:5px;cursor:pointer"/>
         </div>
         <div style="display:flex;align-items:center;gap:.35rem">
           <label style="font-size:.78rem;color:var(--muted)">ตัวอักษร</label>
-          <input type="color" id="add-shift-fg" value="#166534" style="width:36px;height:28px;border:1px solid var(--border);border-radius:5px;cursor:pointer"/>
+          <input type="color" id="add-shift-fg" value="#2f5e45" style="width:36px;height:28px;border:1px solid var(--border);border-radius:5px;cursor:pointer"/>
         </div>
       </div>
     </div>
@@ -23813,9 +23807,9 @@ async function generateFromPattern() {
         <input type="checkbox" id="pattern-overwrite" style="width:14px;height:14px"/>
         <label for="pattern-overwrite" style="font-size:.78rem;color:var(--muted)">เขียนทับกะที่มีอยู่แล้ว</label>
       </div>
-      <button class="btn btn-sm" style="background:#7c3aed;color:#fff;margin-left:auto" onclick="generateFromPattern()">เจนตารางทั้งเดือน</button>
+      <button class="btn btn-sm" style="background:#5a4f8f;color:#fff;margin-left:auto" onclick="generateFromPattern()">เจนตารางทั้งเดือน</button>
     </div>
-    <div style="padding:.6rem 1.25rem;font-size:.75rem;color:#5b616b;background:#fffbeb;border-bottom:1px solid #fde68a">
+    <div style="padding:.6rem 1.25rem;font-size:.75rem;color:#5b616b;background:#fbf8f0;border-bottom:1px solid #e6d6a8">
       กำหนดกะที่แต่ละคนทำในแต่ละวันของสัปดาห์ — ระบบจะเจนทุกวันในเดือนที่เลือกอัตโนมัติ &nbsp;|&nbsp; เว้นว่าง = ไม่กำหนด (ข้ามวันนั้น)
     </div>
     <div style="flex:1;overflow:auto;padding:1rem 1.25rem">
@@ -23825,7 +23819,7 @@ async function generateFromPattern() {
       <div id="pattern-result-msg" style="font-size:.82rem"></div>
       <div style="display:flex;gap:.5rem">
         <button class="btn btn-ghost" onclick="closeModal('modal-weekly-pattern')">ปิด</button>
-        <button class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="generateFromPattern()">เจนตารางทั้งเดือน</button>
+        <button class="btn btn-sm" style="background:#5a4f8f;color:#fff" onclick="generateFromPattern()">เจนตารางทั้งเดือน</button>
       </div>
     </div>
   </div>
