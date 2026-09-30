@@ -17,6 +17,10 @@
   if (p.accent)   d.setAttribute('data-accent', p.accent);
   if (p.contrast) d.setAttribute('data-contrast', p.contrast);
   if (p.size)     d.setAttribute('data-size', p.size);
+  if (p.style)    d.setAttribute('data-style', p.style);
+  if (p.style === 'office' && window.Chart) Chart.defaults.font.family = "'Segoe UI','Leelawadee UI',Tahoma,sans-serif";
+  var dk = p.theme === 'dark' || (p.theme === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+  if (dk) d.setAttribute('data-theme', 'dark');
 } catch (e) {} })();
 </script>
 <style>
@@ -621,6 +625,43 @@ textarea{resize:vertical;min-height:80px}
 .kpi-m{flex:1 1 140px;background:#fff;border:1px solid var(--border);border-radius:14px;padding:.8rem 1rem}
 .kpi-m .l{font-size:.78rem;color:#5b616b}
 .kpi-m .v{font-size:1.45rem;font-weight:600;letter-spacing:-.02em;color:var(--text);margin-top:.15rem;font-variant-numeric:tabular-nums}
+/* ── Office style (data-style="office"): Segoe UI, office blue, square corners, grid-like tables ── */
+:root[data-style="office"]:not([data-theme="dark"]){--bg:#f3f2f1;--card:#fff;--card2:#faf9f8;--text:#242424;--muted:#616161;--border:#e1dfdd;--line-2:#edebe9}
+:root[data-style="office"][data-contrast="high"]:not([data-theme="dark"]){--text:#000;--muted:#3b3a39;--border:#a19f9d;--line-2:#d2d0ce}
+:root[data-style="office"]:not([data-accent]){--primary:#0f6cbd;--primary-dk:#115ea3;--primary-soft:#ebf3fc}
+:root[data-style="office"][data-theme="dark"]:not([data-accent]){--primary:#2886de;--primary-dk:#479ef5;--primary-soft:#1a2a3d}
+:root[data-style="office"] body{font-family:'Segoe UI','Leelawadee UI',Leelawadee,Tahoma,sans-serif;-webkit-font-smoothing:auto}
+:root[data-style="office"] :is(.s-grp,.svc-kicker,.svc-tab .c,.svc-proj-count,.svc-col-head .c,.fu-f-row .cnt,.fu-b-row .cnt,.tk-metrics b,.sidebar-nav .s-tab span[id$="-badge"]){font-family:inherit!important}
+:root[data-style="office"] :is(.s-grp,.svc-kicker){text-transform:none;letter-spacing:0;font-size:.74rem;font-weight:600}
+:root[data-style="office"] :is(.svc-jobno,.tk-case,.tk-time,.svc-meta .mono),:root[data-style="office"] [style*="IBM Plex Mono"]{font-family:Consolas,'Segoe UI','Leelawadee UI',monospace!important}
+/* corners */
+:root[data-style="office"] :is(.card,.stat-flat,.kpi-m,.svc-tbl-card,.ui-prefs-pop,.svc-proj-menu){border-radius:6px}
+:root[data-style="office"] .modal{border-radius:8px}
+:root[data-style="office"] :is(.drb-btn,.svc-seg,.svc-seg button,.svc-proj-dd,.svc-card,.impl-comments,.fu-kcol){border-radius:4px}
+:root[data-style="office"] :is(.btn,.svc-btn-primary,.svc-btn-ghost,.svc-icon-btn,.svc-select,.svc-search,.svc-date,input,select,textarea,.ui-seg,.ui-seg button,.s-tab,.s-sub,.sidebar-logo-icon){border-radius:4px}
+/* surfaces */
+:root[data-style="office"] :is(.card,.stat-flat,.kpi-m,.svc-tbl-card){box-shadow:0 1.6px 3.6px rgba(0,0,0,.07),0 .3px .9px rgba(0,0,0,.05)}
+:root[data-style="office"] .sidebar{background:#fff}
+:root[data-style="office"] .s-tab{position:relative}
+:root[data-style="office"] .s-tab:hover{background:#f3f2f1}
+:root[data-style="office"] .s-tab.active{font-weight:600}
+:root[data-style="office"] .s-tab.active::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:3px;border-radius:2px;background:var(--primary)}
+:root[data-style="office"] .svc-h1{font-size:1.35rem;font-weight:600;letter-spacing:0}
+:root[data-style="office"] .svc-tab.on{font-weight:600;border-bottom-width:3px}
+:root[data-style="office"] .svc-tbl th{background:#faf9f8;color:#424242;font-weight:600;font-size:.76rem}
+:root[data-style="office"] .svc-tbl td{border-bottom-color:#edebe9}
+:root[data-style="office"] .svc-tbl tbody tr:hover{background:#f5f9fd}
+:root[data-style="office"] .ui-seg{background:#f3f2f1}
+:root[data-style="office"] #ui-accent .ui-swatch[data-v=""]{background:#0f6cbd!important}
+/* ── Dark theme tokens (the engine below mirrors every other colour rule) ── */
+:root[data-theme="dark"]{color-scheme:dark;--bg:#141619;--card:#1c1f23;--card2:#212428;--text:#e6e4df;--muted:#a9a7a1;--border:#33373d;--line-2:#2a2d32;
+  --primary:#4f8a7e;--primary-dk:#5f9d90;--primary-soft:#1f3430}
+:root[data-theme="dark"][data-accent="blue"]      {--primary:#5b86bd;--primary-dk:#6f96c8;--primary-soft:#1e2a3a}
+:root[data-theme="dark"][data-accent="violet"]    {--primary:#7d76bf;--primary-dk:#8f89c9;--primary-soft:#27253a}
+:root[data-theme="dark"][data-accent="slate"]     {--primary:#7a8594;--primary-dk:#8a94a2;--primary-soft:#262a30}
+:root[data-theme="dark"][data-accent="terracotta"]{--primary:#c07a5a;--primary-dk:#cc8b6c;--primary-soft:#35261f}
+:root[data-theme="dark"][data-contrast="high"]{--text:#f4f2ee;--muted:#c9c6bf;--border:#4a4f57}
+:root[data-theme="dark"] img{opacity:.92}
 /* ── Appearance prefs (data-* on <html>, set from localStorage) ── */
 :root[data-accent="blue"]      {--primary:#3f6fa8;--primary-dk:#315987;--primary-soft:#e8eef7}
 :root[data-accent="violet"]    {--primary:#5f58a0;--primary-dk:#4b457f;--primary-soft:#eeedf7}
@@ -739,6 +780,175 @@ textarea{resize:vertical;min-height:80px}
 .svc-status-delivered{background:#e7f0ea;color:#356b4e}
 .svc-status-cancelled{background:#f0eee9;color:#5b616b}
 </style>
+<script>
+// ── Dark mode engine ─────────────────────────────────────────────────────────
+// Light mode is untouched. When <html data-theme="dark">, this:
+//  1) mirrors every colour declaration of the page's stylesheets into a
+//     `:root[data-theme="dark"] …` rule set with a dark-adapted colour, and
+//  2) rewrites literal colours in inline style attributes as elements appear
+//     (MutationObserver), so JS-rendered tables/boards follow too.
+// The transform keeps hue, flips lightness for surfaces / text / borders, and
+// leaves solid mid-tone fills (buttons, dots) and white-on-colour text alone.
+(function () {
+  var D = document.documentElement;
+  function rgb(str) {
+    str = String(str).trim().toLowerCase();
+    if (str === 'white') return [255, 255, 255, 1];
+    var m = /^#([0-9a-f]{3})$/.exec(str);
+    if (m) return [parseInt(m[1][0] + m[1][0], 16), parseInt(m[1][1] + m[1][1], 16), parseInt(m[1][2] + m[1][2], 16), 1];
+    m = /^#([0-9a-f]{6})$/.exec(str);
+    if (m) return [parseInt(m[1].slice(0, 2), 16), parseInt(m[1].slice(2, 4), 16), parseInt(m[1].slice(4, 6), 16), 1];
+    m = /^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,\s/]+([\d.]+%?))?\s*\)$/.exec(str);
+    if (m) { var a = m[4] == null ? 1 : (/%$/.test(m[4]) ? parseFloat(m[4]) / 100 : parseFloat(m[4])); return [+m[1], +m[2], +m[3], a]; }
+    return null;
+  }
+  function toHsl(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    var mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, h = 0, s = 0, dd = mx - mn;
+    if (dd) {
+      s = l > .5 ? dd / (2 - mx - mn) : dd / (mx + mn);
+      h = mx === r ? (g - b) / dd + (g < b ? 6 : 0) : mx === g ? (b - r) / dd + 2 : (r - g) / dd + 4;
+      h /= 6;
+    }
+    return [h, s, l];
+  }
+  function toRgb(h, s, l) {
+    function f(p, q, t) { if (t < 0) t += 1; if (t > 1) t -= 1; return t < 1/6 ? p + (q - p) * 6 * t : t < 1/2 ? q : t < 2/3 ? p + (q - p) * (2/3 - t) * 6 : p; }
+    if (!s) { var v = Math.round(l * 255); return [v, v, v]; }
+    var q = l < .5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+    return [Math.round(f(p, q, h + 1/3) * 255), Math.round(f(p, q, h) * 255), Math.round(f(p, q, h - 1/3) * 255)];
+  }
+  function out(c, a) {
+    return a < 1 ? 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (+a.toFixed(3)) + ')'
+                 : '#' + c.map(function (x) { return ('0' + x.toString(16)).slice(-2); }).join('');
+  }
+  var cache = {};
+  // role: 'bg' | 'fg' | 'bd'
+  function dark(str, role) {
+    var key = role + '|' + str; if (key in cache) return cache[key];
+    var c = rgb(str), res = str;
+    if (c && c[3] > 0) {
+      var hsl = toHsl(c[0], c[1], c[2]), h = hsl[0], s = hsl[1], l = hsl[2];
+      // warm off-whites / greys read as muddy brown once darkened — treat every near-white as neutral
+      var neutral = s < .12 || (l > .82 && s < .35);
+      if (role === 'bg') {
+        if (l >= .72) { l = .115 + (1 - l) * .9; s = neutral ? .09 : s * .5; if (neutral) h = .6; res = out(toRgb(h, s, l), c[3]); }
+      } else if (role === 'fg') {
+        if (l < .62) { l = Math.min(.92, Math.max(.52, .95 - l * .62)); s = s * .85; res = out(toRgb(h, s, l), c[3]); }
+      } else {
+        if (l >= .6) { l = .16 + (1 - l) * .85; s = neutral ? .07 : s * .5; if (neutral) h = .6; res = out(toRgb(h, s, l), c[3]); }
+      }
+    }
+    return (cache[key] = res);
+  }
+  // Chart configs call this for literal grid / tick / label colours
+  window._thc = function (c, role) { return D.getAttribute('data-theme') === 'dark' ? dark(c, role || 'bd') : c; };
+  if (D.getAttribute('data-theme') !== 'dark') return;
+
+  var COLOR_RE = /#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b|rgba?\([^)]*\)|\bwhite\b/g;
+  function convVal(v, role) { return v.replace(COLOR_RE, function (m) { return dark(m, role); }); }
+  function splitSel(sel) {
+    var parts = [], depth = 0, cur = '';
+    for (var i = 0; i < sel.length; i++) {
+      var ch = sel[i];
+      if (ch === '(' || ch === '[') depth++; else if (ch === ')' || ch === ']') depth--;
+      if (ch === ',' && !depth) { parts.push(cur); cur = ''; } else cur += ch;
+    }
+    parts.push(cur); return parts;
+  }
+  function prefix(sel) {
+    return splitSel(sel).map(function (p) {
+      p = p.trim();
+      if (/^:root\b/.test(p)) return ':root[data-theme="dark"]' + p.slice(5);
+      if (/^html\b/.test(p))  return 'html[data-theme="dark"]' + p.slice(4);
+      return ':root[data-theme="dark"] ' + p;
+    }).join(',');
+  }
+  // Every colour-bearing declaration is mirrored — var() values verbatim — so the
+  // dark copies keep the same relative cascade as the light rules they shadow.
+  // Shorthands win when present: a shorthand holding var() exposes no longhands.
+  function emit(st, p, role) {
+    var v = st.getPropertyValue(p); if (!v) return '';
+    var imp = st.getPropertyPriority(p) ? ' !important' : '';
+    return p + ':' + (/var\(/.test(v) ? v : convVal(v, role)) + imp + ';';
+  }
+  function decls(st) {
+    var d = '';
+    d += emit(st, 'background', 'bg') || emit(st, 'background-color', 'bg');
+    var all = emit(st, 'border', 'bd');
+    if (all) d += all;
+    else ['top', 'right', 'bottom', 'left'].forEach(function (side) {
+      d += emit(st, 'border-' + side, 'bd') || emit(st, 'border-' + side + '-color', 'bd');
+    });
+    d += emit(st, 'outline', 'bd') || emit(st, 'outline-color', 'bd');
+    ['color', 'caret-color', 'text-decoration-color', 'fill', 'stroke'].forEach(function (p) { d += emit(st, p, 'fg'); });
+    return d;
+  }
+  function mirror(rules) {
+    var css = '';
+    for (var i = 0; i < rules.length; i++) {
+      var r = rules[i];
+      if (r.type === 1 && r.selectorText && !/data-theme/.test(r.selectorText)) {
+        var decl = decls(r.style);
+        if (decl) css += prefix(r.selectorText) + '{' + decl + '}\n';
+      } else if (r.type === 4 && r.cssRules) {
+        var inner = mirror(r.cssRules); if (inner) css += '@media ' + r.conditionText + '{' + inner + '}\n';
+      }
+    }
+    return css;
+  }
+  var done = typeof WeakSet === 'function' ? new WeakSet() : null;
+  function mirrorSheets() {
+    var css = '';
+    for (var i = 0; i < document.styleSheets.length; i++) {
+      var sh = document.styleSheets[i];
+      if (sh.ownerNode && sh.ownerNode.id === 'dark-mirror') continue;
+      if (done && done.has(sh)) continue;
+      try { css += mirror(sh.cssRules); if (done) done.add(sh); } catch (e) { /* cross-origin (Google Fonts) */ }
+    }
+    if (!css) return;
+    var el = document.getElementById('dark-mirror');
+    if (!el) { el = document.createElement('style'); el.id = 'dark-mirror'; document.head.appendChild(el); }
+    el.appendChild(document.createTextNode(css));
+  }
+  // inline style attributes
+  var DECL_RE = /(^|;)\s*(color|background(?:-color)?|border(?:-(?:top|right|bottom|left))?(?:-color)?|outline(?:-color)?|fill|stroke)\s*:\s*([^;]*)/gi;
+  function convStyle(s) {
+    return s.replace(DECL_RE, function (m, lead, prop, val) {
+      var p = prop.toLowerCase(), role = p === 'color' || p === 'fill' || p === 'stroke' ? 'fg' : p.indexOf('background') === 0 ? 'bg' : 'bd';
+      return lead + prop + ':' + convVal(val, role);
+    });
+  }
+  var last = typeof WeakMap === 'function' ? new WeakMap() : null;
+  function fix(el) {
+    var s = el.getAttribute && el.getAttribute('style'); if (!s) return;
+    if (last && last.get(el) === s) return;
+    var c = convStyle(s);
+    if (c !== s) el.setAttribute('style', c);
+    if (last) last.set(el, c);
+  }
+  function fixTree(n) {
+    if (n.nodeType !== 1) return;
+    fix(n);
+    var list = n.querySelectorAll ? n.querySelectorAll('[style]') : [];
+    for (var i = 0; i < list.length; i++) fix(list[i]);
+  }
+  mirrorSheets();
+  new MutationObserver(function (muts) {
+    for (var i = 0; i < muts.length; i++) {
+      var m = muts[i];
+      if (m.type === 'attributes') fix(m.target);
+      else for (var j = 0; j < m.addedNodes.length; j++) {
+        var n = m.addedNodes[j];
+        if (n.nodeName === 'STYLE') { setTimeout(mirrorSheets, 0); continue; }
+        fixTree(n);
+      }
+    }
+  }).observe(D, { subtree: true, childList: true, attributes: true, attributeFilter: ['style'] });
+  document.addEventListener('DOMContentLoaded', function () { mirrorSheets(); fixTree(document.body); });
+  if (window.Chart) { Chart.defaults.color = '#a9a7a1'; Chart.defaults.borderColor = '#30343a'; }
+})();
+</script>
 </head>
 <body>
 
@@ -908,9 +1118,20 @@ textarea{resize:vertical;min-height:80px}
 <div class="ui-prefs-pop" id="ui-prefs-pop" role="dialog" aria-label="ตั้งค่าหน้าตา">
   <h4>หน้าตา</h4>
   <div class="hint">บันทึกในเบราว์เซอร์นี้ของคุณเท่านั้น</div>
+  <div class="grp">สไตล์</div>
+  <div class="ui-seg" id="ui-style">
+    <button data-v="" onclick="uiPrefsSet('style','')">มินิมอล</button>
+    <button data-v="office" onclick="uiPrefsSet('style','office')">Office</button>
+  </div>
+  <div class="grp">โหมด</div>
+  <div class="ui-seg" id="ui-theme">
+    <button data-v="" onclick="uiPrefsSet('theme','')">สว่าง</button>
+    <button data-v="dark" onclick="uiPrefsSet('theme','dark')">มืด</button>
+    <button data-v="auto" onclick="uiPrefsSet('theme','auto')">ตามระบบ</button>
+  </div>
   <div class="grp">สีหลัก</div>
   <div class="ui-swatches" id="ui-accent">
-    <button class="ui-swatch" data-v="" style="background:#35685f" title="เขียวหม่น" aria-label="เขียวหม่น" onclick="uiPrefsSet('accent','')"></button>
+    <button class="ui-swatch" data-v="" style="background:#35685f" title="ค่าเริ่มต้นของสไตล์" aria-label="ค่าเริ่มต้นของสไตล์" onclick="uiPrefsSet('accent','')"></button>
     <button class="ui-swatch" data-v="blue" style="background:#3f6fa8" title="ฟ้า" aria-label="ฟ้า" onclick="uiPrefsSet('accent','blue')"></button>
     <button class="ui-swatch" data-v="violet" style="background:#5f58a0" title="ม่วง" aria-label="ม่วง" onclick="uiPrefsSet('accent','violet')"></button>
     <button class="ui-swatch" data-v="slate" style="background:#4a5563" title="เทา" aria-label="เทา" onclick="uiPrefsSet('accent','slate')"></button>
@@ -5456,26 +5677,40 @@ async function api(path, opts = {}) {
 }
 
 // ── Appearance prefs (accent / contrast / size) — per browser, localStorage ──
-const UI_PREF_KEYS = ['accent', 'contrast', 'size'];
+const UI_PREF_KEYS = ['style', 'accent', 'contrast', 'size'];   // theme is handled separately: it needs a reload
+function uiThemeIsDark(p) {
+  return p.theme === 'dark' || (p.theme === 'auto' && !!window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+}
 function uiPrefsGet() {
   try { return JSON.parse(localStorage.getItem('cs_ui_prefs') || '{}') || {}; } catch (e) { return {}; }
 }
 function uiPrefsApply(p) {
   const d = document.documentElement;
   UI_PREF_KEYS.forEach(k => { if (p[k]) d.setAttribute('data-' + k, p[k]); else d.removeAttribute('data-' + k); });
-  [['ui-accent','accent'], ['ui-contrast','contrast'], ['ui-size','size']].forEach(([id, k]) => {
+  if (window.Chart) Chart.defaults.font.family = p.style === 'office' ? "'Segoe UI','Leelawadee UI',Tahoma,sans-serif" : "'IBM Plex Sans Thai','Segoe UI',sans-serif";
+  [['ui-style','style'], ['ui-theme','theme'], ['ui-accent','accent'], ['ui-contrast','contrast'], ['ui-size','size']].forEach(([id, k]) => {
     document.querySelectorAll('#' + id + ' [data-v]').forEach(b => b.classList.toggle('on', (b.dataset.v || '') === (p[k] || '')));
   });
 }
 function uiPrefsSet(key, val) {
-  const p = uiPrefsGet();
+  const p = uiPrefsGet(), wasDark = uiThemeIsDark(p);
   if (val) p[key] = val; else delete p[key];
   try { localStorage.setItem('cs_ui_prefs', JSON.stringify(p)); } catch (e) {}
+  // dark mode is built while the page loads (stylesheet mirror + inline colour pass), so switch by reloading
+  if (uiThemeIsDark(p) !== wasDark) { location.reload(); return; }
   uiPrefsApply(p);
 }
 function uiPrefsReset() {
+  const wasDark = uiThemeIsDark(uiPrefsGet());
   try { localStorage.removeItem('cs_ui_prefs'); } catch (e) {}
+  if (wasDark) { location.reload(); return; }
   uiPrefsApply({});
+}
+// "ตามระบบ": follow the OS switching between light and dark
+if (window.matchMedia) {
+  const mq = matchMedia('(prefers-color-scheme: dark)');
+  const onOsTheme = () => { if (uiPrefsGet().theme === 'auto' && mq.matches !== (document.documentElement.getAttribute('data-theme') === 'dark')) location.reload(); };
+  mq.addEventListener ? mq.addEventListener('change', onOsTheme) : mq.addListener && mq.addListener(onOsTheme);
 }
 function uiPrefsToggle(e) {
   if (e) e.stopPropagation();
@@ -6394,7 +6629,7 @@ async function loadLineBotMonitor() {
       type: 'bar',
       data: { labels: (d.hourly || []).map(h => h.hour + ':00'), datasets: [{ label: 'ข้อความ', data: hrData, backgroundColor: (d.hourly || []).map(h => lbSegColor(h.hour)), borderRadius: 3 }] },
       options: { responsive: true, plugins: { legend: { display: false } },
-        scales: { x: { ticks: { color: '#5b616b', font: { size: 9 } }, grid: { display: false } }, y: { beginAtZero: true, ticks: { color: '#5b616b', font: { size: 10 } }, grid: { color: '#e6e3dc' } } } }
+        scales: { x: { ticks: { color: _thc('#5b616b','fg'), font: { size: 9 } }, grid: { display: false } }, y: { beginAtZero: true, ticks: { color: _thc('#5b616b','fg'), font: { size: 10 } }, grid: { color: _thc('#e6e3dc','bd') } } } }
     });
   }
   // Day-of-week chart
@@ -6406,7 +6641,7 @@ async function loadLineBotMonitor() {
       type: 'bar',
       data: { labels: dowData.map(x => x.label), datasets: [{ label: 'ข้อความ', data: dowData.map(x => x.count), backgroundColor: '#7fa3c8', borderRadius: 5 }] },
       options: { responsive: true, plugins: { legend: { display: false } },
-        scales: { x: { ticks: { color: '#5b616b', font: { size: 11 } }, grid: { display: false } }, y: { beginAtZero: true, ticks: { color: '#5b616b', font: { size: 10 } }, grid: { color: '#e6e3dc' } } } }
+        scales: { x: { ticks: { color: _thc('#5b616b','fg'), font: { size: 11 } }, grid: { display: false } }, y: { beginAtZero: true, ticks: { color: _thc('#5b616b','fg'), font: { size: 10 } }, grid: { color: _thc('#e6e3dc','bd') } } } }
     });
   }
 
@@ -7978,7 +8213,7 @@ function renderChannelCard(rows, from, to) {
       datasets: [{
         data: items.map(i => i.cnt),
         backgroundColor: items.map(i => i.color),
-        borderWidth: 2, borderColor: '#fff'
+        borderWidth: 2, borderColor: _thc('#fff','bg')
       }]
     },
     options: {
@@ -8093,7 +8328,7 @@ async function loadDashboardCharts() {
           data: top5.map(r => r.cnt),
           backgroundColor: donutColors,
           borderWidth: 2,
-          borderColor: '#fff'
+          borderColor: _thc('#fff','bg')
         }]
       },
       options: {
@@ -8103,14 +8338,14 @@ async function loadDashboardCharts() {
           legend: {
             position: 'bottom',
             labels: {
-              color: '#5b616b', font: { size: 10 }, boxWidth: 10, padding: 8,
+              color: _thc('#5b616b','fg'), font: { size: 10 }, boxWidth: 10, padding: 8,
               generateLabels: chart => chart.data.labels.map((label, i) => {
                 const cnt = chart.data.datasets[0].data[i];
                 const pct = donutTotal ? Math.round(cnt / donutTotal * 100) : 0;
                 return {
                   text: `${label} (${pct}%)`,
                   fillStyle: donutColors[i],
-                  strokeStyle: '#fff',
+                  strokeStyle: _thc('#fff','bg'),
                   lineWidth: 2,
                   index: i
                 };
@@ -8170,7 +8405,7 @@ async function loadDashboardCharts() {
         type: 'bar',
         label: labelPrev,
         data: topN.map(avgPrev),
-        backgroundColor: '#dcd8cf',
+        backgroundColor: _thc('#dcd8cf','bd'),
         borderRadius: 5,
         order: 3
       },
@@ -8217,7 +8452,7 @@ async function loadDashboardCharts() {
       options: {
         responsive: true, maintainAspectRatio: false,
         plugins: {
-          legend: { position: 'bottom', labels: { color: '#8a8f97', font: { size: 10 }, boxWidth: 10 } },
+          legend: { position: 'bottom', labels: { color: _thc('#8a8f97','fg'), font: { size: 10 }, boxWidth: 10 } },
           tooltip: {
             callbacks: {
               label: ctx => {
@@ -8231,11 +8466,11 @@ async function loadDashboardCharts() {
           }
         },
         scales: {
-          x: { ticks: { color: '#5b616b', font: { size: 10 } }, grid: { color: '#efede7' } },
+          x: { ticks: { color: _thc('#5b616b','fg'), font: { size: 10 } }, grid: { color: _thc('#efede7','bd') } },
           y: {
             beginAtZero: true,
-            ticks: { color: '#5b616b', font: { size: 10 }, callback: v => v + '/วัน' },
-            grid: { color: '#efede7' }
+            ticks: { color: _thc('#5b616b','fg'), font: { size: 10 }, callback: v => v + '/วัน' },
+            grid: { color: _thc('#efede7','bd') }
           }
         }
       }
@@ -8285,14 +8520,14 @@ async function loadDashboardCharts() {
         },
         scales: {
           x: {
-            title: { display: true, text: `ช่วงก่อน (tickets/วัน)`, color: '#5b616b' },
-            ticks: { color: '#5b616b', font: { size: 10 } },
-            grid: { color: '#efede7' }
+            title: { display: true, text: `ช่วงก่อน (tickets/วัน)`, color: _thc('#5b616b','fg') },
+            ticks: { color: _thc('#5b616b','fg'), font: { size: 10 } },
+            grid: { color: _thc('#efede7','bd') }
           },
           y: {
-            title: { display: true, text: `ช่วงนี้ (tickets/วัน)`, color: '#5b616b' },
-            ticks: { color: '#5b616b', font: { size: 10 } },
-            grid: { color: '#efede7' }
+            title: { display: true, text: `ช่วงนี้ (tickets/วัน)`, color: _thc('#5b616b','fg') },
+            ticks: { color: _thc('#5b616b','fg'), font: { size: 10 } },
+            grid: { color: _thc('#efede7','bd') }
           }
         }
       }
@@ -8365,11 +8600,11 @@ async function loadDashboardCharts() {
         responsive: true,
         interaction: { mode: 'index', intersect: false },
         plugins: {
-          legend: { position: 'bottom', labels: { color: '#8a8f97', font: { size: 10 }, boxWidth: 10 } }
+          legend: { position: 'bottom', labels: { color: _thc('#8a8f97','fg'), font: { size: 10 }, boxWidth: 10 } }
         },
         scales: {
-          x: { ticks: { color: '#5b616b', font: { size: 9 }, maxTicksLimit: 10 }, grid: { color: '#efede7' } },
-          y: { beginAtZero: true, ticks: { color: '#5b616b', font: { size: 10 } }, grid: { color: '#efede7' } }
+          x: { ticks: { color: _thc('#5b616b','fg'), font: { size: 9 }, maxTicksLimit: 10 }, grid: { color: _thc('#efede7','bd') } },
+          y: { beginAtZero: true, ticks: { color: _thc('#5b616b','fg'), font: { size: 10 } }, grid: { color: _thc('#efede7','bd') } }
         }
       }
     });
@@ -10633,7 +10868,7 @@ async function toggleKpiDrill(username, month, rowEl) {
           scales: { r: {
             beginAtZero: true, max: 100,
             ticks: { display: false, stepSize: 25 },
-            grid: { color: '#e6e3dc' },
+            grid: { color: _thc('#e6e3dc','bd') },
             pointLabels: { color: '#4d535b', font: { size: 10 } },
             angleLines: { color: '#e6e3dc' }
           }},
@@ -10653,8 +10888,8 @@ function mkBarOpts(yLabel) {
     responsive: true, maintainAspectRatio: false,
     plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed.y}${yLabel}` } } },
     scales: {
-      x: { ticks: { color: '#5b616b', font: { size: 9 }, maxRotation: 35 }, grid: { display: false } },
-      y: { beginAtZero: true, ticks: { color: '#5b616b', font: { size: 9 } }, grid: { color: '#f0eee9' } }
+      x: { ticks: { color: _thc('#5b616b','fg'), font: { size: 9 }, maxRotation: 35 }, grid: { display: false } },
+      y: { beginAtZero: true, ticks: { color: _thc('#5b616b','fg'), font: { size: 9 } }, grid: { color: _thc('#f0eee9','bd') } }
     }
   };
 }
@@ -10679,14 +10914,14 @@ function renderKpiCharts() {
   chartScore = new Chart(document.getElementById('chart-score'), {
     type: 'bar',
     data: { labels, datasets: [{ data: sorted.map(k=>{ const s = _kpiUseEstStars ? calcEstimatedStars(k) : (k.avg_stars ?? 0); return s ? (+s).toFixed(1) : 0; }), backgroundColor: sorted.map(k => _kpiUseEstStars && !k.avg_stars ? '#a2702a' : '#d4b25a'), borderRadius:4 }] },
-    options: { ...mkBarOpts('★'), scales: { ...mkBarOpts('★').scales, y: { beginAtZero:true, max:5, ticks:{ color:'#5b616b', font:{size:9} }, grid:{ color:'#f0eee9' } } } }
+    options: { ...mkBarOpts('★'), scales: { ...mkBarOpts('★').scales, y: { beginAtZero:true, max:5, ticks:{ color:_thc('#5b616b','fg'), font:{size:9} }, grid:{ color:_thc('#f0eee9','bd') } } } }
   });
 
   // Chart 3: ✅ Close rate %
   chartCloseRate = new Chart(document.getElementById('chart-close-rate'), {
     type: 'bar',
     data: { labels, datasets: [{ data: sorted.map(k=>k.close_rate||0), backgroundColor: sorted.map(k=>k.close_rate>=80?'#4ade80':k.close_rate>=50?'#d4b25a':'#d08a80'), borderRadius:4 }] },
-    options: { ...mkBarOpts('%'), scales: { ...mkBarOpts('%').scales, y: { beginAtZero:true, max:100, ticks:{ color:'#5b616b', font:{size:9}, callback:v=>v+'%' }, grid:{ color:'#f0eee9' } } } }
+    options: { ...mkBarOpts('%'), scales: { ...mkBarOpts('%').scales, y: { beginAtZero:true, max:100, ticks:{ color:_thc('#5b616b','fg'), font:{size:9}, callback:v=>v+'%' }, grid:{ color:_thc('#f0eee9','bd') } } } }
   });
 
   // Chart 4: ⏱️ Resolve time (minutes)
@@ -10705,10 +10940,10 @@ function renderKpiCharts() {
       type: 'doughnut',
       data: {
         labels: _kpiStarsDist.map(r=>`${r.Stars}★`),
-        datasets: [{ data: _kpiStarsDist.map(r=>r.cnt), backgroundColor:['#e8c9c3','#ecd3bd','#fef08a','#cfe0d5','#7fb394'], borderWidth:2, borderColor:'#fff' }]
+        datasets: [{ data: _kpiStarsDist.map(r=>r.cnt), backgroundColor:['#e8c9c3','#ecd3bd','#fef08a','#cfe0d5','#7fb394'], borderWidth:2, borderColor: _thc('#fff','bg') }]
       },
       options: { responsive:true, maintainAspectRatio:false, cutout:'55%',
-        plugins:{ legend:{ position:'bottom', labels:{ color:'#5b616b', font:{size:9}, boxWidth:8, padding:6 } } } }
+        plugins:{ legend:{ position:'bottom', labels:{ color:_thc('#5b616b','fg'), font:{size:9}, boxWidth:8, padding:6 } } } }
     });
   }
 }
@@ -19562,7 +19797,7 @@ function renderIssueDonut() {
               return chart.data.labels.map((lbl, i) => ({
                 text: `${lbl}  ${pctOf(chart.data.datasets[0].data[i])}`,
                 fillStyle: palette[i] || '#8a8f97',
-                strokeStyle: '#fff',
+                strokeStyle: _thc('#fff','bg'),
                 lineWidth: 1,
                 hidden: false,
                 index: i,
@@ -19646,7 +19881,7 @@ function renderIssueBar() {
         tooltip:{ callbacks:{ label: c => ` ${c.raw} tickets (${filtTotal?((c.raw/filtTotal)*100).toFixed(1):0}%)` } }
       },
       scales: {
-        x:{ beginAtZero:true, grid:{ color:'#f0eee9' }, ticks:{ font:{size:10} } },
+        x:{ beginAtZero:true, grid:{ color:_thc('#f0eee9','bd') }, ticks:{ font:{size:10} } },
         y:{ grid:{ display:false }, ticks:{ font:{size:10} } }
       }
     }
