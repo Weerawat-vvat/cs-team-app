@@ -1635,6 +1635,9 @@ textarea{resize:vertical;min-height:80px}
     <select id="tk-filter-agent" class="svc-select" onchange="loadTickets()" aria-label="Agent" style="max-width:180px">
       <option value="">ทุก Agent</option>
     </select>
+    <select id="tk-filter-channel" class="svc-select" onchange="_tkPage=1;renderTickets()" aria-label="ช่องทางที่แจ้ง" style="max-width:180px">
+      <option value="">ทุกช่องทาง</option>
+    </select>
   </div>
   <div class="svc-filters" style="margin-top:-.35rem">
     <div class="drb" id="tk-drb">
@@ -9355,17 +9358,38 @@ async function loadTickets() {
   agentSel.innerHTML = '<option value="">ทุก Agent</option>' +
     agents.map(a => `<option value="${a}" ${a===curAgent?'selected':''}>${dn(a)}</option>`).join('');
 
+  // Populate channel filter from the loaded cases (with counts); keep the current choice
+  const chSel  = document.getElementById('tk-filter-channel');
+  const curCh  = chSel.value;
+  const chCnt  = {};
+  allTickets.forEach(t => { const k = tkChannelKey(t); chCnt[k] = (chCnt[k] || 0) + 1; });
+  const chKeys = Object.keys(chCnt).sort((a, b) => chCnt[b] - chCnt[a]);
+  if (curCh && !chCnt[curCh]) chKeys.push(curCh);
+  chSel.innerHTML = '<option value="">ทุกช่องทาง</option>' +
+    chKeys.map(k => `<option value="${esc(k)}" ${k===curCh?'selected':''}>${esc(tkChannelLabel(k))} (${chCnt[k] || 0})</option>`).join('');
+
   tkExpandedRows.clear();
   _tkPage = 1; // reset to page 1 on new data load
   renderTickets();
 }
 
+// Channel the case came in through (Calllog.InformType). Old rows hold '' or '[EditValue is null]' → 'ไม่ระบุ'
+function tkChannelKey(t) {
+  const v = String(t.InformType || '').trim();
+  return (!v || v === '[EditValue is null]') ? '(none)' : v.toLowerCase();
+}
+function tkChannelLabel(k) {
+  return k === '(none)' ? 'ไม่ระบุช่องทาง' : channelMeta(k).label;
+}
+
 function renderTickets() {
   const q     = (document.getElementById('tk-search').value||'').toLowerCase().trim();
   const agent = document.getElementById('tk-filter-agent').value;
+  const chan  = document.getElementById('tk-filter-channel')?.value || '';
   const qNum  = q.replace(/^#/, ''); // strip leading # for ID match
   const filtered = allTickets.filter(t => {
     if (agent && t.assigned_name !== agent) return false;
+    if (chan && tkChannelKey(t) !== chan) return false;
     if (!q) return true;
     // Match by CalllogId (#123 or 123)
     if (qNum && String(t.id) === qNum) return true;
