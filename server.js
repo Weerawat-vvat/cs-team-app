@@ -10520,13 +10520,14 @@ app.get('/api/fu/azure-items', authRequired, async (request, res) => {
       for (let i = 0; i < allIds.length; i += BATCH) {
         const batch = allIds.slice(i, i + BATCH);
         try {
-          const url = `https://dev.azure.com/infogrammer/_apis/wit/workitems?ids=${batch.join(',')}&fields=${encodeURIComponent(AZ_FIELDS)}&api-version=7.0`;
+          // errorPolicy=omit: a deleted / unreadable work item is skipped instead of failing the whole batch (404 TF401232)
+          const url = `https://dev.azure.com/infogrammer/_apis/wit/workitems?ids=${batch.join(',')}&fields=${encodeURIComponent(AZ_FIELDS)}&errorPolicy=omit&api-version=7.0`;
           const data = await fetchAz(url);
           if (data.message) {
             console.error('[Azure] API error:', data.message);
             break;
           }
-          (data.value || []).forEach(item => {
+          (data.value || []).filter(Boolean).forEach(item => {
             const f = item.fields || {};
             const assigned = f['System.AssignedTo'];
             azureMap[item.id] = {
