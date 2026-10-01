@@ -12562,10 +12562,30 @@ function monitorMatch(r, tag) {
 
 // range = { s, e } จากตัวกรองวันที่ด้านบน (ไม่ส่งมา = 30 วันก่อนตั้ง tag → วันนี้)
 // ฝั่ง "ก่อน" = s → วันตั้ง tag, ฝั่ง "หลัง" = วันตั้ง tag → e (tag ที่ปิดแล้วหยุดนับที่วันปิด)
+// เวลาใน monitor_tags มาจากนาฬิกา cs_team แต่ Calllog.ReceiveDate มาจากนาฬิกา LicenseDB
+// ซึ่งไม่ตรงกัน (เคยห่างกัน 1 ชม.) — ถ้าไม่ปรับ tag ที่เพิ่งตั้งจะกลายเป็น "อนาคต" ในมุม LicenseDB
+// และไม่มีช่วงหลังตั้ง tag เลย จึงวัดส่วนต่างนาฬิกาไว้ (cache 10 นาที) แล้วแปลงเวลา tag ก่อน query
+let _mtClockSkew = { ms: 0, at: 0 };
+async function monitorClockSkew() {
+  if (Date.now() - _mtClockSkew.at < 10 * 60 * 1000) return _mtClockSkew.ms;
+  try {
+    const [a, b] = await Promise.all([
+      req().query('SELECT GETDATE() AS n'),
+      extReq().query('SELECT GETDATE() AS n')
+    ]);
+    const ms = a.recordset[0].n - b.recordset[0].n;
+    _mtClockSkew = { ms: Math.abs(ms) < 60 * 1000 ? 0 : Math.round(ms / 60000) * 60000, at: Date.now() };
+    if (_mtClockSkew.ms) console.log(`[monitor-tags] cs_team clock is ${_mtClockSkew.ms / 60000} min ahead of LicenseDB — adjusting`);
+  } catch (e) { console.error('[monitor-tags] clock skew:', e.message); }
+  return _mtClockSkew.ms;
+}
+const monitorToExt = (d, skew) => d ? new Date(new Date(d).getTime() - skew) : null;
+
 async function monitorTagStats(tag, range) {
+  const skew = await monitorClockSkew();
   const r = extReq()
-    .input('c',  sql.DateTime, tag.created_at)
-    .input('en', sql.DateTime, tag.status === 'resolved' ? tag.resolved_at : null)
+    .input('c',  sql.DateTime, monitorToExt(tag.created_at, skew))
+    .input('en', sql.DateTime, tag.status === 'resolved' ? monitorToExt(tag.resolved_at, skew) : null)
     .input('bd', sql.Int, tag.baseline_days)
     .input('fs', sql.DateTime, range?.s || null)
     .input('fe', sql.DateTime, range?.e || null);
@@ -12607,7 +12627,9 @@ async function monitorTagStats(tag, range) {
   const preAvg  = preDays  ? pre / preDays   : null;
   const postAvg = postDays ? post / postDays : null;
   let pct = null, trend = null;
-  if (preAvg !== null && postAvg !== null) {
+  // หลังตั้ง tag ยังไม่ถึง 1 วัน — ตัวเลขยังไม่มีความหมาย (0 เคสใน 15 นาที ≠ ลดลง 100%)
+  const early = meta.post_mins > 0 && meta.post_mins < 1440;
+  if (preAvg !== null && postAvg !== null && !early) {
     if (preAvg > 0) {
       pct = (postAvg - preAvg) / preAvg * 100;
       trend = Math.abs(pct) <= MONITOR_STABLE_PCT ? 'stable' : pct < 0 ? 'improved' : 'worsened';
@@ -12622,7 +12644,8 @@ async function monitorTagStats(tag, range) {
     pre_avg: preAvg === null ? null : +preAvg.toFixed(3),
     post_avg: postAvg === null ? null : +postAvg.toFixed(3),
     pct_change: pct === null ? null : +pct.toFixed(1),
-    trend,                                    // null = ช่วงที่เลือกไม่มีทั้งก่อนและหลัง tag
+    trend,                                    // null = ยังเทียบไม่ได้ (ไม่มีช่วงก่อน/หลัง หรือ early)
+    early,
     days_monitored: Math.floor(Math.max(0, meta.age_mins) / 1440),
     daily
   };
@@ -12661,9 +12684,10 @@ app.get('/api/monitor-tags/:id/tickets', authRequired, async (request, res) => {
       .query('SELECT * FROM monitor_tags WHERE id=@id')).recordset[0];
     if (!tag) return res.status(404).json({ error: 'ไม่พบ Monitor Tag' });
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
+    const skew = await monitorClockSkew();
     const r = extReq()
-      .input('c',  sql.DateTime, tag.created_at)
-      .input('en', sql.DateTime, tag.status === 'resolved' ? tag.resolved_at : null)
+      .input('c',  sql.DateTime, monitorToExt(tag.created_at, skew))
+      .input('en', sql.DateTime, tag.status === 'resolved' ? monitorToExt(tag.resolved_at, skew) : null)
       .input('bd', sql.Int, tag.baseline_days);
     const m = monitorMatch(r, tag);
     const rows = (await r.query(`

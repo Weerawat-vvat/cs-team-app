@@ -20024,6 +20024,7 @@ async function mtLoad(opts = {}) {
 
 function mtTrendPill(st) {
   if (!st || st.error) return '<span class="mt-pill mt-flat">—</span>';
+  if (st.early) return '<span class="mt-pill mt-flat">⏳ รอครบ 1 วัน</span>';
   if (!st.trend) return `<span class="mt-pill mt-flat">${st.pre_avg === null ? 'ไม่มีช่วงก่อน Tag' : 'ยังไม่มีช่วงหลัง Tag'}</span>`;
   if (st.pct_change === null) {
     return st.trend === 'worsened'
@@ -20120,9 +20121,26 @@ const mtTagLabel = t => (mtIsGroup(t) ? t.customer_name : t.store_name) + ' · '
 function mtRenderOverview(list) {
   const box = document.getElementById('mt-overview');
   if (!box) return;
-  const ok = list.filter(t => t.stats && !t.stats.error && t.stats.pre_avg !== null && t.stats.post_avg !== null);
-  if (!ok.length) { box.innerHTML = ''; box.style.display = 'none'; return; }
+  const ok = list.filter(t => t.stats && !t.stats.error && !t.stats.early && t.stats.pre_avg !== null && t.stats.post_avg !== null);
+  if (!list.length) { box.innerHTML = ''; box.style.display = 'none'; return; }
   box.style.display = '';
+  if (!ok.length) {
+    // มี Tag แต่ยังเทียบไม่ได้ — บอกเหตุผล อย่าหายไปเฉย ๆ
+    const err = list.filter(t => !t.stats || t.stats.error).length;
+    const early  = list.filter(t => t.stats?.early).length;
+    const noPost = list.filter(t => t.stats && !t.stats.error && t.stats.post_avg === null).length;
+    const noPre  = list.filter(t => t.stats && !t.stats.error && t.stats.pre_avg === null).length;
+    const why = [
+      early && `${early} Tag เพิ่งตั้ง ยังไม่ครบ 1 วัน`,
+      noPost && `${noPost} Tag ยังไม่มีช่วงหลังตั้ง Tag ในช่วงวันที่ที่เลือก`,
+      noPre && `${noPre} Tag ไม่มีช่วงก่อนตั้ง Tag ในช่วงวันที่ที่เลือก`,
+      err && `${err} Tag คำนวณไม่สำเร็จ / ไม่ได้เชื่อมฐาน Calllog`
+    ].filter(Boolean).join(' · ');
+    box.innerHTML = `<div class="mt-ov-card mt-ov-grp"><div class="mt-ov-title">ภาพรวม</div>
+      <div class="mt-ov-sub" style="margin-top:.35rem">ยังสรุปภาพรวมไม่ได้ — ${why || 'ยังไม่มีข้อมูลพอเทียบก่อน/หลัง'}
+      ลองเลือกช่วงวันที่ด้านบนให้ครอบวันตั้ง Tag (เช่น 30 วัน)</div></div>`;
+    return;
+  }
 
   // รวมทุก Tag: เคส/วันก่อน vs หลัง
   const pre  = ok.reduce((a, t) => a + t.stats.pre_avg, 0);
