@@ -2485,14 +2485,13 @@ textarea{resize:vertical;min-height:80px}
         </div>
         <div class="row"><label>อาการ / Note</label><textarea id="mt-t-note" rows="2"></textarea></div>
         <details class="mt-more">
-          <summary>ตั้งค่ากฎเพิ่มเติม — คำค้นในรายละเอียด (ไม่บังคับ)</summary>
+          <summary>นับเคสอัตโนมัติด้วยคำค้น (ไม่บังคับ)</summary>
           <div class="row" style="margin-top:.5rem">
-            <input id="mt-t-kw" placeholder="เช่น ปิดกะไม่ได้, ปิดกะค้าง — นับอัตโนมัติเฉพาะเคสที่รายละเอียดมีคำเหล่านี้" oninput="mtTagRule()"/>
-            <label style="display:flex;align-items:center;gap:.35rem;font-weight:400;margin-top:.35rem;cursor:pointer">
-              <input type="checkbox" id="mt-t-any" style="width:auto" onchange="mtTagRule()"/> ไม่จำกัดหัวข้อ</label>
+            <input id="mt-t-kw" placeholder="เช่น ปิดกะไม่ได้, ปิดกะค้าง" oninput="mtTagRule()"/>
+            <div class="mt-meta" style="margin-top:.3rem">ใส่คำค้นแล้ว ระบบจะนับเคสที่รายละเอียดมีคำเหล่านี้ให้เอง รวมถึงเคสย้อนหลังก่อนติด Tag — ทำให้มีข้อมูลก่อนหน้าไว้เทียบเพิ่ม/ลด</div>
           </div>
         </details>
-        <div class="mt-rule-box">นับอัตโนมัติ: <span id="mt-t-rule"></span> · และเคสที่เลือกติด Tag นี้เอง</div>
+        <div class="mt-rule-box">นับ: <span id="mt-t-rule"></span></div>
       </div>
       <div class="row">
         <div class="mt-lbl-row"><label>วิธีตรวจสอบ</label></div>
@@ -19900,11 +19899,13 @@ let _mtActive = [];   // active Monitor Tags — ใช้ติดป้าย 
 // tag ระดับกลุ่มครอบทุกสาขาใน License Group เดียวกัน
 // กฎเดียวกับ monitorMatch ฝั่ง server: ขอบเขต + หัวข้อ (ยกเว้นไม่จำกัดหัวข้อ) + คำค้นข้อใดข้อหนึ่งในรายละเอียด
 const mtKeywords = v => [...new Set(String(v || '').split(/[,\n]/).map(k => k.trim()).filter(Boolean))];
+const mtIsManual = t => t.match_mode === 'manual';   // Tag ที่ตั้งชื่อเอง ไม่ผูกหัวข้อ
 function mtRuleHits(t, r) {
   const subject = r.subject || r.title || _issTicketsSubject;
   const desc = String(r.description || '').toLowerCase();
   const kws = mtKeywords(t.keywords);
-  if (!(t.any_subject && kws.length) && t.subject !== subject) return false;
+  if (mtIsManual(t) && !kws.length) return false;   // นับเฉพาะเคสที่ติด Tag
+  if (!mtIsManual(t) && !(t.any_subject && kws.length) && t.subject !== subject) return false;
   if (kws.length && !kws.some(k => desc.includes(k.toLowerCase()))) return false;
   return t.scope === 'group' ? !!r.group_id && t.group_id === r.group_id
     : t.registration_id ? t.registration_id === r.registration_id : t.store_name === r.company;
@@ -19918,11 +19919,13 @@ function mtTagFor(r) {
 function mtRuleLabel(t) {
   const kws = mtKeywords(t.keywords);
   const kwTxt = kws.map(k => `“${esc(k)}”`).join(' หรือ ');
+  if (mtIsManual(t)) return kws.length ? `เคสที่ติด Tag + รายละเอียดมี ${kwTxt}` : 'เฉพาะเคสที่ติด Tag';
   if (t.any_subject && kws.length) return `ทุกหัวข้อ · รายละเอียดมี ${kwTxt}`;
   return `หัวข้อ “${esc(t.subject)}”${kws.length ? ` · รายละเอียดมี ${kwTxt}` : ''}`;
 }
 const mtIsGroup = t => t.scope === 'group';
 const mtStart = t => t.start_at || t.created_at;   // วันเริ่ม monitor (ระบุย้อนหลังได้)
+const mtFmtStart = t => mtStart(t) ? fmtDate(mtStart(t)) : 'วันนี้';
 // Date → 'YYYY-MM-DDTHH:mm' สำหรับ <input type="datetime-local">
 const mtLocalInput = d => { const z = n => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`; };
@@ -20042,11 +20045,10 @@ let _mtT = null;   // { r: แถวเคส, opts: tag ที่เลือ�
 
 function mtOpenCreateFrom(r) {
   if (!r) return;
-  if (!r.subject) { showToast('เคสนี้ไม่มีหัวข้อ (Subject) — ติด Tag ไม่ได้', 'error'); return; }
   _mtT = { r, opts: mtCandidates(r), pick: null };
   const isGroup = !!r.group_id;
   document.getElementById('mt-t-case').textContent =
-    `เคส #${r.id} · ${isGroup ? r.customer_group + ' › ' : ''}${r.company || ''} · หัวข้อ “${r.subject}”`;
+    `เคส #${r.id} · ${isGroup ? r.customer_group + ' › ' : ''}${r.company || ''}${r.subject ? ` · หัวข้อ “${r.subject}”` : ''}`;
   document.getElementById('mt-t-scope').textContent = isGroup ? `แบรนด์ ${r.customer_group} และสาขานี้` : 'สาขานี้';
   document.getElementById('mt-t-q').value = '';
   ['mt-t-check-files', 'mt-t-fix-files'].forEach(id => { document.getElementById(id).value = ''; });
@@ -20061,7 +20063,7 @@ function mtTagList() {
   const q = document.getElementById('mt-t-q').value.trim();
   const ql = q.toLowerCase();
   const shown = T.opts.filter(t => !ql || [t.title, t.subject, t.keywords, t.note].some(v => (v || '').toLowerCase().includes(ql)));
-  const newTitle = q || T.r.subject;
+  const newTitle = q;
   const exact = T.opts.some(t => t.title.trim().toLowerCase() === newTitle.toLowerCase());
   const isOn = t => T.pick?.tag?.id === t.id;
   let html = shown.map(t => {
@@ -20070,17 +20072,20 @@ function mtTagList() {
     const badge = linked ? '<span class="mt-pill mt-down">🔗 ติดแล้ว</span>' : hit ? '<span class="mt-pill mt-flat" title="ตรงกฎของ Tag นี้อยู่แล้ว">✓ ตรงกฎ</span>' : '';
     return `<button type="button" class="mt-opt${isOn(t) ? ' on' : ''}" onclick="mtTagPick(${t.id})" ondblclick="mtTagPick(${t.id});mtTagStep(2)">
       <div class="b"><div class="tg">${esc(t.title)} <span class="mt-meta" style="font-weight:400">· ${mtIsGroup(t) ? 'ทั้งแบรนด์' : 'สาขานี้'}</span></div>
-        <div class="r">${mtRuleLabel(t)} · เริ่ม ${fmtDate(mtStart(t))}${t.note ? ' · ' + esc(t.note.replace(/\s+/g, ' ').slice(0, 80)) : ''}</div></div>
+        <div class="r">${mtRuleLabel(t)} · เริ่ม ${mtFmtStart(t)}${t.note ? ' · ' + esc(t.note.replace(/\s+/g, ' ').slice(0, 80)) : ''}</div></div>
       ${badge}</button>`;
   }).join('');
-  if (!exact) html += `<button type="button" class="mt-opt new${T.pick && !T.pick.tag ? ' on' : ''}" onclick="mtTagPickNew()">
+  if (!newTitle) html += `<div class="mt-opt new" style="cursor:default;opacity:.75">
+      <div class="b"><div class="tg">สร้าง Tag ใหม่</div>
+        <div class="r">พิมพ์ชื่อ Tag ในช่องด้านบน เช่น “ปิดกะไม่ได้” · ${T.r.group_id ? `ใช้ได้ทั้งแบรนด์ ${esc(T.r.customer_group)}` : 'ใช้กับสาขานี้'}</div></div></div>`;
+  else if (!exact) html += `<button type="button" class="mt-opt new${T.pick && !T.pick.tag ? ' on' : ''}" onclick="mtTagPickNew()">
       <div class="b"><div class="tg">สร้าง Tag ใหม่ “${esc(newTitle)}”</div>
-        <div class="r">${T.r.group_id ? `ติดตามทั้งแบรนด์ ${esc(T.r.customer_group)}` : 'ติดตามเฉพาะสาขานี้'} · พิมพ์ชื่อด้านบนเพื่อเปลี่ยน</div></div></button>`;
+        <div class="r">${T.r.group_id ? `ใช้ได้ทั้งแบรนด์ ${esc(T.r.customer_group)}` : 'ใช้กับสาขานี้'}</div></div></button>`;
   if (!T.opts.length) html = `<div class="mt-meta" style="padding:.2rem 0 .4rem">ยังไม่มี Tag ของร้าน/แบรนด์นี้ — สร้าง Tag แรกได้เลย</div>` + html;
   else if (!shown.length && q) html = `<div class="mt-meta" style="padding:.2rem 0 .4rem">ไม่พบ Tag “${esc(q)}”</div>` + html;
   document.getElementById('mt-t-list').innerHTML = html;
   // ชื่อ Tag ใหม่เปลี่ยนตามที่พิมพ์
-  if (T.pick && !T.pick.tag) T.pick.title = newTitle;
+  if (T.pick && !T.pick.tag) { if (newTitle && !exact) T.pick.title = newTitle; else T.pick = null; }
   document.getElementById('mt-t-next').disabled = !T.pick;
 }
 
@@ -20089,7 +20094,9 @@ function mtTagPick(id) {
   mtTagList();
 }
 function mtTagPickNew() {
-  _mtT.pick = { title: document.getElementById('mt-t-q').value.trim() || _mtT.r.subject };
+  const title = document.getElementById('mt-t-q').value.trim();
+  if (!title) { document.getElementById('mt-t-q').focus(); return; }
+  _mtT.pick = { title };
   mtTagList();
 }
 // Enter: เลือกอันแรกที่ค้นเจอ หรือสร้างใหม่ตามที่พิมพ์ แล้วไปขั้นถัดไป
@@ -20124,7 +20131,6 @@ function mtTagStep(n) {
     document.getElementById('mt-t-level').value = r.group_id ? `ทั้งแบรนด์ ${r.customer_group} (ทุกสาขา)` : `สาขานี้ — ${r.company || ''}`;
     document.getElementById('mt-t-note').value = (r.description || '').trim();
     document.getElementById('mt-t-kw').value = '';
-    document.getElementById('mt-t-any').checked = false;
     mtTagRule();
   }
   // วิธีตรวจสอบ / แก้ไข: ของ Tag ที่มีอยู่ก่อน · ถ้ายังว่าง ดึงวิธีแก้ไขจากเคสนี้ให้เลย
@@ -20143,8 +20149,8 @@ function mtTagStep(n) {
 
 function mtTagRule() {
   const T = _mtT; if (!T) return;
-  document.getElementById('mt-t-rule').innerHTML = mtRuleLabel({ subject: T.r.subject,
-    keywords: document.getElementById('mt-t-kw').value, any_subject: document.getElementById('mt-t-any').checked });
+  document.getElementById('mt-t-rule').innerHTML = mtRuleLabel({ match_mode: 'manual',
+    keywords: document.getElementById('mt-t-kw').value });
 }
 
 function mtTagPullSolution() {
@@ -20173,7 +20179,7 @@ async function mtTagSave() {
         note: document.getElementById('mt-t-note').value,
         start_at: mtStartInput('mt-t-start'),
         keywords: document.getElementById('mt-t-kw').value,
-        any_subject: document.getElementById('mt-t-any').checked,
+        match_mode: 'manual',
         check_script: check, fix_script: fix } });
       if (!d || d.error) { showToast(d?.error || 'สร้าง Tag ไม่สำเร็จ', 'error'); return; }
       tag = { ...d, files: [], linked_ids: [] };
@@ -20258,6 +20264,7 @@ async function mtLoad(opts = {}) {
 function mtTrendPill(st) {
   if (!st || st.error) return '<span class="mt-pill mt-flat">—</span>';
   if (st.early) return '<span class="mt-pill mt-flat">⏳ รอครบ 1 วัน</span>';
+  if (st.no_baseline) return '<span class="mt-pill mt-flat" title="ยังไม่มีเคสก่อนติด Tag ให้เทียบ — ใส่คำค้นเพื่อนับเคสย้อนหลัง">ยังไม่มีข้อมูลก่อนหน้า</span>';
   if (!st.trend) return `<span class="mt-pill mt-flat">${st.pre_avg === null ? 'ไม่มีช่วงก่อน Tag' : 'ยังไม่มีช่วงหลัง Tag'}</span>`;
   if (st.pct_change === null) {
     return st.trend === 'worsened'
@@ -20325,10 +20332,11 @@ function mtRender() {
       <td>${mtIsGroup(t)
         ? `<span class="mt-pill" style="background:var(--primary-soft);color:var(--primary)">ทุกสาขา</span><span class="sub">ระดับ License Group</span>`
         : `${esc(t.store_name)}<span class="sub">ระดับสาขา</span>`}</td>
-      <td>${esc(t.subject)}${t.title && t.title !== t.subject ? `<span class="sub">${esc(t.title)}</span>` : ''}${
+      <td>${mtIsManual(t) ? `<b style="color:var(--primary)"># ${esc(t.title)}</b><span class="sub">${esc(mtRuleLabel(t).replace(/<[^>]+>/g, ''))} · ${(t.linked_ids || []).length} เคส</span>`
+        : `${esc(t.subject)}${t.title && t.title !== t.subject ? `<span class="sub">${esc(t.title)}</span>` : ''}`}${
         t.check_script || t.fix_script || t.files?.length ? `<span class="sub">🧾 มีวิธีตรวจสอบ/แก้ไข${t.files?.length ? ` · 📎 ${t.files.length} ไฟล์` : ''}</span>` : ''}${
         t.keywords ? `<span class="sub">🔎 ${t.any_subject ? 'ทุกหัวข้อ · ' : ''}${mtKeywords(t.keywords).map(esc).join(', ')}</span>` : ''}</td>
-      <td class="num">${fmtDate(mtStart(t))}<span class="sub">${st.days_monitored ?? 0} วันที่แล้ว${t.start_at ? ' · ระบุย้อนหลัง' : ''}</span></td>
+      <td class="num">${mtFmtStart(t)}<span class="sub">${st.days_monitored ?? 0} วันที่แล้ว${t.start_at ? ' · ระบุย้อนหลัง' : ''}</span></td>
       <td class="r num">${st.error ? '—' : avg(st.pre_avg ?? null, st.pre_count || 0)}</td>
       <td class="r num">${st.error ? '—' : st.early
         ? `<span class="mt-meta">—</span><span class="sub">${st.post_count || 0} เคสถึงตอนนี้</span>`
@@ -20352,7 +20360,7 @@ function mtRender() {
 
 // ══ ภาพรวม Monitor Tag ═══════════════════════════════════
 const mtFmtPct = p => (p > 0 ? '+' : '') + p.toFixed(0) + '%';
-const mtTagLabel = t => (mtIsGroup(t) ? t.customer_name : t.store_name) + ' · ' + t.subject;
+const mtTagLabel = t => (mtIsGroup(t) ? t.customer_name : t.store_name) + ' · ' + (mtIsManual(t) ? '#' + t.title : t.subject);
 
 function mtRenderOverview(list) {
   const box = document.getElementById('mt-overview');
@@ -20361,7 +20369,7 @@ function mtRenderOverview(list) {
   box.style.display = '';
   // ok = มีข้อมูลให้ดู (รวม Tag ที่เพิ่งตั้ง) · judged = ครบ 1 วันแล้ว คิด % ได้
   const ok = list.filter(t => t.stats && !t.stats.error && (t.stats.pre_avg !== null || t.stats.post_avg !== null));
-  const judged = ok.filter(t => !t.stats.early && t.stats.pre_avg !== null && t.stats.post_avg !== null);
+  const judged = ok.filter(t => !t.stats.early && !t.stats.no_baseline && t.stats.pre_avg !== null && t.stats.post_avg !== null);
   const earlyTags = ok.filter(t => t.stats.early);
   if (!ok.length) {
     const err = list.filter(t => !t.stats || t.stats.error).length;
@@ -20559,10 +20567,10 @@ function mtDetailRow(t) {
     </div>
     <div class="mt-detail-bar">
       <span class="mt-meta" style="display:inline-flex;align-items:center;gap:.35rem;flex:1;flex-wrap:wrap">🔎 คำค้นในรายละเอียด
-        <input id="mt-kw-${t.id}" value="${esc(t.keywords || '')}" placeholder="เว้นว่าง = ทุกเคสในหัวข้อ"
+        <input id="mt-kw-${t.id}" value="${esc(t.keywords || '')}" placeholder="${mtIsManual(t) ? 'เว้นว่าง = นับเฉพาะเคสที่ติด Tag' : 'เว้นว่าง = ทุกเคสในหัวข้อ'}"
           style="height:26px;border:1px solid var(--border);border-radius:6px;padding:0 .45rem;font-size:.74rem;font-family:inherit;background:var(--card);color:var(--text);min-width:220px;flex:1"/>
-        <label style="display:inline-flex;align-items:center;gap:.25rem;cursor:pointer">
-          <input type="checkbox" id="mt-any-${t.id}" ${t.any_subject ? 'checked' : ''}/> ไม่จำกัดหัวข้อ</label>
+        ${mtIsManual(t) ? '' : `<label style="display:inline-flex;align-items:center;gap:.25rem;cursor:pointer">
+          <input type="checkbox" id="mt-any-${t.id}" ${t.any_subject ? 'checked' : ''}/> ไม่จำกัดหัวข้อ</label>`}
         <button onclick="event.stopPropagation();mtSaveRule(${t.id})">บันทึกกฎ</button></span>
       <button onclick="event.stopPropagation();mtOpenDetail(${t.id})">ดูรายการเคส</button>
       <button onclick="event.stopPropagation();mtResolve(${t.id})">✓ Resolve (ปิด Tag)</button>
@@ -20784,7 +20792,7 @@ async function mtOpenDetail(id) {
   document.getElementById('mt-d-title').textContent = t.title;
   document.getElementById('mt-d-store-th').style.display = mtIsGroup(t) ? '' : 'none';
   document.getElementById('mt-d-sub').textContent =
-    `${t.customer_name} › ${mtIsGroup(t) ? 'ทุกสาขา (ระดับ License Group)' : t.store_name} · ${mtRuleLabel(t).replace(/<[^>]+>/g, '')} · เริ่ม Monitor ${fmtDate(mtStart(t))}`;
+    `${t.customer_name} › ${mtIsGroup(t) ? 'ทุกสาขา (ระดับ License Group)' : t.store_name} · ${mtRuleLabel(t).replace(/<[^>]+>/g, '')} · เริ่ม Monitor ${mtFmtStart(t)}`;
   const tb = document.getElementById('mt-d-tbody');
   tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:var(--muted)">กำลังโหลด...</td></tr>';
   openModal('modal-mt-detail');

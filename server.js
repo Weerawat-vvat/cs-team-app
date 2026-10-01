@@ -12527,7 +12527,8 @@ async function ensureMonitorTagTables() {
       IF COL_LENGTH('monitor_tags','scripts_updated_at') IS NULL ALTER TABLE monitor_tags ADD scripts_updated_at DATETIME NULL;
       IF COL_LENGTH('monitor_tags','start_at') IS NULL ALTER TABLE monitor_tags ADD start_at DATETIME NULL;
       IF COL_LENGTH('monitor_tags','keywords') IS NULL ALTER TABLE monitor_tags ADD keywords NVARCHAR(1000) NULL;
-      IF COL_LENGTH('monitor_tags','any_subject') IS NULL ALTER TABLE monitor_tags ADD any_subject BIT NULL;`);
+      IF COL_LENGTH('monitor_tags','any_subject') IS NULL ALTER TABLE monitor_tags ADD any_subject BIT NULL;
+      IF COL_LENGTH('monitor_tags','match_mode') IS NULL ALTER TABLE monitor_tags ADD match_mode NVARCHAR(10) NULL;`);
     await req().query(`
       IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='monitor_tag_files' AND xtype='U')
       CREATE TABLE monitor_tag_files (
@@ -12566,10 +12567,14 @@ function monitorKeywords(v) {
 }
 
 // เงื่อนไขจับคู่ Calllog กับ tag: ขอบเขต (กลุ่ม/สาขา) + หัวข้อ (ยกเว้น any_subject) + คำค้นข้อใดข้อหนึ่ง
+// match_mode 'manual' = Tag ที่ตั้งชื่อเอง: นับเคสที่ติด Tag + เคสที่รายละเอียดมีคำค้น (ถ้าใส่) ไม่สนหัวข้อ
+// match_mode NULL/'subject' = Tag แบบเดิม: นับตามหัวข้อ (+ คำค้น)
 function monitorMatch(r, tag) {
   const kws = monitorKeywords(tag.keywords);
+  const manual = tag.match_mode === 'manual';
   const conds = [];
-  if (!(tag.any_subject && kws.length)) { r.input('sub', sql.NVarChar, tag.subject); conds.push('cl.Subject=@sub'); }
+  if (manual && !kws.length) conds.push('1=0');   // ไม่มีกฎอัตโนมัติ — เหลือแต่เคสที่ติด Tag
+  if (!manual && !(tag.any_subject && kws.length)) { r.input('sub', sql.NVarChar, tag.subject); conds.push('cl.Subject=@sub'); }
   if (kws.length) {
     // ใช้ ! เป็นตัว escape ของ LIKE — คำค้นที่มี % _ [ จะถูกค้นตามตัวอักษร
     kws.forEach((k, i) => r.input('kw' + i, sql.NVarChar, '%' + k.replace(/[!%_[]/g, '!$&') + '%'));
@@ -12683,7 +12688,8 @@ async function monitorTagStats(tag, range) {
   let pct = null, trend = null;
   // หลังตั้ง tag ยังไม่ถึง 1 วัน — ตัวเลขยังไม่มีความหมาย (0 เคสใน 15 นาที ≠ ลดลง 100%)
   const early = meta.post_mins > 0 && meta.post_mins < 1440;
-  if (preAvg !== null && postAvg !== null && !early) {
+  const noBaseline = tag.match_mode === 'manual' && !monitorKeywords(tag.keywords).length && pre === 0;
+  if (preAvg !== null && postAvg !== null && !early && !noBaseline) {
     if (preAvg > 0) {
       pct = (postAvg - preAvg) / preAvg * 100;
       trend = Math.abs(pct) <= MONITOR_STABLE_PCT ? 'stable' : pct < 0 ? 'improved' : 'worsened';
@@ -12700,6 +12706,7 @@ async function monitorTagStats(tag, range) {
     pct_change: pct === null ? null : +pct.toFixed(1),
     trend,                                    // null = ยังเทียบไม่ได้ (ไม่มีช่วงก่อน/หลัง หรือ early)
     early,
+    no_baseline: noBaseline,   // Tag ตั้งชื่อเอง ยังไม่มีเคสก่อนติด Tag ให้เทียบ
     days_monitored: Math.floor(Math.max(0, meta.age_mins) / 1440),
     daily
   };
@@ -12800,7 +12807,10 @@ app.post('/api/monitor-tags', authRequired, async (request, res) => {
     const customer = str(b.customer_name, 200) || store;
     const baseline = MONITOR_BASELINE_OPTIONS.includes(+b.baseline_days) ? +b.baseline_days : 30;
     const rid = Number.isInteger(+b.registration_id) && +b.registration_id > 0 ? +b.registration_id : null;
-    if (!store || !subject) return res.status(400).json({ error: 'ต้องมีชื่อสาขาและหัวข้อปัญหา' });
+    const manual = b.match_mode === 'manual';
+    if (!store) return res.status(400).json({ error: 'ต้องมีชื่อสาขา' });
+    if (!manual && !subject) return res.status(400).json({ error: 'ต้องมีหัวข้อปัญหา' });
+    if (manual && !str(b.title, 300)) return res.status(400).json({ error: 'กรุณาตั้งชื่อ Tag' });
     const startAt = b.start_at ? String(b.start_at).trim() : null;
     if (startAt) { const err = await monitorCheckStart(startAt); if (err) return res.status(400).json({ error: err }); }
 
@@ -12823,14 +12833,18 @@ app.post('/api/monitor-tags', authRequired, async (request, res) => {
     const dup = (await req()
       .input('rid', sql.Int, rid).input('store', sql.NVarChar, store).input('sub', sql.NVarChar, subject)
       .input('gid', sql.Int, gid).input('kw', sql.NVarChar, kwStr || '').input('any', sql.Bit, anySub ? 1 : 0)
+      .input('man', sql.Bit, manual ? 1 : 0).input('ttl', sql.NVarChar, title)
       .query(`SELECT TOP 1 id, title FROM monitor_tags
-              WHERE status='active' AND ISNULL(keywords,'')=@kw AND ISNULL(any_subject,0)=@any
-                AND (@any=1 OR subject=@sub) AND (
+              WHERE status='active' AND (
+                (@man=1 AND title=@ttl) OR
+                (@man=0 AND ISNULL(match_mode,'subject')<>'manual' AND ISNULL(keywords,'')=@kw AND ISNULL(any_subject,0)=@any
+                 AND (@any=1 OR subject=@sub))) AND (
                 (@gid IS NOT NULL AND scope='group' AND group_id=@gid) OR
                 (@gid IS NULL AND ISNULL(scope,'store')='store' AND
                   ((@rid IS NOT NULL AND registration_id=@rid) OR (@rid IS NULL AND store_name=@store))))`)).recordset[0];
     if (dup) return res.status(409).json({
-      error: `${gid ? 'กลุ่มนี้' : 'สาขานี้'}มี Monitor Tag ${kwStr ? 'คำค้นนี้' : 'หัวข้อนี้'}อยู่แล้ว (“${dup.title}”)`, id: dup.id });
+      error: manual ? `${gid ? 'แบรนด์นี้' : 'สาขานี้'}มี Tag “${dup.title}” อยู่แล้ว — เลือก Tag เดิมแทนได้`
+        : `${gid ? 'กลุ่มนี้' : 'สาขานี้'}มี Monitor Tag ${kwStr ? 'คำค้นนี้' : 'หัวข้อนี้'}อยู่แล้ว (“${dup.title}”)`, id: dup.id });
 
     const row = (await req()
       .input('cn',  sql.NVarChar, groupName || customer)
@@ -12847,17 +12861,18 @@ app.post('/api/monitor-tags', authRequired, async (request, res) => {
       .input('sta', sql.NVarChar, startAt ? startAt + ':00' : null)
       .input('kws', sql.NVarChar, kwStr)
       .input('any', sql.Bit, anySub ? 1 : 0)
+      .input('mm',  sql.NVarChar, manual ? 'manual' : null)
       .input('by',  sql.NVarChar, request.user?.username || null)
       .input('cs',  sql.NVarChar, str(b.check_script, 200000) || null)
       .input('fs',  sql.NVarChar, str(b.fix_script, 200000) || null)
       .query(`INSERT INTO monitor_tags
                 (customer_name, store_name, registration_id, scope, group_id, subject, category, title, note, baseline_days, source_ticket_id, created_by,
-                 check_script, fix_script, scripts_updated_by, scripts_updated_at, start_at, keywords, any_subject)
+                 check_script, fix_script, scripts_updated_by, scripts_updated_at, start_at, keywords, any_subject, match_mode)
               OUTPUT INSERTED.*
               VALUES (@cn, @sn, @rid, @scp, @gid, @sub, @cat, @ttl, @nt, @bd, @src, @by,
                  @cs, @fs, CASE WHEN @cs IS NULL AND @fs IS NULL THEN NULL ELSE @by END,
                  CASE WHEN @cs IS NULL AND @fs IS NULL THEN NULL ELSE GETDATE() END,
-                 TRY_CONVERT(datetime, @sta, 126), @kws, @any)`)).recordset[0];
+                 TRY_CONVERT(datetime, @sta, 126), @kws, @any, @mm)`)).recordset[0];
     res.json(row);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
