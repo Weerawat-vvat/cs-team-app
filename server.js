@@ -761,9 +761,13 @@ const CALLLOG_SELECT = `
     cl.ProblemTypeId            AS problem_type_id,
     cl.StatusId                 AS status_id,
     cl.SupportId                AS support_id,
-    s.TimeToResolve             AS time_to_resolve
+    s.TimeToResolve             AS time_to_resolve,
+    cl.RegistrationId           AS registration_id,
+    CASE WHEN cr.GroupId IS NOT NULL AND cr.GroupId <> 1 THEN cr.GroupId END     AS group_id,
+    CASE WHEN cr.GroupId IS NOT NULL AND cr.GroupId <> 1 THEN cgm.GroupName END  AS group_name
   FROM Calllog cl
   INNER JOIN CustomerRegistration cr ON cr.RegistrationId  = cl.RegistrationId
+  LEFT  JOIN CustomerGroup        cgm ON cgm.GroupId       = cr.GroupId
   LEFT  JOIN CallStatus           cs ON cs.StatusId        = cl.StatusId
   INNER JOIN Users                u  ON u.UserId           = cl.SupportId
   LEFT  JOIN Project              p  ON p.ProjectId        = cl.ProjectId

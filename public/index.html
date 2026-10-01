@@ -9505,7 +9505,9 @@ async function loadTickets() {
     if (dateFrom)    url += `dateFrom=${dateFrom}&`;
     if (dateTo)      url += `dateTo=${dateTo}&`;
   }
-  allTickets = await api(url);
+  const [tk, mt] = await Promise.all([url, '/api/monitor-tags?status=active&lite=1'].map(u => api(u, { silent: u !== url })));
+  allTickets = tk;
+  if (Array.isArray(mt?.tags)) _mtActive = mt.tags;
 
   // Populate agent filter — value=LicenseDB username, label=real name
   const agentSel = document.getElementById('tk-filter-agent');
@@ -9657,6 +9659,7 @@ function renderTickets() {
       <td>
         ${tkStatusBadge(t.status)}
         ${isOverdue ? `<div><span class="tk-flag">ค้างนาน</span></div>` : ''}
+        ${mtTagFor(mtTicketRow(t)) ? `<div><span class="mt-pill" style="background:var(--primary-soft);color:var(--primary);margin-top:.25rem" title="${escHtml('มอนิเตอร์อยู่: ' + mtTagFor(mtTicketRow(t)).title)}">📌 มอนิเตอร์อยู่</span></div>` : ''}
         ${isSpecialist && !t.specialist ? `
           <div><button class="tk-sp-btn"
             onclick="event.stopPropagation();spAutoAssign(${JSON.stringify({id:t.id,title:t.title,CompanyName:t.CompanyName,problem_type_detail:t.problem_type_detail,category:t.category,InformName:t.InformName,InformTel:t.InformTel,description:t.description||'',solution:t.Solution||''}).replace(/"/g,'&quot;')})">
@@ -9745,10 +9748,12 @@ function renderTickets() {
             <span class="tk-detail-label" style="margin-bottom:0">ประเมินเคส</span>${starPickerHtml}
           </div>` : ''}
           ${attHtml}
-          ${isLeadRole() ? `
           <div style="margin-top:.55rem;padding-top:.6rem;border-top:1px solid #efede7;display:flex;justify-content:flex-end;gap:.4rem" onclick="event.stopPropagation()">
-            <button class="svc-btn-ghost" style="height:34px" onclick="openEditTicket(${t.id})"><i class=i-pencil></i> แก้ไข</button>
-          </div>` : ''}
+            ${mtTagFor(mtTicketRow(t))
+              ? `<button class="svc-btn-ghost" style="height:34px;color:var(--primary)" onclick="mtGoToTab()" title="${escHtml('มอนิเตอร์อยู่: ' + mtTagFor(mtTicketRow(t)).title)}">📌 มอนิเตอร์อยู่</button>`
+              : `<button class="svc-btn-ghost" style="height:34px" onclick="mtOpenFromTicket(${t.id})" title="ติดตามหัวข้อนี้ของสาขา/กลุ่มนี้ในแท็บ Monitor Tag">📌 + Monitor Tag</button>`}
+            ${isLeadRole() ? `<button class="svc-btn-ghost" style="height:34px" onclick="openEditTicket(${t.id})"><i class=i-pencil></i> แก้ไข</button>` : ''}
+          </div>
         </td>
       </tr>`);
     }
@@ -19840,7 +19845,7 @@ let _mtActive = [];   // active Monitor Tags — ใช้ติดป้าย 
 // tag ที่ครอบเคสนี้อยู่ (สาขาเดียวกัน + หัวข้อเดียวกัน) — ตรงกับ rule ฝั่ง server
 // tag ระดับกลุ่มครอบทุกสาขาใน License Group เดียวกัน
 function mtTagFor(r) {
-  const subject = r.subject || _issTicketsSubject;
+  const subject = r.subject || r.title || _issTicketsSubject;
   return _mtActive.find(t => t.subject === subject && (
     t.scope === 'group' ? !!r.group_id && t.group_id === r.group_id
     : t.registration_id ? t.registration_id === r.registration_id : t.store_name === r.company));
@@ -19935,8 +19940,27 @@ let _mtLoading = false;
 const _mtOpen = new Set();     // id ของแถวที่กางกราฟอยู่ — คงไว้ข้ามการรีเฟรชอัตโนมัติ
 const _mtCharts = {};
 
-function mtOpenCreate(i) {
-  const r = _issTicketRows[i];
+function mtOpenCreate(i) { mtOpenCreateFrom(_issTicketRows[i]); }
+
+// จากหน้า ติดตามเคส — แปลง ticket ของ /api/tickets เป็นรูปเดียวกับแถวใน Issue Analytics
+function mtTicketRow(t) {
+  return { id: t.id, company: t.CompanyName, customer_group: t.group_name, group_id: t.group_id,
+           registration_id: t.registration_id, subject: t.title, category: t.problem_type_detail, description: t.description };
+}
+function mtOpenFromTicket(id) {
+  const t = (allTickets || []).find(x => x.id === id);
+  if (!t) return;
+  if (!t.title) { showToast('เคสนี้ไม่มีหัวข้อ (Subject) — ตั้ง Monitor Tag ไม่ได้', 'error'); return; }
+  mtOpenCreateFrom(mtTicketRow(t));
+}
+
+// ไปแท็บ Monitor Tag ในหน้า Dashboard
+function mtGoToTab() {
+  showPage('dashboard', document.getElementById('nav-btn-dashboard'));
+  switchDashTab(4);
+}
+
+function mtOpenCreateFrom(r) {
   if (!r) return;
   _mtDraft = {
     customer_name: r.customer_group || r.company || '',
@@ -19987,6 +20011,7 @@ async function mtSave() {
   else showToast('เพิ่ม Monitor Tag แล้ว — ดูได้ที่แท็บ 📌 Monitor Tag');
   _mtActive.push(d);
   if (_issTicketsData) issRenderTickets(_issTicketsData);
+  if (document.getElementById('page-tickets')?.offsetParent && typeof renderTickets === 'function') renderTickets();
   mtRefreshCount();
 }
 
