@@ -519,6 +519,8 @@ textarea{resize:vertical;min-height:80px}
 .mt-attach input{display:none}
 .mt-scripts-ft{display:flex;align-items:center;gap:.6rem;justify-content:flex-end;margin-top:.5rem}
 .mt-dirty{font-size:.72rem;color:#b7791f}
+.mt-opt-linked{cursor:default;background:#faf9f6}
+select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
 .mt-an{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem;margin:.2rem 0 .8rem}
 .mt-tbl .mt-detail .mt-an-card th:first-child,.mt-tbl .mt-detail .mt-an-card td:first-child{text-align:left}
 .mt-an-stores{grid-column:1/-1}
@@ -2510,6 +2512,7 @@ textarea{resize:vertical;min-height:80px}
       <button class="svc-btn-ghost" id="mt-t-back" onclick="mtTagStep(1)" style="display:none">‹ ย้อนกลับ</button>
       <span style="flex:1"></span>
       <button class="svc-btn-ghost" onclick="closeModal('modal-mt-tag')">ยกเลิก</button>
+      <button class="svc-btn-ghost" id="mt-t-add" onclick="mtTagNext({ keep: true })" style="display:none" title="ติด Tag นี้เพิ่ม โดยไม่เอาออกจาก Tag เดิม">เพิ่มอีก Tag</button>
       <button class="svc-btn-primary" id="mt-t-next" onclick="mtTagNext()" disabled>ถัดไป ›</button>
       <button class="svc-btn-primary" id="mt-t-save" onclick="mtTagSave()" style="display:none"><i class=i-tag></i> <span id="mt-t-save-lbl">ติด Tag และเริ่ม Monitor</span></button>
     </div>
@@ -9832,7 +9835,7 @@ function renderTickets() {
           ${attHtml}
           <div style="margin-top:.55rem;padding-top:.6rem;border-top:1px solid #efede7;display:flex;justify-content:flex-end;gap:.4rem" onclick="event.stopPropagation()">
             ${mtTagFor(mtTicketRow(t))
-              ? `<button class="svc-btn-ghost" style="height:34px;color:var(--primary)" onclick="mtGoToTab()" title="${escHtml('มอนิเตอร์อยู่: ' + mtTagFor(mtTicketRow(t)).title)}"><i class=i-tag></i> มอนิเตอร์อยู่</button>`
+              ? `<button class="svc-btn-ghost" style="height:34px;color:var(--primary)" onclick="mtOpenFromTicket(${t.id})" title="${escHtml('มอนิเตอร์อยู่: ' + mtTagFor(mtTicketRow(t)).title + ' — คลิกเพื่อย้าย/เอาออก/เพิ่ม Tag')}"><i class=i-tag></i> มอนิเตอร์อยู่</button>`
               : `<button class="svc-btn-ghost" style="height:34px" onclick="mtOpenFromTicket(${t.id})" title="ติดตามหัวข้อนี้ของสาขา/กลุ่มนี้ในแท็บ Monitor Tag"><i class=i-tag></i> ติด Tag</button>`}
             ${isLeadRole() ? `<button class="svc-btn-ghost" style="height:34px" onclick="openEditTicket(${t.id})"><i class=i-pencil></i> แก้ไข</button>` : ''}
           </div>
@@ -19902,7 +19905,7 @@ function issRenderTickets(d) {
       <td style="${td};white-space:nowrap;font-size:.78rem">${esc(dn(r.agent) || r.agent || '—')}</td>
       <td style="${td};white-space:nowrap;text-align:right">
         ${mtTagFor(r)
-          ? `<button class="mt-on-btn" onclick="switchDashTab(4)" title="${esc('มอนิเตอร์อยู่: ' + mtTagFor(r).title)}"><i class=i-tag></i> มอนิเตอร์อยู่</button>`
+          ? `<button class="mt-on-btn" onclick="mtOpenCreate(${i})" title="${esc('มอนิเตอร์อยู่: ' + mtTagFor(r).title + ' — คลิกเพื่อย้าย/เอาออก/เพิ่ม Tag')}"><i class=i-tag></i> มอนิเตอร์อยู่</button>`
           : `<button class="mt-add-btn" onclick="mtOpenCreate(${i})" title="ติด Tag ให้เคสนี้ เพื่อ Monitor ในแท็บ Monitor Tag"><i class=i-tag></i> ติด Tag</button>`}
       </td>
     </tr>`;
@@ -19975,10 +19978,12 @@ function mtTagList() {
     const linked = (t.linked_ids || []).includes(T.r.id);
     const hit = !linked && mtRuleHits(t, T.r);
     const badge = linked ? '<span class="mt-pill mt-down"><i class=i-link></i> ติดแล้ว</span>' : hit ? '<span class="mt-pill mt-flat" title="ตรงกฎของ Tag นี้อยู่แล้ว"><i class=i-check></i> ตรงกฎ</span>' : '';
-    return `<button type="button" class="mt-opt${isOn(t) ? ' on' : ''}" ${linked ? 'disabled title="เคสนี้ติด Tag นี้แล้ว" style="cursor:default;opacity:.7"' : `onclick="mtTagPick(${t.id})" ondblclick="mtTagPick(${t.id});mtTagNext()"`}>
-      <div class="b"><div class="tg"><i class=i-tag></i>${esc(t.title)} ${mtTypeBadge(t)}<span class="mt-meta" style="font-weight:400">· ${mtScopeName(t)}</span></div>
-        <div class="r">${mtRuleLabel(t)} · เริ่ม ${mtFmtStart(t)}${t.note ? ' · ' + esc(t.note.replace(/\s+/g, ' ').slice(0, 80)) : ''}</div></div>
-      ${badge}</button>`;
+    const inner = `<div class="b"><div class="tg"><i class=i-tag></i>${esc(t.title)} ${mtTypeBadge(t)}<span class="mt-meta" style="font-weight:400">· ${mtScopeName(t)}</span></div>
+        <div class="r">${mtRuleLabel(t)} · เริ่ม ${mtFmtStart(t)}${t.note ? ' · ' + esc(t.note.replace(/\s+/g, ' ').slice(0, 80)) : ''}</div></div>`;
+    if (linked) return `<div class="mt-opt mt-opt-linked">${inner}${badge}
+      <button type="button" class="mt-mini" onclick="mtTagUnlinkHere(${t.id})" title="เอาเคสนี้ออกจาก Tag"><i class=i-trash></i> เอาออก</button></div>`;
+    return `<button type="button" class="mt-opt${isOn(t) ? ' on' : ''}" onclick="mtTagPick(${t.id})" ondblclick="mtTagPick(${t.id});mtTagNext()">
+      ${inner}${badge}</button>`;
   }).join('');
   if (!newTitle) html += `<div class="mt-opt new" style="cursor:default;opacity:.75">
       <div class="b"><div class="tg"><i class=i-plus></i>สร้าง Tag ใหม่</div>
@@ -19994,7 +19999,11 @@ function mtTagList() {
   // เลือก Tag เดิม → "ตกลง" ติด Tag ให้เคสเลย · สร้าง Tag ใหม่ → "ถัดไป" ไปกรอกวิธีตรวจสอบ/แก้ไข
   const next = document.getElementById('mt-t-next');
   next.disabled = !T.pick;
-  next.textContent = T.pick?.tag ? 'ตกลง' : 'ถัดไป ›';
+  // เคสนี้ติด Tag อื่นอยู่แล้ว → ปุ่มหลักคือ "ย้ายมา Tag นี้" (มีปุ่ม "เพิ่มอีก Tag" ถ้าอยากให้อยู่หลาย Tag)
+  const others = T.pick?.tag ? mtCaseTags(T).filter(x => x.id !== T.pick.tag.id) : [];
+  next.textContent = !T.pick?.tag ? 'ถัดไป ›' : others.length ? 'ย้ายมา Tag นี้' : 'ตกลง';
+  next.title = others.length ? `เอาออกจาก ${others.map(x => '“' + x.title + '”').join(', ')} แล้วติด Tag นี้แทน` : '';
+  document.getElementById('mt-t-add').style.display = others.length ? '' : 'none';
 }
 
 function mtTagPick(id) {
@@ -20004,19 +20013,22 @@ function mtTagPick(id) {
 
 // เลือก Tag ที่มีอยู่ → ติดให้เคสนี้เลย ไม่ต้องกรอกวิธีตรวจสอบ/แก้ไข
 let _mtQuickBusy = false;
-async function mtTagQuickLink(id) {
+async function mtTagQuickLink(id, o = {}) {
   const T = _mtT; if (!T || _mtQuickBusy) return;
   const tag = T.opts.find(t => t.id === id); if (!tag) return;
+  const from = o.move ? mtCaseTags(T).filter(x => x.id !== id) : [];
   _mtQuickBusy = true;
   const d = await api(`/api/monitor-tags/${id}/cases`, { method: 'POST', silent: true, body: { calllog_id: T.r.id } });
-  _mtQuickBusy = false;
-  if (!d || d.error) { showToast(d?.error || 'ติด Tag ไม่สำเร็จ', 'error'); return; }
+  if (!d || d.error) { _mtQuickBusy = false; showToast(d?.error || 'ติด Tag ไม่สำเร็จ', 'error'); return; }
   for (const list of [_mtActive, _mtTags]) {
     const x = list.find(y => y.id === id);
     if (x && !(x.linked_ids || []).includes(T.r.id)) x.linked_ids = [...(x.linked_ids || []), T.r.id];
   }
+  for (const f of from) await mtUnlink(f.id, T.r.id);   // ย้าย = ติด Tag ใหม่แล้วค่อยเอาออกจากอันเดิม
+  _mtQuickBusy = false;
   closeModal('modal-mt-tag');
-  showToast(`ติด Tag “${tag.title}” ให้เคส #${T.r.id} แล้ว`);
+  showToast(from.length ? `ย้ายเคส #${T.r.id} จาก “${from.map(x => x.title).join(', ')}” มา “${tag.title}” แล้ว`
+                        : `ติด Tag “${tag.title}” ให้เคส #${T.r.id} แล้ว`);
   mtAfterChange();
 }
 function mtTagPickNew() {
@@ -20026,10 +20038,31 @@ function mtTagPickNew() {
   mtTagList();
 }
 // Enter: เลือกอันแรกที่ค้นเจอ หรือสร้างใหม่ตามที่พิมพ์ แล้วไปขั้นถัดไป
-function mtTagNext() {
+// Tag ที่เคสนี้ "ติดเอง" อยู่ (ไม่นับที่ตรงกฎอัตโนมัติ — เอาออกไม่ได้)
+const mtCaseTags = T => T.opts.filter(t => (t.linked_ids || []).includes(T.r.id));
+function mtTagNext(o = {}) {
   const T = _mtT; if (!T?.pick) return;
-  if (T.pick.tag) mtTagQuickLink(T.pick.tag.id);
+  if (T.pick.tag) mtTagQuickLink(T.pick.tag.id, { move: !o.keep });
   else mtTagStep(2);
+}
+async function mtTagUnlinkHere(id) {
+  const T = _mtT, t = T?.opts.find(x => x.id === id); if (!t) return;
+  if (!confirm(`เอาเคส #${T.r.id} ออกจาก Tag “${t.title}”?`)) return;
+  if (!(await mtUnlink(id, T.r.id))) return;
+  showToast(`เอาเคส #${T.r.id} ออกจาก “${t.title}” แล้ว`);
+  if (T.pick?.tag?.id === id) T.pick = null;
+  mtTagList();
+  mtAfterChange();
+}
+// เอาเคสออกจาก Tag + อัปเดตข้อมูลในหน้า
+async function mtUnlink(tagId, cid) {
+  const d = await api(`/api/monitor-tags/${tagId}/cases/${cid}`, { method: 'DELETE', silent: true });
+  if (!d || d.error) { showToast(d?.error || 'เอาออกไม่สำเร็จ', 'error'); return false; }
+  for (const list of [_mtActive, _mtTags]) {
+    const x = list.find(y => y.id === tagId);
+    if (x) x.linked_ids = (x.linked_ids || []).filter(v => v !== cid);
+  }
+  return true;
 }
 // Enter: ยังไม่ได้เลือก = เลือกอันแรกที่ค้นเจอ · เลือกแล้ว = เหมือนกดปุ่ม ตกลง / ถัดไป
 function mtTagEnter() {
@@ -20226,8 +20259,9 @@ function mtRange() {
   return from && to && from < to ? { from, to } : null;
 }
 
+let _mtReloadQueued = false;
 async function mtLoad(opts = {}) {
-  if (_mtLoading) return;
+  if (_mtLoading) { _mtReloadQueued = true; return; }   // อย่าทิ้งคำขอ — โหลดใหม่ต่อทันทีที่รอบนี้เสร็จ
   _mtLoading = true;
   const body = document.getElementById('mt-body');
   if (!opts.quiet && !_mtTags.length) body.innerHTML = '<div class="mt-empty">กำลังโหลด...</div>';
@@ -20236,6 +20270,7 @@ async function mtLoad(opts = {}) {
   if (range) { qs.set('dateFrom', range.from); qs.set('dateTo', range.to); }
   const d = await api('/api/monitor-tags?' + qs, { silent: true });
   _mtLoading = false;
+  if (_mtReloadQueued) { _mtReloadQueued = false; return mtLoad({ quiet: true }); }
   if (!d || d.error) {
     body.innerHTML = '<div class="mt-empty">โหลดไม่สำเร็จ (ถ้าเพิ่งอัปเดตโค้ด ให้รีสตาร์ท server ก่อน)</div>';
     return;
@@ -20243,6 +20278,7 @@ async function mtLoad(opts = {}) {
   _mtTags = d.tags || [];
   mtNoteStart(d);
   mtSetCount(_mtTags.length);
+  Object.keys(_mtAnalysis).forEach(k => delete _mtAnalysis[k]);   // วิเคราะห์ใหม่ให้ตรงกับสถิติรอบนี้
   const fd = v => new Date(v + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
   document.getElementById('mt-range').innerHTML = range
     ? `เทียบในช่วง <b>${fd(range.from)} – ${fd(range.to)}</b> (ตามตัวกรองวันที่ด้านบน)`
@@ -20920,6 +20956,7 @@ async function mtResolve(id) {
   mtLoad({ quiet: true });
 }
 
+let _mtDetailStore = null;
 async function mtOpenDetail(id, store) {
   const t = _mtTags.find(x => x.id === id);
   if (!t) return;
@@ -20940,6 +20977,11 @@ async function mtOpenDetail(id, store) {
     return;
   }
   const td = 'padding:.42rem .7rem;border-bottom:1px solid var(--line-2);vertical-align:top';
+  // Tag อื่นที่ย้ายเคสไปได้ (Tag กลาง + Tag เดิมที่ยังเปิดอยู่)
+  const moveOpts = _mtTags.filter(x => x.id !== t.id && x.status !== 'resolved')
+    .sort((a, b) => (a.title || '').localeCompare(b.title || '', 'th'))
+    .map(x => `<option value="${x.id}">${esc(x.title)}</option>`).join('');
+  _mtDetailStore = store || null;
   tb.innerHTML = d.rows.map(r => `<tr>
     <td style="${td};font-family:monospace;font-size:.76rem;white-space:nowrap">#${r.id}</td>
     <td style="${td};white-space:nowrap;font-size:.76rem">${fmtDT(r.opened_at)}</td>
@@ -20947,7 +20989,8 @@ async function mtOpenDetail(id, store) {
       ? '<span class="mt-pill" style="background:var(--primary-soft);color:var(--primary)">หลังตั้ง Tag</span>'
       : '<span class="mt-pill mt-flat">ก่อนตั้ง Tag</span>'}${r.linked
       ? `<div style="margin-top:.25rem;display:flex;gap:.3rem;align-items:center"><span class="mt-pill mt-down" title="Support เลือกผูกเคสนี้เอง"><i class=i-link></i> ผูกเอง</span>
-         <button class="mt-mini" onclick="mtUnlinkCase(${t.id},${r.id})">เอาออก</button></div>` : ''}</td>
+         <button class="mt-mini" onclick="mtUnlinkCase(${t.id},${r.id})"><i class=i-trash></i> เอาออก</button>
+         ${moveOpts ? `<select class="mt-mini mt-move" onchange="mtMoveCase(${t.id},${r.id},this)" title="ย้ายเคสนี้ไป Tag อื่น"><option value="">ย้ายไป Tag…</option>${moveOpts}</select>` : ''}</div>` : ''}</td>
     ${mtIsGroup(t) || mtIsGlobal(t) ? `<td style="${td}">${esc(r.company || '—')}</td>` : ''}
     <td style="${td};color:var(--muted)">${esc((r.description || '').replace(/\s+/g, ' ').slice(0, 200)) || '—'}</td>
     <td style="${td};white-space:nowrap">${esc(r.status || '—')}</td>
@@ -20957,14 +21000,27 @@ async function mtOpenDetail(id, store) {
 
 async function mtUnlinkCase(tagId, cid) {
   if (!confirm(`เอาเคส #${cid} ออกจาก Tag นี้?`)) return;
-  const d = await api(`/api/monitor-tags/${tagId}/cases/${cid}`, { method: 'DELETE', silent: true });
-  if (!d || d.error) { showToast(d?.error || 'เอาออกไม่สำเร็จ', 'error'); return; }
-  for (const list of [_mtActive, _mtTags]) {
-    const t = list.find(x => x.id === tagId);
-    if (t) t.linked_ids = (t.linked_ids || []).filter(x => x !== cid);
-  }
+  if (!(await mtUnlink(tagId, cid))) return;
   showToast(`เอาเคส #${cid} ออกแล้ว`);
-  mtOpenDetail(tagId);
+  mtOpenDetail(tagId, _mtDetailStore);
+  mtAfterChange();
+}
+
+// ย้ายเคสจาก Tag หนึ่งไปอีก Tag (ติด Tag ใหม่ก่อน แล้วค่อยเอาออกจากอันเดิม)
+async function mtMoveCase(fromId, cid, sel) {
+  const toId = +sel.value; sel.value = '';
+  const to = _mtTags.find(x => x.id === toId); if (!to) return;
+  const from = _mtTags.find(x => x.id === fromId);
+  if (!confirm(`ย้ายเคส #${cid} จาก “${from?.title || ''}” ไป “${to.title}”?`)) return;
+  const d = await api(`/api/monitor-tags/${toId}/cases`, { method: 'POST', silent: true, body: { calllog_id: cid } });
+  if (!d || d.error) { showToast(d?.error || 'ย้ายไม่สำเร็จ', 'error'); return; }
+  for (const list of [_mtActive, _mtTags]) {
+    const x = list.find(y => y.id === toId);
+    if (x && !(x.linked_ids || []).includes(cid)) x.linked_ids = [...(x.linked_ids || []), cid];
+  }
+  if (!(await mtUnlink(fromId, cid))) return;
+  showToast(`ย้ายเคส #${cid} ไป “${to.title}” แล้ว`);
+  mtOpenDetail(fromId, _mtDetailStore);
   mtAfterChange();
 }
 
