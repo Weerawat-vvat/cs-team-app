@@ -12529,6 +12529,9 @@ async function ensureMonitorTagTables() {
       IF COL_LENGTH('monitor_tags','keywords') IS NULL ALTER TABLE monitor_tags ADD keywords NVARCHAR(1000) NULL;
       IF COL_LENGTH('monitor_tags','any_subject') IS NULL ALTER TABLE monitor_tags ADD any_subject BIT NULL;
       IF COL_LENGTH('monitor_tags','match_mode') IS NULL ALTER TABLE monitor_tags ADD match_mode NVARCHAR(10) NULL;`);
+    await req().query(`UPDATE monitor_tags SET scope='global', group_id=NULL, registration_id=NULL,
+        customer_name=N'ทุก License', store_name=N'ทุก License'
+      WHERE match_mode='manual' AND ISNULL(scope,'')<>'global'`);
     await req().query(`
       IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='monitor_tag_files' AND xtype='U')
       CREATE TABLE monitor_tag_files (
@@ -12584,6 +12587,8 @@ function monitorMatch(r, tag) {
   // เคสที่ผูกเอง (monitor_tag_cases อยู่คนละฐานกับ Calllog) — ใส่เป็นเลข int ตรง ๆ
   const linked = (tag.linked_ids || []).map(Number).filter(Number.isInteger);
   const withLinked = w => linked.length ? `((${w}) OR cl.CalllogId IN (${linked.join(',')}))` : w;
+  // Tag กลาง — ไม่จำกัดร้าน: เคสที่ติด Tag จากทุก License + คำค้น (ถ้ามี) ทุกร้าน
+  if (tag.scope === 'global') return { join: '', where: withLinked(conds.join(' AND ') || '1=0') };
   if (tag.scope === 'group' && tag.group_id) {
     r.input('gid', sql.Int, tag.group_id);
     return { join: 'INNER JOIN CustomerRegistration cr ON cr.RegistrationId = cl.RegistrationId', where: withLinked('cr.GroupId=@gid' + rest) };
@@ -12753,6 +12758,13 @@ app.get('/api/monitor-tags/:id/tickets', authRequired, async (request, res) => {
       .input('en', sql.DateTime, tag.status === 'resolved' ? monitorToExt(tag.resolved_at, skew) : null)
       .input('bd', sql.Int, tag.baseline_days);
     const m = monitorMatch(r, tag);
+    // ?store= — drill-down จากตารางร้านในหน้า Monitor Tag
+    const store = String(request.query.store || '').trim();
+    let storeCond = '';
+    if (store) {
+      r.input('fstore', sql.NVarChar, store);
+      storeCond = ' AND EXISTS (SELECT 1 FROM CustomerRegistration fx WHERE fx.RegistrationId = cl.RegistrationId AND fx.CompanyName = @fstore)';
+    }
     const rows = (await r.query(`
       DECLARE @e DATETIME = ISNULL(@en, GETDATE());
       SELECT TOP 300
@@ -12764,12 +12776,64 @@ app.get('/api/monitor-tags/:id/tickets', authRequired, async (request, res) => {
       FROM Calllog cl ${m.join}
       LEFT JOIN CallStatus cs ON cs.StatusId = cl.StatusId
       LEFT JOIN Users      u  ON u.UserId    = cl.SupportId
-      WHERE cl.Active=1 AND ${m.where}
+      WHERE cl.Active=1 AND ${m.where}${storeCond}
         AND cl.ReceiveDate >= DATEADD(day, -@bd, @c) AND cl.ReceiveDate <= @e
       ORDER BY cl.ReceiveDate DESC`)).recordset;
     const ls = new Set(tag.linked_ids);
     rows.forEach(x => { x.linked = ls.has(x.id); });
     res.json({ tag, rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/monitor-tags/:id/analysis — เคสของ tag แยกตามร้าน / แบรนด์ / หัวข้อ (ก่อน vs หลังตั้ง tag)
+// ช่วงเวลาเดียวกับสถิติ: ตัวกรองวันที่ด้านบน หรือ 30 วันก่อนเริ่ม → วันนี้
+app.get('/api/monitor-tags/:id/analysis', authRequired, async (request, res) => {
+  try {
+    const tag = (await req().input('id', sql.Int, +request.params.id)
+      .query('SELECT * FROM monitor_tags WHERE id=@id')).recordset[0];
+    if (!tag) return res.status(404).json({ error: 'ไม่พบ Monitor Tag' });
+    if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
+    tag.linked_ids = (await monitorLinkedIds([tag.id]))[tag.id] || [];
+    const { dateFrom, dateTo } = request.query;
+    const skew = await monitorClockSkew();
+    const r = extReq()
+      .input('c',  sql.DateTime, monitorToExt(monitorStart(tag), skew))
+      .input('en', sql.DateTime, tag.status === 'resolved' ? monitorToExt(tag.resolved_at, skew) : null)
+      .input('bd', sql.Int, tag.baseline_days)
+      .input('fs', sql.DateTime, dateFrom && dateTo ? new Date(dateFrom) : null)
+      .input('fe', sql.DateTime, dateFrom && dateTo ? new Date(new Date(dateTo).setHours(23, 59, 59, 999)) : null);
+    const m = monitorMatch(r, tag);
+    const rows = (await r.query(`
+      DECLARE @s DATETIME = ISNULL(@fs, DATEADD(day, -@bd, @c));
+      DECLARE @e DATETIME = ISNULL(@fe, GETDATE());
+      IF @e > GETDATE() SET @e = GETDATE();
+      IF @en IS NOT NULL AND @e > @en SET @e = @en;
+      SELECT xr.CompanyName AS company,
+             CASE WHEN xr.GroupId IS NOT NULL AND xr.GroupId <> 1 THEN xg.GroupName END AS grp,
+             ISNULL(NULLIF(LTRIM(cl.Subject), ''), '(ไม่ระบุหัวข้อ)') AS subject,
+             SUM(CASE WHEN cl.ReceiveDate <  @c THEN 1 ELSE 0 END) AS pre,
+             SUM(CASE WHEN cl.ReceiveDate >= @c THEN 1 ELSE 0 END) AS post
+      FROM Calllog cl ${m.join}
+      LEFT JOIN CustomerRegistration xr ON xr.RegistrationId = cl.RegistrationId
+      LEFT JOIN CustomerGroup        xg ON xg.GroupId        = xr.GroupId
+      WHERE cl.Active=1 AND ${m.where} AND cl.ReceiveDate >= @s AND cl.ReceiveDate <= @e
+      GROUP BY xr.CompanyName, CASE WHEN xr.GroupId IS NOT NULL AND xr.GroupId <> 1 THEN xg.GroupName END,
+               ISNULL(NULLIF(LTRIM(cl.Subject), ''), '(ไม่ระบุหัวข้อ)')`)).recordset;
+    const roll = (key, extra) => {
+      const mp = new Map();
+      for (const x of rows) {
+        const k = key(x) || '(ไม่ระบุ)';
+        const a = mp.get(k) || { name: k, pre: 0, post: 0, ...(extra ? extra(x) : {}) };
+        a.pre += x.pre; a.post += x.post; mp.set(k, a);
+      }
+      return [...mp.values()].sort((a, b) => (b.post - a.post) || (b.pre - a.pre));
+    };
+    res.json({
+      stores:   roll(x => x.company, x => ({ grp: x.grp || null })),
+      groups:   roll(x => x.grp || 'สาขาเดี่ยว / INF Group'),
+      subjects: roll(x => x.subject),
+      total: rows.reduce((a, x) => ({ pre: a.pre + x.pre, post: a.post + x.post }), { pre: 0, post: 0 })
+    });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -12816,8 +12880,8 @@ app.post('/api/monitor-tags', authRequired, async (request, res) => {
 
     // สาขาที่อยู่ใน License Group (แบรนด์) → ดูระดับกลุ่ม
     // สาขาเดี่ยว (ไม่มีกลุ่ม) หรือกลุ่ม INF Group (GroupId 1) → ดูระดับสาขา
-    let scope = 'store', gid = null, groupName = null;
-    if (rid && getExtPool()) {
+    let scope = manual ? 'global' : 'store', gid = null, groupName = null;
+    if (!manual && rid && getExtPool()) {
       const g = (await extReq().input('rid', sql.Int, rid).query(`
         SELECT cr.GroupId, cg.GroupName FROM CustomerRegistration cr
         LEFT JOIN CustomerGroup cg ON cg.GroupId = cr.GroupId
@@ -12836,20 +12900,20 @@ app.post('/api/monitor-tags', authRequired, async (request, res) => {
       .input('man', sql.Bit, manual ? 1 : 0).input('ttl', sql.NVarChar, title)
       .query(`SELECT TOP 1 id, title FROM monitor_tags
               WHERE status='active' AND (
-                (@man=1 AND title=@ttl) OR
+                (@man=1 AND scope='global' AND title=@ttl) OR
                 (@man=0 AND ISNULL(match_mode,'subject')<>'manual' AND ISNULL(keywords,'')=@kw AND ISNULL(any_subject,0)=@any
-                 AND (@any=1 OR subject=@sub))) AND (
-                (@gid IS NOT NULL AND scope='group' AND group_id=@gid) OR
-                (@gid IS NULL AND ISNULL(scope,'store')='store' AND
-                  ((@rid IS NOT NULL AND registration_id=@rid) OR (@rid IS NULL AND store_name=@store))))`)).recordset[0];
+                 AND (@any=1 OR subject=@sub) AND (
+                  (@gid IS NOT NULL AND scope='group' AND group_id=@gid) OR
+                  (@gid IS NULL AND ISNULL(scope,'store')='store' AND
+                    ((@rid IS NOT NULL AND registration_id=@rid) OR (@rid IS NULL AND store_name=@store))))))`)).recordset[0];
     if (dup) return res.status(409).json({
-      error: manual ? `${gid ? 'แบรนด์นี้' : 'สาขานี้'}มี Tag “${dup.title}” อยู่แล้ว — เลือก Tag เดิมแทนได้`
+      error: manual ? `มี Tag “${dup.title}” อยู่แล้ว — เลือก Tag เดิมแทนได้`
         : `${gid ? 'กลุ่มนี้' : 'สาขานี้'}มี Monitor Tag ${kwStr ? 'คำค้นนี้' : 'หัวข้อนี้'}อยู่แล้ว (“${dup.title}”)`, id: dup.id });
 
     const row = (await req()
-      .input('cn',  sql.NVarChar, groupName || customer)
-      .input('sn',  sql.NVarChar, gid ? (groupName || customer) : store)
-      .input('rid', sql.Int, gid ? null : rid)
+      .input('cn',  sql.NVarChar, manual ? 'ทุก License' : groupName || customer)
+      .input('sn',  sql.NVarChar, manual ? 'ทุก License' : gid ? (groupName || customer) : store)
+      .input('rid', sql.Int, manual || gid ? null : rid)
       .input('scp', sql.NVarChar, scope)
       .input('gid', sql.Int, gid)
       .input('sub', sql.NVarChar, subject)
