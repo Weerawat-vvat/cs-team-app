@@ -504,12 +504,30 @@ textarea{resize:vertical;min-height:80px}
 .mt-detail-bar button{border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:6px;padding:.2rem .65rem;font-size:.74rem;cursor:pointer;font-family:inherit}
 .mt-detail-bar button:hover{border-color:var(--primary);color:var(--primary)}
 .mt-spark{display:block;width:110px;height:26px}
+.mt-code{width:100%;box-sizing:border-box;font-family:Consolas,'IBM Plex Mono',Menlo,monospace!important;font-size:.76rem!important;line-height:1.45;border:1.5px solid var(--border);border-radius:8px;padding:.45rem .6rem;background:var(--card2);color:var(--text);resize:vertical;outline:none;tab-size:4;white-space:pre}
+.mt-code:focus{border-color:var(--primary)}
+.mt-scripts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem;margin-top:.8rem}
+.mt-script{border:1px solid var(--line-2);border-radius:10px;padding:.55rem .65rem;background:var(--card)}
+.mt-script-hd{display:flex;align-items:center;gap:.4rem;margin-bottom:.35rem;font-size:.78rem;font-weight:600;color:var(--text)}
+.mt-script-hd .sp{flex:1}
+.mt-mini{border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:6px;padding:.12rem .5rem;font-size:.7rem;cursor:pointer;font-family:inherit;white-space:nowrap}
+.mt-mini:hover{border-color:var(--primary);color:var(--primary)}
+.mt-files{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.4rem}
+.mt-file{display:inline-flex;align-items:center;gap:.3rem;border:1px solid var(--line-2);background:var(--card2);border-radius:6px;padding:.1rem .2rem .1rem .45rem;font-size:.72rem;max-width:100%}
+.mt-file a{color:var(--primary);cursor:pointer;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px}
+.mt-file button{border:none;background:none;color:var(--muted);cursor:pointer;font-size:.8rem;padding:0 .2rem}
+.mt-file button:hover{color:#c0392b}
+.mt-attach{display:inline-flex;align-items:center;gap:.25rem;cursor:pointer}
+.mt-attach input{display:none}
+.mt-scripts-ft{display:flex;align-items:center;gap:.6rem;justify-content:flex-end;margin-top:.5rem;padding-right:3.2rem}
+.mt-dirty{font-size:.72rem;color:#b7791f}
 .mt-form label{display:block;font-size:.75rem;font-weight:600;color:var(--muted);margin-bottom:.25rem}
 .mt-form input,.mt-form textarea,.mt-form select{width:100%;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.86rem;font-family:inherit;outline:none;background:var(--card);color:var(--text);box-sizing:border-box}
 .mt-form input[readonly]{background:var(--card2);color:var(--muted)}
 .mt-form .row{margin-bottom:.7rem}
 @media (max-width:760px){
-  .mt-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .mt-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .mt-scripts{grid-template-columns:1fr}
 }
 .si-brand-header{display:flex;align-items:center;gap:.5rem;padding:.55rem .85rem;background:#fff;border:1px solid var(--border);border-radius:10px;cursor:pointer;margin-bottom:.35rem;font-weight:700;font-size:.88rem;user-select:none}
 .si-brand-header:hover{background:#faf9f6}
@@ -2397,7 +2415,7 @@ textarea{resize:vertical;min-height:80px}
 
 <!-- Monitor Tag: create -->
 <div class="overlay" id="modal-mt-create">
-  <div class="modal mt-form" style="max-width:520px;padding:1.2rem">
+  <div class="modal mt-form" style="max-width:700px;padding:1.2rem">
     <div class="modal-head">
       <div style="font-size:1.08rem;font-weight:600">📌 เพิ่ม Monitor Tag</div>
       <button class="modal-close" onclick="closeModal('modal-mt-create')">×</button>
@@ -2408,8 +2426,18 @@ textarea{resize:vertical;min-height:80px}
     </div>
     <div class="row"><label>Tag Title <span style="color:#b04a40">*</span></label><input id="mt-c-title" maxlength="300"/></div>
     <div class="row"><label>Description / Monitor Note</label><textarea id="mt-c-note" rows="4" placeholder="เช่น อัปเดตเวอร์ชันกล้องแล้ว รอดูว่าอาการหายไหม"></textarea></div>
+    <div class="grid-2">
+      <div class="row"><label>Script ตรวจสอบ (Check)</label>
+        <textarea id="mt-c-check" class="mt-code" rows="5" spellcheck="false" placeholder="เช่น SQL / PowerShell ที่ใช้เช็คอาการ"></textarea>
+        <input id="mt-c-check-files" type="file" multiple accept=".sql,.txt,.log,.ps1,.bat,.cmd,.sh,.py,.js,.json,.xml,.yaml,.yml,.ini,.conf,.cfg,.reg,.zip,.csv,.md" style="margin-top:.35rem;font-size:.72rem;border:none;padding:0;background:none"/>
+      </div>
+      <div class="row"><label>Script แก้ไข (Fix)</label>
+        <textarea id="mt-c-fix" class="mt-code" rows="5" spellcheck="false" placeholder="เช่น Script ที่ใช้แก้ปัญหา"></textarea>
+        <input id="mt-c-fix-files" type="file" multiple accept=".sql,.txt,.log,.ps1,.bat,.cmd,.sh,.py,.js,.json,.xml,.yaml,.yml,.ini,.conf,.cfg,.reg,.zip,.csv,.md" style="margin-top:.35rem;font-size:.72rem;border:none;padding:0;background:none"/>
+      </div>
+    </div>
     <div style="font-size:.74rem;color:var(--muted);background:var(--card2);border:1px solid var(--line-2);border-radius:8px;padding:.5rem .7rem;margin-bottom:.9rem">
-      ระบบจะนับเคสของ <b>สาขานี้</b> ในหัวข้อ <b>“<span id="mt-c-subject"></span>”</b> ทุกเคสหลังตั้ง Tag แล้วเทียบค่าเฉลี่ยต่อวันกับ 30 วันก่อนตั้ง Tag
+      ระบบจะนับเคสของ <b id="mt-c-scope">สาขานี้</b> ในหัวข้อ <b>“<span id="mt-c-subject"></span>”</b> ทุกเคสหลังตั้ง Tag แล้วเทียบค่าเฉลี่ยต่อวันกับ 30 วันก่อนตั้ง Tag
     </div>
     <div style="display:flex;justify-content:flex-end;gap:.5rem">
       <button class="svc-btn-ghost" onclick="closeModal('modal-mt-create')">ยกเลิก</button>
@@ -2434,6 +2462,7 @@ textarea{resize:vertical;min-height:80px}
           <th style="text-align:left;padding:.45rem .7rem;color:var(--muted);font-weight:600">เลขที่</th>
           <th style="text-align:left;padding:.45rem .7rem;color:var(--muted);font-weight:600;white-space:nowrap">วันที่แจ้ง</th>
           <th style="text-align:left;padding:.45rem .7rem;color:var(--muted);font-weight:600">ช่วง</th>
+          <th id="mt-d-store-th" style="text-align:left;padding:.45rem .7rem;color:var(--muted);font-weight:600">สาขา</th>
           <th style="text-align:left;padding:.45rem .7rem;color:var(--muted);font-weight:600;min-width:240px">รายละเอียด</th>
           <th style="text-align:left;padding:.45rem .7rem;color:var(--muted);font-weight:600">สถานะ</th>
           <th style="text-align:left;padding:.45rem .7rem;color:var(--muted);font-weight:600">ผู้รับผิดชอบ</th>
@@ -19791,11 +19820,14 @@ let _issTicketsData = null;
 let _mtActive = [];   // active Monitor Tags — ใช้ติดป้าย "มอนิเตอร์อยู่" ในรายการงาน
 
 // tag ที่ครอบเคสนี้อยู่ (สาขาเดียวกัน + หัวข้อเดียวกัน) — ตรงกับ rule ฝั่ง server
+// tag ระดับกลุ่มครอบทุกสาขาใน License Group เดียวกัน
 function mtTagFor(r) {
   const subject = r.subject || _issTicketsSubject;
-  return _mtActive.find(t => t.subject === subject &&
-    (t.registration_id ? t.registration_id === r.registration_id : t.store_name === r.company));
+  return _mtActive.find(t => t.subject === subject && (
+    t.scope === 'group' ? !!r.group_id && t.group_id === r.group_id
+    : t.registration_id ? t.registration_id === r.registration_id : t.store_name === r.company));
 }
+const mtIsGroup = t => t.scope === 'group';
 
 function issCloseTickets() {
   _issTicketsSubject = null;
@@ -19890,10 +19922,14 @@ function mtOpenCreate(i) {
     category: r.category || null,
     source_ticket_id: r.id
   };
+  // สาขาใน License Group (แบรนด์) → ดูทั้งกลุ่ม · สาขาเดี่ยว / INF Group → ดูสาขาเดียว (server ตัดสินซ้ำอีกที)
+  const isGroup = !!r.group_id;
   document.getElementById('mt-c-customer').value = _mtDraft.customer_name;
-  document.getElementById('mt-c-store').value    = _mtDraft.store_name;
+  document.getElementById('mt-c-store').value    = isGroup ? `ทุกสาขาในกลุ่ม (ระดับ License Group)` : _mtDraft.store_name;
+  document.getElementById('mt-c-scope').textContent = isGroup ? `ทุกสาขาในกลุ่ม ${_mtDraft.customer_name}` : 'สาขานี้';
   document.getElementById('mt-c-title').value    = _mtDraft.subject;
   document.getElementById('mt-c-note').value     = (r.description || '').trim();
+  ['mt-c-check', 'mt-c-fix', 'mt-c-check-files', 'mt-c-fix-files'].forEach(id => { document.getElementById(id).value = ''; });
   document.getElementById('mt-c-subject').textContent = _mtDraft.subject;
   openModal('modal-mt-create');
   setTimeout(() => document.getElementById('mt-c-title').focus(), 50);
@@ -19908,19 +19944,27 @@ async function mtSave() {
   btn.disabled = true;
   const d = await api('/api/monitor-tags', { method: 'POST', silent: true, body: {
     ..._mtDraft, title,
-    note: document.getElementById('mt-c-note').value
+    note: document.getElementById('mt-c-note').value,
+    check_script: document.getElementById('mt-c-check').value,
+    fix_script: document.getElementById('mt-c-fix').value
   }});
+  if (!d || d.error) { btn.disabled = false; showToast(d?.error || 'บันทึกไม่สำเร็จ', 'error'); return; }
+  const upErr = [];
+  for (const kind of ['check', 'fix']) {
+    const files = document.getElementById(`mt-c-${kind}-files`).files;
+    if (files.length) { const u = await mtUploadFiles(d.id, kind, files); if (u.error) upErr.push(u.error); }
+  }
   btn.disabled = false;
-  if (!d || d.error) { showToast(d?.error || 'บันทึกไม่สำเร็จ', 'error'); return; }
   closeModal('modal-mt-create');
-  showToast('เพิ่ม Monitor Tag แล้ว — ดูได้ที่แท็บ 📌 Monitor Tag');
+  if (upErr.length) showToast('สร้าง Tag แล้ว แต่แนบไฟล์ไม่สำเร็จ: ' + upErr[0], 'error');
+  else showToast('เพิ่ม Monitor Tag แล้ว — ดูได้ที่แท็บ 📌 Monitor Tag');
   _mtActive.push(d);
   if (_issTicketsData) issRenderTickets(_issTicketsData);
   mtRefreshCount();
 }
 
 async function mtRefreshCount() {
-  const d = await api('/api/monitor-tags?status=active', { silent: true });
+  const d = await api('/api/monitor-tags?status=active&lite=1', { silent: true });
   if (d && Array.isArray(d.tags)) mtSetCount(d.tags.length);
 }
 function mtSetCount(n) {
@@ -19997,7 +20041,7 @@ function mtRenderKpis(list) {
   const k = (label, val, sub, cls) =>
     `<div class="stat-flat"><div class="label">${label}</div><div class="value ${cls}">${val}</div><div class="sub">${sub}</div></div>`;
   document.getElementById('mt-kpis').innerHTML =
-    k('กำลังมอนิเตอร์', list.length, `${new Set(list.map(t => t.store_name)).size} สาขา · ${new Set(list.map(t => t.customer_name)).size} กลุ่ม`, 'blue') +
+    k('กำลังมอนิเตอร์', list.length, `${list.filter(mtIsGroup).length} ระดับกลุ่ม · ${list.filter(t => !mtIsGroup(t)).length} ระดับสาขา`, 'blue') +
     k('▲ เพิ่มขึ้น', n('worsened'), 'หลัง Tag เคส/วันมากกว่าก่อน', 'orange') +
     k('▼ ลดลง', n('improved'), 'หลัง Tag เคส/วันน้อยกว่าก่อน', 'green') +
     k('● คงที่', n('stable'), 'เปลี่ยนไม่เกิน ±2%', 'white');
@@ -20027,8 +20071,11 @@ function mtRender() {
     const st = t.stats || {};
     const open = _mtOpen.has(t.id);
     html += `<tr class="mt-row${open ? ' open' : ''}" onclick="mtToggleRow(${t.id})" title="คลิกเพื่อดูกราฟ">
-      <td>${esc(t.store_name)}</td>
-      <td>${esc(t.subject)}${t.title && t.title !== t.subject ? `<span class="sub">${esc(t.title)}</span>` : ''}</td>
+      <td>${mtIsGroup(t)
+        ? `<span class="mt-pill" style="background:var(--primary-soft);color:var(--primary)">ทุกสาขา</span><span class="sub">ระดับ License Group</span>`
+        : `${esc(t.store_name)}<span class="sub">ระดับสาขา</span>`}</td>
+      <td>${esc(t.subject)}${t.title && t.title !== t.subject ? `<span class="sub">${esc(t.title)}</span>` : ''}${
+        t.check_script || t.fix_script || t.files?.length ? `<span class="sub">🧾 มี Script${t.files?.length ? ` · 📎 ${t.files.length} ไฟล์` : ''}</span>` : ''}</td>
       <td class="num">${fmtDate(t.created_at)}<span class="sub">${st.days_monitored ?? 0} วันที่แล้ว</span></td>
       <td class="r num">${st.error ? '—' : avg(st.pre_avg ?? null, st.pre_count || 0)}</td>
       <td class="r num">${st.error ? '—' : avg(st.post_avg ?? null, st.post_count || 0)}</td>
@@ -20057,7 +20104,117 @@ function mtDetailRow(t) {
       <button onclick="event.stopPropagation();mtResolve(${t.id})">✓ Resolve (ปิด Tag)</button>
     </div>
     <div class="mt-chart-box"><canvas id="mt-chart-${t.id}"></canvas></div>
+    ${mtScriptsPanel(t)}
   </td></tr>`;
+}
+
+// ── Script ตรวจสอบ / Script แก้ไข ของแต่ละ Tag ─────────────
+const _mtScriptDraft = {};   // id → {check, fix} ที่แก้แล้วยังไม่บันทึก — รอดจากการ render ใหม่
+const MT_KINDS = { check: 'Script ตรวจสอบ (Check)', fix: 'Script แก้ไข (Fix)' };
+
+function mtScriptVal(t, kind) {
+  const dr = _mtScriptDraft[t.id];
+  return dr && kind in dr ? dr[kind] : (t[kind + '_script'] || '');
+}
+
+function mtScriptsPanel(t) {
+  const dirty = !!_mtScriptDraft[t.id];
+  const panels = Object.entries(MT_KINDS).map(([kind, label]) => {
+    const files = (t.files || []).filter(f => f.kind === kind);
+    return `<div class="mt-script">
+      <div class="mt-script-hd">${label}<span class="sp"></span>
+        <button class="mt-mini" onclick="mtCopyScript(${t.id},'${kind}')">คัดลอก</button>
+        <label class="mt-mini mt-attach">📎 แนบไฟล์<input type="file" multiple accept=".sql,.txt,.log,.ps1,.bat,.cmd,.sh,.py,.js,.json,.xml,.yaml,.yml,.ini,.conf,.cfg,.reg,.zip,.csv,.md" onchange="mtAttach(${t.id},'${kind}',this)"/></label>
+      </div>
+      <textarea class="mt-code" id="mt-s-${t.id}-${kind}" rows="6" spellcheck="false"
+        placeholder="วาง script ที่นี่..." oninput="mtScriptInput(${t.id},'${kind}',this.value)">${esc(mtScriptVal(t, kind))}</textarea>
+      <div class="mt-files">${files.map(f => `<span class="mt-file" title="${esc(f.original_name)} · ${(f.file_size / 1024).toFixed(1)} KB · ${esc(dn(f.created_by) || f.created_by || '')}">
+          <a onclick="mtDownloadFile(${f.id})">${esc(f.original_name)}</a>
+          <button onclick="mtDeleteFile(${f.id})" title="ลบไฟล์">✕</button></span>`).join('')}</div>
+    </div>`;
+  }).join('');
+  const upd = t.scripts_updated_at ? `แก้ล่าสุด ${fmtDT(t.scripts_updated_at)}${t.scripts_updated_by ? ' โดย ' + esc(dn(t.scripts_updated_by) || t.scripts_updated_by) : ''}` : '';
+  return `<div class="mt-scripts">${panels}</div>
+    <div class="mt-scripts-ft">
+      <span class="mt-dirty" id="mt-s-dirty-${t.id}" style="${dirty ? '' : 'display:none'}">● ยังไม่ได้บันทึก</span>
+      <span class="mt-meta">${upd}</span>
+      <button class="svc-btn-primary" style="height:30px;padding:0 .9rem" onclick="mtSaveScripts(${t.id})">บันทึก Script</button>
+    </div>`;
+}
+
+function mtScriptInput(id, kind, v) {
+  const t = _mtTags.find(x => x.id === id);
+  const dr = _mtScriptDraft[id] || (_mtScriptDraft[id] = {});
+  dr[kind] = v;
+  // กลับไปเท่าค่าที่บันทึกไว้ทั้งคู่ = ไม่ dirty
+  if (t && ['check', 'fix'].every(k => !(k in dr) || dr[k] === (t[k + '_script'] || ''))) delete _mtScriptDraft[id];
+  const el = document.getElementById('mt-s-dirty-' + id);
+  if (el) el.style.display = _mtScriptDraft[id] ? '' : 'none';
+}
+
+async function mtSaveScripts(id) {
+  const t = _mtTags.find(x => x.id === id);
+  if (!t) return;
+  const d = await api(`/api/monitor-tags/${id}/scripts`, { method: 'PUT', silent: true, body: {
+    check_script: mtScriptVal(t, 'check'), fix_script: mtScriptVal(t, 'fix') } });
+  if (!d || d.error) { showToast(d?.error || 'บันทึก Script ไม่สำเร็จ', 'error'); return; }
+  Object.assign(t, d);
+  delete _mtScriptDraft[id];
+  showToast('บันทึก Script แล้ว');
+  mtRender();
+}
+
+async function mtCopyScript(id, kind) {
+  const t = _mtTags.find(x => x.id === id);
+  const v = t ? mtScriptVal(t, kind) : '';
+  if (!v) { showToast('ยังไม่มี Script', 'error'); return; }
+  try { await navigator.clipboard.writeText(v); showToast('คัดลอกแล้ว'); }
+  catch { const el = document.getElementById(`mt-s-${id}-${kind}`); el?.select(); document.execCommand('copy'); showToast('คัดลอกแล้ว'); }
+}
+
+async function mtUploadFiles(id, kind, fileList) {
+  const fd = new FormData();
+  [...fileList].forEach(f => fd.append('files', f));
+  try {
+    const res = await fetch(`${API}/api/monitor-tags/${id}/files?kind=${kind}`, {
+      method: 'POST', body: fd, headers: authToken ? { Authorization: 'Bearer ' + authToken } : {} });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) return { error: d.error || (res.status === 413 ? 'ไฟล์ใหญ่เกิน 5 MB' : `Error ${res.status}`) };
+    return d;
+  } catch (e) { return { error: e.message }; }
+}
+
+async function mtAttach(id, kind, input) {
+  if (!input.files.length) return;
+  const d = await mtUploadFiles(id, kind, input.files);
+  input.value = '';
+  if (d.error) { showToast(d.error, 'error'); return; }
+  const t = _mtTags.find(x => x.id === id);
+  if (t) t.files = [...(t.files || []), ...(d.files || [])];
+  showToast(`แนบ ${d.files?.length || 0} ไฟล์แล้ว`);
+  mtRender();
+}
+
+async function mtDownloadFile(fid) {
+  const name = _mtTags.flatMap(t => t.files || []).find(f => f.id === fid)?.original_name || 'script';
+  try {
+    const res = await fetch(`${API}/api/monitor-tags/files/${fid}`, { headers: authToken ? { Authorization: 'Bearer ' + authToken } : {} });
+    if (!res.ok) { showToast('ดาวน์โหลดไม่สำเร็จ', 'error'); return; }
+    const url = URL.createObjectURL(await res.blob());
+    const a = Object.assign(document.createElement('a'), { href: url, download: name });
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } catch (e) { showToast('ดาวน์โหลดไม่สำเร็จ', 'error'); }
+}
+
+async function mtDeleteFile(fid) {
+  const t = _mtTags.find(x => (x.files || []).some(f => f.id === fid));
+  const f = t?.files.find(x => x.id === fid);
+  if (!confirm(`ลบไฟล์ “${f?.original_name || ''}” ?`)) return;
+  const d = await api(`/api/monitor-tags/files/${fid}`, { method: 'DELETE', silent: true });
+  if (!d || d.error) { showToast(d?.error || 'ลบไม่สำเร็จ', 'error'); return; }
+  if (t) t.files = t.files.filter(x => x.id !== fid);
+  mtRender();
 }
 
 function mtToggleRow(id) {
@@ -20142,8 +20299,9 @@ async function mtOpenDetail(id) {
   const t = _mtTags.find(x => x.id === id);
   if (!t) return;
   document.getElementById('mt-d-title').textContent = t.title;
+  document.getElementById('mt-d-store-th').style.display = mtIsGroup(t) ? '' : 'none';
   document.getElementById('mt-d-sub').textContent =
-    `${t.customer_name} › ${t.store_name} · หัวข้อ “${t.subject}” · baseline ${t.baseline_days} วันก่อน ${fmtDate(t.created_at)}`;
+    `${t.customer_name} › ${mtIsGroup(t) ? 'ทุกสาขา (ระดับ License Group)' : t.store_name} · หัวข้อ “${t.subject}” · ตั้ง Tag ${fmtDate(t.created_at)}`;
   const tb = document.getElementById('mt-d-tbody');
   tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:var(--muted)">กำลังโหลด...</td></tr>';
   openModal('modal-mt-detail');
@@ -20162,7 +20320,8 @@ async function mtOpenDetail(id) {
     <td style="${td};white-space:nowrap;font-size:.76rem">${fmtDT(r.opened_at)}</td>
     <td style="${td};white-space:nowrap">${r.phase === 'post'
       ? '<span class="mt-pill" style="background:var(--primary-soft);color:var(--primary)">หลังตั้ง Tag</span>'
-      : '<span class="mt-pill mt-flat">Baseline</span>'}</td>
+      : '<span class="mt-pill mt-flat">ก่อนตั้ง Tag</span>'}</td>
+    ${mtIsGroup(t) ? `<td style="${td}">${esc(r.company || '—')}</td>` : ''}
     <td style="${td};color:var(--muted)">${esc((r.description || '').replace(/\s+/g, ' ').slice(0, 200)) || '—'}</td>
     <td style="${td};white-space:nowrap">${esc(r.status || '—')}</td>
     <td style="${td};white-space:nowrap;font-size:.78rem">${esc(dn(r.agent) || r.agent || '—')}</td>
@@ -20175,6 +20334,7 @@ setInterval(() => {
   const tab = document.getElementById('dash-tab-monitor');
   if (!tab || !tab.offsetParent) return;
   if (document.querySelector('#modal-mt-detail.open, #modal-mt-create.open')) return;
+  if (Object.keys(_mtScriptDraft).length || document.activeElement?.classList.contains('mt-code')) return;
   mtLoad({ quiet: true });
 }, 60 * 1000);
 

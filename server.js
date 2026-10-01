@@ -275,6 +275,28 @@ const skUpload = multer({
   }
 });
 
+// ── Monitor Tag script attachments (served only via authenticated API) ──
+const MT_SCRIPT_EXT = new Set([
+  '.sql', '.txt', '.log', '.ps1', '.bat', '.cmd', '.sh', '.py', '.js', '.json', '.xml', '.yaml', '.yml',
+  '.ini', '.conf', '.cfg', '.reg', '.zip', '.csv', '.md',
+]);
+const mtUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const dir = path.join(UPLOAD_DIR, 'monitor', String(parseInt(req.params.id) || 'tmp'));
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    },
+    filename: (req, file, cb) => {
+      const ext  = path.extname(file.originalname);
+      const base = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 60);
+      cb(null, `${Date.now()}_${base}${ext}`);
+    }
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => cb(null, MT_SCRIPT_EXT.has(path.extname(file.originalname).toLowerCase())),
+});
+
 // ── Smart filename decoder for Thai/Unicode ───────────────
 // busboy 1.x may already return correct UTF-8, OR may return latin1-encoded bytes.
 // Check first: if name already contains Thai/Unicode → use as-is.
@@ -623,6 +645,8 @@ app.use((req, res, next) => {
 });
 app.use(express.static(path.join(__dirname, 'public')));
 // Serve uploaded files
+// ไฟล์ script ของ Monitor Tag ห้ามเปิดผ่าน /uploads สาธารณะ — โหลดได้ทาง API ที่ต้อง login เท่านั้น
+app.use('/uploads/monitor', (req, res) => res.status(404).end());
 // - PDF/HTML: inline (browser opens them natively)
 // - Office files: force download (avoid redirect to Office Online)
 app.use('/uploads', (req, res, next) => {
@@ -12355,6 +12379,7 @@ app.get('/api/dashboard/issue-tickets', authRequired, async (request, res) => {
         cl.RegistrationId       AS registration_id,
         cr.CompanyName          AS company,
         CASE WHEN cr.GroupId IS NOT NULL AND cr.GroupId <> 1 THEN cg.GroupName END AS customer_group,
+        CASE WHEN cr.GroupId IS NOT NULL AND cr.GroupId <> 1 THEN cr.GroupId END AS group_id,
         cl.Subject              AS subject,
         ISNULL(pt.ProblemTypeDetail, '(ไม่ระบุ)') AS category,
         cs.StatusName           AS status,
@@ -12488,6 +12513,26 @@ async function ensureMonitorTagTables() {
         resolved_at      DATETIME      NULL,
         resolve_note     NVARCHAR(MAX) NULL
       )`);
+    // scope: 'group' = นับทุกสาขาใน License Group, 'store' (หรือ NULL ของ tag เก่า) = นับสาขาเดียว
+    await req().query(`
+      IF COL_LENGTH('monitor_tags','scope') IS NULL ALTER TABLE monitor_tags ADD scope NVARCHAR(10) NULL;
+      IF COL_LENGTH('monitor_tags','group_id') IS NULL ALTER TABLE monitor_tags ADD group_id INT NULL;
+      IF COL_LENGTH('monitor_tags','check_script') IS NULL ALTER TABLE monitor_tags ADD check_script NVARCHAR(MAX) NULL;
+      IF COL_LENGTH('monitor_tags','fix_script') IS NULL ALTER TABLE monitor_tags ADD fix_script NVARCHAR(MAX) NULL;
+      IF COL_LENGTH('monitor_tags','scripts_updated_by') IS NULL ALTER TABLE monitor_tags ADD scripts_updated_by NVARCHAR(100) NULL;
+      IF COL_LENGTH('monitor_tags','scripts_updated_at') IS NULL ALTER TABLE monitor_tags ADD scripts_updated_at DATETIME NULL;`);
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='monitor_tag_files' AND xtype='U')
+      CREATE TABLE monitor_tag_files (
+        id            INT PRIMARY KEY IDENTITY,
+        tag_id        INT           NOT NULL,
+        kind          NVARCHAR(10)  NOT NULL,      -- 'check' | 'fix'
+        filename      NVARCHAR(300) NOT NULL,
+        original_name NVARCHAR(300) NOT NULL,
+        file_size     INT           NULL,
+        created_by    NVARCHAR(100) NULL,
+        created_at    DATETIME      DEFAULT GETDATE()
+      )`);
   } catch (e) { console.error('[monitor-tags] ensure table:', e.message); }
 }
 
@@ -12497,6 +12542,13 @@ const MONITOR_STABLE_PCT = 2;   // เปลี่ยนแปลงไม่เ
 // เงื่อนไขจับคู่ Calllog กับ tag — ใช้ RegistrationId ถ้ามี ไม่งั้นตกไปใช้ชื่อสาขา
 function monitorMatch(r, tag) {
   r.input('sub', sql.NVarChar, tag.subject);
+  if (tag.scope === 'group' && tag.group_id) {
+    r.input('gid', sql.Int, tag.group_id);
+    return {
+      join: 'INNER JOIN CustomerRegistration cr ON cr.RegistrationId = cl.RegistrationId',
+      where: 'cr.GroupId=@gid AND cl.Subject=@sub'
+    };
+  }
   if (tag.registration_id) {
     r.input('rid', sql.Int, tag.registration_id);
     return { join: '', where: 'cl.RegistrationId=@rid AND cl.Subject=@sub' };
@@ -12584,6 +12636,12 @@ app.get('/api/monitor-tags', authRequired, async (request, res) => {
     let where = '';
     if (status !== 'all') { where = 'WHERE status=@st'; r.input('st', sql.NVarChar, status); }
     const tags = (await r.query(`SELECT * FROM monitor_tags ${where} ORDER BY customer_name, store_name, created_at DESC`)).recordset;
+    if (tags.length) {
+      const files = (await req().query(`
+        SELECT id, tag_id, kind, original_name, file_size, created_by, created_at FROM monitor_tag_files
+        WHERE tag_id IN (${tags.map(t => +t.id).join(',')}) ORDER BY created_at`)).recordset;
+      tags.forEach(t => { t.files = files.filter(f => f.tag_id === t.id); });
+    }
     // lite=1 — แค่รายชื่อ tag (ไว้ติดป้ายในรายการงาน) ไม่ต้องคำนวณสถิติจาก Calllog
     if (request.query.lite === '1') return res.json({ tags });
     if (!getExtPool()) return res.json({ tags: tags.map(t => ({ ...t, stats: null })), ext: false });
@@ -12614,7 +12672,8 @@ app.get('/api/monitor-tags/:id/tickets', authRequired, async (request, res) => {
         cl.CalllogId AS id, cl.ReceiveDate AS opened_at, cl.CloseDate AS closed_at,
         CASE WHEN cl.ReceiveDate >= @c THEN 'post' ELSE 'pre' END AS phase,
         cs.StatusName AS status, u.UserName AS agent,
-        LEFT(cl.CalllogDesc, 300) AS description, LEFT(cl.Solution, 300) AS solution
+        LEFT(cl.CalllogDesc, 300) AS description, LEFT(cl.Solution, 300) AS solution,
+        (SELECT TOP 1 x.CompanyName FROM CustomerRegistration x WHERE x.RegistrationId = cl.RegistrationId) AS company
       FROM Calllog cl ${m.join}
       LEFT JOIN CallStatus cs ON cs.StatusId = cl.StatusId
       LEFT JOIN Users      u  ON u.UserId    = cl.SupportId
@@ -12637,17 +12696,34 @@ app.post('/api/monitor-tags', authRequired, async (request, res) => {
     const rid = Number.isInteger(+b.registration_id) && +b.registration_id > 0 ? +b.registration_id : null;
     if (!store || !subject) return res.status(400).json({ error: 'ต้องมีชื่อสาขาและหัวข้อปัญหา' });
 
+    // สาขาที่อยู่ใน License Group (แบรนด์) → ดูระดับกลุ่ม
+    // สาขาเดี่ยว (ไม่มีกลุ่ม) หรือกลุ่ม INF Group (GroupId 1) → ดูระดับสาขา
+    let scope = 'store', gid = null, groupName = null;
+    if (rid && getExtPool()) {
+      const g = (await extReq().input('rid', sql.Int, rid).query(`
+        SELECT cr.GroupId, cg.GroupName FROM CustomerRegistration cr
+        LEFT JOIN CustomerGroup cg ON cg.GroupId = cr.GroupId
+        WHERE cr.RegistrationId=@rid AND cr.GroupId IS NOT NULL AND cr.GroupId <> 1`)).recordset[0];
+      if (g) { scope = 'group'; gid = g.GroupId; groupName = g.GroupName || customer; }
+    }
+
     const dup = (await req()
       .input('rid', sql.Int, rid).input('store', sql.NVarChar, store).input('sub', sql.NVarChar, subject)
+      .input('gid', sql.Int, gid)
       .query(`SELECT TOP 1 id, title FROM monitor_tags
-              WHERE status='active' AND subject=@sub
-                AND ((@rid IS NOT NULL AND registration_id=@rid) OR (@rid IS NULL AND store_name=@store))`)).recordset[0];
-    if (dup) return res.status(409).json({ error: `สาขานี้มี Monitor Tag หัวข้อนี้อยู่แล้ว (“${dup.title}”)`, id: dup.id });
+              WHERE status='active' AND subject=@sub AND (
+                (@gid IS NOT NULL AND scope='group' AND group_id=@gid) OR
+                (@gid IS NULL AND ISNULL(scope,'store')='store' AND
+                  ((@rid IS NOT NULL AND registration_id=@rid) OR (@rid IS NULL AND store_name=@store))))`)).recordset[0];
+    if (dup) return res.status(409).json({
+      error: `${gid ? 'กลุ่มนี้' : 'สาขานี้'}มี Monitor Tag หัวข้อนี้อยู่แล้ว (“${dup.title}”)`, id: dup.id });
 
     const row = (await req()
-      .input('cn',  sql.NVarChar, customer)
-      .input('sn',  sql.NVarChar, store)
-      .input('rid', sql.Int, rid)
+      .input('cn',  sql.NVarChar, groupName || customer)
+      .input('sn',  sql.NVarChar, gid ? (groupName || customer) : store)
+      .input('rid', sql.Int, gid ? null : rid)
+      .input('scp', sql.NVarChar, scope)
+      .input('gid', sql.Int, gid)
       .input('sub', sql.NVarChar, subject)
       .input('cat', sql.NVarChar, str(b.category, 200) || null)
       .input('ttl', sql.NVarChar, title)
@@ -12655,11 +12731,87 @@ app.post('/api/monitor-tags', authRequired, async (request, res) => {
       .input('bd',  sql.Int, baseline)
       .input('src', sql.Int, Number.isInteger(+b.source_ticket_id) ? +b.source_ticket_id : null)
       .input('by',  sql.NVarChar, request.user?.username || null)
+      .input('cs',  sql.NVarChar, str(b.check_script, 200000) || null)
+      .input('fs',  sql.NVarChar, str(b.fix_script, 200000) || null)
       .query(`INSERT INTO monitor_tags
-                (customer_name, store_name, registration_id, subject, category, title, note, baseline_days, source_ticket_id, created_by)
+                (customer_name, store_name, registration_id, scope, group_id, subject, category, title, note, baseline_days, source_ticket_id, created_by,
+                 check_script, fix_script, scripts_updated_by, scripts_updated_at)
               OUTPUT INSERTED.*
-              VALUES (@cn, @sn, @rid, @sub, @cat, @ttl, @nt, @bd, @src, @by)`)).recordset[0];
+              VALUES (@cn, @sn, @rid, @scp, @gid, @sub, @cat, @ttl, @nt, @bd, @src, @by,
+                 @cs, @fs, CASE WHEN @cs IS NULL AND @fs IS NULL THEN NULL ELSE @by END,
+                 CASE WHEN @cs IS NULL AND @fs IS NULL THEN NULL ELSE GETDATE() END)`)).recordset[0];
     res.json(row);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT /api/monitor-tags/:id/scripts — Script ตรวจสอบ (check) / Script แก้ไข (fix) ของ tag
+app.put('/api/monitor-tags/:id/scripts', authRequired, async (request, res) => {
+  try {
+    const b = request.body || {};
+    const val = v => (v == null ? '' : String(v)).replace(/\s+$/, '').slice(0, 200000) || null;
+    const out = await req()
+      .input('id', sql.Int, +request.params.id)
+      .input('cs', sql.NVarChar, val(b.check_script))
+      .input('fs', sql.NVarChar, val(b.fix_script))
+      .input('by', sql.NVarChar, request.user?.username || null)
+      .query(`UPDATE monitor_tags SET check_script=@cs, fix_script=@fs, scripts_updated_by=@by, scripts_updated_at=GETDATE()
+              OUTPUT INSERTED.check_script, INSERTED.fix_script, INSERTED.scripts_updated_by, INSERTED.scripts_updated_at
+              WHERE id=@id`);
+    if (!out.recordset.length) return res.status(404).json({ error: 'ไม่พบ Monitor Tag' });
+    res.json(out.recordset[0]);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/monitor-tags/:id/files?kind=check|fix — แนบไฟล์ script
+app.post('/api/monitor-tags/:id/files', authRequired, mtUpload.array('files', 10), async (request, res) => {
+  const files = request.files || [];
+  try {
+    const id = parseInt(request.params.id);
+    const kind = request.query.kind === 'fix' ? 'fix' : 'check';
+    const tag = (await req().input('id', sql.Int, id).query('SELECT id FROM monitor_tags WHERE id=@id')).recordset[0];
+    if (!tag) { files.forEach(f => fs.unlink(f.path, () => {})); return res.status(404).json({ error: 'ไม่พบ Monitor Tag' }); }
+    if (!files.length) return res.status(400).json({ error: `ไม่พบไฟล์ หรือชนิดไฟล์ไม่รองรับ (${[...MT_SCRIPT_EXT].join(' ')})` });
+    const inserted = [];
+    for (const f of files) {
+      const r = await req()
+        .input('tid', sql.Int, id).input('k', sql.NVarChar, kind)
+        .input('fn', sql.NVarChar, f.filename).input('on', sql.NVarChar, fixUploadName(f.originalname))
+        .input('fz', sql.Int, f.size).input('by', sql.NVarChar, request.user?.username || null)
+        .query(`INSERT INTO monitor_tag_files (tag_id, kind, filename, original_name, file_size, created_by)
+                OUTPUT INSERTED.id, INSERTED.tag_id, INSERTED.kind, INSERTED.original_name, INSERTED.file_size, INSERTED.created_by, INSERTED.created_at
+                VALUES (@tid, @k, @fn, @on, @fz, @by)`);
+      inserted.push(r.recordset[0]);
+    }
+    res.json({ ok: true, files: inserted });
+  } catch (e) {
+    files.forEach(f => fs.unlink(f.path, () => {}));
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/monitor-tags/files/:fid — ดาวน์โหลดไฟล์ script (ต้อง login)
+app.get('/api/monitor-tags/files/:fid', authRequired, async (request, res) => {
+  try {
+    const f = (await req().input('id', sql.Int, +request.params.fid)
+      .query('SELECT * FROM monitor_tag_files WHERE id=@id')).recordset[0];
+    if (!f) return res.status(404).json({ error: 'ไม่พบไฟล์' });
+    const fp = path.join(UPLOAD_DIR, 'monitor', String(f.tag_id), path.basename(f.filename));
+    if (!fs.existsSync(fp)) return res.status(404).json({ error: 'ไฟล์หายจาก server' });
+    res.setHeader('Content-Type', 'application/octet-stream');   // ไม่ให้ browser รันหรือเปิด inline
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(f.original_name)}`);
+    fs.createReadStream(fp).pipe(res);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE /api/monitor-tags/files/:fid
+app.delete('/api/monitor-tags/files/:fid', authRequired, async (request, res) => {
+  try {
+    const f = (await req().input('id', sql.Int, +request.params.fid)
+      .query('SELECT * FROM monitor_tag_files WHERE id=@id')).recordset[0];
+    if (!f) return res.status(404).json({ error: 'ไม่พบไฟล์' });
+    fs.unlink(path.join(UPLOAD_DIR, 'monitor', String(f.tag_id), path.basename(f.filename)), () => {});
+    await req().input('id', sql.Int, f.id).query('DELETE FROM monitor_tag_files WHERE id=@id');
+    res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
