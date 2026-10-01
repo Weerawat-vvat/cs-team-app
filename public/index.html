@@ -2491,7 +2491,7 @@ textarea{resize:vertical;min-height:80px}
     <div id="mt-t-s1">
       <input id="mt-t-q" placeholder="ค้นหา Tag หรือพิมพ์ชื่อ Tag ใหม่..." autocomplete="off"
         oninput="mtTagList()" onkeydown="if(event.key==='Enter'){event.preventDefault();mtTagEnter()}"/>
-      <div class="mt-meta" style="margin:.5rem 0 .35rem">Tag ที่เปิดอยู่ของ <b id="mt-t-scope"></b></div>
+      <div class="mt-meta" style="margin:.5rem 0 .35rem">Tag ที่เปิดอยู่ของ <b id="mt-t-scope"></b> — คลิก Tag เพื่อติดให้เคสนี้ทันที</div>
       <div class="mt-tag-opts" id="mt-t-list"></div>
     </div>
 
@@ -20090,10 +20090,10 @@ function mtTagList() {
     const linked = (t.linked_ids || []).includes(T.r.id);
     const hit = !linked && mtRuleHits(t, T.r);
     const badge = linked ? '<span class="mt-pill mt-down"><i class=i-link></i> ติดแล้ว</span>' : hit ? '<span class="mt-pill mt-flat" title="ตรงกฎของ Tag นี้อยู่แล้ว"><i class=i-check></i> ตรงกฎ</span>' : '';
-    return `<button type="button" class="mt-opt${isOn(t) ? ' on' : ''}" onclick="mtTagPick(${t.id})" ondblclick="mtTagPick(${t.id});mtTagStep(2)">
+    return `<button type="button" class="mt-opt${isOn(t) ? ' on' : ''}" ${linked ? 'disabled title="เคสนี้ติด Tag นี้แล้ว" style="cursor:default;opacity:.7"' : `onclick="mtTagQuickLink(${t.id})" title="คลิกเพื่อติด Tag นี้ให้เคสทันที"`}>
       <div class="b"><div class="tg"><i class=i-tag></i>${esc(t.title)} <span class="mt-meta" style="font-weight:400">· ${mtScopeName(t)}</span></div>
         <div class="r">${mtRuleLabel(t)} · เริ่ม ${mtFmtStart(t)}${t.note ? ' · ' + esc(t.note.replace(/\s+/g, ' ').slice(0, 80)) : ''}</div></div>
-      ${badge}</button>`;
+      ${badge || '<span class="mt-meta" style="white-space:nowrap">ติด Tag ›</span>'}</button>`;
   }).join('');
   if (!newTitle) html += `<div class="mt-opt new" style="cursor:default;opacity:.75">
       <div class="b"><div class="tg"><i class=i-plus></i>สร้าง Tag ใหม่</div>
@@ -20113,6 +20113,24 @@ function mtTagPick(id) {
   _mtT.pick = { tag: _mtT.opts.find(t => t.id === id) };
   mtTagList();
 }
+
+// เลือก Tag ที่มีอยู่ → ติดให้เคสนี้เลย ไม่ต้องกรอกวิธีตรวจสอบ/แก้ไข
+let _mtQuickBusy = false;
+async function mtTagQuickLink(id) {
+  const T = _mtT; if (!T || _mtQuickBusy) return;
+  const tag = T.opts.find(t => t.id === id); if (!tag) return;
+  _mtQuickBusy = true;
+  const d = await api(`/api/monitor-tags/${id}/cases`, { method: 'POST', silent: true, body: { calllog_id: T.r.id } });
+  _mtQuickBusy = false;
+  if (!d || d.error) { showToast(d?.error || 'ติด Tag ไม่สำเร็จ', 'error'); return; }
+  for (const list of [_mtActive, _mtTags]) {
+    const x = list.find(y => y.id === id);
+    if (x && !(x.linked_ids || []).includes(T.r.id)) x.linked_ids = [...(x.linked_ids || []), T.r.id];
+  }
+  closeModal('modal-mt-tag');
+  showToast(`ติด Tag “${tag.title}” ให้เคส #${T.r.id} แล้ว`);
+  mtAfterChange();
+}
 function mtTagPickNew() {
   const title = document.getElementById('mt-t-q').value.trim();
   if (!title) { document.getElementById('mt-t-q').focus(); return; }
@@ -20121,9 +20139,9 @@ function mtTagPickNew() {
 }
 // Enter: เลือกอันแรกที่ค้นเจอ หรือสร้างใหม่ตามที่พิมพ์ แล้วไปขั้นถัดไป
 function mtTagEnter() {
-  const first = document.querySelector('#mt-t-list .mt-opt');
-  if (!_mtT.pick && first) first.click();
-  if (_mtT.pick) mtTagStep(2);
+  const first = document.querySelector('#mt-t-list button.mt-opt:not([disabled])');
+  if (!_mtT.pick && first) first.click();   // Tag เดิม = ติดทันที · สร้างใหม่ = เลือกไว้
+  if (_mtT.pick && !_mtT.pick.tag) mtTagStep(2);
 }
 
 function mtTagStep(n) {
