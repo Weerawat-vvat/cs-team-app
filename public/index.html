@@ -534,6 +534,13 @@ textarea{resize:vertical;min-height:80px}
 .mt-attach input{display:none}
 .mt-scripts-ft{display:flex;align-items:center;gap:.6rem;justify-content:flex-end;margin-top:.5rem;padding-right:3.2rem}
 .mt-dirty{font-size:.72rem;color:#b7791f}
+.mt-pick-list{display:flex;flex-direction:column;gap:.5rem;max-height:52vh;overflow-y:auto;margin:.2rem 0 .9rem}
+.mt-pick{display:flex;align-items:center;gap:.75rem;border:1px solid var(--border);border-radius:10px;padding:.6rem .75rem;background:var(--card)}
+.mt-pick:hover{border-color:var(--primary)}
+.mt-pick .b{flex:1;min-width:0}
+.mt-pick .t{font-weight:600;font-size:.86rem;color:var(--text)}
+.mt-pick .r{font-size:.74rem;color:var(--muted);margin-top:.15rem}
+.mt-pick .n{font-size:.72rem;color:var(--muted);margin-top:.15rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mt-form label{display:block;font-size:.75rem;font-weight:600;color:var(--muted);margin-bottom:.25rem}
 .mt-form input,.mt-form textarea,.mt-form select{width:100%;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.86rem;font-family:inherit;outline:none;background:var(--card);color:var(--text);box-sizing:border-box}
 .mt-form input[readonly]{background:var(--card2);color:var(--muted)}
@@ -2444,6 +2451,12 @@ textarea{resize:vertical;min-height:80px}
       <div class="row"><label>วันที่เริ่ม Monitor <span style="font-weight:400">(ย้อนหลังได้)</span></label><input id="mt-c-start" type="datetime-local"/></div>
     </div>
     <div class="row"><label>Description / Monitor Note</label><textarea id="mt-c-note" rows="4" placeholder="เช่น อัปเดตเวอร์ชันกล้องแล้ว รอดูว่าอาการหายไหม"></textarea></div>
+    <div class="row"><label>คำค้นในรายละเอียดเคส <span style="font-weight:400">(แยกอาการ เช่น ปิดการขายไม่ได้ / ปิดกะไม่ได้ · คั่นหลายคำด้วย ,)</span></label>
+      <input id="mt-c-kw" placeholder="เช่น ปิดกะไม่ได้, ปิดกะค้าง — เว้นว่าง = นับทุกเคสในหัวข้อนี้" oninput="mtRuleText()"/>
+      <label style="display:flex;align-items:center;gap:.35rem;font-weight:400;margin-top:.35rem;cursor:pointer">
+        <input type="checkbox" id="mt-c-any" style="width:auto" onchange="mtRuleText()"/> ไม่จำกัดหัวข้อ — นับทุกเคสที่รายละเอียดมีคำค้น (Support อาจเลือกหัวข้อต่างกัน)
+      </label>
+    </div>
     <div class="grid-2">
       <div class="row"><label>Script ตรวจสอบ (Check)</label>
         <textarea id="mt-c-check" class="mt-code" rows="5" spellcheck="false" placeholder="เช่น SQL / PowerShell ที่ใช้เช็คอาการ"></textarea>
@@ -2455,11 +2468,31 @@ textarea{resize:vertical;min-height:80px}
       </div>
     </div>
     <div style="font-size:.74rem;color:var(--muted);background:var(--card2);border:1px solid var(--line-2);border-radius:8px;padding:.5rem .7rem;margin-bottom:.9rem">
-      ระบบจะนับเคสของ <b id="mt-c-scope">สาขานี้</b> ในหัวข้อ <b>“<span id="mt-c-subject"></span>”</b> ทุกเคสหลังตั้ง Tag แล้วเทียบค่าเฉลี่ยต่อวันกับ 30 วันก่อนตั้ง Tag
+      ระบบจะนับเคสของ <b id="mt-c-scope">สาขานี้</b> <span id="mt-c-rule"></span> ทุกเคสหลังตั้ง Tag แล้วเทียบค่าเฉลี่ยต่อวันกับ 30 วันก่อนตั้ง Tag
+      <span id="mt-c-subject" style="display:none"></span>
     </div>
     <div style="display:flex;justify-content:flex-end;gap:.5rem">
       <button class="svc-btn-ghost" onclick="closeModal('modal-mt-create')">ยกเลิก</button>
       <button class="svc-btn-primary" id="mt-c-save" onclick="mtSave()">บันทึก Tag</button>
+    </div>
+  </div>
+</div>
+
+<!-- Monitor Tag: เลือก Tag ที่มีอยู่ของร้าน/แบรนด์นี้ หรือสร้างใหม่ -->
+<div class="overlay" id="modal-mt-pick">
+  <div class="modal" style="max-width:620px;padding:1.2rem">
+    <div class="modal-head">
+      <div style="min-width:0">
+        <div style="font-size:1.05rem;font-weight:600">📌 เคสนี้เป็นปัญหาที่มอนิเตอร์อยู่ไหม?</div>
+        <div class="mt-meta" id="mt-p-sub"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-mt-pick')">×</button>
+    </div>
+    <div class="mt-meta" style="margin-bottom:.45rem">Monitor Tag ที่เปิดอยู่ของร้าน / แบรนด์นี้ — เลือกเพื่อผูกเคสนี้เข้าไป</div>
+    <div class="mt-pick-list" id="mt-p-list"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;border-top:1px solid var(--line-2);padding-top:.8rem">
+      <span class="mt-meta">ไม่มี Tag ที่ตรงกับอาการนี้?</span>
+      <button class="svc-btn-primary" onclick="mtPickNew()">+ สร้าง Tag ใหม่</button>
     </div>
   </div>
 </div>
@@ -19844,11 +19877,34 @@ let _mtActive = [];   // active Monitor Tags — ใช้ติดป้าย 
 
 // tag ที่ครอบเคสนี้อยู่ (สาขาเดียวกัน + หัวข้อเดียวกัน) — ตรงกับ rule ฝั่ง server
 // tag ระดับกลุ่มครอบทุกสาขาใน License Group เดียวกัน
-function mtTagFor(r) {
+// กฎเดียวกับ monitorMatch ฝั่ง server: ขอบเขต + หัวข้อ (ยกเว้นไม่จำกัดหัวข้อ) + คำค้นข้อใดข้อหนึ่งในรายละเอียด
+const mtKeywords = v => [...new Set(String(v || '').split(/[,\n]/).map(k => k.trim()).filter(Boolean))];
+function mtRuleHits(t, r) {
   const subject = r.subject || r.title || _issTicketsSubject;
-  return _mtActive.find(t => t.subject === subject && (
-    t.scope === 'group' ? !!r.group_id && t.group_id === r.group_id
-    : t.registration_id ? t.registration_id === r.registration_id : t.store_name === r.company));
+  const desc = String(r.description || '').toLowerCase();
+  const kws = mtKeywords(t.keywords);
+  if (!(t.any_subject && kws.length) && t.subject !== subject) return false;
+  if (kws.length && !kws.some(k => desc.includes(k.toLowerCase()))) return false;
+  return t.scope === 'group' ? !!r.group_id && t.group_id === r.group_id
+    : t.registration_id ? t.registration_id === r.registration_id : t.store_name === r.company;
+}
+// Tag ที่นับเคสนี้อยู่: ผูกเอง หรือ ตรงกฎ
+function mtTagFor(r) {
+  return _mtActive.find(t => (t.linked_ids || []).includes(r.id))
+      || _mtActive.find(t => mtRuleHits(t, r));
+}
+// ข้อความอธิบายกฎของ Tag
+function mtRuleLabel(t) {
+  const kws = mtKeywords(t.keywords);
+  const kwTxt = kws.map(k => `“${esc(k)}”`).join(' หรือ ');
+  if (t.any_subject && kws.length) return `ทุกหัวข้อ · รายละเอียดมี ${kwTxt}`;
+  return `หัวข้อ “${esc(t.subject)}”${kws.length ? ` · รายละเอียดมี ${kwTxt}` : ''}`;
+}
+function mtRuleText() {
+  const el = document.getElementById('mt-c-rule');
+  if (!el || !_mtDraft) return;
+  el.innerHTML = mtRuleLabel({ subject: _mtDraft.subject, keywords: document.getElementById('mt-c-kw').value,
+                               any_subject: document.getElementById('mt-c-any').checked });
 }
 const mtIsGroup = t => t.scope === 'group';
 const mtStart = t => t.start_at || t.created_at;   // วันเริ่ม monitor (ระบุย้อนหลังได้)
@@ -19960,7 +20016,65 @@ function mtGoToTab() {
   switchDashTab(4);
 }
 
+// Tag ที่เปิดอยู่ของร้านนี้ / แบรนด์นี้ (ระดับกลุ่มของแบรนด์ + ระดับสาขาของร้านนี้)
+function mtCandidates(r) {
+  return _mtActive.filter(t => t.status !== 'resolved' && (t.scope === 'group'
+    ? !!r.group_id && t.group_id === r.group_id
+    : t.registration_id ? t.registration_id === r.registration_id : t.store_name === r.company));
+}
+
+let _mtPickRow = null;
 function mtOpenCreateFrom(r) {
+  if (!r) return;
+  const cands = mtCandidates(r);
+  if (!cands.length) return mtOpenNewForm(r);   // ยังไม่มี Tag ของร้าน/แบรนด์นี้ → สร้างใหม่เลย
+  _mtPickRow = r;
+  document.getElementById('mt-p-sub').textContent =
+    `เคส #${r.id} · ${r.customer_group ? r.customer_group + ' › ' : ''}${r.company || ''} · หัวข้อ “${r.subject || '—'}”`;
+  document.getElementById('mt-p-list').innerHTML = cands.map(t => {
+    const linked = (t.linked_ids || []).includes(r.id);
+    const ruleHit = !linked && mtRuleHits(t, r);
+    const state = linked ? '<span class="mt-pill mt-down">🔗 ผูกเคสนี้แล้ว</span>'
+      : ruleHit ? '<span class="mt-pill mt-flat" title="เคสนี้ตรงกฎของ Tag อยู่แล้ว จึงถูกนับอยู่แล้ว">✓ นับอยู่แล้ว</span>'
+      : `<button class="svc-btn-primary" style="height:30px;padding:0 .8rem" onclick="mtPickLink(${t.id})">เลือก Tag นี้</button>`;
+    return `<div class="mt-pick">
+      <div class="b">
+        <div class="t">${esc(t.title)} <span class="mt-meta" style="font-weight:400">· ${mtIsGroup(t) ? 'ทั้งแบรนด์' : 'สาขานี้'}</span></div>
+        <div class="r">${mtRuleLabel(t)} · เริ่ม ${fmtDate(mtStart(t))}${(t.linked_ids || []).length ? ` · ผูกเอง ${t.linked_ids.length} เคส` : ''}</div>
+        ${t.note ? `<div class="n" title="${esc(t.note)}">${esc(t.note.replace(/\s+/g, ' '))}</div>` : ''}
+      </div>${state}</div>`;
+  }).join('');
+  openModal('modal-mt-pick');
+}
+
+function mtPickNew() {
+  closeModal('modal-mt-pick');
+  mtOpenNewForm(_mtPickRow);
+}
+
+async function mtPickLink(tagId) {
+  const r = _mtPickRow;
+  if (!r) return;
+  const d = await api(`/api/monitor-tags/${tagId}/cases`, { method: 'POST', silent: true, body: { calllog_id: r.id } });
+  if (!d || d.error) { showToast(d?.error || 'ผูกเคสไม่สำเร็จ', 'error'); return; }
+  for (const list of [_mtActive, _mtTags]) {
+    const t = list.find(x => x.id === tagId);
+    if (t && !(t.linked_ids || []).includes(r.id)) t.linked_ids = [...(t.linked_ids || []), r.id];
+  }
+  closeModal('modal-mt-pick');
+  showToast(`ผูกเคส #${r.id} เข้ากับ Tag แล้ว`);
+  mtAfterChange();
+}
+
+// รายการงานในหน้าอื่นที่โชว์ป้าย "มอนิเตอร์อยู่" — render ใหม่หลังสร้าง/ผูก Tag
+function mtAfterChange() {
+  if (_issTicketsData) issRenderTickets(_issTicketsData);
+  if (document.getElementById('page-tickets')?.offsetParent && typeof renderTickets === 'function') renderTickets();
+  if (_dashTab === 4 && document.getElementById('dash-tab-monitor')?.offsetParent) mtLoad({ quiet: true });
+  mtRefreshCount();
+}
+
+function mtOpenNewForm(r) {
   if (!r) return;
   _mtDraft = {
     customer_name: r.customer_group || r.company || '',
@@ -19980,6 +20094,9 @@ function mtOpenCreateFrom(r) {
   ['mt-c-check', 'mt-c-fix', 'mt-c-check-files', 'mt-c-fix-files'].forEach(id => { document.getElementById(id).value = ''; });
   const st = document.getElementById('mt-c-start');
   st.value = st.max = st.dataset.def = mtLocalInput(new Date());   // ไม่แก้ = ใช้เวลาที่บันทึก
+  document.getElementById('mt-c-kw').value = '';
+  document.getElementById('mt-c-any').checked = false;
+  setTimeout(mtRuleText, 0);
   document.getElementById('mt-c-subject').textContent = _mtDraft.subject;
   openModal('modal-mt-create');
   setTimeout(() => document.getElementById('mt-c-title').focus(), 50);
@@ -19996,6 +20113,8 @@ async function mtSave() {
     ..._mtDraft, title,
     note: document.getElementById('mt-c-note').value,
     start_at: mtStartInput('mt-c-start'),
+    keywords: document.getElementById('mt-c-kw').value,
+    any_subject: document.getElementById('mt-c-any').checked,
     check_script: document.getElementById('mt-c-check').value,
     fix_script: document.getElementById('mt-c-fix').value
   }});
@@ -20130,7 +20249,8 @@ function mtRender() {
         ? `<span class="mt-pill" style="background:var(--primary-soft);color:var(--primary)">ทุกสาขา</span><span class="sub">ระดับ License Group</span>`
         : `${esc(t.store_name)}<span class="sub">ระดับสาขา</span>`}</td>
       <td>${esc(t.subject)}${t.title && t.title !== t.subject ? `<span class="sub">${esc(t.title)}</span>` : ''}${
-        t.check_script || t.fix_script || t.files?.length ? `<span class="sub">🧾 มี Script${t.files?.length ? ` · 📎 ${t.files.length} ไฟล์` : ''}</span>` : ''}</td>
+        t.check_script || t.fix_script || t.files?.length ? `<span class="sub">🧾 มี Script${t.files?.length ? ` · 📎 ${t.files.length} ไฟล์` : ''}</span>` : ''}${
+        t.keywords ? `<span class="sub">🔎 ${t.any_subject ? 'ทุกหัวข้อ · ' : ''}${mtKeywords(t.keywords).map(esc).join(', ')}</span>` : ''}</td>
       <td class="num">${fmtDate(mtStart(t))}<span class="sub">${st.days_monitored ?? 0} วันที่แล้ว${t.start_at ? ' · ระบุย้อนหลัง' : ''}</span></td>
       <td class="r num">${st.error ? '—' : avg(st.pre_avg ?? null, st.pre_count || 0)}</td>
       <td class="r num">${st.error ? '—' : st.early
@@ -20359,6 +20479,14 @@ function mtDetailRow(t) {
         <input type="datetime-local" id="mt-start-${t.id}" value="${mtLocalInput(parseDbDate(mtStart(t)))}" max="${mtLocalInput(new Date())}"
           style="height:26px;border:1px solid var(--border);border-radius:6px;padding:0 .35rem;font-size:.74rem;font-family:inherit;background:var(--card);color:var(--text)"/>
         <button onclick="event.stopPropagation();mtSaveStart(${t.id})">บันทึกวันเริ่ม</button></span>
+    </div>
+    <div class="mt-detail-bar">
+      <span class="mt-meta" style="display:inline-flex;align-items:center;gap:.35rem;flex:1;flex-wrap:wrap">🔎 คำค้นในรายละเอียด
+        <input id="mt-kw-${t.id}" value="${esc(t.keywords || '')}" placeholder="เว้นว่าง = ทุกเคสในหัวข้อ"
+          style="height:26px;border:1px solid var(--border);border-radius:6px;padding:0 .45rem;font-size:.74rem;font-family:inherit;background:var(--card);color:var(--text);min-width:220px;flex:1"/>
+        <label style="display:inline-flex;align-items:center;gap:.25rem;cursor:pointer">
+          <input type="checkbox" id="mt-any-${t.id}" ${t.any_subject ? 'checked' : ''}/> ไม่จำกัดหัวข้อ</label>
+        <button onclick="event.stopPropagation();mtSaveRule(${t.id})">บันทึกกฎ</button></span>
       <button onclick="event.stopPropagation();mtOpenDetail(${t.id})">ดูรายการเคส</button>
       <button onclick="event.stopPropagation();mtResolve(${t.id})">✓ Resolve (ปิด Tag)</button>
     </div>
@@ -20476,6 +20604,16 @@ async function mtDeleteFile(fid) {
   mtRender();
 }
 
+async function mtSaveRule(id) {
+  const keywords = document.getElementById('mt-kw-' + id)?.value || '';
+  const any_subject = !!document.getElementById('mt-any-' + id)?.checked;
+  const d = await api(`/api/monitor-tags/${id}/rule`, { method: 'PUT', silent: true, body: { keywords, any_subject } });
+  if (!d || d.error) { showToast(d?.error || 'บันทึกกฎไม่สำเร็จ', 'error'); return; }
+  const t = _mtActive.find(x => x.id === id); if (t) Object.assign(t, d);
+  showToast('บันทึกกฎแล้ว — คำนวณใหม่');
+  mtLoad({ quiet: true });
+}
+
 async function mtSaveStart(id) {
   const v = document.getElementById('mt-start-' + id)?.value;
   if (!v) { showToast('กรุณาระบุวันที่เริ่ม', 'error'); return; }
@@ -20569,7 +20707,7 @@ async function mtOpenDetail(id) {
   document.getElementById('mt-d-title').textContent = t.title;
   document.getElementById('mt-d-store-th').style.display = mtIsGroup(t) ? '' : 'none';
   document.getElementById('mt-d-sub').textContent =
-    `${t.customer_name} › ${mtIsGroup(t) ? 'ทุกสาขา (ระดับ License Group)' : t.store_name} · หัวข้อ “${t.subject}” · เริ่ม Monitor ${fmtDate(mtStart(t))}`;
+    `${t.customer_name} › ${mtIsGroup(t) ? 'ทุกสาขา (ระดับ License Group)' : t.store_name} · ${mtRuleLabel(t).replace(/<[^>]+>/g, '')} · เริ่ม Monitor ${fmtDate(mtStart(t))}`;
   const tb = document.getElementById('mt-d-tbody');
   tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:var(--muted)">กำลังโหลด...</td></tr>';
   openModal('modal-mt-detail');
@@ -20588,12 +20726,27 @@ async function mtOpenDetail(id) {
     <td style="${td};white-space:nowrap;font-size:.76rem">${fmtDT(r.opened_at)}</td>
     <td style="${td};white-space:nowrap">${r.phase === 'post'
       ? '<span class="mt-pill" style="background:var(--primary-soft);color:var(--primary)">หลังตั้ง Tag</span>'
-      : '<span class="mt-pill mt-flat">ก่อนตั้ง Tag</span>'}</td>
+      : '<span class="mt-pill mt-flat">ก่อนตั้ง Tag</span>'}${r.linked
+      ? `<div style="margin-top:.25rem;display:flex;gap:.3rem;align-items:center"><span class="mt-pill mt-down" title="Support เลือกผูกเคสนี้เอง">🔗 ผูกเอง</span>
+         <button class="mt-mini" onclick="mtUnlinkCase(${t.id},${r.id})">เอาออก</button></div>` : ''}</td>
     ${mtIsGroup(t) ? `<td style="${td}">${esc(r.company || '—')}</td>` : ''}
     <td style="${td};color:var(--muted)">${esc((r.description || '').replace(/\s+/g, ' ').slice(0, 200)) || '—'}</td>
     <td style="${td};white-space:nowrap">${esc(r.status || '—')}</td>
     <td style="${td};white-space:nowrap;font-size:.78rem">${esc(dn(r.agent) || r.agent || '—')}</td>
   </tr>`).join('');
+}
+
+async function mtUnlinkCase(tagId, cid) {
+  if (!confirm(`เอาเคส #${cid} ออกจาก Tag นี้?`)) return;
+  const d = await api(`/api/monitor-tags/${tagId}/cases/${cid}`, { method: 'DELETE', silent: true });
+  if (!d || d.error) { showToast(d?.error || 'เอาออกไม่สำเร็จ', 'error'); return; }
+  for (const list of [_mtActive, _mtTags]) {
+    const t = list.find(x => x.id === tagId);
+    if (t) t.linked_ids = (t.linked_ids || []).filter(x => x !== cid);
+  }
+  showToast(`เอาเคส #${cid} ออกแล้ว`);
+  mtOpenDetail(tagId);
+  mtAfterChange();
 }
 
 // อัปเดตตัวเลขอัตโนมัติทุก 60 วิ ขณะเปิดแท็บนี้อยู่ — เคสใหม่ที่ตรง rule จะถูกนับเพิ่มเอง
@@ -20602,7 +20755,7 @@ setInterval(() => {
   const tab = document.getElementById('dash-tab-monitor');
   if (!tab || !tab.offsetParent) return;
   if (document.querySelector('#modal-mt-detail.open, #modal-mt-create.open')) return;
-  if (Object.keys(_mtScriptDraft).length || document.activeElement?.matches?.('.mt-code, input[id^="mt-start-"]')) return;
+  if (Object.keys(_mtScriptDraft).length || document.activeElement?.matches?.('.mt-code, input[id^="mt-start-"], input[id^="mt-kw-"]')) return;
   mtLoad({ quiet: true });
 }, 60 * 1000);
 

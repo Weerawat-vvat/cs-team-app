@@ -12525,7 +12525,9 @@ async function ensureMonitorTagTables() {
       IF COL_LENGTH('monitor_tags','fix_script') IS NULL ALTER TABLE monitor_tags ADD fix_script NVARCHAR(MAX) NULL;
       IF COL_LENGTH('monitor_tags','scripts_updated_by') IS NULL ALTER TABLE monitor_tags ADD scripts_updated_by NVARCHAR(100) NULL;
       IF COL_LENGTH('monitor_tags','scripts_updated_at') IS NULL ALTER TABLE monitor_tags ADD scripts_updated_at DATETIME NULL;
-      IF COL_LENGTH('monitor_tags','start_at') IS NULL ALTER TABLE monitor_tags ADD start_at DATETIME NULL;`);
+      IF COL_LENGTH('monitor_tags','start_at') IS NULL ALTER TABLE monitor_tags ADD start_at DATETIME NULL;
+      IF COL_LENGTH('monitor_tags','keywords') IS NULL ALTER TABLE monitor_tags ADD keywords NVARCHAR(1000) NULL;
+      IF COL_LENGTH('monitor_tags','any_subject') IS NULL ALTER TABLE monitor_tags ADD any_subject BIT NULL;`);
     await req().query(`
       IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='monitor_tag_files' AND xtype='U')
       CREATE TABLE monitor_tag_files (
@@ -12538,6 +12540,17 @@ async function ensureMonitorTagTables() {
         created_by    NVARCHAR(100) NULL,
         created_at    DATETIME      DEFAULT GETDATE()
       )`);
+    // เคสที่ Support เลือกผูกเข้ากับ tag เอง — นับเสมอ แม้ไม่ตรงหัวข้อ/คำค้น
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='monitor_tag_cases' AND xtype='U')
+      CREATE TABLE monitor_tag_cases (
+        id          INT PRIMARY KEY IDENTITY,
+        tag_id      INT           NOT NULL,
+        calllog_id  INT           NOT NULL,
+        linked_by   NVARCHAR(100) NULL,
+        linked_at   DATETIME      DEFAULT GETDATE(),
+        CONSTRAINT uq_monitor_tag_case UNIQUE (tag_id, calllog_id)
+      )`);
   } catch (e) { console.error('[monitor-tags] ensure table:', e.message); }
 }
 
@@ -12545,24 +12558,46 @@ const MONITOR_BASELINE_OPTIONS = [7, 14, 30, 60, 90];
 const MONITOR_STABLE_PCT = 2;   // เปลี่ยนแปลงไม่เกิน ±2% ถือว่าคงที่
 
 // เงื่อนไขจับคู่ Calllog กับ tag — ใช้ RegistrationId ถ้ามี ไม่งั้นตกไปใช้ชื่อสาขา
+// คำค้นในรายละเอียดเคส: "ปิดการขายไม่ได้, ปิดบิลไม่ได้" → ['ปิดการขายไม่ได้','ปิดบิลไม่ได้']
+// หัวข้อ (Subject) เดียวกันมีหลายอาการ — คำค้นแยกอาการที่ต้องการติดตามจริง ๆ ออกมา
+function monitorKeywords(v) {
+  return [...new Set(String(v || '').split(/[,\n]/).map(k => k.trim()).filter(Boolean))]
+    .slice(0, 10).map(k => k.slice(0, 100));
+}
+
+// เงื่อนไขจับคู่ Calllog กับ tag: ขอบเขต (กลุ่ม/สาขา) + หัวข้อ (ยกเว้น any_subject) + คำค้นข้อใดข้อหนึ่ง
 function monitorMatch(r, tag) {
-  r.input('sub', sql.NVarChar, tag.subject);
+  const kws = monitorKeywords(tag.keywords);
+  const conds = [];
+  if (!(tag.any_subject && kws.length)) { r.input('sub', sql.NVarChar, tag.subject); conds.push('cl.Subject=@sub'); }
+  if (kws.length) {
+    // ใช้ ! เป็นตัว escape ของ LIKE — คำค้นที่มี % _ [ จะถูกค้นตามตัวอักษร
+    kws.forEach((k, i) => r.input('kw' + i, sql.NVarChar, '%' + k.replace(/[!%_[]/g, '!$&') + '%'));
+    conds.push('(' + kws.map((_, i) => `cl.CalllogDesc LIKE @kw${i} ESCAPE '!'`).join(' OR ') + ')');
+  }
+  const rest = conds.length ? ' AND ' + conds.join(' AND ') : '';
+  // เคสที่ผูกเอง (monitor_tag_cases อยู่คนละฐานกับ Calllog) — ใส่เป็นเลข int ตรง ๆ
+  const linked = (tag.linked_ids || []).map(Number).filter(Number.isInteger);
+  const withLinked = w => linked.length ? `((${w}) OR cl.CalllogId IN (${linked.join(',')}))` : w;
   if (tag.scope === 'group' && tag.group_id) {
     r.input('gid', sql.Int, tag.group_id);
-    return {
-      join: 'INNER JOIN CustomerRegistration cr ON cr.RegistrationId = cl.RegistrationId',
-      where: 'cr.GroupId=@gid AND cl.Subject=@sub'
-    };
+    return { join: 'INNER JOIN CustomerRegistration cr ON cr.RegistrationId = cl.RegistrationId', where: withLinked('cr.GroupId=@gid' + rest) };
   }
   if (tag.registration_id) {
     r.input('rid', sql.Int, tag.registration_id);
-    return { join: '', where: 'cl.RegistrationId=@rid AND cl.Subject=@sub' };
+    return { join: '', where: withLinked('cl.RegistrationId=@rid' + rest) };
   }
   r.input('store', sql.NVarChar, tag.store_name);
-  return {
-    join: 'INNER JOIN CustomerRegistration cr ON cr.RegistrationId = cl.RegistrationId',
-    where: 'cr.CompanyName=@store AND cl.Subject=@sub'
-  };
+  return { join: 'INNER JOIN CustomerRegistration cr ON cr.RegistrationId = cl.RegistrationId', where: withLinked('cr.CompanyName=@store' + rest) };
+}
+
+async function monitorLinkedIds(tagIds) {
+  if (!tagIds.length) return {};
+  const rows = (await req().query(`SELECT tag_id, calllog_id FROM monitor_tag_cases
+    WHERE tag_id IN (${tagIds.map(Number).filter(Number.isInteger).join(',')})`)).recordset;
+  const by = {};
+  rows.forEach(x => (by[x.tag_id] = by[x.tag_id] || []).push(x.calllog_id));
+  return by;
 }
 
 // range = { s, e } จากตัวกรองวันที่ด้านบน (ไม่ส่งมา = 30 วันก่อนตั้ง tag → วันนี้)
@@ -12682,7 +12717,8 @@ app.get('/api/monitor-tags', authRequired, async (request, res) => {
       const files = (await req().query(`
         SELECT id, tag_id, kind, original_name, file_size, created_by, created_at FROM monitor_tag_files
         WHERE tag_id IN (${tags.map(t => +t.id).join(',')}) ORDER BY created_at`)).recordset;
-      tags.forEach(t => { t.files = files.filter(f => f.tag_id === t.id); });
+      const linked = await monitorLinkedIds(tags.map(t => t.id));
+      tags.forEach(t => { t.files = files.filter(f => f.tag_id === t.id); t.linked_ids = linked[t.id] || []; });
     }
     // lite=1 — แค่รายชื่อ tag (ไว้ติดป้ายในรายการงาน) ไม่ต้องคำนวณสถิติจาก Calllog
     if (request.query.lite === '1') return res.json({ tags });
@@ -12703,6 +12739,7 @@ app.get('/api/monitor-tags/:id/tickets', authRequired, async (request, res) => {
       .query('SELECT * FROM monitor_tags WHERE id=@id')).recordset[0];
     if (!tag) return res.status(404).json({ error: 'ไม่พบ Monitor Tag' });
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
+    tag.linked_ids = (await monitorLinkedIds([tag.id]))[tag.id] || [];
     const skew = await monitorClockSkew();
     const r = extReq()
       .input('c',  sql.DateTime, monitorToExt(monitorStart(tag), skew))
@@ -12723,7 +12760,33 @@ app.get('/api/monitor-tags/:id/tickets', authRequired, async (request, res) => {
       WHERE cl.Active=1 AND ${m.where}
         AND cl.ReceiveDate >= DATEADD(day, -@bd, @c) AND cl.ReceiveDate <= @e
       ORDER BY cl.ReceiveDate DESC`)).recordset;
+    const ls = new Set(tag.linked_ids);
+    rows.forEach(x => { x.linked = ls.has(x.id); });
     res.json({ tag, rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/monitor-tags/:id/cases {calllog_id} — ผูกเคสเข้ากับ tag ที่มีอยู่
+app.post('/api/monitor-tags/:id/cases', authRequired, async (request, res) => {
+  try {
+    const id = +request.params.id, cid = parseInt(request.body?.calllog_id);
+    if (!Number.isInteger(cid) || cid <= 0) return res.status(400).json({ error: 'calllog_id ไม่ถูกต้อง' });
+    const tag = (await req().input('id', sql.Int, id).query(`SELECT id, status FROM monitor_tags WHERE id=@id`)).recordset[0];
+    if (!tag) return res.status(404).json({ error: 'ไม่พบ Monitor Tag' });
+    if (tag.status !== 'active') return res.status(400).json({ error: 'Tag นี้ปิดแล้ว' });
+    await req().input('id', sql.Int, id).input('cid', sql.Int, cid).input('by', sql.NVarChar, request.user?.username || null)
+      .query(`IF NOT EXISTS (SELECT 1 FROM monitor_tag_cases WHERE tag_id=@id AND calllog_id=@cid)
+              INSERT INTO monitor_tag_cases (tag_id, calllog_id, linked_by) VALUES (@id, @cid, @by)`);
+    res.json({ ok: true, tag_id: id, calllog_id: cid });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE /api/monitor-tags/:id/cases/:cid — เอาเคสที่ผูกเองออก
+app.delete('/api/monitor-tags/:id/cases/:cid', authRequired, async (request, res) => {
+  try {
+    await req().input('id', sql.Int, +request.params.id).input('cid', sql.Int, +request.params.cid)
+      .query(`DELETE FROM monitor_tag_cases WHERE tag_id=@id AND calllog_id=@cid`);
+    res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -12752,16 +12815,22 @@ app.post('/api/monitor-tags', authRequired, async (request, res) => {
       if (g) { scope = 'group'; gid = g.GroupId; groupName = g.GroupName || customer; }
     }
 
+    const kwList = monitorKeywords(b.keywords);
+    const kwStr = kwList.join(', ') || null;
+    const anySub = !!b.any_subject && kwList.length > 0;   // ไม่จำกัดหัวข้อได้เมื่อมีคำค้นเท่านั้น
+    if (b.any_subject && !kwList.length) return res.status(400).json({ error: 'ไม่จำกัดหัวข้อ ต้องระบุคำค้นอย่างน้อย 1 คำ' });
+
     const dup = (await req()
       .input('rid', sql.Int, rid).input('store', sql.NVarChar, store).input('sub', sql.NVarChar, subject)
-      .input('gid', sql.Int, gid)
+      .input('gid', sql.Int, gid).input('kw', sql.NVarChar, kwStr || '').input('any', sql.Bit, anySub ? 1 : 0)
       .query(`SELECT TOP 1 id, title FROM monitor_tags
-              WHERE status='active' AND subject=@sub AND (
+              WHERE status='active' AND ISNULL(keywords,'')=@kw AND ISNULL(any_subject,0)=@any
+                AND (@any=1 OR subject=@sub) AND (
                 (@gid IS NOT NULL AND scope='group' AND group_id=@gid) OR
                 (@gid IS NULL AND ISNULL(scope,'store')='store' AND
                   ((@rid IS NOT NULL AND registration_id=@rid) OR (@rid IS NULL AND store_name=@store))))`)).recordset[0];
     if (dup) return res.status(409).json({
-      error: `${gid ? 'กลุ่มนี้' : 'สาขานี้'}มี Monitor Tag หัวข้อนี้อยู่แล้ว (“${dup.title}”)`, id: dup.id });
+      error: `${gid ? 'กลุ่มนี้' : 'สาขานี้'}มี Monitor Tag ${kwStr ? 'คำค้นนี้' : 'หัวข้อนี้'}อยู่แล้ว (“${dup.title}”)`, id: dup.id });
 
     const row = (await req()
       .input('cn',  sql.NVarChar, groupName || customer)
@@ -12776,18 +12845,34 @@ app.post('/api/monitor-tags', authRequired, async (request, res) => {
       .input('bd',  sql.Int, baseline)
       .input('src', sql.Int, Number.isInteger(+b.source_ticket_id) ? +b.source_ticket_id : null)
       .input('sta', sql.NVarChar, startAt ? startAt + ':00' : null)
+      .input('kws', sql.NVarChar, kwStr)
+      .input('any', sql.Bit, anySub ? 1 : 0)
       .input('by',  sql.NVarChar, request.user?.username || null)
       .input('cs',  sql.NVarChar, str(b.check_script, 200000) || null)
       .input('fs',  sql.NVarChar, str(b.fix_script, 200000) || null)
       .query(`INSERT INTO monitor_tags
                 (customer_name, store_name, registration_id, scope, group_id, subject, category, title, note, baseline_days, source_ticket_id, created_by,
-                 check_script, fix_script, scripts_updated_by, scripts_updated_at, start_at)
+                 check_script, fix_script, scripts_updated_by, scripts_updated_at, start_at, keywords, any_subject)
               OUTPUT INSERTED.*
               VALUES (@cn, @sn, @rid, @scp, @gid, @sub, @cat, @ttl, @nt, @bd, @src, @by,
                  @cs, @fs, CASE WHEN @cs IS NULL AND @fs IS NULL THEN NULL ELSE @by END,
                  CASE WHEN @cs IS NULL AND @fs IS NULL THEN NULL ELSE GETDATE() END,
-                 TRY_CONVERT(datetime, @sta, 126))`)).recordset[0];
+                 TRY_CONVERT(datetime, @sta, 126), @kws, @any)`)).recordset[0];
     res.json(row);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT /api/monitor-tags/:id/rule — แก้คำค้นในรายละเอียด / ไม่จำกัดหัวข้อ
+app.put('/api/monitor-tags/:id/rule', authRequired, async (request, res) => {
+  try {
+    const kwList = monitorKeywords(request.body?.keywords);
+    const anySub = !!request.body?.any_subject;
+    if (anySub && !kwList.length) return res.status(400).json({ error: 'ไม่จำกัดหัวข้อ ต้องระบุคำค้นอย่างน้อย 1 คำ' });
+    const out = await req().input('id', sql.Int, +request.params.id)
+      .input('kw', sql.NVarChar, kwList.join(', ') || null).input('any', sql.Bit, anySub ? 1 : 0)
+      .query(`UPDATE monitor_tags SET keywords=@kw, any_subject=@any OUTPUT INSERTED.keywords, INSERTED.any_subject WHERE id=@id`);
+    if (!out.recordset.length) return res.status(404).json({ error: 'ไม่พบ Monitor Tag' });
+    res.json(out.recordset[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
