@@ -482,8 +482,21 @@ textarea{resize:vertical;min-height:80px}
 .mt-empty{text-align:center;padding:2.2rem 1rem;color:var(--muted);font-size:.85rem;border:1px dashed var(--border);border-radius:12px;background:var(--card2)}
 .mt-meta{font-size:.72rem;color:var(--muted)}
 .mt-pill{display:inline-flex;align-items:center;gap:.2rem;font-size:.72rem;font-weight:600;padding:.1rem .5rem;border-radius:20px;white-space:nowrap}
-.mt-up{background:rgba(220,38,38,.12);color:#c0392b}
-.mt-down{background:rgba(22,163,74,.13);color:#1e8449}
+.mt-up{background:rgba(225,29,72,.12);color:#be123c}
+.mt-down{background:rgba(13,148,136,.14);color:#0f766e}
+.mt-ov{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.75rem;margin-bottom:.75rem}
+.mt-ov-card{border:1px solid var(--border);border-radius:12px;background:var(--card);padding:.8rem .95rem;min-width:0}
+.mt-ov-title{font-size:.86rem;font-weight:600;color:var(--text)}
+.mt-ov-sub{font-size:.72rem;color:var(--muted);margin-top:.1rem}
+.mt-hero{display:flex;align-items:baseline;flex-wrap:wrap;gap:.35rem .7rem;margin:.55rem 0 .35rem}
+.mt-hero .v{font-size:1.6rem;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums;line-height:1}
+.mt-hero .u{font-size:.74rem;color:var(--muted)}
+.mt-hero .ar{color:var(--muted);font-size:1.1rem}
+.mt-ov-grp{grid-column:1/-1}
+.mt-ov-grp table{width:100%;border-collapse:collapse;font-size:.8rem;margin-top:.45rem}
+.mt-ov-grp th{text-align:left;font-weight:600;color:var(--muted);font-size:.72rem;padding:.35rem .5rem;border-bottom:1px solid var(--border);white-space:nowrap}
+.mt-ov-grp td{padding:.4rem .5rem;border-bottom:1px solid var(--line-2);color:var(--text)}
+.mt-ov-grp .r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .mt-flat{background:rgba(120,120,120,.13);color:var(--muted)}
 .mt-range{font-size:.78rem;color:var(--muted)}
 .mt-range b{color:var(--text);font-weight:600}
@@ -527,6 +540,7 @@ textarea{resize:vertical;min-height:80px}
 .mt-form .row{margin-bottom:.7rem}
 @media (max-width:760px){
   .mt-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .mt-ov{grid-template-columns:1fr}
   .mt-scripts{grid-template-columns:1fr}
 }
 .si-brand-header{display:flex;align-items:center;gap:.5rem;padding:.55rem .85rem;background:#fff;border:1px solid var(--border);border-radius:10px;cursor:pointer;margin-bottom:.35rem;font-weight:700;font-size:.88rem;user-select:none}
@@ -1518,6 +1532,7 @@ textarea{resize:vertical;min-height:80px}
   <!-- ════ TAB 4: Monitor Tag ════ -->
   <div id="dash-tab-monitor" style="display:none">
     <div class="mt-kpis" id="mt-kpis"></div>
+    <div class="mt-ov" id="mt-overview"></div>
     <div class="mt-toolbar">
       <span id="mt-range" class="mt-range"></span>
       <span id="mt-updated" class="mt-updated"></span>
@@ -20021,7 +20036,8 @@ function mtTrendPill(st) {
   return `<span class="mt-pill mt-flat">● คงที่ ${v}</span>`;
 }
 
-const mtTrendColor = st => st?.trend === 'worsened' ? '#dc2626' : st?.trend === 'improved' ? '#16a34a' : '#8a8f97';
+const MT_UP = '#e11d48', MT_DOWN = '#0d9488', MT_FLAT = '#8a8f97';
+const mtTrendColor = st => st?.trend === 'worsened' ? MT_UP : st?.trend === 'improved' ? MT_DOWN : MT_FLAT;
 
 // กราฟจิ๋วในตาราง: แท่งรายวัน + เส้นแบ่งวันตั้ง Tag
 function mtSpark(st) {
@@ -20051,6 +20067,7 @@ function mtRender() {
   const list = _mtTags;
   mtRenderKpis(list);
   Object.keys(_mtCharts).forEach(id => { _mtCharts[id].destroy(); delete _mtCharts[id]; });
+  mtRenderOverview(list);
   const body = document.getElementById('mt-body');
   if (!list.length) {
     body.innerHTML = `<div class="mt-empty">ยังไม่มี Monitor Tag<br><span style="font-size:.78rem">ไปที่แท็บ <b>Issue Analytics</b> → คลิกแท่งหัวข้อปัญหา → กด <b>+ เพิ่ม Monitor Tag</b> ที่เคสของสาขาที่ต้องการติดตาม</span></div>`;
@@ -20094,6 +20111,172 @@ function mtRender() {
     </tr></thead>
     <tbody>${html}</tbody></table></div>`;
   _mtOpen.forEach(id => mtDrawChart(id));
+}
+
+// ══ ภาพรวม Monitor Tag ═══════════════════════════════════
+const mtFmtPct = p => (p > 0 ? '+' : '') + p.toFixed(0) + '%';
+const mtTagLabel = t => (mtIsGroup(t) ? t.customer_name : t.store_name) + ' · ' + t.subject;
+
+function mtRenderOverview(list) {
+  const box = document.getElementById('mt-overview');
+  if (!box) return;
+  const ok = list.filter(t => t.stats && !t.stats.error && t.stats.pre_avg !== null && t.stats.post_avg !== null);
+  if (!ok.length) { box.innerHTML = ''; box.style.display = 'none'; return; }
+  box.style.display = '';
+
+  // รวมทุก Tag: เคส/วันก่อน vs หลัง
+  const pre  = ok.reduce((a, t) => a + t.stats.pre_avg, 0);
+  const post = ok.reduce((a, t) => a + t.stats.post_avg, 0);
+  const pct  = pre > 0 ? (post - pre) / pre * 100 : null;
+  const cls  = pct === null ? 'mt-flat' : Math.abs(pct) <= 2 ? 'mt-flat' : pct < 0 ? 'mt-down' : 'mt-up';
+  const word = pct === null ? '—' : Math.abs(pct) <= 2 ? `● คงที่ ${mtFmtPct(pct)}` : pct < 0 ? `▼ ลดลง ${mtFmtPct(pct)}` : `▲ เพิ่มขึ้น ${mtFmtPct(pct)}`;
+
+  // ตาม License Group / ลูกค้า
+  const grp = new Map();
+  for (const t of ok) {
+    const g = grp.get(t.customer_name) || { name: t.customer_name, n: 0, up: 0, down: 0, pre: 0, post: 0 };
+    g.n++; g.pre += t.stats.pre_avg; g.post += t.stats.post_avg;
+    if (t.stats.trend === 'worsened') g.up++;
+    if (t.stats.trend === 'improved') g.down++;
+    grp.set(g.name, g);
+  }
+  const grows = [...grp.values()].map(g => ({ ...g, pct: g.pre > 0 ? (g.post - g.pre) / g.pre * 100 : null }))
+    .sort((a, b) => (b.pct ?? 1e9) - (a.pct ?? 1e9));
+  const pill = p => p === null ? '<span class="mt-pill mt-up">▲ เคสใหม่</span>'
+    : Math.abs(p) <= 2 ? `<span class="mt-pill mt-flat">● ${mtFmtPct(p)}</span>`
+    : p < 0 ? `<span class="mt-pill mt-down">▼ ${mtFmtPct(p)}</span>` : `<span class="mt-pill mt-up">▲ ${mtFmtPct(p)}</span>`;
+
+  const bars = ok.filter(t => t.stats.pct_change !== null);
+  const barH = Math.max(120, bars.length * 26 + 30);
+  box.innerHTML = `
+    <div class="mt-ov-card">
+      <div class="mt-ov-title">รวมทุก Tag — ก่อน vs หลังตั้ง Tag</div>
+      <div class="mt-ov-sub">ผลรวมเคสเฉลี่ยต่อวันของ ${ok.length} Tag · เส้นด้านล่างคือเคสเฉลี่ยต่อ Tag นับจากวันตั้ง Tag (D0)</div>
+      <div class="mt-hero">
+        <span class="v">${pre.toFixed(1)}</span><span class="u">เคส/วัน ก่อน</span>
+        <span class="ar">→</span>
+        <span class="v">${post.toFixed(1)}</span><span class="u">เคส/วัน หลัง</span>
+        <span class="mt-pill ${cls}" style="font-size:.78rem">${word}</span>
+      </div>
+      <div style="position:relative;height:170px"><canvas id="mt-ov-rel"></canvas></div>
+    </div>
+    <div class="mt-ov-card">
+      <div class="mt-ov-title">เปลี่ยนแปลงราย Tag</div>
+      <div class="mt-ov-sub">% เคส/วัน หลังเทียบก่อนตั้ง Tag · ซ้าย = ลดลง, ขวา = เพิ่มขึ้น · คลิกแท่งเพื่อดูรายละเอียด${
+        ok.length > bars.length ? ` · ไม่แสดง ${ok.length - bars.length} Tag ที่ก่อนหน้าไม่มีเคส` : ''}</div>
+      <div style="position:relative;height:${Math.min(barH, 300)}px;overflow-y:${barH > 300 ? 'auto' : 'hidden'};margin-top:.5rem">
+        <div style="position:relative;height:${barH}px"><canvas id="mt-ov-bar"></canvas></div>
+      </div>
+    </div>
+    ${grows.length > 1 ? `<div class="mt-ov-card mt-ov-grp">
+      <div class="mt-ov-title">ตาม License Group / ลูกค้า</div>
+      <table><thead><tr><th>กลุ่ม</th><th class="r">Tags</th><th class="r">▲ เพิ่มขึ้น</th><th class="r">▼ ลดลง</th>
+        <th class="r">ก่อน (เคส/วัน)</th><th class="r">หลัง (เคส/วัน)</th><th>ผลรวม</th></tr></thead>
+      <tbody>${grows.map(g => `<tr><td>${esc(g.name)}</td><td class="r">${g.n}</td><td class="r">${g.up}</td><td class="r">${g.down}</td>
+        <td class="r">${g.pre.toFixed(2)}</td><td class="r">${g.post.toFixed(2)}</td><td>${pill(g.pct)}</td></tr>`).join('')}</tbody></table>
+    </div>` : ''}`;
+
+  if (typeof Chart === 'undefined') return;
+  const css = getComputedStyle(document.documentElement);
+  const muted = css.getPropertyValue('--muted').trim() || '#5b616b';
+  const grid = css.getPropertyValue('--line-2').trim() || '#efede7';
+  const primary = css.getPropertyValue('--primary').trim() || '#35685f';
+  const textC = css.getPropertyValue('--text').trim() || '#24272c';
+
+  // ── เส้นรวม: เรียงตามวันนับจากวันตั้ง Tag แล้วเฉลี่ยต่อ Tag (แต่ละวันมีจำนวน Tag ไม่เท่ากัน)
+  const acc = new Map();
+  for (const t of ok) {
+    const pts = t.stats.daily || [];
+    const iTag = pts.findIndex(p => p.phase === 'post');
+    if (iTag < 0) continue;
+    pts.forEach((p, i) => {
+      const o = i - iTag, a = acc.get(o) || { sum: 0, n: 0 };
+      a.sum += p.n; a.n++; acc.set(o, a);
+    });
+  }
+  const offs = [...acc.keys()].sort((a, b) => a - b);
+  if (offs.length) {
+    const vals = offs.map(o => +(acc.get(o).sum / acc.get(o).n).toFixed(2));
+    const i0 = offs.indexOf(0);
+    _mtCharts['ov-rel'] = new Chart(document.getElementById('mt-ov-rel'), {
+      type: 'line',
+      data: { labels: offs.map(o => o === 0 ? 'D0' : (o > 0 ? 'D+' : 'D') + o), datasets: [
+        { label: 'ก่อนตั้ง Tag', data: vals.map((v, i) => i <= i0 ? v : null), borderColor: '#9aa0a8', borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: .3 },
+        { label: 'หลังตั้ง Tag', data: vals.map((v, i) => i >= i0 ? v : null), borderColor: pct !== null && pct > 2 ? MT_UP : pct !== null && pct < -2 ? MT_DOWN : MT_FLAT,
+          borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: .3 }
+      ]},
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 14, color: muted, font: { size: 11 } } },
+          tooltip: { filter: it => it.raw !== null && !(it.dataIndex === i0 && it.datasetIndex === 0),
+            callbacks: { label: c => ` ${c.raw} เคส/วัน เฉลี่ยต่อ Tag (${acc.get(offs[c.dataIndex]).n} Tag)` } },
+          mtTagLine: { index: i0, color: primary }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: muted, maxTicksLimit: 9, font: { size: 10 } } },
+          y: { beginAtZero: true, grid: { color: grid }, ticks: { color: muted, font: { size: 10 } } }
+        }
+      },
+      plugins: [mtTagLinePlugin]
+    });
+  }
+
+  // ── แท่ง diverging: % เปลี่ยนแปลงต่อ Tag (ตำแหน่งซ้าย/ขวา + ตัวเลข = ไม่พึ่งสีอย่างเดียว)
+  if (bars.length) {
+    const sorted = [...bars].sort((a, b) => a.stats.pct_change - b.stats.pct_change);
+    const color = t => t.stats.trend === 'worsened' ? MT_UP : t.stats.trend === 'improved' ? MT_DOWN : MT_FLAT;
+    // ลดลงได้ไม่เกิน −100% แต่เพิ่มได้ไม่จำกัด — ให้แต่ละฝั่งยาวตามข้อมูลจริง (+ที่ว่างให้ตัวเลข)
+    const vs = sorted.map(t => t.stats.pct_change);
+    const lo = Math.min(0, ...vs), hi = Math.max(0, ...vs), pad = Math.max(20, (hi - lo) * 0.16);
+    const xMin = lo - pad, xMax = hi + pad;
+    const valueLabels = {
+      id: 'mtBarVals',
+      afterDatasetsDraw(chart) {
+        const { ctx } = chart, meta = chart.getDatasetMeta(0);
+        ctx.save(); ctx.font = '600 11px sans-serif'; ctx.fillStyle = textC; ctx.textBaseline = 'middle';
+        meta.data.forEach((bar, i) => {
+          const v = sorted[i].stats.pct_change;
+          ctx.textAlign = v < 0 ? 'right' : 'left';
+          ctx.fillText(mtFmtPct(v), bar.x + (v < 0 ? -5 : 5), bar.y);
+        });
+        ctx.restore();
+      }
+    };
+    _mtCharts['ov-bar'] = new Chart(document.getElementById('mt-ov-bar'), {
+      type: 'bar',
+      data: { labels: sorted.map(t => { const l = mtTagLabel(t); return l.length > 34 ? l.slice(0, 33) + '…' : l; }),
+        datasets: [{ data: sorted.map(t => t.stats.pct_change), backgroundColor: sorted.map(color),
+          borderRadius: 4, borderSkipped: false, barThickness: 14 }] },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: false,
+        onClick: (_e, els) => { if (els.length) mtFocusRow(sorted[els[0].index].id); },
+        onHover: (e, els) => { e.native.target.style.cursor = els.length ? 'pointer' : 'default'; },
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: {
+            title: items => mtTagLabel(sorted[items[0].dataIndex]),
+            label: c => { const st = sorted[c.dataIndex].stats;
+              return ` ${mtFmtPct(st.pct_change)} · ${st.pre_avg.toFixed(2)} → ${st.post_avg.toFixed(2)} เคส/วัน`; } } }
+        },
+        scales: {
+          x: { min: xMin, max: xMax, grid: { color: c => c.tick.value === 0 ? muted : grid },
+               ticks: { color: muted, font: { size: 10 }, maxTicksLimit: 6, callback: v => v < lo || v > hi ? '' : Math.round(v) + '%' } },  // ช่องว่างขอบไว้ใส่ตัวเลข ไม่ต้องมี tick
+          y: { grid: { display: false }, ticks: { color: textC, font: { size: 11 } } }
+        }
+      },
+      plugins: [valueLabels]
+    });
+  }
+}
+
+// คลิกจากภาพรวม → กางแถวนั้นในตารางแล้วเลื่อนไปหา
+function mtFocusRow(id) {
+  _mtOpen.add(id);
+  mtRender();
+  const row = document.querySelector(`#mt-chart-${id}`)?.closest('tr');
+  row?.previousElementSibling?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function mtDetailRow(t) {
