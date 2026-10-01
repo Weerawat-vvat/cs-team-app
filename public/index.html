@@ -474,54 +474,42 @@ textarea{resize:vertical;min-height:80px}
 .mt-tab-count{display:inline-block;min-width:18px;padding:0 .35rem;margin-left:.2rem;border-radius:9px;background:var(--primary-soft);color:var(--primary);font-size:.68rem;font-weight:600;line-height:17px;text-align:center}
 .mt-add-btn{border:1px solid var(--border);background:var(--card);color:var(--primary);border-radius:6px;padding:.18rem .55rem;font-size:.72rem;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
 .mt-add-btn:hover{background:var(--primary-soft);border-color:var(--primary)}
+.mt-on-btn{border:1px solid transparent;background:var(--primary-soft);color:var(--primary);border-radius:6px;padding:.18rem .55rem;font-size:.72rem;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
+.mt-on-btn:hover{border-color:var(--primary)}
 .mt-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.65rem;margin-bottom:.75rem}
 .mt-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-bottom:.8rem}
-.mt-sel{height:32px;border:1px solid var(--border);border-radius:8px;padding:0 .6rem;font-size:.8rem;font-family:inherit;background:var(--card);color:var(--text);outline:none}
-.mt-seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--card)}
-.mt-seg button{border:none;background:transparent;color:var(--muted);padding:0 .65rem;height:30px;font-size:.76rem;cursor:pointer;font-family:inherit;border-right:1px solid var(--border)}
-.mt-seg button:last-child{border-right:none}
-.mt-seg button.on{background:var(--primary-soft);color:var(--primary);font-weight:600}
 .mt-updated{font-size:.72rem;color:var(--muted);margin-left:auto}
 .mt-empty{text-align:center;padding:2.2rem 1rem;color:var(--muted);font-size:.85rem;border:1px dashed var(--border);border-radius:12px;background:var(--card2)}
-.mt-cust{border:1px solid var(--border);border-radius:12px;background:var(--card);margin-bottom:.7rem;overflow:hidden}
-.mt-cust>summary,.mt-store>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:.55rem;flex-wrap:wrap}
-.mt-cust>summary::-webkit-details-marker,.mt-store>summary::-webkit-details-marker{display:none}
-.mt-cust>summary{padding:.7rem .95rem;background:var(--card2);border-bottom:1px solid var(--line-2)}
-.mt-cust:not([open])>summary{border-bottom:none}
-.mt-chev{display:inline-block;width:.8rem;color:var(--muted);transition:transform .15s;font-size:.7rem}
-details[open]>summary .mt-chev{transform:rotate(90deg)}
-.mt-cust-name{font-weight:600;font-size:.92rem;color:var(--text)}
 .mt-meta{font-size:.72rem;color:var(--muted)}
-.mt-pill{display:inline-flex;align-items:center;gap:.2rem;font-size:.7rem;font-weight:600;padding:.08rem .45rem;border-radius:20px;white-space:nowrap}
+.mt-pill{display:inline-flex;align-items:center;gap:.2rem;font-size:.72rem;font-weight:600;padding:.1rem .5rem;border-radius:20px;white-space:nowrap}
 .mt-up{background:rgba(220,38,38,.12);color:#c0392b}
 .mt-down{background:rgba(22,163,74,.13);color:#1e8449}
 .mt-flat{background:rgba(120,120,120,.13);color:var(--muted)}
-.mt-store{border-top:1px solid var(--line-2)}
-.mt-store:first-of-type{border-top:none}
-.mt-store>summary{padding:.5rem .95rem .5rem 1.6rem;font-size:.82rem;font-weight:600;color:var(--text)}
-.mt-tags{padding:0 .95rem .7rem 1.6rem;display:flex;flex-direction:column;gap:.5rem}
-.mt-tag{display:grid;grid-template-columns:minmax(0,2.2fr) minmax(0,1.1fr) minmax(0,1.5fr) auto;gap:.9rem;align-items:center;border:1px solid var(--line-2);border-left:3px solid var(--border);border-radius:9px;padding:.6rem .8rem;background:var(--card)}
-.mt-tag.worsened{border-left-color:#dc2626}
-.mt-tag.improved{border-left-color:#16a34a}
-.mt-tag.resolved{opacity:.72}
-.mt-tag-title{font-weight:600;font-size:.86rem;color:var(--text);word-break:break-word}
-.mt-tag-note{font-size:.75rem;color:var(--muted);margin-top:.15rem;white-space:pre-wrap;word-break:break-word}
-.mt-tag-rule{font-size:.68rem;color:var(--muted);margin-top:.2rem}
-.mt-num{font-size:1.15rem;font-weight:600;color:var(--text);line-height:1.1}
-.mt-lbl{font-size:.68rem;color:var(--muted)}
-.mt-actions{display:flex;flex-direction:column;gap:.3rem}
-.mt-actions button{border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:6px;padding:.2rem .6rem;font-size:.72rem;cursor:pointer;font-family:inherit;white-space:nowrap}
-.mt-actions button:hover{border-color:var(--primary);color:var(--primary)}
-.mt-spark{display:block;width:100%;max-width:180px;height:34px}
+.mt-range{font-size:.78rem;color:var(--muted)}
+.mt-range b{color:var(--text);font-weight:600}
+.mt-tbl-wrap{border:1px solid var(--border);border-radius:12px;background:var(--card);overflow-x:auto}
+.mt-tbl{width:100%;border-collapse:collapse;font-size:.82rem}
+.mt-tbl th{text-align:left;padding:.55rem .75rem;font-weight:600;color:var(--muted);font-size:.74rem;background:var(--card2);border-bottom:1px solid var(--border);white-space:nowrap}
+.mt-tbl th.r,.mt-tbl td.r{text-align:right}
+.mt-tbl td{padding:.55rem .75rem;border-bottom:1px solid var(--line-2);vertical-align:middle;color:var(--text)}
+.mt-tbl tr.mt-grp td{background:var(--card2);font-weight:600;font-size:.8rem;padding:.45rem .75rem}
+.mt-tbl tr.mt-row{cursor:pointer}
+.mt-tbl tr.mt-row:hover td{background:var(--primary-soft)}
+.mt-tbl tr.mt-row.open td{background:var(--primary-soft);border-bottom-color:transparent}
+.mt-tbl .num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.mt-tbl .sub{display:block;font-size:.68rem;color:var(--muted);font-weight:400}
+.mt-tbl tr.mt-detail td{background:var(--card);padding:.6rem .9rem .9rem;border-bottom:1px solid var(--border)}
+.mt-chart-box{position:relative;height:240px}
+.mt-detail-bar{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-bottom:.4rem}
+.mt-detail-bar button{border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:6px;padding:.2rem .65rem;font-size:.74rem;cursor:pointer;font-family:inherit}
+.mt-detail-bar button:hover{border-color:var(--primary);color:var(--primary)}
+.mt-spark{display:block;width:110px;height:26px}
 .mt-form label{display:block;font-size:.75rem;font-weight:600;color:var(--muted);margin-bottom:.25rem}
 .mt-form input,.mt-form textarea,.mt-form select{width:100%;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.86rem;font-family:inherit;outline:none;background:var(--card);color:var(--text);box-sizing:border-box}
 .mt-form input[readonly]{background:var(--card2);color:var(--muted)}
 .mt-form .row{margin-bottom:.7rem}
 @media (max-width:760px){
-  .mt-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .mt-tag{grid-template-columns:1fr 1fr}
-  .mt-tag>div:first-child{grid-column:1/-1}
-  .mt-actions{flex-direction:row;grid-column:1/-1}
+  .mt-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 .si-brand-header{display:flex;align-items:center;gap:.5rem;padding:.55rem .85rem;background:#fff;border:1px solid var(--border);border-radius:10px;cursor:pointer;margin-bottom:.35rem;font-weight:700;font-size:.88rem;user-select:none}
 .si-brand-header:hover{background:#faf9f6}
@@ -1289,8 +1277,8 @@ details[open]>summary .mt-chev{transform:rotate(90deg)}
   <div class="dash-tabs">
     <button class="dash-tab-btn active" id="dash-tab-btn-1" onclick="switchDashTab(1)">ภาพรวม Agent</button>
     <button class="dash-tab-btn" id="dash-tab-btn-2" onclick="switchDashTab(2)">Issue Analytics</button>
-    <button class="dash-tab-btn" id="dash-tab-btn-3" onclick="switchDashTab(3)">AI Analysis</button>
     <button class="dash-tab-btn" id="dash-tab-btn-4" onclick="switchDashTab(4)">📌 Monitor Tag <span id="mt-tab-count" class="mt-tab-count" style="display:none"></span></button>
+    <button class="dash-tab-btn" id="dash-tab-btn-3" onclick="switchDashTab(3)">AI Analysis</button>
   </div>
 
   <!-- ════ TAB 1: Agent Overview ════ -->
@@ -1513,25 +1501,7 @@ details[open]>summary .mt-chev{transform:rotate(90deg)}
   <div id="dash-tab-monitor" style="display:none">
     <div class="mt-kpis" id="mt-kpis"></div>
     <div class="mt-toolbar">
-      <select id="mt-f-status" class="mt-sel" onchange="mtLoad()" title="สถานะ Tag">
-        <option value="active">กำลังมอนิเตอร์</option>
-        <option value="resolved">ปิดแล้ว</option>
-        <option value="all">ทั้งหมด</option>
-      </select>
-      <select id="mt-f-customer" class="mt-sel" onchange="mtRender()" title="ลูกค้า"><option value="">ทุกลูกค้า</option></select>
-      <div class="mt-seg" id="mt-f-trend">
-        <button class="on" data-v="" onclick="mtSetTrend(this)">All</button>
-        <button data-v="worsened" onclick="mtSetTrend(this)">🔺 Worsened</button>
-        <button data-v="improved" onclick="mtSetTrend(this)">🔻 Improved</button>
-        <button data-v="stable" onclick="mtSetTrend(this)">Stable</button>
-      </div>
-      <select id="mt-f-period" class="mt-sel" onchange="mtRender()" title="ตั้ง Tag ภายใน">
-        <option value="">ตั้งเมื่อไหร่ก็ได้</option>
-        <option value="7">ตั้งใน 7 วันล่าสุด</option>
-        <option value="30">ตั้งใน 30 วันล่าสุด</option>
-        <option value="90">ตั้งใน 90 วันล่าสุด</option>
-      </select>
-      <input id="mt-f-q" class="mt-sel" type="text" placeholder="ค้นหา Tag / สาขา..." oninput="mtRender()" style="min-width:180px;flex:1"/>
+      <span id="mt-range" class="mt-range"></span>
       <span id="mt-updated" class="mt-updated"></span>
       <button class="svc-btn-ghost" onclick="mtLoad()" style="height:32px">รีเฟรช</button>
     </div>
@@ -2437,18 +2407,9 @@ details[open]>summary .mt-chev{transform:rotate(90deg)}
       <div class="row"><label>Store / สาขา</label><input id="mt-c-store" readonly/></div>
     </div>
     <div class="row"><label>Tag Title <span style="color:#b04a40">*</span></label><input id="mt-c-title" maxlength="300"/></div>
-    <div class="row"><label>Description / Monitor Note</label><textarea id="mt-c-note" rows="3" placeholder="เช่น อัปเดตเวอร์ชันกล้องแล้ว รอดูว่าอาการหายไหม"></textarea></div>
-    <div class="row"><label>Baseline Window (เทียบกับช่วงก่อนตั้ง Tag)</label>
-      <select id="mt-c-baseline">
-        <option value="7">7 วันล่าสุด</option>
-        <option value="14">14 วันล่าสุด</option>
-        <option value="30" selected>30 วันล่าสุด</option>
-        <option value="60">60 วันล่าสุด</option>
-        <option value="90">90 วันล่าสุด</option>
-      </select>
-    </div>
+    <div class="row"><label>Description / Monitor Note</label><textarea id="mt-c-note" rows="4" placeholder="เช่น อัปเดตเวอร์ชันกล้องแล้ว รอดูว่าอาการหายไหม"></textarea></div>
     <div style="font-size:.74rem;color:var(--muted);background:var(--card2);border:1px solid var(--line-2);border-radius:8px;padding:.5rem .7rem;margin-bottom:.9rem">
-      ระบบจะนับเคสของ <b>สาขานี้</b> ในหัวข้อ <b>“<span id="mt-c-subject"></span>”</b> ทุกเคสหลังตั้ง Tag แล้วเทียบค่าเฉลี่ยต่อวันกับช่วง Baseline
+      ระบบจะนับเคสของ <b>สาขานี้</b> ในหัวข้อ <b>“<span id="mt-c-subject"></span>”</b> ทุกเคสหลังตั้ง Tag แล้วเทียบค่าเฉลี่ยต่อวันกับ 30 วันก่อนตั้ง Tag
     </div>
     <div style="display:flex;justify-content:flex-end;gap:.5rem">
       <button class="svc-btn-ghost" onclick="closeModal('modal-mt-create')">ยกเลิก</button>
@@ -8167,6 +8128,7 @@ async function loadDashboardAll() {
   await loadDashboard();
   await loadDashboardCharts();
   if (_dashTab === 2) loadIssueAnalytics();
+  if (_dashTab === 4) mtLoad();
 }
 
 async function loadDashboard() {
@@ -19825,6 +19787,15 @@ async function loadIssueAnalytics() {
 // ดึงจาก /api/dashboard/issue-tickets ด้วยช่วงวันที่เดียวกับที่หน้านี้กรองอยู่
 let _issTicketsSubject = null;
 let _issTicketRows = [];
+let _issTicketsData = null;
+let _mtActive = [];   // active Monitor Tags — ใช้ติดป้าย "มอนิเตอร์อยู่" ในรายการงาน
+
+// tag ที่ครอบเคสนี้อยู่ (สาขาเดียวกัน + หัวข้อเดียวกัน) — ตรงกับ rule ฝั่ง server
+function mtTagFor(r) {
+  const subject = r.subject || _issTicketsSubject;
+  return _mtActive.find(t => t.subject === subject &&
+    (t.registration_id ? t.registration_id === r.registration_id : t.store_name === r.company));
+}
 
 function issCloseTickets() {
   _issTicketsSubject = null;
@@ -19851,9 +19822,13 @@ async function issLoadTickets(subject) {
   if (from) qs.set('dateFrom', from);
   if (to)   qs.set('dateTo', to);
 
-  const d = await api('/api/dashboard/issue-tickets?' + qs.toString(), { silent: true });
+  const [d, mt] = await Promise.all([
+    api('/api/dashboard/issue-tickets?' + qs.toString(), { silent: true }),
+    api('/api/monitor-tags?status=active&lite=1', { silent: true })
+  ]);
   // ระหว่างโหลดผู้ใช้อาจคลิกแท่งอื่นแล้ว — ทิ้งผลของแท่งเก่าไป
   if (_issTicketsSubject !== subject) return;
+  _mtActive = Array.isArray(mt?.tags) ? mt.tags : [];
   if (!d || d.error) {
     tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:1.5rem;color:var(--muted)">โหลดไม่สำเร็จ (ถ้าเพิ่งอัปเดตโค้ด ให้รีสตาร์ท server ก่อน)</td></tr>';
     return;
@@ -19873,6 +19848,7 @@ function issRenderTickets(d) {
   }
   const td = 'padding:.42rem .7rem;border-bottom:1px solid #f0eee9;vertical-align:top';
   _issTicketRows = rows;
+  _issTicketsData = d;
   tb.innerHTML = rows.map((r, i) => {
     const closed = /close|ปิด|complete/i.test(r.status || '');
     return `<tr>
@@ -19885,7 +19861,9 @@ function issRenderTickets(d) {
       </td>
       <td style="${td};white-space:nowrap;font-size:.78rem">${esc(dn(r.agent) || r.agent || '—')}</td>
       <td style="${td};white-space:nowrap;text-align:right">
-        <button class="mt-add-btn" onclick="mtOpenCreate(${i})" title="ติดตามหัวข้อนี้ของสาขานี้ในแท็บ Monitor Tag">+ เพิ่ม Monitor Tag</button>
+        ${mtTagFor(r)
+          ? `<button class="mt-on-btn" onclick="switchDashTab(4)" title="${esc('มอนิเตอร์อยู่: ' + mtTagFor(r).title)}">📌 มอนิเตอร์อยู่</button>`
+          : `<button class="mt-add-btn" onclick="mtOpenCreate(${i})" title="ติดตามหัวข้อนี้ของสาขานี้ในแท็บ Monitor Tag">+ เพิ่ม Monitor Tag</button>`}
       </td>
     </tr>`;
   }).join('');
@@ -19896,10 +19874,10 @@ function issRenderTickets(d) {
 //  MONITOR TAG (Tab 4) — ติดตามหัวข้อปัญหาของสาขาหลังตั้ง Tag
 // ══════════════════════════════════════════════════════════
 let _mtTags = [];
-let _mtTrend = '';
 let _mtDraft = null;
 let _mtLoading = false;
-const _mtClosed = new Set();   // key ของกลุ่มที่ผู้ใช้พับไว้ — คงไว้ข้ามการรีเฟรชอัตโนมัติ
+const _mtOpen = new Set();     // id ของแถวที่กางกราฟอยู่ — คงไว้ข้ามการรีเฟรชอัตโนมัติ
+const _mtCharts = {};
 
 function mtOpenCreate(i) {
   const r = _issTicketRows[i];
@@ -19915,8 +19893,7 @@ function mtOpenCreate(i) {
   document.getElementById('mt-c-customer').value = _mtDraft.customer_name;
   document.getElementById('mt-c-store').value    = _mtDraft.store_name;
   document.getElementById('mt-c-title').value    = _mtDraft.subject;
-  document.getElementById('mt-c-note').value     = '';
-  document.getElementById('mt-c-baseline').value = '30';
+  document.getElementById('mt-c-note').value     = (r.description || '').trim();
   document.getElementById('mt-c-subject').textContent = _mtDraft.subject;
   openModal('modal-mt-create');
   setTimeout(() => document.getElementById('mt-c-title').focus(), 50);
@@ -19931,13 +19908,14 @@ async function mtSave() {
   btn.disabled = true;
   const d = await api('/api/monitor-tags', { method: 'POST', silent: true, body: {
     ..._mtDraft, title,
-    note: document.getElementById('mt-c-note').value,
-    baseline_days: +document.getElementById('mt-c-baseline').value
+    note: document.getElementById('mt-c-note').value
   }});
   btn.disabled = false;
   if (!d || d.error) { showToast(d?.error || 'บันทึกไม่สำเร็จ', 'error'); return; }
   closeModal('modal-mt-create');
   showToast('เพิ่ม Monitor Tag แล้ว — ดูได้ที่แท็บ 📌 Monitor Tag');
+  _mtActive.push(d);
+  if (_issTicketsData) issRenderTickets(_issTicketsData);
   mtRefreshCount();
 }
 
@@ -19952,81 +19930,66 @@ function mtSetCount(n) {
   el.style.display = n ? '' : 'none';
 }
 
+// ช่วงวันที่จากตัวกรองด้านบน — ถ้าเลือกแค่วันเดียว (วันนี้/เมื่อวาน) เทียบก่อน/หลังไม่ได้
+// จึงใช้ค่าเริ่มต้น: 30 วันก่อนตั้ง Tag → วันนี้ แยกตามแต่ละ Tag
+function mtRange() {
+  const from = document.getElementById('dash-date-from')?.value || '';
+  const to   = document.getElementById('dash-date-to')?.value   || '';
+  return from && to && from < to ? { from, to } : null;
+}
+
 async function mtLoad(opts = {}) {
   if (_mtLoading) return;
   _mtLoading = true;
   const body = document.getElementById('mt-body');
   if (!opts.quiet && !_mtTags.length) body.innerHTML = '<div class="mt-empty">กำลังโหลด...</div>';
-  const status = document.getElementById('mt-f-status').value;
-  const d = await api('/api/monitor-tags?status=' + status, { silent: true });
+  const range = mtRange();
+  const qs = new URLSearchParams({ status: 'active' });
+  if (range) { qs.set('dateFrom', range.from); qs.set('dateTo', range.to); }
+  const d = await api('/api/monitor-tags?' + qs, { silent: true });
   _mtLoading = false;
   if (!d || d.error) {
     body.innerHTML = '<div class="mt-empty">โหลดไม่สำเร็จ (ถ้าเพิ่งอัปเดตโค้ด ให้รีสตาร์ท server ก่อน)</div>';
     return;
   }
   _mtTags = d.tags || [];
-  if (status === 'active') mtSetCount(_mtTags.length);
+  mtSetCount(_mtTags.length);
+  const fd = v => new Date(v + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
+  document.getElementById('mt-range').innerHTML = range
+    ? `เทียบในช่วง <b>${fd(range.from)} – ${fd(range.to)}</b> (ตามตัวกรองวันที่ด้านบน)`
+    : `เทียบ <b>30 วันก่อนตั้ง Tag</b> กับ <b>หลังตั้ง Tag ถึงวันนี้</b> · เลือกช่วงวันที่ด้านบน (เช่น 30 วัน / เดือนนี้) เพื่อเปลี่ยน`;
   document.getElementById('mt-updated').textContent =
     (d.ext === false ? 'ไม่ได้เชื่อมฐาน Calllog · ' : '') + 'อัปเดต ' + new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
-
-  const sel = document.getElementById('mt-f-customer');
-  const cur = sel.value;
-  const custs = [...new Set(_mtTags.map(t => t.customer_name))].sort((a, b) => a.localeCompare(b, 'th'));
-  sel.innerHTML = '<option value="">ทุกลูกค้า</option>' + custs.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
-  if (custs.includes(cur)) sel.value = cur;
-  mtRender();
-}
-
-function mtSetTrend(btn) {
-  _mtTrend = btn.dataset.v;
-  document.querySelectorAll('#mt-f-trend button').forEach(b => b.classList.toggle('on', b === btn));
   mtRender();
 }
 
 function mtTrendPill(st) {
   if (!st || st.error) return '<span class="mt-pill mt-flat">—</span>';
+  if (!st.trend) return `<span class="mt-pill mt-flat">${st.pre_avg === null ? 'ไม่มีช่วงก่อน Tag' : 'ยังไม่มีช่วงหลัง Tag'}</span>`;
   if (st.pct_change === null) {
     return st.trend === 'worsened'
-      ? '<span class="mt-pill mt-up">🔺 เคสใหม่ (baseline = 0)</span>'
+      ? '<span class="mt-pill mt-up">▲ เคสใหม่</span>'
       : '<span class="mt-pill mt-flat">● ไม่มีเคส</span>';
   }
   const v = (st.pct_change > 0 ? '+' : '') + st.pct_change.toFixed(0) + '%';
-  if (st.trend === 'worsened') return `<span class="mt-pill mt-up">🔺 ${v} vs Baseline</span>`;
-  if (st.trend === 'improved') return `<span class="mt-pill mt-down">🔻 ${v} vs Baseline</span>`;
-  return `<span class="mt-pill mt-flat">● ${v} คงที่</span>`;
+  if (st.trend === 'worsened') return `<span class="mt-pill mt-up">▲ เพิ่มขึ้น ${v}</span>`;
+  if (st.trend === 'improved') return `<span class="mt-pill mt-down">▼ ลดลง ${v}</span>`;
+  return `<span class="mt-pill mt-flat">● คงที่ ${v}</span>`;
 }
 
+const mtTrendColor = st => st?.trend === 'worsened' ? '#dc2626' : st?.trend === 'improved' ? '#16a34a' : '#8a8f97';
+
+// กราฟจิ๋วในตาราง: แท่งรายวัน + เส้นแบ่งวันตั้ง Tag
 function mtSpark(st) {
-  const pts = st?.spark || [];
+  const pts = st?.daily || [];
   if (!pts.length) return '';
-  const W = 180, H = 34, P = 3;
-  const max = Math.max(1, ...pts.map(p => p.n));
-  const x = i => pts.length === 1 ? W / 2 : P + i * (W - 2 * P) / (pts.length - 1);
-  const y = n => H - P - n / max * (H - 2 * P);
-  const col = st.trend === 'worsened' ? '#dc2626' : st.trend === 'improved' ? '#16a34a' : 'var(--muted)';
-  const line = pts.map((p, i) => `${x(i).toFixed(1)},${y(p.n).toFixed(1)}`).join(' ');
-  // เส้นประ = ค่าเฉลี่ยต่อวันของ baseline
-  const by = y(Math.min(st.pre_avg, max)).toFixed(1);
-  const title = pts.map(p => `${p.d}: ${p.n}`).join('\n');
-  return `<svg class="mt-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><title>${esc(title)}</title>
-    <line x1="0" x2="${W}" y1="${by}" y2="${by}" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3" opacity=".55" vector-effect="non-scaling-stroke"/>
-    ${pts.length === 1 ? `<circle cx="${x(0)}" cy="${y(pts[0].n)}" r="2.5" fill="${col}"/>`
-      : `<polyline points="${line}" fill="none" stroke="${col}" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`}
-  </svg>`;
-}
-
-function mtFiltered() {
-  const cust = document.getElementById('mt-f-customer').value;
-  const days = +document.getElementById('mt-f-period').value || 0;
-  const q = document.getElementById('mt-f-q').value.trim().toLowerCase();
-  const since = days ? Date.now() - days * 86400000 : 0;
-  return _mtTags.filter(t => {
-    if (cust && t.customer_name !== cust) return false;
-    if (_mtTrend && t.stats?.trend !== _mtTrend) return false;
-    if (since && parseDbDate(t.created_at).getTime() < since) return false;
-    if (q && ![t.title, t.store_name, t.customer_name, t.subject, t.note].some(v => (v || '').toLowerCase().includes(q))) return false;
-    return true;
-  });
+  const W = 110, H = 26, max = Math.max(1, ...pts.map(p => p.n)), bw = W / pts.length;
+  const iTag = pts.findIndex(p => p.phase === 'post');
+  const col = mtTrendColor(st);
+  const bars = pts.map((p, i) => p.n
+    ? `<rect x="${(i * bw).toFixed(2)}" y="${(H - p.n / max * H).toFixed(2)}" width="${Math.max(.5, bw - .4).toFixed(2)}" height="${(p.n / max * H).toFixed(2)}" fill="${p.phase === 'pre' ? '#9aa0a8' : col}" opacity="${p.phase === 'pre' ? .5 : .9}"/>` : '').join('');
+  const tagLine = iTag > 0 ? `<line x1="${(iTag * bw).toFixed(2)}" x2="${(iTag * bw).toFixed(2)}" y1="0" y2="${H}" stroke="var(--primary)" stroke-width="1" vector-effect="non-scaling-stroke"/>` : '';
+  return `<svg class="mt-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${bars}${tagLine}</svg>`;
 }
 
 function mtRenderKpis(list) {
@@ -20034,88 +19997,135 @@ function mtRenderKpis(list) {
   const k = (label, val, sub, cls) =>
     `<div class="stat-flat"><div class="label">${label}</div><div class="value ${cls}">${val}</div><div class="sub">${sub}</div></div>`;
   document.getElementById('mt-kpis').innerHTML =
-    k('Tags ที่แสดง', list.length, `${new Set(list.map(t => t.store_name)).size} สาขา · ${new Set(list.map(t => t.customer_name)).size} ลูกค้า`, 'blue') +
-    k('🔺 แย่ลง', n('worsened'), 'เคสต่อวันสูงกว่า baseline', 'orange') +
-    k('🔻 ดีขึ้น', n('improved'), 'เคสต่อวันต่ำกว่า baseline', 'green') +
-    k('● คงที่', n('stable'), `เปลี่ยนไม่เกิน ±2%`, 'white');
+    k('กำลังมอนิเตอร์', list.length, `${new Set(list.map(t => t.store_name)).size} สาขา · ${new Set(list.map(t => t.customer_name)).size} กลุ่ม`, 'blue') +
+    k('▲ เพิ่มขึ้น', n('worsened'), 'หลัง Tag เคส/วันมากกว่าก่อน', 'orange') +
+    k('▼ ลดลง', n('improved'), 'หลัง Tag เคส/วันน้อยกว่าก่อน', 'green') +
+    k('● คงที่', n('stable'), 'เปลี่ยนไม่เกิน ±2%', 'white');
 }
 
 function mtRender() {
-  const list = mtFiltered();
+  const list = _mtTags;
   mtRenderKpis(list);
+  Object.keys(_mtCharts).forEach(id => { _mtCharts[id].destroy(); delete _mtCharts[id]; });
   const body = document.getElementById('mt-body');
-  if (!_mtTags.length) {
+  if (!list.length) {
     body.innerHTML = `<div class="mt-empty">ยังไม่มี Monitor Tag<br><span style="font-size:.78rem">ไปที่แท็บ <b>Issue Analytics</b> → คลิกแท่งหัวข้อปัญหา → กด <b>+ เพิ่ม Monitor Tag</b> ที่เคสของสาขาที่ต้องการติดตาม</span></div>`;
     return;
   }
-  if (!list.length) { body.innerHTML = '<div class="mt-empty">ไม่มี Tag ตรงกับตัวกรอง</div>'; return; }
-
-  const byCust = new Map();
-  for (const t of list) {
-    if (!byCust.has(t.customer_name)) byCust.set(t.customer_name, new Map());
-    const stores = byCust.get(t.customer_name);
-    if (!stores.has(t.store_name)) stores.set(t.store_name, []);
-    stores.get(t.store_name).push(t);
+  const sorted = [...list].sort((a, b) =>
+    a.customer_name.localeCompare(b.customer_name, 'th') || a.store_name.localeCompare(b.store_name, 'th') ||
+    a.subject.localeCompare(b.subject, 'th'));
+  const avg = (v, cnt) => v === null ? '<span class="mt-meta">—</span>'
+    : `<b>${v.toFixed(2)}</b><span class="sub">${cnt.toLocaleString()} เคส</span>`;
+  let html = '', lastGrp = null;
+  for (const t of sorted) {
+    if (t.customer_name !== lastGrp) {
+      lastGrp = t.customer_name;
+      const n = sorted.filter(x => x.customer_name === lastGrp).length;
+      html += `<tr class="mt-grp"><td colspan="8">${esc(lastGrp)} <span class="mt-meta" style="font-weight:400">· ${n} tags</span></td></tr>`;
+    }
+    const st = t.stats || {};
+    const open = _mtOpen.has(t.id);
+    html += `<tr class="mt-row${open ? ' open' : ''}" onclick="mtToggleRow(${t.id})" title="คลิกเพื่อดูกราฟ">
+      <td>${esc(t.store_name)}</td>
+      <td>${esc(t.subject)}${t.title && t.title !== t.subject ? `<span class="sub">${esc(t.title)}</span>` : ''}</td>
+      <td class="num">${fmtDate(t.created_at)}<span class="sub">${st.days_monitored ?? 0} วันที่แล้ว</span></td>
+      <td class="r num">${st.error ? '—' : avg(st.pre_avg ?? null, st.pre_count || 0)}</td>
+      <td class="r num">${st.error ? '—' : avg(st.post_avg ?? null, st.post_count || 0)}</td>
+      <td>${st.error ? '<span class="mt-pill mt-up">คำนวณไม่สำเร็จ</span>' : mtTrendPill(st)}</td>
+      <td>${mtSpark(st)}</td>
+      <td class="r mt-meta">${open ? '▲' : '▼'}</td>
+    </tr>`;
+    if (open) html += mtDetailRow(t);
   }
-  const rank = { worsened: 0, stable: 1, improved: 2 };
-  const counts = tags => {
-    const w = tags.filter(t => t.stats?.trend === 'worsened').length;
-    const i = tags.filter(t => t.stats?.trend === 'improved').length;
-    return (w ? `<span class="mt-pill mt-up">🔺 ${w}</span>` : '') + (i ? `<span class="mt-pill mt-down">🔻 ${i}</span>` : '');
-  };
-
-  body.innerHTML = [...byCust.entries()].map(([cust, stores]) => {
-    const all = [...stores.values()].flat();
-    const ck = 'c:' + cust;
-    return `<details class="mt-cust" data-k="${esc(ck)}" ${_mtClosed.has(ck) ? '' : 'open'} ontoggle="mtToggle(this)">
-      <summary><span class="mt-chev">▶</span><span class="mt-cust-name">${esc(cust)}</span>
-        <span class="mt-meta">${stores.size} สาขา · ${all.length} tags</span>${counts(all)}</summary>
-      ${[...stores.entries()].map(([store, tags]) => {
-        const sk = 's:' + cust + '|' + store;
-        tags.sort((a, b) => (rank[a.stats?.trend] ?? 1) - (rank[b.stats?.trend] ?? 1));
-        return `<details class="mt-store" data-k="${esc(sk)}" ${_mtClosed.has(sk) ? '' : 'open'} ontoggle="mtToggle(this)">
-          <summary><span class="mt-chev">▶</span>🏬 ${esc(store)} <span class="mt-meta" style="font-weight:400">${tags.length} tags</span>${counts(tags)}</summary>
-          <div class="mt-tags">${tags.map(mtTagCard).join('')}</div>
-        </details>`;
-      }).join('')}
-    </details>`;
-  }).join('');
+  body.innerHTML = `<div class="mt-tbl-wrap"><table class="mt-tbl">
+    <thead><tr>
+      <th>สาขา</th><th>หัวข้อปัญหา</th><th>วันที่ตั้ง Tag</th>
+      <th class="r">ก่อน Tag<span class="sub">เคส/วัน</span></th>
+      <th class="r">หลัง Tag<span class="sub">เคส/วัน</span></th>
+      <th>ผล</th><th>Trend รายวัน</th><th></th>
+    </tr></thead>
+    <tbody>${html}</tbody></table></div>`;
+  _mtOpen.forEach(id => mtDrawChart(id));
 }
 
-function mtTagCard(t) {
-  const st = t.stats;
-  const resolved = t.status === 'resolved';
-  const days = st && !st.error ? st.days_monitored : Math.floor((Date.now() - parseDbDate(t.created_at)) / 86400000);
-  const cls = ['mt-tag', resolved ? 'resolved' : '', st?.trend || ''].join(' ');
-  const statCol = st?.error
-    ? `<div class="mt-lbl" style="color:#c0392b">คำนวณไม่สำเร็จ</div>`
-    : st ? `<div class="mt-num">${st.post_count.toLocaleString()} <span class="mt-lbl" style="font-weight:400">เคสหลังตั้ง</span></div>
-           <div style="margin:.25rem 0">${mtTrendPill(st)}</div>
-           <div class="mt-lbl">${st.post_avg.toFixed(2)}/วัน · baseline ${st.pre_avg.toFixed(2)}/วัน (${t.baseline_days} วัน, ${st.pre_count} เคส)</div>`
-    : '<div class="mt-lbl">—</div>';
-  return `<div class="${cls}">
-    <div>
-      <div class="mt-tag-title">${esc(t.title)} ${resolved ? '<span class="mt-pill mt-flat">ปิดแล้ว</span>' : ''}</div>
-      ${t.note ? `<div class="mt-tag-note">${esc(t.note)}</div>` : ''}
-      <div class="mt-tag-rule">หัวข้อ: ${esc(t.subject)}${t.created_by ? ` · โดย ${esc(dn(t.created_by) || t.created_by)}` : ''}</div>
-      ${resolved && t.resolve_note ? `<div class="mt-tag-rule">ปิด: ${esc(t.resolve_note)}</div>` : ''}
+function mtDetailRow(t) {
+  return `<tr class="mt-detail"><td colspan="8">
+    <div class="mt-detail-bar">
+      <span class="mt-meta" style="flex:1">${t.note ? esc(t.note.replace(/\s+/g, ' ').slice(0, 200)) : ''}</span>
+      <button onclick="event.stopPropagation();mtOpenDetail(${t.id})">ดูรายการเคส</button>
+      <button onclick="event.stopPropagation();mtResolve(${t.id})">✓ Resolve (ปิด Tag)</button>
     </div>
-    <div>
-      <div class="mt-lbl">เริ่มมอนิเตอร์</div>
-      <div style="font-size:.82rem;font-weight:600;color:var(--text)">${fmtDate(t.created_at)}</div>
-      <div class="mt-lbl">${resolved ? `ปิด ${fmtDate(t.resolved_at)} · ` : ''}${days} วัน</div>
-    </div>
-    <div>${statCol}${mtSpark(st)}</div>
-    <div class="mt-actions">
-      <button onclick="mtOpenDetail(${t.id})">View Detail</button>
-      ${resolved ? '' : `<button onclick="mtResolve(${t.id})">✓ Resolve</button>`}
-    </div>
-  </div>`;
+    <div class="mt-chart-box"><canvas id="mt-chart-${t.id}"></canvas></div>
+  </td></tr>`;
 }
 
-function mtToggle(el) {
-  const k = el.dataset.k;
-  if (el.open) _mtClosed.delete(k); else _mtClosed.add(k);
+function mtToggleRow(id) {
+  if (_mtOpen.has(id)) _mtOpen.delete(id); else _mtOpen.add(id);
+  mtRender();
+}
+
+// เส้นตั้งตรงวันที่ตั้ง Tag
+const mtTagLinePlugin = {
+  id: 'mtTagLine',
+  afterDatasetsDraw(chart, _args, opts) {
+    if (opts.index == null || opts.index < 0) return;
+    const x = chart.scales.x.getPixelForValue(opts.index);
+    const { top, bottom } = chart.chartArea;
+    const ctx = chart.ctx;
+    ctx.save();
+    ctx.strokeStyle = opts.color; ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]);
+    ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.stroke();
+    ctx.setLineDash([]); ctx.fillStyle = opts.color; ctx.font = '600 11px sans-serif';
+    ctx.textAlign = x > chart.chartArea.right - 70 ? 'right' : 'left';
+    ctx.fillText('📌 ตั้ง Tag', x + (ctx.textAlign === 'right' ? -4 : 4), top + 11);
+    ctx.restore();
+  }
+};
+
+function mtDrawChart(id) {
+  const t = _mtTags.find(x => x.id === id);
+  const cv = document.getElementById('mt-chart-' + id);
+  const st = t?.stats;
+  if (!cv || !st?.daily?.length || typeof Chart === 'undefined') return;
+  const pts = st.daily;
+  const iTag = pts.findIndex(p => p.phase === 'post');
+  const col = mtTrendColor(st);
+  const css = getComputedStyle(document.documentElement);
+  const muted = css.getPropertyValue('--muted').trim() || '#5b616b';
+  const grid = css.getPropertyValue('--line-2').trim() || '#efede7';
+  const primary = css.getPropertyValue('--primary').trim() || '#35685f';
+  // ก่อน/หลังเป็นคนละเส้น แต่ให้ต่อกันที่วันตั้ง Tag
+  const preData  = pts.map((p, i) => p.phase === 'pre' || i === iTag ? p.n : null);
+  const postData = pts.map(p => p.phase === 'post' ? p.n : null);
+  const ds = [
+    { label: 'ก่อนตั้ง Tag', data: preData, borderColor: '#9aa0a8', backgroundColor: '#9aa0a8', borderWidth: 2, pointRadius: pts.length > 45 ? 0 : 2, tension: .25, spanGaps: false },
+    { label: 'หลังตั้ง Tag', data: postData, borderColor: col, backgroundColor: col, borderWidth: 2.5, pointRadius: pts.length > 45 ? 0 : 2.5, tension: .25, spanGaps: false }
+  ];
+  if (st.pre_avg !== null) ds.push({ label: `เฉลี่ยก่อน ${st.pre_avg.toFixed(2)}/วัน`, data: pts.map(p => p.phase === 'pre' ? st.pre_avg : null),
+    borderColor: '#9aa0a8', borderDash: [6, 4], borderWidth: 1.5, pointRadius: 0 });
+  if (st.post_avg !== null) ds.push({ label: `เฉลี่ยหลัง ${st.post_avg.toFixed(2)}/วัน`, data: pts.map(p => p.phase === 'post' ? st.post_avg : null),
+    borderColor: col, borderDash: [6, 4], borderWidth: 1.5, pointRadius: 0 });
+  _mtCharts[id] = new Chart(cv, {
+    type: 'line',
+    data: { labels: pts.map(p => new Date(p.d + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })), datasets: ds },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 14, color: muted, font: { size: 11 } } },
+        tooltip: { filter: item => item.datasetIndex < 2 && item.raw !== null,
+                   callbacks: { label: c => ` ${c.dataset.label}: ${c.raw} เคส` } },
+        mtTagLine: { index: iTag, color: primary }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: muted, maxTicksLimit: 12, font: { size: 10 } } },
+        y: { beginAtZero: true, grid: { color: grid }, ticks: { color: muted, precision: 0, font: { size: 10 } },
+             title: { display: true, text: 'Tickets / วัน', color: muted, font: { size: 10 } } }
+      }
+    },
+    plugins: [mtTagLinePlugin]
+  });
 }
 
 async function mtResolve(id) {

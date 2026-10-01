@@ -12359,7 +12359,7 @@ app.get('/api/dashboard/issue-tickets', authRequired, async (request, res) => {
         ISNULL(pt.ProblemTypeDetail, '(ไม่ระบุ)') AS category,
         cs.StatusName           AS status,
         u.UserName              AS agent,
-        LEFT(cl.CalllogDesc, 300) AS description,
+        LEFT(cl.CalllogDesc, 2000) AS description,   -- ยาวพอให้ Monitor Tag ดึงไปเป็น note
         LEFT(cl.Solution, 300)    AS solution
       FROM Calllog cl
       LEFT JOIN CustomerRegistration cr ON cr.RegistrationId = cl.RegistrationId
@@ -12508,60 +12508,71 @@ function monitorMatch(r, tag) {
   };
 }
 
-async function monitorTagStats(tag) {
+// range = { s, e } จากตัวกรองวันที่ด้านบน (ไม่ส่งมา = 30 วันก่อนตั้ง tag → วันนี้)
+// ฝั่ง "ก่อน" = s → วันตั้ง tag, ฝั่ง "หลัง" = วันตั้ง tag → e (tag ที่ปิดแล้วหยุดนับที่วันปิด)
+async function monitorTagStats(tag, range) {
   const r = extReq()
     .input('c',  sql.DateTime, tag.created_at)
     .input('en', sql.DateTime, tag.status === 'resolved' ? tag.resolved_at : null)
-    .input('bd', sql.Int, tag.baseline_days);
+    .input('bd', sql.Int, tag.baseline_days)
+    .input('fs', sql.DateTime, range?.s || null)
+    .input('fe', sql.DateTime, range?.e || null);
   const m = monitorMatch(r, tag);
   const out = await r.query(`
-    DECLARE @e DATETIME = ISNULL(@en, GETDATE());
-    SELECT CONVERT(char(10), @c, 23) AS start_day, CONVERT(char(10), @e, 23) AS end_day,
-           DATEDIFF(minute, @c, @e) AS mins;
+    DECLARE @s DATETIME = ISNULL(@fs, DATEADD(day, -@bd, @c));
+    DECLARE @e DATETIME = ISNULL(@fe, GETDATE());
+    IF @e > GETDATE() SET @e = GETDATE();
+    IF @en IS NOT NULL AND @e > @en SET @e = @en;
+    SELECT CONVERT(char(10), @s, 23) AS from_day, CONVERT(char(10), @c, 23) AS tag_day,
+           CONVERT(char(10), @e, 23) AS end_day,
+           CASE WHEN @c > @s THEN DATEDIFF(minute, @s, CASE WHEN @c < @e THEN @c ELSE @e END) ELSE 0 END AS pre_mins,
+           CASE WHEN @e > @c THEN DATEDIFF(minute, CASE WHEN @c > @s THEN @c ELSE @s END, @e) ELSE 0 END AS post_mins,
+           DATEDIFF(minute, @c, GETDATE()) AS age_mins;
     SELECT CONVERT(char(10), cl.ReceiveDate, 23) AS d,
            SUM(CASE WHEN cl.ReceiveDate <  @c THEN 1 ELSE 0 END) AS pre,
-           SUM(CASE WHEN cl.ReceiveDate >= @c THEN 1 ELSE 0 END) AS post,
-           MAX(cl.ReceiveDate) AS last_at
+           SUM(CASE WHEN cl.ReceiveDate >= @c THEN 1 ELSE 0 END) AS post
     FROM Calllog cl ${m.join}
     WHERE cl.Active=1 AND ${m.where}
-      AND cl.ReceiveDate >= DATEADD(day, -@bd, @c) AND cl.ReceiveDate <= @e
+      AND cl.ReceiveDate >= @s AND cl.ReceiveDate <= @e
     GROUP BY CONVERT(char(10), cl.ReceiveDate, 23)`);
   const meta = out.recordsets[0][0];
-  const days = out.recordsets[1];
 
-  let pre = 0, post = 0, lastAt = null;
-  const postByDay = {};
-  for (const d of days) {
-    pre += d.pre; post += d.post;
-    if (d.post) {
-      postByDay[d.d] = d.post;
-      if (!lastAt || d.last_at > lastAt) lastAt = d.last_at;
+  let pre = 0, post = 0;
+  const byDay = {};
+  for (const d of out.recordsets[1]) { pre += d.pre; post += d.post; byDay[d.d] = d.pre + d.post; }
+
+  // ตัวเลขรายวันตลอดช่วง — วันที่ตั้ง tag นับเป็นฝั่ง "หลัง"
+  const tagT = Date.parse(meta.tag_day + 'T00:00:00Z');
+  const daily = [];
+  for (let t = Date.parse(meta.from_day + 'T00:00:00Z'), end = Date.parse(meta.end_day + 'T00:00:00Z');
+       t <= end && daily.length < 400; t += 86400000) {
+    const k = new Date(t).toISOString().slice(0, 10);
+    daily.push({ d: k, n: byDay[k] || 0, phase: t < tagT ? 'pre' : 'post' });
+  }
+  // ช่วงที่ไม่ครบวัน (วันตั้ง tag / วันนี้) ปัดขึ้นเป็น 1 วัน — อย่าให้ค่าเฉลี่ยพุ่ง
+  const preDays  = meta.pre_mins  > 0 ? Math.max(1, meta.pre_mins / 1440) : 0;
+  const postDays = meta.post_mins > 0 ? Math.max(1, meta.post_mins / 1440) : 0;
+  const preAvg  = preDays  ? pre / preDays   : null;
+  const postAvg = postDays ? post / postDays : null;
+  let pct = null, trend = null;
+  if (preAvg !== null && postAvg !== null) {
+    if (preAvg > 0) {
+      pct = (postAvg - preAvg) / preAvg * 100;
+      trend = Math.abs(pct) <= MONITOR_STABLE_PCT ? 'stable' : pct < 0 ? 'improved' : 'worsened';
+    } else {
+      trend = post > 0 ? 'worsened' : 'stable';    // ก่อนหน้าไม่มีเคสเลย: มีเคสใหม่ = แย่ลง
     }
   }
-  // sparkline: นับรายวันตั้งแต่วันตั้ง tag ถึงวันนี้ (เก็บแค่ 90 วันล่าสุด)
-  const spark = [];
-  for (let t = Date.parse(meta.start_day + 'T00:00:00Z'), end = Date.parse(meta.end_day + 'T00:00:00Z');
-       t <= end; t += 86400000) {
-    const k = new Date(t).toISOString().slice(0, 10);
-    spark.push({ d: k, n: postByDay[k] || 0 });
-  }
-  const elapsedDays = Math.max(0, meta.mins) / 1440;
-  const postDays = Math.max(1, elapsedDays);       // วันแรกยังไม่ครบวัน — อย่าให้ค่าเฉลี่ยพุ่ง
-  const preAvg  = pre / tag.baseline_days;
-  const postAvg = post / postDays;
-  let pct = null, trend;
-  if (preAvg > 0) {
-    pct = (postAvg - preAvg) / preAvg * 100;
-    trend = Math.abs(pct) <= MONITOR_STABLE_PCT ? 'stable' : pct < 0 ? 'improved' : 'worsened';
-  } else {
-    trend = post > 0 ? 'worsened' : 'stable';    // ไม่มีเคสใน baseline: มีเคสใหม่ = แย่ลง
-  }
   return {
+    from_day: meta.from_day, tag_day: meta.tag_day, end_day: meta.end_day,
     pre_count: pre, post_count: post,
-    pre_avg: +preAvg.toFixed(3), post_avg: +postAvg.toFixed(3),
+    pre_days: +preDays.toFixed(2), post_days: +postDays.toFixed(2),
+    pre_avg: preAvg === null ? null : +preAvg.toFixed(3),
+    post_avg: postAvg === null ? null : +postAvg.toFixed(3),
     pct_change: pct === null ? null : +pct.toFixed(1),
-    trend, days_monitored: Math.floor(elapsedDays),
-    last_case_at: lastAt, spark: spark.slice(-90)
+    trend,                                    // null = ช่วงที่เลือกไม่มีทั้งก่อนและหลัง tag
+    days_monitored: Math.floor(Math.max(0, meta.age_mins) / 1440),
+    daily
   };
 }
 
@@ -12573,8 +12584,14 @@ app.get('/api/monitor-tags', authRequired, async (request, res) => {
     let where = '';
     if (status !== 'all') { where = 'WHERE status=@st'; r.input('st', sql.NVarChar, status); }
     const tags = (await r.query(`SELECT * FROM monitor_tags ${where} ORDER BY customer_name, store_name, created_at DESC`)).recordset;
+    // lite=1 — แค่รายชื่อ tag (ไว้ติดป้ายในรายการงาน) ไม่ต้องคำนวณสถิติจาก Calllog
+    if (request.query.lite === '1') return res.json({ tags });
     if (!getExtPool()) return res.json({ tags: tags.map(t => ({ ...t, stats: null })), ext: false });
-    const stats = await Promise.all(tags.map(t => monitorTagStats(t).catch(e => ({ error: e.message }))));
+    // ช่วงวันที่จากตัวกรองด้านบน (ไม่บังคับ)
+    const { dateFrom, dateTo } = request.query;
+    const range = dateFrom && dateTo
+      ? { s: new Date(dateFrom), e: new Date(new Date(dateTo).setHours(23, 59, 59, 999)) } : null;
+    const stats = await Promise.all(tags.map(t => monitorTagStats(t, range).catch(e => ({ error: e.message }))));
     res.json({ tags: tags.map((t, i) => ({ ...t, stats: stats[i] })), ext: true, generated_at: new Date() });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
