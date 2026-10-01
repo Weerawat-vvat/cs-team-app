@@ -2491,7 +2491,7 @@ textarea{resize:vertical;min-height:80px}
     <div id="mt-t-s1">
       <input id="mt-t-q" placeholder="ค้นหา Tag หรือพิมพ์ชื่อ Tag ใหม่..." autocomplete="off"
         oninput="mtTagList()" onkeydown="if(event.key==='Enter'){event.preventDefault();mtTagEnter()}"/>
-      <div class="mt-meta" style="margin:.5rem 0 .35rem">Tag ที่เปิดอยู่ของ <b id="mt-t-scope"></b> — คลิก Tag เพื่อติดให้เคสนี้ทันที</div>
+      <div class="mt-meta" style="margin:.5rem 0 .35rem">Tag ที่เปิดอยู่ของ <b id="mt-t-scope"></b> — เลือก Tag แล้วกด ตกลง</div>
       <div class="mt-tag-opts" id="mt-t-list"></div>
     </div>
 
@@ -2523,7 +2523,7 @@ textarea{resize:vertical;min-height:80px}
       <button class="svc-btn-ghost" id="mt-t-back" onclick="mtTagStep(1)" style="display:none">‹ ย้อนกลับ</button>
       <span style="flex:1"></span>
       <button class="svc-btn-ghost" onclick="closeModal('modal-mt-tag')">ยกเลิก</button>
-      <button class="svc-btn-primary" id="mt-t-next" onclick="mtTagStep(2)" disabled>ถัดไป ›</button>
+      <button class="svc-btn-primary" id="mt-t-next" onclick="mtTagNext()" disabled>ถัดไป ›</button>
       <button class="svc-btn-primary" id="mt-t-save" onclick="mtTagSave()" style="display:none"><i class=i-tag></i> <span id="mt-t-save-lbl">ติด Tag และเริ่ม Monitor</span></button>
     </div>
   </div>
@@ -20090,10 +20090,10 @@ function mtTagList() {
     const linked = (t.linked_ids || []).includes(T.r.id);
     const hit = !linked && mtRuleHits(t, T.r);
     const badge = linked ? '<span class="mt-pill mt-down"><i class=i-link></i> ติดแล้ว</span>' : hit ? '<span class="mt-pill mt-flat" title="ตรงกฎของ Tag นี้อยู่แล้ว"><i class=i-check></i> ตรงกฎ</span>' : '';
-    return `<button type="button" class="mt-opt${isOn(t) ? ' on' : ''}" ${linked ? 'disabled title="เคสนี้ติด Tag นี้แล้ว" style="cursor:default;opacity:.7"' : `onclick="mtTagQuickLink(${t.id})" title="คลิกเพื่อติด Tag นี้ให้เคสทันที"`}>
+    return `<button type="button" class="mt-opt${isOn(t) ? ' on' : ''}" ${linked ? 'disabled title="เคสนี้ติด Tag นี้แล้ว" style="cursor:default;opacity:.7"' : `onclick="mtTagPick(${t.id})" ondblclick="mtTagPick(${t.id});mtTagNext()"`}>
       <div class="b"><div class="tg"><i class=i-tag></i>${esc(t.title)} <span class="mt-meta" style="font-weight:400">· ${mtScopeName(t)}</span></div>
         <div class="r">${mtRuleLabel(t)} · เริ่ม ${mtFmtStart(t)}${t.note ? ' · ' + esc(t.note.replace(/\s+/g, ' ').slice(0, 80)) : ''}</div></div>
-      ${badge || '<span class="mt-meta" style="white-space:nowrap">ติด Tag ›</span>'}</button>`;
+      ${badge}</button>`;
   }).join('');
   if (!newTitle) html += `<div class="mt-opt new" style="cursor:default;opacity:.75">
       <div class="b"><div class="tg"><i class=i-plus></i>สร้าง Tag ใหม่</div>
@@ -20106,7 +20106,10 @@ function mtTagList() {
   document.getElementById('mt-t-list').innerHTML = html;
   // ชื่อ Tag ใหม่เปลี่ยนตามที่พิมพ์
   if (T.pick && !T.pick.tag) { if (newTitle && !exact) T.pick.title = newTitle; else T.pick = null; }
-  document.getElementById('mt-t-next').disabled = !T.pick;
+  // เลือก Tag เดิม → "ตกลง" ติด Tag ให้เคสเลย · สร้าง Tag ใหม่ → "ถัดไป" ไปกรอกวิธีตรวจสอบ/แก้ไข
+  const next = document.getElementById('mt-t-next');
+  next.disabled = !T.pick;
+  next.textContent = T.pick?.tag ? 'ตกลง' : 'ถัดไป ›';
 }
 
 function mtTagPick(id) {
@@ -20138,10 +20141,16 @@ function mtTagPickNew() {
   mtTagList();
 }
 // Enter: เลือกอันแรกที่ค้นเจอ หรือสร้างใหม่ตามที่พิมพ์ แล้วไปขั้นถัดไป
+function mtTagNext() {
+  const T = _mtT; if (!T?.pick) return;
+  if (T.pick.tag) mtTagQuickLink(T.pick.tag.id);
+  else mtTagStep(2);
+}
+// Enter: ยังไม่ได้เลือก = เลือกอันแรกที่ค้นเจอ · เลือกแล้ว = เหมือนกดปุ่ม ตกลง / ถัดไป
 function mtTagEnter() {
   const first = document.querySelector('#mt-t-list button.mt-opt:not([disabled])');
-  if (!_mtT.pick && first) first.click();   // Tag เดิม = ติดทันที · สร้างใหม่ = เลือกไว้
-  if (_mtT.pick && !_mtT.pick.tag) mtTagStep(2);
+  if (!_mtT.pick) { if (first) first.click(); return; }
+  mtTagNext();
 }
 
 function mtTagStep(n) {
