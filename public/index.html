@@ -315,38 +315,7 @@ textarea{resize:vertical;min-height:80px}
 .i-store{--i:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27black%27%20stroke-width%3D%271.8%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M4%2010v10h16V10%27%2F%3E%3Cpath%20d%3D%27M2.5%2010l2-6h15l2%206z%27%2F%3E%3Cpath%20d%3D%27M10%2020v-5h4v5%27%2F%3E%3C%2Fsvg%3E")}
 
 /* ══════════ AI STYLES ══════════ */
-#ai-fab{position:fixed;bottom:1.5rem;right:1.5rem;z-index:500;width:48px;height:48px;border-radius:50%;background:#fff;color:var(--primary);border:1px solid var(--border);cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.05),0 8px 24px -8px rgba(36,39,44,.22);display:flex;align-items:center;justify-content:center;transition:transform .15s,box-shadow .15s,background .15s}
-#ai-fab:hover{transform:translateY(-2px);background:var(--primary-soft);box-shadow:0 1px 2px rgba(0,0,0,.05),0 12px 28px -8px rgba(36,39,44,.28)}
-#ai-fab .badge-unread{position:absolute;top:1px;right:1px;background:#a2562f;color:#fff;border:2px solid #fff;border-radius:50%;width:16px;height:16px;font-size:.58rem;display:none;align-items:center;justify-content:center;font-weight:600;box-sizing:content-box}
-#ai-panel{position:fixed;bottom:5rem;right:1.5rem;z-index:499;width:370px;max-width:95vw;background:#fff;border-radius:18px;box-shadow:0 1px 2px rgba(0,0,0,.04),0 24px 64px -16px rgba(36,39,44,.28);display:none;flex-direction:column;overflow:hidden;border:1px solid var(--border);max-height:75vh}
-#ai-panel.open{display:flex}
-#ai-panel-header{background:#fff;color:var(--text);padding:.95rem 1.1rem;display:flex;align-items:center;gap:.55rem;font-weight:600;font-size:.92rem;border-bottom:1px solid var(--line-2)}
-#ai-panel-header .ai-hd-ico{width:28px;height:28px;border-radius:8px;background:var(--primary-soft);color:var(--primary);display:flex;align-items:center;justify-content:center}
-#ai-panel-header .close-btn{margin-left:auto;background:none;border:none;color:#8a8f97;font-size:1.3rem;cursor:pointer;line-height:1;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center}
-#ai-panel-header .close-btn:hover{background:#f0eee9;color:var(--text)}
-#ai-messages{flex:1;overflow-y:auto;padding:.9rem;display:flex;flex-direction:column;gap:.6rem;min-height:200px}
-.ai-msg{display:flex;gap:.5rem;align-items:flex-start}
-.ai-msg.user{flex-direction:row-reverse}
-.ai-msg .bubble{padding:.6rem .85rem;border-radius:12px;font-size:.84rem;line-height:1.5;max-width:80%;white-space:pre-wrap;word-break:break-word}
-.ai-msg.user .bubble{background:var(--primary);color:#fff;border-bottom-right-radius:3px}
-.ai-msg.bot .bubble{background:#f0eee9;color:var(--text);border-bottom-left-radius:3px}
-.ai-msg .avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:600;flex-shrink:0}
-.ai-msg.bot .avatar{background:var(--primary-soft);color:var(--primary)}
-.ai-msg.user .avatar{background:#f0eee9;color:#5b616b}
-.ai-typing{padding:.4rem .85rem;border-radius:12px;background:#f0eee9;font-size:.82rem;color:#5b616b;display:flex;gap:4px;align-items:center}
-.ai-typing span{animation:blink 1.2s infinite;font-size:1.1rem;line-height:1}
-.ai-typing span:nth-child(2){animation-delay:.2s}
-.ai-typing span:nth-child(3){animation-delay:.4s}
-@keyframes blink{0%,80%,100%{opacity:.2}40%{opacity:1}}
 @keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.4);opacity:.7}}
-#ai-input-wrap{display:flex;gap:.5rem;padding:.75rem;border-top:1px solid var(--border);background:#fff}
-#ai-input{flex:1;padding:.52rem .75rem;border:1.5px solid var(--border);border-radius:10px;font-size:.84rem;font-family:inherit;outline:none;resize:none;line-height:1.4;max-height:80px;background:#fff;color:var(--text)}
-#ai-input:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-soft)}
-#ai-send{background:var(--primary);color:#fff;border:none;border-radius:10px;width:40px;cursor:pointer;transition:background .15s;flex-shrink:0;display:flex;align-items:center;justify-content:center}
-#ai-attach{background:none;border:1px solid var(--border);color:#5b616b;border-radius:10px;width:40px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s}
-#ai-attach:hover{background:#f0eee9;color:var(--text)}
-#ai-send:hover{background:var(--primary-dk)}
-.quick-chips{display:flex;flex-wrap:wrap;gap:.35rem;padding:0 .9rem .7rem}
 .chip{background:#fff;color:#4d535b;border:1px solid var(--border);border-radius:999px;padding:.28rem .75rem;font-size:.75rem;cursor:pointer;font-family:inherit;transition:.15s}
 .chip:hover{background:var(--primary-soft);border-color:#c9dbd5;color:var(--text)}
 .ai-insight-box{background:linear-gradient(135deg,#13111c,#1a1730,#24272c);border:1.5px solid #4f46e5;border-radius:12px;padding:1.1rem 1.25rem;margin-top:1rem;color:#ddd8ff}
@@ -538,7 +507,7 @@ textarea{resize:vertical;min-height:80px}
 .mt-file button:hover{color:#c0392b}
 .mt-attach{display:inline-flex;align-items:center;gap:.25rem;cursor:pointer}
 .mt-attach input{display:none}
-.mt-scripts-ft{display:flex;align-items:center;gap:.6rem;justify-content:flex-end;margin-top:.5rem;padding-right:3.2rem}
+.mt-scripts-ft{display:flex;align-items:center;gap:.6rem;justify-content:flex-end;margin-top:.5rem}
 .mt-dirty{font-size:.72rem;color:#b7791f}
 .mt-an{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem;margin:.2rem 0 .8rem}
 .mt-tbl .mt-detail .mt-an-card th:first-child,.mt-tbl .mt-detail .mt-an-card td:first-child{text-align:left}
@@ -18614,38 +18583,7 @@ init();
 // ══════════════════════════════════════════════════════════
 //  AI FEATURES
 // ══════════════════════════════════════════════════════════
-let aiHistory = [];
-let aiPending = false;
 let aiSuggestedShifts = [];
-
-// ── Chatbot Panel ──────────────────────────────────────────
-function toggleAiPanel() {
-  const panel = document.getElementById('ai-panel');
-  const unread = document.getElementById('ai-unread');
-  panel.classList.toggle('open');
-  if (panel.classList.contains('open')) {
-    unread.style.display = 'none';
-    document.getElementById('ai-input').focus();
-    scrollAiMessages();
-  }
-}
-
-function scrollAiMessages() {
-  const el = document.getElementById('ai-messages');
-  el.scrollTop = el.scrollHeight;
-}
-
-function aiKeydown(e) {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    sendAiMessage();
-  }
-}
-
-function sendQuick(msg) {
-  document.getElementById('ai-input').value = msg;
-  sendAiMessage();
-}
 
 function aiEscape(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -18654,106 +18592,6 @@ function aiFormat(text) {
   // escape first, then apply light markdown (**bold**) — newlines handled by CSS pre-wrap
   return aiEscape(text).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
 }
-const AI_AVATAR_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>';
-function appendAiMsg(role, text, imgSrc) {
-  const el = document.getElementById('ai-messages');
-  const div = document.createElement('div');
-  div.className = `ai-msg ${role}`;
-  const imgHtml = imgSrc
-    ? `<img src="${imgSrc}" style="max-width:180px;max-height:180px;border-radius:8px;margin-bottom:.35rem;display:block"/>`
-    : '';
-  div.innerHTML = `
-    <div class="avatar">${role === 'bot' ? AI_AVATAR_ICON : ((typeof currentUser!=='undefined' && currentUser && (currentUser.name||currentUser.username)||'?').charAt(0).toUpperCase())}</div>
-    <div class="bubble">${imgHtml}${text ? aiFormat(text) : ''}</div>
-  `;
-  el.appendChild(div);
-  scrollAiMessages();
-  return div;
-}
-
-function showTyping() {
-  const el = document.getElementById('ai-messages');
-  const div = document.createElement('div');
-  div.className = 'ai-msg bot';
-  div.id = 'ai-typing-ind';
-  div.innerHTML = `<div class="avatar">${AI_AVATAR_ICON}</div><div class="ai-typing"><span>●</span><span>●</span><span>●</span></div>`;
-  el.appendChild(div);
-  scrollAiMessages();
-}
-
-function hideTyping() {
-  const t = document.getElementById('ai-typing-ind');
-  if (t) t.remove();
-}
-
-// ── Image attachment ───────────────────────────────────────
-let aiPendingImage = null; // data URL of the image to send with the next message
-
-function aiSetImage(file) {
-  if (!file || !file.type.startsWith('image/')) return;
-  if (file.size > 10 * 1024 * 1024) { alert('รูปใหญ่เกินไป (จำกัด 10MB)'); return; }
-  const reader = new FileReader();
-  reader.onload = () => {
-    aiPendingImage = reader.result;
-    document.getElementById('ai-img-thumb').src = aiPendingImage;
-    document.getElementById('ai-img-name').textContent = file.name || 'รูปที่วาง';
-    document.getElementById('ai-img-preview').style.display = 'flex';
-  };
-  reader.readAsDataURL(file);
-}
-function aiPickImage(input) { if (input.files && input.files[0]) aiSetImage(input.files[0]); input.value = ''; }
-function aiPasteImage(e) {
-  const items = (e.clipboardData || {}).items || [];
-  for (const it of items) {
-    if (it.type && it.type.startsWith('image/')) { e.preventDefault(); aiSetImage(it.getAsFile()); return; }
-  }
-}
-function aiClearImage() {
-  aiPendingImage = null;
-  document.getElementById('ai-img-preview').style.display = 'none';
-  document.getElementById('ai-img-thumb').src = '';
-}
-
-async function sendAiMessage() {
-  if (aiPending) return;
-  const input = document.getElementById('ai-input');
-  const msg = input.value.trim();
-  const img = aiPendingImage;
-  if (!msg && !img) return;
-  input.value = '';
-
-  // Hide quick chips after first use
-  document.getElementById('ai-quick-chips').style.display = 'none';
-
-  appendAiMsg('user', msg, img);
-  aiHistory.push({ role: 'user', content: msg || '[แนบรูป]' });
-  aiClearImage();
-  aiPending = true;
-  showTyping();
-
-  try {
-    const headers = { 'Content-Type': 'application/json' };
-    if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
-    const res = await fetch('/api/ai/chat', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ message: msg, history: aiHistory.slice(-8), image: img || undefined })
-    });
-    const data = await res.json();
-    hideTyping();
-    if (data.reply) {
-      appendAiMsg('bot', data.reply);
-      aiHistory.push({ role: 'assistant', content: data.reply });
-    } else {
-      appendAiMsg('bot', 'ขออภัย เกิดข้อผิดพลาด: ' + (data.error || 'unknown'));
-    }
-  } catch (err) {
-    hideTyping();
-    appendAiMsg('bot', 'ไม่สามารถเชื่อมต่อได้ กรุณาตรวจสอบ server');
-  }
-  aiPending = false;
-}
-
 // ── Dashboard AI Insight ───────────────────────────────────
 // ── AI Analysis — SSE streaming ───────────────────────────
 let _aiAbortCtrl = null;
@@ -25482,47 +25320,6 @@ async function generateFromPattern() {
         <button class="btn btn-sm" style="background:#5a4f8f;color:#fff" onclick="generateFromPattern()">เจนตารางทั้งเดือน</button>
       </div>
     </div>
-  </div>
-</div>
-
-<!-- ══════════ CS ASSISTANT — AI CHAT WIDGET ══════════ -->
-<button id="ai-fab" onclick="toggleAiPanel()" title="CS Assistant — ถาม AI เรื่องประวัติ support" aria-label="เปิดแชท CS Assistant">
-  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>
-  <span id="ai-unread" class="badge-unread">1</span>
-</button>
-
-<div id="ai-panel">
-  <div id="ai-panel-header">
-    <span class="ai-hd-ico"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></span>
-    <span>CS Assistant</span>
-    <button class="close-btn" onclick="toggleAiPanel()" aria-label="ปิดแชท">×</button>
-  </div>
-
-  <div id="ai-messages">
-    <div class="ai-msg bot">
-      <div class="avatar"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></div>
-      <div class="bubble">สวัสดีครับ ผมคือ CS Assistant
-ถามผมได้เลย ผมค้นให้จาก <b>ประวัติเคส (Calllog)</b>, <b>สิ่งที่ควรรู้ของร้าน</b> และ <b>ข้อมูลรีโมท</b></div>
-    </div>
-  </div>
-
-  <div id="ai-quick-chips" class="quick-chips">
-    <button class="chip" onclick="sendQuick('เครื่องพิมพ์ไม่ออกใบเสร็จ เคยแก้ยังไงบ้าง')">เครื่องพิมพ์ไม่ออกใบเสร็จ</button>
-    <button class="chip" onclick="sendQuick('มีสิ่งที่ควรรู้อะไรบ้างเกี่ยวกับการตั้งค่าร้าน')">สิ่งที่ควรรู้</button>
-    <button class="chip" onclick="sendQuick('ขอข้อมูลรีโมท (Anydesk/IP) ของสาขา')">ข้อมูลรีโมทสาขา</button>
-    <button class="chip" onclick="sendQuick('สรุปสถานการณ์ทีมวันนี้')">สรุปวันนี้</button>
-  </div>
-
-  <div id="ai-img-preview" style="display:none;padding:.5rem .75rem 0;align-items:center;gap:.5rem">
-    <img id="ai-img-thumb" style="width:44px;height:44px;object-fit:cover;border-radius:8px;border:1px solid var(--border)"/>
-    <span id="ai-img-name" style="font-size:.75rem;color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
-    <button onclick="aiClearImage()" title="เอารูปออก" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:1.1rem;line-height:1;flex-shrink:0">×</button>
-  </div>
-  <div id="ai-input-wrap">
-    <input type="file" id="ai-img-file" accept="image/*" style="display:none" onchange="aiPickImage(this)"/>
-    <button id="ai-attach" onclick="document.getElementById('ai-img-file').click()" title="แนบรูป (หรือวางรูปด้วย Ctrl+V)" aria-label="แนบรูป"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button>
-    <textarea id="ai-input" rows="1" placeholder="พิมพ์คำถาม หรือแนบ/วางรูป..." onkeydown="aiKeydown(event)" onpaste="aiPasteImage(event)"></textarea>
-    <button id="ai-send" onclick="sendAiMessage()" title="ส่ง" aria-label="ส่งข้อความ"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
   </div>
 </div>
 
