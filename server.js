@@ -12389,7 +12389,7 @@ app.get('/api/dashboard/issue-tickets', authRequired, async (request, res) => {
         cs.StatusName           AS status,
         u.UserName              AS agent,
         LEFT(cl.CalllogDesc, 2000) AS description,   -- ยาวพอให้ Monitor Tag ดึงไปเป็น note
-        LEFT(cl.Solution, 300)    AS solution
+        LEFT(cl.Solution, 2000)   AS solution      -- ดึงไปเป็น "วิธีแก้ไข" ของ Monitor Tag
       FROM Calllog cl
       LEFT JOIN CustomerRegistration cr ON cr.RegistrationId = cl.RegistrationId
       LEFT JOIN CustomerGroup cg ON cg.GroupId = cr.GroupId
