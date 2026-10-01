@@ -2439,7 +2439,10 @@ textarea{resize:vertical;min-height:80px}
       <div class="row"><label>Customer</label><input id="mt-c-customer" readonly/></div>
       <div class="row"><label>Store / สาขา</label><input id="mt-c-store" readonly/></div>
     </div>
-    <div class="row"><label>Tag Title <span style="color:#b04a40">*</span></label><input id="mt-c-title" maxlength="300"/></div>
+    <div class="grid-2">
+      <div class="row"><label>Tag Title <span style="color:#b04a40">*</span></label><input id="mt-c-title" maxlength="300"/></div>
+      <div class="row"><label>วันที่เริ่ม Monitor <span style="font-weight:400">(ย้อนหลังได้)</span></label><input id="mt-c-start" type="datetime-local"/></div>
+    </div>
     <div class="row"><label>Description / Monitor Note</label><textarea id="mt-c-note" rows="4" placeholder="เช่น อัปเดตเวอร์ชันกล้องแล้ว รอดูว่าอาการหายไหม"></textarea></div>
     <div class="grid-2">
       <div class="row"><label>Script ตรวจสอบ (Check)</label>
@@ -19843,6 +19846,12 @@ function mtTagFor(r) {
     : t.registration_id ? t.registration_id === r.registration_id : t.store_name === r.company));
 }
 const mtIsGroup = t => t.scope === 'group';
+const mtStart = t => t.start_at || t.created_at;   // วันเริ่ม monitor (ระบุย้อนหลังได้)
+// Date → 'YYYY-MM-DDTHH:mm' สำหรับ <input type="datetime-local">
+const mtLocalInput = d => { const z = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`; };
+// ค่าที่ผู้ใช้แก้จากค่าตั้งต้น — ไม่แก้ส่ง null ให้ server ใช้เวลาที่บันทึก
+function mtStartInput(id) { const el = document.getElementById(id); return el.value && el.value !== el.dataset.def ? el.value : null; }
 
 function issCloseTickets() {
   _issTicketsSubject = null;
@@ -19945,6 +19954,8 @@ function mtOpenCreate(i) {
   document.getElementById('mt-c-title').value    = _mtDraft.subject;
   document.getElementById('mt-c-note').value     = (r.description || '').trim();
   ['mt-c-check', 'mt-c-fix', 'mt-c-check-files', 'mt-c-fix-files'].forEach(id => { document.getElementById(id).value = ''; });
+  const st = document.getElementById('mt-c-start');
+  st.value = st.max = st.dataset.def = mtLocalInput(new Date());   // ไม่แก้ = ใช้เวลาที่บันทึก
   document.getElementById('mt-c-subject').textContent = _mtDraft.subject;
   openModal('modal-mt-create');
   setTimeout(() => document.getElementById('mt-c-title').focus(), 50);
@@ -19960,6 +19971,7 @@ async function mtSave() {
   const d = await api('/api/monitor-tags', { method: 'POST', silent: true, body: {
     ..._mtDraft, title,
     note: document.getElementById('mt-c-note').value,
+    start_at: mtStartInput('mt-c-start'),
     check_script: document.getElementById('mt-c-check').value,
     fix_script: document.getElementById('mt-c-fix').value
   }});
@@ -20094,7 +20106,7 @@ function mtRender() {
         : `${esc(t.store_name)}<span class="sub">ระดับสาขา</span>`}</td>
       <td>${esc(t.subject)}${t.title && t.title !== t.subject ? `<span class="sub">${esc(t.title)}</span>` : ''}${
         t.check_script || t.fix_script || t.files?.length ? `<span class="sub">🧾 มี Script${t.files?.length ? ` · 📎 ${t.files.length} ไฟล์` : ''}</span>` : ''}</td>
-      <td class="num">${fmtDate(t.created_at)}<span class="sub">${st.days_monitored ?? 0} วันที่แล้ว</span></td>
+      <td class="num">${fmtDate(mtStart(t))}<span class="sub">${st.days_monitored ?? 0} วันที่แล้ว${t.start_at ? ' · ระบุย้อนหลัง' : ''}</span></td>
       <td class="r num">${st.error ? '—' : avg(st.pre_avg ?? null, st.pre_count || 0)}</td>
       <td class="r num">${st.error ? '—' : st.early
         ? `<span class="mt-meta">—</span><span class="sub">${st.post_count || 0} เคสถึงตอนนี้</span>`
@@ -20107,7 +20119,7 @@ function mtRender() {
   }
   body.innerHTML = `<div class="mt-tbl-wrap"><table class="mt-tbl">
     <thead><tr>
-      <th>สาขา</th><th>หัวข้อปัญหา</th><th>วันที่ตั้ง Tag</th>
+      <th>สาขา</th><th>หัวข้อปัญหา</th><th>วันที่เริ่ม Monitor</th>
       <th class="r">ก่อน Tag<span class="sub">เคส/วัน</span></th>
       <th class="r">หลัง Tag<span class="sub">เคส/วัน</span></th>
       <th>ผล</th><th>Trend รายวัน</th><th></th>
@@ -20138,7 +20150,7 @@ function mtRenderOverview(list) {
   }
   // เวลาที่ Tag แรกจะครบ 1 วัน — บอกผู้ใช้ว่าจะได้เห็น % เมื่อไหร่
   const firstDue = earlyTags.length
-    ? new Date(Math.min(...earlyTags.map(t => parseDbDate(t.created_at).getTime())) + 86400000) : null;
+    ? new Date(Math.min(...earlyTags.map(t => parseDbDate(mtStart(t)).getTime())) + 86400000) : null;
   const dueTxt = firstDue ? firstDue.toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) + ' น.' : '';
   const waitPill = `<span class="mt-pill mt-flat" style="font-size:.78rem">⏳ รอครบ 1 วัน${dueTxt ? ` · ${dueTxt}` : ''}</span>`;
 
@@ -20318,6 +20330,10 @@ function mtDetailRow(t) {
   return `<tr class="mt-detail"><td colspan="8">
     <div class="mt-detail-bar">
       <span class="mt-meta" style="flex:1">${t.note ? esc(t.note.replace(/\s+/g, ' ').slice(0, 200)) : ''}</span>
+      <span class="mt-meta" style="display:inline-flex;align-items:center;gap:.3rem">📅 เริ่ม Monitor
+        <input type="datetime-local" id="mt-start-${t.id}" value="${mtLocalInput(parseDbDate(mtStart(t)))}" max="${mtLocalInput(new Date())}"
+          style="height:26px;border:1px solid var(--border);border-radius:6px;padding:0 .35rem;font-size:.74rem;font-family:inherit;background:var(--card);color:var(--text)"/>
+        <button onclick="event.stopPropagation();mtSaveStart(${t.id})">บันทึกวันเริ่ม</button></span>
       <button onclick="event.stopPropagation();mtOpenDetail(${t.id})">ดูรายการเคส</button>
       <button onclick="event.stopPropagation();mtResolve(${t.id})">✓ Resolve (ปิด Tag)</button>
     </div>
@@ -20435,6 +20451,15 @@ async function mtDeleteFile(fid) {
   mtRender();
 }
 
+async function mtSaveStart(id) {
+  const v = document.getElementById('mt-start-' + id)?.value;
+  if (!v) { showToast('กรุณาระบุวันที่เริ่ม', 'error'); return; }
+  const d = await api(`/api/monitor-tags/${id}/start`, { method: 'PUT', silent: true, body: { start_at: v } });
+  if (!d || d.error) { showToast(d?.error || 'บันทึกวันเริ่มไม่สำเร็จ', 'error'); return; }
+  showToast('บันทึกวันเริ่ม Monitor แล้ว — คำนวณใหม่');
+  mtLoad({ quiet: true });   // ช่วงก่อน/หลังเปลี่ยน ต้องคำนวณจาก server ใหม่
+}
+
 function mtToggleRow(id) {
   if (_mtOpen.has(id)) _mtOpen.delete(id); else _mtOpen.add(id);
   mtRender();
@@ -20519,7 +20544,7 @@ async function mtOpenDetail(id) {
   document.getElementById('mt-d-title').textContent = t.title;
   document.getElementById('mt-d-store-th').style.display = mtIsGroup(t) ? '' : 'none';
   document.getElementById('mt-d-sub').textContent =
-    `${t.customer_name} › ${mtIsGroup(t) ? 'ทุกสาขา (ระดับ License Group)' : t.store_name} · หัวข้อ “${t.subject}” · ตั้ง Tag ${fmtDate(t.created_at)}`;
+    `${t.customer_name} › ${mtIsGroup(t) ? 'ทุกสาขา (ระดับ License Group)' : t.store_name} · หัวข้อ “${t.subject}” · เริ่ม Monitor ${fmtDate(mtStart(t))}`;
   const tb = document.getElementById('mt-d-tbody');
   tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:var(--muted)">กำลังโหลด...</td></tr>';
   openModal('modal-mt-detail');
@@ -20552,7 +20577,7 @@ setInterval(() => {
   const tab = document.getElementById('dash-tab-monitor');
   if (!tab || !tab.offsetParent) return;
   if (document.querySelector('#modal-mt-detail.open, #modal-mt-create.open')) return;
-  if (Object.keys(_mtScriptDraft).length || document.activeElement?.classList.contains('mt-code')) return;
+  if (Object.keys(_mtScriptDraft).length || document.activeElement?.matches?.('.mt-code, input[id^="mt-start-"]')) return;
   mtLoad({ quiet: true });
 }, 60 * 1000);
 

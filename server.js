@@ -12520,7 +12520,8 @@ async function ensureMonitorTagTables() {
       IF COL_LENGTH('monitor_tags','check_script') IS NULL ALTER TABLE monitor_tags ADD check_script NVARCHAR(MAX) NULL;
       IF COL_LENGTH('monitor_tags','fix_script') IS NULL ALTER TABLE monitor_tags ADD fix_script NVARCHAR(MAX) NULL;
       IF COL_LENGTH('monitor_tags','scripts_updated_by') IS NULL ALTER TABLE monitor_tags ADD scripts_updated_by NVARCHAR(100) NULL;
-      IF COL_LENGTH('monitor_tags','scripts_updated_at') IS NULL ALTER TABLE monitor_tags ADD scripts_updated_at DATETIME NULL;`);
+      IF COL_LENGTH('monitor_tags','scripts_updated_at') IS NULL ALTER TABLE monitor_tags ADD scripts_updated_at DATETIME NULL;
+      IF COL_LENGTH('monitor_tags','start_at') IS NULL ALTER TABLE monitor_tags ADD start_at DATETIME NULL;`);
     await req().query(`
       IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='monitor_tag_files' AND xtype='U')
       CREATE TABLE monitor_tag_files (
@@ -12580,11 +12581,25 @@ async function monitorClockSkew() {
   return _mtClockSkew.ms;
 }
 const monitorToExt = (d, skew) => d ? new Date(new Date(d).getTime() - skew) : null;
+// วันเริ่ม monitor: ผู้ใช้ระบุย้อนหลังได้ (start_at) ไม่ระบุ = เวลาที่สร้าง tag
+const monitorStart = tag => tag.start_at || tag.created_at;
+
+// รับ 'YYYY-MM-DDTHH:mm' (เวลาตามนาฬิกาผนัง) — ส่งเป็นข้อความให้ SQL แปลงเอง ไม่ผ่าน timezone ของ Node
+const MT_START_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+async function monitorCheckStart(v) {
+  if (!MT_START_RE.test(v)) return 'รูปแบบวันที่เริ่มไม่ถูกต้อง';
+  const r = (await req().input('st', sql.NVarChar, v + ':00').query(`
+    SELECT CASE WHEN TRY_CONVERT(datetime, @st, 126) IS NULL THEN 'bad'
+                WHEN TRY_CONVERT(datetime, @st, 126) > DATEADD(minute, 5, GETDATE()) THEN 'future'
+                WHEN TRY_CONVERT(datetime, @st, 126) < DATEADD(day, -365, GETDATE()) THEN 'old'
+                ELSE 'ok' END AS v`)).recordset[0].v;
+  return { bad: 'วันที่เริ่มไม่ถูกต้อง', future: 'วันที่เริ่มต้องไม่เกินเวลาปัจจุบัน', old: 'ย้อนหลังได้ไม่เกิน 365 วัน' }[r] || null;
+}
 
 async function monitorTagStats(tag, range) {
   const skew = await monitorClockSkew();
   const r = extReq()
-    .input('c',  sql.DateTime, monitorToExt(tag.created_at, skew))
+    .input('c',  sql.DateTime, monitorToExt(monitorStart(tag), skew))
     .input('en', sql.DateTime, tag.status === 'resolved' ? monitorToExt(tag.resolved_at, skew) : null)
     .input('bd', sql.Int, tag.baseline_days)
     .input('fs', sql.DateTime, range?.s || null)
@@ -12686,7 +12701,7 @@ app.get('/api/monitor-tags/:id/tickets', authRequired, async (request, res) => {
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
     const skew = await monitorClockSkew();
     const r = extReq()
-      .input('c',  sql.DateTime, monitorToExt(tag.created_at, skew))
+      .input('c',  sql.DateTime, monitorToExt(monitorStart(tag), skew))
       .input('en', sql.DateTime, tag.status === 'resolved' ? monitorToExt(tag.resolved_at, skew) : null)
       .input('bd', sql.Int, tag.baseline_days);
     const m = monitorMatch(r, tag);
@@ -12719,6 +12734,8 @@ app.post('/api/monitor-tags', authRequired, async (request, res) => {
     const baseline = MONITOR_BASELINE_OPTIONS.includes(+b.baseline_days) ? +b.baseline_days : 30;
     const rid = Number.isInteger(+b.registration_id) && +b.registration_id > 0 ? +b.registration_id : null;
     if (!store || !subject) return res.status(400).json({ error: 'ต้องมีชื่อสาขาและหัวข้อปัญหา' });
+    const startAt = b.start_at ? String(b.start_at).trim() : null;
+    if (startAt) { const err = await monitorCheckStart(startAt); if (err) return res.status(400).json({ error: err }); }
 
     // สาขาที่อยู่ใน License Group (แบรนด์) → ดูระดับกลุ่ม
     // สาขาเดี่ยว (ไม่มีกลุ่ม) หรือกลุ่ม INF Group (GroupId 1) → ดูระดับสาขา
@@ -12754,17 +12771,32 @@ app.post('/api/monitor-tags', authRequired, async (request, res) => {
       .input('nt',  sql.NVarChar, str(b.note, 4000) || null)
       .input('bd',  sql.Int, baseline)
       .input('src', sql.Int, Number.isInteger(+b.source_ticket_id) ? +b.source_ticket_id : null)
+      .input('sta', sql.NVarChar, startAt ? startAt + ':00' : null)
       .input('by',  sql.NVarChar, request.user?.username || null)
       .input('cs',  sql.NVarChar, str(b.check_script, 200000) || null)
       .input('fs',  sql.NVarChar, str(b.fix_script, 200000) || null)
       .query(`INSERT INTO monitor_tags
                 (customer_name, store_name, registration_id, scope, group_id, subject, category, title, note, baseline_days, source_ticket_id, created_by,
-                 check_script, fix_script, scripts_updated_by, scripts_updated_at)
+                 check_script, fix_script, scripts_updated_by, scripts_updated_at, start_at)
               OUTPUT INSERTED.*
               VALUES (@cn, @sn, @rid, @scp, @gid, @sub, @cat, @ttl, @nt, @bd, @src, @by,
                  @cs, @fs, CASE WHEN @cs IS NULL AND @fs IS NULL THEN NULL ELSE @by END,
-                 CASE WHEN @cs IS NULL AND @fs IS NULL THEN NULL ELSE GETDATE() END)`)).recordset[0];
+                 CASE WHEN @cs IS NULL AND @fs IS NULL THEN NULL ELSE GETDATE() END,
+                 TRY_CONVERT(datetime, @sta, 126))`)).recordset[0];
     res.json(row);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT /api/monitor-tags/:id/start — แก้วันที่เริ่ม monitor (กรณีทำรายการย้อนหลัง)
+app.put('/api/monitor-tags/:id/start', authRequired, async (request, res) => {
+  try {
+    const v = String(request.body?.start_at || '').trim();
+    const err = await monitorCheckStart(v);
+    if (err) return res.status(400).json({ error: err });
+    const out = await req().input('id', sql.Int, +request.params.id).input('st', sql.NVarChar, v + ':00')
+      .query(`UPDATE monitor_tags SET start_at=TRY_CONVERT(datetime, @st, 126) OUTPUT INSERTED.start_at WHERE id=@id`);
+    if (!out.recordset.length) return res.status(404).json({ error: 'ไม่พบ Monitor Tag' });
+    res.json(out.recordset[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
