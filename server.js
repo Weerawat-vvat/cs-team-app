@@ -12528,7 +12528,8 @@ async function ensureMonitorTagTables() {
       IF COL_LENGTH('monitor_tags','start_at') IS NULL ALTER TABLE monitor_tags ADD start_at DATETIME NULL;
       IF COL_LENGTH('monitor_tags','keywords') IS NULL ALTER TABLE monitor_tags ADD keywords NVARCHAR(1000) NULL;
       IF COL_LENGTH('monitor_tags','any_subject') IS NULL ALTER TABLE monitor_tags ADD any_subject BIT NULL;
-      IF COL_LENGTH('monitor_tags','match_mode') IS NULL ALTER TABLE monitor_tags ADD match_mode NVARCHAR(10) NULL;`);
+      IF COL_LENGTH('monitor_tags','match_mode') IS NULL ALTER TABLE monitor_tags ADD match_mode NVARCHAR(10) NULL;
+      IF COL_LENGTH('monitor_tags','tag_type') IS NULL ALTER TABLE monitor_tags ADD tag_type NVARCHAR(20) NULL;`);
     await req().query(`UPDATE monitor_tags SET scope='global', group_id=NULL, registration_id=NULL,
         customer_name=N'ทุก License', store_name=N'ทุก License'
       WHERE match_mode='manual' AND ISNULL(scope,'')<>'global'`);
@@ -12936,17 +12937,18 @@ app.post('/api/monitor-tags', authRequired, async (request, res) => {
       .input('kws', sql.NVarChar, kwStr)
       .input('any', sql.Bit, anySub ? 1 : 0)
       .input('mm',  sql.NVarChar, manual ? 'manual' : null)
+      .input('tt',  sql.NVarChar, MONITOR_TAG_TYPES.includes(b.tag_type) ? b.tag_type : null)
       .input('by',  sql.NVarChar, request.user?.username || null)
       .input('cs',  sql.NVarChar, str(b.check_script, 200000) || null)
       .input('fs',  sql.NVarChar, str(b.fix_script, 200000) || null)
       .query(`INSERT INTO monitor_tags
                 (customer_name, store_name, registration_id, scope, group_id, subject, category, title, note, baseline_days, source_ticket_id, created_by,
-                 check_script, fix_script, scripts_updated_by, scripts_updated_at, start_at, keywords, any_subject, match_mode)
+                 check_script, fix_script, scripts_updated_by, scripts_updated_at, start_at, keywords, any_subject, match_mode, tag_type)
               OUTPUT INSERTED.*
               VALUES (@cn, @sn, @rid, @scp, @gid, @sub, @cat, @ttl, @nt, @bd, @src, @by,
                  @cs, @fs, CASE WHEN @cs IS NULL AND @fs IS NULL THEN NULL ELSE @by END,
                  CASE WHEN @cs IS NULL AND @fs IS NULL THEN NULL ELSE GETDATE() END,
-                 TRY_CONVERT(datetime, @sta, 126), @kws, @any, @mm)`)).recordset[0];
+                 TRY_CONVERT(datetime, @sta, 126), @kws, @any, @mm, @tt)`)).recordset[0];
     res.json(row);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -12974,6 +12976,39 @@ app.put('/api/monitor-tags/:id/start', authRequired, async (request, res) => {
     const out = await req().input('id', sql.Int, +request.params.id).input('st', sql.NVarChar, v + ':00')
       .query(`UPDATE monitor_tags SET start_at=TRY_CONVERT(datetime, @st, 126) OUTPUT INSERTED.start_at WHERE id=@id`);
     if (!out.recordset.length) return res.status(404).json({ error: 'ไม่พบ Monitor Tag' });
+    res.json(out.recordset[0]);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ประเภทของ Tag: command = แก้ด้วยคำสั่ง/Script ที่รันเอง · cron = แก้ด้วยงานตั้งเวลา (scheduled job)
+const MONITOR_TAG_TYPES = ['command', 'cron'];
+
+// PUT /api/monitor-tags/:id — จัดการ Tag: เปลี่ยนชื่อ / ประเภท
+app.put('/api/monitor-tags/:id', authRequired, async (request, res) => {
+  try {
+    const id = +request.params.id, b = request.body || {};
+    const tag = (await req().input('id', sql.Int, id).query('SELECT id, title, scope, status FROM monitor_tags WHERE id=@id')).recordset[0];
+    if (!tag) return res.status(404).json({ error: 'ไม่พบ Monitor Tag' });
+    const sets = [];
+    const r = req().input('id', sql.Int, id);
+    if ('title' in b) {
+      const title = String(b.title || '').trim().slice(0, 300);
+      if (!title) return res.status(400).json({ error: 'กรุณาตั้งชื่อ Tag' });
+      // Tag กลางใช้ร่วมกันทุก License — ชื่อห้ามซ้ำกับ Tag กลางอื่นที่ยังเปิดอยู่
+      if (tag.scope === 'global') {
+        const dup = (await req().input('id', sql.Int, id).input('t', sql.NVarChar, title).query(
+          `SELECT TOP 1 id FROM monitor_tags WHERE status='active' AND scope='global' AND title=@t AND id<>@id`)).recordset[0];
+        if (dup) return res.status(409).json({ error: `มี Tag “${title}” อยู่แล้ว` });
+      }
+      r.input('t', sql.NVarChar, title); sets.push('title=@t');
+    }
+    if ('tag_type' in b) {
+      const tt = b.tag_type || null;
+      if (tt && !MONITOR_TAG_TYPES.includes(tt)) return res.status(400).json({ error: 'ประเภท Tag ไม่ถูกต้อง' });
+      r.input('tt', sql.NVarChar, tt); sets.push('tag_type=@tt');
+    }
+    if (!sets.length) return res.status(400).json({ error: 'ไม่มีอะไรให้แก้' });
+    const out = await r.query(`UPDATE monitor_tags SET ${sets.join(', ')} OUTPUT INSERTED.id, INSERTED.title, INSERTED.tag_type WHERE id=@id`);
     res.json(out.recordset[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
