@@ -470,6 +470,59 @@ textarea{resize:vertical;min-height:80px}
 .dash-tab-btn{background:transparent;border:none;border-bottom:2px solid transparent;margin-bottom:-1px;padding:.55rem .85rem;font-size:.86rem;font-weight:400;color:#5b616b;cursor:pointer;white-space:nowrap;transition:color .15s,border-color .15s;font-family:inherit}
 .dash-tab-btn:hover{color:var(--text)}
 .dash-tab-btn.active{color:var(--text);font-weight:500;border-bottom-color:var(--primary)}
+/* ── Monitor Tag tab ── */
+.mt-tab-count{display:inline-block;min-width:18px;padding:0 .35rem;margin-left:.2rem;border-radius:9px;background:var(--primary-soft);color:var(--primary);font-size:.68rem;font-weight:600;line-height:17px;text-align:center}
+.mt-add-btn{border:1px solid var(--border);background:var(--card);color:var(--primary);border-radius:6px;padding:.18rem .55rem;font-size:.72rem;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
+.mt-add-btn:hover{background:var(--primary-soft);border-color:var(--primary)}
+.mt-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.65rem;margin-bottom:.75rem}
+.mt-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-bottom:.8rem}
+.mt-sel{height:32px;border:1px solid var(--border);border-radius:8px;padding:0 .6rem;font-size:.8rem;font-family:inherit;background:var(--card);color:var(--text);outline:none}
+.mt-seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--card)}
+.mt-seg button{border:none;background:transparent;color:var(--muted);padding:0 .65rem;height:30px;font-size:.76rem;cursor:pointer;font-family:inherit;border-right:1px solid var(--border)}
+.mt-seg button:last-child{border-right:none}
+.mt-seg button.on{background:var(--primary-soft);color:var(--primary);font-weight:600}
+.mt-updated{font-size:.72rem;color:var(--muted);margin-left:auto}
+.mt-empty{text-align:center;padding:2.2rem 1rem;color:var(--muted);font-size:.85rem;border:1px dashed var(--border);border-radius:12px;background:var(--card2)}
+.mt-cust{border:1px solid var(--border);border-radius:12px;background:var(--card);margin-bottom:.7rem;overflow:hidden}
+.mt-cust>summary,.mt-store>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:.55rem;flex-wrap:wrap}
+.mt-cust>summary::-webkit-details-marker,.mt-store>summary::-webkit-details-marker{display:none}
+.mt-cust>summary{padding:.7rem .95rem;background:var(--card2);border-bottom:1px solid var(--line-2)}
+.mt-cust:not([open])>summary{border-bottom:none}
+.mt-chev{display:inline-block;width:.8rem;color:var(--muted);transition:transform .15s;font-size:.7rem}
+details[open]>summary .mt-chev{transform:rotate(90deg)}
+.mt-cust-name{font-weight:600;font-size:.92rem;color:var(--text)}
+.mt-meta{font-size:.72rem;color:var(--muted)}
+.mt-pill{display:inline-flex;align-items:center;gap:.2rem;font-size:.7rem;font-weight:600;padding:.08rem .45rem;border-radius:20px;white-space:nowrap}
+.mt-up{background:rgba(220,38,38,.12);color:#c0392b}
+.mt-down{background:rgba(22,163,74,.13);color:#1e8449}
+.mt-flat{background:rgba(120,120,120,.13);color:var(--muted)}
+.mt-store{border-top:1px solid var(--line-2)}
+.mt-store:first-of-type{border-top:none}
+.mt-store>summary{padding:.5rem .95rem .5rem 1.6rem;font-size:.82rem;font-weight:600;color:var(--text)}
+.mt-tags{padding:0 .95rem .7rem 1.6rem;display:flex;flex-direction:column;gap:.5rem}
+.mt-tag{display:grid;grid-template-columns:minmax(0,2.2fr) minmax(0,1.1fr) minmax(0,1.5fr) auto;gap:.9rem;align-items:center;border:1px solid var(--line-2);border-left:3px solid var(--border);border-radius:9px;padding:.6rem .8rem;background:var(--card)}
+.mt-tag.worsened{border-left-color:#dc2626}
+.mt-tag.improved{border-left-color:#16a34a}
+.mt-tag.resolved{opacity:.72}
+.mt-tag-title{font-weight:600;font-size:.86rem;color:var(--text);word-break:break-word}
+.mt-tag-note{font-size:.75rem;color:var(--muted);margin-top:.15rem;white-space:pre-wrap;word-break:break-word}
+.mt-tag-rule{font-size:.68rem;color:var(--muted);margin-top:.2rem}
+.mt-num{font-size:1.15rem;font-weight:600;color:var(--text);line-height:1.1}
+.mt-lbl{font-size:.68rem;color:var(--muted)}
+.mt-actions{display:flex;flex-direction:column;gap:.3rem}
+.mt-actions button{border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:6px;padding:.2rem .6rem;font-size:.72rem;cursor:pointer;font-family:inherit;white-space:nowrap}
+.mt-actions button:hover{border-color:var(--primary);color:var(--primary)}
+.mt-spark{display:block;width:100%;max-width:180px;height:34px}
+.mt-form label{display:block;font-size:.75rem;font-weight:600;color:var(--muted);margin-bottom:.25rem}
+.mt-form input,.mt-form textarea,.mt-form select{width:100%;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.86rem;font-family:inherit;outline:none;background:var(--card);color:var(--text);box-sizing:border-box}
+.mt-form input[readonly]{background:var(--card2);color:var(--muted)}
+.mt-form .row{margin-bottom:.7rem}
+@media (max-width:760px){
+  .mt-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .mt-tag{grid-template-columns:1fr 1fr}
+  .mt-tag>div:first-child{grid-column:1/-1}
+  .mt-actions{flex-direction:row;grid-column:1/-1}
+}
 .si-brand-header{display:flex;align-items:center;gap:.5rem;padding:.55rem .85rem;background:#fff;border:1px solid var(--border);border-radius:10px;cursor:pointer;margin-bottom:.35rem;font-weight:700;font-size:.88rem;user-select:none}
 .si-brand-header:hover{background:#faf9f6}
 .si-brand-body{margin-bottom:.75rem}
@@ -1237,6 +1290,7 @@ textarea{resize:vertical;min-height:80px}
     <button class="dash-tab-btn active" id="dash-tab-btn-1" onclick="switchDashTab(1)">ภาพรวม Agent</button>
     <button class="dash-tab-btn" id="dash-tab-btn-2" onclick="switchDashTab(2)">Issue Analytics</button>
     <button class="dash-tab-btn" id="dash-tab-btn-3" onclick="switchDashTab(3)">AI Analysis</button>
+    <button class="dash-tab-btn" id="dash-tab-btn-4" onclick="switchDashTab(4)">📌 Monitor Tag <span id="mt-tab-count" class="mt-tab-count" style="display:none"></span></button>
   </div>
 
   <!-- ════ TAB 1: Agent Overview ════ -->
@@ -1408,6 +1462,7 @@ textarea{resize:vertical;min-height:80px}
             <th style="text-align:left;padding:.45rem .7rem;font-weight:600;color:var(--muted);min-width:220px">รายละเอียด</th>
             <th style="text-align:left;padding:.45rem .7rem;font-weight:600;color:var(--muted);white-space:nowrap">สถานะ</th>
             <th style="text-align:left;padding:.45rem .7rem;font-weight:600;color:var(--muted);white-space:nowrap">ผู้รับผิดชอบ</th>
+            <th style="text-align:right;padding:.45rem .7rem;font-weight:600;color:var(--muted);white-space:nowrap">Action</th>
           </tr></thead>
           <tbody id="iss-tickets-tbody"></tbody>
         </table>
@@ -1453,6 +1508,35 @@ textarea{resize:vertical;min-height:80px}
     </div>
 
   </div><!-- /dash-tab-issues -->
+
+  <!-- ════ TAB 4: Monitor Tag ════ -->
+  <div id="dash-tab-monitor" style="display:none">
+    <div class="mt-kpis" id="mt-kpis"></div>
+    <div class="mt-toolbar">
+      <select id="mt-f-status" class="mt-sel" onchange="mtLoad()" title="สถานะ Tag">
+        <option value="active">กำลังมอนิเตอร์</option>
+        <option value="resolved">ปิดแล้ว</option>
+        <option value="all">ทั้งหมด</option>
+      </select>
+      <select id="mt-f-customer" class="mt-sel" onchange="mtRender()" title="ลูกค้า"><option value="">ทุกลูกค้า</option></select>
+      <div class="mt-seg" id="mt-f-trend">
+        <button class="on" data-v="" onclick="mtSetTrend(this)">All</button>
+        <button data-v="worsened" onclick="mtSetTrend(this)">🔺 Worsened</button>
+        <button data-v="improved" onclick="mtSetTrend(this)">🔻 Improved</button>
+        <button data-v="stable" onclick="mtSetTrend(this)">Stable</button>
+      </div>
+      <select id="mt-f-period" class="mt-sel" onchange="mtRender()" title="ตั้ง Tag ภายใน">
+        <option value="">ตั้งเมื่อไหร่ก็ได้</option>
+        <option value="7">ตั้งใน 7 วันล่าสุด</option>
+        <option value="30">ตั้งใน 30 วันล่าสุด</option>
+        <option value="90">ตั้งใน 90 วันล่าสุด</option>
+      </select>
+      <input id="mt-f-q" class="mt-sel" type="text" placeholder="ค้นหา Tag / สาขา..." oninput="mtRender()" style="min-width:180px;flex:1"/>
+      <span id="mt-updated" class="mt-updated"></span>
+      <button class="svc-btn-ghost" onclick="mtLoad()" style="height:32px">รีเฟรช</button>
+    </div>
+    <div id="mt-body"><div class="mt-empty">กำลังโหลด...</div></div>
+  </div><!-- /dash-tab-monitor -->
 
   <!-- ════ TAB 3: AI Analysis ════ -->
   <div id="dash-tab-ai" style="display:none">
@@ -2337,6 +2421,64 @@ textarea{resize:vertical;min-height:80px}
         style="background:#a2562f;color:#fff;border:none;border-radius:7px;padding:.45rem 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer;opacity:.5">
         Import ทั้งหมด
       </button>
+    </div>
+  </div>
+</div>
+
+<!-- Monitor Tag: create -->
+<div class="overlay" id="modal-mt-create">
+  <div class="modal mt-form" style="max-width:520px;padding:1.2rem">
+    <div class="modal-head">
+      <div style="font-size:1.08rem;font-weight:600">📌 เพิ่ม Monitor Tag</div>
+      <button class="modal-close" onclick="closeModal('modal-mt-create')">×</button>
+    </div>
+    <div class="grid-2">
+      <div class="row"><label>Customer</label><input id="mt-c-customer" readonly/></div>
+      <div class="row"><label>Store / สาขา</label><input id="mt-c-store" readonly/></div>
+    </div>
+    <div class="row"><label>Tag Title <span style="color:#b04a40">*</span></label><input id="mt-c-title" maxlength="300"/></div>
+    <div class="row"><label>Description / Monitor Note</label><textarea id="mt-c-note" rows="3" placeholder="เช่น อัปเดตเวอร์ชันกล้องแล้ว รอดูว่าอาการหายไหม"></textarea></div>
+    <div class="row"><label>Baseline Window (เทียบกับช่วงก่อนตั้ง Tag)</label>
+      <select id="mt-c-baseline">
+        <option value="7">7 วันล่าสุด</option>
+        <option value="14">14 วันล่าสุด</option>
+        <option value="30" selected>30 วันล่าสุด</option>
+        <option value="60">60 วันล่าสุด</option>
+        <option value="90">90 วันล่าสุด</option>
+      </select>
+    </div>
+    <div style="font-size:.74rem;color:var(--muted);background:var(--card2);border:1px solid var(--line-2);border-radius:8px;padding:.5rem .7rem;margin-bottom:.9rem">
+      ระบบจะนับเคสของ <b>สาขานี้</b> ในหัวข้อ <b>“<span id="mt-c-subject"></span>”</b> ทุกเคสหลังตั้ง Tag แล้วเทียบค่าเฉลี่ยต่อวันกับช่วง Baseline
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:.5rem">
+      <button class="svc-btn-ghost" onclick="closeModal('modal-mt-create')">ยกเลิก</button>
+      <button class="svc-btn-primary" id="mt-c-save" onclick="mtSave()">บันทึก Tag</button>
+    </div>
+  </div>
+</div>
+
+<!-- Monitor Tag: drill-down -->
+<div class="overlay" id="modal-mt-detail">
+  <div class="modal" style="max-width:860px;width:95vw;padding:1.2rem;max-height:90vh;display:flex;flex-direction:column">
+    <div class="modal-head">
+      <div style="min-width:0">
+        <div style="font-size:1.05rem;font-weight:600" id="mt-d-title"></div>
+        <div class="mt-meta" id="mt-d-sub"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-mt-detail')">×</button>
+    </div>
+    <div style="overflow:auto;flex:1">
+      <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+        <thead><tr style="background:var(--card2);border-bottom:2px solid var(--border);position:sticky;top:0">
+          <th style="text-align:left;padding:.45rem .7rem;color:var(--muted);font-weight:600">เลขที่</th>
+          <th style="text-align:left;padding:.45rem .7rem;color:var(--muted);font-weight:600;white-space:nowrap">วันที่แจ้ง</th>
+          <th style="text-align:left;padding:.45rem .7rem;color:var(--muted);font-weight:600">ช่วง</th>
+          <th style="text-align:left;padding:.45rem .7rem;color:var(--muted);font-weight:600;min-width:240px">รายละเอียด</th>
+          <th style="text-align:left;padding:.45rem .7rem;color:var(--muted);font-weight:600">สถานะ</th>
+          <th style="text-align:left;padding:.45rem .7rem;color:var(--muted);font-weight:600">ผู้รับผิดชอบ</th>
+        </tr></thead>
+        <tbody id="mt-d-tbody"></tbody>
+      </table>
     </div>
   </div>
 </div>
@@ -19653,10 +19795,13 @@ function switchDashTab(tab) {
   document.getElementById('dash-tab-agent').style.display  = tab === 1 ? '' : 'none';
   document.getElementById('dash-tab-issues').style.display = tab === 2 ? '' : 'none';
   document.getElementById('dash-tab-ai').style.display     = tab === 3 ? '' : 'none';
+  document.getElementById('dash-tab-monitor').style.display = tab === 4 ? '' : 'none';
   document.getElementById('dash-tab-btn-1').classList.toggle('active', tab === 1);
   document.getElementById('dash-tab-btn-2').classList.toggle('active', tab === 2);
   document.getElementById('dash-tab-btn-3').classList.toggle('active', tab === 3);
+  document.getElementById('dash-tab-btn-4').classList.toggle('active', tab === 4);
   if (tab === 2) loadIssueAnalytics();
+  if (tab === 4) mtLoad();
 }
 
 async function loadIssueAnalytics() {
@@ -19679,6 +19824,7 @@ async function loadIssueAnalytics() {
 // ── รายการงานของหัวข้อที่คลิกบนกราฟแท่ง ────────────────────
 // ดึงจาก /api/dashboard/issue-tickets ด้วยช่วงวันที่เดียวกับที่หน้านี้กรองอยู่
 let _issTicketsSubject = null;
+let _issTicketRows = [];
 
 function issCloseTickets() {
   _issTicketsSubject = null;
@@ -19694,7 +19840,7 @@ async function issLoadTickets(subject) {
 
   document.getElementById('iss-tickets-subject').textContent = subject;
   document.getElementById('iss-tickets-count').textContent = '';
-  tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:var(--muted)">กำลังโหลด...</td></tr>';
+  tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:1.5rem;color:var(--muted)">กำลังโหลด...</td></tr>';
   card.style.display = '';
   card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
@@ -19709,7 +19855,7 @@ async function issLoadTickets(subject) {
   // ระหว่างโหลดผู้ใช้อาจคลิกแท่งอื่นแล้ว — ทิ้งผลของแท่งเก่าไป
   if (_issTicketsSubject !== subject) return;
   if (!d || d.error) {
-    tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:var(--muted)">โหลดไม่สำเร็จ (ถ้าเพิ่งอัปเดตโค้ด ให้รีสตาร์ท server ก่อน)</td></tr>';
+    tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:1.5rem;color:var(--muted)">โหลดไม่สำเร็จ (ถ้าเพิ่งอัปเดตโค้ด ให้รีสตาร์ท server ก่อน)</td></tr>';
     return;
   }
   issRenderTickets(d);
@@ -19722,11 +19868,12 @@ function issRenderTickets(d) {
     d.total > rows.length ? `${rows.length} จาก ${d.total.toLocaleString()} รายการ` : `${d.total.toLocaleString()} รายการ`;
 
   if (!rows.length) {
-    tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:var(--muted)">— ไม่มีงานในหัวข้อนี้ —</td></tr>';
+    tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:1.5rem;color:var(--muted)">— ไม่มีงานในหัวข้อนี้ —</td></tr>';
     return;
   }
   const td = 'padding:.42rem .7rem;border-bottom:1px solid #f0eee9;vertical-align:top';
-  tb.innerHTML = rows.map(r => {
+  _issTicketRows = rows;
+  tb.innerHTML = rows.map((r, i) => {
     const closed = /close|ปิด|complete/i.test(r.status || '');
     return `<tr>
       <td style="${td};white-space:nowrap;font-family:monospace;font-size:.76rem">#${r.id}</td>
@@ -19737,9 +19884,289 @@ function issRenderTickets(d) {
         <span style="font-size:.72rem;font-weight:700;padding:.1rem .45rem;border-radius:6px;background:${closed ? '#e7f0ea' : '#f6f0e2'};color:${closed ? '#3f7a5a' : '#86671f'}">${esc(r.status || '—')}</span>
       </td>
       <td style="${td};white-space:nowrap;font-size:.78rem">${esc(dn(r.agent) || r.agent || '—')}</td>
+      <td style="${td};white-space:nowrap;text-align:right">
+        <button class="mt-add-btn" onclick="mtOpenCreate(${i})" title="ติดตามหัวข้อนี้ของสาขานี้ในแท็บ Monitor Tag">+ เพิ่ม Monitor Tag</button>
+      </td>
     </tr>`;
   }).join('');
 }
+
+
+// ══════════════════════════════════════════════════════════
+//  MONITOR TAG (Tab 4) — ติดตามหัวข้อปัญหาของสาขาหลังตั้ง Tag
+// ══════════════════════════════════════════════════════════
+let _mtTags = [];
+let _mtTrend = '';
+let _mtDraft = null;
+let _mtLoading = false;
+const _mtClosed = new Set();   // key ของกลุ่มที่ผู้ใช้พับไว้ — คงไว้ข้ามการรีเฟรชอัตโนมัติ
+
+function mtOpenCreate(i) {
+  const r = _issTicketRows[i];
+  if (!r) return;
+  _mtDraft = {
+    customer_name: r.customer_group || r.company || '',
+    store_name: r.company || '',
+    registration_id: r.registration_id || null,
+    subject: r.subject || _issTicketsSubject || '',
+    category: r.category || null,
+    source_ticket_id: r.id
+  };
+  document.getElementById('mt-c-customer').value = _mtDraft.customer_name;
+  document.getElementById('mt-c-store').value    = _mtDraft.store_name;
+  document.getElementById('mt-c-title').value    = _mtDraft.subject;
+  document.getElementById('mt-c-note').value     = '';
+  document.getElementById('mt-c-baseline').value = '30';
+  document.getElementById('mt-c-subject').textContent = _mtDraft.subject;
+  openModal('modal-mt-create');
+  setTimeout(() => document.getElementById('mt-c-title').focus(), 50);
+}
+
+async function mtSave() {
+  if (!_mtDraft) return;
+  const title = document.getElementById('mt-c-title').value.trim();
+  if (!title) { showToast('กรุณาระบุ Tag Title', 'error'); return; }
+  if (!_mtDraft.store_name || !_mtDraft.subject) { showToast('เคสนี้ไม่มีข้อมูลสาขาหรือหัวข้อ', 'error'); return; }
+  const btn = document.getElementById('mt-c-save');
+  btn.disabled = true;
+  const d = await api('/api/monitor-tags', { method: 'POST', silent: true, body: {
+    ..._mtDraft, title,
+    note: document.getElementById('mt-c-note').value,
+    baseline_days: +document.getElementById('mt-c-baseline').value
+  }});
+  btn.disabled = false;
+  if (!d || d.error) { showToast(d?.error || 'บันทึกไม่สำเร็จ', 'error'); return; }
+  closeModal('modal-mt-create');
+  showToast('เพิ่ม Monitor Tag แล้ว — ดูได้ที่แท็บ 📌 Monitor Tag');
+  mtRefreshCount();
+}
+
+async function mtRefreshCount() {
+  const d = await api('/api/monitor-tags?status=active', { silent: true });
+  if (d && Array.isArray(d.tags)) mtSetCount(d.tags.length);
+}
+function mtSetCount(n) {
+  const el = document.getElementById('mt-tab-count');
+  if (!el) return;
+  el.textContent = n;
+  el.style.display = n ? '' : 'none';
+}
+
+async function mtLoad(opts = {}) {
+  if (_mtLoading) return;
+  _mtLoading = true;
+  const body = document.getElementById('mt-body');
+  if (!opts.quiet && !_mtTags.length) body.innerHTML = '<div class="mt-empty">กำลังโหลด...</div>';
+  const status = document.getElementById('mt-f-status').value;
+  const d = await api('/api/monitor-tags?status=' + status, { silent: true });
+  _mtLoading = false;
+  if (!d || d.error) {
+    body.innerHTML = '<div class="mt-empty">โหลดไม่สำเร็จ (ถ้าเพิ่งอัปเดตโค้ด ให้รีสตาร์ท server ก่อน)</div>';
+    return;
+  }
+  _mtTags = d.tags || [];
+  if (status === 'active') mtSetCount(_mtTags.length);
+  document.getElementById('mt-updated').textContent =
+    (d.ext === false ? 'ไม่ได้เชื่อมฐาน Calllog · ' : '') + 'อัปเดต ' + new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
+
+  const sel = document.getElementById('mt-f-customer');
+  const cur = sel.value;
+  const custs = [...new Set(_mtTags.map(t => t.customer_name))].sort((a, b) => a.localeCompare(b, 'th'));
+  sel.innerHTML = '<option value="">ทุกลูกค้า</option>' + custs.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  if (custs.includes(cur)) sel.value = cur;
+  mtRender();
+}
+
+function mtSetTrend(btn) {
+  _mtTrend = btn.dataset.v;
+  document.querySelectorAll('#mt-f-trend button').forEach(b => b.classList.toggle('on', b === btn));
+  mtRender();
+}
+
+function mtTrendPill(st) {
+  if (!st || st.error) return '<span class="mt-pill mt-flat">—</span>';
+  if (st.pct_change === null) {
+    return st.trend === 'worsened'
+      ? '<span class="mt-pill mt-up">🔺 เคสใหม่ (baseline = 0)</span>'
+      : '<span class="mt-pill mt-flat">● ไม่มีเคส</span>';
+  }
+  const v = (st.pct_change > 0 ? '+' : '') + st.pct_change.toFixed(0) + '%';
+  if (st.trend === 'worsened') return `<span class="mt-pill mt-up">🔺 ${v} vs Baseline</span>`;
+  if (st.trend === 'improved') return `<span class="mt-pill mt-down">🔻 ${v} vs Baseline</span>`;
+  return `<span class="mt-pill mt-flat">● ${v} คงที่</span>`;
+}
+
+function mtSpark(st) {
+  const pts = st?.spark || [];
+  if (!pts.length) return '';
+  const W = 180, H = 34, P = 3;
+  const max = Math.max(1, ...pts.map(p => p.n));
+  const x = i => pts.length === 1 ? W / 2 : P + i * (W - 2 * P) / (pts.length - 1);
+  const y = n => H - P - n / max * (H - 2 * P);
+  const col = st.trend === 'worsened' ? '#dc2626' : st.trend === 'improved' ? '#16a34a' : 'var(--muted)';
+  const line = pts.map((p, i) => `${x(i).toFixed(1)},${y(p.n).toFixed(1)}`).join(' ');
+  // เส้นประ = ค่าเฉลี่ยต่อวันของ baseline
+  const by = y(Math.min(st.pre_avg, max)).toFixed(1);
+  const title = pts.map(p => `${p.d}: ${p.n}`).join('\n');
+  return `<svg class="mt-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><title>${esc(title)}</title>
+    <line x1="0" x2="${W}" y1="${by}" y2="${by}" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3" opacity=".55" vector-effect="non-scaling-stroke"/>
+    ${pts.length === 1 ? `<circle cx="${x(0)}" cy="${y(pts[0].n)}" r="2.5" fill="${col}"/>`
+      : `<polyline points="${line}" fill="none" stroke="${col}" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`}
+  </svg>`;
+}
+
+function mtFiltered() {
+  const cust = document.getElementById('mt-f-customer').value;
+  const days = +document.getElementById('mt-f-period').value || 0;
+  const q = document.getElementById('mt-f-q').value.trim().toLowerCase();
+  const since = days ? Date.now() - days * 86400000 : 0;
+  return _mtTags.filter(t => {
+    if (cust && t.customer_name !== cust) return false;
+    if (_mtTrend && t.stats?.trend !== _mtTrend) return false;
+    if (since && parseDbDate(t.created_at).getTime() < since) return false;
+    if (q && ![t.title, t.store_name, t.customer_name, t.subject, t.note].some(v => (v || '').toLowerCase().includes(q))) return false;
+    return true;
+  });
+}
+
+function mtRenderKpis(list) {
+  const n = k => list.filter(t => t.stats?.trend === k).length;
+  const k = (label, val, sub, cls) =>
+    `<div class="stat-flat"><div class="label">${label}</div><div class="value ${cls}">${val}</div><div class="sub">${sub}</div></div>`;
+  document.getElementById('mt-kpis').innerHTML =
+    k('Tags ที่แสดง', list.length, `${new Set(list.map(t => t.store_name)).size} สาขา · ${new Set(list.map(t => t.customer_name)).size} ลูกค้า`, 'blue') +
+    k('🔺 แย่ลง', n('worsened'), 'เคสต่อวันสูงกว่า baseline', 'orange') +
+    k('🔻 ดีขึ้น', n('improved'), 'เคสต่อวันต่ำกว่า baseline', 'green') +
+    k('● คงที่', n('stable'), `เปลี่ยนไม่เกิน ±2%`, 'white');
+}
+
+function mtRender() {
+  const list = mtFiltered();
+  mtRenderKpis(list);
+  const body = document.getElementById('mt-body');
+  if (!_mtTags.length) {
+    body.innerHTML = `<div class="mt-empty">ยังไม่มี Monitor Tag<br><span style="font-size:.78rem">ไปที่แท็บ <b>Issue Analytics</b> → คลิกแท่งหัวข้อปัญหา → กด <b>+ เพิ่ม Monitor Tag</b> ที่เคสของสาขาที่ต้องการติดตาม</span></div>`;
+    return;
+  }
+  if (!list.length) { body.innerHTML = '<div class="mt-empty">ไม่มี Tag ตรงกับตัวกรอง</div>'; return; }
+
+  const byCust = new Map();
+  for (const t of list) {
+    if (!byCust.has(t.customer_name)) byCust.set(t.customer_name, new Map());
+    const stores = byCust.get(t.customer_name);
+    if (!stores.has(t.store_name)) stores.set(t.store_name, []);
+    stores.get(t.store_name).push(t);
+  }
+  const rank = { worsened: 0, stable: 1, improved: 2 };
+  const counts = tags => {
+    const w = tags.filter(t => t.stats?.trend === 'worsened').length;
+    const i = tags.filter(t => t.stats?.trend === 'improved').length;
+    return (w ? `<span class="mt-pill mt-up">🔺 ${w}</span>` : '') + (i ? `<span class="mt-pill mt-down">🔻 ${i}</span>` : '');
+  };
+
+  body.innerHTML = [...byCust.entries()].map(([cust, stores]) => {
+    const all = [...stores.values()].flat();
+    const ck = 'c:' + cust;
+    return `<details class="mt-cust" data-k="${esc(ck)}" ${_mtClosed.has(ck) ? '' : 'open'} ontoggle="mtToggle(this)">
+      <summary><span class="mt-chev">▶</span><span class="mt-cust-name">${esc(cust)}</span>
+        <span class="mt-meta">${stores.size} สาขา · ${all.length} tags</span>${counts(all)}</summary>
+      ${[...stores.entries()].map(([store, tags]) => {
+        const sk = 's:' + cust + '|' + store;
+        tags.sort((a, b) => (rank[a.stats?.trend] ?? 1) - (rank[b.stats?.trend] ?? 1));
+        return `<details class="mt-store" data-k="${esc(sk)}" ${_mtClosed.has(sk) ? '' : 'open'} ontoggle="mtToggle(this)">
+          <summary><span class="mt-chev">▶</span>🏬 ${esc(store)} <span class="mt-meta" style="font-weight:400">${tags.length} tags</span>${counts(tags)}</summary>
+          <div class="mt-tags">${tags.map(mtTagCard).join('')}</div>
+        </details>`;
+      }).join('')}
+    </details>`;
+  }).join('');
+}
+
+function mtTagCard(t) {
+  const st = t.stats;
+  const resolved = t.status === 'resolved';
+  const days = st && !st.error ? st.days_monitored : Math.floor((Date.now() - parseDbDate(t.created_at)) / 86400000);
+  const cls = ['mt-tag', resolved ? 'resolved' : '', st?.trend || ''].join(' ');
+  const statCol = st?.error
+    ? `<div class="mt-lbl" style="color:#c0392b">คำนวณไม่สำเร็จ</div>`
+    : st ? `<div class="mt-num">${st.post_count.toLocaleString()} <span class="mt-lbl" style="font-weight:400">เคสหลังตั้ง</span></div>
+           <div style="margin:.25rem 0">${mtTrendPill(st)}</div>
+           <div class="mt-lbl">${st.post_avg.toFixed(2)}/วัน · baseline ${st.pre_avg.toFixed(2)}/วัน (${t.baseline_days} วัน, ${st.pre_count} เคส)</div>`
+    : '<div class="mt-lbl">—</div>';
+  return `<div class="${cls}">
+    <div>
+      <div class="mt-tag-title">${esc(t.title)} ${resolved ? '<span class="mt-pill mt-flat">ปิดแล้ว</span>' : ''}</div>
+      ${t.note ? `<div class="mt-tag-note">${esc(t.note)}</div>` : ''}
+      <div class="mt-tag-rule">หัวข้อ: ${esc(t.subject)}${t.created_by ? ` · โดย ${esc(dn(t.created_by) || t.created_by)}` : ''}</div>
+      ${resolved && t.resolve_note ? `<div class="mt-tag-rule">ปิด: ${esc(t.resolve_note)}</div>` : ''}
+    </div>
+    <div>
+      <div class="mt-lbl">เริ่มมอนิเตอร์</div>
+      <div style="font-size:.82rem;font-weight:600;color:var(--text)">${fmtDate(t.created_at)}</div>
+      <div class="mt-lbl">${resolved ? `ปิด ${fmtDate(t.resolved_at)} · ` : ''}${days} วัน</div>
+    </div>
+    <div>${statCol}${mtSpark(st)}</div>
+    <div class="mt-actions">
+      <button onclick="mtOpenDetail(${t.id})">View Detail</button>
+      ${resolved ? '' : `<button onclick="mtResolve(${t.id})">✓ Resolve</button>`}
+    </div>
+  </div>`;
+}
+
+function mtToggle(el) {
+  const k = el.dataset.k;
+  if (el.open) _mtClosed.delete(k); else _mtClosed.add(k);
+}
+
+async function mtResolve(id) {
+  const t = _mtTags.find(x => x.id === id);
+  const note = prompt(`ปิด Monitor Tag “${t?.title || ''}”\nหมายเหตุการแก้ไข (ไม่บังคับ):`, '');
+  if (note === null) return;
+  const d = await api(`/api/monitor-tags/${id}/resolve`, { method: 'PUT', silent: true, body: { note } });
+  if (!d || d.error) { showToast(d?.error || 'ปิด Tag ไม่สำเร็จ', 'error'); return; }
+  showToast('ปิด Monitor Tag แล้ว');
+  mtLoad({ quiet: true });
+}
+
+async function mtOpenDetail(id) {
+  const t = _mtTags.find(x => x.id === id);
+  if (!t) return;
+  document.getElementById('mt-d-title').textContent = t.title;
+  document.getElementById('mt-d-sub').textContent =
+    `${t.customer_name} › ${t.store_name} · หัวข้อ “${t.subject}” · baseline ${t.baseline_days} วันก่อน ${fmtDate(t.created_at)}`;
+  const tb = document.getElementById('mt-d-tbody');
+  tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:var(--muted)">กำลังโหลด...</td></tr>';
+  openModal('modal-mt-detail');
+  const d = await api(`/api/monitor-tags/${id}/tickets`, { silent: true });
+  if (!d || d.error) {
+    tb.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:var(--muted)">${esc(d?.error || 'โหลดไม่สำเร็จ')}</td></tr>`;
+    return;
+  }
+  if (!d.rows.length) {
+    tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:var(--muted)">— ไม่มีเคสที่เข้าเงื่อนไข —</td></tr>';
+    return;
+  }
+  const td = 'padding:.42rem .7rem;border-bottom:1px solid var(--line-2);vertical-align:top';
+  tb.innerHTML = d.rows.map(r => `<tr>
+    <td style="${td};font-family:monospace;font-size:.76rem;white-space:nowrap">#${r.id}</td>
+    <td style="${td};white-space:nowrap;font-size:.76rem">${fmtDT(r.opened_at)}</td>
+    <td style="${td};white-space:nowrap">${r.phase === 'post'
+      ? '<span class="mt-pill" style="background:var(--primary-soft);color:var(--primary)">หลังตั้ง Tag</span>'
+      : '<span class="mt-pill mt-flat">Baseline</span>'}</td>
+    <td style="${td};color:var(--muted)">${esc((r.description || '').replace(/\s+/g, ' ').slice(0, 200)) || '—'}</td>
+    <td style="${td};white-space:nowrap">${esc(r.status || '—')}</td>
+    <td style="${td};white-space:nowrap;font-size:.78rem">${esc(dn(r.agent) || r.agent || '—')}</td>
+  </tr>`).join('');
+}
+
+// อัปเดตตัวเลขอัตโนมัติทุก 60 วิ ขณะเปิดแท็บนี้อยู่ — เคสใหม่ที่ตรง rule จะถูกนับเพิ่มเอง
+setInterval(() => {
+  if (_dashTab !== 4 || document.hidden) return;
+  const tab = document.getElementById('dash-tab-monitor');
+  if (!tab || !tab.offsetParent) return;
+  if (document.querySelector('#modal-mt-detail.open, #modal-mt-create.open')) return;
+  mtLoad({ quiet: true });
+}, 60 * 1000);
 
 
 // ── Level 1: click donut → filter bar, reset subject, update customers+table

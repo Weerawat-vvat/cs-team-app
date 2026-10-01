@@ -12352,7 +12352,9 @@ app.get('/api/dashboard/issue-tickets', authRequired, async (request, res) => {
         cl.CalllogId            AS id,
         cl.ReceiveDate          AS opened_at,
         cl.CloseDate            AS closed_at,
+        cl.RegistrationId       AS registration_id,
         cr.CompanyName          AS company,
+        CASE WHEN cr.GroupId IS NOT NULL AND cr.GroupId <> 1 THEN cg.GroupName END AS customer_group,
         cl.Subject              AS subject,
         ISNULL(pt.ProblemTypeDetail, '(ไม่ระบุ)') AS category,
         cs.StatusName           AS status,
@@ -12361,6 +12363,7 @@ app.get('/api/dashboard/issue-tickets', authRequired, async (request, res) => {
         LEFT(cl.Solution, 300)    AS solution
       FROM Calllog cl
       LEFT JOIN CustomerRegistration cr ON cr.RegistrationId = cl.RegistrationId
+      LEFT JOIN CustomerGroup cg ON cg.GroupId = cr.GroupId
       LEFT JOIN ProblemType pt ON pt.ProblemTypeId = cl.ProblemTypeId
       LEFT JOIN CallStatus  cs ON cs.StatusId      = cl.StatusId
       LEFT JOIN Users       u  ON u.UserId         = cl.SupportId
@@ -12456,6 +12459,205 @@ app.get('/api/dashboard/issues', authRequired, async (request, res) => {
       customers_by_subject: custSubjectR.recordset
     });
   } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════
+//  MONITOR TAGS — ติดตามหัวข้อปัญหาของสาขาหนึ่ง ๆ หลังตั้ง Tag
+//  Rule ของ tag = Calllog ที่ RegistrationId (สาขา) + Subject ตรงกัน
+//  เทียบค่าเฉลี่ยต่อวัน: baseline (N วันก่อนตั้ง) กับช่วงหลังตั้งจนถึงวันนี้/วันปิด tag
+// ══════════════════════════════════════════════════════════
+async function ensureMonitorTagTables() {
+  try {
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='monitor_tags' AND xtype='U')
+      CREATE TABLE monitor_tags (
+        id               INT PRIMARY KEY IDENTITY,
+        customer_name    NVARCHAR(200) NOT NULL,
+        store_name       NVARCHAR(200) NOT NULL,
+        registration_id  INT           NULL,
+        subject          NVARCHAR(400) NOT NULL,
+        category         NVARCHAR(200) NULL,
+        title            NVARCHAR(300) NOT NULL,
+        note             NVARCHAR(MAX) NULL,
+        baseline_days    INT           NOT NULL DEFAULT 30,
+        source_ticket_id INT           NULL,
+        status           NVARCHAR(20)  NOT NULL DEFAULT 'active',
+        created_by       NVARCHAR(100) NULL,
+        created_at       DATETIME      DEFAULT GETDATE(),
+        resolved_by      NVARCHAR(100) NULL,
+        resolved_at      DATETIME      NULL,
+        resolve_note     NVARCHAR(MAX) NULL
+      )`);
+  } catch (e) { console.error('[monitor-tags] ensure table:', e.message); }
+}
+
+const MONITOR_BASELINE_OPTIONS = [7, 14, 30, 60, 90];
+const MONITOR_STABLE_PCT = 2;   // เปลี่ยนแปลงไม่เกิน ±2% ถือว่าคงที่
+
+// เงื่อนไขจับคู่ Calllog กับ tag — ใช้ RegistrationId ถ้ามี ไม่งั้นตกไปใช้ชื่อสาขา
+function monitorMatch(r, tag) {
+  r.input('sub', sql.NVarChar, tag.subject);
+  if (tag.registration_id) {
+    r.input('rid', sql.Int, tag.registration_id);
+    return { join: '', where: 'cl.RegistrationId=@rid AND cl.Subject=@sub' };
+  }
+  r.input('store', sql.NVarChar, tag.store_name);
+  return {
+    join: 'INNER JOIN CustomerRegistration cr ON cr.RegistrationId = cl.RegistrationId',
+    where: 'cr.CompanyName=@store AND cl.Subject=@sub'
+  };
+}
+
+async function monitorTagStats(tag) {
+  const r = extReq()
+    .input('c',  sql.DateTime, tag.created_at)
+    .input('en', sql.DateTime, tag.status === 'resolved' ? tag.resolved_at : null)
+    .input('bd', sql.Int, tag.baseline_days);
+  const m = monitorMatch(r, tag);
+  const out = await r.query(`
+    DECLARE @e DATETIME = ISNULL(@en, GETDATE());
+    SELECT CONVERT(char(10), @c, 23) AS start_day, CONVERT(char(10), @e, 23) AS end_day,
+           DATEDIFF(minute, @c, @e) AS mins;
+    SELECT CONVERT(char(10), cl.ReceiveDate, 23) AS d,
+           SUM(CASE WHEN cl.ReceiveDate <  @c THEN 1 ELSE 0 END) AS pre,
+           SUM(CASE WHEN cl.ReceiveDate >= @c THEN 1 ELSE 0 END) AS post,
+           MAX(cl.ReceiveDate) AS last_at
+    FROM Calllog cl ${m.join}
+    WHERE cl.Active=1 AND ${m.where}
+      AND cl.ReceiveDate >= DATEADD(day, -@bd, @c) AND cl.ReceiveDate <= @e
+    GROUP BY CONVERT(char(10), cl.ReceiveDate, 23)`);
+  const meta = out.recordsets[0][0];
+  const days = out.recordsets[1];
+
+  let pre = 0, post = 0, lastAt = null;
+  const postByDay = {};
+  for (const d of days) {
+    pre += d.pre; post += d.post;
+    if (d.post) {
+      postByDay[d.d] = d.post;
+      if (!lastAt || d.last_at > lastAt) lastAt = d.last_at;
+    }
+  }
+  // sparkline: นับรายวันตั้งแต่วันตั้ง tag ถึงวันนี้ (เก็บแค่ 90 วันล่าสุด)
+  const spark = [];
+  for (let t = Date.parse(meta.start_day + 'T00:00:00Z'), end = Date.parse(meta.end_day + 'T00:00:00Z');
+       t <= end; t += 86400000) {
+    const k = new Date(t).toISOString().slice(0, 10);
+    spark.push({ d: k, n: postByDay[k] || 0 });
+  }
+  const elapsedDays = Math.max(0, meta.mins) / 1440;
+  const postDays = Math.max(1, elapsedDays);       // วันแรกยังไม่ครบวัน — อย่าให้ค่าเฉลี่ยพุ่ง
+  const preAvg  = pre / tag.baseline_days;
+  const postAvg = post / postDays;
+  let pct = null, trend;
+  if (preAvg > 0) {
+    pct = (postAvg - preAvg) / preAvg * 100;
+    trend = Math.abs(pct) <= MONITOR_STABLE_PCT ? 'stable' : pct < 0 ? 'improved' : 'worsened';
+  } else {
+    trend = post > 0 ? 'worsened' : 'stable';    // ไม่มีเคสใน baseline: มีเคสใหม่ = แย่ลง
+  }
+  return {
+    pre_count: pre, post_count: post,
+    pre_avg: +preAvg.toFixed(3), post_avg: +postAvg.toFixed(3),
+    pct_change: pct === null ? null : +pct.toFixed(1),
+    trend, days_monitored: Math.floor(elapsedDays),
+    last_case_at: lastAt, spark: spark.slice(-90)
+  };
+}
+
+// GET /api/monitor-tags?status=active|resolved|all
+app.get('/api/monitor-tags', authRequired, async (request, res) => {
+  try {
+    const status = ['active', 'resolved', 'all'].includes(request.query.status) ? request.query.status : 'active';
+    const r = req();
+    let where = '';
+    if (status !== 'all') { where = 'WHERE status=@st'; r.input('st', sql.NVarChar, status); }
+    const tags = (await r.query(`SELECT * FROM monitor_tags ${where} ORDER BY customer_name, store_name, created_at DESC`)).recordset;
+    if (!getExtPool()) return res.json({ tags: tags.map(t => ({ ...t, stats: null })), ext: false });
+    const stats = await Promise.all(tags.map(t => monitorTagStats(t).catch(e => ({ error: e.message }))));
+    res.json({ tags: tags.map((t, i) => ({ ...t, stats: stats[i] })), ext: true, generated_at: new Date() });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/monitor-tags/:id/tickets — drill-down: เคสที่เข้าเงื่อนไข ทั้งช่วง baseline และหลังตั้ง tag
+app.get('/api/monitor-tags/:id/tickets', authRequired, async (request, res) => {
+  try {
+    const tag = (await req().input('id', sql.Int, +request.params.id)
+      .query('SELECT * FROM monitor_tags WHERE id=@id')).recordset[0];
+    if (!tag) return res.status(404).json({ error: 'ไม่พบ Monitor Tag' });
+    if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
+    const r = extReq()
+      .input('c',  sql.DateTime, tag.created_at)
+      .input('en', sql.DateTime, tag.status === 'resolved' ? tag.resolved_at : null)
+      .input('bd', sql.Int, tag.baseline_days);
+    const m = monitorMatch(r, tag);
+    const rows = (await r.query(`
+      DECLARE @e DATETIME = ISNULL(@en, GETDATE());
+      SELECT TOP 300
+        cl.CalllogId AS id, cl.ReceiveDate AS opened_at, cl.CloseDate AS closed_at,
+        CASE WHEN cl.ReceiveDate >= @c THEN 'post' ELSE 'pre' END AS phase,
+        cs.StatusName AS status, u.UserName AS agent,
+        LEFT(cl.CalllogDesc, 300) AS description, LEFT(cl.Solution, 300) AS solution
+      FROM Calllog cl ${m.join}
+      LEFT JOIN CallStatus cs ON cs.StatusId = cl.StatusId
+      LEFT JOIN Users      u  ON u.UserId    = cl.SupportId
+      WHERE cl.Active=1 AND ${m.where}
+        AND cl.ReceiveDate >= DATEADD(day, -@bd, @c) AND cl.ReceiveDate <= @e
+      ORDER BY cl.ReceiveDate DESC`)).recordset;
+    res.json({ tag, rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/monitor-tags
+app.post('/api/monitor-tags', authRequired, async (request, res) => {
+  try {
+    const b = request.body || {};
+    const str = (v, n) => (v == null ? '' : String(v)).trim().slice(0, n);
+    const store = str(b.store_name, 200), subject = str(b.subject, 400);
+    const title = str(b.title, 300) || subject;
+    const customer = str(b.customer_name, 200) || store;
+    const baseline = MONITOR_BASELINE_OPTIONS.includes(+b.baseline_days) ? +b.baseline_days : 30;
+    const rid = Number.isInteger(+b.registration_id) && +b.registration_id > 0 ? +b.registration_id : null;
+    if (!store || !subject) return res.status(400).json({ error: 'ต้องมีชื่อสาขาและหัวข้อปัญหา' });
+
+    const dup = (await req()
+      .input('rid', sql.Int, rid).input('store', sql.NVarChar, store).input('sub', sql.NVarChar, subject)
+      .query(`SELECT TOP 1 id, title FROM monitor_tags
+              WHERE status='active' AND subject=@sub
+                AND ((@rid IS NOT NULL AND registration_id=@rid) OR (@rid IS NULL AND store_name=@store))`)).recordset[0];
+    if (dup) return res.status(409).json({ error: `สาขานี้มี Monitor Tag หัวข้อนี้อยู่แล้ว (“${dup.title}”)`, id: dup.id });
+
+    const row = (await req()
+      .input('cn',  sql.NVarChar, customer)
+      .input('sn',  sql.NVarChar, store)
+      .input('rid', sql.Int, rid)
+      .input('sub', sql.NVarChar, subject)
+      .input('cat', sql.NVarChar, str(b.category, 200) || null)
+      .input('ttl', sql.NVarChar, title)
+      .input('nt',  sql.NVarChar, str(b.note, 4000) || null)
+      .input('bd',  sql.Int, baseline)
+      .input('src', sql.Int, Number.isInteger(+b.source_ticket_id) ? +b.source_ticket_id : null)
+      .input('by',  sql.NVarChar, request.user?.username || null)
+      .query(`INSERT INTO monitor_tags
+                (customer_name, store_name, registration_id, subject, category, title, note, baseline_days, source_ticket_id, created_by)
+              OUTPUT INSERTED.*
+              VALUES (@cn, @sn, @rid, @sub, @cat, @ttl, @nt, @bd, @src, @by)`)).recordset[0];
+    res.json(row);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT /api/monitor-tags/:id/resolve — ปลด tag เมื่อแก้ปัญหาจบแล้ว (ตัวเลขจะหยุดนับที่วันปิด)
+app.put('/api/monitor-tags/:id/resolve', authRequired, async (request, res) => {
+  try {
+    const out = await req()
+      .input('id', sql.Int, +request.params.id)
+      .input('by', sql.NVarChar, request.user?.username || null)
+      .input('nt', sql.NVarChar, String(request.body?.note || '').trim().slice(0, 4000) || null)
+      .query(`UPDATE monitor_tags SET status='resolved', resolved_by=@by, resolved_at=GETDATE(), resolve_note=@nt
+              WHERE id=@id AND status='active'`);
+    if (!out.rowsAffected[0]) return res.status(404).json({ error: 'ไม่พบ Tag ที่ยังเปิดอยู่' });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // DELETE /api/shopinfo/entry-brand — delete all entries of a brand
@@ -13151,6 +13353,7 @@ init().then(async () => {
   await ensureRepairTables();
   await ensureSpecialistTable();
   await ensureRequirementsTables();
+  await ensureMonitorTagTables();
   await ensureFollowupTable();
   await ensureFollowupV2Tables();
   await ensureShopInfoTables();
