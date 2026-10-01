@@ -12633,6 +12633,15 @@ const monitorToExt = (d, skew) => d ? new Date(new Date(d).getTime() - skew) : n
 // วันเริ่ม monitor: ผู้ใช้ระบุย้อนหลังได้ (start_at) ไม่ระบุ = เวลาที่สร้าง tag
 const monitorStart = tag => tag.start_at || tag.created_at;
 
+// วันเริ่ม Monitor กลางของทุก Tag (ไม่ขึ้นกับวันที่ติด Tag) — ตั้งเป็นวันที่ตามปฏิทิน LicenseDB
+// เปลี่ยนได้ด้วย env MONITOR_START_DATE=YYYY-MM-DD · ตั้งเป็นค่าว่างเพื่อกลับไปใช้วันเริ่มราย Tag
+const MONITOR_START_DATE = process.env.MONITOR_START_DATE ?? '2026-09-22';
+// เวลาเริ่มของ tag ในนาฬิกา LicenseDB (mssql เขียน Date เป็นเวลาผนังตามค่า UTC — เหมือนค่าที่อ่านมาจาก DB)
+function monitorStartExt(tag, skew) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(MONITOR_START_DATE)) return new Date(MONITOR_START_DATE + 'T00:00:00Z');
+  return monitorToExt(monitorStart(tag), skew);
+}
+
 // รับ 'YYYY-MM-DDTHH:mm' (เวลาตามนาฬิกาผนัง) — ส่งเป็นข้อความให้ SQL แปลงเอง ไม่ผ่าน timezone ของ Node
 const MT_START_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 async function monitorCheckStart(v) {
@@ -12648,7 +12657,7 @@ async function monitorCheckStart(v) {
 async function monitorTagStats(tag, range) {
   const skew = await monitorClockSkew();
   const r = extReq()
-    .input('c',  sql.DateTime, monitorToExt(monitorStart(tag), skew))
+    .input('c',  sql.DateTime, monitorStartExt(tag, skew))
     .input('en', sql.DateTime, tag.status === 'resolved' ? monitorToExt(tag.resolved_at, skew) : null)
     .input('bd', sql.Int, tag.baseline_days)
     .input('fs', sql.DateTime, range?.s || null)
@@ -12733,14 +12742,15 @@ app.get('/api/monitor-tags', authRequired, async (request, res) => {
       tags.forEach(t => { t.files = files.filter(f => f.tag_id === t.id); t.linked_ids = linked[t.id] || []; });
     }
     // lite=1 — แค่รายชื่อ tag (ไว้ติดป้ายในรายการงาน) ไม่ต้องคำนวณสถิติจาก Calllog
-    if (request.query.lite === '1') return res.json({ tags });
-    if (!getExtPool()) return res.json({ tags: tags.map(t => ({ ...t, stats: null })), ext: false });
+    const monitor_start = MONITOR_START_DATE || null;
+    if (request.query.lite === '1') return res.json({ tags, monitor_start });
+    if (!getExtPool()) return res.json({ tags: tags.map(t => ({ ...t, stats: null })), ext: false, monitor_start });
     // ช่วงวันที่จากตัวกรองด้านบน (ไม่บังคับ)
     const { dateFrom, dateTo } = request.query;
     const range = dateFrom && dateTo
       ? { s: new Date(dateFrom), e: new Date(new Date(dateTo).setHours(23, 59, 59, 999)) } : null;
     const stats = await Promise.all(tags.map(t => monitorTagStats(t, range).catch(e => ({ error: e.message }))));
-    res.json({ tags: tags.map((t, i) => ({ ...t, stats: stats[i] })), ext: true, generated_at: new Date() });
+    res.json({ tags: tags.map((t, i) => ({ ...t, stats: stats[i] })), ext: true, generated_at: new Date(), monitor_start });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -12754,7 +12764,7 @@ app.get('/api/monitor-tags/:id/tickets', authRequired, async (request, res) => {
     tag.linked_ids = (await monitorLinkedIds([tag.id]))[tag.id] || [];
     const skew = await monitorClockSkew();
     const r = extReq()
-      .input('c',  sql.DateTime, monitorToExt(monitorStart(tag), skew))
+      .input('c',  sql.DateTime, monitorStartExt(tag, skew))
       .input('en', sql.DateTime, tag.status === 'resolved' ? monitorToExt(tag.resolved_at, skew) : null)
       .input('bd', sql.Int, tag.baseline_days);
     const m = monitorMatch(r, tag);
@@ -12797,7 +12807,7 @@ app.get('/api/monitor-tags/:id/analysis', authRequired, async (request, res) => 
     const { dateFrom, dateTo } = request.query;
     const skew = await monitorClockSkew();
     const r = extReq()
-      .input('c',  sql.DateTime, monitorToExt(monitorStart(tag), skew))
+      .input('c',  sql.DateTime, monitorStartExt(tag, skew))
       .input('en', sql.DateTime, tag.status === 'resolved' ? monitorToExt(tag.resolved_at, skew) : null)
       .input('bd', sql.Int, tag.baseline_days)
       .input('fs', sql.DateTime, dateFrom && dateTo ? new Date(dateFrom) : null)
