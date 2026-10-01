@@ -20096,7 +20096,9 @@ function mtRender() {
         t.check_script || t.fix_script || t.files?.length ? `<span class="sub">🧾 มี Script${t.files?.length ? ` · 📎 ${t.files.length} ไฟล์` : ''}</span>` : ''}</td>
       <td class="num">${fmtDate(t.created_at)}<span class="sub">${st.days_monitored ?? 0} วันที่แล้ว</span></td>
       <td class="r num">${st.error ? '—' : avg(st.pre_avg ?? null, st.pre_count || 0)}</td>
-      <td class="r num">${st.error ? '—' : avg(st.post_avg ?? null, st.post_count || 0)}</td>
+      <td class="r num">${st.error ? '—' : st.early
+        ? `<span class="mt-meta">—</span><span class="sub">${st.post_count || 0} เคสถึงตอนนี้</span>`
+        : avg(st.post_avg ?? null, st.post_count || 0)}</td>
       <td>${st.error ? '<span class="mt-pill mt-up">คำนวณไม่สำเร็จ</span>' : mtTrendPill(st)}</td>
       <td>${mtSpark(st)}</td>
       <td class="r mt-meta">${open ? '▲' : '▼'}</td>
@@ -20121,77 +20123,92 @@ const mtTagLabel = t => (mtIsGroup(t) ? t.customer_name : t.store_name) + ' · '
 function mtRenderOverview(list) {
   const box = document.getElementById('mt-overview');
   if (!box) return;
-  const ok = list.filter(t => t.stats && !t.stats.error && !t.stats.early && t.stats.pre_avg !== null && t.stats.post_avg !== null);
   if (!list.length) { box.innerHTML = ''; box.style.display = 'none'; return; }
   box.style.display = '';
+  // ok = มีข้อมูลให้ดู (รวม Tag ที่เพิ่งตั้ง) · judged = ครบ 1 วันแล้ว คิด % ได้
+  const ok = list.filter(t => t.stats && !t.stats.error && (t.stats.pre_avg !== null || t.stats.post_avg !== null));
+  const judged = ok.filter(t => !t.stats.early && t.stats.pre_avg !== null && t.stats.post_avg !== null);
+  const earlyTags = ok.filter(t => t.stats.early);
   if (!ok.length) {
-    // มี Tag แต่ยังเทียบไม่ได้ — บอกเหตุผล อย่าหายไปเฉย ๆ
     const err = list.filter(t => !t.stats || t.stats.error).length;
-    const early  = list.filter(t => t.stats?.early).length;
-    const noPost = list.filter(t => t.stats && !t.stats.error && t.stats.post_avg === null).length;
-    const noPre  = list.filter(t => t.stats && !t.stats.error && t.stats.pre_avg === null).length;
-    const why = [
-      early && `${early} Tag เพิ่งตั้ง ยังไม่ครบ 1 วัน`,
-      noPost && `${noPost} Tag ยังไม่มีช่วงหลังตั้ง Tag ในช่วงวันที่ที่เลือก`,
-      noPre && `${noPre} Tag ไม่มีช่วงก่อนตั้ง Tag ในช่วงวันที่ที่เลือก`,
-      err && `${err} Tag คำนวณไม่สำเร็จ / ไม่ได้เชื่อมฐาน Calllog`
-    ].filter(Boolean).join(' · ');
     box.innerHTML = `<div class="mt-ov-card mt-ov-grp"><div class="mt-ov-title">ภาพรวม</div>
-      <div class="mt-ov-sub" style="margin-top:.35rem">ยังสรุปภาพรวมไม่ได้ — ${why || 'ยังไม่มีข้อมูลพอเทียบก่อน/หลัง'}
-      ลองเลือกช่วงวันที่ด้านบนให้ครอบวันตั้ง Tag (เช่น 30 วัน)</div></div>`;
+      <div class="mt-ov-sub" style="margin-top:.35rem">ยังสรุปภาพรวมไม่ได้ — ${
+        err ? `${err} Tag คำนวณไม่สำเร็จ / ไม่ได้เชื่อมฐาน Calllog` : 'ช่วงวันที่ที่เลือกไม่ครอบวันตั้ง Tag ลองเลือก 30 วัน'}</div></div>`;
     return;
   }
+  // เวลาที่ Tag แรกจะครบ 1 วัน — บอกผู้ใช้ว่าจะได้เห็น % เมื่อไหร่
+  const firstDue = earlyTags.length
+    ? new Date(Math.min(...earlyTags.map(t => parseDbDate(t.created_at).getTime())) + 86400000) : null;
+  const dueTxt = firstDue ? firstDue.toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) + ' น.' : '';
+  const waitPill = `<span class="mt-pill mt-flat" style="font-size:.78rem">⏳ รอครบ 1 วัน${dueTxt ? ` · ${dueTxt}` : ''}</span>`;
 
-  // รวมทุก Tag: เคส/วันก่อน vs หลัง
-  const pre  = ok.reduce((a, t) => a + t.stats.pre_avg, 0);
-  const post = ok.reduce((a, t) => a + t.stats.post_avg, 0);
-  const pct  = pre > 0 ? (post - pre) / pre * 100 : null;
-  const cls  = pct === null ? 'mt-flat' : Math.abs(pct) <= 2 ? 'mt-flat' : pct < 0 ? 'mt-down' : 'mt-up';
-  const word = pct === null ? '—' : Math.abs(pct) <= 2 ? `● คงที่ ${mtFmtPct(pct)}` : pct < 0 ? `▼ ลดลง ${mtFmtPct(pct)}` : `▲ เพิ่มขึ้น ${mtFmtPct(pct)}`;
+  // ── รวมทุก Tag
+  let hero;
+  if (judged.length) {
+    const pre  = judged.reduce((a, t) => a + t.stats.pre_avg, 0);
+    const post = judged.reduce((a, t) => a + t.stats.post_avg, 0);
+    const pct  = pre > 0 ? (post - pre) / pre * 100 : null;
+    const cls  = pct === null ? 'mt-flat' : Math.abs(pct) <= 2 ? 'mt-flat' : pct < 0 ? 'mt-down' : 'mt-up';
+    const word = pct === null ? '—' : Math.abs(pct) <= 2 ? `● คงที่ ${mtFmtPct(pct)}` : pct < 0 ? `▼ ลดลง ${mtFmtPct(pct)}` : `▲ เพิ่มขึ้น ${mtFmtPct(pct)}`;
+    hero = { pct, html: `<span class="v">${pre.toFixed(1)}</span><span class="u">เคส/วัน ก่อน</span><span class="ar">→</span>
+      <span class="v">${post.toFixed(1)}</span><span class="u">เคส/วัน หลัง</span><span class="mt-pill ${cls}" style="font-size:.78rem">${word}</span>`,
+      sub: `ผลรวมเคสเฉลี่ยต่อวันของ ${judged.length} Tag ที่ครบ 1 วันแล้ว${earlyTags.length ? ` (อีก ${earlyTags.length} Tag ยังไม่ครบ)` : ''}` };
+  } else {
+    // ยังไม่มี Tag ไหนครบ 1 วัน: โชว์ฐานก่อนตั้ง + เคสที่เข้ามาแล้วหลังตั้ง โดยยังไม่ตัดสินว่าเพิ่ม/ลด
+    const pre = ok.reduce((a, t) => a + (t.stats.pre_avg || 0), 0);
+    const postN = ok.reduce((a, t) => a + (t.stats.post_count || 0), 0);
+    hero = { pct: null, html: `<span class="v">${pre.toFixed(1)}</span><span class="u">เคส/วัน ก่อนตั้ง Tag</span><span class="ar">·</span>
+      <span class="v">${postN}</span><span class="u">เคส หลังตั้ง (ถึงตอนนี้)</span>${waitPill}`,
+      sub: `${ok.length} Tag เพิ่งตั้ง — % เพิ่ม/ลดจะขึ้นเมื่อครบ 1 วัน` };
+  }
 
-  // ตาม License Group / ลูกค้า
+  // ── ตาม License Group / ลูกค้า
   const grp = new Map();
   for (const t of ok) {
-    const g = grp.get(t.customer_name) || { name: t.customer_name, n: 0, up: 0, down: 0, pre: 0, post: 0 };
-    g.n++; g.pre += t.stats.pre_avg; g.post += t.stats.post_avg;
+    const g = grp.get(t.customer_name) || { name: t.customer_name, n: 0, up: 0, down: 0, pre: 0, post: 0, judged: 0, postN: 0 };
+    g.n++;
+    if (judged.includes(t)) { g.judged++; g.pre += t.stats.pre_avg; g.post += t.stats.post_avg; }
+    else { g.postN += t.stats.post_count || 0; if (!g.judged) g.preWait = (g.preWait || 0) + (t.stats.pre_avg || 0); }
     if (t.stats.trend === 'worsened') g.up++;
     if (t.stats.trend === 'improved') g.down++;
     grp.set(g.name, g);
   }
-  const grows = [...grp.values()].map(g => ({ ...g, pct: g.pre > 0 ? (g.post - g.pre) / g.pre * 100 : null }))
-    .sort((a, b) => (b.pct ?? 1e9) - (a.pct ?? 1e9));
-  const pill = p => p === null ? '<span class="mt-pill mt-up">▲ เคสใหม่</span>'
-    : Math.abs(p) <= 2 ? `<span class="mt-pill mt-flat">● ${mtFmtPct(p)}</span>`
-    : p < 0 ? `<span class="mt-pill mt-down">▼ ${mtFmtPct(p)}</span>` : `<span class="mt-pill mt-up">▲ ${mtFmtPct(p)}</span>`;
+  const grows = [...grp.values()].map(g => ({ ...g, pct: g.judged && g.pre > 0 ? (g.post - g.pre) / g.pre * 100 : null }))
+    .sort((a, b) => (b.judged ? 1 : 0) - (a.judged ? 1 : 0) || (b.pct ?? 1e9) - (a.pct ?? 1e9));
+  const pill = g => !g.judged ? '<span class="mt-pill mt-flat">⏳ รอครบ 1 วัน</span>'
+    : g.pct === null ? '<span class="mt-pill mt-up">▲ เคสใหม่</span>'
+    : Math.abs(g.pct) <= 2 ? `<span class="mt-pill mt-flat">● ${mtFmtPct(g.pct)}</span>`
+    : g.pct < 0 ? `<span class="mt-pill mt-down">▼ ${mtFmtPct(g.pct)}</span>` : `<span class="mt-pill mt-up">▲ ${mtFmtPct(g.pct)}</span>`;
 
-  const bars = ok.filter(t => t.stats.pct_change !== null);
+  const bars = judged.filter(t => t.stats.pct_change !== null);
   const barH = Math.max(120, bars.length * 26 + 30);
+  const pct = hero.pct;
   box.innerHTML = `
     <div class="mt-ov-card">
       <div class="mt-ov-title">รวมทุก Tag — ก่อน vs หลังตั้ง Tag</div>
-      <div class="mt-ov-sub">ผลรวมเคสเฉลี่ยต่อวันของ ${ok.length} Tag · เส้นด้านล่างคือเคสเฉลี่ยต่อ Tag นับจากวันตั้ง Tag (D0)</div>
-      <div class="mt-hero">
-        <span class="v">${pre.toFixed(1)}</span><span class="u">เคส/วัน ก่อน</span>
-        <span class="ar">→</span>
-        <span class="v">${post.toFixed(1)}</span><span class="u">เคส/วัน หลัง</span>
-        <span class="mt-pill ${cls}" style="font-size:.78rem">${word}</span>
-      </div>
+      <div class="mt-ov-sub">${hero.sub} · เส้นด้านล่างคือเคสเฉลี่ยต่อ Tag นับจากวันตั้ง Tag (D0)</div>
+      <div class="mt-hero">${hero.html}</div>
       <div style="position:relative;height:170px"><canvas id="mt-ov-rel"></canvas></div>
     </div>
     <div class="mt-ov-card">
       <div class="mt-ov-title">เปลี่ยนแปลงราย Tag</div>
-      <div class="mt-ov-sub">% เคส/วัน หลังเทียบก่อนตั้ง Tag · ซ้าย = ลดลง, ขวา = เพิ่มขึ้น · คลิกแท่งเพื่อดูรายละเอียด${
-        ok.length > bars.length ? ` · ไม่แสดง ${ok.length - bars.length} Tag ที่ก่อนหน้าไม่มีเคส` : ''}</div>
-      <div style="position:relative;height:${Math.min(barH, 300)}px;overflow-y:${barH > 300 ? 'auto' : 'hidden'};margin-top:.5rem">
-        <div style="position:relative;height:${barH}px"><canvas id="mt-ov-bar"></canvas></div>
-      </div>
+      ${bars.length ? `<div class="mt-ov-sub">% เคส/วัน หลังเทียบก่อนตั้ง Tag · ซ้าย = ลดลง, ขวา = เพิ่มขึ้น · คลิกแท่งเพื่อดูรายละเอียด${
+          earlyTags.length ? ` · อีก ${earlyTags.length} Tag ยังไม่ครบ 1 วัน` : ''}${
+          judged.length > bars.length ? ` · ไม่แสดง ${judged.length - bars.length} Tag ที่ก่อนหน้าไม่มีเคส` : ''}</div>
+        <div style="position:relative;height:${Math.min(barH, 300)}px;overflow-y:${barH > 300 ? 'auto' : 'hidden'};margin-top:.5rem">
+          <div style="position:relative;height:${barH}px"><canvas id="mt-ov-bar"></canvas></div>
+        </div>`
+      : `<div class="mt-empty" style="margin-top:.6rem;padding:1.6rem 1rem">⏳ % เปลี่ยนแปลงราย Tag จะแสดงเมื่อ Tag ครบ 1 วัน${
+          dueTxt ? `<br><span style="font-size:.78rem">Tag แรกครบ ${dueTxt}</span>` : ''}</div>`}
     </div>
     ${grows.length > 1 ? `<div class="mt-ov-card mt-ov-grp">
       <div class="mt-ov-title">ตาม License Group / ลูกค้า</div>
       <table><thead><tr><th>กลุ่ม</th><th class="r">Tags</th><th class="r">▲ เพิ่มขึ้น</th><th class="r">▼ ลดลง</th>
         <th class="r">ก่อน (เคส/วัน)</th><th class="r">หลัง (เคส/วัน)</th><th>ผลรวม</th></tr></thead>
       <tbody>${grows.map(g => `<tr><td>${esc(g.name)}</td><td class="r">${g.n}</td><td class="r">${g.up}</td><td class="r">${g.down}</td>
-        <td class="r">${g.pre.toFixed(2)}</td><td class="r">${g.post.toFixed(2)}</td><td>${pill(g.pct)}</td></tr>`).join('')}</tbody></table>
+        <td class="r">${(g.judged ? g.pre : g.preWait || 0).toFixed(2)}</td>
+        <td class="r">${g.judged ? g.post.toFixed(2) : `<span class="mt-meta">${g.postN} เคสถึงตอนนี้</span>`}</td>
+        <td>${pill(g)}</td></tr>`).join('')}</tbody></table>
     </div>` : ''}`;
 
   if (typeof Chart === 'undefined') return;
