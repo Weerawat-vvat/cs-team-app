@@ -12566,6 +12566,23 @@ async function ensureMonitorTagTables() {
         linked_at   DATETIME      DEFAULT GETDATE(),
         CONSTRAINT uq_monitor_tag_case UNIQUE (tag_id, calllog_id)
       )`);
+    // AI แนะนำ Tag ให้เคสรายวัน — 1 แถวต่อ (เคส, Tag) ที่แนะนำ · tag_id NULL = ประเมินแล้วไม่ตรง Tag ไหน
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='monitor_tag_suggestions' AND xtype='U')
+      CREATE TABLE monitor_tag_suggestions (
+        id          INT PRIMARY KEY IDENTITY,
+        calllog_id  INT           NOT NULL,
+        tag_id      INT           NULL,
+        case_day    DATE          NOT NULL,
+        confidence  NVARCHAR(10)  NULL,
+        reason      NVARCHAR(500) NULL,
+        status      NVARCHAR(12)  NOT NULL DEFAULT 'pending',   -- pending | accepted | rejected | none
+        tag_set     NVARCHAR(400) NULL,                          -- Tag ที่มีตอนประเมิน (มี Tag ใหม่ → ประเมินใหม่ได้)
+        ai_model    NVARCHAR(60)  NULL,
+        created_at  DATETIME      DEFAULT GETDATE(),
+        decided_by  NVARCHAR(100) NULL,
+        decided_at  DATETIME      NULL
+      )`);
   } catch (e) { console.error('[monitor-tags] ensure table:', e.message); }
 }
 
@@ -12855,6 +12872,189 @@ app.get('/api/monitor-tags/:id/analysis', authRequired, async (request, res) => 
       subjects: roll(x => x.subject),
       total: rows.reduce((a, x) => ({ pre: a.pre + x.pre, post: a.post + x.post }), { pre: 0, post: 0 })
     });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══ AI แนะนำ Tag ให้เคสรายวัน ══════════════════════════════
+// เคสของวันนั้นที่ยังไม่ได้ติด Tag → ให้ AI จับคู่กับ Tag กลางที่เปิดอยู่ → คนกดยืนยัน/ปฏิเสธ
+// ประหยัด token: ส่งครั้งละ 40 เคส, ให้ AI ตอบเฉพาะเคสที่ตรง, เคสที่ประเมินแล้วไม่ส่งซ้ำ
+// (ยกเว้นมี Tag ใหม่เพิ่มเข้ามาหลังประเมิน — เคสที่เคย "ไม่ตรง" จะถูกประเมินใหม่ได้)
+const MT_SUGGEST_BATCH = 40;
+const MT_SUGGEST_AUTO  = (process.env.MONITOR_SUGGEST_AUTO || 'on').toLowerCase() !== 'off';
+// ใช้รุ่นถูกเสมอ (แยกจาก GEMINI_MODEL ของฟีเจอร์อื่น) · Gemini ล่ม = ข้ามรอบนี้ ไม่สลับไปรุ่นแพง
+const MT_SUGGEST_MODEL = process.env.MONITOR_SUGGEST_MODEL || 'gemini-flash-lite-latest';
+const MT_SUGGEST_TIME  = /^\d{2}:\d{2}$/.test(process.env.MONITOR_SUGGEST_TIME || '') ? process.env.MONITOR_SUGGEST_TIME : '18:00';
+let _mtSuggestRunning = false;
+
+async function suggestMonitorTags(day) {
+  if (_mtSuggestRunning) return { busy: true };
+  if (!getExtPool()) return { error: 'External DB not connected' };
+  if (!process.env.GEMINI_API_KEY) return { error: 'ยังไม่ได้ตั้งค่า GEMINI_API_KEY' };
+  _mtSuggestRunning = true;
+  try {
+    const tags = (await req().query(`SELECT id, title, note, tag_type FROM monitor_tags
+      WHERE status='active' AND match_mode='manual' ORDER BY id`)).recordset;
+    if (!tags.length) return { evaluated: 0, suggested: 0, note: 'ยังไม่มี Tag ให้จับคู่' };
+    const tagSet = tags.map(t => t.id).join(',');
+    const linked = await monitorLinkedIds(tags.map(t => t.id));
+
+    // ตัวอย่างเคสจริงของแต่ละ Tag (ไม่เกิน 2) ช่วยให้ AI แยกอาการได้แม่นขึ้น
+    const exIds = [...new Set(tags.flatMap(t => (linked[t.id] || []).slice(-2)))];
+    const exText = {};
+    if (exIds.length) (await extReq().query(`SELECT CalllogId, LEFT(CalllogDesc, 140) AS d FROM Calllog
+      WHERE CalllogId IN (${exIds.map(Number).join(',')})`)).recordset.forEach(r => { exText[r.CalllogId] = r.d; });
+
+    // เคสของวันนั้น (ปฏิทิน LicenseDB)
+    const cases = (await extReq().input('d', sql.NVarChar, day).query(`
+      SELECT cl.CalllogId AS id, cl.Subject AS subject, LEFT(cl.CalllogDesc, 350) AS descr, LEFT(cl.Solution, 160) AS sol
+      FROM Calllog cl
+      WHERE cl.Active=1 AND cl.ReceiveDate >= CAST(@d AS DATE) AND cl.ReceiveDate < DATEADD(day, 1, CAST(@d AS DATE))
+        AND LEN(LTRIM(ISNULL(CAST(cl.CalllogDesc AS NVARCHAR(MAX)), ''))) > 0`)).recordset;
+    const linkedSet = new Set(Object.values(linked).flat());
+    const prev = (await req().input('d', sql.Date, new Date(day + 'T00:00:00Z')).query(
+      `SELECT calllog_id, status, tag_set FROM monitor_tag_suggestions WHERE case_day=@d`)).recordset;
+    const skip = new Set(prev.filter(r => r.status !== 'none' || r.tag_set === tagSet).map(r => r.calllog_id));
+    const todo = cases.filter(c => !linkedSet.has(c.id) && !skip.has(c.id));
+    if (!todo.length) return { evaluated: 0, suggested: 0, cases: cases.length };
+
+    const clean = v => String(v || '').replace(/\s+/g, ' ').trim();
+    const tagList = tags.map(t => {
+      const ex = (linked[t.id] || []).slice(-2).map(id => exText[id]).filter(Boolean).map(clean);
+      return `[T${t.id}] ${clean(t.title)}${t.note ? ' — ' + clean(t.note).slice(0, 120) : ''}${ex.length ? '\n   ตัวอย่างเคส: ' + ex.join(' / ') : ''}`;
+    }).join('\n');
+    const geminiConfig = { generationConfig: { responseMimeType: 'application/json', responseSchema: {
+      type: SchemaType.ARRAY, items: { type: SchemaType.OBJECT, properties: {
+        i: { type: SchemaType.NUMBER }, tag_id: { type: SchemaType.NUMBER },
+        confidence: { type: SchemaType.STRING }, reason: { type: SchemaType.STRING } },
+        required: ['i', 'tag_id', 'confidence', 'reason'] } } } };
+    const tagIds = new Set(tags.map(t => t.id));
+    let suggested = 0, evaluated = 0, usedModel = null;
+
+    for (let b = 0; b < todo.length; b += MT_SUGGEST_BATCH) {
+      const batch = todo.slice(b, b + MT_SUGGEST_BATCH);
+      const caseList = batch.map((c, i) =>
+        `[${i}] หัวข้อ: ${clean(c.subject) || '-'} | อาการ: ${clean(c.descr)}${c.sol ? ' | วิธีแก้: ' + clean(c.sol) : ''}`).join('\n');
+      const prompt = `คุณช่วยทีม Customer Service จับคู่ "เคส" กับ "Tag ปัญหา" ที่ทีมกำลังติดตามอยู่
+Tag ที่มี:
+${tagList}
+
+เคสของวันนี้:
+${caseList}
+
+ตอบเป็น JSON array เฉพาะเคสที่ "เป็นปัญหาเดียวกับ Tag" อย่างชัดเจน เคสที่ไม่ตรง Tag ไหนไม่ต้องใส่
+แต่ละ object: i (เลขเคส), tag_id (ตัวเลขหลัง T), confidence ("high" ตรงชัดเจน | "medium" น่าจะใช่ | "low" ไม่แน่ใจ), reason (เหตุผลสั้นๆ ภาษาไทย)
+ดูที่อาการเป็นหลัก ไม่ใช่แค่คำที่คล้ายกัน ถ้าไม่แน่ใจอย่าใส่`;
+      let arr;
+      try {
+        const model = genAI.getGenerativeModel({ model: MT_SUGGEST_MODEL, ...geminiConfig });
+        arr = parseJsonArrayReply((await model.generateContent(prompt)).response.text());
+        usedModel = MT_SUGGEST_MODEL;
+      } catch (e) { console.error('[monitor-suggest] AI failed:', e.message); return { evaluated, suggested, error: 'AI ไม่สำเร็จ: ' + e.message }; }
+      const hits = new Map();
+      (Array.isArray(arr) ? arr : []).forEach(o => {
+        const i = Number(o?.i), tid = Number(o?.tag_id);
+        if (Number.isInteger(i) && batch[i] && tagIds.has(tid) && !hits.has(i)) hits.set(i, { tid,
+          conf: ['high', 'medium', 'low'].includes(o.confidence) ? o.confidence : 'low', reason: clean(o.reason).slice(0, 480) });
+      });
+      for (let i = 0; i < batch.length; i++) {
+        const h = hits.get(i), r = req()
+          .input('cid', sql.Int, batch[i].id).input('d', sql.Date, new Date(day + 'T00:00:00Z'))
+          .input('ts', sql.NVarChar, tagSet).input('m', sql.NVarChar, usedModel);
+        try {
+          if (h) {
+            await r.input('tid', sql.Int, h.tid).input('cf', sql.NVarChar, h.conf).input('rs', sql.NVarChar, h.reason).query(`
+              DELETE FROM monitor_tag_suggestions WHERE calllog_id=@cid AND status='none';
+              IF NOT EXISTS (SELECT 1 FROM monitor_tag_suggestions WHERE calllog_id=@cid AND tag_id=@tid)
+                INSERT INTO monitor_tag_suggestions (calllog_id, tag_id, case_day, confidence, reason, status, tag_set, ai_model)
+                VALUES (@cid, @tid, @d, @cf, @rs, 'pending', @ts, @m)`);
+            suggested++;
+          } else {
+            await r.query(`
+              DELETE FROM monitor_tag_suggestions WHERE calllog_id=@cid AND status='none';
+              INSERT INTO monitor_tag_suggestions (calllog_id, tag_id, case_day, status, tag_set, ai_model)
+              VALUES (@cid, NULL, @d, 'none', @ts, @m)`);
+          }
+          evaluated++;
+        } catch (e) { console.error('[monitor-suggest] save failed for case', batch[i].id, e.message); }
+      }
+    }
+    console.log(`🏷️ monitor-suggest ${day}: ประเมิน ${evaluated} เคส · แนะนำ ${suggested}`);
+    return { evaluated, suggested, cases: cases.length, model: usedModel };
+  } finally { _mtSuggestRunning = false; }
+}
+
+// ตั้งเวลารันวันละครั้ง (MONITOR_SUGGEST_TIME, ค่าเริ่มต้น 18:00) · ปิดได้ด้วย MONITOR_SUGGEST_AUTO=off
+let _mtSuggestLastDay = null;
+setInterval(async () => {
+  if (!MT_SUGGEST_AUTO) return;
+  const hhmm = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Bangkok' });
+  const today = bangkokToday();
+  if (hhmm !== MT_SUGGEST_TIME || _mtSuggestLastDay === today) return;
+  _mtSuggestLastDay = today;
+  try { await suggestMonitorTags(today); } catch (e) { console.error('[monitor-suggest] auto error:', e.message); }
+}, 30 * 1000);
+
+const mtDayParam = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : bangkokToday();
+
+// GET /api/monitor-tags/suggestions?date=YYYY-MM-DD — คำแนะนำที่รอยืนยันของวันนั้น
+app.get('/api/monitor-tags/suggestions', authRequired, async (request, res) => {
+  try {
+    const day = mtDayParam(request.query.date);
+    const all = (await req().input('d', sql.Date, new Date(day + 'T00:00:00Z')).query(`
+      SELECT s.id, s.calllog_id, s.tag_id, s.confidence, s.reason, s.status, s.created_at, t.title AS tag_title, t.tag_type
+      FROM monitor_tag_suggestions s LEFT JOIN monitor_tags t ON t.id = s.tag_id
+      WHERE s.case_day=@d ORDER BY s.id`)).recordset;
+    const pending = all.filter(r => r.status === 'pending' && r.tag_title);
+    const info = {};
+    if (pending.length && getExtPool()) (await extReq().query(`
+      SELECT cl.CalllogId AS id, cl.ReceiveDate AS opened_at, cl.Subject AS subject, LEFT(cl.CalllogDesc, 300) AS descr,
+             cr.CompanyName AS company, cs.StatusName AS case_status
+      FROM Calllog cl
+      LEFT JOIN CustomerRegistration cr ON cr.RegistrationId = cl.RegistrationId
+      LEFT JOIN CallStatus cs ON cs.StatusId = cl.StatusId
+      WHERE cl.CalllogId IN (${[...new Set(pending.map(r => r.calllog_id))].map(Number).join(',')})`)).recordset
+      .forEach(r => { info[r.id] = r; });
+    const lastRun = all.reduce((m, r) => (!m || r.created_at > m ? r.created_at : m), null);
+    res.json({
+      date: day, running: _mtSuggestRunning, auto: MT_SUGGEST_AUTO, autoTime: MT_SUGGEST_TIME,
+      evaluated: new Set(all.map(r => r.calllog_id)).size, last_run: lastRun,
+      counts: { pending: pending.length, accepted: all.filter(r => r.status === 'accepted').length, rejected: all.filter(r => r.status === 'rejected').length },
+      items: pending.map(r => ({ ...r, case: info[r.calllog_id] || null }))
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/monitor-tags/suggestions/run {date} — ให้ AI หาเคสที่ติด Tag ได้ของวันนั้น (ทำเพิ่มได้ ไม่ประเมินซ้ำ)
+app.post('/api/monitor-tags/suggestions/run', authRequired, async (request, res) => {
+  try {
+    const r = await suggestMonitorTags(mtDayParam(request.body?.date));
+    if (r.busy) return res.status(409).json({ error: 'กำลังวิเคราะห์อยู่ ลองใหม่อีกสักครู่' });
+    if (r.error) return res.status(r.evaluated ? 200 : 500).json(r);
+    res.json(r);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/monitor-tags/suggestions/decide {ids:[...], action:'accept'|'reject'} — ยืนยัน = ติด Tag ให้เคส
+app.post('/api/monitor-tags/suggestions/decide', authRequired, async (request, res) => {
+  try {
+    const ids = (Array.isArray(request.body?.ids) ? request.body.ids : []).map(Number).filter(Number.isInteger).slice(0, 500);
+    const accept = request.body?.action === 'accept';
+    if (!ids.length) return res.status(400).json({ error: 'ไม่มีรายการ' });
+    const by = request.user?.username || null;
+    const rows = (await req().query(`SELECT s.id, s.calllog_id, s.tag_id, t.status AS tag_status
+      FROM monitor_tag_suggestions s JOIN monitor_tags t ON t.id = s.tag_id
+      WHERE s.status='pending' AND s.id IN (${ids.join(',')})`)).recordset;
+    let done = 0;
+    for (const r of rows) {
+      if (accept && r.tag_status !== 'active') continue;   // Tag ถูกปิดไปแล้ว
+      const q = req().input('sid', sql.Int, r.id).input('by', sql.NVarChar, by)
+        .input('tid', sql.Int, r.tag_id).input('cid', sql.Int, r.calllog_id);
+      await q.query(`${accept ? `IF NOT EXISTS (SELECT 1 FROM monitor_tag_cases WHERE tag_id=@tid AND calllog_id=@cid)
+          INSERT INTO monitor_tag_cases (tag_id, calllog_id, linked_by) VALUES (@tid, @cid, @by);` : ''}
+        UPDATE monitor_tag_suggestions SET status='${accept ? 'accepted' : 'rejected'}', decided_by=@by, decided_at=GETDATE() WHERE id=@sid`);
+      done++;
+    }
+    res.json({ ok: true, done });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

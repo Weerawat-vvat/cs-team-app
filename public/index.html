@@ -453,6 +453,16 @@ textarea{resize:vertical;min-height:80px}
 .cc-foot-hint{flex:1;font-size:.74rem;color:var(--muted)}
 .cc-foot kbd{font-family:inherit;font-size:.68rem;border:1px solid var(--border);border-bottom-width:2px;border-radius:4px;padding:0 .3rem;background:#faf9f6;color:#3a3f46}
 @media (max-width:760px){.cc-grid{grid-template-columns:1fr!important}.cc-foot-hint{display:none}}
+.mt-sg-bar{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;padding:.1rem 1.25rem .6rem;border-bottom:1px solid var(--line-2)}
+.mt-sg-grp{margin:.6rem 0 .3rem;font-size:.84rem;font-weight:600;color:var(--text);display:flex;align-items:center;gap:.4rem}
+.mt-sg-item{display:flex;gap:.65rem;align-items:flex-start;border:1px solid var(--border);border-radius:12px;padding:.6rem .75rem;margin-bottom:.4rem;background:#fff;cursor:pointer}
+.mt-sg-item:hover{border-color:#d6d2c9}
+.mt-sg-item.on{border-color:var(--primary);background:var(--primary-soft)}
+.mt-sg-item input{margin-top:.2rem;width:auto!important}
+.mt-sg-item .b{flex:1;min-width:0}
+.mt-sg-item .d{font-size:.82rem;color:var(--text);margin:.1rem 0 .2rem;word-break:break-word}
+.mt-sg-item .why{font-size:.72rem;color:#5b616b}
+.mt-sg-item .act{display:flex;gap:.3rem;flex-shrink:0}
 .mt-tab-count{display:inline-block;min-width:18px;padding:0 .35rem;margin-left:.2rem;border-radius:9px;background:var(--primary-soft);color:var(--primary);font-size:.68rem;font-weight:600;line-height:17px;text-align:center}
 .mt-add-btn{display:inline-flex;align-items:center;gap:.35rem;border:1px solid var(--border);background:#fff;color:#3a3f46;border-radius:999px;font-family:inherit;cursor:pointer;white-space:nowrap;transition:background .15s,border-color .15s;padding:.28rem .75rem;font-size:.74rem;font-weight:500}
 .mt-add-btn:hover{background:#f0eee9;border-color:#d6d2c9}
@@ -1573,6 +1583,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
     <div class="mt-toolbar">
       <span id="mt-range" class="mt-range"></span>
       <span id="mt-updated" class="mt-updated"></span>
+      <button class="svc-btn-ghost" onclick="mtOpenSuggest()" style="height:34px" title="AI แนะนำเคสของแต่ละวันที่ติด Tag ได้"><i class=i-spark></i> เคสแนะนำ <span id="mt-sg-badge" class="mt-tab-count" style="display:none"></span></button>
       <button class="svc-btn-ghost" onclick="mtOpenManage()" style="height:34px"><i class=i-tag></i> จัดการ Tag</button>
       <button class="svc-btn-ghost" onclick="mtLoad()" style="height:34px"><i class=i-refresh></i> รีเฟรช</button>
     </div>
@@ -2515,6 +2526,31 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
       <button class="svc-btn-ghost" id="mt-t-add" onclick="mtTagNext({ keep: true })" style="display:none" title="ติด Tag นี้เพิ่ม โดยไม่เอาออกจาก Tag เดิม">เพิ่มอีก Tag</button>
       <button class="svc-btn-primary" id="mt-t-next" onclick="mtTagNext()" disabled>ถัดไป ›</button>
       <button class="svc-btn-primary" id="mt-t-save" onclick="mtTagSave()" style="display:none"><i class=i-tag></i> <span id="mt-t-save-lbl">ติด Tag และเริ่ม Monitor</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- Monitor Tag: AI แนะนำเคสที่ติด Tag ได้ (รายวัน) -->
+<div class="overlay" id="modal-mt-suggest">
+  <div class="modal mt-form" style="max-width:860px;width:95vw;padding:0;max-height:92vh;display:flex;flex-direction:column;overflow:hidden">
+    <div class="modal-head" style="padding:1.1rem 1.25rem .85rem;margin:0">
+      <div style="min-width:0">
+        <div style="font-size:1.08rem;font-weight:600">เคสแนะนำให้ติด Tag</div>
+        <div class="mt-meta" id="mt-sg-sub">AI อ่านอาการของเคสในวันนั้นแล้วจับคู่กับ Tag ที่มีอยู่ — ตรวจแล้วกดยืนยัน</div>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-mt-suggest')">×</button>
+    </div>
+    <div class="mt-sg-bar">
+      <input type="date" id="mt-sg-date" class="svc-date" onchange="mtLoadSuggest()"/>
+      <span class="mt-meta" id="mt-sg-status" style="flex:1"></span>
+      <button class="svc-btn-ghost" id="mt-sg-run" onclick="mtRunSuggest()" style="height:34px"><i class=i-spark></i> ให้ AI หาเคสของวันนี้</button>
+    </div>
+    <div id="mt-sg-body" class="cc-body" style="padding-top:.5rem"></div>
+    <div class="cc-foot">
+      <span class="cc-foot-hint" id="mt-sg-sel">เลือก 0 รายการ</span>
+      <button class="svc-btn-ghost" onclick="mtSgSelectHigh()">เลือกที่มั่นใจสูง</button>
+      <button class="svc-btn-ghost" onclick="mtSgDecide('reject')"><i class=i-trash></i> ไม่ใช่</button>
+      <button class="svc-btn-primary" onclick="mtSgDecide('accept')"><i class=i-tag></i> ติด Tag ที่เลือก</button>
     </div>
   </div>
 </div>
@@ -20287,6 +20323,85 @@ function mtPickType(btn) {
 
 // ── จัดการ Tag: ชื่อ / ประเภท / Resolve
 let _mtManageType = '';
+// ── AI แนะนำเคสที่ติด Tag ได้ (รายวัน) ─────────────────────────
+let _mtSg = { items: [], sel: new Set() };
+async function mtOpenSuggest() {
+  const d = document.getElementById('mt-sg-date');
+  if (!d.value) d.value = mtLocalInput(new Date()).slice(0, 10);
+  openModal('modal-mt-suggest');
+  mtLoadSuggest();
+}
+async function mtLoadSuggest() {
+  const day = document.getElementById('mt-sg-date').value;
+  const body = document.getElementById('mt-sg-body');
+  body.innerHTML = '<div class="mt-meta" style="padding:1rem 0">กำลังโหลด...</div>';
+  const d = await api('/api/monitor-tags/suggestions?date=' + day, { silent: true });
+  if (!d || d.error) { body.innerHTML = `<div class="mt-empty">โหลดไม่สำเร็จ${d?.error ? ': ' + esc(d.error) : ''} (ถ้าเพิ่งอัปเดตโค้ด ให้รีสตาร์ท server ก่อน)</div>`; return; }
+  _mtSg = { items: d.items || [], sel: new Set() };
+  const today = mtLocalInput(new Date()).slice(0, 10);
+  document.getElementById('mt-sg-run').innerHTML = `<i class=i-spark></i> ให้ AI หาเคส${day === today ? 'ของวันนี้' : 'ของวันนั้น'}`;
+  document.getElementById('mt-sg-status').innerHTML = [
+    d.evaluated ? `AI ประเมินแล้ว ${d.evaluated} เคส` : 'ยังไม่ได้ประเมินวันนี้',
+    d.last_run ? `ล่าสุด ${fmtDT(d.last_run)}` : '',
+    d.counts.accepted ? `ติด Tag แล้ว ${d.counts.accepted}` : '',
+    d.auto ? `รันอัตโนมัติทุกวัน ${d.autoTime} น.` : ''].filter(Boolean).join(' · ');
+  if (day === today) mtSgBadge(_mtSg.items.length);
+  mtRenderSuggest();
+}
+function mtRenderSuggest() {
+  const body = document.getElementById('mt-sg-body');
+  const items = _mtSg.items;
+  if (!items.length) {
+    body.innerHTML = `<div class="mt-empty">ไม่มีเคสที่รอยืนยัน<br><span style="font-size:.78rem">กด <b>ให้ AI หาเคส</b> เพื่อให้ AI อ่านเคสของวันนี้ (ส่งเฉพาะเคสที่ยังไม่ได้ประเมิน)</span></div>`;
+    mtSgSelInfo(); return;
+  }
+  const groups = new Map();
+  items.forEach(x => { if (!groups.has(x.tag_id)) groups.set(x.tag_id, []); groups.get(x.tag_id).push(x); });
+  const cpill = c => c === 'high' ? '<span class="mt-pill mt-down">มั่นใจสูง</span>' : c === 'medium' ? '<span class="mt-pill mt-flat">น่าจะใช่</span>' : '<span class="mt-pill mt-flat" style="opacity:.75">ไม่แน่ใจ</span>';
+  body.innerHTML = [...groups.values()].map(g => `<div class="mt-sg-grp"><i class=i-tag style="color:var(--primary)"></i> ${esc(g[0].tag_title)} ${mtTypeBadge({ tag_type: g[0].tag_type })}<span class="mt-meta" style="font-weight:400">· ${g.length} เคส</span></div>
+    ${g.map(x => { const c = x.case || {}; const on = _mtSg.sel.has(x.id);
+      return `<div class="mt-sg-item${on ? ' on' : ''}" onclick="mtSgToggle(${x.id})">
+        <input type="checkbox" ${on ? 'checked' : ''} onclick="event.stopPropagation();mtSgToggle(${x.id})"/>
+        <div class="b">
+          <div class="mt-meta">#${x.calllog_id}${c.opened_at ? ' · ' + fmtDT(c.opened_at) : ''}${c.company ? ' · ' + esc(c.company) : ''}${c.subject ? ' · ' + esc(c.subject) : ''}</div>
+          <div class="d">${esc(String(c.descr || '').replace(/\s+/g, ' ')) || '<span class="mt-meta">—</span>'}</div>
+          <div class="why">${cpill(x.confidence)} AI: ${esc(x.reason || '')}</div>
+        </div>
+        <div class="act" onclick="event.stopPropagation()">
+          <button class="mt-mini" onclick="mtSgDecide('accept',[${x.id}])" title="ติด Tag นี้ให้เคส"><i class=i-check></i> ใช่</button>
+          <button class="mt-mini" onclick="mtSgDecide('reject',[${x.id}])" title="ไม่ใช่ปัญหานี้"><i class=i-trash></i> ไม่ใช่</button>
+        </div>
+      </div>`; }).join('')}`).join('');
+  mtSgSelInfo();
+}
+function mtSgToggle(id) { _mtSg.sel.has(id) ? _mtSg.sel.delete(id) : _mtSg.sel.add(id); mtRenderSuggest(); }
+function mtSgSelectHigh() { _mtSg.items.filter(x => x.confidence === 'high').forEach(x => _mtSg.sel.add(x.id)); mtRenderSuggest(); }
+function mtSgSelInfo() { const el = document.getElementById('mt-sg-sel'); if (el) el.textContent = `เลือก ${_mtSg.sel.size} จาก ${_mtSg.items.length} รายการ`; }
+function mtSgBadge(n) { const b = document.getElementById('mt-sg-badge'); if (b) { b.textContent = n; b.style.display = n ? '' : 'none'; } }
+async function mtSgDecide(action, ids) {
+  ids = ids || [..._mtSg.sel];
+  if (!ids.length) { showToast('ยังไม่ได้เลือกรายการ', 'error'); return; }
+  const d = await api('/api/monitor-tags/suggestions/decide', { method: 'POST', silent: true, body: { ids, action } });
+  if (!d || d.error) { showToast(d?.error || 'บันทึกไม่สำเร็จ', 'error'); return; }
+  showToast(action === 'accept' ? `ติด Tag ให้ ${d.done} เคสแล้ว` : `ตัดออก ${d.done} รายการ`);
+  await mtLoadSuggest();
+  if (action === 'accept') mtAfterChange();
+}
+async function mtRunSuggest() {
+  const btn = document.getElementById('mt-sg-run'), day = document.getElementById('mt-sg-date').value;
+  btn.disabled = true; const old = btn.innerHTML; btn.innerHTML = 'AI กำลังอ่านเคส...';
+  const d = await api('/api/monitor-tags/suggestions/run', { method: 'POST', silent: true, body: { date: day } });
+  btn.disabled = false; btn.innerHTML = old;
+  if (!d || (d.error && !d.evaluated)) { showToast(d?.error || 'AI ทำงานไม่สำเร็จ', 'error'); return; }
+  showToast(d.evaluated ? `AI อ่าน ${d.evaluated} เคส · แนะนำ ${d.suggested} เคส` : 'ไม่มีเคสใหม่ให้ประเมิน');
+  mtLoadSuggest();
+}
+// จำนวนที่รอยืนยันของวันนี้ (แสดงบนปุ่ม)
+async function mtRefreshSuggestBadge() {
+  const d = await api('/api/monitor-tags/suggestions?date=' + mtLocalInput(new Date()).slice(0, 10), { silent: true });
+  if (d && !d.error) mtSgBadge((d.items || []).length);
+}
+
 async function mtOpenManage() {
   if (!_mtTags.length) {   // เปิดจากหน้าที่ยังไม่ได้โหลดสถิติ — ใช้รายชื่อแบบเบา
     const d = await api('/api/monitor-tags?status=active&lite=1', { silent: true });
@@ -20389,6 +20504,7 @@ async function mtLoad(opts = {}) {
   _mtTags = d.tags || [];
   mtNoteStart(d);
   mtSetCount(_mtTags.length);
+  if (!opts.quiet) mtRefreshSuggestBadge();
   Object.keys(_mtAnalysis).forEach(k => delete _mtAnalysis[k]);   // วิเคราะห์ใหม่ให้ตรงกับสถิติรอบนี้
   const fd = v => new Date(v + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
   document.getElementById('mt-range').innerHTML = range
