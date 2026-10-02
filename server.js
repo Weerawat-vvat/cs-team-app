@@ -3518,40 +3518,6 @@ ${JSON.stringify(approvedLeaves, null, 2)}
   }
 });
 
-// ── 4. AI KPI Forecast ─────────────────────────────────────
-app.get('/api/ai/forecast-kpi', authRequired, async (request, res) => {
-  try {
-    if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
-    const { months = 3 } = request.query;
-    const history = (await extReq()
-      .query(`SELECT FORMAT(cl.ReceiveDate,'yyyy-MM') AS month,
-                     u.UserName, COUNT(cl.CalllogId) AS total_cases
-              FROM Calllog cl INNER JOIN Users u ON u.UserId=cl.SupportId
-              WHERE cl.ReceiveDate >= '2026-01-01'
-              GROUP BY FORMAT(cl.ReceiveDate,'yyyy-MM'), u.UserName
-              ORDER BY month, total_cases DESC`)).recordset;
-
-    const prompt = `คุณคือนักวิเคราะห์ประสิทธิภาพทีม Customer Service
-วิเคราะห์ข้อมูล Calllog รายเดือน:
-
-${JSON.stringify(history, null, 2)}
-
-กรุณาวิเคราะห์และสรุปใน 4 หัวข้อ:
-1. 📈 Trend โดยรวม (ปริมาณ Calllog เพิ่มขึ้น/ลดลง?)
-2. ⭐ ผู้ที่รับ Calllog สูงสุด (ระบุชื่อ+ตัวเลข)
-3. ⚠️ จุดที่น่าสังเกต (ผู้ที่ load น้อยหรือมากผิดปกติ)
-4. 🔮 พยากรณ์เดือนหน้า (คาดการณ์แนวโน้ม)
-
-ตอบเป็นภาษาไทย ชัดเจน มีข้อมูลเชิงตัวเลขสนับสนุน`;
-
-    const { value } = await aiGenerate(prompt);
-    res.json({ analysis: value });
-  } catch (e) {
-    console.error('AI forecast error:', e.message);
-    res.status(500).json({ error: e.message });
-  }
-});
-
 // ══════════════════════════════════════════════════════════
 //  EMPLOYEE SCHEDULE SUMMARY
 //  Google Calendar (public) → AI parse+map (Groq/Gemini) → per-team summary
