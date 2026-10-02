@@ -9966,8 +9966,26 @@ app.get('/api/fu/summary', authRequired, async (request, res) => {
 // ══ FOLLOW UP v2 — OVERVIEW (manager tab) ══
 app.get('/api/fu/overview', authRequired, async (request, res) => {
   try {
+    // ตัวกรอง (ไม่บังคับ): folder_id, assigned_to (id หรือ 'none'), priority, category, dateFrom/dateTo (วันที่สร้าง)
+    const q = request.query;
+    const conds = [], bind = r => {
+      if (q.folder_id) r.input('fid', sql.Int, +q.folder_id);
+      if (q.assigned_to && q.assigned_to !== 'none') r.input('asg', sql.Int, +q.assigned_to);
+      if (q.priority) r.input('pri', sql.NVarChar, String(q.priority));
+      if (q.category) r.input('cat', sql.NVarChar, String(q.category));
+      if (q.dateFrom) r.input('df', sql.Date, new Date(q.dateFrom));
+      if (q.dateTo) r.input('dt', sql.Date, new Date(q.dateTo));
+      return r;
+    };
+    if (q.assigned_to === 'none') conds.push('i.assigned_to IS NULL'); else if (q.assigned_to) conds.push('i.assigned_to=@asg');
+    if (q.priority) conds.push('i.priority=@pri');
+    if (q.category) conds.push('i.category=@cat');
+    if (q.dateFrom) conds.push('CAST(i.created_at AS DATE) >= @df');
+    if (q.dateTo) conds.push('CAST(i.created_at AS DATE) <= @dt');
+    const iCond = conds.length ? ' AND ' + conds.join(' AND ') : '';
+    const fCond = q.folder_id ? ' AND b.folder_id=@fid' : '';
     const [boardRows, staleRows, assigneeRows] = await Promise.all([
-      req().query(`
+      bind(req()).query(`
         SELECT
           f.id AS folder_id, f.name AS folder_name,
           b.id AS board_id,  b.name AS board_name,
@@ -9975,10 +9993,11 @@ app.get('/api/fu/overview', authRequired, async (request, res) => {
           COUNT(i.id) AS cnt
         FROM fu_folders f
         JOIN fu_boards b ON b.folder_id = f.id
-        LEFT JOIN fu_issues i ON i.board_id = b.id
+        LEFT JOIN fu_issues i ON i.board_id = b.id${iCond}
+        WHERE 1=1${fCond}
         GROUP BY f.id, f.name, b.id, b.name, i.status
         ORDER BY f.name, b.name, i.status`),
-      req().query(`
+      bind(req()).query(`
         SELECT TOP 20
           i.id, i.detail, i.status, i.priority,
           DATEDIFF(day, i.updated_at, GETDATE()) AS days_stale,
@@ -9989,9 +10008,9 @@ app.get('/api/fu/overview', authRequired, async (request, res) => {
         LEFT JOIN fu_boards b ON b.id = i.board_id
         LEFT JOIN fu_folders f ON f.id = b.folder_id
         WHERE i.status NOT IN ('resolved','cancelled')
-          AND DATEDIFF(day, i.updated_at, GETDATE()) >= 7
+          AND DATEDIFF(day, i.updated_at, GETDATE()) >= 7${iCond}${fCond}
         ORDER BY days_stale DESC`),
-      req().query(`
+      bind(req()).query(`
         SELECT
           i.assigned_to,
           ISNULL(e.nickname, e.name) AS assignee_name,
@@ -9999,7 +10018,8 @@ app.get('/api/fu/overview', authRequired, async (request, res) => {
           COUNT(i.id) AS cnt
         FROM fu_issues i
         LEFT JOIN employees e ON e.id = i.assigned_to
-        WHERE i.status NOT IN ('resolved','cancelled')
+        LEFT JOIN fu_boards b ON b.id = i.board_id
+        WHERE i.status NOT IN ('resolved','cancelled')${iCond}${fCond}
         GROUP BY i.assigned_to, ISNULL(e.nickname, e.name), i.status
         ORDER BY assignee_name, i.status`)
     ]);
@@ -10035,7 +10055,7 @@ app.get('/api/fu/by-assignee', authRequired, async (request, res) => {
       LEFT JOIN fu_folders f  ON f.id  = b.folder_id
       WHERE i.status NOT IN ('resolved','cancelled')
       ORDER BY assignee_name, i.status, i.priority`);
-    res.json(result.recordset);
+    res.json(await fuApplyAzureRelease(result.recordset));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -10235,7 +10255,7 @@ app.get('/api/fu/boards/:bid/issues', authRequired, async (request, res) => {
       LEFT JOIN app_users ur ON ur.id=i.resolved_by
       LEFT JOIN employees er ON er.id=ur.employee_id
       WHERE i.board_id=@bid ORDER BY i.position,i.created_at`)).recordset;
-    res.json(rows);
+    res.json(await fuApplyAzureRelease(rows));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -10259,7 +10279,7 @@ app.get('/api/fu/issues/:id', authRequired, async (request, res) => {
       LEFT JOIN employees er ON er.id=ur.employee_id
       WHERE i.id=@id`)).recordset;
     if (!rows.length) return res.status(404).json({ error: 'not found' });
-    res.json(rows[0]);
+    res.json((await fuApplyAzureRelease(rows))[0]);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -10476,6 +10496,105 @@ app.post('/api/fu/mentions/seen', authRequired, async (request, res) => {
 });
 
 // ══ FOLLOW UP v2 — AZURE ISSUES (Tab 4) ══
+// ══ FOLLOW UP — Azure DevOps work item lookup (shared, cached 5 นาที) ══
+const FU_AZ_URL_RE = /infogrammer\/([^\/]+)\/_workitems\/edit\/(\d+)/;
+const fuAzWorkItemId = url => { const m = FU_AZ_URL_RE.exec(url || ''); return m ? parseInt(m[2], 10) : null; };
+const _fuAzCache = new Map();          // workItemId → { at, data }
+const FU_AZ_TTL = 5 * 60 * 1000;
+function fuAzGet(url, timeout) {
+  const pat = process.env.AZURE_DEVOPS_PAT || '';
+  const u = new URL(url);
+  return new Promise((resolve, reject) => {
+    const r = require('https').get({
+      hostname: u.hostname, path: u.pathname + u.search, timeout,
+      headers: { Authorization: 'Basic ' + Buffer.from(':' + pat).toString('base64'), Accept: 'application/json' },
+    }, resp => {
+      let body = '';
+      resp.on('data', c => { body += c; });
+      resp.on('end', () => { try { resolve(JSON.parse(body)); } catch (e) { reject(new Error('Azure JSON parse: ' + body.slice(0, 120))); } });
+    });
+    r.on('timeout', () => { r.destroy(); reject(new Error('Azure timeout')); });
+    r.on('error', reject);
+  });
+}
+// คืน { [workItemId]: { title, state, workItemType, assignedTo, levelOfUrgency, releaseDate, releaseVersion } }
+async function fuAzureFetch(ids, { timeout = 15000 } = {}) {
+  const out = {};
+  if (!process.env.AZURE_DEVOPS_PAT) return out;
+  const now = Date.now(), need = [];
+  for (const id of new Set(ids.filter(Boolean))) {
+    const c = _fuAzCache.get(id);
+    if (c && now - c.at < FU_AZ_TTL) { if (c.data) out[id] = c.data; } else need.push(id);
+  }
+  const FIELDS = ['System.Title', 'System.State', 'System.WorkItemType', 'System.AssignedTo',
+    'Custom.LevelofUrgency', 'Custom.ReleaseDate', 'Custom.ReleaseVersion'].join(',');
+  for (let i = 0; i < need.length; i += 200) {
+    const batch = need.slice(i, i + 200);
+    try {
+      // errorPolicy=omit: work item ที่ถูกลบ/อ่านไม่ได้ถูกข้าม ไม่ทำให้ทั้ง batch ล้ม
+      const data = await fuAzGet(`https://dev.azure.com/infogrammer/_apis/wit/workitems?ids=${batch.join(',')}&fields=${encodeURIComponent(FIELDS)}&errorPolicy=omit&api-version=7.0`, timeout);
+      if (data.message) { console.error('[Azure] API error:', data.message); break; }
+      const got = new Set();
+      (data.value || []).filter(Boolean).forEach(item => {
+        const f = item.fields || {}, a = f['System.AssignedTo'];
+        const d = {
+          title: f['System.Title'] || null, state: f['System.State'] || null, workItemType: f['System.WorkItemType'] || null,
+          assignedTo: typeof a === 'object' ? (a?.displayName || null) : (a || null),
+          levelOfUrgency: f['Custom.LevelofUrgency'] || null,
+          releaseDate: f['Custom.ReleaseDate'] || null, releaseVersion: f['Custom.ReleaseVersion'] || null,
+        };
+        out[item.id] = d; got.add(item.id); _fuAzCache.set(item.id, { at: now, data: d });
+      });
+      batch.filter(id => !got.has(id)).forEach(id => _fuAzCache.set(id, { at: now, data: null }));   // ไม่มีใน Azure — อย่าถามซ้ำทุกครั้ง
+    } catch (e) { console.error(`[Azure] Work Items API error (batch ${i}):`, e.message); }
+  }
+  return out;
+}
+
+// Issue ที่ผูก Azure (issue_url) → ใช้ Release Date / Release Version จาก Azure และบันทึกกลับลง fu_issues
+// ถ้า Azure ช้า/ล่ม ใช้ค่าเดิมใน DB
+const fuBkkDate = v => { const d = new Date(v); return isNaN(d) ? null : new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(d); };
+async function fuApplyAzureRelease(rows) {
+  const linked = rows.filter(r => fuAzWorkItemId(r.issue_url));
+  if (!linked.length || !process.env.AZURE_DEVOPS_PAT) return rows;
+  let az = {};
+  try { az = await fuAzureFetch(linked.map(r => fuAzWorkItemId(r.issue_url)), { timeout: 6000 }); } catch { return rows; }
+  const updates = [];
+  for (const r of linked) {
+    const a = az[fuAzWorkItemId(r.issue_url)];
+    if (!a) continue;
+    r.azure_state = a.state;
+    const curDate = r.release_date ? new Date(r.release_date).toISOString().slice(0, 10) : null;
+    const azDate = a.releaseDate ? fuBkkDate(a.releaseDate) : null;
+    const azVer = a.releaseVersion ? String(a.releaseVersion).trim().slice(0, 50) : null;
+    // แสดงค่าจาก Azure เสมอ · บันทึกลง DB เฉพาะช่องที่ยังว่าง (ไม่ทับค่าที่ทีมกรอกไว้เอง)
+    const set = {};
+    if (azDate) {
+      r.release_from_azure = true;
+      if (curDate && curDate !== azDate) r.release_date_local = curDate;   // ค่าในระบบต่างจาก Azure — บอกผู้ใช้
+      if (!curDate) set.release_date = azDate;
+      r.release_date = azDate;
+    }
+    if (azVer) {
+      r.release_from_azure = true;
+      if (r.release_version && r.release_version !== azVer) r.release_version_local = r.release_version;
+      if (!r.release_version) set.release_version = azVer;
+      r.release_version = azVer;
+    }
+    if (Object.keys(set).length) updates.push({ id: r.id, ...set });
+  }
+  for (const u of updates) {
+    try {
+      const q = req().input('id', sql.Int, u.id), parts = [];
+      if (u.release_date) { q.input('rd', sql.Date, new Date(u.release_date + 'T00:00:00Z')); parts.push('release_date=@rd'); }
+      if (u.release_version) { q.input('rv', sql.NVarChar, u.release_version); parts.push('release_version=@rv'); }
+      await q.query(`UPDATE fu_issues SET ${parts.join(', ')} WHERE id=@id`);   // ไม่แตะ updated_at — ไม่ใช่การแก้งานโดยคน
+    } catch (e) { console.error('[Azure] save release for fu#' + u.id + ':', e.message); }
+  }
+  if (updates.length) console.log(`[Azure] release/version synced for ${updates.length} follow-up issue(s)`);
+  return rows;
+}
+
 app.get('/api/fu/azure-items', authRequired, async (request, res) => {
   try {
     // 1. ดึง fu_issues ที่มี issue_url จาก DB
@@ -10499,83 +10618,8 @@ app.get('/api/fu/azure-items', authRequired, async (request, res) => {
       return { ...row, project: m ? m[1] : null, workItemId: m ? parseInt(m[2], 10) : null };
     });
 
-    const pat = process.env.AZURE_DEVOPS_PAT || '';
-    const azureMap = {};
-
-    if (!pat) {
-      console.warn('[Azure] AZURE_DEVOPS_PAT not set — work item details unavailable');
-    } else {
-      // 3. เรียก Azure Work Items REST API (ง่ายและเชื่อถือได้กว่า Analytics)
-      const authHeader = 'Basic ' + Buffer.from(':' + pat).toString('base64');
-      const httpsModule = require('https');
-
-      const fetchAz = (url) => new Promise((resolve, reject) => {
-        const u = new URL(url);
-        const opts = {
-          hostname: u.hostname,
-          path: u.pathname + u.search,
-          headers: { Authorization: authHeader, Accept: 'application/json' },
-          timeout: 15000,
-        };
-        const r = httpsModule.get(opts, resp => {
-          let body = '';
-          resp.on('data', c => { body += c; });
-          resp.on('end', () => {
-            try { resolve(JSON.parse(body)); }
-            catch(e) { console.error('[Azure] JSON parse error:', body.slice(0,200)); reject(e); }
-          });
-        });
-        r.on('timeout', () => { r.destroy(); reject(new Error('Azure timeout')); });
-        r.on('error', reject);
-      });
-
-      // ฟิลด์ที่ต้องการ (REST API ใช้ reference name)
-      const AZ_FIELDS = [
-        'System.Title',
-        'System.State',
-        'System.WorkItemType',
-        'System.AssignedTo',
-        'Custom.LevelofUrgency',
-        'Custom.ReleaseDate',
-        'Custom.ReleaseVersion',
-      ].join(',');
-
-      // เก็บ IDs ที่ unique และ valid ทั้งหมด
-      const allIds = [...new Set(parsed.filter(r => r.workItemId).map(r => r.workItemId))];
-
-      // Azure รองรับ max 200 IDs ต่อ request
-      const BATCH = 200;
-      for (let i = 0; i < allIds.length; i += BATCH) {
-        const batch = allIds.slice(i, i + BATCH);
-        try {
-          // errorPolicy=omit: a deleted / unreadable work item is skipped instead of failing the whole batch (404 TF401232)
-          const url = `https://dev.azure.com/infogrammer/_apis/wit/workitems?ids=${batch.join(',')}&fields=${encodeURIComponent(AZ_FIELDS)}&errorPolicy=omit&api-version=7.0`;
-          const data = await fetchAz(url);
-          if (data.message) {
-            console.error('[Azure] API error:', data.message);
-            break;
-          }
-          (data.value || []).filter(Boolean).forEach(item => {
-            const f = item.fields || {};
-            const assigned = f['System.AssignedTo'];
-            azureMap[item.id] = {
-              title:          f['System.Title']        || null,
-              state:          f['System.State']        || null,
-              workItemType:   f['System.WorkItemType'] || null,
-              assignedTo:     typeof assigned === 'object'
-                                ? (assigned?.displayName || null)
-                                : (assigned || null),
-              levelOfUrgency: f['Custom.LevelofUrgency']  || null,
-              releaseDate:    f['Custom.ReleaseDate']      || null,
-              releaseVersion: f['Custom.ReleaseVersion']   || null,
-            };
-          });
-          console.log(`[Azure] Fetched batch ${i}–${i+batch.length}: ${Object.keys(azureMap).length} total mapped`);
-        } catch(e) {
-          console.error(`[Azure] Work Items API error (batch ${i}):`, e.message);
-        }
-      }
-    }
+    if (!process.env.AZURE_DEVOPS_PAT) console.warn('[Azure] AZURE_DEVOPS_PAT not set — work item details unavailable');
+    const azureMap = await fuAzureFetch(parsed.map(r => r.workItemId));
 
     // 4. รวมข้อมูล DB + Azure แล้วส่งกลับ
     const result = parsed.map(r => ({

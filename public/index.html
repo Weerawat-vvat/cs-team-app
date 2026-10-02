@@ -445,6 +445,12 @@ textarea{resize:vertical;min-height:80px}
 .dash-tab-btn:hover{color:var(--text)}
 .dash-tab-btn.active{color:var(--text);font-weight:500;border-bottom-color:var(--primary)}
 /* ── Monitor Tag tab ── */
+.fu-az-mark{display:inline-block;font-size:.58rem;font-weight:700;letter-spacing:.02em;color:#1d4ed8;background:#eff6ff;border:1px solid #bfdbfe;border-radius:4px;padding:0 .25rem;vertical-align:.12em;line-height:1.35}
+.fu-az-filters{background:#fff;border:1px solid var(--border);border-radius:14px;padding:.7rem .85rem;margin-bottom:.75rem}
+.fu-az-states{display:flex;flex-wrap:wrap;gap:.35rem;align-items:center}
+.fu-az-states .svc-chip b{font-weight:700;margin-left:.15rem;opacity:.75}
+.fu-az-lbl{font-size:.74rem;font-weight:600;color:#5b616b;margin-right:.2rem}
+#fuov-filters{background:#fff;border:1px solid var(--border);border-radius:14px;padding:.6rem .8rem}
 .mt-tab-count{display:inline-block;min-width:18px;padding:0 .35rem;margin-left:.2rem;border-radius:9px;background:var(--primary-soft);color:var(--primary);font-size:.68rem;font-weight:600;line-height:17px;text-align:center}
 .mt-add-btn{display:inline-flex;align-items:center;gap:.35rem;border:1px solid var(--border);background:#fff;color:#3a3f46;border-radius:999px;font-family:inherit;cursor:pointer;white-space:nowrap;transition:background .15s,border-color .15s;padding:.28rem .75rem;font-size:.74rem;font-weight:500}
 .mt-add-btn:hover{background:#f0eee9;border-color:#d6d2c9}
@@ -3474,6 +3480,19 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
 
   <!-- Tab 2: Overview -->
   <div id="fu-tab-2" style="display:none;height:calc(100vh - 190px);overflow-y:auto;padding:1rem">
+    <div class="svc-filters" id="fuov-filters">
+      <select id="fuov-folder" class="svc-select" onchange="fuLoadOverview()" aria-label="Folder"><option value="">ทุก Folder</option></select>
+      <select id="fuov-assignee" class="svc-select" onchange="fuLoadOverview()" aria-label="ผู้รับผิดชอบ"><option value="">ทุกผู้รับผิดชอบ</option></select>
+      <select id="fuov-priority" class="svc-select" onchange="fuLoadOverview()" aria-label="ความสำคัญ">
+        <option value="">ทุกความสำคัญ</option><option value="urgent">เร่งด่วน</option><option value="high">สูง</option><option value="normal">ปกติ</option><option value="low">ต่ำ</option>
+      </select>
+      <select id="fuov-category" class="svc-select" onchange="fuLoadOverview()" aria-label="Category" style="max-width:200px"><option value="">ทุก Category</option></select>
+      <span style="font-size:.8rem;color:var(--muted)">สร้างเมื่อ</span>
+      <input id="fuov-from" type="date" class="svc-date" onchange="fuLoadOverview()" title="วันที่สร้างตั้งแต่"/>
+      <span style="color:var(--muted);font-size:.8rem">ถึง</span>
+      <input id="fuov-to" type="date" class="svc-date" onchange="fuLoadOverview()" title="วันที่สร้างถึง"/>
+      <button class="svc-btn-ghost" id="fuov-clear" onclick="fuOvClear()" style="height:34px;display:none">ล้างตัวกรอง</button>
+    </div>
     <div id="fu-overview-body" style="display:flex;flex-direction:column;gap:1rem">
       <div style="color:#8a8f97;font-size:.85rem">กำลังโหลดภาพรวม...</div>
     </div>
@@ -3626,6 +3645,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
       </div>
       <span id="fu-azure-count" style="font-size:.76rem;color:#5b616b;font-weight:600;white-space:nowrap"></span>
     </div>
+    <div id="fu-azure-filters" class="fu-az-filters"></div>
     <div id="fu-azure-body" style="display:flex;flex-direction:column;gap:.75rem">
       <div style="color:#8a8f97;font-size:.85rem">กำลังโหลด...</div>
     </div>
@@ -15001,11 +15021,45 @@ function fuSwitchTab(n) {
   if (n === 4) fuLoadAzureItems();
 }
 
+// ── ตัวกรองภาพรวม (Folder / ผู้รับผิดชอบ / ความสำคัญ / Category / วันที่สร้าง)
+let _fuOvOptsLoaded = false;
+async function fuOvInitFilters() {
+  if (_fuOvOptsLoaded) return;
+  _fuOvOptsLoaded = true;
+  const [folders, cats] = await Promise.all([
+    _fuFolders.length ? _fuFolders : api('/api/fu/folders', { silent: true }),
+    _fuCategories.length ? _fuCategories : api('/api/fu/categories', { silent: true })
+  ]);
+  if (!allEmployees?.length) { const e = await api('/api/employees', { silent: true }); if (Array.isArray(e)) allEmployees = e; }
+  const fill = (id, items) => { const el = document.getElementById(id); el.insertAdjacentHTML('beforeend', items.join('')); };
+  fill('fuov-folder', (Array.isArray(folders) ? folders : []).map(f => `<option value="${f.id}">${esc(f.name)}</option>`));
+  fill('fuov-category', (Array.isArray(cats) ? cats : []).map(c => `<option value="${esc(c)}">${esc(c)}</option>`));
+  const emps = (allEmployees || []).filter(e => e.active !== false && e.active !== 0)
+    .sort((a, b) => (a.nickname || a.name || '').localeCompare(b.nickname || b.name || '', 'th'));
+  fill('fuov-assignee', ['<option value="none">ไม่ระบุผู้รับผิดชอบ</option>',
+    ...emps.map(e => `<option value="${e.id}">${esc(e.nickname || e.name)}</option>`)]);
+}
+function fuOvQuery() {
+  const v = id => document.getElementById(id)?.value || '';
+  const qs = new URLSearchParams();
+  [['folder_id', 'fuov-folder'], ['assigned_to', 'fuov-assignee'], ['priority', 'fuov-priority'],
+   ['category', 'fuov-category'], ['dateFrom', 'fuov-from'], ['dateTo', 'fuov-to']].forEach(([k, id]) => { if (v(id)) qs.set(k, v(id)); });
+  const clr = document.getElementById('fuov-clear');
+  if (clr) clr.style.display = [...qs.keys()].length ? '' : 'none';
+  return qs.toString();
+}
+function fuOvClear() {
+  ['fuov-folder', 'fuov-assignee', 'fuov-priority', 'fuov-category', 'fuov-from', 'fuov-to'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  fuLoadOverview();
+}
+
 async function fuLoadOverview() {
   const body = document.getElementById('fu-overview-body');
   if (!body) return;
   body.innerHTML = '<div style="color:#8a8f97;font-size:.85rem">กำลังโหลดภาพรวม...</div>';
-  const data = await api('/api/fu/overview');
+  await fuOvInitFilters();
+  const qs = fuOvQuery();
+  const data = await api('/api/fu/overview' + (qs ? '?' + qs : ''));
   if (!data) { body.innerHTML = '<div style="color:#ef4444">โหลดข้อมูลไม่ได้</div>'; return; }
 
   // Build board summary grouped by folder
@@ -15044,10 +15098,17 @@ async function fuLoadOverview() {
         ${statusKeys.map(s => `<th style="padding:.4rem .6rem;text-align:center;color:${(FU_STATUS[s]||{color:'#5b616b'}).color};font-weight:600">${(FU_STATUS[s]||{label:s}).label}</th>`).join('')}
         <th style="padding:.4rem .6rem;text-align:center;color:#5b616b;font-weight:600">รวม</th>
       </tr></thead><tbody>`;
+  // มีตัวกรอง → ซ่อน Board / Folder ที่ไม่มีงานตรงเงื่อนไข
+  const boardTotal = b => statusKeys.reduce((s,k) => s + (b.counts[k]||0), 0);
+  const ovFiltered = !!qs;
+  let ovShown = 0;
   Object.values(folderMap).forEach(folder => {
+    const boards = Object.values(folder.boards).filter(b => !ovFiltered || boardTotal(b));
+    if (!boards.length) return;
+    ovShown += boards.length;
     html += `<tr style="background:#faf9f6"><td colspan="${statusKeys.length+2}" style="padding:.35rem .8rem;font-weight:700;color:#1e3a5f;font-size:.77rem">${folder.name}</td></tr>`;
-    Object.values(folder.boards).forEach(board => {
-      const total = statusKeys.reduce((s,k) => s + (board.counts[k]||0), 0);
+    boards.forEach(board => {
+      const total = boardTotal(board);
       const bname = board.name.replace(/'/g,"\\'");
       html += `<tr style="border-top:1px solid #f0eee9">
         <td style="padding:.35rem .8rem 0.35rem 1.4rem;color:#3a3f46;cursor:pointer;font-weight:600"
@@ -15079,6 +15140,7 @@ async function fuLoadOverview() {
       </tr>`;
     });
   });
+  if (ovFiltered && !ovShown) html += `<tr><td colspan="${statusKeys.length+2}" style="padding:1.2rem;text-align:center;color:#8a8f97">ไม่มีงานตรงกับตัวกรอง</td></tr>`;
   html += '</tbody></table></div>';
 
   // ── Assignee Workload section ─────────────────────────────
@@ -15659,7 +15721,66 @@ async function fuLoadAzureItems() {
   const data = await api('/api/fu/azure-items');
   if (!data) { body.innerHTML = '<div style="color:#ef4444">โหลดข้อมูลไม่ได้</div>'; return; }
   _fuAzureData = data;
+  fuRenderAzureFilters();
   fuRenderAzureItems();
+}
+
+// ── ตัวกรอง Azure Issues: State (หลัก) + Work Item Type / Urgency / Assigned To / Folder / Release
+const _fuAzF = { states: new Set(), type: '', urgency: '', assignee: '', folder: '', rel: '' };
+const fuAzVal = v => v || '(ไม่ระบุ)';
+function fuAzMatch(r, skip) {
+  if (skip !== 'state' && _fuAzF.states.size && !_fuAzF.states.has(fuAzVal(r.state))) return false;
+  if (_fuAzF.type && fuAzVal(r.workItemType) !== _fuAzF.type) return false;
+  if (_fuAzF.urgency && fuAzVal(r.levelOfUrgency) !== _fuAzF.urgency) return false;
+  if (_fuAzF.assignee && fuAzVal(r.assignedTo) !== _fuAzF.assignee) return false;
+  if (_fuAzF.folder && fuAzVal(r.folder_name) !== _fuAzF.folder) return false;
+  if (_fuAzF.rel === 'has' && !r.releaseVersion) return false;
+  if (_fuAzF.rel === 'none' && r.releaseVersion) return false;
+  return true;
+}
+function fuRenderAzureFilters() {
+  const box = document.getElementById('fu-azure-filters');
+  if (!box) return;
+  const count = (key, skip) => {
+    const m = new Map();
+    _fuAzureData.filter(r => fuAzMatch(r, skip)).forEach(r => { const k = fuAzVal(r[key]); m.set(k, (m.get(k) || 0) + 1); });
+    return m;
+  };
+  const opts = (key) => [...new Set(_fuAzureData.map(r => fuAzVal(r[key])))].sort((a, b) => a.localeCompare(b, 'th'));
+  // State: chip ต่อ state พร้อมจำนวน (นับตามตัวกรองอื่นที่เลือกอยู่)
+  const sc = count('state', 'state');
+  const states = opts('state');
+  const sel = (id, label, key, fkey) => `<select class="svc-select" onchange="_fuAzF.${fkey}=this.value;fuAzApply()" aria-label="${label}">
+      <option value="">${label}: ทั้งหมด</option>${opts(key).map(v => `<option value="${esc(v)}" ${_fuAzF[fkey] === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>`;
+  const any = _fuAzF.states.size || _fuAzF.type || _fuAzF.urgency || _fuAzF.assignee || _fuAzF.folder || _fuAzF.rel;
+  box.innerHTML = `
+    <div class="fu-az-states"><span class="fu-az-lbl">State</span>
+      <button class="svc-chip${_fuAzF.states.size ? '' : ' active'}" onclick="fuAzState('')">ทั้งหมด</button>
+      ${states.map(v => `<button class="svc-chip${_fuAzF.states.has(v) ? ' active' : ''}" data-v="${esc(v)}" onclick="fuAzState(this.dataset.v)">${esc(v)} <b>${sc.get(v) || 0}</b></button>`).join('')}
+    </div>
+    <div class="svc-filters" style="margin:.55rem 0 0">
+      ${sel('type', 'Type', 'workItemType', 'type')}
+      ${sel('urg', 'Urgency', 'levelOfUrgency', 'urgency')}
+      ${sel('asg', 'Assigned To', 'assignedTo', 'assignee')}
+      ${sel('fold', 'Folder', 'folder_name', 'folder')}
+      <select class="svc-select" onchange="_fuAzF.rel=this.value;fuAzApply()" aria-label="Release">
+        <option value="">Release: ทั้งหมด</option>
+        <option value="has" ${_fuAzF.rel === 'has' ? 'selected' : ''}>มี Release Version</option>
+        <option value="none" ${_fuAzF.rel === 'none' ? 'selected' : ''}>ยังไม่มี Release Version</option>
+      </select>
+      ${any ? '<button class="svc-btn-ghost" style="height:36px" onclick="fuAzClear()">ล้างตัวกรอง</button>' : ''}
+    </div>`;
+}
+function fuAzState(v) {
+  if (!v) _fuAzF.states.clear();
+  else if (_fuAzF.states.has(v)) _fuAzF.states.delete(v);
+  else _fuAzF.states.add(v);
+  fuAzApply();
+}
+function fuAzApply() { fuRenderAzureFilters(); fuRenderAzureItems(); }
+function fuAzClear() {
+  _fuAzF.states.clear(); _fuAzF.type = _fuAzF.urgency = _fuAzF.assignee = _fuAzF.folder = _fuAzF.rel = '';
+  fuAzApply();
 }
 
 // Filter cached rows by the search box, then group by folder and render
@@ -15678,18 +15799,19 @@ function fuRenderAzureItems() {
     return;
   }
 
-  const data = q ? _fuAzureData.filter(r =>
+  const filtered = _fuAzureData.filter(r => fuAzMatch(r));
+  const data = q ? filtered.filter(r =>
     [r.title, r.fu_id, r.workItemId, r.workItemType, r.state, r.assignedTo,
      r.releaseVersion, r.levelOfUrgency, r.folder_name]
       .some(v => String(v ?? '').toLowerCase().includes(q))
-  ) : _fuAzureData;
+  ) : filtered;
 
-  if (countEl) countEl.textContent = q ? `พบ ${data.length} จาก ${_fuAzureData.length} รายการ` : `${_fuAzureData.length} รายการ`;
+  if (countEl) countEl.textContent = data.length !== _fuAzureData.length ? `แสดง ${data.length} จาก ${_fuAzureData.length} รายการ` : `${_fuAzureData.length} รายการ`;
 
   if (!data.length) {
     body.innerHTML = `<div style="color:#8a8f97;text-align:center;padding:3rem">
       <div style="font-size:2rem;margin-bottom:.5rem"><i class=i-search></i></div>
-      <div>ไม่พบรายการที่ตรงกับ "${esc(q)}"</div></div>`;
+      <div>${q ? `ไม่พบรายการที่ตรงกับ "${esc(q)}"` : 'ไม่มีรายการตรงกับตัวกรอง'}</div></div>`;
     return;
   }
 
@@ -16380,7 +16502,13 @@ const FU_REL_COLS = [
 function fuRelValue(issue, col) {
   const v = issue[col.key];
   if (!v) return '<span style="color:#b9bcc2">—</span>';
-  return col.text ? esc(v) : parseDbDate(v).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'});
+  const txt = col.text ? esc(v) : parseDbDate(v).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'});
+  // Release Date / Version ที่ดึงมาจาก Azure (Issue ผูก Azure URL อยู่)
+  if (issue.release_from_azure && (col.key === 'release_date' || col.key === 'release_version')) {
+    const local = col.key === 'release_date' ? issue.release_date_local : issue.release_version_local;
+    return `${txt} <span class="fu-az-mark" title="ดึงจาก Azure DevOps${local ? ' · ในระบบกรอกไว้: ' + esc(local) : ''}">Az</span>`;
+  }
+  return txt;
 }
 
 // <th> set for the board table (fixed layout, so each carries its own width)
@@ -17083,17 +17211,21 @@ async function fuRenderPanel() {
     </div>
     <!-- Release plan -->
     <div style="background:#faf9f6;border:1px solid #e6e3dc;border-radius:8px;padding:.6rem .75rem">
-      <div style="font-size:.72rem;font-weight:700;color:#5b616b;margin-bottom:.45rem">แผน Release</div>
+      <div style="font-size:.72rem;font-weight:700;color:#5b616b;margin-bottom:.45rem;display:flex;align-items:center;gap:.4rem">แผน Release
+        ${issue.release_from_azure ? `<span class="fu-az-mark" style="font-weight:600">Az</span><span style="font-weight:400;color:#8a8f97">Release Date / Version ดึงจาก Azure — แก้ที่ Azure DevOps</span>` : ''}</div>
+      ${issue.release_from_azure && (issue.release_date_local || issue.release_version_local) ? `<div style="font-size:.7rem;color:#a2562f;margin:-.2rem 0 .45rem">ในระบบกรอกไว้ต่างจาก Azure: ${[
+        issue.release_date_local ? 'Release ' + parseDbDate(issue.release_date_local).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}) : '',
+        issue.release_version_local ? 'Version ' + esc(issue.release_version_local) : ''].filter(Boolean).join(' · ')}</div>` : ''}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
         <div>
           <div style="font-size:.72rem;font-weight:700;color:#8a8f97;margin-bottom:.25rem">Release Date</div>
-          <input id="fup-release" type="date" value="${issue.release_date?String(issue.release_date).split('T')[0]:''}"
+          <input id="fup-release" type="date" value="${issue.release_date?String(issue.release_date).split('T')[0]:''}" ${issue.release_from_azure ? 'readonly title="ดึงจาก Azure — แก้ที่ Azure DevOps"' : ''}
             style="width:100%;border:1px solid #e6e3dc;border-radius:6px;padding:.35rem .5rem;font-size:.8rem;font-family:inherit;outline:none;background:#fff"
             onchange="fuPanelSave(${id},'release_date',this.value||null)"/>
         </div>
         <div>
           <div style="font-size:.72rem;font-weight:700;color:#8a8f97;margin-bottom:.25rem">Release Version</div>
-          <input id="fup-release-ver" type="text" value="${esc(issue.release_version||'')}" placeholder="เช่น 3.0.2611.1"
+          <input id="fup-release-ver" type="text" value="${esc(issue.release_version||'')}" placeholder="เช่น 3.0.2611.1" ${issue.release_from_azure ? 'readonly title="ดึงจาก Azure — แก้ที่ Azure DevOps"' : ''}
             style="width:100%;border:1px solid #e6e3dc;border-radius:6px;padding:.35rem .5rem;font-size:.8rem;font-family:inherit;outline:none;background:#fff"
             onblur="fuPanelSave(${id},'release_version',this.value.trim()||null)"
             onkeydown="if(event.key==='Enter')this.blur()"/>
