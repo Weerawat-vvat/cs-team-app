@@ -13262,8 +13262,9 @@ app.get('/api/monitor-tags/board', authRequired, async (request, res) => {
       const k = c.rid ? 'r' + c.rid : 'c' + (c.company || '');
       t.stores.add(k);
       if (!t.last_at || c.at > t.last_at) t.last_at = c.at;
-      const st = stores.get(k) || { rid: c.rid || null, company: c.company || '(ไม่ระบุร้าน)', grp: c.grp || null, by: {}, last_at: null };
+      const st = stores.get(k) || { rid: c.rid || null, company: c.company || '(ไม่ระบุร้าน)', grp: c.grp || null, by: {}, td: {}, last_at: null };
       st.by[t.id] = (st.by[t.id] || 0) + 1;
+      if (c.d === today) st.td[t.id] = (st.td[t.id] || 0) + 1;   // วันนี้ยังไม่ครบวัน — หน้าเว็บไม่นับในค่าเฉลี่ย
       if (!st.last_at || c.at > st.last_at) st.last_at = c.at;
       stores.set(k, st);
     }
@@ -13463,15 +13464,31 @@ setInterval(async () => {
 
 const mtDayParam = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : bangkokToday();
 
-// GET /api/monitor-tags/suggestions?date=YYYY-MM-DD — คำแนะนำที่รอยืนยันของวันนั้น
+// ช่วงวันที่ให้ AI หาเคส: from–to (YYYY-MM-DD) ไม่เกิน 31 วัน ไม่เกินวันนี้ · ส่ง date มาแบบเดิม = วันเดียว
+const MT_SUGGEST_MAX_DAYS = 31;
+function mtDayRange(q) {
+  const today = bangkokToday();
+  let from = mtDayParam(q.from || q.date), to = mtDayParam(q.to || q.date || from);
+  if (to > today) to = today;
+  if (from > to) [from, to] = [to, from];
+  const days = [];
+  for (let t = Date.parse(from + 'T00:00:00Z'); t <= Date.parse(to + 'T00:00:00Z'); t += 86400000) days.push(new Date(t).toISOString().slice(0, 10));
+  return { from, to, days, tooLong: days.length > MT_SUGGEST_MAX_DAYS };
+}
+
+// GET /api/monitor-tags/suggestions?from=&to= (หรือ ?date=) — คำแนะนำที่รอยืนยันในช่วงนั้น
 app.get('/api/monitor-tags/suggestions', authRequired, async (request, res) => {
   try {
-    const day = mtDayParam(request.query.date);
-    const all = (await req().input('d', sql.Date, new Date(day + 'T00:00:00Z')).query(`
-      SELECT s.id, s.calllog_id, s.tag_id, s.confidence, s.reason, s.status, s.created_at, t.title AS tag_title, t.tag_type, t.tag_group
+    const rg = mtDayRange(request.query);
+    if (rg.tooLong) return res.status(400).json({ error: `เลือกได้ไม่เกิน ${MT_SUGGEST_MAX_DAYS} วัน` });
+    const day = rg.from;
+    const all = (await req().input('f', sql.Date, new Date(rg.from + 'T00:00:00Z')).input('t', sql.Date, new Date(rg.to + 'T00:00:00Z')).query(`
+      SELECT s.id, s.calllog_id, s.tag_id, s.case_day, s.confidence, s.reason, s.status, s.created_at, s.decided_by,
+             t.title AS tag_title, t.tag_type, t.tag_group
       FROM monitor_tag_suggestions s LEFT JOIN monitor_tags t ON t.id = s.tag_id
-      WHERE s.case_day=@d ORDER BY s.id`)).recordset;
-    const pending = all.filter(r => r.status === 'pending' && r.tag_title);
+      WHERE s.case_day BETWEEN @f AND @t ORDER BY s.case_day DESC, s.id`)).recordset;
+    const pendingAll = all.filter(r => r.status === 'pending' && r.tag_title);
+    const pending = pendingAll.slice(0, 600);   // แสดงไม่เกิน 600 รายการต่อครั้ง
     const info = {};
     if (pending.length && getExtPool()) (await extReq().query(`
       SELECT cl.CalllogId AS id, cl.ReceiveDate AS opened_at, cl.Subject AS subject, LEFT(cl.CalllogDesc, 300) AS descr,
@@ -13483,23 +13500,54 @@ app.get('/api/monitor-tags/suggestions', authRequired, async (request, res) => {
       .forEach(r => { info[r.id] = r; });
     const lastRun = all.reduce((m, r) => (!m || r.created_at > m ? r.created_at : m), null);
     res.json({
-      date: day, running: _mtSuggestRunning, auto: MT_SUGGEST_AUTO, autoTime: MT_SUGGEST_TIME,
+      date: day, from: rg.from, to: rg.to, running: _mtSuggestRunning, auto: MT_SUGGEST_AUTO, autoTime: MT_SUGGEST_TIME,
+      autoAccept: MT_SUGGEST_AUTO_ACCEPT, job: _mtJob,
       evaluated: new Set(all.map(r => r.calllog_id)).size, last_run: lastRun,
-      counts: { pending: pending.length, accepted: all.filter(r => r.status === 'accepted').length, rejected: all.filter(r => r.status === 'rejected').length },
+      counts: { pending: pendingAll.length, accepted: all.filter(r => r.status === 'accepted').length,
+        auto_accepted: all.filter(r => r.status === 'accepted' && r.decided_by === 'AI').length,
+        rejected: all.filter(r => r.status === 'rejected').length },
       items: pending.map(r => ({ ...r, case: info[r.calllog_id] || null }))
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /api/monitor-tags/suggestions/run {date} — ให้ AI หาเคสที่ติด Tag ได้ของวันนั้น (ทำเพิ่มได้ ไม่ประเมินซ้ำ)
+// งานให้ AI หาเคสตามช่วงวันที่ — รันเบื้องหลังทีละวัน (หลายวันใช้เวลาหลายนาที) หน้าเว็บดึงความคืบหน้าจาก /job
+let _mtJob = null;
+async function mtRunSuggestJob(job) {
+  for (const d of job.days) {
+    job.day = d;
+    let r = { busy: true };
+    for (let i = 0; i < 60 && r.busy; i++) {   // รอบเที่ยงคืนกำลังรันอยู่ — รอได้ถึง ~10 นาที
+      r = await suggestMonitorTags(d, { autoAccept: job.auto_accept }).catch(e => ({ error: e.message }));
+      if (r.busy) await new Promise(ok => setTimeout(ok, 10000));
+    }
+    job.evaluated += r.evaluated || 0; job.suggested += r.suggested || 0; job.accepted += r.accepted || 0;
+    if (r.busy || (r.error && !r.evaluated)) { job.error = r.busy ? 'มีงานวิเคราะห์อื่นค้างอยู่' : r.error; break; }
+    job.done++;
+  }
+  job.running = false; job.day = null; job.finished_at = new Date();
+  console.log(`🏷️ monitor-suggest job ${job.from}…${job.to}: ${job.done}/${job.days.length} วัน · ประเมิน ${job.evaluated} · แนะนำ ${job.suggested} · ติด Tag ${job.accepted}${job.error ? ' · ' + job.error : ''}`);
+}
+
+// POST /api/monitor-tags/suggestions/run {from, to, auto_accept} (หรือ {date}) — ให้ AI หาเคสในช่วงนั้น (ไม่ประเมินเคสเดิมซ้ำ)
+// auto_accept = เคสที่ AI มั่นใจสูงติด Tag ให้เลย ที่เหลือรอยืนยัน
 app.post('/api/monitor-tags/suggestions/run', authRequired, async (request, res) => {
   try {
-    const r = await suggestMonitorTags(mtDayParam(request.body?.date));
-    if (r.busy) return res.status(409).json({ error: 'กำลังวิเคราะห์อยู่ ลองใหม่อีกสักครู่' });
-    if (r.error) return res.status(r.evaluated ? 200 : 500).json(r);
-    res.json(r);
+    if (_mtJob?.running || _mtSuggestRunning) return res.status(409).json({ error: 'กำลังวิเคราะห์อยู่ ลองใหม่อีกสักครู่', job: _mtJob });
+    if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
+    if (!process.env.GEMINI_API_KEY) return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า GEMINI_API_KEY' });
+    const rg = mtDayRange(request.body || {});
+    if (rg.tooLong) return res.status(400).json({ error: `เลือกได้ไม่เกิน ${MT_SUGGEST_MAX_DAYS} วัน` });
+    _mtJob = { from: rg.from, to: rg.to, days: rg.days, done: 0, day: null, evaluated: 0, suggested: 0, accepted: 0,
+      auto_accept: !!request.body?.auto_accept, running: true, error: null,
+      by: request.user?.username || null, started_at: new Date(), finished_at: null };
+    mtRunSuggestJob(_mtJob).catch(e => { _mtJob.running = false; _mtJob.error = e.message; });
+    res.json({ started: true, job: _mtJob });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+
+// GET /api/monitor-tags/suggestions/job — ความคืบหน้างานล่าสุด
+app.get('/api/monitor-tags/suggestions/job', authRequired, (request, res) => res.json({ job: _mtJob, running: _mtSuggestRunning }));
 
 // POST /api/monitor-tags/suggestions/decide {ids:[...], action:'accept'|'reject'} — ยืนยัน = ติด Tag ให้เคส
 app.post('/api/monitor-tags/suggestions/decide', authRequired, async (request, res) => {
