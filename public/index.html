@@ -1402,9 +1402,8 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
   <!-- ── Dashboard Tabs ── -->
   <div class="dash-tabs">
     <button class="dash-tab-btn active" id="dash-tab-btn-1" onclick="switchDashTab(1)">ภาพรวม Agent</button>
-    <button class="dash-tab-btn" id="dash-tab-btn-2" onclick="switchDashTab(2)">Issue Analytics</button>
     <button class="dash-tab-btn" id="dash-tab-btn-4" onclick="switchDashTab(4)">Monitor Tag <span id="mt-tab-count" class="mt-tab-count" style="display:none"></span></button>
-    <button class="dash-tab-btn" id="dash-tab-btn-3" onclick="switchDashTab(3)">AI Analysis</button>
+    <button class="dash-tab-btn" id="dash-tab-btn-2" onclick="switchDashTab(2)">Issue Analytics</button>
   </div>
 
   <!-- ════ TAB 1: Agent Overview ════ -->
@@ -1639,37 +1638,6 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
     <div id="mt-body"><div class="mt-empty">กำลังโหลด...</div></div>
   </div><!-- /dash-tab-monitor -->
 
-  <!-- ════ TAB 3: AI Analysis ════ -->
-  <div id="dash-tab-ai" style="display:none">
-    <div class="card" style="padding:1.3rem 1.4rem">
-      <div style="display:flex;align-items:flex-start;gap:.9rem;flex-wrap:wrap">
-        <div style="width:38px;height:38px;border-radius:11px;background:var(--primary-soft);color:var(--primary);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>
-        </div>
-        <div style="flex:1;min-width:220px">
-          <div style="font-size:1.05rem;font-weight:600;color:var(--text)">AI สรุป Case และแนวทางแก้ไข</div>
-          <div style="font-size:.8rem;color:#5b616b;margin-top:.25rem;line-height:1.55">ให้ AI วิเคราะห์ Case ตามช่วงวันที่ที่เลือกด้านบน สรุปปัญหาหลัก และเสนอ<b style="color:var(--text);font-weight:500">แนวทางแก้ระยะสั้นและระยะยาว</b></div>
-        </div>
-        <button class="svc-btn-primary" id="ai-run-btn" onclick="loadAiInsight()" style="flex-shrink:0">วิเคราะห์ด้วย AI</button>
-      </div>
-
-      <div class="ai-status-bar" id="ai-status-bar" style="margin-top:.9rem"></div>
-
-      <div class="ai-insight-body" id="ai-insight-body" style="margin-top:.2rem">
-        <div style="color:#6f747c;font-size:.86rem;padding:1.6rem 0;text-align:center;border:1px dashed #d6d2c9;border-radius:12px;background:#faf9f6">
-          กดปุ่ม <b style="color:var(--text);font-weight:500">วิเคราะห์ด้วย AI</b> เพื่อให้ AI สรุป Case และเสนอแนวทางแก้ไข
-        </div>
-      </div>
-
-      <div class="ai-tags" id="ai-tags"></div>
-
-      <div id="ai-footer-bar" style="display:none;margin-top:.9rem;padding-top:.7rem;border-top:1px solid var(--line-2);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.4rem">
-        <span id="ai-last-run" style="font-size:.74rem;color:#6f747c"></span>
-        <span id="ai-token-info" style="font-size:.74rem;color:#6f747c;font-family:'IBM Plex Mono',monospace"></span>
-      </div>
-    </div>
-    <div style="font-size:.74rem;color:#6f747c;margin-top:.6rem;text-align:center">ขับเคลื่อนโดย Gemini · วิเคราะห์จากข้อมูล Case จริงในระบบ · โปรดใช้วิจารณญาณประกอบการตัดสินใจ</div>
-  </div><!-- /dash-tab-ai -->
 
 </div>
 
@@ -2613,13 +2581,30 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
   </div>
 </div>
 
+<!-- Monitor Tag: รหัสผ่านก่อนเปิด "เคสแนะนำ" -->
+<div class="overlay" id="modal-mt-pw">
+  <div class="modal mt-form" style="max-width:380px;padding:1.2rem">
+    <div class="modal-head">
+      <div style="font-size:1.05rem;font-weight:600">ใส่รหัสผ่าน</div>
+      <button class="modal-close" onclick="closeModal('modal-mt-pw')">×</button>
+    </div>
+    <div class="mt-meta" style="margin-bottom:.6rem">หน้า "เคสแนะนำ" ต้องใช้รหัสผ่านก่อนใช้งาน</div>
+    <input id="mt-pw-input" type="password" autocomplete="off" placeholder="รหัสผ่าน" onkeydown="if(event.key==='Enter'){event.preventDefault();mtSgUnlock()}"/>
+    <div id="mt-pw-msg" style="color:#b04a40;font-size:.78rem;min-height:1.1em;margin-top:.35rem"></div>
+    <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:.5rem">
+      <button class="svc-btn-ghost" onclick="closeModal('modal-mt-pw')">ยกเลิก</button>
+      <button class="svc-btn-primary" id="mt-pw-ok" onclick="mtSgUnlock()">ปลดล็อก</button>
+    </div>
+  </div>
+</div>
+
 <!-- Monitor Tag: AI แนะนำเคสที่ติด Tag ได้ (รายวัน) -->
 <div class="overlay" id="modal-mt-suggest">
   <div class="modal mt-form" style="max-width:860px;width:95vw;padding:0;max-height:92vh;display:flex;flex-direction:column;overflow:hidden">
     <div class="modal-head" style="padding:1.1rem 1.25rem .85rem;margin:0">
       <div style="min-width:0">
         <div style="font-size:1.08rem;font-weight:600">เคสแนะนำให้ติด Tag</div>
-        <div class="mt-meta" id="mt-sg-sub">เลือกช่วงวันที่ให้ AI อ่านเคสแล้วจับคู่กับ Tag — มั่นใจสูงติดให้เลยได้ ที่เหลือตรวจแล้วกดยืนยัน</div>
+        <div class="mt-meta" id="mt-sg-sub">เลือกช่วงวันที่ให้ AI อ่านเคสแล้วติด Tag ให้เลย (มั่นใจสูง / น่าจะใช่) — เหลือให้ตรวจเฉพาะเคสที่ AI ไม่แน่ใจ</div>
       </div>
       <button class="modal-close" onclick="closeModal('modal-mt-suggest')">×</button>
     </div>
@@ -2634,7 +2619,6 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
         <button data-n="30" onclick="mtSgQuick(30)">30 วัน</button>
       </div>
       <span style="flex:1"></span>
-      <label class="mt-sg-auto"><input type="checkbox" id="mt-sg-auto" checked/> ติด Tag ให้เลยถ้ามั่นใจสูง</label>
       <button class="svc-btn-primary" id="mt-sg-run" onclick="mtRunSuggest()" style="height:34px"><i class=i-spark></i> ให้ AI หาเคส</button>
     </div>
     <div class="mt-sg-prog" id="mt-sg-prog" style="display:none"><div class="bar"><span id="mt-sg-prog-bar"></span></div><span id="mt-sg-prog-txt" class="mt-meta"></span></div>
@@ -19026,122 +19010,6 @@ function aiFormat(text) {
   // escape first, then apply light markdown (**bold**) — newlines handled by CSS pre-wrap
   return aiEscape(text).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
 }
-// ── Dashboard AI Insight ───────────────────────────────────
-// ── AI Analysis — SSE streaming ───────────────────────────
-let _aiAbortCtrl = null;
-
-async function loadAiInsight() {
-  const btn      = document.getElementById('ai-run-btn');
-  const statusEl = document.getElementById('ai-status-bar');
-  const bodyEl   = document.getElementById('ai-insight-body');
-  const tagsEl   = document.getElementById('ai-tags');
-  const footerEl = document.getElementById('ai-footer-bar');
-  const tokenEl  = document.getElementById('ai-token-info');
-  const lastEl   = document.getElementById('ai-last-run');
-
-  // Cancel if running
-  if (_aiAbortCtrl) { _aiAbortCtrl.abort(); return; }
-
-  btn.disabled    = true;
-  btn.textContent = 'กำลังวิเคราะห์...';
-  statusEl.textContent  = 'กำลังรวบรวมข้อมูลจากระบบ...';
-  bodyEl.innerHTML      = '';
-  tagsEl.innerHTML      = '';
-  footerEl.style.display = 'none';
-
-  _aiAbortCtrl = new AbortController();
-
-  try {
-    const dFrom = document.getElementById('dash-date-from')?.value || '';
-    const dTo   = document.getElementById('dash-date-to')?.value   || '';
-    let aiQs = '/api/ai-analysis';
-    const qp = [];
-    if (dFrom) qp.push(`dateFrom=${encodeURIComponent(dFrom)}`);
-    if (dTo)   qp.push(`dateTo=${encodeURIComponent(dTo)}`);
-    if (qp.length) aiQs += '?' + qp.join('&');
-    const resp = await fetch(aiQs, {
-      signal: _aiAbortCtrl.signal,
-      headers: authToken ? { 'Authorization': 'Bearer ' + authToken } : {}
-    });
-
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({ error: resp.statusText }));
-      bodyEl.innerHTML = `<span style="color:#b04a40">${err.error || 'เกิดข้อผิดพลาด'}</span>`;
-      statusEl.textContent = '';
-      return;
-    }
-
-    const reader  = resp.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '', fullText = '';
-
-    statusEl.textContent = 'AI กำลังวิเคราะห์...';
-
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const parts = buffer.split('\n');
-      buffer = parts.pop();
-
-      for (const line of parts) {
-        if (!line.startsWith('data: ')) continue;
-        let msg;
-        try { msg = JSON.parse(line.slice(6)); } catch { continue; }
-
-        if (msg.type === 'start') {
-          statusEl.textContent = '✍️ ' + msg.message;
-        } else if (msg.type === 'delta') {
-          fullText += msg.text;
-          bodyEl.innerHTML = _aiFormatText(fullText) + '<span class="ai-cursor"></span>';
-        } else if (msg.type === 'done') {
-          bodyEl.innerHTML    = _aiFormatText(fullText);
-          statusEl.textContent = 'วิเคราะห์เสร็จสิ้น';
-          tokenEl.textContent  = (msg.inputTokens || msg.outputTokens)
-            ? `${msg.inputTokens} in / ${msg.outputTokens} out tokens` : '';
-          footerEl.style.display = '';
-          lastEl.textContent     = 'อัปเดต ' + new Date().toLocaleTimeString('th-TH');
-          _aiRenderTags(fullText, tagsEl);
-        } else if (msg.type === 'error') {
-          bodyEl.innerHTML += `<br/><span style="color:#b04a40">${msg.message}</span>`;
-          statusEl.textContent = 'เกิดข้อผิดพลาดระหว่างการวิเคราะห์';
-        }
-      }
-    }
-  } catch (e) {
-    statusEl.textContent = e.name === 'AbortError' ? 'ยกเลิกการวิเคราะห์' : '❌ ' + e.message;
-  } finally {
-    _aiAbortCtrl    = null;
-    btn.disabled    = false;
-    btn.textContent = 'วิเคราะห์อีกครั้ง';
-  }
-}
-
-function _aiFormatText(raw) {
-  return raw
-    .replace(/^## (.+)$/gm, '<span class="ai-h">$1</span>')
-    .replace(/^\d+\.\s+(.+)$/gm, '<div class="ai-li">$1</div>')
-    .replace(/^[-*]\s+(.+)$/gm, '<div class="ai-li">$1</div>')
-    .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
-    .replace(/\n\n/g, '<div style="height:.35rem"></div>')
-    .replace(/\n/g, '<br/>');
-}
-
-function _aiRenderTags(text, el) {
-  const rules = [
-    { test:/เคสค้าง|overdue|ค้างนาน/i,             cls:'ai-tag-warn', label:'มีเคสค้าง' },
-    { test:/เพิ่มขึ้น|สูงขึ้น|มากกว่าเดือนก่อน/i,  cls:'ai-tag-warn', label:'ปริมาณเพิ่ม' },
-    { test:/ลดลง|น้อยกว่าเดือนก่อน/i,               cls:'ai-tag-info', label:'ปริมาณลด' },
-    { test:/ปกติ|เรียบร้อย|ไม่มีปัญหา/i,             cls:'ai-tag-ok',   label:'ภาพรวมปกติ' },
-    { test:/เร่งด่วน|ต้องดำเนินการ|ควรดำเนินการ/i,  cls:'ai-tag-warn', label:'ต้องเร่งดำเนินการ' },
-    { test:/ขาดแคลน|ไม่เพียงพอ/i,                   cls:'ai-tag-warn', label:'ขาดกำลังคน' },
-    { test:/ผิดปกติ|anomaly|spike/i,                cls:'ai-tag-warn', label:'พบความผิดปกติ' },
-  ];
-  el.innerHTML = rules.filter(r => r.test.test(text))
-    .map(t => `<span class="ai-tag ${t.cls}">${t.label}</span>`).join('');
-}
-
 // ── AI Shift Suggestion ────────────────────────────────────
 async function aiSuggestShifts() {
   const box = document.getElementById('ai-suggest-box');
@@ -20126,11 +19994,9 @@ function switchDashTab(tab) {
   _dashTab = tab;
   document.getElementById('dash-tab-agent').style.display  = tab === 1 ? '' : 'none';
   document.getElementById('dash-tab-issues').style.display = tab === 2 ? '' : 'none';
-  document.getElementById('dash-tab-ai').style.display     = tab === 3 ? '' : 'none';
   document.getElementById('dash-tab-monitor').style.display = tab === 4 ? '' : 'none';
   document.getElementById('dash-tab-btn-1').classList.toggle('active', tab === 1);
   document.getElementById('dash-tab-btn-2').classList.toggle('active', tab === 2);
-  document.getElementById('dash-tab-btn-3').classList.toggle('active', tab === 3);
   document.getElementById('dash-tab-btn-4').classList.toggle('active', tab === 4);
   if (tab === 2) loadIssueAnalytics();
   if (tab === 4) mtLoad();
@@ -20559,6 +20425,36 @@ let _mtManageGroup = 'problem';
 let _mtSg = { items: [], sel: new Set() };
 // AI รันตอนเที่ยงคืนกับเคสของเมื่อวาน — เปิดมาที่วันล่าสุดที่ยังมีรายการรอยืนยัน
 let _mtSgPendingDay = null;
+// รหัสผ่านหน้า "เคสแนะนำ" — server เป็นคนตรวจ · จำไว้เฉพาะแท็บนี้ (ปิดเบราว์เซอร์ = ต้องใส่ใหม่)
+let _mtSgPw = (() => { try { return sessionStorage.getItem('mt-sg-pw') || ''; } catch { return ''; } })();
+function mtSgApi(path, opts = {}) {
+  const headers = { 'Content-Type': 'application/json', 'X-Suggest-Password': _mtSgPw };
+  if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
+  return api(path, { ...opts, headers, silent: true }).then(d => {
+    if (d?.need_password) { _mtSgPw = ''; try { sessionStorage.removeItem('mt-sg-pw'); } catch {} }
+    return d;
+  });
+}
+function mtSgAskPassword(msg) {
+  closeModal('modal-mt-suggest');
+  document.getElementById('mt-pw-msg').textContent = msg || '';
+  const el = document.getElementById('mt-pw-input');
+  el.value = '';
+  openModal('modal-mt-pw');
+  setTimeout(() => el.focus(), 60);
+}
+async function mtSgUnlock() {
+  const el = document.getElementById('mt-pw-input'), btn = document.getElementById('mt-pw-ok');
+  if (!el.value) { el.focus(); return; }
+  btn.disabled = true;
+  _mtSgPw = el.value;
+  const d = await mtSgApi('/api/monitor-tags/suggestions/unlock', { method: 'POST' });
+  btn.disabled = false;
+  if (!d?.ok) { document.getElementById('mt-pw-msg').textContent = d?.error || 'ตรวจรหัสผ่านไม่สำเร็จ'; el.select(); return; }
+  try { sessionStorage.setItem('mt-sg-pw', _mtSgPw); } catch {}
+  closeModal('modal-mt-pw');
+  mtOpenSuggest();
+}
 const mtSgDay = n => mtLocalInput(new Date(Date.now() - n * 86400000)).slice(0, 10);
 function mtSgRange() {
   let f = document.getElementById('mt-sg-from').value, t = document.getElementById('mt-sg-to').value || f;
@@ -20586,6 +20482,10 @@ function mtSgRangeChanged() {
   mtLoadSuggest();
 }
 async function mtOpenSuggest() {
+  if (!_mtSgPw) {   // ยังไม่ได้ใส่รหัส — ถาม server ก่อนว่าต้องใช้รหัสไหม
+    const d = await mtSgApi('/api/monitor-tags/suggestions/unlock', { method: 'POST' });
+    if (!d?.ok) return mtSgAskPassword();
+  }
   if (!document.getElementById('mt-sg-from').value) {
     const d = _mtSgPendingDay || mtSgDay(0);
     mtSgSetRange(d, d);
@@ -20600,7 +20500,8 @@ async function mtLoadSuggest() {
   run.innerHTML = `<i class=i-spark></i> ให้ AI หาเคส${r.days > 1 ? ` (${r.days} วัน)` : ''}`;
   if (r.days > 31) { body.innerHTML = '<div class="mt-empty">เลือกช่วงได้ไม่เกิน 31 วัน</div>'; run.disabled = true; return; }
   body.innerHTML = '<div class="mt-meta" style="padding:1rem 0">กำลังโหลด...</div>';
-  const d = await api(`/api/monitor-tags/suggestions?from=${r.from}&to=${r.to}`, { silent: true });
+  const d = await mtSgApi(`/api/monitor-tags/suggestions?from=${r.from}&to=${r.to}`);
+  if (d?.need_password) return mtSgAskPassword('กรุณาใส่รหัสผ่านอีกครั้ง');
   if (!d || d.error) { body.innerHTML = `<div class="mt-empty">โหลดไม่สำเร็จ${d?.error ? ': ' + esc(d.error) : ''} (ถ้าเพิ่งอัปเดตโค้ด ให้รีสตาร์ท server ก่อน)</div>`; return; }
   _mtSg = { items: d.items || [], sel: new Set(), total: d.counts.pending };
   document.getElementById('mt-sg-status').innerHTML = [
@@ -20632,13 +20533,13 @@ function mtSgPoll() {
   _mtSgPollT = setTimeout(async () => {
     _mtSgPollT = null;
     if (!document.getElementById('modal-mt-suggest')?.classList.contains('open')) return;
-    const d = await api('/api/monitor-tags/suggestions/job', { silent: true });
+    const d = await mtSgApi('/api/monitor-tags/suggestions/job');
     const job = d?.job;
     if (job?.running) { mtSgShowJob(job); mtSgPoll(); return; }
     mtSgShowJob(null);
     if (job?.finished_at) {
       if (job.error) showToast(`AI หยุดกลางทาง: ${job.error}`, 'error');
-      else showToast(job.evaluated ? `AI อ่าน ${job.evaluated} เคส · ติด Tag ${job.accepted} · รอยืนยัน ${job.suggested - job.accepted}` : 'ไม่มีเคสใหม่ให้ประเมิน');
+      else showToast(job.evaluated || job.accepted ? `AI อ่าน ${job.evaluated} เคส · ติด Tag ${job.accepted}${job.suggested > job.accepted ? ` · ไม่แน่ใจ ${job.suggested - job.accepted}` : ''}` : 'ไม่มีเคสใหม่ให้ประเมิน');
       if (job.accepted) mtAfterChange();
     }
     mtLoadSuggest();
@@ -20648,7 +20549,7 @@ function mtRenderSuggest() {
   const body = document.getElementById('mt-sg-body');
   const items = _mtSg.items;
   if (!items.length) {
-    body.innerHTML = `<div class="mt-empty">ไม่มีเคสที่รอยืนยัน<br><span style="font-size:.78rem">เลือกช่วงวันที่แล้วกด <b>ให้ AI หาเคส</b> (ส่งเฉพาะเคสที่ยังไม่ได้ประเมิน จึงกดซ้ำได้ไม่เปลือง)</span></div>`;
+    body.innerHTML = `<div class="mt-empty">ไม่มีเคสที่ AI ไม่แน่ใจ — เคสที่มั่นใจติด Tag ให้แล้ว<br><span style="font-size:.78rem">เลือกช่วงวันที่แล้วกด <b>ให้ AI หาเคส</b> (ส่งเฉพาะเคสที่ยังไม่ได้ประเมิน จึงกดซ้ำได้ไม่เปลือง)</span></div>`;
     mtSgSelInfo(); return;
   }
   const groups = new Map();
@@ -20680,7 +20581,8 @@ function mtSgBadge(n) { const b = document.getElementById('mt-sg-badge'); if (b)
 async function mtSgDecide(action, ids) {
   ids = ids || [..._mtSg.sel];
   if (!ids.length) { showToast('ยังไม่ได้เลือกรายการ', 'error'); return; }
-  const d = await api('/api/monitor-tags/suggestions/decide', { method: 'POST', silent: true, body: { ids, action } });
+  const d = await mtSgApi('/api/monitor-tags/suggestions/decide', { method: 'POST', body: { ids, action } });
+  if (d?.need_password) return mtSgAskPassword('กรุณาใส่รหัสผ่านอีกครั้ง');
   if (!d || d.error) { showToast(d?.error || 'บันทึกไม่สำเร็จ', 'error'); return; }
   showToast(action === 'accept' ? `ติด Tag ให้ ${d.done} เคสแล้ว` : `ตัดออก ${d.done} รายการ`);
   await mtLoadSuggest();
@@ -20689,8 +20591,8 @@ async function mtSgDecide(action, ids) {
 async function mtRunSuggest() {
   const r = mtSgRange();
   if (r.days > 31) { showToast('เลือกช่วงได้ไม่เกิน 31 วัน', 'error'); return; }
-  const auto = document.getElementById('mt-sg-auto').checked;
-  const d = await api('/api/monitor-tags/suggestions/run', { method: 'POST', silent: true, body: { from: r.from, to: r.to, auto_accept: auto } });
+  const d = await mtSgApi('/api/monitor-tags/suggestions/run', { method: 'POST', body: { from: r.from, to: r.to } });
+  if (d?.need_password) return mtSgAskPassword('กรุณาใส่รหัสผ่านอีกครั้ง');
   if (!d || d.error) { showToast(d?.error || 'เริ่มให้ AI หาเคสไม่สำเร็จ', 'error'); if (d?.job) { mtSgShowJob(d.job); mtSgPoll(); } return; }
   mtSgShowJob(d.job);
   mtSgPoll();
@@ -20699,8 +20601,8 @@ async function mtRunSuggest() {
 const mtSgYesterday = () => mtLocalInput(new Date(Date.now() - 86400000)).slice(0, 10);
 async function mtRefreshSuggestBadge() {
   const days = [mtLocalInput(new Date()).slice(0, 10), mtSgYesterday()];
-  const res = await Promise.all(days.map(x => api('/api/monitor-tags/suggestions?date=' + x, { silent: true })));
-  const n = res.map(d => d && !d.error ? (d.items || []).length : 0);
+  const res = await Promise.all(days.map(x => api('/api/monitor-tags/suggestions?badge=1&date=' + x, { silent: true })));
+  const n = res.map(d => d && !d.error ? d.counts?.pending || 0 : 0);
   _mtSgPendingDay = n[0] ? days[0] : n[1] ? days[1] : null;
   mtSgBadge(n[0] + n[1]);
 }

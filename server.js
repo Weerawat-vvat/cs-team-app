@@ -6,7 +6,6 @@ const fs                         = require('fs');
 const bcrypt                     = require('bcryptjs');
 const jwt                        = require('jsonwebtoken');
 const crypto                     = require('crypto');
-const { StringDecoder }          = require('string_decoder');
 const multer                     = require('multer');
 const nodemailer                 = require('nodemailer');
 const axios                      = require('axios');
@@ -57,50 +56,6 @@ async function groqGenerate(prompt) {
   return r.data?.choices?.[0]?.message?.content || '';
 }
 
-// เวอร์ชัน stream — ส่งข้อความทีละชิ้นเข้า onDelta (SSE แบบ OpenAI)
-async function groqGenerateStream(prompt, onDelta) {
-  const r = await axios.post(GROQ_URL, {
-    model: GROQ_MODEL,
-    temperature: 0,
-    stream: true,
-    messages: [{ role: 'user', content: prompt }],
-  }, {
-    headers: { Authorization: `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-    responseType: 'stream',
-    timeout: 120000,
-  });
-  const decoder = new StringDecoder('utf8');
-  let buf = '';
-  await new Promise((resolve, reject) => {
-    // axios timeout ครอบแค่ช่วงขอ header — stream ที่เงียบค้างกลางทางต้องจับเวลาเอง
-    let idle = null;
-    const finish = (fn, arg) => { clearTimeout(idle); r.data.destroy(); fn(arg); };
-    const bump = () => {
-      clearTimeout(idle);
-      idle = setTimeout(() => finish(reject, new Error('Groq stream เงียบเกิน 60 วินาที')), 60000);
-    };
-    bump();
-    r.data.on('data', (chunk) => {
-      bump();
-      buf += decoder.write(chunk);
-      const lines = buf.split(String.fromCharCode(10));
-      buf = lines.pop();
-      for (const line of lines) {
-        const t = line.trim();
-        if (!t.startsWith('data:')) continue;
-        const payload = t.slice(5).trim();
-        if (!payload || payload === '[DONE]') continue;
-        try {
-          const d = JSON.parse(payload)?.choices?.[0]?.delta?.content;
-          if (d) onDelta(d);
-        } catch { /* keep-alive หรือ frame ไม่ครบ ข้ามได้ */ }
-      }
-    });
-    r.data.on('end', () => finish(resolve));
-    r.data.on('error', (e) => finish(reject, e));
-  });
-}
-
 // prompt → ข้อความ. parse ใช้แปลง/ตรวจคำตอบ (โยน error = ให้ไปลองอีกเจ้า)
 // geminiConfig คือ responseSchema ฝั่ง Gemini เท่านั้น — Groq อาศัย prompt + parse เอา
 // prefer เลือกว่าจะให้เจ้าไหนเป็นตัวหลัก อีกเจ้าเป็นตัวสำรองอัตโนมัติ
@@ -126,46 +81,6 @@ async function aiGenerate(prompt, { parse = (t) => t, geminiConfig = null, prefe
     } catch (e) {
       errs.push(`${p.name}: ${aiErrText(e)}`);
       console.warn(`AI: ${p.name} ไม่สำเร็จ →`, aiErrText(e));
-    }
-  }
-  throw new Error('AI ไม่สำเร็จ — ' + errs.join(' | '));
-}
-
-// เวอร์ชัน stream — prefer เลือกตัวหลักได้เหมือน aiGenerate()
-// ถอยไปอีกเจ้าได้เฉพาะตอนที่ยังไม่ส่งอะไรออกไป (หลุดกลางคันแล้วเริ่มใหม่ = ผู้ใช้เห็นข้อความซ้ำ)
-async function aiGenerateStream(prompt, onDelta, { prefer = 'groq' } = {}) {
-  const runGroq = async () => {
-    let sent = 0;
-    try {
-      await groqGenerateStream(prompt, (t) => { sent++; onDelta(t); });
-      return GROQ_MODEL;
-    } catch (e) { e.alreadySent = sent > 0; throw e; }
-  };
-  const runGemini = async () => {
-    let sent = 0;
-    try {
-      const model  = genAI.getGenerativeModel({ model: AI_MODEL });
-      const stream = await model.generateContentStream(prompt);
-      for await (const chunk of stream.stream) { const t = chunk.text(); if (t) { sent++; onDelta(t); } }
-      return AI_MODEL;
-    } catch (e) { e.alreadySent = sent > 0; throw e; }
-  };
-  const groq   = { name: 'Groq',   hasKey: () => !!GROQ_API_KEY,               run: runGroq };
-  const gemini = { name: 'Gemini', hasKey: () => !!process.env.GEMINI_API_KEY, run: runGemini };
-  const order = prefer === 'gemini' ? [gemini, groq] : [groq, gemini];
-
-  const errs = [];
-  for (const p of order) {
-    if (!p.hasKey()) { errs.push(`${p.name}: ยังไม่ได้ตั้ง API key`); continue; }
-    try {
-      const used = await p.run();
-      if (errs.length) console.log(`AI stream: fallback ไป ${p.name} สำเร็จ →`, used);
-      return used;
-    } catch (e) {
-      // ส่งข้อความออกไปแล้วบางส่วน — เริ่มใหม่กับอีกเจ้าไม่ได้ ผู้ใช้จะเห็นซ้ำ
-      if (e.alreadySent) throw new Error(`${p.name} หลุดกลางคัน: ${aiErrText(e)}`);
-      errs.push(`${p.name}: ${aiErrText(e)}`);
-      console.warn(`AI stream: ${p.name} ไม่สำเร็จ →`, aiErrText(e));
     }
   }
   throw new Error('AI ไม่สำเร็จ — ' + errs.join(' | '));
@@ -8441,199 +8356,6 @@ app.get('/api/dashboard/charts', authRequired, async (request, res) => {
 });
 
 // ══════════════════════════════════════════════════════════
-//  AI ANALYSIS — SSE streaming (real-time situation analysis)
-// ══════════════════════════════════════════════════════════
-app.get('/api/ai-analysis', authRequired, async (request, res) => {
-  if (!GROQ_API_KEY && !process.env.GEMINI_API_KEY) {
-    return res.status(503).json({ error: 'ยังไม่ได้ตั้งค่า GROQ_API_KEY หรือ GEMINI_API_KEY ใน .env' });
-  }
-
-  // ── SSE headers
-  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.flushHeaders();
-
-  const send = (type, payload = {}) =>
-    res.write(`data: ${JSON.stringify({ type, ...payload })}\n\n`);
-
-  try {
-    const now   = new Date();
-    const today = now.toISOString().split('T')[0];
-    const ext   = getExtPool();
-
-    let snap = {
-      date: today,
-      time: now.toLocaleTimeString('th-TH'),
-      extConnected: !!ext,
-    };
-
-    if (ext) {
-      // Today's tickets by status
-      const todayRows = (await extReq()
-        .input('today', sql.Date, today)
-        .query(`SELECT cs.StatusName AS status, COUNT(*) AS cnt
-                FROM Calllog cl INNER JOIN CallStatus cs ON cs.StatusId=cl.StatusId
-                WHERE CAST(cl.ReceiveDate AS DATE)=@today
-                GROUP BY cs.StatusName`)).recordset;
-
-      // Overdue count (open > 24h)
-      const overdueCount = (await extReq()
-        .query(`SELECT COUNT(*) AS cnt FROM Calllog cl
-                INNER JOIN CallStatus cs ON cs.StatusId=cl.StatusId
-                WHERE cl.ReceiveDate >= '2026-01-01'
-                  AND cl.ReceiveDate <= DATEADD(hour,-24,GETDATE())
-                  AND cs.StatusName NOT LIKE '%close%'
-                  AND cs.StatusName NOT LIKE '%ปิด%'
-                  AND cs.StatusName NOT LIKE '%complete%'`)).recordset[0]?.cnt || 0;
-
-      // Month totals (this month vs last month)
-      const ms  = today.substring(0,7) + '-01';
-      const me  = new Date(new Date(ms).setMonth(new Date(ms).getMonth()+1));
-      const lms = (() => { const d=new Date(ms); d.setMonth(d.getMonth()-1); return d.toISOString().split('T')[0].substring(0,7)+'-01'; })();
-      const lme = new Date(ms);
-
-      const monthTotal = (await extReq()
-        .input('ms', sql.DateTime, new Date(ms)).input('me', sql.DateTime, me)
-        .query(`SELECT COUNT(*) AS cnt FROM Calllog cl
-                WHERE cl.ReceiveDate >= @ms AND cl.ReceiveDate < @me`)).recordset[0]?.cnt || 0;
-
-      const lastMonthTotal = (await extReq()
-        .input('lms', sql.DateTime, new Date(lms)).input('lme', sql.DateTime, lme)
-        .query(`SELECT COUNT(*) AS cnt FROM Calllog cl
-                WHERE cl.ReceiveDate >= @lms AND cl.ReceiveDate < @lme`)).recordset[0]?.cnt || 0;
-
-      // Top 5 agents this month
-      const topAgents = (await extReq()
-        .input('s', sql.DateTime, new Date(ms)).input('e', sql.DateTime, me)
-        .query(`SELECT TOP 5 u.UserName, COUNT(cl.CalllogId) AS total_cases
-                FROM Calllog cl INNER JOIN Users u ON u.UserId=cl.SupportId
-                WHERE cl.ReceiveDate >= @s AND cl.ReceiveDate < @e
-                GROUP BY u.UserName ORDER BY total_cases DESC`)).recordset;
-
-      snap = {
-        ...snap,
-        todayTotal: todayRows.reduce((a,r)=>a+r.cnt, 0),
-        todayByStatus: todayRows,
-        overdueCount,
-        monthTotal,
-        lastMonthTotal,
-        monthChangePercent: lastMonthTotal > 0 ? Math.round(((monthTotal-lastMonthTotal)/lastMonthTotal)*100) : null,
-        topAgentsThisMonth: topAgents,
-      };
-    }
-
-    // ── Case analytics ตามช่วงวันที่ที่เลือก (สำหรับสรุป Case + แนวทางแก้) ──
-    if (ext) {
-      const rs = request.query.dateFrom ? new Date(request.query.dateFrom) : new Date(new Date().setHours(0,0,0,0));
-      const re = request.query.dateTo   ? new Date(new Date(request.query.dateTo).setHours(23,59,59,999)) : new Date(new Date().setHours(23,59,59,999));
-
-      const [catR, subjR, custR, caseTotR] = await Promise.all([
-        extReq().input('s', sql.DateTime, rs).input('e', sql.DateTime, re)
-          .query(`SELECT TOP 10 ISNULL(pt.ProblemTypeDetail,'(ไม่ระบุ)') AS category, COUNT(*) AS cnt
-                  FROM Calllog cl LEFT JOIN ProblemType pt ON pt.ProblemTypeId=cl.ProblemTypeId
-                  WHERE cl.Active=1 AND cl.ReceiveDate>=@s AND cl.ReceiveDate<=@e
-                  GROUP BY pt.ProblemTypeDetail ORDER BY cnt DESC`),
-        extReq().input('s', sql.DateTime, rs).input('e', sql.DateTime, re)
-          .query(`SELECT TOP 12 cl.Subject AS subject, ISNULL(pt.ProblemTypeDetail,'(ไม่ระบุ)') AS category, COUNT(*) AS cnt
-                  FROM Calllog cl LEFT JOIN ProblemType pt ON pt.ProblemTypeId=cl.ProblemTypeId
-                  WHERE cl.Active=1 AND cl.ReceiveDate>=@s AND cl.ReceiveDate<=@e
-                    AND cl.Subject IS NOT NULL AND LEN(LTRIM(cl.Subject))>0
-                  GROUP BY cl.Subject, pt.ProblemTypeDetail ORDER BY cnt DESC`),
-        extReq().input('s', sql.DateTime, rs).input('e', sql.DateTime, re)
-          .query(`SELECT TOP 8 cr.CompanyName AS customer, COUNT(*) AS cnt
-                  FROM Calllog cl INNER JOIN CustomerRegistration cr ON cr.RegistrationId=cl.RegistrationId
-                  WHERE cl.Active=1 AND cl.ReceiveDate>=@s AND cl.ReceiveDate<=@e
-                    AND cr.CompanyName IS NOT NULL AND LEN(LTRIM(cr.CompanyName))>0
-                  GROUP BY cr.CompanyName ORDER BY cnt DESC`),
-        extReq().input('s', sql.DateTime, rs).input('e', sql.DateTime, re)
-          .query(`SELECT COUNT(*) AS cnt FROM Calllog cl
-                  WHERE cl.Active=1 AND cl.ReceiveDate>=@s AND cl.ReceiveDate<=@e`),
-      ]);
-
-      snap = {
-        ...snap,
-        caseRange: { from: rs.toISOString().split('T')[0], to: re.toISOString().split('T')[0] },
-        caseTotalInRange: caseTotR.recordset[0]?.cnt || 0,
-        topCategories:      catR.recordset,
-        topSubjects:        subjR.recordset,
-        topCustomersByCase: custR.recordset,
-      };
-    }
-
-    // On-shift employees
-    const hour    = now.getHours(), minute = now.getMinutes();
-    const timeVal = hour * 60 + minute;
-    const curShifts = [];
-    if (timeVal >= 8*60+30  && timeVal <= 17*60+30) curShifts.push('morning');
-    if (timeVal >= 8*60+30  && timeVal <= 17*60+30) curShifts.push('morning2');
-    if (timeVal >= 10*60    && timeVal <= 19*60)     curShifts.push('mid');
-    if (timeVal >= 10*60    && timeVal <= 19*60)     curShifts.push('midday');
-    if (timeVal >= 12*60    && timeVal <= 21*60+30)  curShifts.push('afternoon');
-    if (timeVal >= 15*60   || timeVal <= 1*60)       curShifts.push('night');
-    if (!curShifts.length) curShifts.push('morning');
-
-    const shiftIn  = curShifts.map((_,i) => `@st${i}`).join(',');
-    const shiftReq = req().input('today', sql.Date, today);
-    curShifts.forEach((s,i) => shiftReq.input(`st${i}`, sql.NVarChar, s));
-    const onShift = (await shiftReq.query(`
-      SELECT s.shift_type, e.name, e.team
-      FROM shifts s JOIN employees e ON e.id=s.employee_id
-      WHERE s.shift_date=@today AND s.shift_type IN (${shiftIn})
-        AND s.status='scheduled' AND e.active=1
-        AND e.team IN (SELECT name FROM teams WHERE show_in_schedule=1 AND active=1)`)).recordset;
-
-    const pendingLeaves = (await req()
-      .query(`SELECT COUNT(*) AS cnt FROM leave_requests WHERE status='pending'`))
-      .recordset[0]?.cnt || 0;
-
-    snap = {
-      ...snap,
-      onShiftCount: onShift.length,
-      onShiftByTeam: onShift.reduce((a,e)=>{ a[e.team]=(a[e.team]||0)+1; return a; }, {}),
-      pendingLeaveRequests: pendingLeaves,
-    };
-
-    // ── Build prompt & stream ─────────────────────────────
-    const prompt = `คุณคือ "CS Assistant" นักวิเคราะห์ Case ของทีม Customer Service
-วันที่: ${snap.date}  เวลา: ${snap.time}
-ช่วงข้อมูล Case ที่วิเคราะห์: ${snap.caseRange ? snap.caseRange.from + ' ถึง ' + snap.caseRange.to : 'ไม่มีข้อมูล (LicenseDB ไม่ได้เชื่อมต่อ)'}
-
-ข้อมูลดิบจากระบบ (topCategories/topSubjects = ปัญหาที่ลูกค้าแจ้งเข้ามามากสุด):
-${JSON.stringify(snap, null, 2)}
-
-หน้าที่ของคุณคือช่วยผู้จัดการ "สรุป Case ที่เข้ามา" และ "เสนอแนวทางแก้ทั้งระยะสั้นและระยะยาว"
-วิเคราะห์เป็นภาษาไทย กระชับ ชัดเจน ใช้ข้อมูลตัวเลขจริงประกอบเสมอ และตอบตามรูปแบบนี้เท่านั้น (ห้ามเพิ่ม/ลดหัวข้อ):
-
-## 📋 สรุปภาพรวม Case
-[2-3 ประโยค: จำนวน Case รวมในช่วงนี้ หมวด/หัวข้อที่เด่นที่สุด และลูกค้าที่แจ้งเยอะ]
-
-## 🎯 ปัญหาหลักที่พบ (Top Issues)
-[รายการปัญหาสำคัญ 3-5 ข้อ แต่ละข้อระบุจำนวน Case และตีความว่าน่าจะเกิดจากสาเหตุอะไร]
-
-## 🩹 แนวทางแก้ระยะสั้น (Short-term)
-[2-4 ข้อ ที่ทำได้ทันทีใน 1-2 สัปดาห์ เช่น จัดคนเสริม, ทำ FAQ/สคริปต์ตอบ, ไล่ปิดเคสค้าง — ระบุให้ลงมือได้จริง]
-
-## 🌱 แนวทางแก้ระยะยาว (Long-term)
-[2-4 ข้อ ที่แก้ที่ต้นเหตุใน 1-3 เดือนขึ้นไป เช่น ปรับปรุงระบบ/ฟีเจอร์, อบรมลูกค้า, ทำ Knowledge Base, ลดปัญหาซ้ำซาก]
-
-## 💡 สิ่งที่ควรทำถัดไป
-[สรุป action ที่แนะนำให้ผู้จัดการทำก่อน 2-3 ข้อ เรียงตามความสำคัญ]`;
-
-    send('start', { message: 'กำลังส่งข้อมูลให้ AI วิเคราะห์...' });
-
-    await aiGenerateStream(prompt, (text) => send('delta', { text }), { prefer: 'gemini' });
-
-    send('done', { inputTokens: 0, outputTokens: 0 });
-
-  } catch (err) {
-    send('error', { message: err.message });
-  } finally {
-    res.end();
-  }
-});
-
-// ══════════════════════════════════════════════════════════
 //  CUSTOMER REQUIREMENTS
 // ══════════════════════════════════════════════════════════
 async function ensureRequirementsTables() {
@@ -13213,8 +12935,22 @@ app.get('/api/monitor-tags/:id/tickets', authRequired, async (request, res) => {
 // ══ หน้า Monitor Tag: เคสที่ติด Tag (Bug โปรแกรม / IT Service) ตามช่วงวัน ══
 // ช่วงปัจจุบัน = N วันล่าสุด (รวมวันนี้ ตามปฏิทิน LicenseDB) · ช่วงก่อนหน้า = N วันก่อนนั้น ไว้เทียบ
 const MT_SERVICE_DAYS = [7, 30, 90, 180, 365];
-// วันแรกที่มีข้อมูล Tag (AI จัดเคสย้อนหลังถึงวันนี้) — ช่วงที่เลือกจะไม่ย้อนก่อนวันนี้ ไม่งั้นสัดส่วน/การเทียบเพี้ยน
-const MT_DATA_START = /^\d{4}-\d{2}-\d{2}$/.test(process.env.MONITOR_DATA_START || '') ? process.env.MONITOR_DATA_START : '2026-09-20';
+// วันแรกที่มีข้อมูล = วันของเคสแรกสุดที่ติด Tag — ช่วงที่เลือกจะไม่ย้อนก่อนวันนั้น (ไม่งั้นมีแต่วันว่าง)
+// บังคับเองได้ด้วย MONITOR_DATA_START=YYYY-MM-DD
+const MT_DATA_START_ENV = /^\d{4}-\d{2}-\d{2}$/.test(process.env.MONITOR_DATA_START || '') ? process.env.MONITOR_DATA_START : null;
+let _mtDataStart = { at: 0, d: null };
+async function mtDataStart(ids) {
+  if (MT_DATA_START_ENV) return MT_DATA_START_ENV;
+  if (_mtDataStart.d && Date.now() - _mtDataStart.at < 10 * 60 * 1000) return _mtDataStart.d;
+  let min = null;
+  for (let i = 0; i < ids.length; i += 2000) {
+    const m = (await extReq().query(`SELECT CONVERT(char(10), MIN(ReceiveDate), 23) AS d FROM Calllog
+      WHERE Active=1 AND CalllogId IN (${ids.slice(i, i + 2000).join(',')})`)).recordset[0]?.d;
+    if (m && (!min || m < min)) min = m;
+  }
+  _mtDataStart = { at: Date.now(), d: min };
+  return min;
+}
 app.get('/api/monitor-tags/board', authRequired, async (request, res) => {
   try {
     const days = MT_SERVICE_DAYS.includes(+request.query.days) ? +request.query.days : 30;
@@ -13222,15 +12958,15 @@ app.get('/api/monitor-tags/board', authRequired, async (request, res) => {
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
     const today = (await extReq().query(`SELECT CONVERT(char(10), GETDATE(), 23) AS d`)).recordset[0].d;
     const dayStr = n => new Date(Date.parse(today + 'T00:00:00Z') - n * 86400000).toISOString().slice(0, 10);
-    const labels = []; for (let i = days - 1; i >= 0; i--) if (dayStr(i) >= MT_DATA_START) labels.push(dayStr(i));
-    if (!labels.length) labels.push(today);
-    const from = labels[0], prevFrom = dayStr(days * 2 - 1);
-    const prevOk = dayStr(days * 2 - 1) >= MT_DATA_START;   // ช่วงก่อนหน้ามีข้อมูลครบ — เทียบได้
-    const idx = new Map(labels.map((d, i) => [d, i]));
-
     const links = tags.length ? (await req().query(`SELECT tag_id, calllog_id FROM monitor_tag_cases
       WHERE tag_id IN (${tags.map(t => +t.id).join(',')})`)).recordset : [];
     const ids = [...new Set(links.map(l => +l.calllog_id).filter(Number.isInteger))];
+    const dataStart = (await mtDataStart(ids)) || today;
+    const labels = []; for (let i = days - 1; i >= 0; i--) if (dayStr(i) >= dataStart) labels.push(dayStr(i));
+    if (!labels.length) labels.push(today);
+    const from = labels[0], prevFrom = dayStr(days * 2 - 1);
+    const prevOk = dayStr(days * 2 - 1) >= dataStart;   // ช่วงก่อนหน้ามีข้อมูลครบ — เทียบได้
+    const idx = new Map(labels.map((d, i) => [d, i]));
     const info = new Map();
     for (let i = 0; i < ids.length; i += 2000) {
       (await extReq().input('pf', sql.NVarChar, prevFrom).query(`
@@ -13269,7 +13005,7 @@ app.get('/api/monitor-tags/board', authRequired, async (request, res) => {
       stores.set(k, st);
     }
     res.json({
-      days, from, to: today, labels, all, tagged: tagged.size, prev_ok: prevOk, data_start: MT_DATA_START,
+      days, from, to: today, labels, all, tagged: tagged.size, prev_ok: prevOk, data_start: dataStart,
       tags: [...T.values()].map(t => ({ ...t, stores: t.stores.size })),
       stores: [...stores.values()]
     });
@@ -13336,8 +13072,29 @@ const MT_SUGGEST_BATCH = 40;
 const MT_SUGGEST_AUTO  = (process.env.MONITOR_SUGGEST_AUTO || 'on').toLowerCase() !== 'off';
 // ใช้รุ่นถูกเสมอ (แยกจาก GEMINI_MODEL ของฟีเจอร์อื่น) · Gemini ล่ม = ข้ามรอบนี้ ไม่สลับไปรุ่นแพง
 const MT_SUGGEST_MODEL = process.env.MONITOR_SUGGEST_MODEL || 'gemini-flash-lite-latest';
-// รอบอัตโนมัติติด Tag ให้เลยเมื่อ AI มั่นใจสูง (off = ทุกเคสรอคนยืนยัน)
+// AI ติด Tag ให้เลยเมื่อ "มั่นใจสูง" หรือ "น่าจะใช่" — เหลือรอคนดูเฉพาะ "ไม่แน่ใจ" (off = ทุกเคสรอยืนยัน)
 const MT_SUGGEST_AUTO_ACCEPT = (process.env.MONITOR_SUGGEST_AUTO_ACCEPT || 'on').toLowerCase() !== 'off';
+const MT_AUTO_LEVELS = ['high', 'medium'];
+// รายการที่ค้างรอยืนยันในระดับที่ติดอัตโนมัติได้ → ติด Tag ให้เลย (ช่วง from–to หรือทั้งหมด)
+async function mtAcceptPending(from, to) {
+  if (!MT_SUGGEST_AUTO_ACCEPT) return 0;
+  const r = req().input('f', sql.Date, from ? new Date(from + 'T00:00:00Z') : null).input('t', sql.Date, to ? new Date(to + 'T00:00:00Z') : null);
+  const out = await r.query(`
+    DECLARE @n INT;
+    INSERT INTO monitor_tag_cases (tag_id, calllog_id, linked_by)
+    SELECT DISTINCT s.tag_id, s.calllog_id, 'AI' FROM monitor_tag_suggestions s
+    JOIN monitor_tags t ON t.id = s.tag_id AND t.status = 'active'
+    WHERE s.status = 'pending' AND s.confidence IN ('high', 'medium')
+      AND (@f IS NULL OR s.case_day >= @f) AND (@t IS NULL OR s.case_day <= @t)
+      AND NOT EXISTS (SELECT 1 FROM monitor_tag_cases c WHERE c.tag_id = s.tag_id AND c.calllog_id = s.calllog_id);
+    UPDATE s SET status = 'accepted', decided_by = 'AI', decided_at = GETDATE()
+    FROM monitor_tag_suggestions s JOIN monitor_tags t ON t.id = s.tag_id AND t.status = 'active'
+    WHERE s.status = 'pending' AND s.confidence IN ('high', 'medium')
+      AND (@f IS NULL OR s.case_day >= @f) AND (@t IS NULL OR s.case_day <= @t);
+    SET @n = @@ROWCOUNT;
+    SELECT @n AS n;`);
+  return out.recordset?.[0]?.n || 0;
+}
 const MT_SUGGEST_TIME  = /^\d{2}:\d{2}$/.test(process.env.MONITOR_SUGGEST_TIME || '') ? process.env.MONITOR_SUGGEST_TIME : '00:00';
 let _mtSuggestRunning = false;
 
@@ -13420,7 +13177,7 @@ ${caseList}
           .input('ts', sql.NVarChar, tagSet).input('m', sql.NVarChar, usedModel);
         try {
           if (h) {
-            const auto = opts.autoAccept && h.conf === 'high';
+            const auto = opts.autoAccept && MT_AUTO_LEVELS.includes(h.conf);
             await r.input('tid', sql.Int, h.tid).input('cf', sql.NVarChar, h.conf).input('rs', sql.NVarChar, h.reason).query(`
               DELETE FROM monitor_tag_suggestions WHERE calllog_id=@cid AND status='none';
               IF NOT EXISTS (SELECT 1 FROM monitor_tag_suggestions WHERE calllog_id=@cid AND tag_id=@tid)
@@ -13460,7 +13217,21 @@ setInterval(async () => {
   for (const d of days) {
     try { await suggestMonitorTags(d, { autoAccept: MT_SUGGEST_AUTO_ACCEPT }); } catch (e) { console.error('[monitor-suggest] auto error:', e.message); }
   }
+  await mtAcceptPending(days[0], days[days.length - 1]).catch(e => console.error('[monitor-suggest] accept pending:', e.message));
 }, 30 * 1000);
+
+// รหัสผ่านของหน้า "เคสแนะนำ" (MONITOR_SUGGEST_PASSWORD ใน .env) — ไม่ตั้ง = ไม่ต้องใส่รหัส
+// หน้าเว็บส่งมาใน header X-Suggest-Password ทุกครั้ง · ผิด = 403 (หน่วงเวลากันเดารหัส)
+const MT_SUGGEST_PASSWORD = process.env.MONITOR_SUGGEST_PASSWORD || '';
+async function mtSuggestPw(request, res, next) {
+  if (!MT_SUGGEST_PASSWORD) return next();
+  const h = v => crypto.createHash('sha256').update(String(v)).digest();
+  if (crypto.timingSafeEqual(h(request.get('X-Suggest-Password') || ''), h(MT_SUGGEST_PASSWORD))) return next();
+  await new Promise(ok => setTimeout(ok, 800));
+  res.status(403).json({ error: 'รหัสผ่านไม่ถูกต้อง', need_password: true });
+}
+// POST /api/monitor-tags/suggestions/unlock — ตรวจรหัสผ่านก่อนเปิดหน้า
+app.post('/api/monitor-tags/suggestions/unlock', authRequired, mtSuggestPw, (request, res) => res.json({ ok: true }));
 
 const mtDayParam = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : bangkokToday();
 
@@ -13477,7 +13248,18 @@ function mtDayRange(q) {
 }
 
 // GET /api/monitor-tags/suggestions?from=&to= (หรือ ?date=) — คำแนะนำที่รอยืนยันในช่วงนั้น
-app.get('/api/monitor-tags/suggestions', authRequired, async (request, res) => {
+app.get('/api/monitor-tags/suggestions', authRequired, async (request, res, next) => {
+  // ?badge=1 — จำนวนรอยืนยันไว้โชว์บนปุ่ม (ไม่ต้องใช้รหัส ไม่มีรายละเอียดเคส)
+  if (request.query.badge !== '1') return mtSuggestPw(request, res, next);
+  try {
+    const rg = mtDayRange(request.query);
+    if (rg.tooLong) return res.status(400).json({ error: `เลือกได้ไม่เกิน ${MT_SUGGEST_MAX_DAYS} วัน` });
+    const n = (await req().input('f', sql.Date, new Date(rg.from + 'T00:00:00Z')).input('t', sql.Date, new Date(rg.to + 'T00:00:00Z')).query(`
+      SELECT COUNT(*) AS n FROM monitor_tag_suggestions s JOIN monitor_tags t ON t.id = s.tag_id
+      WHERE s.case_day BETWEEN @f AND @t AND s.status='pending'`)).recordset[0].n;
+    res.json({ badge: true, from: rg.from, to: rg.to, counts: { pending: n } });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+}, async (request, res) => {
   try {
     const rg = mtDayRange(request.query);
     if (rg.tooLong) return res.status(400).json({ error: `เลือกได้ไม่เกิน ${MT_SUGGEST_MAX_DAYS} วัน` });
@@ -13525,13 +13307,14 @@ async function mtRunSuggestJob(job) {
     if (r.busy || (r.error && !r.evaluated)) { job.error = r.busy ? 'มีงานวิเคราะห์อื่นค้างอยู่' : r.error; break; }
     job.done++;
   }
+  if (job.auto_accept) job.accepted += await mtAcceptPending(job.from, job.to).catch(() => 0);   // ที่ค้างจากรอบก่อน
   job.running = false; job.day = null; job.finished_at = new Date();
   console.log(`🏷️ monitor-suggest job ${job.from}…${job.to}: ${job.done}/${job.days.length} วัน · ประเมิน ${job.evaluated} · แนะนำ ${job.suggested} · ติด Tag ${job.accepted}${job.error ? ' · ' + job.error : ''}`);
 }
 
-// POST /api/monitor-tags/suggestions/run {from, to, auto_accept} (หรือ {date}) — ให้ AI หาเคสในช่วงนั้น (ไม่ประเมินเคสเดิมซ้ำ)
-// auto_accept = เคสที่ AI มั่นใจสูงติด Tag ให้เลย ที่เหลือรอยืนยัน
-app.post('/api/monitor-tags/suggestions/run', authRequired, async (request, res) => {
+// POST /api/monitor-tags/suggestions/run {from, to} (หรือ {date}) — ให้ AI หาเคสในช่วงนั้น (ไม่ประเมินเคสเดิมซ้ำ)
+// มั่นใจสูง / น่าจะใช่ ติด Tag ให้เลย · ไม่แน่ใจ รอยืนยัน
+app.post('/api/monitor-tags/suggestions/run', authRequired, mtSuggestPw, async (request, res) => {
   try {
     if (_mtJob?.running || _mtSuggestRunning) return res.status(409).json({ error: 'กำลังวิเคราะห์อยู่ ลองใหม่อีกสักครู่', job: _mtJob });
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
@@ -13539,7 +13322,7 @@ app.post('/api/monitor-tags/suggestions/run', authRequired, async (request, res)
     const rg = mtDayRange(request.body || {});
     if (rg.tooLong) return res.status(400).json({ error: `เลือกได้ไม่เกิน ${MT_SUGGEST_MAX_DAYS} วัน` });
     _mtJob = { from: rg.from, to: rg.to, days: rg.days, done: 0, day: null, evaluated: 0, suggested: 0, accepted: 0,
-      auto_accept: !!request.body?.auto_accept, running: true, error: null,
+      auto_accept: MT_SUGGEST_AUTO_ACCEPT, running: true, error: null,
       by: request.user?.username || null, started_at: new Date(), finished_at: null };
     mtRunSuggestJob(_mtJob).catch(e => { _mtJob.running = false; _mtJob.error = e.message; });
     res.json({ started: true, job: _mtJob });
@@ -13547,10 +13330,10 @@ app.post('/api/monitor-tags/suggestions/run', authRequired, async (request, res)
 });
 
 // GET /api/monitor-tags/suggestions/job — ความคืบหน้างานล่าสุด
-app.get('/api/monitor-tags/suggestions/job', authRequired, (request, res) => res.json({ job: _mtJob, running: _mtSuggestRunning }));
+app.get('/api/monitor-tags/suggestions/job', authRequired, mtSuggestPw, (request, res) => res.json({ job: _mtJob, running: _mtSuggestRunning }));
 
 // POST /api/monitor-tags/suggestions/decide {ids:[...], action:'accept'|'reject'} — ยืนยัน = ติด Tag ให้เคส
-app.post('/api/monitor-tags/suggestions/decide', authRequired, async (request, res) => {
+app.post('/api/monitor-tags/suggestions/decide', authRequired, mtSuggestPw, async (request, res) => {
   try {
     const ids = (Array.isArray(request.body?.ids) ? request.body.ids : []).map(Number).filter(Number.isInteger).slice(0, 500);
     const accept = request.body?.action === 'accept';
@@ -14526,6 +14309,8 @@ init().then(async () => {
   await ensureRequirementsTables();
   await ensureMonitorTagTables();
   await ensureApiTables();
+  mtAcceptPending().then(n => { if (n) console.log(`🏷️ monitor-suggest: ติด Tag ให้รายการที่ค้างรอยืนยัน ${n} รายการ`); })
+    .catch(e => console.error('[monitor-suggest] accept pending:', e.message));
   await ensureFollowupTable();
   await ensureFollowupV2Tables();
   await ensureShopInfoTables();
