@@ -478,6 +478,9 @@ textarea{resize:vertical;min-height:80px}
 .mt-share{height:6px;border-radius:3px;background:var(--line-2);overflow:hidden;min-width:70px}
 .mt-share span{display:block;height:100%}
 .mt-st-head{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;padding:1.05rem 1.2rem .5rem}
+.mt-svc-tbl tr.mt-brand td{background:#fdfcfa}
+.mt-svc-tbl tr.mt-branch td{font-size:.78rem;padding-top:.45rem;padding-bottom:.45rem;background:#faf9f6}
+.mt-svc-tbl tr.mt-branch td:nth-child(2){padding-left:2.2rem;color:#4d535b}
 .mt-top-stores{display:flex;flex-wrap:wrap;gap:.1rem;margin:.2rem 0 .3rem}
 button.mt-svc-chip{border:none;cursor:pointer;font-family:inherit}
 button.mt-svc-chip:hover{background:#e9e6df}
@@ -20865,15 +20868,15 @@ function mtTagTableHtml(list, g, compact) {
 // แถวที่กาง: ร้านที่เจอบ่อย + ปุ่ม + วิธีตรวจสอบ/แก้ไข
 function mtTagDetailRow(t, s, cols) {
   const d = _mtBoard.data;
-  const top = d.stores.filter(x => x.by[t.id]).sort((a, b) => b.by[t.id] - a.by[t.id]).slice(0, 8);
+  const top = mtStoreGroups().filter(x => x.by[t.id]).sort((a, b) => b.by[t.id] - a.by[t.id]).slice(0, 8);
   return `<tr class="mt-detail"><td colspan="${cols}">
     <div class="mt-detail-bar">
       <span class="mt-meta" style="flex:1">${t.note ? esc(t.note.replace(/\s+/g, ' ').slice(0, 200)) : ''}</span>
       <button onclick="event.stopPropagation();mtOpenDetail(${t.id})"><i class=i-eye></i> ดูรายการเคส (${s.cur})</button>
-      <button onclick="event.stopPropagation();mtStoresByTag(${t.id})"><i class=i-store></i> ร้านที่แจ้ง ${s.stores} ร้าน</button>
+      <button onclick="event.stopPropagation();mtStoresByTag(${t.id})"><i class=i-store></i> ร้านที่แจ้ง (${s.stores} สาขา)</button>
       <button onclick="event.stopPropagation();mtResolve(${t.id})"><i class=i-check></i> ปิด Tag</button>
     </div>
-    ${top.length ? `<div class="mt-top-stores">${top.map(x => `<button class="mt-svc-chip" onclick="event.stopPropagation();mtOpenStore(${d.stores.indexOf(x)},${t.id})">${esc(x.company)} <b>${x.by[t.id]}</b></button>`).join('')}</div>` : ''}
+    ${top.length ? `<div class="mt-top-stores">${top.map(x => `<button class="mt-svc-chip" data-k="${mtAttr(x.key)}" onclick="event.stopPropagation();${x.brand ? `mtOpenBrand(this.dataset.k,${t.id})` : `mtOpenStore(${x.branches[0].i},${t.id})`}">${x.brand ? '<i class=i-store></i> ' : ''}${esc(x.name)} <b>${x.by[t.id]}</b></button>`).join('')}</div>` : ''}
     ${mtScriptsPanel(t)}
   </td></tr>`;
 }
@@ -20929,54 +20932,85 @@ function mtDrawBoardChart(d, shown) {
 }
 
 // ── ร้านที่แจ้งเข้ามา (ตามมุมมอง / Tag ที่เลือก) ─────────────
+// สาขาของแบรนด์เดียวกัน (License Group) รวมเป็นแถวเดียว · ร้านเดี่ยว / ร้านในกลุ่ม INF แสดงชื่อร้านเหมือนเดิม
 function mtStoresTags() {
   const d = _mtBoard.data;
   return _mtTags.filter(t => t.status !== 'resolved' && (_mtKind === 'all' || mtGroupOf(t) === _mtKind))
     .map(t => ({ t, s: d.tags.find(x => x.id === t.id) })).filter(x => x.s?.cur);
 }
+function mtStoreGroups() {
+  const d = _mtBoard.data, m = new Map();
+  d.stores.forEach((s, i) => {
+    const k = s.grp ? 'g:' + s.grp : 's:' + i;
+    const g = m.get(k) || { key: k, brand: s.grp || null, name: s.grp || s.company, branches: [], by: {}, last_at: null };
+    g.branches.push({ ...s, i });
+    for (const [id, n] of Object.entries(s.by)) g.by[id] = (g.by[id] || 0) + n;
+    if (!g.last_at || s.last_at > g.last_at) g.last_at = s.last_at;
+    m.set(k, g);
+  });
+  return [...m.values()];
+}
+const _mtBrandOpen = new Set();
+const mtAttr = v => String(v ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 function mtStoresFiltered() {
   const d = _mtBoard.data; if (!d) return [];
   const tags = mtStoresTags(), q = _mtBoard.q.trim().toLowerCase(), tg = _mtBoard.tag;
-  const cnt = (s, g) => tags.reduce((a, x) => a + (!g || mtGroupOf(x.t) === g ? s.by[x.t.id] || 0 : 0), 0);
-  return d.stores.map((s, i) => ({ ...s, i, total: tg ? s.by[tg] || 0 : cnt(s), p: cnt(s, 'problem'), sv: cnt(s, 'service') }))
-    .filter(s => s.total && (!q || [s.company, s.grp].some(v => (v || '').toLowerCase().includes(q))))
-    .sort((a, b) => b.total - a.total || a.company.localeCompare(b.company, 'th'));
+  const cnt = (by, g) => tg ? by[tg] || 0 : tags.reduce((a, x) => a + (!g || mtGroupOf(x.t) === g ? by[x.t.id] || 0 : 0), 0);
+  const shape = x => ({ ...x, total: cnt(x.by), p: cnt(x.by, 'problem'), sv: cnt(x.by, 'service') });
+  const byTotal = (a, b) => b.total - a.total || (a.name || a.company).localeCompare(b.name || b.company, 'th');
+  return mtStoreGroups().map(g => {
+    const hit = !q || (g.name || '').toLowerCase().includes(q);
+    const branches = g.branches.map(shape).filter(b => b.total && (hit || (b.company || '').toLowerCase().includes(q))).sort(byTotal);
+    return { ...shape(g), branches };
+  }).filter(g => g.total && g.branches.length).sort(byTotal);
+}
+function mtStoreChips(by, tg, max = 99) {
+  const inView = new Set(mtStoresTags().map(x => x.t.id)), tagOf = new Map(_mtTags.map(t => [t.id, t]));
+  const xs = Object.entries(by).filter(([id]) => inView.has(+id)).sort((a, b) => (+b[0] === tg) - (+a[0] === tg) || b[1] - a[1]);
+  return xs.slice(0, max).map(([id, c]) => {
+    const t = tagOf.get(+id);
+    return `<span class="mt-svc-chip ${+id === tg ? 'hl' : mtGroupOf(t) === 'service' ? 'sv' : 'bg'}">${esc(t?.title || '')} <b>${c}</b></span>`;
+  }).join('') + (xs.length > max ? `<span class="mt-meta">+${xs.length - max} งาน</span>` : '');
 }
 function mtStoresRender() {
   const d = _mtBoard.data, tb = document.getElementById('mt-st-body');
   if (!d || !tb) return;
   const list = mtStoresFiltered(), tg = _mtBoard.tag, all = _mtKind === 'all';
-  const tagOf = new Map(_mtTags.map(t => [t.id, t]));
-  const ttl = tg ? tagOf.get(tg)?.title : null;
+  const ttl = tg ? _mtTags.find(t => t.id === tg)?.title : null;
+  const nBrand = list.filter(g => g.brand).length;
   document.getElementById('mt-st-title').innerHTML = (tg
     ? `ร้านที่แจ้ง “${esc(ttl || '')}”`
     : all ? 'ร้านที่แจ้งเข้ามามากที่สุด' : `ร้านที่แจ้ง ${MT_GROUPS[_mtKind].label}`)
-    + ` <span class="mt-meta" style="font-weight:400">· ${list.length.toLocaleString()} ร้าน</span>`
+    + ` <span class="mt-meta" style="font-weight:400">· ${nBrand ? `${nBrand} แบรนด์ · ` : ''}${(list.length - nBrand).toLocaleString()} ร้าน</span>`
     + (tg ? ` <button class="mt-mini" style="margin-left:.3rem" onclick="mtStoresByTag(null)">ดูทุก Tag</button>` : '');
-  document.getElementById('mt-st-thead').innerHTML = `<tr><th class="r">#</th><th>ร้าน / License</th><th>สิ่งที่แจ้ง</th>
-    ${all && !tg ? '<th class="r">Bug</th><th class="r">IT Service</th>' : ''}<th class="r">รวม</th><th>ล่าสุด</th><th></th></tr>`;
-  const cols = all && !tg ? 8 : 6;
+  const split = all && !tg;
+  document.getElementById('mt-st-thead').innerHTML = `<tr><th class="r">#</th><th>แบรนด์ / ร้าน</th><th>สิ่งที่แจ้ง</th>
+    ${split ? '<th class="r">Bug</th><th class="r">IT Service</th>' : ''}<th class="r">รวม</th><th>ล่าสุด</th><th></th></tr>`;
+  const cols = split ? 8 : 6;
   if (!list.length) {
     tb.innerHTML = `<tr><td colspan="${cols}" style="text-align:center;padding:1.6rem;color:var(--muted)">${_mtBoard.q ? 'ไม่พบร้านที่ค้นหา' : 'ยังไม่มีเคสในช่วงนี้'}</td></tr>`;
     return;
   }
-  const inView = new Set(mtStoresTags().map(x => x.t.id));
-  const LIMIT = 200;
-  tb.innerHTML = list.slice(0, LIMIT).map((s, n) => {
-    const chips = Object.entries(s.by).filter(([id]) => inView.has(+id)).sort((a, b) => b[1] - a[1]).map(([id, c]) => {
-      const t = tagOf.get(+id);
-      return `<span class="mt-svc-chip ${+id === tg ? 'hl' : mtGroupOf(t) === 'service' ? 'sv' : 'bg'}">${esc(t?.title || '')} <b>${c}</b></span>`;
-    }).join('');
-    return `<tr onclick="mtOpenStore(${s.i})">
-      <td class="r num mt-meta">${n + 1}</td>
-      <td>${esc(s.company)}<span class="sub">${esc(s.grp || 'สาขาเดี่ยว')}</span></td>
-      <td>${chips}</td>
-      ${all && !tg ? `<td class="r num">${s.p || '<span class="mt-meta">0</span>'}</td><td class="r num">${s.sv || '<span class="mt-meta">0</span>'}</td>` : ''}
-      <td class="r num"><b>${s.total}</b></td>
-      <td class="num mt-meta">${s.last_at ? fmtDateShort(s.last_at) : '—'}</td>
-      <td class="r mt-meta">ดูเคส ›</td></tr>`;
-  }).join('') + (list.length > LIMIT ? `<tr><td colspan="${cols}" class="mt-meta" style="text-align:center">แสดง ${LIMIT} จาก ${list.length.toLocaleString()} ร้าน — ค้นหาหรือ Export CSV เพื่อดูทั้งหมด</td></tr>` : '');
+  const nums = x => `${split ? `<td class="r num">${x.p || '<span class="mt-meta">0</span>'}</td><td class="r num">${x.sv || '<span class="mt-meta">0</span>'}</td>` : ''}
+      <td class="r num"><b>${x.total}</b></td><td class="num mt-meta">${x.last_at ? fmtDateShort(x.last_at) : '—'}</td>`;
+  const LIMIT = 200, q = _mtBoard.q.trim();
+  tb.innerHTML = list.slice(0, LIMIT).map((g, n) => {
+    if (!g.brand) {
+      const s = g.branches[0];
+      return `<tr onclick="mtOpenStore(${s.i})"><td class="r num mt-meta">${n + 1}</td>
+        <td>${esc(s.company)}<span class="sub">ร้าน</span></td><td>${mtStoreChips(g.by, tg)}</td>${nums(g)}<td class="r mt-meta">ดูเคส ›</td></tr>`;
+    }
+    const open = _mtBrandOpen.has(g.key) || (q && !g.name.toLowerCase().includes(q.toLowerCase()));
+    return `<tr class="mt-brand${open ? ' open' : ''}" data-k="${mtAttr(g.key)}" onclick="mtToggleBrand(this.dataset.k)"><td class="r num mt-meta">${n + 1}</td>
+        <td><b>${esc(g.brand)}</b><span class="sub"><span class="tk-toggle-btn${open ? ' open' : ''}" style="width:16px;height:16px;vertical-align:-3px" aria-hidden="true"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+          แบรนด์ · ${g.branches.length} สาขาที่แจ้ง</span></td>
+        <td>${mtStoreChips(g.by, tg, open ? 99 : 6)}</td>${nums(g)}
+        <td class="r"><button class="mt-mini" onclick="event.stopPropagation();mtOpenBrand(this.closest('tr').dataset.k)">ดูเคส ›</button></td></tr>`
+      + (open ? g.branches.map(b => `<tr class="mt-branch" onclick="mtOpenStore(${b.i})"><td></td>
+        <td>${esc(b.company)}</td><td>${mtStoreChips(b.by, tg)}</td>${nums(b)}<td class="r mt-meta">ดูเคส ›</td></tr>`).join('') : '');
+  }).join('') + (list.length > LIMIT ? `<tr><td colspan="${cols}" class="mt-meta" style="text-align:center">แสดง ${LIMIT} จาก ${list.length.toLocaleString()} รายการ — ค้นหาหรือ Export CSV เพื่อดูทั้งหมด</td></tr>` : '');
 }
+function mtToggleBrand(key) { _mtBrandOpen.has(key) ? _mtBrandOpen.delete(key) : _mtBrandOpen.add(key); mtStoresRender(); }
 function mtStoresSearch(v) { _mtBoard.q = v; mtStoresRender(); }
 function mtStoresByTag(id) {
   _mtBoard.tag = id;
@@ -20986,8 +21020,9 @@ function mtStoresByTag(id) {
 function mtStoresExport() {
   const d = _mtBoard.data; if (!d) return;
   const tags = mtStoresTags().map(x => x.t);
-  const head = ['ร้าน / License', 'แบรนด์', 'รวม', ...tags.map(t => `${mtGroupOf(t) === 'service' ? '[IT Service] ' : '[Bug] '}${t.title}`), 'แจ้งล่าสุด'];
-  const rows = mtStoresFiltered().map(s => [s.company, s.grp || '', s.total, ...tags.map(t => s.by[t.id] || 0), s.last_at ? fmtDateShort(s.last_at) : '']);
+  const head = ['แบรนด์ / ร้าน', 'ประเภท', 'สาขาที่แจ้ง', 'รวม', ...tags.map(t => `${mtGroupOf(t) === 'service' ? '[IT Service] ' : '[Bug] '}${t.title}`), 'แจ้งล่าสุด'];
+  const rows = mtStoresFiltered().map(g => [g.name, g.brand ? 'แบรนด์' : 'ร้าน', g.branches.length, g.total,
+    ...tags.map(t => g.by[t.id] || 0), g.last_at ? fmtDateShort(g.last_at) : '']);
   const csv = '﻿' + [head, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
@@ -21011,6 +21046,13 @@ function mtOpenStore(i, tagId) {
   mtShowCases({ tagIds: ids, store: s.company, title: s.company,
     sub: `${s.grp ? s.grp + ' · ' : ''}${ids.map(id => `${_mtTags.find(t => t.id === id)?.title || ''} ${s.by[id]}`).join(' · ')}` });
 }
+function mtOpenBrand(key, tagId) {
+  const g = mtStoreGroups().find(x => x.key === key); if (!g) return;
+  const ids = tagId ? [tagId] : (_mtBoard.tag ? [_mtBoard.tag] : mtStoresTags().map(x => x.t.id)).filter(id => g.by[id]);
+  const tname = id => _mtTags.find(t => t.id === id)?.title || '';
+  mtShowCases({ tagIds: ids, brand: g.brand, title: tagId ? `${tname(tagId)} — ${g.brand}` : g.brand,
+    sub: `แบรนด์ · ${g.branches.length} สาขาที่แจ้ง · ${ids.map(id => `${tname(id)} ${g.by[id]}`).join(' · ')}` });
+}
 async function mtShowCases(ctx) {
   _mtDetailCtx = ctx;
   const days = _mtBoard.days;
@@ -21020,7 +21062,7 @@ async function mtShowCases(ctx) {
   const tb = document.getElementById('mt-d-tbody');
   tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:1.5rem;color:var(--muted)">กำลังโหลด...</td></tr>';
   if (!document.getElementById('modal-mt-detail').classList.contains('open')) openModal('modal-mt-detail');
-  const qs = `?days=${days}${ctx.store ? '&store=' + encodeURIComponent(ctx.store) : ''}`;
+  const qs = `?days=${days}${ctx.store ? '&store=' + encodeURIComponent(ctx.store) : ''}${ctx.brand ? '&brand=' + encodeURIComponent(ctx.brand) : ''}`;
   const res = await Promise.all(ctx.tagIds.map(id => api(`/api/monitor-tags/${id}/tickets${qs}`, { silent: true })
     .then(x => (x?.rows || []).map(r => ({ ...r, tag: _mtTags.find(t => t.id === id) })))));
   if (_mtDetailCtx !== ctx) return;

@@ -13181,6 +13181,13 @@ app.get('/api/monitor-tags/:id/tickets', authRequired, async (request, res) => {
       r.input('fstore', sql.NVarChar, store);
       storeCond = ' AND EXISTS (SELECT 1 FROM CustomerRegistration fx WHERE fx.RegistrationId = cl.RegistrationId AND fx.CompanyName = @fstore)';
     }
+    // ?brand= — ทุกสาขาของแบรนด์ (License Group ที่ไม่ใช่ INF Group)
+    const brand = String(request.query.brand || '').trim();
+    if (brand) {
+      r.input('fbrand', sql.NVarChar, brand);
+      storeCond += ` AND EXISTS (SELECT 1 FROM CustomerRegistration fx JOIN CustomerGroup fg ON fg.GroupId = fx.GroupId
+        WHERE fx.RegistrationId = cl.RegistrationId AND fx.GroupId <> 1 AND fg.GroupName = @fbrand)`;
+    }
     const rows = (await r.query(`
       DECLARE @e DATETIME = ISNULL(@en, GETDATE());
       SELECT TOP 1000
