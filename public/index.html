@@ -468,6 +468,28 @@ textarea{resize:vertical;min-height:80px}
 .mt-add-btn:hover{background:#f0eee9;border-color:#d6d2c9}
 .mt-on-btn{display:inline-flex;align-items:center;gap:.35rem;border:1px solid transparent;background:var(--primary-soft);color:var(--primary);border-radius:999px;padding:.28rem .75rem;font-size:.74rem;font-weight:500;cursor:pointer;font-family:inherit;white-space:nowrap}
 .mt-on-btn:hover{border-color:var(--primary)}
+.mt-kind-bar{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-bottom:.75rem}
+.mt-kind-bar .svc-seg{display:inline-flex}
+.mt-kind-bar .svc-seg button{display:inline-flex;align-items:center;gap:.35rem}
+.mt-type-svc{background:#eaf4ee;color:#2f6b4f}
+.mt-svc-bar{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem}
+.mt-svc-bar .svc-search{margin:0}
+.mt-svc-grid{display:grid;grid-template-columns:minmax(240px,320px) minmax(0,1fr);gap:.75rem;align-items:start}
+.mt-svc-tag{display:block;width:100%;text-align:left;border:1px solid transparent;background:none;border-radius:10px;padding:.45rem .55rem;cursor:pointer;font-family:inherit;color:var(--text)}
+.mt-svc-tag:hover{background:#faf9f6}
+.mt-svc-tag.on{border-color:var(--primary);background:var(--primary-soft)}
+.mt-svc-tag .hd{display:flex;gap:.4rem;align-items:baseline;font-size:.8rem;font-weight:500}
+.mt-svc-tag .hd b{margin-left:auto;font-variant-numeric:tabular-nums}
+.mt-svc-tag .bar{height:5px;border-radius:3px;background:var(--line-2);margin:.3rem 0 .15rem;overflow:hidden}
+.mt-svc-tag .bar span{display:block;height:100%;background:var(--primary)}
+.mt-svc-chip{display:inline-flex;gap:.25rem;align-items:center;font-size:.72rem;padding:.12rem .5rem;border-radius:999px;background:#f3f1ec;color:#3a3f46;margin:.1rem .2rem .1rem 0;white-space:nowrap}
+.mt-svc-chip b{font-variant-numeric:tabular-nums}
+.mt-svc-chip.hl{background:var(--primary-soft);color:var(--primary)}
+.mt-svc-tbl tr{cursor:pointer}
+.mt-svc-tbl td:nth-child(2){min-width:200px}
+.mt-svc-tbl td:nth-child(3){min-width:180px}
+.mt-svc-tbl tr:hover td{background:#faf9f6}
+@media(max-width:860px){.mt-svc-grid{grid-template-columns:1fr}}
 .mt-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.65rem;margin-bottom:.75rem}
 .mt-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-bottom:.8rem}
 .mt-updated{font-size:.72rem;color:var(--muted);margin-left:auto}
@@ -1579,6 +1601,10 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
 
   <!-- ════ TAB 4: Monitor Tag ════ -->
   <div id="dash-tab-monitor" style="display:none">
+    <div class="mt-kind-bar">
+      <div class="svc-seg" id="mt-kind" role="tablist" aria-label="กลุ่ม Tag"></div>
+      <span class="mt-meta" id="mt-kind-hint"></span>
+    </div>
     <div class="mt-kpis" id="mt-kpis"></div>
     <div class="mt-ov" id="mt-overview"></div>
     <div class="mt-toolbar">
@@ -2496,7 +2522,13 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
           <div class="row"><label>เริ่ม Monitor</label><input id="mt-t-start" readonly/></div>
           <div class="row"><label>ติดตามที่ระดับ</label><input id="mt-t-level" readonly/></div>
         </div>
-        <div class="row"><label>ประเภท Tag</label>
+        <div class="row"><label>กลุ่ม Tag</label>
+          <div class="svc-seg mt-seg-sm" id="mt-t-group" style="display:inline-flex">
+            <button type="button" data-v="problem" class="on" onclick="mtPickGroup(this)"><i class=i-alert></i> ปัญหา</button>
+            <button type="button" data-v="service" onclick="mtPickGroup(this)"><i class=i-wrench></i> งาน IT Service</button>
+          </div>
+        </div>
+        <div class="row" id="mt-t-type-row"><label>ประเภท Tag</label>
           <div class="svc-seg mt-seg-sm" id="mt-t-type" style="display:inline-flex">
             <button type="button" data-v="" class="on" onclick="mtPickType(this)">ไม่ระบุ</button>
             <button type="button" data-v="command" onclick="mtPickType(this)">Command</button>
@@ -2594,13 +2626,19 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
     <div class="modal-head">
       <div style="min-width:0">
         <div style="font-size:1.08rem;font-weight:600">จัดการ Tag</div>
-        <div class="mt-meta">ตั้งประเภทของ Tag — <b>Command</b> = แก้ด้วยคำสั่ง/Script ที่รันเอง · <b>Cron</b> = แก้ด้วยงานตั้งเวลา (scheduled job)</div>
+        <div class="mt-meta"><b>กลุ่ม</b>: ปัญหา = ติดตามว่าลดลงไหม · งาน IT Service = ดูว่าร้านไหนแจ้งงานบริการอะไร<br>
+          <b>ประเภท</b> (เฉพาะ Tag ปัญหา): Command = แก้ด้วยคำสั่ง/Script ที่รันเอง · Cron = แก้ด้วยงานตั้งเวลา</div>
       </div>
       <button class="modal-close" onclick="closeModal('modal-mt-manage')">×</button>
     </div>
     <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.7rem">
       <label class="svc-search" style="flex:1;min-width:200px;margin:0"><i class=i-search style="color:#8a8f97"></i>
         <input id="mt-m-q" type="text" placeholder="ค้นหา Tag..." oninput="mtRenderManage()" style="border:none;padding:0;background:none;box-shadow:none"/></label>
+      <div class="svc-seg mt-seg-sm" id="mt-m-group" role="tablist" aria-label="กรองกลุ่ม">
+        <button data-v="problem" onclick="mtManageGroup(this)">ปัญหา</button>
+        <button data-v="service" onclick="mtManageGroup(this)">IT Service</button>
+        <button data-v="" onclick="mtManageGroup(this)">ทุกกลุ่ม</button>
+      </div>
       <div class="svc-seg mt-seg-sm" id="mt-m-type" role="tablist" aria-label="กรองประเภท">
         <button data-v="" class="on" onclick="mtManageFilter(this)">ทั้งหมด</button>
         <button data-v="command" onclick="mtManageFilter(this)">Command</button>
@@ -2610,7 +2648,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
     </div>
     <div style="overflow:auto;flex:1;border:1px solid var(--border);border-radius:14px">
       <table class="mt-tbl" style="font-size:.82rem">
-        <thead><tr><th>Tag</th><th>ประเภท</th><th class="r">เคส</th><th>สร้างเมื่อ</th><th></th></tr></thead>
+        <thead><tr><th>Tag</th><th>กลุ่ม</th><th>ประเภท</th><th class="r">เคส</th><th>สร้างเมื่อ</th><th></th></tr></thead>
         <tbody id="mt-m-body"></tbody>
       </table>
     </div>
@@ -2632,7 +2670,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
         <thead><tr style="background:var(--card2);border-bottom:2px solid var(--border);position:sticky;top:0">
           <th style="text-align:left;padding:.45rem .7rem;color:var(--muted);font-weight:600">เลขที่</th>
           <th style="text-align:left;padding:.45rem .7rem;color:var(--muted);font-weight:600;white-space:nowrap">วันที่แจ้ง</th>
-          <th style="text-align:left;padding:.45rem .7rem;color:var(--muted);font-weight:600">ช่วง</th>
+          <th style="text-align:left;padding:.45rem .7rem;color:var(--muted);font-weight:600" id="mt-d-phase-th">ช่วง</th>
           <th id="mt-d-store-th" style="text-align:left;padding:.45rem .7rem;color:var(--muted);font-weight:600">สาขา</th>
           <th style="text-align:left;padding:.45rem .7rem;color:var(--muted);font-weight:600;min-width:240px">รายละเอียด</th>
           <th style="text-align:left;padding:.45rem .7rem;color:var(--muted);font-weight:600">สถานะ</th>
@@ -20275,7 +20313,7 @@ function mtTagList() {
     const linked = (t.linked_ids || []).includes(T.r.id);
     const hit = !linked && mtRuleHits(t, T.r);
     const badge = linked ? '<span class="mt-pill mt-down"><i class=i-link></i> ติดแล้ว</span>' : hit ? '<span class="mt-pill mt-flat" title="ตรงกฎของ Tag นี้อยู่แล้ว"><i class=i-check></i> ตรงกฎ</span>' : '';
-    const inner = `<div class="b"><div class="tg"><i class=i-tag></i>${esc(t.title)} ${mtTypeBadge(t)}<span class="mt-meta" style="font-weight:400">· ${mtScopeName(t)}</span></div>
+    const inner = `<div class="b"><div class="tg"><i class=i-tag></i>${esc(t.title)} ${mtGroupBadge(t)}${mtTypeBadge(t)}<span class="mt-meta" style="font-weight:400">· ${mtScopeName(t)}</span></div>
         <div class="r">${mtRuleLabel(t)} · เริ่ม ${mtFmtStart(t)}${t.note ? ' · ' + esc(t.note.replace(/\s+/g, ' ').slice(0, 80)) : ''}</div></div>`;
     if (linked) return `<div class="mt-opt mt-opt-linked">${inner}${badge}
       <button type="button" class="mt-mini" onclick="mtTagUnlinkHere(${t.id})" title="เอาเคสนี้ออกจาก Tag"><i class=i-trash></i> เอาออก</button></div>`;
@@ -20392,6 +20430,7 @@ function mtTagStep(n) {
     document.getElementById('mt-t-level').value = 'ทุก License (ใช้ร่วมกัน)';
     document.getElementById('mt-t-note').value = (r.description || '').trim();
     document.querySelectorAll('#mt-t-type button').forEach(b => b.classList.toggle('on', !b.dataset.v));
+    mtPickGroup(document.querySelector(`#mt-t-group button[data-v="${_mtKind}"]`));
   }
   // วิธีตรวจสอบ / แก้ไข: ของ Tag ที่มีอยู่ก่อน · ถ้ายังว่าง ดึงวิธีแก้ไขจากเคสนี้ให้เลย
   const sol = (r.solution || '').trim();
@@ -20432,7 +20471,9 @@ async function mtTagSave() {
         source_ticket_id: r.id, title,
         note: document.getElementById('mt-t-note').value,
         match_mode: 'manual',
-        tag_type: document.querySelector('#mt-t-type button.on')?.dataset.v || null,
+        tag_group: document.querySelector('#mt-t-group button.on')?.dataset.v || 'problem',
+        tag_type: document.querySelector('#mt-t-group button.on')?.dataset.v === 'service' ? null
+          : document.querySelector('#mt-t-type button.on')?.dataset.v || null,
         check_script: check, fix_script: fix } });
       if (!d || d.error) { showToast(d?.error || 'สร้าง Tag ไม่สำเร็จ', 'error'); return; }
       tag = { ...d, files: [], linked_ids: [] };
@@ -20471,13 +20512,204 @@ function mtPickType(btn) {
   btn.parentElement.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === btn));
 }
 
+// ── กลุ่ม Tag: ปัญหา (ติดตามว่าลดลงไหม) / งาน IT Service (ร้านไหนแจ้งงานบริการอะไร — ใช้เสนอขายบริการ)
+const mtIsService = t => t.tag_group === 'service';
+const mtGroupBadge = t => mtIsService(t) ? '<span class="mt-type mt-type-svc"><i class=i-wrench></i> IT Service</span> ' : '';
+let _mtKind = (() => { try { return localStorage.getItem('mt-kind') === 'service' ? 'service' : 'problem'; } catch { return 'problem'; } })();
+function mtSetKind(k) {
+  _mtKind = k;
+  try { localStorage.setItem('mt-kind', k); } catch {}
+  mtRender();
+}
+function mtRenderKindBar() {
+  const el = document.getElementById('mt-kind');
+  if (!el) return;
+  const n = k => _mtTags.filter(t => (k === 'service') === mtIsService(t)).length;
+  el.innerHTML = [['problem', 'alert', 'Tag ปัญหา'], ['service', 'wrench', 'งาน IT Service']].map(([k, ic, l]) =>
+    `<button class="${_mtKind === k ? 'on' : ''}" onclick="mtSetKind('${k}')"><i class=i-${ic}></i> ${l} <span class="mt-tab-count">${n(k)}</span></button>`).join('');
+  document.getElementById('mt-kind-hint').textContent = _mtKind === 'service'
+    ? 'ร้านไหนแจ้งงานบริการอะไรเข้ามาบ้าง — ใช้ดูโอกาสเสนอขายบริการ'
+    : 'ติดตามว่าปัญหาลดลงไหมหลังเริ่ม Monitor';
+}
+// เลือกกลุ่มตอนสร้าง Tag ใหม่ — ประเภท Command/Cron ใช้กับ Tag ปัญหาเท่านั้น
+function mtPickGroup(btn) {
+  mtPickType(btn);
+  const svc = btn.dataset.v === 'service';
+  document.getElementById('mt-t-type-row').style.display = svc ? 'none' : '';
+  document.querySelector('#mt-t-new .mt-rule-box').textContent = svc
+    ? 'นับเฉพาะเคสที่ติด Tag นี้ · ดูได้ว่าร้านไหนแจ้งงานนี้เข้ามากี่ครั้ง ในแท็บ งาน IT Service'
+    : 'นับเฉพาะเคสที่ติด Tag นี้ · เคสที่เกิดก่อนวันเริ่ม Monitor นับเป็นช่วง "ก่อน"';
+}
+
+// ══ มุมมองงาน IT Service: ร้าน × งานที่แจ้ง ════════════════
+const MT_SVC_DAYS = [30, 90, 180, 365];
+let _mtSvc = { days: 90, data: null, q: '', tag: null, loading: false };
+async function mtRenderService() {
+  const kp = document.getElementById('mt-kpis'), ov = document.getElementById('mt-overview'), body = document.getElementById('mt-body');
+  ov.innerHTML = ''; ov.style.display = 'none';
+  if (!_mtTags.some(mtIsService)) {
+    kp.innerHTML = '';
+    body.innerHTML = `<div class="mt-empty">ยังไม่มี Tag งาน IT Service<br><span style="font-size:.78rem">ตอนติด Tag ให้เคส เลือกกลุ่ม <b>งาน IT Service</b> เช่น “ติดตั้งเครื่องพิมพ์”, “ย้ายเครื่อง”, “ขอเพิ่มเครื่อง POS”
+      · หรือย้าย Tag เดิมมากลุ่มนี้ได้ที่ <b>จัดการ Tag</b></span></div>`;
+    return;
+  }
+  if (!_mtSvc.data || _mtSvc.data.days !== _mtSvc.days) {
+    if (_mtSvc.loading) return;
+    _mtSvc.loading = true;
+    if (!_mtSvc.data) { kp.innerHTML = ''; body.innerHTML = '<div class="mt-empty">กำลังโหลด...</div>'; }
+    const d = await api('/api/monitor-tags/service-stores?days=' + _mtSvc.days, { silent: true });
+    _mtSvc.loading = false;
+    if (_mtKind !== 'service') return;
+    if (!d || d.error || !Array.isArray(d.stores)) {
+      body.innerHTML = `<div class="mt-empty">โหลดไม่สำเร็จ${d?.error ? ': ' + esc(d.error) : ''} (ถ้าเพิ่งอัปเดตโค้ด ให้รีสตาร์ท server ก่อน)</div>`;
+      return;
+    }
+    _mtSvc.data = d;
+    if (d.days !== _mtSvc.days) return mtRenderService();   // เปลี่ยนช่วงระหว่างรอ
+  }
+  const d = _mtSvc.data;
+  if (_mtSvc.tag && !d.tags.some(t => t.id === _mtSvc.tag)) _mtSvc.tag = null;
+  const total = d.tags.reduce((a, t) => a + t.cases, 0);
+  const brands = new Set(d.stores.map(s => s.grp).filter(Boolean)).size;
+  const hot = d.stores.filter(s => s.total >= 3).length;
+  const k = (label, val, sub, cls) =>
+    `<div class="stat-flat"><div class="label">${label}</div><div class="value ${cls}">${val}</div><div class="sub">${sub}</div></div>`;
+  kp.innerHTML =
+    k('<i class=i-wrench></i> Tag งาน IT Service', d.tags.length, `${d.tags.filter(t => t.cases).length} Tag มีเคสใน ${d.days} วัน`, 'blue') +
+    k('เคสงานบริการ', total.toLocaleString(), `ใน ${d.days} วันล่าสุด`, 'orange') +
+    k('<i class=i-store></i> ร้านที่แจ้ง', d.stores.length.toLocaleString(), brands ? `${brands} แบรนด์` : 'ร้าน / License', 'green') +
+    k('ร้านที่แจ้งบ่อย', hot, 'แจ้ง 3 ครั้งขึ้นไป — น่าเสนอบริการ', 'white');
+  const maxT = Math.max(1, ...d.tags.map(t => t.cases));
+  const tagRows = [...d.tags].sort((a, b) => b.cases - a.cases || a.title.localeCompare(b.title, 'th')).map(t => `
+    <button type="button" class="mt-svc-tag${_mtSvc.tag === t.id ? ' on' : ''}" onclick="mtSvcPickTag(${t.id})">
+      <div class="hd"><span><i class=i-tag style="color:var(--primary)"></i> ${esc(t.title)}</span><b>${t.cases}</b></div>
+      <div class="bar"><span style="width:${(t.cases / maxT * 100).toFixed(1)}%"></span></div>
+      <div class="mt-meta">${t.stores} ร้าน${t.cases ? '' : ' · ยังไม่มีเคสในช่วงนี้'}</div>
+    </button>`).join('');
+  body.innerHTML = `
+    <div class="mt-svc-bar">
+      <div class="svc-seg mt-seg-sm" role="tablist" aria-label="ช่วงเวลา">${MT_SVC_DAYS.map(n =>
+        `<button class="${_mtSvc.days === n ? 'on' : ''}" onclick="mtSvcDays(${n})">${n === 365 ? '1 ปี' : n + ' วัน'}</button>`).join('')}</div>
+      <label class="svc-search"><i class=i-search style="color:#8a8f97"></i>
+        <input id="mt-svc-q" type="text" placeholder="ค้นหาร้าน / แบรนด์..." value="${esc(_mtSvc.q)}" oninput="mtSvcSearch(this.value)"
+          style="border:none;padding:0;background:none;box-shadow:none"/></label>
+      <span style="flex:1"></span>
+      <button class="svc-btn-ghost" onclick="mtSvcExport()" style="height:34px"><i class=i-download></i> Export CSV</button>
+    </div>
+    <div class="mt-svc-grid">
+      <div class="mt-ov-card">
+        <div class="mt-ov-title">งานที่ร้านแจ้งเข้ามา</div>
+        <div class="mt-ov-sub">คลิกงานเพื่อดูเฉพาะร้านที่แจ้งงานนั้น</div>
+        <div style="margin-top:.5rem;display:flex;flex-direction:column;gap:.15rem">${tagRows}</div>
+      </div>
+      <div class="mt-ov-card" style="padding:0;overflow:hidden">
+        <div style="padding:1.05rem 1.2rem .4rem">
+          <div class="mt-ov-title" id="mt-svc-title"></div>
+          <div class="mt-ov-sub">เรียงตามจำนวนครั้งที่แจ้ง · คลิกร้านเพื่อดูเคส</div>
+        </div>
+        <div style="overflow-x:auto"><table class="mt-tbl mt-svc-tbl">
+          <thead><tr><th class="r">#</th><th>ร้าน / License</th><th>งานที่แจ้ง</th><th class="r">รวม</th><th>แจ้งล่าสุด</th><th></th></tr></thead>
+          <tbody id="mt-svc-stores"></tbody></table></div>
+      </div>
+    </div>`;
+  mtSvcRenderStores();
+}
+function mtSvcFiltered() {
+  const d = _mtSvc.data; if (!d) return [];
+  const q = _mtSvc.q.trim().toLowerCase(), tg = _mtSvc.tag;
+  const list = d.stores.map((s, i) => ({ ...s, i }))
+    .filter(s => (!tg || s.by[tg]) && (!q || [s.company, s.grp].some(v => (v || '').toLowerCase().includes(q))));
+  if (tg) list.sort((a, b) => b.by[tg] - a.by[tg] || b.total - a.total);
+  return list;
+}
+function mtSvcRenderStores() {
+  const d = _mtSvc.data, tb = document.getElementById('mt-svc-stores');
+  if (!d || !tb) return;
+  const list = mtSvcFiltered(), tg = _mtSvc.tag;
+  const tagName = id => d.tags.find(t => t.id === +id)?.title || '';
+  document.getElementById('mt-svc-title').innerHTML = tg
+    ? `ร้านที่แจ้ง “${esc(tagName(tg))}” <span class="mt-meta" style="font-weight:400">· ${list.length} ร้าน</span>
+       <button class="mt-mini" style="margin-left:.4rem" onclick="mtSvcPickTag(${tg})">ดูทุกงาน</button>`
+    : `ร้านที่แจ้งงาน IT Service <span class="mt-meta" style="font-weight:400">· ${list.length} ร้าน</span>`;
+  if (!list.length) {
+    tb.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:1.6rem;color:var(--muted)">${d.stores.length ? 'ไม่พบร้านที่ค้นหา' : `ยังไม่มีเคสงาน IT Service ใน ${d.days} วันล่าสุด`}</td></tr>`;
+    return;
+  }
+  const LIMIT = 200;
+  tb.innerHTML = list.slice(0, LIMIT).map((s, n) => {
+    const chips = Object.entries(s.by).sort((a, b) => b[1] - a[1]).map(([id, c]) =>
+      `<span class="mt-svc-chip${+id === tg ? ' hl' : ''}">${esc(tagName(id))} <b>${c}</b></span>`).join('');
+    return `<tr onclick="mtSvcOpenStore(${s.i})">
+      <td class="r num mt-meta">${n + 1}</td>
+      <td>${esc(s.company)}<span class="sub">${esc(s.grp || 'สาขาเดี่ยว')}</span></td>
+      <td>${chips}</td>
+      <td class="r num"><b>${tg ? s.by[tg] : s.total}</b>${tg && s.total !== s.by[tg] ? `<span class="sub">ทุกงาน ${s.total}</span>` : ''}</td>
+      <td class="num mt-meta">${s.last_at ? fmtDateShort(s.last_at) : '—'}</td>
+      <td class="r mt-meta">ดูเคส ›</td></tr>`;
+  }).join('') + (list.length > LIMIT ? `<tr><td colspan="6" class="mt-meta" style="text-align:center">แสดง ${LIMIT} จาก ${list.length} ร้าน — ค้นหาหรือ Export CSV เพื่อดูทั้งหมด</td></tr>` : '');
+}
+function mtSvcDays(n) { _mtSvc.days = n; mtRenderService(); }
+function mtSvcPickTag(id) { _mtSvc.tag = _mtSvc.tag === id ? null : id; mtRenderService(); }
+function mtSvcSearch(v) { _mtSvc.q = v; mtSvcRenderStores(); }
+function mtSvcExport() {
+  const d = _mtSvc.data; if (!d) return;
+  const tags = d.tags.filter(t => t.cases);
+  const head = ['ร้าน / License', 'แบรนด์', 'รวม', ...tags.map(t => t.title), 'แจ้งล่าสุด'];
+  const rows = mtSvcFiltered().map(s => [s.company, s.grp || '', s.total, ...tags.map(t => s.by[t.id] || 0),
+    s.last_at ? fmtDateShort(s.last_at) : '']);
+  const csv = '﻿' + [head, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = `it-service-stores-${d.days}d.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+// คลิกร้าน → เคสงาน IT Service ทั้งหมดของร้านนั้นในช่วงที่เลือก
+async function mtSvcOpenStore(i) {
+  const d = _mtSvc.data, s = d?.stores[i]; if (!s) return;
+  const tags = d.tags.filter(t => s.by[t.id]);
+  document.getElementById('mt-d-title').textContent = s.company;
+  document.getElementById('mt-d-sub').textContent = `${s.grp ? s.grp + ' · ' : ''}งาน IT Service ${s.total} เคส ใน ${d.days} วันล่าสุด · `
+    + tags.map(t => `${t.title} ${s.by[t.id]}`).join(' · ');
+  document.getElementById('mt-d-store-th').style.display = 'none';
+  document.getElementById('mt-d-phase-th').textContent = 'งาน';
+  const tb = document.getElementById('mt-d-tbody');
+  tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:var(--muted)">กำลังโหลด...</td></tr>';
+  openModal('modal-mt-detail');
+  const res = await Promise.all(tags.map(t => api(`/api/monitor-tags/${t.id}/tickets?days=${d.days}&store=${encodeURIComponent(s.company)}`, { silent: true })
+    .then(x => (x?.rows || []).map(r => ({ ...r, tag: t })))));
+  const rows = res.flat().sort((a, b) => String(b.opened_at).localeCompare(String(a.opened_at)));
+  if (!rows.length) { tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:var(--muted)">— ไม่พบเคส —</td></tr>'; return; }
+  const td = 'padding:.42rem .7rem;border-bottom:1px solid var(--line-2);vertical-align:top';
+  tb.innerHTML = rows.map(r => `<tr>
+    <td style="${td};font-family:monospace;font-size:.76rem;white-space:nowrap">#${r.id}</td>
+    <td style="${td};white-space:nowrap;font-size:.76rem">${fmtDT(r.opened_at)}</td>
+    <td style="${td}"><span class="mt-svc-chip hl">${esc(r.tag.title)}</span>${r.linked
+      ? `<div style="margin-top:.25rem"><button class="mt-mini" onclick="mtSvcUnlink(${r.tag.id},${r.id},this)"><i class=i-trash></i> เอาออก</button></div>` : ''}</td>
+    <td style="${td};color:var(--muted)">${esc((r.description || '').replace(/\s+/g, ' ').slice(0, 200)) || '—'}</td>
+    <td style="${td};white-space:nowrap">${esc(r.status || '—')}</td>
+    <td style="${td};white-space:nowrap;font-size:.78rem">${esc(dn(r.agent) || r.agent || '—')}</td>
+  </tr>`).join('');
+}
+async function mtSvcUnlink(tagId, cid, btn) {
+  const t = _mtTags.find(x => x.id === tagId);
+  if (!confirm(`เอาเคส #${cid} ออกจาก “${t?.title || 'Tag'}”?`)) return;
+  if (!(await mtUnlink(tagId, cid))) return;
+  btn.closest('tr')?.remove();
+  showToast(`เอาเคส #${cid} ออกแล้ว`);
+  mtAfterChange();
+}
+
 // ── จัดการ Tag: ชื่อ / ประเภท / Resolve
 let _mtManageType = '';
+let _mtManageGroup = 'problem';
 // ── AI แนะนำเคสที่ติด Tag ได้ (รายวัน) ─────────────────────────
 let _mtSg = { items: [], sel: new Set() };
+// AI รันตอนเที่ยงคืนกับเคสของเมื่อวาน — เปิดมาที่วันล่าสุดที่ยังมีรายการรอยืนยัน
+let _mtSgPendingDay = null;
 async function mtOpenSuggest() {
   const d = document.getElementById('mt-sg-date');
-  if (!d.value) d.value = mtLocalInput(new Date()).slice(0, 10);
+  if (!d.value) d.value = _mtSgPendingDay || mtLocalInput(new Date()).slice(0, 10);
   openModal('modal-mt-suggest');
   mtLoadSuggest();
 }
@@ -20495,7 +20727,7 @@ async function mtLoadSuggest() {
     d.last_run ? `ล่าสุด ${fmtDT(d.last_run)}` : '',
     d.counts.accepted ? `ติด Tag แล้ว ${d.counts.accepted}` : '',
     d.auto ? `รันอัตโนมัติทุกวัน ${d.autoTime} น.` : ''].filter(Boolean).join(' · ');
-  if (day === today) mtSgBadge(_mtSg.items.length);
+  if (day === today || day === mtSgYesterday()) mtRefreshSuggestBadge();
   mtRenderSuggest();
 }
 function mtRenderSuggest() {
@@ -20508,7 +20740,7 @@ function mtRenderSuggest() {
   const groups = new Map();
   items.forEach(x => { if (!groups.has(x.tag_id)) groups.set(x.tag_id, []); groups.get(x.tag_id).push(x); });
   const cpill = c => c === 'high' ? '<span class="mt-pill mt-down">มั่นใจสูง</span>' : c === 'medium' ? '<span class="mt-pill mt-flat">น่าจะใช่</span>' : '<span class="mt-pill mt-flat" style="opacity:.75">ไม่แน่ใจ</span>';
-  body.innerHTML = [...groups.values()].map(g => `<div class="mt-sg-grp"><i class=i-tag style="color:var(--primary)"></i> ${esc(g[0].tag_title)} ${mtTypeBadge({ tag_type: g[0].tag_type })}<span class="mt-meta" style="font-weight:400">· ${g.length} เคส</span></div>
+  body.innerHTML = [...groups.values()].map(g => `<div class="mt-sg-grp"><i class=i-tag style="color:var(--primary)"></i> ${esc(g[0].tag_title)} ${mtGroupBadge({ tag_group: g[0].tag_group })}${mtTypeBadge({ tag_type: g[0].tag_type })}<span class="mt-meta" style="font-weight:400">· ${g.length} เคส</span></div>
     ${g.map(x => { const c = x.case || {}; const on = _mtSg.sel.has(x.id);
       return `<div class="mt-sg-item${on ? ' on' : ''}" onclick="mtSgToggle(${x.id})">
         <input type="checkbox" ${on ? 'checked' : ''} onclick="event.stopPropagation();mtSgToggle(${x.id})"/>
@@ -20546,10 +20778,14 @@ async function mtRunSuggest() {
   showToast(d.evaluated ? `AI อ่าน ${d.evaluated} เคส · แนะนำ ${d.suggested} เคส` : 'ไม่มีเคสใหม่ให้ประเมิน');
   mtLoadSuggest();
 }
-// จำนวนที่รอยืนยันของวันนี้ (แสดงบนปุ่ม)
+// จำนวนที่รอยืนยันของเมื่อวาน + วันนี้ (แสดงบนปุ่ม)
+const mtSgYesterday = () => mtLocalInput(new Date(Date.now() - 86400000)).slice(0, 10);
 async function mtRefreshSuggestBadge() {
-  const d = await api('/api/monitor-tags/suggestions?date=' + mtLocalInput(new Date()).slice(0, 10), { silent: true });
-  if (d && !d.error) mtSgBadge((d.items || []).length);
+  const days = [mtLocalInput(new Date()).slice(0, 10), mtSgYesterday()];
+  const res = await Promise.all(days.map(x => api('/api/monitor-tags/suggestions?date=' + x, { silent: true })));
+  const n = res.map(d => d && !d.error ? (d.items || []).length : 0);
+  _mtSgPendingDay = n[0] ? days[0] : n[1] ? days[1] : null;
+  mtSgBadge(n[0] + n[1]);
 }
 
 async function mtOpenManage() {
@@ -20558,6 +20794,8 @@ async function mtOpenManage() {
     if (Array.isArray(d?.tags)) { _mtTags = d.tags; mtNoteStart(d); }
   }
   document.getElementById('mt-m-q').value = '';
+  _mtManageGroup = _mtKind;
+  document.querySelectorAll('#mt-m-group button').forEach(b => b.classList.toggle('on', b.dataset.v === _mtManageGroup));
   mtRenderManage();
   openModal('modal-mt-manage');
 }
@@ -20566,21 +20804,29 @@ function mtManageFilter(btn) {
   btn.parentElement.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === btn));
   mtRenderManage();
 }
+function mtManageGroup(btn) {
+  _mtManageGroup = btn.dataset.v;
+  btn.parentElement.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === btn));
+  mtRenderManage();
+}
 function mtRenderManage() {
   const q = (document.getElementById('mt-m-q')?.value || '').trim().toLowerCase();
   const list = _mtTags.filter(t => t.status !== 'resolved'
     && (!q || (t.title || '').toLowerCase().includes(q))
+    && (!_mtManageGroup || (_mtManageGroup === 'service') === mtIsService(t))
     && (!_mtManageType || (_mtManageType === 'none' ? !t.tag_type : t.tag_type === _mtManageType)))
     .sort((a, b) => (a.title || '').localeCompare(b.title || '', 'th'));
   const body = document.getElementById('mt-m-body');
-  if (!list.length) { body.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:1.5rem;color:var(--muted)">ไม่มี Tag</td></tr>'; return; }
+  if (!list.length) { body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:var(--muted)">ไม่มี Tag</td></tr>'; return; }
   body.innerHTML = list.map(t => `<tr>
     <td>${mtIsManual(t)
       ? `<input class="mt-m-name" value="${esc(t.title)}" data-id="${t.id}" onkeydown="if(event.key==='Enter')this.blur()" onblur="mtRenameTag(this)" title="คลิกเพื่อแก้ชื่อ"/>`
       : `<b>${esc(t.title)}</b>`}
       <span class="sub" style="display:block;padding-left:.5rem">${mtScopeName(t)}${t.note ? ' · ' + esc(t.note.replace(/\s+/g, ' ').slice(0, 60)) : ''}</span></td>
-    <td><div class="svc-seg mt-seg-sm">${[['', 'ไม่ระบุ'], ['command', 'Command'], ['cron', 'Cron']].map(([v, l]) =>
-      `<button class="${(t.tag_type || '') === v ? 'on' : ''}" onclick="mtSetTagType(${t.id},'${v}')">${l}</button>`).join('')}</div></td>
+    <td><div class="svc-seg mt-seg-sm">${[['problem', 'ปัญหา'], ['service', 'IT Service']].map(([v, l]) =>
+      `<button class="${(mtIsService(t) ? 'service' : 'problem') === v ? 'on' : ''}" onclick="mtSetTagGroup(${t.id},'${v}')">${l}</button>`).join('')}</div></td>
+    <td>${mtIsService(t) ? '<span class="mt-meta">—</span>' : `<div class="svc-seg mt-seg-sm">${[['', 'ไม่ระบุ'], ['command', 'Command'], ['cron', 'Cron']].map(([v, l]) =>
+      `<button class="${(t.tag_type || '') === v ? 'on' : ''}" onclick="mtSetTagType(${t.id},'${v}')">${l}</button>`).join('')}</div>`}</td>
     <td class="r num">${(t.linked_ids || []).length}</td>
     <td class="num mt-meta">${t.created_at ? fmtDateShort(t.created_at) : '—'}${t.created_by ? '<br>' + esc(dn(t.created_by) || t.created_by) : ''}</td>
     <td class="r"><button class="mt-mini" onclick="mtResolve(${t.id})"><i class=i-check></i> Resolve</button></td>
@@ -20595,6 +20841,16 @@ async function mtSetTagType(id, v) {
   mtPatchLocal(id, { tag_type: d.tag_type });
   mtRenderManage();
   if (document.getElementById('dash-tab-monitor')?.offsetParent) mtRender();
+}
+async function mtSetTagGroup(id, v) {
+  const t = _mtTags.find(x => x.id === id);
+  if (!t || (mtIsService(t) ? 'service' : 'problem') === v) return;
+  const d = await api(`/api/monitor-tags/${id}`, { method: 'PUT', silent: true, body: { tag_group: v } });
+  if (!d || d.error) { showToast(d?.error || 'ย้ายกลุ่มไม่สำเร็จ', 'error'); return; }
+  mtPatchLocal(id, { tag_group: d.tag_group, tag_type: d.tag_type });
+  showToast(`ย้าย “${t.title}” ไปกลุ่ม${v === 'service' ? 'งาน IT Service' : 'ปัญหา'}แล้ว`);
+  mtRenderManage();
+  if (document.getElementById('dash-tab-monitor')?.offsetParent) mtLoad({ quiet: true });
 }
 async function mtRenameTag(input) {
   const id = +input.dataset.id, t = _mtTags.find(x => x.id === id);
@@ -20656,6 +20912,7 @@ async function mtLoad(opts = {}) {
   mtSetCount(_mtTags.length);
   if (!opts.quiet) mtRefreshSuggestBadge();
   Object.keys(_mtAnalysis).forEach(k => delete _mtAnalysis[k]);   // วิเคราะห์ใหม่ให้ตรงกับสถิติรอบนี้
+  _mtSvc.data = null;
   const fd = v => new Date(v + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
   document.getElementById('mt-range').innerHTML = range
     ? `เทียบในช่วง <b>${fd(range.from)} – ${fd(range.to)}</b> (ตามตัวกรองวันที่ด้านบน)`
@@ -20712,9 +20969,13 @@ function mtRenderKpis(list) {
 }
 
 function mtRender() {
-  const list = _mtTags;
-  mtRenderKpis(list);
+  mtRenderKindBar();
   Object.keys(_mtCharts).forEach(id => { _mtCharts[id].destroy(); delete _mtCharts[id]; });
+  const svc = _mtKind === 'service';
+  document.getElementById('mt-range').style.display = svc ? 'none' : '';
+  if (svc) return mtRenderService();
+  const list = _mtTags.filter(t => !mtIsService(t));
+  mtRenderKpis(list);
   mtRenderOverview(list);
   const body = document.getElementById('mt-body');
   if (!list.length) {
@@ -21339,6 +21600,7 @@ async function mtOpenDetail(id, store) {
   if (!t) return;
   document.getElementById('mt-d-title').textContent = store ? `${t.title} — ${store}` : t.title;
   document.getElementById('mt-d-store-th').style.display = mtIsGroup(t) || mtIsGlobal(t) ? '' : 'none';
+  document.getElementById('mt-d-phase-th').textContent = 'ช่วง';
   document.getElementById('mt-d-sub').textContent =
     `${mtIsGlobal(t) ? '# ' + t.title + ' · ทุก License' : `${t.customer_name} › ${mtIsGroup(t) ? 'ทุกสาขา (ระดับ License Group)' : t.store_name}`} · ${mtRuleLabel(t).replace(/<[^>]+>/g, '')} · เริ่ม Monitor ${mtFmtStart(t)}`;
   const tb = document.getElementById('mt-d-tbody');
@@ -21403,7 +21665,7 @@ async function mtMoveCase(fromId, cid, sel) {
 
 // อัปเดตตัวเลขอัตโนมัติทุก 60 วิ ขณะเปิดแท็บนี้อยู่ — เคสใหม่ที่ตรง rule จะถูกนับเพิ่มเอง
 setInterval(() => {
-  if (_dashTab !== 4 || document.hidden) return;
+  if (_dashTab !== 4 || document.hidden || _mtKind === 'service') return;
   const tab = document.getElementById('dash-tab-monitor');
   if (!tab || !tab.offsetParent) return;
   if (document.querySelector('#modal-mt-detail.open, #modal-mt-tag.open')) return;

@@ -12669,7 +12669,7 @@ async function apiShapeCases(rows) {
   const ids = rows.map(r => +r.id).join(',');
   // Monitor Tag ที่ติดอยู่ + งาน Specialist (อยู่คนละฐานข้อมูล)
   const [tagRows, spRows] = await Promise.all([
-    req().query(`SELECT c.calllog_id, t.id, t.title, t.tag_type FROM monitor_tag_cases c JOIN monitor_tags t ON t.id=c.tag_id
+    req().query(`SELECT c.calllog_id, t.id, t.title, t.tag_type, t.tag_group FROM monitor_tag_cases c JOIN monitor_tags t ON t.id=c.tag_id
                  WHERE t.status='active' AND c.calllog_id IN (${ids})`).then(x => x.recordset).catch(() => []),
     req().query(`SELECT calllog_id, id, status FROM specialist_log WHERE status <> 'cancelled' AND calllog_id IN (${ids})`).then(x => x.recordset).catch(() => []),
   ]);
@@ -12686,7 +12686,7 @@ async function apiShapeCases(rows) {
       agent: r.agent, channel: r.channel, description: r.description, solution: r.solution,
       stars: r.stars || null, issue_url: r.issue_url || null,
       specialist: (s => s ? { id: s.id, status: s.status } : null)(spRows.find(s => s.calllog_id === r.id)),
-      monitor_tags: tagRows.filter(t => t.calllog_id === r.id).map(t => ({ id: t.id, title: t.title, type: t.tag_type || null })),
+      monitor_tags: tagRows.filter(t => t.calllog_id === r.id).map(t => ({ id: t.id, title: t.title, group: t.tag_group || 'problem', type: t.tag_type || null })),
     };
   });
 }
@@ -12800,7 +12800,7 @@ function apiOpenApiSpec(server) {
           agent: { type: 'string' }, channel: { type: 'string', nullable: true }, description: { type: 'string' }, solution: { type: 'string' },
           stars: { type: 'integer', nullable: true }, issue_url: { type: 'string', nullable: true },
           specialist: { type: 'object', nullable: true, properties: { id: { type: 'integer' }, status: { type: 'string' } } },
-          monitor_tags: { type: 'array', items: { type: 'object', properties: { id: { type: 'integer' }, title: { type: 'string' }, type: { type: 'string', nullable: true } } } } } },
+          monitor_tags: { type: 'array', items: { type: 'object', properties: { id: { type: 'integer' }, title: { type: 'string' }, group: { type: 'string', enum: ['problem', 'service'] }, type: { type: 'string', nullable: true } } } } } },
       },
     },
     security: [{ ApiKey: [] }],
@@ -12912,7 +12912,8 @@ async function ensureMonitorTagTables() {
       IF COL_LENGTH('monitor_tags','keywords') IS NULL ALTER TABLE monitor_tags ADD keywords NVARCHAR(1000) NULL;
       IF COL_LENGTH('monitor_tags','any_subject') IS NULL ALTER TABLE monitor_tags ADD any_subject BIT NULL;
       IF COL_LENGTH('monitor_tags','match_mode') IS NULL ALTER TABLE monitor_tags ADD match_mode NVARCHAR(10) NULL;
-      IF COL_LENGTH('monitor_tags','tag_type') IS NULL ALTER TABLE monitor_tags ADD tag_type NVARCHAR(20) NULL;`);
+      IF COL_LENGTH('monitor_tags','tag_type') IS NULL ALTER TABLE monitor_tags ADD tag_type NVARCHAR(20) NULL;
+      IF COL_LENGTH('monitor_tags','tag_group') IS NULL ALTER TABLE monitor_tags ADD tag_group NVARCHAR(12) NULL;`);
     await req().query(`UPDATE monitor_tags SET scope='global', group_id=NULL, registration_id=NULL,
         customer_name=N'ทุก License', store_name=N'ทุก License'
       WHERE match_mode='manual' AND ISNULL(scope,'')<>'global'`);
@@ -13150,7 +13151,9 @@ app.get('/api/monitor-tags', authRequired, async (request, res) => {
     const { dateFrom, dateTo } = request.query;
     const range = dateFrom && dateTo
       ? { s: new Date(dateFrom), e: new Date(new Date(dateTo).setHours(23, 59, 59, 999)) } : null;
-    const stats = await Promise.all(tags.map(t => monitorTagStats(t, range).catch(e => ({ error: e.message }))));
+    // Tag กลุ่ม IT Service ไม่ได้ดูก่อน/หลัง — ดูที่ /service-stores แทน ไม่ต้องคำนวณ
+    const stats = await Promise.all(tags.map(t => t.tag_group === 'service' ? null
+      : monitorTagStats(t, range).catch(e => ({ error: e.message }))));
     res.json({ tags: tags.map((t, i) => ({ ...t, stats: stats[i] })), ext: true, generated_at: new Date(), monitor_start });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -13164,10 +13167,12 @@ app.get('/api/monitor-tags/:id/tickets', authRequired, async (request, res) => {
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
     tag.linked_ids = (await monitorLinkedIds([tag.id]))[tag.id] || [];
     const skew = await monitorClockSkew();
+    const days = MT_SERVICE_DAYS.includes(+request.query.days) ? +request.query.days : null;
     const r = extReq()
       .input('c',  sql.DateTime, monitorStartExt(tag, skew))
       .input('en', sql.DateTime, tag.status === 'resolved' ? monitorToExt(tag.resolved_at, skew) : null)
-      .input('bd', sql.Int, tag.baseline_days);
+      .input('bd', sql.Int, tag.baseline_days)
+      .input('days', sql.Int, days);
     const m = monitorMatch(r, tag);
     // ?store= — drill-down จากตารางร้านในหน้า Monitor Tag
     const store = String(request.query.store || '').trim();
@@ -13188,11 +13193,59 @@ app.get('/api/monitor-tags/:id/tickets', authRequired, async (request, res) => {
       LEFT JOIN CallStatus cs ON cs.StatusId = cl.StatusId
       LEFT JOIN Users      u  ON u.UserId    = cl.SupportId
       WHERE cl.Active=1 AND ${m.where}${storeCond}
-        AND cl.ReceiveDate >= DATEADD(day, -@bd, @c) AND cl.ReceiveDate <= @e
+        AND cl.ReceiveDate >= CASE WHEN @days IS NULL THEN DATEADD(day, -@bd, @c)
+                                   ELSE DATEADD(day, -@days, CAST(GETDATE() AS DATE)) END
+        AND cl.ReceiveDate <= @e
       ORDER BY cl.ReceiveDate DESC`)).recordset;
     const ls = new Set(tag.linked_ids);
     rows.forEach(x => { x.linked = ls.has(x.id); });
     res.json({ tag, rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══ Tag กลุ่ม IT Service: ร้านไหนแจ้งงานบริการอะไรเข้ามาบ้าง (ใช้เสนอขายบริการ) ══
+const MT_SERVICE_DAYS = [30, 90, 180, 365];
+// GET /api/monitor-tags/service-stores?days=90 — เคสของ Tag IT Service แยกตามร้าน × Tag
+app.get('/api/monitor-tags/service-stores', authRequired, async (request, res) => {
+  try {
+    const days = MT_SERVICE_DAYS.includes(+request.query.days) ? +request.query.days : 90;
+    const tags = (await req().query(`SELECT * FROM monitor_tags WHERE status='active' AND tag_group='service' ORDER BY title`)).recordset;
+    if (!tags.length) return res.json({ days, tags: [], stores: [] });
+    if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
+    const linked = await monitorLinkedIds(tags.map(t => t.id));
+    const per = await Promise.all(tags.map(async t => {
+      t.linked_ids = linked[t.id] || [];
+      const r = extReq().input('days', sql.Int, days);
+      const m = monitorMatch(r, t);
+      return (await r.query(`
+        SELECT cl.RegistrationId AS rid, xr.CompanyName AS company,
+               CASE WHEN xr.GroupId IS NOT NULL AND xr.GroupId <> 1 THEN xg.GroupName END AS grp,
+               COUNT(*) AS n, MAX(cl.ReceiveDate) AS last_at
+        FROM Calllog cl ${m.join}
+        LEFT JOIN CustomerRegistration xr ON xr.RegistrationId = cl.RegistrationId
+        LEFT JOIN CustomerGroup        xg ON xg.GroupId        = xr.GroupId
+        WHERE cl.Active=1 AND ${m.where} AND cl.ReceiveDate >= DATEADD(day, -@days, CAST(GETDATE() AS DATE))
+        GROUP BY cl.RegistrationId, xr.CompanyName, CASE WHEN xr.GroupId IS NOT NULL AND xr.GroupId <> 1 THEN xg.GroupName END`))
+        .recordset.map(x => ({ ...x, tag_id: t.id }));
+    }));
+    const stores = new Map();
+    for (const x of per.flat()) {
+      const k = x.rid ? 'r' + x.rid : 'c' + (x.company || '');
+      const st = stores.get(k) || { rid: x.rid || null, company: x.company || '(ไม่ระบุร้าน)', grp: x.grp || null, total: 0, last_at: null, by: {} };
+      st.total += x.n;
+      st.by[x.tag_id] = (st.by[x.tag_id] || 0) + x.n;
+      if (!st.last_at || x.last_at > st.last_at) st.last_at = x.last_at;
+      stores.set(k, st);
+    }
+    const list = [...stores.values()].sort((a, b) => b.total - a.total || a.company.localeCompare(b.company, 'th'));
+    res.json({
+      days,
+      tags: tags.map(t => {
+        const rows = list.filter(s => s.by[t.id]);
+        return { id: t.id, title: t.title, note: t.note, cases: rows.reduce((a, s) => a + s.by[t.id], 0), stores: rows.length };
+      }),
+      stores: list.slice(0, 1000)
+    });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -13256,7 +13309,7 @@ const MT_SUGGEST_BATCH = 40;
 const MT_SUGGEST_AUTO  = (process.env.MONITOR_SUGGEST_AUTO || 'on').toLowerCase() !== 'off';
 // ใช้รุ่นถูกเสมอ (แยกจาก GEMINI_MODEL ของฟีเจอร์อื่น) · Gemini ล่ม = ข้ามรอบนี้ ไม่สลับไปรุ่นแพง
 const MT_SUGGEST_MODEL = process.env.MONITOR_SUGGEST_MODEL || 'gemini-flash-lite-latest';
-const MT_SUGGEST_TIME  = /^\d{2}:\d{2}$/.test(process.env.MONITOR_SUGGEST_TIME || '') ? process.env.MONITOR_SUGGEST_TIME : '18:00';
+const MT_SUGGEST_TIME  = /^\d{2}:\d{2}$/.test(process.env.MONITOR_SUGGEST_TIME || '') ? process.env.MONITOR_SUGGEST_TIME : '00:00';
 let _mtSuggestRunning = false;
 
 async function suggestMonitorTags(day) {
@@ -13265,7 +13318,7 @@ async function suggestMonitorTags(day) {
   if (!process.env.GEMINI_API_KEY) return { error: 'ยังไม่ได้ตั้งค่า GEMINI_API_KEY' };
   _mtSuggestRunning = true;
   try {
-    const tags = (await req().query(`SELECT id, title, note, tag_type FROM monitor_tags
+    const tags = (await req().query(`SELECT id, title, note, tag_type, tag_group FROM monitor_tags
       WHERE status='active' AND match_mode='manual' ORDER BY id`)).recordset;
     if (!tags.length) return { evaluated: 0, suggested: 0, note: 'ยังไม่มี Tag ให้จับคู่' };
     const tagSet = tags.map(t => t.id).join(',');
@@ -13293,7 +13346,7 @@ async function suggestMonitorTags(day) {
     const clean = v => String(v || '').replace(/\s+/g, ' ').trim();
     const tagList = tags.map(t => {
       const ex = (linked[t.id] || []).slice(-2).map(id => exText[id]).filter(Boolean).map(clean);
-      return `[T${t.id}] ${clean(t.title)}${t.note ? ' — ' + clean(t.note).slice(0, 120) : ''}${ex.length ? '\n   ตัวอย่างเคส: ' + ex.join(' / ') : ''}`;
+      return `[T${t.id}] ${t.tag_group === 'service' ? '(งาน IT Service) ' : ''}${clean(t.title)}${t.note ? ' — ' + clean(t.note).slice(0, 120) : ''}${ex.length ? '\n   ตัวอย่างเคส: ' + ex.join(' / ') : ''}`;
     }).join('\n');
     const geminiConfig = { generationConfig: { responseMimeType: 'application/json', responseSchema: {
       type: SchemaType.ARRAY, items: { type: SchemaType.OBJECT, properties: {
@@ -13307,14 +13360,14 @@ async function suggestMonitorTags(day) {
       const batch = todo.slice(b, b + MT_SUGGEST_BATCH);
       const caseList = batch.map((c, i) =>
         `[${i}] หัวข้อ: ${clean(c.subject) || '-'} | อาการ: ${clean(c.descr)}${c.sol ? ' | วิธีแก้: ' + clean(c.sol) : ''}`).join('\n');
-      const prompt = `คุณช่วยทีม Customer Service จับคู่ "เคส" กับ "Tag ปัญหา" ที่ทีมกำลังติดตามอยู่
+      const prompt = `คุณช่วยทีม Customer Service จับคู่ "เคส" กับ "Tag" ที่ทีมกำลังติดตามอยู่ (Tag ปัญหา หรือ Tag งาน IT Service ที่ร้านขอให้ทำ)
 Tag ที่มี:
 ${tagList}
 
 เคสของวันนี้:
 ${caseList}
 
-ตอบเป็น JSON array เฉพาะเคสที่ "เป็นปัญหาเดียวกับ Tag" อย่างชัดเจน เคสที่ไม่ตรง Tag ไหนไม่ต้องใส่
+ตอบเป็น JSON array เฉพาะเคสที่ "เป็นปัญหา/งานเดียวกับ Tag" อย่างชัดเจน เคสที่ไม่ตรง Tag ไหนไม่ต้องใส่
 แต่ละ object: i (เลขเคส), tag_id (ตัวเลขหลัง T), confidence ("high" ตรงชัดเจน | "medium" น่าจะใช่ | "low" ไม่แน่ใจ), reason (เหตุผลสั้นๆ ภาษาไทย)
 ดูที่อาการเป็นหลัก ไม่ใช่แค่คำที่คล้ายกัน ถ้าไม่แน่ใจอย่าใส่`;
       let arr;
@@ -13356,7 +13409,9 @@ ${caseList}
   } finally { _mtSuggestRunning = false; }
 }
 
-// ตั้งเวลารันวันละครั้ง (MONITOR_SUGGEST_TIME, ค่าเริ่มต้น 18:00) · ปิดได้ด้วย MONITOR_SUGGEST_AUTO=off
+// ตั้งเวลารันวันละครั้ง (MONITOR_SUGGEST_TIME, ค่าเริ่มต้น 00:00) · ปิดได้ด้วย MONITOR_SUGGEST_AUTO=off
+// รันก่อน 06:00 = จัดเคสของ "เมื่อวาน" (วันที่เพิ่งจบ) + เก็บตกวันก่อนหน้าอีกวัน
+// (นาฬิกา LicenseDB ไม่ตรงกับเครื่องนี้ เคสช่วงท้ายวันอาจเข้ามาหลังรอบเที่ยงคืน — เคสที่ประเมินแล้วไม่ส่งซ้ำ จึงแทบไม่เสีย token)
 let _mtSuggestLastDay = null;
 setInterval(async () => {
   if (!MT_SUGGEST_AUTO) return;
@@ -13364,7 +13419,11 @@ setInterval(async () => {
   const today = bangkokToday();
   if (hhmm !== MT_SUGGEST_TIME || _mtSuggestLastDay === today) return;
   _mtSuggestLastDay = today;
-  try { await suggestMonitorTags(today); } catch (e) { console.error('[monitor-suggest] auto error:', e.message); }
+  const back = n => new Date(Date.parse(today + 'T00:00:00Z') - n * 86400000).toISOString().slice(0, 10);
+  const days = MT_SUGGEST_TIME < '06:00' ? [back(2), back(1)] : [today];
+  for (const d of days) {
+    try { await suggestMonitorTags(d); } catch (e) { console.error('[monitor-suggest] auto error:', e.message); }
+  }
 }, 30 * 1000);
 
 const mtDayParam = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : bangkokToday();
@@ -13374,7 +13433,7 @@ app.get('/api/monitor-tags/suggestions', authRequired, async (request, res) => {
   try {
     const day = mtDayParam(request.query.date);
     const all = (await req().input('d', sql.Date, new Date(day + 'T00:00:00Z')).query(`
-      SELECT s.id, s.calllog_id, s.tag_id, s.confidence, s.reason, s.status, s.created_at, t.title AS tag_title, t.tag_type
+      SELECT s.id, s.calllog_id, s.tag_id, s.confidence, s.reason, s.status, s.created_at, t.title AS tag_title, t.tag_type, t.tag_group
       FROM monitor_tag_suggestions s LEFT JOIN monitor_tags t ON t.id = s.tag_id
       WHERE s.case_day=@d ORDER BY s.id`)).recordset;
     const pending = all.filter(r => r.status === 'pending' && r.tag_title);
@@ -13520,18 +13579,19 @@ app.post('/api/monitor-tags', authRequired, async (request, res) => {
       .input('kws', sql.NVarChar, kwStr)
       .input('any', sql.Bit, anySub ? 1 : 0)
       .input('mm',  sql.NVarChar, manual ? 'manual' : null)
-      .input('tt',  sql.NVarChar, MONITOR_TAG_TYPES.includes(b.tag_type) ? b.tag_type : null)
+      .input('tt',  sql.NVarChar, b.tag_group !== 'service' && MONITOR_TAG_TYPES.includes(b.tag_type) ? b.tag_type : null)
+      .input('tg',  sql.NVarChar, MONITOR_TAG_GROUPS.includes(b.tag_group) ? b.tag_group : 'problem')
       .input('by',  sql.NVarChar, request.user?.username || null)
       .input('cs',  sql.NVarChar, str(b.check_script, 200000) || null)
       .input('fs',  sql.NVarChar, str(b.fix_script, 200000) || null)
       .query(`INSERT INTO monitor_tags
                 (customer_name, store_name, registration_id, scope, group_id, subject, category, title, note, baseline_days, source_ticket_id, created_by,
-                 check_script, fix_script, scripts_updated_by, scripts_updated_at, start_at, keywords, any_subject, match_mode, tag_type)
+                 check_script, fix_script, scripts_updated_by, scripts_updated_at, start_at, keywords, any_subject, match_mode, tag_type, tag_group)
               OUTPUT INSERTED.*
               VALUES (@cn, @sn, @rid, @scp, @gid, @sub, @cat, @ttl, @nt, @bd, @src, @by,
                  @cs, @fs, CASE WHEN @cs IS NULL AND @fs IS NULL THEN NULL ELSE @by END,
                  CASE WHEN @cs IS NULL AND @fs IS NULL THEN NULL ELSE GETDATE() END,
-                 TRY_CONVERT(datetime, @sta, 126), @kws, @any, @mm, @tt)`)).recordset[0];
+                 TRY_CONVERT(datetime, @sta, 126), @kws, @any, @mm, @tt, @tg)`)).recordset[0];
     res.json(row);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -13565,6 +13625,8 @@ app.put('/api/monitor-tags/:id/start', authRequired, async (request, res) => {
 
 // ประเภทของ Tag: command = แก้ด้วยคำสั่ง/Script ที่รันเอง · cron = แก้ด้วยงานตั้งเวลา (scheduled job)
 const MONITOR_TAG_TYPES = ['command', 'cron'];
+// กลุ่มของ Tag: problem = ปัญหาที่ติดตามว่าลดลงไหม · service = งาน IT Service ที่ร้านแจ้งเข้ามา (ดูโอกาสขายบริการ)
+const MONITOR_TAG_GROUPS = ['problem', 'service'];
 
 // PUT /api/monitor-tags/:id — จัดการ Tag: เปลี่ยนชื่อ / ประเภท
 app.put('/api/monitor-tags/:id', authRequired, async (request, res) => {
@@ -13590,8 +13652,13 @@ app.put('/api/monitor-tags/:id', authRequired, async (request, res) => {
       if (tt && !MONITOR_TAG_TYPES.includes(tt)) return res.status(400).json({ error: 'ประเภท Tag ไม่ถูกต้อง' });
       r.input('tt', sql.NVarChar, tt); sets.push('tag_type=@tt');
     }
+    if ('tag_group' in b) {
+      if (!MONITOR_TAG_GROUPS.includes(b.tag_group)) return res.status(400).json({ error: 'กลุ่ม Tag ไม่ถูกต้อง' });
+      r.input('tg', sql.NVarChar, b.tag_group); sets.push('tag_group=@tg');
+      if (b.tag_group === 'service' && !('tag_type' in b)) sets.push('tag_type=NULL');   // Command/Cron ใช้กับ Tag ปัญหาเท่านั้น
+    }
     if (!sets.length) return res.status(400).json({ error: 'ไม่มีอะไรให้แก้' });
-    const out = await r.query(`UPDATE monitor_tags SET ${sets.join(', ')} OUTPUT INSERTED.id, INSERTED.title, INSERTED.tag_type WHERE id=@id`);
+    const out = await r.query(`UPDATE monitor_tags SET ${sets.join(', ')} OUTPUT INSERTED.id, INSERTED.title, INSERTED.tag_type, INSERTED.tag_group WHERE id=@id`);
     res.json(out.recordset[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
