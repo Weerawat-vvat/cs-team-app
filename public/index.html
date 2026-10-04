@@ -1251,6 +1251,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
         <button class="s-sub" id="nav-sub-subjects" onclick="navSettings('subjects',this)">หัวข้อ / ประเภทปัญหา</button>
         <button class="s-sub" id="nav-sub-users" onclick="navSettings('users',this)">จัดการ User</button>
         <button class="s-sub" id="nav-sub-line" onclick="navSettings('line',this)">LINE Notifications</button>
+        <button class="s-sub" id="nav-sub-api" onclick="navSettings('api',this)">API สำหรับเชื่อมต่อ</button>
       </div>
     </div>
     <!-- hidden buttons for backward compat -->
@@ -2526,6 +2527,38 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
       <button class="svc-btn-ghost" id="mt-t-add" onclick="mtTagNext({ keep: true })" style="display:none" title="ติด Tag นี้เพิ่ม โดยไม่เอาออกจาก Tag เดิม">เพิ่มอีก Tag</button>
       <button class="svc-btn-primary" id="mt-t-next" onclick="mtTagNext()" disabled>ถัดไป ›</button>
       <button class="svc-btn-primary" id="mt-t-save" onclick="mtTagSave()" style="display:none"><i class=i-tag></i> <span id="mt-t-save-lbl">ติด Tag และเริ่ม Monitor</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- API Key: สร้าง / แสดง key ครั้งเดียว -->
+<div class="overlay" id="modal-api-key">
+  <div class="modal mt-form" style="max-width:560px;padding:1.2rem">
+    <div class="modal-head">
+      <div style="font-size:1.08rem;font-weight:600" id="api-m-title">สร้าง API Key</div>
+      <button class="modal-close" onclick="closeModal('modal-api-key')">×</button>
+    </div>
+    <div id="api-m-form">
+      <div class="row"><label>ชื่อระบบที่จะเชื่อม <span style="color:#b04a40">*</span></label><input id="api-m-name" placeholder="เช่น Power BI ฝ่ายบริหาร"/></div>
+      <div class="row"><label>หมายเหตุ</label><input id="api-m-note" placeholder="ใครเป็นผู้ดูแล / ใช้ทำอะไร"/></div>
+      <div class="row"><label>หมดอายุ</label>
+        <select id="api-m-exp"><option value="90">90 วัน</option><option value="180">180 วัน</option><option value="365" selected>1 ปี</option><option value="0">ไม่หมดอายุ</option></select></div>
+      <div class="row"><label>สิทธิ์</label><div class="mt-meta"><input type="checkbox" checked disabled style="width:auto"/> cases:read — อ่านข้อมูลติดตามเคส</div></div>
+      <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:.4rem">
+        <button class="svc-btn-ghost" onclick="closeModal('modal-api-key')">ยกเลิก</button>
+        <button class="svc-btn-primary" onclick="apiCreate()">สร้าง Key</button>
+      </div>
+    </div>
+    <div id="api-m-show" style="display:none">
+      <div style="background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:10px;padding:.55rem .75rem;font-size:.8rem;margin-bottom:.7rem">
+        คัดลอกเก็บไว้ตอนนี้ — <b>Key นี้จะแสดงครั้งเดียว</b> ระบบเก็บแค่ค่าเข้ารหัส ถ้าหายต้องสร้างใหม่ (Rotate)</div>
+      <div style="display:flex;gap:.4rem">
+        <input id="api-m-key" readonly style="font-family:Consolas,monospace!important;font-size:.82rem!important"/>
+        <button class="svc-btn-primary" onclick="apiCopy('api-m-key')"><i class=i-clipboard></i> คัดลอก</button>
+      </div>
+      <div class="mt-meta" style="margin:.8rem 0 .3rem">ตัวอย่างการเรียกใช้</div>
+      <pre id="api-m-curl" class="mt-code" style="white-space:pre-wrap;margin:0;padding:.6rem .7rem"></pre>
+      <div style="display:flex;justify-content:flex-end;margin-top:.8rem"><button class="svc-btn-ghost" onclick="closeModal('modal-api-key')">ปิด</button></div>
     </div>
   </div>
 </div>
@@ -4162,6 +4195,31 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
 <div id="page-settings" class="page">
   <div class="section-header" style="margin-bottom:.75rem">
     <div class="section-title" id="settings-page-title">หัวข้อ / ประเภทปัญหา</div>
+  </div>
+
+  <!-- API สำหรับเชื่อมต่อ (External API v1) -->
+  <div id="stab-content-api" style="display:none">
+    <div class="card" style="padding:1rem 1.15rem">
+      <div style="display:flex;align-items:flex-start;gap:1rem;flex-wrap:wrap">
+        <div style="flex:1;min-width:260px">
+          <div style="font-weight:600;font-size:.95rem;margin-bottom:.3rem">API ข้อมูลติดตามเคส (อ่านอย่างเดียว)</div>
+          <div class="mt-meta" style="font-size:.8rem;line-height:1.6">ให้ระบบอื่น (Power BI, Excel, ระบบภายใน) ดึงข้อมูลเคสได้ด้วย API Key ของแต่ละระบบ ·
+            ส่ง key ใน header <code>X-API-Key</code> · จำกัด <b id="api-rate">60</b> ครั้ง/นาที ต่อ key · ช่วงวันที่ไม่เกิน 31 วันต่อครั้ง ·
+            ไม่ส่งชื่อ/เบอร์ผู้ติดต่อหรือข้อมูลรีโมทออกไป</div>
+          <div style="margin-top:.5rem;font-size:.8rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+            <code id="api-base" style="background:#faf9f6;border:1px solid var(--border);border-radius:6px;padding:.15rem .45rem"></code>
+            <a class="svc-btn-ghost" style="height:30px;text-decoration:none" href="/api/v1/docs" target="_blank"><i class=i-book></i> เอกสาร API (Swagger)</a>
+          </div>
+        </div>
+        <button class="svc-btn-primary" onclick="apiOpenCreate()"><span style="font-size:1.05rem;line-height:1;font-weight:400">+</span> สร้าง API Key</button>
+      </div>
+    </div>
+    <div class="mt-tbl-wrap">
+      <table class="mt-tbl">
+        <thead><tr><th>ระบบที่เชื่อม</th><th>Key</th><th>สิทธิ์</th><th>หมดอายุ</th><th>ใช้ล่าสุด</th><th class="r">7 วัน</th><th>สถานะ</th><th></th></tr></thead>
+        <tbody id="api-tbody"><tr><td colspan="8" class="mt-meta" style="text-align:center;padding:1.2rem">กำลังโหลด...</td></tr></tbody>
+      </table>
+    </div>
   </div>
 
   <!-- Schedule tab (embed page-schedule content via iframe-like show/hide) -->
@@ -11571,6 +11629,8 @@ function applyUserContext() {
   if (usersSub) usersSub.style.display = isManager ? '' : 'none';
   const subjectsSub = document.getElementById('nav-sub-subjects');
   if (subjectsSub) subjectsSub.style.display = isManager ? '' : 'none';
+  const apiSub = document.getElementById('nav-sub-api');   // API Key เปิดข้อมูลเคสทั้งระบบ — manager/admin เท่านั้น
+  if (apiSub) apiSub.style.display = ['manager', 'admin'].includes(role) ? '' : 'none';
   // ร้องเรียน — staff เห็นได้
   document.getElementById('nav-btn-complaints').style.display = '';
   const newsCreateBtn = document.getElementById('news-create-btn');
@@ -13051,6 +13111,23 @@ function toggleSettingsMenu(btn) {
 }
 
 function navSettings(sub, btn) {
+  const apiEl = document.getElementById('stab-content-api');
+  if (apiEl) apiEl.style.display = 'none';
+  if (sub === 'api') {
+    document.querySelectorAll('.s-tab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.s-sub').forEach(b => b.classList.remove('active'));
+    document.getElementById('nav-btn-settings').classList.add('active');
+    btn?.classList.add('active');
+    document.getElementById('settings-sub').classList.add('open');
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-settings').classList.add('active');
+    const title = document.getElementById('settings-page-title');
+    if (title) title.textContent = 'API สำหรับเชื่อมต่อ';
+    document.querySelectorAll('#page-settings > [id^="stab-content-"]').forEach(el => { el.style.display = 'none'; });
+    apiEl.style.display = '';
+    loadApiClients();
+    return;
+  }
   // Highlight parent
   document.querySelectorAll('.s-tab').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.s-sub').forEach(b => b.classList.remove('active'));
@@ -13104,6 +13181,79 @@ function navSettings(sub, btn) {
     _settingTab = sub;
     loadSettings();
   }
+}
+
+// ── API Keys (External API v1) ────────────────────────────
+async function loadApiClients() {
+  document.getElementById('api-base').textContent = location.origin + '/api/v1/cases';
+  const tb = document.getElementById('api-tbody');
+  const d = await api('/api/api-clients', { silent: true });
+  if (!d || d.error) { tb.innerHTML = `<tr><td colspan="8" class="mt-meta" style="text-align:center;padding:1.2rem">${esc(d?.error || 'โหลดไม่สำเร็จ')} (ถ้าเพิ่งอัปเดตโค้ด ให้รีสตาร์ท server ก่อน)</td></tr>`; return; }
+  document.getElementById('api-rate').textContent = d.rate_per_min;
+  if (!d.clients.length) { tb.innerHTML = '<tr><td colspan="8" class="mt-meta" style="text-align:center;padding:1.4rem">ยังไม่มี API Key — กด <b>สร้าง API Key</b> ให้ระบบที่จะเชื่อม</td></tr>'; return; }
+  const expired = c => c.expires_at && parseDbDate(c.expires_at) < new Date();
+  tb.innerHTML = d.clients.map(c => `<tr style="${c.active ? '' : 'opacity:.55'}">
+    <td><b>${esc(c.name)}</b>${c.note ? `<span class="sub">${esc(c.note)}</span>` : ''}<span class="sub">สร้างโดย ${esc(dn(c.created_by) || c.created_by || '—')} · ${fmtDateShort(c.created_at)}</span></td>
+    <td><code style="font-size:.76rem">${esc(c.key_prefix)}…</code></td>
+    <td class="mt-meta">${esc(c.scopes)}</td>
+    <td class="num">${c.expires_at ? `<span style="${expired(c) ? 'color:#b04a40;font-weight:600' : ''}">${fmtDateShort(c.expires_at)}${expired(c) ? ' (หมดแล้ว)' : ''}</span>` : '<span class="mt-meta">ไม่หมดอายุ</span>'}</td>
+    <td class="num">${c.last_used_at ? fmtDT(c.last_used_at) : '<span class="mt-meta">ยังไม่เคยใช้</span>'}</td>
+    <td class="r num">${c.req_7d}${c.err_7d ? `<span class="sub" style="color:#b04a40">error ${c.err_7d}</span>` : ''}</td>
+    <td>${c.active ? '<span class="mt-pill mt-down">ใช้งาน</span>' : '<span class="mt-pill mt-flat">ยกเลิกแล้ว</span>'}</td>
+    <td class="r" style="white-space:nowrap">
+      <button class="mt-mini" onclick="apiRotate(${c.id})" title="ออก key ใหม่ — key เดิมใช้ไม่ได้ทันที"><i class=i-refresh></i> Rotate</button>
+      <button class="mt-mini" onclick="apiToggle(${c.id}, ${c.active ? 0 : 1})">${c.active ? '<i class=i-trash></i> ยกเลิก' : '<i class=i-check></i> เปิดใช้'}</button>
+    </td></tr>`).join('');
+}
+function apiOpenCreate() {
+  document.getElementById('api-m-title').textContent = 'สร้าง API Key';
+  document.getElementById('api-m-form').style.display = '';
+  document.getElementById('api-m-show').style.display = 'none';
+  document.getElementById('api-m-name').value = ''; document.getElementById('api-m-note').value = '';
+  openModal('modal-api-key');
+  setTimeout(() => document.getElementById('api-m-name').focus(), 50);
+}
+function apiShowKey(title, key) {
+  document.getElementById('api-m-title').textContent = title;
+  document.getElementById('api-m-form').style.display = 'none';
+  document.getElementById('api-m-show').style.display = '';
+  document.getElementById('api-m-key').value = key;
+  const today = new Date().toLocaleDateString('en-CA');
+  const u = `${location.origin}/api/v1/cases`;
+  document.getElementById('api-m-curl').textContent = [
+    `curl -H "X-API-Key: ${key}" \\`,
+    `  "${u}?from=${today}&to=${today}&limit=100"`,
+    '',
+    '# สรุปตัวเลขของวัน',
+    `curl -H "X-API-Key: ${key}" "${u}/summary?from=${today}&to=${today}"`].join('\n');
+  openModal('modal-api-key');
+}
+async function apiCreate() {
+  const name = document.getElementById('api-m-name').value.trim();
+  if (!name) { showToast('กรุณาตั้งชื่อระบบที่จะเชื่อม', 'error'); return; }
+  const d = await api('/api/api-clients', { method: 'POST', silent: true, body: {
+    name, note: document.getElementById('api-m-note').value, expires_days: +document.getElementById('api-m-exp').value, scopes: ['cases:read'] } });
+  if (!d || d.error) { showToast(d?.error || 'สร้างไม่สำเร็จ', 'error'); return; }
+  apiShowKey(`API Key ของ “${d.name}”`, d.api_key);
+  loadApiClients();
+}
+async function apiRotate(id) {
+  if (!confirm('ออก API Key ใหม่? key เดิมจะใช้ไม่ได้ทันที — ต้องนำ key ใหม่ไปใส่ในระบบที่เชื่อมอยู่')) return;
+  const d = await api(`/api/api-clients/${id}/rotate`, { method: 'POST', silent: true });
+  if (!d || d.error) { showToast(d?.error || 'ไม่สำเร็จ', 'error'); return; }
+  apiShowKey('API Key ใหม่', d.api_key);
+  loadApiClients();
+}
+async function apiToggle(id, active) {
+  if (!active && !confirm('ยกเลิก API Key นี้? ระบบที่ใช้ key นี้จะดึงข้อมูลไม่ได้ทันที')) return;
+  const d = await api(`/api/api-clients/${id}`, { method: 'PUT', silent: true, body: { active: !!active } });
+  if (!d || d.error) { showToast(d?.error || 'ไม่สำเร็จ', 'error'); return; }
+  loadApiClients();
+}
+async function apiCopy(id) {
+  const el = document.getElementById(id);
+  try { await navigator.clipboard.writeText(el.value); } catch { el.select(); document.execCommand('copy'); }
+  showToast('คัดลอกแล้ว');
 }
 
 function switchSettingTab(tab, btn) {

@@ -12505,6 +12505,379 @@ app.get('/api/dashboard/issues', authRequired, async (request, res) => {
 //  Rule ของ tag = Calllog ที่ RegistrationId (สาขา) + Subject ตรงกัน
 //  เทียบค่าเฉลี่ยต่อวัน: baseline (N วันก่อนตั้ง) กับช่วงหลังตั้งจนถึงวันนี้/วันปิด tag
 // ══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+//  EXTERNAL API v1 — ให้ระบบอื่นดึงข้อมูล "ติดตามเคส" (อ่านอย่างเดียว)
+//  ยืนยันตัวตนด้วย API Key (X-API-Key) แยกตามระบบที่เชื่อม · มี scope · จำกัดจำนวนครั้ง · เก็บ log
+//  เอกสาร: GET /api/v1/docs  (OpenAPI: /api/v1/openapi.json)
+// ══════════════════════════════════════════════════════════
+const API_SCOPES        = ['cases:read'];
+const API_RATE_PER_MIN  = Math.max(1, parseInt(process.env.API_RATE_PER_MIN) || 60);
+const API_MAX_RANGE_DAY = 31;     // ช่วงวันที่ต่อครั้งไม่เกิน — กัน query หนักไปถึง LicenseDB
+const API_MAX_LIMIT     = 500;
+const API_LOG_KEEP_DAYS = 90;
+
+async function ensureApiTables() {
+  try {
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='api_clients' AND xtype='U')
+      CREATE TABLE api_clients (
+        id            INT PRIMARY KEY IDENTITY,
+        name          NVARCHAR(120) NOT NULL,
+        key_prefix    NVARCHAR(16)  NOT NULL,     -- แสดงให้รู้ว่า key ไหน (ไม่ใช่ key จริง)
+        key_hash      CHAR(64)      NOT NULL,     -- sha256 ของ key — ไม่เก็บ key จริง
+        scopes        NVARCHAR(200) NOT NULL,
+        note          NVARCHAR(400) NULL,
+        active        BIT           NOT NULL DEFAULT 1,
+        expires_at    DATETIME      NULL,
+        created_by    NVARCHAR(100) NULL,
+        created_at    DATETIME      DEFAULT GETDATE(),
+        last_used_at  DATETIME      NULL,
+        request_count INT           NOT NULL DEFAULT 0
+      )`);
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='api_request_log' AND xtype='U')
+      CREATE TABLE api_request_log (
+        id         BIGINT PRIMARY KEY IDENTITY,
+        client_id  INT           NULL,
+        method     NVARCHAR(8)   NULL,
+        path       NVARCHAR(300) NULL,
+        status     INT           NULL,
+        rows_out   INT           NULL,
+        ms         INT           NULL,
+        ip         NVARCHAR(64)  NULL,
+        created_at DATETIME      DEFAULT GETDATE()
+      )`);
+  } catch (e) { console.error('[api] ensure tables:', e.message); }
+}
+
+const apiHash = key => crypto.createHash('sha256').update(String(key)).digest('hex');
+const apiNewKey = () => 'cst_' + crypto.randomBytes(24).toString('base64url');   // แสดงครั้งเดียวตอนสร้าง
+
+// error รูปแบบเดียวกันทุก endpoint
+const apiErr = (res, status, code, message) => res.status(status).json({ error: { code, message } });
+
+// เวลาใน LicenseDB เป็นเวลาไทย (mssql อ่านเป็นค่า UTC) → ส่งออกเป็น ISO พร้อม +07:00 ให้ชัดเจน
+const apiIso = d => d ? new Date(d).toISOString().replace('Z', '+07:00').replace('.000', '') : null;
+
+const _apiKeyCache = new Map();   // hash → { at, client } (60 วิ — ไม่ต้องอ่าน DB ทุก request)
+const _apiRate = new Map();       // client id → timestamps ใน 1 นาทีล่าสุด
+
+function apiKeyRequired(scope) {
+  return async (request, res, next) => {
+    const t0 = Date.now();
+    const auth = request.headers['authorization'] || '';
+    const key = request.headers['x-api-key'] || (auth.startsWith('Bearer cst_') ? auth.slice(7) : '');
+    if (!key) return apiErr(res, 401, 'missing_api_key', 'ต้องส่ง API Key ใน header X-API-Key');
+    const h = apiHash(key);
+    let c = _apiKeyCache.get(h);
+    if (!c || Date.now() - c.at > 60000) {
+      try {
+        const row = (await req().input('h', sql.Char(64), h).query(
+          'SELECT id, name, scopes, active, expires_at FROM api_clients WHERE key_hash=@h')).recordset[0] || null;
+        c = { at: Date.now(), client: row };
+        _apiKeyCache.set(h, c);
+      } catch (e) { return apiErr(res, 500, 'server_error', 'ตรวจ API Key ไม่สำเร็จ'); }
+    }
+    const client = c.client;
+    if (!client || !client.active) return apiErr(res, 401, 'invalid_api_key', 'API Key ไม่ถูกต้องหรือถูกยกเลิกแล้ว');
+    if (client.expires_at && new Date(client.expires_at) < new Date()) return apiErr(res, 401, 'expired_api_key', 'API Key หมดอายุแล้ว');
+    if (scope && !String(client.scopes || '').split(',').includes(scope)) return apiErr(res, 403, 'insufficient_scope', `API Key นี้ไม่มีสิทธิ์ ${scope}`);
+
+    // จำกัดจำนวนครั้งต่อ key (หน้าต่าง 1 นาที)
+    const now = Date.now(), win = (_apiRate.get(client.id) || []).filter(t => now - t < 60000);
+    if (win.length >= API_RATE_PER_MIN) {
+      res.set('Retry-After', String(Math.ceil((60000 - (now - win[0])) / 1000)));
+      return apiErr(res, 429, 'rate_limited', `เรียกได้ไม่เกิน ${API_RATE_PER_MIN} ครั้งต่อนาที`);
+    }
+    win.push(now); _apiRate.set(client.id, win);
+    res.set('X-RateLimit-Limit', String(API_RATE_PER_MIN));
+    res.set('X-RateLimit-Remaining', String(API_RATE_PER_MIN - win.length));
+
+    request.apiClient = client;
+    res.on('finish', () => {   // log การเรียกใช้ (ไม่รอ — ไม่ทำให้ response ช้า)
+      req().input('cid', sql.Int, client.id).input('m', sql.NVarChar, request.method)
+        .input('p', sql.NVarChar, request.originalUrl.slice(0, 300)).input('st', sql.Int, res.statusCode)
+        .input('rw', sql.Int, res.locals.apiRows ?? null).input('ms', sql.Int, Date.now() - t0)
+        .input('ip', sql.NVarChar, String(request.ip || '').slice(0, 64))
+        .query(`INSERT INTO api_request_log (client_id, method, path, status, rows_out, ms, ip) VALUES (@cid,@m,@p,@st,@rw,@ms,@ip);
+                UPDATE api_clients SET last_used_at=GETDATE(), request_count=request_count+1 WHERE id=@cid`)
+        .catch(e => console.error('[api] log:', e.message));
+    });
+    next();
+  };
+}
+
+// ล้าง log เก่ากว่า 90 วัน (เช็คทุก 6 ชม.)
+setInterval(() => {
+  req().input('d', sql.Int, API_LOG_KEEP_DAYS)
+    .query('DELETE FROM api_request_log WHERE created_at < DATEADD(day, -@d, GETDATE())')
+    .catch(() => {});
+}, 6 * 3600 * 1000);
+
+// ── ตัวกรองแบบเดียวกับหน้า "ติดตามเคส" ─────────────────────
+const API_DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+async function apiCaseFilter(q, r) {
+  const today = bangkokToday();
+  const from = API_DAY_RE.test(q.from || '') ? q.from : today;
+  const to   = API_DAY_RE.test(q.to || '') ? q.to : (API_DAY_RE.test(q.from || '') ? q.from : today);
+  if (to < from) return { error: ['invalid_range', '`to` ต้องไม่ก่อน `from`'] };
+  const days = (Date.parse(to) - Date.parse(from)) / 86400000 + 1;
+  if (days > API_MAX_RANGE_DAY) return { error: ['range_too_large', `ช่วงวันที่ต้องไม่เกิน ${API_MAX_RANGE_DAY} วันต่อครั้ง`] };
+  const where = ['cl.Active=1', 'cl.ReceiveDate >= CAST(@from AS DATE)', 'cl.ReceiveDate < DATEADD(day, 1, CAST(@to AS DATE))'];
+  r.input('from', sql.NVarChar, from).input('to', sql.NVarChar, to);
+  const add = (cond, name, val) => { where.push(cond); r.input(name, sql.NVarChar, String(val).slice(0, 200)); };
+  if (q.status)        add('cs.StatusName=@st', 'st', q.status);
+  if (q.problem_type)  add('pt.ProblemTypeDetail=@pt', 'pt', q.problem_type);
+  if (q.subject)       add('cl.Subject=@subj', 'subj', q.subject);
+  if (q.agent)         add('u.UserName=@agent', 'agent', q.agent);
+  if (q.channel)       add("LOWER(LTRIM(RTRIM(ISNULL(cl.InformType,''))))=LOWER(@ch)", 'ch', q.channel);
+  if (q.q)             add('(cl.Subject LIKE @kw OR cr.CompanyName LIKE @kw OR CAST(cl.CalllogDesc AS NVARCHAR(MAX)) LIKE @kw)', 'kw', `%${q.q}%`);
+  if (q.state === 'open')   where.push("ISNULL(cs.StatusName,'') NOT LIKE '%close%'");
+  if (q.state === 'closed') where.push("cs.StatusName LIKE '%close%'");
+  if (q.team) {   // ทีม → username ของคนในทีม (เหมือนตัวกรองทีมในหน้าติดตามเคส)
+    const users = (await req().input('tm', sql.NVarChar, String(q.team)).query(
+      `SELECT DISTINCT au.ext_username FROM app_users au JOIN employees e ON e.id=au.employee_id
+       WHERE e.team=@tm AND au.active=1 AND e.active=1 AND au.ext_username IS NOT NULL`)).recordset.map(x => x.ext_username);
+    if (!users.length) where.push('1=0');
+    else { users.forEach((u, i) => r.input('tu' + i, sql.NVarChar, u)); where.push(`u.UserName IN (${users.map((_, i) => '@tu' + i).join(',')})`); }
+  }
+  return { where: where.join(' AND '), from, to };
+}
+
+const API_CASE_FROM = `
+  FROM Calllog cl
+  LEFT JOIN CustomerRegistration cr ON cr.RegistrationId = cl.RegistrationId
+  LEFT JOIN CustomerGroup cg ON cg.GroupId = cr.GroupId
+  LEFT JOIN CallStatus  cs ON cs.StatusId      = cl.StatusId
+  LEFT JOIN Users       u  ON u.UserId         = cl.SupportId
+  LEFT JOIN ProblemType pt ON pt.ProblemTypeId = cl.ProblemTypeId
+  LEFT JOIN Subject     sb ON sb.SubjectName   = cl.Subject AND sb.Active = 1`;
+// เฉพาะฟิลด์ที่อนุญาต — ไม่มีชื่อ/เบอร์ผู้ติดต่อ, LINE ID หรือข้อมูลรีโมท
+const API_CASE_SELECT = `
+  cl.CalllogId AS id, cl.ReceiveDate AS opened_at, cl.CloseDate AS closed_at,
+  CASE WHEN cl.CloseDate IS NOT NULL THEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate) END AS resolve_minutes,
+  sb.TimeToResolve AS target_minutes, cs.StatusName AS status,
+  cl.Subject AS subject, pt.Note AS problem_type, pt.ProblemTypeDetail AS problem_type_detail,
+  cl.RegistrationId AS registration_id, cr.CompanyName AS company,
+  CASE WHEN cr.GroupId IS NOT NULL AND cr.GroupId <> 1 THEN cg.GroupName END AS license_group,
+  u.UserName AS agent, NULLIF(LTRIM(RTRIM(ISNULL(cl.InformType,''))), '') AS channel,
+  CAST(cl.CalllogDesc AS NVARCHAR(MAX)) AS description, CAST(cl.Solution AS NVARCHAR(MAX)) AS solution,
+  cl.Stars AS stars, cl.IssueURL AS issue_url`;
+
+async function apiShapeCases(rows) {
+  if (!rows.length) return [];
+  const ids = rows.map(r => +r.id).join(',');
+  // Monitor Tag ที่ติดอยู่ + งาน Specialist (อยู่คนละฐานข้อมูล)
+  const [tagRows, spRows] = await Promise.all([
+    req().query(`SELECT c.calllog_id, t.id, t.title, t.tag_type FROM monitor_tag_cases c JOIN monitor_tags t ON t.id=c.tag_id
+                 WHERE t.status='active' AND c.calllog_id IN (${ids})`).then(x => x.recordset).catch(() => []),
+    req().query(`SELECT calllog_id, id, status FROM specialist_log WHERE status <> 'cancelled' AND calllog_id IN (${ids})`).then(x => x.recordset).catch(() => []),
+  ]);
+  return rows.map(r => {
+    const closed = /close/i.test(r.status || '');
+    return {
+      id: r.id, opened_at: apiIso(r.opened_at), closed_at: apiIso(r.closed_at),
+      status: r.status, is_closed: closed,
+      overdue: !closed && r.opened_at && (Date.now() + 7 * 3600000 - new Date(r.opened_at).getTime()) > 86400000,
+      resolve_minutes: r.resolve_minutes, target_minutes: r.target_minutes,
+      over_target: r.resolve_minutes != null && r.target_minutes != null ? r.resolve_minutes > r.target_minutes : null,
+      subject: r.subject, problem_type: r.problem_type, problem_type_detail: r.problem_type_detail,
+      customer: { registration_id: r.registration_id, company: r.company, license_group: r.license_group },
+      agent: r.agent, channel: r.channel, description: r.description, solution: r.solution,
+      stars: r.stars || null, issue_url: r.issue_url || null,
+      specialist: (s => s ? { id: s.id, status: s.status } : null)(spRows.find(s => s.calllog_id === r.id)),
+      monitor_tags: tagRows.filter(t => t.calllog_id === r.id).map(t => ({ id: t.id, title: t.title, type: t.tag_type || null })),
+    };
+  });
+}
+
+// GET /api/v1/health — เช็คว่า API ทำงาน (ไม่ต้องใช้ key)
+app.get('/api/v1/health', (request, res) => res.json({ status: 'ok', version: 'v1', time: apiIso(new Date(Date.now() + 7 * 3600000)) }));
+
+// GET /api/v1/cases — รายการเคส (ข้อมูลเดียวกับหน้า ติดตามเคส)
+app.get('/api/v1/cases', apiKeyRequired('cases:read'), async (request, res) => {
+  try {
+    if (!getExtPool()) return apiErr(res, 503, 'source_unavailable', 'เชื่อมต่อฐานข้อมูลเคสไม่ได้');
+    const r = extReq();
+    const f = await apiCaseFilter(request.query, r);
+    if (f.error) return apiErr(res, 400, ...f.error);
+    const limit = Math.min(API_MAX_LIMIT, Math.max(1, parseInt(request.query.limit) || 100));
+    const page = Math.max(1, parseInt(request.query.page) || 1);
+    r.input('off', sql.Int, (page - 1) * limit).input('lim', sql.Int, limit);
+    const rows = (await r.query(`SELECT ${API_CASE_SELECT}, COUNT(*) OVER() AS _total ${API_CASE_FROM}
+      WHERE ${f.where} ORDER BY cl.ReceiveDate DESC, cl.CalllogId DESC
+      OFFSET @off ROWS FETCH NEXT @lim ROWS ONLY`)).recordset;
+    const total = rows[0]?._total ?? 0;
+    res.locals.apiRows = rows.length;
+    res.json({
+      data: await apiShapeCases(rows),
+      page: { page, limit, total, has_more: page * limit < total },
+      meta: { from: f.from, to: f.to, generated_at: apiIso(new Date(Date.now() + 7 * 3600000)) },
+    });
+  } catch (e) { console.error('[api] cases:', e.message); apiErr(res, 500, 'server_error', 'ดึงข้อมูลไม่สำเร็จ'); }
+});
+
+// GET /api/v1/cases/summary — ตัวเลขสรุปของช่วงวันที่ (ตัวกรองเดียวกับ /cases)
+app.get('/api/v1/cases/summary', apiKeyRequired('cases:read'), async (request, res) => {
+  try {
+    if (!getExtPool()) return apiErr(res, 503, 'source_unavailable', 'เชื่อมต่อฐานข้อมูลเคสไม่ได้');
+    const r = extReq();
+    const f = await apiCaseFilter(request.query, r);
+    if (f.error) return apiErr(res, 400, ...f.error);
+    const sets = (await r.query(`
+      SELECT COUNT(*) AS total,
+             SUM(CASE WHEN cs.StatusName LIKE '%close%' THEN 1 ELSE 0 END) AS closed,
+             SUM(CASE WHEN ISNULL(cs.StatusName,'') NOT LIKE '%close%' AND DATEDIFF(hour, cl.ReceiveDate, GETDATE()) > 24 THEN 1 ELSE 0 END) AS overdue,
+             AVG(CASE WHEN cl.CloseDate IS NOT NULL THEN CAST(DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate) AS FLOAT) END) AS avg_resolve_minutes
+      ${API_CASE_FROM} WHERE ${f.where};
+      SELECT ISNULL(cs.StatusName,'(ไม่ระบุ)') AS name, COUNT(*) AS cnt ${API_CASE_FROM} WHERE ${f.where} GROUP BY cs.StatusName ORDER BY cnt DESC;
+      SELECT ISNULL(NULLIF(LTRIM(RTRIM(ISNULL(cl.InformType,''))),''),'(ไม่ระบุ)') AS name, COUNT(*) AS cnt ${API_CASE_FROM} WHERE ${f.where}
+        GROUP BY ISNULL(NULLIF(LTRIM(RTRIM(ISNULL(cl.InformType,''))),''),'(ไม่ระบุ)') ORDER BY cnt DESC;
+      SELECT TOP 20 ISNULL(cl.Subject,'(ไม่ระบุ)') AS name, COUNT(*) AS cnt ${API_CASE_FROM} WHERE ${f.where} GROUP BY cl.Subject ORDER BY cnt DESC;
+      SELECT ISNULL(u.UserName,'(ไม่ระบุ)') AS name, COUNT(*) AS cnt ${API_CASE_FROM} WHERE ${f.where} GROUP BY u.UserName ORDER BY cnt DESC;`)).recordsets;
+    const t = sets[0][0] || {};
+    const kv = rows => rows.map(x => ({ name: x.name, count: x.cnt }));
+    res.json({ data: {
+      total: t.total || 0, open: (t.total || 0) - (t.closed || 0), closed: t.closed || 0, overdue: t.overdue || 0,
+      avg_resolve_minutes: t.avg_resolve_minutes != null ? Math.round(t.avg_resolve_minutes) : null,
+      by_status: kv(sets[1]), by_channel: kv(sets[2]), top_subjects: kv(sets[3]), by_agent: kv(sets[4]),
+    }, meta: { from: f.from, to: f.to, generated_at: apiIso(new Date(Date.now() + 7 * 3600000)) } });
+  } catch (e) { console.error('[api] summary:', e.message); apiErr(res, 500, 'server_error', 'ดึงข้อมูลไม่สำเร็จ'); }
+});
+
+// GET /api/v1/cases/{id} — เคสเดียว
+app.get('/api/v1/cases/:id', apiKeyRequired('cases:read'), async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    if (!Number.isInteger(id) || id <= 0) return apiErr(res, 400, 'invalid_id', 'id ต้องเป็นตัวเลข');
+    if (!getExtPool()) return apiErr(res, 503, 'source_unavailable', 'เชื่อมต่อฐานข้อมูลเคสไม่ได้');
+    const rows = (await extReq().input('id', sql.Int, id).query(
+      `SELECT ${API_CASE_SELECT} ${API_CASE_FROM} WHERE cl.Active=1 AND cl.CalllogId=@id`)).recordset;
+    if (!rows.length) return apiErr(res, 404, 'not_found', 'ไม่พบเคสนี้');
+    res.locals.apiRows = 1;
+    res.json({ data: (await apiShapeCases(rows))[0] });
+  } catch (e) { console.error('[api] case:', e.message); apiErr(res, 500, 'server_error', 'ดึงข้อมูลไม่สำเร็จ'); }
+});
+
+// ── เอกสาร OpenAPI + Swagger UI ───────────────────────────
+app.get('/api/v1/openapi.json', (request, res) => res.json(apiOpenApiSpec(`${request.protocol}://${request.get('host')}`)));
+app.get('/api/v1/docs', (request, res) => res.type('html').send(`<!doctype html><html lang="th"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>CS Team API v1</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css"></head>
+<body><div id="ui"></div><script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+<script>SwaggerUIBundle({ url: '/api/v1/openapi.json', dom_id: '#ui', persistAuthorization: true });</script></body></html>`));
+
+function apiOpenApiSpec(server) {
+  const day = { type: 'string', format: 'date', example: bangkokToday() };
+  const filters = [
+    { name: 'from', in: 'query', schema: day, description: 'วันที่เริ่ม (YYYY-MM-DD) ค่าเริ่มต้นวันนี้' },
+    { name: 'to', in: 'query', schema: day, description: `วันที่สิ้นสุด ช่วงไม่เกิน ${API_MAX_RANGE_DAY} วัน` },
+    { name: 'state', in: 'query', schema: { type: 'string', enum: ['open', 'closed'] }, description: 'เปิดอยู่ / ปิดแล้ว' },
+    { name: 'status', in: 'query', schema: { type: 'string' }, description: 'ชื่อสถานะตรงตัว เช่น Closed' },
+    { name: 'team', in: 'query', schema: { type: 'string' }, description: 'ชื่อทีม' },
+    { name: 'agent', in: 'query', schema: { type: 'string' }, description: 'username ผู้รับเรื่อง' },
+    { name: 'problem_type', in: 'query', schema: { type: 'string' } },
+    { name: 'subject', in: 'query', schema: { type: 'string' } },
+    { name: 'channel', in: 'query', schema: { type: 'string' }, description: 'ช่องทางที่แจ้ง เช่น line, phone' },
+    { name: 'q', in: 'query', schema: { type: 'string' }, description: 'ค้นหาในหัวข้อ / ร้าน / รายละเอียด' },
+  ];
+  const err = { description: 'error', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } };
+  return {
+    openapi: '3.0.3',
+    info: { title: 'CS Team API', version: 'v1', description:
+      `ดึงข้อมูล "ติดตามเคส" แบบอ่านอย่างเดียว\n\n- ส่ง API Key ใน header \`X-API-Key\` (ขอ key จากผู้ดูแลระบบ)\n- จำกัด ${API_RATE_PER_MIN} ครั้ง/นาที ต่อ key (เกินจะได้ 429)\n- เวลาเป็นเวลาไทย (+07:00)` },
+    servers: [{ url: server }],
+    components: {
+      securitySchemes: { ApiKey: { type: 'apiKey', in: 'header', name: 'X-API-Key' } },
+      schemas: {
+        Error: { type: 'object', properties: { error: { type: 'object', properties: { code: { type: 'string' }, message: { type: 'string' } } } } },
+        Case: { type: 'object', properties: {
+          id: { type: 'integer' }, opened_at: { type: 'string' }, closed_at: { type: 'string', nullable: true },
+          status: { type: 'string' }, is_closed: { type: 'boolean' }, overdue: { type: 'boolean' },
+          resolve_minutes: { type: 'integer', nullable: true }, target_minutes: { type: 'integer', nullable: true }, over_target: { type: 'boolean', nullable: true },
+          subject: { type: 'string' }, problem_type: { type: 'string' }, problem_type_detail: { type: 'string' },
+          customer: { type: 'object', properties: { registration_id: { type: 'integer' }, company: { type: 'string' }, license_group: { type: 'string', nullable: true } } },
+          agent: { type: 'string' }, channel: { type: 'string', nullable: true }, description: { type: 'string' }, solution: { type: 'string' },
+          stars: { type: 'integer', nullable: true }, issue_url: { type: 'string', nullable: true },
+          specialist: { type: 'object', nullable: true, properties: { id: { type: 'integer' }, status: { type: 'string' } } },
+          monitor_tags: { type: 'array', items: { type: 'object', properties: { id: { type: 'integer' }, title: { type: 'string' }, type: { type: 'string', nullable: true } } } } } },
+      },
+    },
+    security: [{ ApiKey: [] }],
+    paths: {
+      '/api/v1/health': { get: { summary: 'เช็คสถานะ API', security: [], responses: { 200: { description: 'ok' } } } },
+      '/api/v1/cases': { get: { summary: 'รายการเคส (scope: cases:read)', parameters: [...filters,
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 100, maximum: API_MAX_LIMIT } },
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } }],
+        responses: { 200: { description: 'ok', content: { 'application/json': { schema: { type: 'object', properties: {
+          data: { type: 'array', items: { $ref: '#/components/schemas/Case' } },
+          page: { type: 'object', properties: { page: { type: 'integer' }, limit: { type: 'integer' }, total: { type: 'integer' }, has_more: { type: 'boolean' } } },
+          meta: { type: 'object' } } } } } }, 400: err, 401: err, 403: err, 429: err } } },
+      '/api/v1/cases/summary': { get: { summary: 'ตัวเลขสรุป (scope: cases:read)', parameters: filters, responses: { 200: { description: 'ok' }, 400: err, 401: err, 429: err } } },
+      '/api/v1/cases/{id}': { get: { summary: 'เคสเดียว (scope: cases:read)', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+        responses: { 200: { description: 'ok', content: { 'application/json': { schema: { type: 'object', properties: { data: { $ref: '#/components/schemas/Case' } } } } } }, 404: err, 401: err } } },
+    },
+  };
+}
+
+// ── จัดการ API Key — manager/admin เท่านั้น (key เปิดข้อมูลเคสทั้งระบบ จึงไม่รวม team_lead) ──
+function apiAdminRequired(request, res, next) {
+  if (!['manager', 'admin'].includes(request.user?.role)) return res.status(403).json({ error: 'เฉพาะผู้จัดการ/แอดมิน' });
+  next();
+}
+app.get('/api/api-clients', authRequired, apiAdminRequired, async (request, res) => {
+  try {
+    const rows = (await req().query(`
+      SELECT c.id, c.name, c.key_prefix, c.scopes, c.note, c.active, c.expires_at, c.created_by, c.created_at, c.last_used_at, c.request_count,
+             (SELECT COUNT(*) FROM api_request_log l WHERE l.client_id=c.id AND l.created_at >= DATEADD(day,-7,GETDATE())) AS req_7d,
+             (SELECT COUNT(*) FROM api_request_log l WHERE l.client_id=c.id AND l.created_at >= DATEADD(day,-7,GETDATE()) AND l.status >= 400) AS err_7d
+      FROM api_clients c ORDER BY c.active DESC, c.created_at DESC`)).recordset;
+    res.json({ clients: rows, scopes: API_SCOPES, rate_per_min: API_RATE_PER_MIN });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/api-clients', authRequired, apiAdminRequired, async (request, res) => {
+  try {
+    const b = request.body || {};
+    const name = String(b.name || '').trim().slice(0, 120);
+    if (!name) return res.status(400).json({ error: 'กรุณาตั้งชื่อระบบที่จะเชื่อม' });
+    const scopes = (Array.isArray(b.scopes) ? b.scopes : API_SCOPES).filter(x => API_SCOPES.includes(x));
+    if (!scopes.length) return res.status(400).json({ error: 'ต้องเลือกสิทธิ์อย่างน้อย 1 อย่าง' });
+    const days = parseInt(b.expires_days);
+    const key = apiNewKey();
+    const row = (await req().input('n', sql.NVarChar, name).input('kp', sql.NVarChar, key.slice(0, 12))
+      .input('kh', sql.Char(64), apiHash(key)).input('sc', sql.NVarChar, scopes.join(','))
+      .input('nt', sql.NVarChar, String(b.note || '').trim().slice(0, 400) || null)
+      .input('ex', sql.Int, days > 0 ? days : null).input('by', sql.NVarChar, request.user?.username || null)
+      .query(`INSERT INTO api_clients (name, key_prefix, key_hash, scopes, note, expires_at, created_by)
+              OUTPUT INSERTED.id, INSERTED.name, INSERTED.key_prefix, INSERTED.scopes, INSERTED.expires_at
+              VALUES (@n, @kp, @kh, @sc, @nt, CASE WHEN @ex IS NULL THEN NULL ELSE DATEADD(day, @ex, GETDATE()) END, @by)`)).recordset[0];
+    res.json({ ...row, api_key: key });   // key จริงส่งกลับครั้งเดียว
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/api-clients/:id/rotate', authRequired, apiAdminRequired, async (request, res) => {
+  try {
+    const key = apiNewKey();
+    const out = await req().input('id', sql.Int, +request.params.id).input('kp', sql.NVarChar, key.slice(0, 12)).input('kh', sql.Char(64), apiHash(key))
+      .query('UPDATE api_clients SET key_prefix=@kp, key_hash=@kh OUTPUT INSERTED.id WHERE id=@id');
+    if (!out.recordset.length) return res.status(404).json({ error: 'ไม่พบ' });
+    _apiKeyCache.clear();
+    res.json({ id: +request.params.id, key_prefix: key.slice(0, 12), api_key: key });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.put('/api/api-clients/:id', authRequired, apiAdminRequired, async (request, res) => {
+  try {
+    const b = request.body || {};
+    const sets = [], r = req().input('id', sql.Int, +request.params.id);
+    if ('active' in b) { r.input('a', sql.Bit, b.active ? 1 : 0); sets.push('active=@a'); }
+    if ('name' in b && String(b.name).trim()) { r.input('n', sql.NVarChar, String(b.name).trim().slice(0, 120)); sets.push('name=@n'); }
+    if ('note' in b) { r.input('nt', sql.NVarChar, String(b.note || '').trim().slice(0, 400) || null); sets.push('note=@nt'); }
+    if (!sets.length) return res.status(400).json({ error: 'ไม่มีอะไรให้แก้' });
+    await r.query(`UPDATE api_clients SET ${sets.join(', ')} WHERE id=@id`);
+    _apiKeyCache.clear();   // ยกเลิก key มีผลทันที
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 async function ensureMonitorTagTables() {
   try {
     await req().query(`
@@ -14002,6 +14375,7 @@ init().then(async () => {
   await ensureSpecialistTable();
   await ensureRequirementsTables();
   await ensureMonitorTagTables();
+  await ensureApiTables();
   await ensureFollowupTable();
   await ensureFollowupV2Tables();
   await ensureShopInfoTables();
