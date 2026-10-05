@@ -484,6 +484,11 @@ textarea{resize:vertical;min-height:80px}
 .mt-avg-pill b{font-variant-numeric:tabular-nums;color:var(--text)}
 .aim-warn{display:flex;align-items:center;gap:.45rem;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:12px;padding:.6rem .85rem;font-size:.8rem;margin-bottom:.75rem}
 .aim-good{color:#0f766e}
+.mt-tbl tr.aim-brand{cursor:pointer}
+.mt-tbl tr.aim-brand td{background:#fdfcfa}
+.mt-tbl tr.aim-brand:hover td{background:#faf9f6}
+.mt-tbl tr.aim-branch td{font-size:.78rem;padding-top:.5rem;padding-bottom:.5rem;background:#faf9f6}
+.mt-tbl tr.aim-branch td:first-child{padding-left:2.2rem;color:#4d535b}
 .aim-src{display:inline-block;padding:0 .4rem;border-radius:999px;background:#eaf1fb;color:#2a5f9e;font-weight:600}
 .aim-pick{display:flex;align-items:center;gap:.4rem;padding:.5rem .7rem;border:1px solid var(--primary);border-radius:10px;background:var(--primary-soft);margin-bottom:.4rem;font-size:.85rem}
 .aim-list{max-height:220px;overflow:auto;margin-top:.3rem}
@@ -2625,6 +2630,39 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
     <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:.5rem">
       <button class="svc-btn-ghost" onclick="closeModal('modal-aim-store')">ยกเลิก</button>
       <button class="svc-btn-primary" id="aim-a-save" onclick="aimSaveStore()"><i class=i-save></i> บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- ผลการติดตั้ง AI: นำเข้าร้านจากไฟล์ -->
+<div class="overlay" id="modal-aim-import">
+  <div class="modal mt-form" style="max-width:820px;width:95vw;padding:1.2rem;max-height:90vh;display:flex;flex-direction:column">
+    <div class="modal-head">
+      <div style="min-width:0">
+        <div style="font-size:1.05rem;font-weight:600">นำเข้าร้านที่ติดตั้ง AI</div>
+        <div class="mt-meta">คอลัมน์: <b>ร้าน</b> (ชื่อร้านตามระบบ หรือรหัสร้าน) · <b>วันที่ติดตั้ง</b> (2026-09-29, 29/09/2026 หรือ 29/09/2569) · <b>หมายเหตุ</b> (ไม่บังคับ)</div>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-aim-import')">×</button>
+    </div>
+    <div id="aim-i-s1">
+      <div class="row"><label>ไฟล์ Excel (.xlsx) หรือ CSV</label><input type="file" id="aim-i-file" accept=".xlsx,.csv,.txt"/></div>
+      <div class="row"><label>หรือ copy จาก Excel มาวางตรงนี้</label>
+        <textarea id="aim-i-paste" rows="6" class="mt-code" style="white-space:pre" placeholder="ร้าน&#9;วันที่ติดตั้ง&#9;หมายเหตุ"></textarea></div>
+      <div class="mt-meta"><a href="javascript:void 0" onclick="aimImportTemplate()"><i class=i-download></i> ดาวน์โหลดไฟล์ตัวอย่าง</a>
+        · ร้านที่มีอยู่แล้วจะอัปเดตวันที่ติดตั้งตามไฟล์ · ระบบจะแสดงผลการจับคู่ร้านให้ตรวจก่อนนำเข้า</div>
+    </div>
+    <div id="aim-i-s2" style="display:none;flex:1;min-height:0;display:none;flex-direction:column">
+      <div class="mt-meta" id="aim-i-sum" style="margin-bottom:.5rem;font-size:.8rem"></div>
+      <div style="overflow:auto;flex:1;border:1px solid var(--border);border-radius:12px">
+        <table class="mt-tbl" style="font-size:.8rem"><thead><tr><th>แถว</th><th>ร้านในไฟล์</th><th>จับคู่กับร้านในระบบ</th><th>วันที่ติดตั้ง</th><th>สถานะ</th></tr></thead>
+          <tbody id="aim-i-body"></tbody></table>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:.8rem">
+      <button class="svc-btn-ghost" id="aim-i-back" onclick="aimImportBack()" style="display:none;margin-right:auto">‹ เลือกไฟล์ใหม่</button>
+      <button class="svc-btn-ghost" onclick="closeModal('modal-aim-import')">ยกเลิก</button>
+      <button class="svc-btn-primary" id="aim-i-check" onclick="aimImportCheck()"><i class=i-search></i> ตรวจสอบ</button>
+      <button class="svc-btn-primary" id="aim-i-go" onclick="aimImportCommit()" style="display:none"><i class=i-upload></i> นำเข้า</button>
     </div>
   </div>
 </div>
@@ -21390,7 +21428,8 @@ function aimRender() {
   if (d.empty) {
     document.getElementById('aim-kpis').innerHTML = '';
     body.innerHTML = `<div class="mt-empty">ยังไม่พบร้านที่ติดตั้ง AI<br><span style="font-size:.78rem">ให้น้องลงเคสตอนติดตั้งโดยมีคำว่า ${d.keywords.map(esc).join(' / ')} หรือ</span>
-      <div style="margin-top:.6rem"><button class="svc-btn-primary" onclick="aimOpenAdd()"><i class=i-plus></i> เพิ่มร้าน</button></div></div>`;
+      <div style="margin-top:.6rem;display:flex;gap:.5rem;justify-content:center"><button class="svc-btn-ghost" onclick="aimOpenImport()"><i class=i-upload></i> นำเข้า</button>
+        <button class="svc-btn-primary" onclick="aimOpenAdd()"><i class=i-plus></i> เพิ่มร้าน</button></div></div>`;
     return;
   }
   const s = d.summary;
@@ -21417,7 +21456,8 @@ function aimRender() {
   body.innerHTML = `${warn}
     <div class="mt-ov-card">
       <div class="mt-ov-title">${unit}ต่อวันของร้านที่ติดตั้ง AI — แยกตาม Tag</div>
-      <div class="mt-ov-sub">${d.n_ai} ร้าน · ค่าเฉลี่ย 7 วันย้อนหลัง · เส้นประตั้ง = วันที่ร้านส่วนใหญ่ติดตั้ง · คลิกชื่อใน legend เพื่อซ่อน/แสดง${_aim.mode === 'all' ? ' · ไม่รวมเคสที่ไม่ได้ติด Tag' : ''}${d.data_start ? ` · ข้อมูล Tag เริ่ม ${fd(d.data_start)}` : ''}</div>
+      <div class="mt-ov-sub">${d.n_ai} ร้าน · ค่าเฉลี่ย 7 วันย้อนหลัง · เส้นประตั้ง = วันที่ร้านส่วนใหญ่ติดตั้ง · เส้นหนา = รวมทุก Tag · เส้นประเอียง = แนวโน้มรวม · คลิกชื่อใน legend เพื่อซ่อน/แสดง${_aim.mode === 'all' ? ' · ไม่รวมเคสที่ไม่ได้ติด Tag' : ''}${d.data_start ? ` · ข้อมูล Tag เริ่ม ${fd(d.data_start)}` : ''}</div>
+      <div class="mt-avg-row" id="aim-trend"></div>
       <div style="position:relative;height:300px;margin-top:.5rem"><canvas id="aim-chart"></canvas></div>
     </div>
     <div class="mt-tbl-wrap" style="margin-top:.75rem">
@@ -21430,15 +21470,17 @@ function aimRender() {
     </div>
     <div class="mt-ov-card" style="padding:0;overflow:hidden;margin-top:.75rem">
       <div class="mt-st-head">
-        <div style="flex:1;min-width:200px"><div class="mt-ov-title">ร้านที่ติดตั้ง AI <span class="mt-meta" style="font-weight:400">· ${d.stores.length} ร้าน</span></div>
+        <div style="flex:1;min-width:200px"><div class="mt-ov-title">ร้านที่ติดตั้ง AI <span class="mt-meta" style="font-weight:400">· ${(() => { const b = new Set(d.stores.map(x => x.grp).filter(Boolean)).size, n = d.stores.filter(x => !x.grp).length;
+          return `${b ? b + ' แบรนด์ (' + d.stores.filter(x => x.grp).length + ' สาขา) · ' : ''}${n} ร้าน`; })()}</span></div>
           <div class="mt-ov-sub">ร้านที่ไม่มีเคสคำค้น กด “เพิ่มร้าน” · ร้านที่คำค้นจับผิด กด “ไม่นับ” · วันติดตั้งไม่ตรง กด “แก้วัน”</div></div>
         <label class="svc-search" style="margin:0;max-width:260px;min-width:180px"><i class=i-search style="color:#8a8f97"></i>
           <input id="aim-q" type="text" placeholder="ค้นหาร้าน / แบรนด์..." value="${esc(_aim.q)}" oninput="_aim.q=this.value;aimRenderStores()"
             style="border:none;padding:0;background:none;box-shadow:none"/></label>
         <button class="svc-btn-ghost" onclick="aimExport()" style="height:34px"><i class=i-download></i> Export CSV</button>
+        <button class="svc-btn-ghost" onclick="aimOpenImport()" style="height:34px"><i class=i-upload></i> นำเข้า</button>
         <button class="svc-btn-primary" onclick="aimOpenAdd()" style="height:34px"><i class=i-plus></i> เพิ่มร้าน</button>
       </div>
-      <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>ร้าน / แบรนด์</th><th>วันติดตั้ง</th>
+      <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>แบรนด์ / ร้าน</th><th>วันติดตั้ง</th>
         <th class="r">ก่อน</th><th class="r">หลัง</th><th class="r">${unit}/เดือน ก่อน → หลัง</th><th>เปลี่ยน</th><th></th></tr></thead>
         <tbody id="aim-stores"></tbody></table></div>
     </div>`;
@@ -21452,28 +21494,65 @@ function aimStoreRows() {
 }
 function aimRenderStores() {
   const tb = document.getElementById('aim-stores'); if (!tb) return;
-  const d = _aim.data, fd = x => x ? fmtDateShort(x + 'T00:00:00') : '—';
-  const rows = aimStoreRows();
-  tb.innerHTML = rows.map(s => {
+  const fd = x => x ? fmtDateShort(x + 'T00:00:00') : '—';
+  const q = _aim.q.trim().toLowerCase();
+  const rate = (n, days) => days ? n / days * 30 : null;
+  const nums = (pre, preDays, post, postDays) => {
+    const a = rate(pre, preDays), b = rate(post, postDays);
+    return { a, b, html: `<td class="r num">${preDays ? `${pre}<span class="sub">${preDays} วัน</span>` : '—'}</td>
+      <td class="r num">${postDays ? `${post}<span class="sub">${postDays} วัน</span>` : '—'}</td>
+      <td class="r num">${a == null || b == null ? '—' : `${aimFmt(a)} → <b>${aimFmt(b)}</b>`}</td>` };
+  };
+  const storeRow = (s, branch) => {
     const why = s.excluded ? 'ตัดออกแล้ว' : !s.post_days ? 'ยังไม่มีข้อมูลหลังติดตั้ง' : !s.pre_days ? 'ติดตั้งก่อนมีข้อมูล Tag' : '';
-    const a = s.pre_days ? s.pre / s.pre_days * 30 : null, b = s.post_days ? s.post / s.post_days * 30 : null;
-    return `<tr class="${s.counted ? '' : 'aim-off'}">
-      <td>${esc(s.company || '—')}<span class="sub">${esc(s.grp || 'ร้าน')}</span></td>
+    const n = nums(s.pre, s.pre_days, s.post, s.post_days);
+    return `<tr class="${branch ? 'aim-branch ' : ''}${s.counted ? '' : 'aim-off'}">
+      <td>${esc(s.company || '—')}${branch ? '' : '<span class="sub">ร้าน</span>'}</td>
       <td class="num">${fd(s.install_day)}${s.manual
         ? `<span class="sub" title="${esc(s.manual_note || '')}"><span class="aim-src">เพิ่มเอง</span>${s.manual_by ? ' ' + esc(dn(s.manual_by) || s.manual_by) : ''}${s.detected_day ? ` · จากเคส ${fd(s.detected_day)}` : ''}</span>`
         : `<span class="sub" title="${esc(s.install_desc || '')}">เคส #${s.install_case}${s.install_cases > 1 ? ` · +${s.install_cases - 1}` : ''}</span>`}</td>
-      <td class="r num">${s.pre_days ? `${s.pre}<span class="sub">${s.pre_days} วัน</span>` : '—'}</td>
-      <td class="r num">${s.post_days ? `${s.post}<span class="sub">${s.post_days} วัน</span>` : '—'}</td>
-      <td class="r num">${a == null || b == null ? '—' : `${aimFmt(a)} → <b>${aimFmt(b)}</b>`}</td>
-      <td>${why ? `<span class="mt-meta">${why}</span>` : aimPill(aimPct(a, b))}</td>
+      ${n.html}
+      <td>${why ? `<span class="mt-meta">${why}</span>` : aimPill(aimPct(n.a, n.b))}</td>
       <td class="r" style="white-space:nowrap">
         <button class="mt-mini" onclick="aimOpenAdd(${s.rid})" title="แก้วันที่ติดตั้ง"><i class=i-pencil></i> แก้วัน</button>
         ${s.manual && !s.install_case
           ? `<button class="mt-mini" onclick="aimRemoveManual(${s.rid})" title="ลบร้านที่เพิ่มเอง"><i class=i-trash></i> ลบ</button>`
           : `<button class="mt-mini" onclick="aimExclude(${s.rid},${!s.excluded})">${s.excluded ? 'นับกลับ' : 'ไม่นับ'}</button>`}
         ${s.manual && s.install_case ? `<button class="mt-mini" onclick="aimRemoveManual(${s.rid})" title="กลับไปใช้วันจากเคส">ใช้วันจากเคส</button>` : ''}</td></tr>`;
-  }).join('') || `<tr><td colspan="7" class="mt-meta" style="text-align:center;padding:1.2rem">ไม่พบร้านที่ค้นหา</td></tr>`;
+  };
+  // สาขาของแบรนด์เดียวกัน (License Group) รวมเป็นแถวเดียว · ร้านเดี่ยว / ร้านในกลุ่ม INF แสดงชื่อร้านเหมือนเดิม
+  const groups = new Map();
+  for (const s of _aim.data?.stores || []) {
+    const k = s.grp ? 'g:' + s.grp : 's:' + s.rid;
+    if (!groups.has(k)) groups.set(k, { key: k, brand: s.grp || null, list: [] });
+    groups.get(k).list.push(s);
+  }
+  const rows = [];
+  for (const g of groups.values()) {
+    const brandHit = !q || (g.brand || '').toLowerCase().includes(q);
+    const list = g.list.filter(s => brandHit || (s.company || '').toLowerCase().includes(q));
+    if (!list.length) continue;
+    if (!g.brand) { rows.push({ day: list[0].install_day, html: storeRow(list[0], false) }); continue; }
+    const c = list.filter(s => s.counted);
+    const sum = f => c.reduce((a, s) => a + s[f], 0);
+    const n = nums(sum('pre'), sum('pre_days'), sum('post'), sum('post_days'));
+    const days = list.map(s => s.install_day).sort();
+    const open = _aimBrandOpen.has(g.key) || (q && !brandHit);
+    rows.push({ day: days[0], html: `<tr class="mt-brand aim-brand${open ? ' open' : ''}" data-k="${mtAttr(g.key)}" onclick="aimToggleBrand(this.dataset.k)">
+      <td><b>${esc(g.brand)}</b><span class="sub"><span class="tk-toggle-btn${open ? ' open' : ''}" style="width:16px;height:16px;vertical-align:-3px" aria-hidden="true"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+        แบรนด์ · ${list.length} สาขา${c.length < list.length ? ` (นับ ${c.length})` : ''}</span></td>
+      <td class="num">${fd(days[0])}${days[days.length - 1] !== days[0] ? `<span class="sub">ถึง ${fd(days[days.length - 1])}</span>` : ''}</td>
+      ${n.html}
+      <td>${c.length ? aimPill(aimPct(n.a, n.b)) : '<span class="mt-meta">ยังไม่มีสาขาที่นับได้</span>'}</td>
+      <td class="r mt-meta">${open ? 'ซ่อนสาขา' : 'ดูสาขา ›'}</td></tr>`
+      + (open ? list.sort((a, b) => a.install_day.localeCompare(b.install_day) || (a.company || '').localeCompare(b.company || '', 'th'))
+          .map(s => storeRow(s, true)).join('') : '') });
+  }
+  tb.innerHTML = rows.sort((a, b) => a.day.localeCompare(b.day)).map(r => r.html).join('')
+    || `<tr><td colspan="7" class="mt-meta" style="text-align:center;padding:1.2rem">ไม่พบร้านที่ค้นหา</td></tr>`;
 }
+const _aimBrandOpen = new Set();
+function aimToggleBrand(k) { _aimBrandOpen.has(k) ? _aimBrandOpen.delete(k) : _aimBrandOpen.add(k); aimRenderStores(); }
 async function aimExclude(rid, exclude) {
   const s = _aim.data?.stores.find(x => x.rid === rid);
   if (exclude && !confirm(`ไม่นับ “${s?.company || ''}” เป็นร้านที่ติดตั้ง AI?`)) return;
@@ -21545,6 +21624,175 @@ async function aimRemoveManual(rid) {
   showToast('บันทึกแล้ว — คำนวณใหม่');
   aimLoad();
 }
+// ── นำเข้าร้านที่ติดตั้ง AI จากไฟล์ .xlsx / .csv หรือวางจาก Excel ─────
+// ไฟล์: คอลัมน์ ร้าน (ชื่อหรือรหัสร้าน) · วันที่ติดตั้ง · หมายเหตุ (มีหัวตารางหรือไม่ก็ได้)
+let _aimImp = null;   // { rows: ผลตรวจจาก server, pick: line → rid ที่เลือก (กรณีเจอหลายร้าน) }
+function aimOpenImport() {
+  _aimImp = null;
+  document.getElementById('aim-i-file').value = '';
+  document.getElementById('aim-i-paste').value = '';
+  document.getElementById('aim-i-s1').style.display = '';
+  document.getElementById('aim-i-s2').style.display = 'none';
+  document.getElementById('aim-i-check').style.display = '';
+  document.getElementById('aim-i-go').style.display = 'none';
+  document.getElementById('aim-i-back').style.display = 'none';
+  openModal('modal-aim-import');
+}
+function aimImportTemplate() {
+  const csv = '﻿' + ['ร้าน (ชื่อหรือรหัสร้าน),วันที่ติดตั้ง,หมายเหตุ', 'ร้านอาหาร ตัวอย่าง สาขา 1,2026-09-29,ติดตั้งหน้างาน', '52800,29/09/2026,'].join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = 'ai-install-template.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+// แยก CSV / ข้อความที่วางจาก Excel (Tab) — รองรับ "..." ที่มี , หรือขึ้นบรรทัดใหม่
+function aimParseDelimited(text) {
+  text = text.replace(/^﻿/, '');
+  const first = text.split(/\r?\n/)[0] || '';
+  const sep = first.includes('\t') ? '\t' : first.split(';').length > first.split(',').length ? ';' : ',';
+  const rows = []; let row = [], cell = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) { if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += ch; continue; }
+    if (ch === '"' && cell === '') q = true;
+    else if (ch === sep) { row.push(cell); cell = ''; }
+    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; }
+    else cell += ch;
+  }
+  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+  return rows.filter(r => r.some(c => String(c).trim()));
+}
+// อ่าน .xlsx เอง (zip + XML) — ชีตแรกของไฟล์ ไม่ต้องใช้ library เพิ่ม
+async function aimReadXlsx(buf) {
+  const dv = new DataView(buf), u8 = new Uint8Array(buf), dec = new TextDecoder();
+  let e = buf.byteLength - 22;
+  while (e >= 0 && dv.getUint32(e, true) !== 0x06054b50) e--;
+  if (e < 0) throw new Error('ไฟล์ไม่ใช่ .xlsx');
+  const files = {};
+  for (let i = 0, p = dv.getUint32(e + 16, true), n = dv.getUint16(e + 10, true); i < n; i++) {
+    const nlen = dv.getUint16(p + 28, true);
+    files[dec.decode(u8.subarray(p + 46, p + 46 + nlen))] = { method: dv.getUint16(p + 10, true), size: dv.getUint32(p + 20, true), off: dv.getUint32(p + 42, true) };
+    p += 46 + nlen + dv.getUint16(p + 30, true) + dv.getUint16(p + 32, true);
+  }
+  const read = async name => {
+    const f = files[name]; if (!f) return null;
+    const start = f.off + 30 + dv.getUint16(f.off + 26, true) + dv.getUint16(f.off + 28, true);
+    const data = u8.subarray(start, start + f.size);
+    if (f.method === 0) return dec.decode(data);
+    return new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text();
+  };
+  const xml = s => new DOMParser().parseFromString(s, 'application/xml');
+  const strings = [];
+  const sst = await read('xl/sharedStrings.xml');
+  if (sst) for (const si of xml(sst).getElementsByTagName('si')) strings.push([...si.getElementsByTagName('t')].map(t => t.textContent).join(''));
+  let sheet = 'xl/worksheets/sheet1.xml';
+  try {
+    const wb = xml(await read('xl/workbook.xml')), rels = xml(await read('xl/_rels/workbook.xml.rels'));
+    const id = wb.getElementsByTagName('sheet')[0]?.getAttribute('r:id');
+    const t = [...rels.getElementsByTagName('Relationship')].find(r => r.getAttribute('Id') === id)?.getAttribute('Target');
+    if (t) sheet = t.startsWith('/') ? t.slice(1) : 'xl/' + t;
+  } catch {}
+  const sx = await read(sheet);
+  if (!sx) throw new Error('อ่านชีตในไฟล์ไม่ได้');
+  const out = [];
+  for (const r of xml(sx).getElementsByTagName('row')) {
+    const arr = [];
+    for (const c of r.getElementsByTagName('c')) {
+      const col = (c.getAttribute('r') || '').replace(/\d+/g, '').split('').reduce((a, ch) => a * 26 + ch.charCodeAt(0) - 64, 0) - 1;
+      const t = c.getAttribute('t'), v = c.getElementsByTagName('v')[0]?.textContent ?? '';
+      arr[col >= 0 ? col : arr.length] = t === 's' ? strings[+v] ?? '' : t === 'inlineStr' ? [...c.getElementsByTagName('t')].map(x => x.textContent).join('') : v;
+    }
+    out.push(Array.from(arr, x => x ?? ''));
+  }
+  return out.filter(r => r.some(c => String(c).trim()));
+}
+// ตารางดิบ → {store, day, note} · หาคอลัมน์จากหัวตาราง ไม่มีหัว = A ร้าน, B วันที่, C หมายเหตุ
+function aimRowsFromTable(tbl) {
+  let si = 0, di = 1, ni = 2, start = 0;
+  const h = (tbl[0] || []).map(x => String(x).toLowerCase());
+  const find = re => h.findIndex(x => re.test(x));
+  const hs = find(/ร้าน|สาขา|store|company|รหัส|rid|registration/), hd = find(/วัน|date/);
+  if (hs >= 0 && hd >= 0) { si = hs; di = hd; ni = find(/หมายเหตุ|note|remark/); start = 1; }
+  const excelDay = v => {   // วันที่ใน Excel เป็นเลขลำดับวัน (เช่น 46294)
+    const n = +v;
+    return /^\d{5}(\.\d+)?$/.test(String(v).trim()) && n > 20000 && n < 80000
+      ? new Date(Date.UTC(1899, 11, 30) + Math.floor(n) * 86400000).toISOString().slice(0, 10) : String(v).trim();
+  };
+  return tbl.slice(start).map((r, i) => ({ line: i + start + 1, store: String(r[si] ?? '').trim(), day: excelDay(r[di] ?? ''), note: ni >= 0 ? String(r[ni] ?? '').trim() : '' }))
+    .filter(r => r.store || r.day);
+}
+async function aimImportCheck() {
+  const file = document.getElementById('aim-i-file').files[0], paste = document.getElementById('aim-i-paste').value;
+  let tbl;
+  try {
+    if (file) tbl = /\.xlsx$/i.test(file.name) ? await aimReadXlsx(await file.arrayBuffer()) : aimParseDelimited(await file.text());
+    else if (paste.trim()) tbl = aimParseDelimited(paste);
+    else { showToast('เลือกไฟล์ หรือวางข้อมูลจาก Excel ก่อน', 'error'); return; }
+  } catch (e) { showToast('อ่านไฟล์ไม่สำเร็จ: ' + e.message + (file && /\.xls$/i.test(file.name) ? ' (ไฟล์ .xls รุ่นเก่า ให้บันทึกเป็น .xlsx หรือ .csv)' : ''), 'error'); return; }
+  const rows = aimRowsFromTable(tbl);
+  if (!rows.length) { showToast('ไม่พบข้อมูลในไฟล์', 'error'); return; }
+  if (rows.length > 1000) { showToast('นำเข้าได้ครั้งละไม่เกิน 1,000 แถว', 'error'); return; }
+  const btn = document.getElementById('aim-i-check'); btn.disabled = true; btn.textContent = 'กำลังตรวจ...';
+  const d = await api('/api/ai-impact/import', { method: 'POST', silent: true, body: { rows, commit: false } });
+  btn.disabled = false; btn.innerHTML = '<i class=i-search></i> ตรวจสอบ';
+  if (!d || d.error) { showToast(d?.error || 'ตรวจสอบไม่สำเร็จ', 'error'); return; }
+  _aimImp = { rows: d.rows, pick: {} };
+  aimImportPreview();
+}
+const AIM_IMP_ST = { ok: ['จับคู่แล้ว', 'mt-down'], partial: ['ชื่อใกล้เคียง — ตรวจดู', 'mt-flat'], ambiguous: ['เจอหลายร้าน — เลือก', 'mt-up'],
+  notfound: ['ไม่พบร้าน', 'mt-up'], baddate: ['วันที่ไม่ถูกต้อง', 'mt-up'], future: ['วันที่เกินวันนี้', 'mt-up'] };
+function aimImportReady() {
+  return _aimImp.rows.filter(o => ['ok', 'partial'].includes(o.status) || (o.status === 'ambiguous' && _aimImp.pick[o.line]))
+    .map(o => ({ line: o.line, rid: o.status === 'ambiguous' ? _aimImp.pick[o.line] : o.rid, store: o.store, day: o.day, note: o.note }));
+}
+function aimImportPreview() {
+  const rows = _aimImp.rows, fd = x => x ? fmtDateShort(x + 'T00:00:00') : '—';
+  const cnt = k => rows.filter(o => o.status === k).length;
+  document.getElementById('aim-i-s1').style.display = 'none';
+  document.getElementById('aim-i-s2').style.display = 'flex';
+  document.getElementById('aim-i-check').style.display = 'none';
+  document.getElementById('aim-i-back').style.display = '';
+  document.getElementById('aim-i-sum').innerHTML = `${rows.length} แถว · <b style="color:#0f766e">จับคู่ได้ ${cnt('ok') + cnt('partial')}</b>`
+    + (cnt('ambiguous') ? ` · <b style="color:#b45309">ต้องเลือก ${cnt('ambiguous')}</b>` : '')
+    + (cnt('notfound') + cnt('baddate') + cnt('future') ? ` · <b style="color:#be123c">นำเข้าไม่ได้ ${cnt('notfound') + cnt('baddate') + cnt('future')}</b>` : '');
+  document.getElementById('aim-i-body').innerHTML = rows.map(o => {
+    const [label, cls] = AIM_IMP_ST[o.status] || [o.status, 'mt-flat'];
+    const match = o.status === 'ambiguous'
+      ? `<select class="mt-mini" onchange="_aimImp.pick[${o.line}]=+this.value||null;aimImportCount()"><option value="">— เลือกร้าน —</option>${
+          o.candidates.map(c => `<option value="${c.rid}"${_aimImp.pick[o.line] === c.rid ? ' selected' : ''}>${esc(c.company)}</option>`).join('')}</select>`
+      : o.company ? esc(o.company) : '<span class="mt-meta">—</span>';
+    return `<tr><td class="num mt-meta">${o.line}</td><td>${esc(o.store || '—')}</td><td>${match}</td>
+      <td class="num">${o.day ? fd(o.day) : `<span style="color:#be123c">${esc(o.day_raw || '—')}</span>`}</td>
+      <td><span class="mt-pill ${cls}">${label}</span></td></tr>`;
+  }).join('');
+  aimImportCount();
+}
+function aimImportCount() {
+  const n = aimImportReady().length, btn = document.getElementById('aim-i-go');
+  btn.style.display = '';
+  btn.disabled = !n;
+  btn.innerHTML = `<i class=i-upload></i> นำเข้า ${n} ร้าน`;
+}
+function aimImportBack() {
+  document.getElementById('aim-i-s1').style.display = '';
+  document.getElementById('aim-i-s2').style.display = 'none';
+  document.getElementById('aim-i-check').style.display = '';
+  document.getElementById('aim-i-go').style.display = 'none';
+  document.getElementById('aim-i-back').style.display = 'none';
+}
+async function aimImportCommit() {
+  const rows = aimImportReady();
+  if (!rows.length) return;
+  const btn = document.getElementById('aim-i-go'); btn.disabled = true;
+  const d = await api('/api/ai-impact/import', { method: 'POST', silent: true, body: { rows, commit: true } });
+  btn.disabled = false;
+  if (!d || d.error) { showToast(d?.error || 'นำเข้าไม่สำเร็จ', 'error'); return; }
+  closeModal('modal-aim-import');
+  showToast(`นำเข้าร้านที่ติดตั้ง AI ${d.saved} ร้านแล้ว — คำนวณใหม่`);
+  aimLoad();
+}
+
 function aimExport() {
   const d = _aim.data; if (!d) return;
   const unit = _aim.mode === 'bug' ? 'Bug' : 'เคส';
@@ -21581,6 +21829,26 @@ function aimDrawChart(d) {
   if (rest.length) ds.push({ label: `อื่นๆ (${rest.length} Tag)`, data: roll(d.labels.map((_, i) => rest.reduce((a, t) => a + t.daily[i], 0))),
     borderColor: '#9aa0a8', backgroundColor: '#9aa0a8', borderWidth: 2, borderDash: [4, 3], pointRadius: 0, pointHoverRadius: 4, tension: .3 });
   const iInst = d.median_install ? d.labels.indexOf(d.median_install) : -1;
+  // ── ภาพรวม: เส้นรวมทุก Tag + เส้นแนวโน้ม (least squares ของยอดรวมรายวัน)
+  const textC = css.getPropertyValue('--text').trim() || '#24272c';
+  const total = d.labels.map((_, i) => tags.reduce((a, t) => a + t.daily[i], 0));
+  const n = total.length, xm = (n - 1) / 2, ym = total.reduce((a, b) => a + b, 0) / (n || 1);
+  let num = 0, den = 0;
+  total.forEach((y, x) => { num += (x - xm) * (y - ym); den += (x - xm) ** 2; });
+  const slope = den ? num / den : 0, week = slope * 7;
+  ds.unshift({ label: 'รวมทุก Tag', data: roll(total), borderColor: textC, backgroundColor: textC, borderWidth: 3.5, pointRadius: 0, pointHoverRadius: 4, tension: .3 });
+  ds.push({ label: 'แนวโน้มรวม', data: total.map((_, x) => +Math.max(0, ym + slope * (x - xm)).toFixed(2)), isTrend: true,
+    borderColor: textC, backgroundColor: textC, borderWidth: 1.5, borderDash: [7, 5], pointRadius: 0, pointHoverRadius: 0 });
+  // ก่อน / หลังวันที่ร้านส่วนใหญ่ติดตั้ง (ยอดรวมต่อวันของร้านที่ติดตั้ง)
+  const mean = xs => xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
+  const before = iInst > 0 ? mean(total.slice(Math.max(0, iInst - d.pre), iInst)) : null;
+  const after = iInst >= 0 ? mean(total.slice(iInst + 1)) : null;
+  const trendWord = !ym || Math.abs(week) < ym * 0.05 ? ['ทรงตัว', 'mt-flat', 'minus'] : week < 0 ? ['ขาลง', 'mt-down', 'trend-down'] : ['ขาขึ้น', 'mt-up', 'trend-up'];
+  const box = document.getElementById('aim-trend');
+  if (box) box.innerHTML = `<span class="mt-meta">ภาพรวม (รวมทุก Tag)</span>`
+    + (before != null && after != null ? `<span class="mt-avg-pill">ก่อนติดตั้ง <b>${aimFmt(before)}</b> เคส/วัน</span><span class="mt-meta">→</span>
+       <span class="mt-avg-pill">หลังติดตั้ง <b>${aimFmt(after)}</b> เคส/วัน</span>${aimPill(aimPct(before, after), true)}` : '')
+    + `<span class="mt-pill ${trendWord[1]}"><i class=i-${trendWord[2]}></i> แนวโน้ม${trendWord[0]} ${week >= 0 ? '+' : ''}${week.toFixed(1)} เคส/วัน ต่อสัปดาห์</span>`;
   const marker = {
     id: 'aimInstall',
     afterDatasetsDraw(chart) {
@@ -21602,7 +21870,7 @@ function aimDrawChart(d) {
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { position: 'bottom', labels: { boxWidth: 14, boxHeight: 2, color: muted, font: { size: 11 } } },
-        tooltip: { itemSort: (a, b) => b.raw - a.raw, callbacks: { label: c => ` ${c.dataset.label}: ${c.raw} เคส/วัน` } }
+        tooltip: { filter: it => !it.dataset.isTrend, itemSort: (a, b) => b.raw - a.raw, callbacks: { label: c => ` ${c.dataset.label}: ${c.raw} เคส/วัน` } }
       },
       scales: {
         x: { grid: { display: false }, ticks: { color: muted, maxTicksLimit: 14, font: { size: 10 } } },

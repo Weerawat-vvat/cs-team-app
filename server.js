@@ -12935,21 +12935,25 @@ app.get('/api/monitor-tags/:id/tickets', authRequired, async (request, res) => {
 // ══ หน้า Monitor Tag: เคสที่ติด Tag (Bug โปรแกรม / IT Service) ตามช่วงวัน ══
 // ช่วงปัจจุบัน = N วันล่าสุด (รวมวันนี้ ตามปฏิทิน LicenseDB) · ช่วงก่อนหน้า = N วันก่อนนั้น ไว้เทียบ
 const MT_SERVICE_DAYS = [7, 30, 90, 180, 365];
-// วันแรกที่มีข้อมูล = วันของเคสแรกสุดที่ติด Tag — ช่วงที่เลือกจะไม่ย้อนก่อนวันนั้น (ไม่งั้นมีแต่วันว่าง)
+// วันแรกที่มีข้อมูล = วันแรกที่ติด Tag ได้อย่างน้อย MT_DATA_MIN_PER_DAY เคส — ช่วงที่เลือกจะไม่ย้อนก่อนวันนั้น
+// (เคสเก่าที่คนผูกไว้ประปรายก่อน AI จัดย้อนหลัง ไม่นับเป็นวันเริ่ม ไม่งั้นวันก่อนหน้าเป็นศูนย์ เส้นแนวโน้มเพี้ยน)
 // บังคับเองได้ด้วย MONITOR_DATA_START=YYYY-MM-DD
 const MT_DATA_START_ENV = /^\d{4}-\d{2}-\d{2}$/.test(process.env.MONITOR_DATA_START || '') ? process.env.MONITOR_DATA_START : null;
 let _mtDataStart = { at: 0, d: null };
+const MT_DATA_MIN_PER_DAY = 10;
 async function mtDataStart(ids) {
   if (MT_DATA_START_ENV) return MT_DATA_START_ENV;
   if (_mtDataStart.d && Date.now() - _mtDataStart.at < 10 * 60 * 1000) return _mtDataStart.d;
-  let min = null;
+  const perDay = new Map();
   for (let i = 0; i < ids.length; i += 2000) {
-    const m = (await extReq().query(`SELECT CONVERT(char(10), MIN(ReceiveDate), 23) AS d FROM Calllog
-      WHERE Active=1 AND CalllogId IN (${ids.slice(i, i + 2000).join(',')})`)).recordset[0]?.d;
-    if (m && (!min || m < min)) min = m;
+    (await extReq().query(`SELECT CONVERT(char(10), ReceiveDate, 23) AS d, COUNT(*) AS n FROM Calllog
+      WHERE Active=1 AND CalllogId IN (${ids.slice(i, i + 2000).join(',')}) GROUP BY CONVERT(char(10), ReceiveDate, 23)`))
+      .recordset.forEach(r => perDay.set(r.d, (perDay.get(r.d) || 0) + r.n));
   }
-  _mtDataStart = { at: Date.now(), d: min };
-  return min;
+  const days = [...perDay.keys()].sort();
+  const d = days.find(x => perDay.get(x) >= MT_DATA_MIN_PER_DAY) || days[0] || null;
+  _mtDataStart = { at: Date.now(), d };
+  return d;
 }
 app.get('/api/monitor-tags/board', authRequired, async (request, res) => {
   try {
@@ -13157,6 +13161,85 @@ app.get('/api/ai-impact', authRequired, async (request, res) => {
         ai_pre: rate(v.pre, preDays), ai_post: rate(v.post, postDays), ai_pre_n: v.pre, ai_post_n: v.post })),
       stores: [...stores.values()].sort((a, b) => a.install_day.localeCompare(b.install_day) || (a.company || '').localeCompare(b.company || '', 'th'))
     });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/ai-impact/import {rows:[{rid?, store, day, note}], commit}
+// จับคู่ร้าน: รหัสร้าน (RegistrationId) หรือชื่อร้านตรงตัว → ไม่เจอค่อยหาชื่อที่มีคำนี้ (เจอร้านเดียว = ใช้ได้, หลายร้าน = ให้เลือก)
+// commit=false = ตรวจอย่างเดียว · commit=true = บันทึกแถวที่จับคู่ได้ลง ai_impact_manual
+app.post('/api/ai-impact/import', authRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
+    const input = Array.isArray(request.body?.rows) ? request.body.rows.slice(0, 1000) : [];
+    if (!input.length) return res.status(400).json({ error: 'ไม่มีข้อมูลให้นำเข้า' });
+    const today = bangkokToday();
+    const clean = v => String(v ?? '').replace(/\s+/g, ' ').trim();
+    const rows = input.map((r, i) => ({ line: +r.line || i + 1, store: clean(r.store).slice(0, 200), day: clean(r.day),
+      note: clean(r.note).slice(0, 300) || null, rid: Number.isInteger(+r.rid) && +r.rid > 0 ? +r.rid : (/^\d+$/.test(clean(r.store)) ? +clean(r.store) : null) }));
+
+    // รหัสร้าน
+    const ids = [...new Set(rows.filter(r => r.rid).map(r => r.rid))];
+    const byId = new Map();
+    for (let i = 0; i < ids.length; i += 1000) (await extReq().query(`SELECT RegistrationId AS rid, CompanyName AS company FROM CustomerRegistration
+      WHERE RegistrationId IN (${ids.slice(i, i + 1000).join(',')})`)).recordset.forEach(x => byId.set(x.rid, x));
+    // ชื่อร้านตรงตัว (ไม่สนตัวพิมพ์ / ช่องว่างหัวท้าย)
+    const names = [...new Set(rows.filter(r => !r.rid && r.store).map(r => r.store.toLowerCase()))];
+    const byName = new Map();
+    for (let i = 0; i < names.length; i += 500) {
+      const q = extReq(), chunk = names.slice(i, i + 500);
+      chunk.forEach((n, j) => q.input('n' + j, sql.NVarChar, n));
+      (await q.query(`SELECT RegistrationId AS rid, CompanyName AS company FROM CustomerRegistration
+        WHERE (Hide=0 OR Hide IS NULL) AND LOWER(LTRIM(RTRIM(CompanyName))) IN (${chunk.map((_, j) => '@n' + j).join(',')})`)).recordset
+        .forEach(x => { const k = clean(x.company).toLowerCase(); (byName.get(k) || byName.set(k, []).get(k)).push(x); });
+    }
+    const parseDay = v => {
+      let m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(v) || null, y, mo, d;
+      if (m) [, y, mo, d] = m.map(Number);
+      else if ((m = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})$/.exec(v))) { [, d, mo, y] = m.map(Number); if (y < 100) y += 2000; }
+      else return null;
+      if (y > 2400) y -= 543;   // ปี พ.ศ.
+      const s = `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const t = new Date(s + 'T00:00:00Z');
+      return isNaN(t) || t.toISOString().slice(0, 10) !== s ? null : s;
+    };
+    const out = [];
+    for (const r of rows) {
+      const o = { line: r.line, store: r.store, day: parseDay(r.day), day_raw: r.day, note: r.note, rid: null, company: null, status: 'ok', candidates: [] };
+      if (!o.day) o.status = 'baddate';
+      else if (o.day > today) o.status = 'future';
+      if (r.rid) {
+        const x = byId.get(r.rid);
+        if (x) { o.rid = x.rid; o.company = x.company; } else if (o.status === 'ok') o.status = 'notfound';
+      } else if (!r.store) { if (o.status === 'ok') o.status = 'notfound'; }
+      else {
+        const hit = byName.get(r.store.toLowerCase()) || [];
+        if (hit.length === 1) { o.rid = hit[0].rid; o.company = hit[0].company; }
+        else if (hit.length > 1) { o.candidates = hit.slice(0, 10); if (o.status === 'ok') o.status = 'ambiguous'; }
+        else {
+          const like = (await extReq().input('q', sql.NVarChar, '%' + r.store.replace(/[!%_[]/g, '!$&') + '%').query(`
+            SELECT TOP 6 RegistrationId AS rid, CompanyName AS company FROM CustomerRegistration
+            WHERE (Hide=0 OR Hide IS NULL) AND CompanyName LIKE @q ESCAPE '!' ORDER BY LEN(CompanyName)`)).recordset;
+          if (like.length === 1) { o.rid = like[0].rid; o.company = like[0].company; if (o.status === 'ok') o.status = 'partial'; }
+          else if (like.length > 1) { o.candidates = like.slice(0, 5); if (o.status === 'ok') o.status = 'ambiguous'; }
+          else if (o.status === 'ok') o.status = 'notfound';
+        }
+      }
+      out.push(o);
+    }
+    const ready = out.filter(o => o.rid && ['ok', 'partial'].includes(o.status));
+    let saved = 0;
+    if (request.body?.commit && ready.length) {
+      const by = request.user?.username || null;
+      for (const o of ready) {
+        await req().input('rid', sql.Int, o.rid).input('d', sql.NVarChar, o.day).input('nt', sql.NVarChar, o.note).input('by', sql.NVarChar, by)
+          .query(`IF EXISTS (SELECT 1 FROM ai_impact_manual WHERE rid=@rid)
+                    UPDATE ai_impact_manual SET install_day=CAST(@d AS DATE), note=@nt, created_by=@by, created_at=GETDATE() WHERE rid=@rid
+                  ELSE INSERT INTO ai_impact_manual (rid, install_day, note, created_by) VALUES (@rid, CAST(@d AS DATE), @nt, @by);
+                  DELETE FROM ai_impact_excludes WHERE rid=@rid;`);
+        saved++;
+      }
+    }
+    res.json({ rows: out, ready: ready.length, saved });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
