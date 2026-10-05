@@ -12916,7 +12916,7 @@ app.get('/api/monitor-tags/:id/tickets', authRequired, async (request, res) => {
         cl.CalllogId AS id, cl.ReceiveDate AS opened_at, cl.CloseDate AS closed_at,
         CASE WHEN cl.ReceiveDate >= @c THEN 'post' ELSE 'pre' END AS phase,
         cs.StatusName AS status, u.UserName AS agent,
-        LEFT(cl.CalllogDesc, 300) AS description, LEFT(cl.Solution, 300) AS solution,
+        LEFT(cl.CalllogDesc, 400) AS description, LEFT(cl.Solution, 600) AS solution,
         (SELECT TOP 1 x.CompanyName FROM CustomerRegistration x WHERE x.RegistrationId = cl.RegistrationId) AS company
       FROM Calllog cl ${m.join}
       LEFT JOIN CallStatus cs ON cs.StatusId = cl.StatusId

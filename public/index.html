@@ -490,6 +490,9 @@ textarea{resize:vertical;min-height:80px}
 .mt-svc-tbl tr.mt-brand td{background:#fdfcfa}
 .mt-svc-tbl tr.mt-branch td{font-size:.78rem;padding-top:.45rem;padding-bottom:.45rem;background:#faf9f6}
 .mt-svc-tbl tr.mt-branch td:nth-child(2){padding-left:2.2rem;color:#4d535b}
+.mt-sol{margin-top:.35rem;padding:.4rem .55rem;border-radius:8px;background:#eef6f1;color:#24412f;font-size:.78rem;line-height:1.5}
+.mt-sol b{display:flex;align-items:center;gap:.25rem;font-size:.7rem;font-weight:600;color:#2f6b4f;margin-bottom:.1rem}
+.mt-sol.none{background:none;padding:0;color:var(--muted);font-size:.72rem}
 .mt-top-stores{display:flex;flex-wrap:wrap;gap:.1rem;margin:.2rem 0 .3rem}
 button.mt-svc-chip{border:none;cursor:pointer;font-family:inherit}
 button.mt-svc-chip:hover{background:#e9e6df}
@@ -2670,7 +2673,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
 
 <!-- Monitor Tag: drill-down -->
 <div class="overlay" id="modal-mt-detail">
-  <div class="modal" style="max-width:860px;width:95vw;padding:1.2rem;max-height:90vh;display:flex;flex-direction:column">
+  <div class="modal" style="max-width:1180px;width:96vw;padding:1.2rem;max-height:90vh;display:flex;flex-direction:column">
     <div class="modal-head">
       <div style="min-width:0">
         <div style="font-size:1.05rem;font-weight:600" id="mt-d-title"></div>
@@ -2685,7 +2688,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
           <th style="text-align:left;padding:.45rem .7rem;color:var(--muted);font-weight:600;white-space:nowrap">วันที่แจ้ง</th>
           <th style="text-align:left;padding:.45rem .7rem;color:var(--muted);font-weight:600">Tag</th>
           <th id="mt-d-store-th" style="text-align:left;padding:.45rem .7rem;color:var(--muted);font-weight:600">ร้าน</th>
-          <th style="text-align:left;padding:.45rem .7rem;color:var(--muted);font-weight:600;min-width:240px">รายละเอียด</th>
+          <th style="text-align:left;padding:.45rem .7rem;color:var(--muted);font-weight:600;min-width:320px">รายละเอียด / วิธีแก้ไข</th>
           <th style="text-align:left;padding:.45rem .7rem;color:var(--muted);font-weight:600">สถานะ</th>
           <th style="text-align:left;padding:.45rem .7rem;color:var(--muted);font-weight:600">ผู้รับผิดชอบ</th>
         </tr></thead>
@@ -21097,11 +21100,13 @@ async function mtShowCases(ctx) {
     <td style="${td};white-space:nowrap;font-size:.76rem">${fmtDT(r.opened_at)}</td>
     <td style="${td}"><span class="mt-svc-chip ${mtGroupOf(r.tag) === 'service' ? 'sv' : 'bg'}">${esc(r.tag?.title || '')}</span>${r.linked
       ? `<div style="margin-top:.25rem;display:flex;gap:.3rem;flex-wrap:wrap">
-          <button class="mt-mini" onclick="mtUnlinkCase(${r.tag.id},${r.id})" title="เอาเคสนี้ออกจาก Tag"><i class=i-trash></i> เอาออก</button>
+          <button class="mt-mini" onclick="mtUnlinkCase(${r.tag.id},${r.id})" title="เอาเคสนี้ออกจาก Tag" aria-label="เอาออกจาก Tag"><i class=i-trash></i></button>
           <select class="mt-mini mt-move" onchange="mtMoveCase(${r.tag.id},${r.id},this)" title="ย้ายเคสนี้ไป Tag อื่น"><option value="">ย้ายไป Tag…</option>${
             opts.filter(x => x.id !== r.tag.id).map(x => `<option value="${x.id}">${mtGroupOf(x) === 'service' ? 'IT Service · ' : 'Bug · '}${esc(x.title)}</option>`).join('')}</select></div>` : ''}</td>
     ${ctx.store ? '' : `<td style="${td}">${esc(r.company || '—')}</td>`}
-    <td style="${td};color:var(--muted)">${esc((r.description || '').replace(/\s+/g, ' ').slice(0, 220)) || '—'}</td>
+    <td style="${td}"><div style="color:#4d535b">${esc((r.description || '').replace(/\s+/g, ' ').slice(0, 400)) || '—'}</div>${
+      (r.solution || '').trim() ? `<div class="mt-sol"><b><i class=i-wrench></i> วิธีแก้ไข${r.agent ? ' · ' + esc(dn(r.agent) || r.agent) : ''}</b>${esc(r.solution.replace(/\s+/g, ' ').slice(0, 600))}</div>`
+        : '<div class="mt-sol none">ยังไม่ได้บันทึกวิธีแก้ไข</div>'}</td>
     <td style="${td};white-space:nowrap">${esc(r.status || '—')}</td>
     <td style="${td};white-space:nowrap;font-size:.78rem">${esc(dn(r.agent) || r.agent || '—')}</td>
   </tr>`).join('');
