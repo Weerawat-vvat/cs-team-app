@@ -482,6 +482,10 @@ textarea{resize:vertical;min-height:80px}
 .mt-avg-row{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem .55rem;margin-top:.55rem;font-size:.76rem}
 .mt-avg-pill{display:inline-flex;align-items:center;gap:.3rem;padding:.12rem .55rem;border-radius:999px;background:#f3f1ec;color:#3a3f46;white-space:nowrap}
 .mt-avg-pill b{font-variant-numeric:tabular-nums;color:var(--text)}
+.aim-warn{display:flex;align-items:center;gap:.45rem;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:12px;padding:.6rem .85rem;font-size:.8rem;margin-bottom:.75rem}
+.aim-good{color:#0f766e}
+.aim-bad{color:#be123c}
+.mt-tbl tr.aim-off td{color:var(--muted);background:#fbfaf7}
 .mt-board-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem}
 .mt-tt-head{padding:.8rem 1rem .2rem;font-size:.9rem;font-weight:600;color:var(--text);display:flex;align-items:center;gap:.4rem}
 .mt-share{height:6px;border-radius:3px;background:var(--line-2);overflow:hidden;min-width:70px}
@@ -1406,6 +1410,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
   <div class="dash-tabs">
     <button class="dash-tab-btn active" id="dash-tab-btn-1" onclick="switchDashTab(1)">ภาพรวม Agent</button>
     <button class="dash-tab-btn" id="dash-tab-btn-4" onclick="switchDashTab(4)">Monitor Tag <span id="mt-tab-count" class="mt-tab-count" style="display:none"></span></button>
+    <button class="dash-tab-btn" id="dash-tab-btn-5" onclick="switchDashTab(5)">ผลการติดตั้ง AI</button>
     <button class="dash-tab-btn" id="dash-tab-btn-2" onclick="switchDashTab(2)">Issue Analytics</button>
   </div>
 
@@ -1640,6 +1645,20 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
     <div class="mt-kpis" id="mt-kpis"></div>
     <div id="mt-body"><div class="mt-empty">กำลังโหลด...</div></div>
   </div><!-- /dash-tab-monitor -->
+
+  <!-- ════ TAB 5: ผลการติดตั้ง AI ════ -->
+  <div id="dash-tab-aiimpact" style="display:none">
+    <div class="mt-kind-bar">
+      <div class="svc-seg" id="aim-mode" role="tablist" aria-label="นับเคส"></div>
+      <div class="svc-seg mt-seg-sm" id="aim-pre" role="tablist" aria-label="ช่วงก่อนติดตั้ง"></div>
+      <span style="flex:1"></span>
+      <span id="aim-updated" class="mt-updated" style="margin-left:0"></span>
+      <button class="svc-btn-ghost" onclick="aimLoad()" style="height:34px"><i class=i-refresh></i> รีเฟรช</button>
+    </div>
+    <div class="mt-meta" id="aim-hint" style="margin:-.25rem 0 .75rem;line-height:1.55"></div>
+    <div class="mt-kpis" id="aim-kpis"></div>
+    <div id="aim-body"><div class="mt-empty">กำลังโหลด...</div></div>
+  </div><!-- /dash-tab-aiimpact -->
 
 
 </div>
@@ -19998,11 +20017,14 @@ function switchDashTab(tab) {
   document.getElementById('dash-tab-agent').style.display  = tab === 1 ? '' : 'none';
   document.getElementById('dash-tab-issues').style.display = tab === 2 ? '' : 'none';
   document.getElementById('dash-tab-monitor').style.display = tab === 4 ? '' : 'none';
+  document.getElementById('dash-tab-aiimpact').style.display = tab === 5 ? '' : 'none';
   document.getElementById('dash-tab-btn-1').classList.toggle('active', tab === 1);
   document.getElementById('dash-tab-btn-2').classList.toggle('active', tab === 2);
   document.getElementById('dash-tab-btn-4').classList.toggle('active', tab === 4);
+  document.getElementById('dash-tab-btn-5').classList.toggle('active', tab === 5);
   if (tab === 2) loadIssueAnalytics();
   if (tab === 4) mtLoad();
+  if (tab === 5) aimLoad();
 }
 
 async function loadIssueAnalytics() {
@@ -21288,6 +21310,213 @@ async function mtResolve(id) {
   mtPatchLocal(id, { status: 'resolved' });   // ให้หายจากหน้าต่างจัดการ Tag ทันที
   if (document.getElementById('modal-mt-manage')?.classList.contains('open')) mtRenderManage();
   mtLoad({ quiet: true });
+}
+
+// ══ ผลการติดตั้ง AI ═══════════════════════════════════════
+// เทียบเคสต่อร้านก่อน/หลังติดตั้ง กับร้านที่ไม่ได้ติดตั้ง (กลุ่มเทียบ) ในช่วงวันเดียวกัน — แสดงเป็นเคส/ร้าน/เดือน
+let _aim = { mode: 'bug', pre: 30, data: null, q: '', loading: false };
+const aimMonth = v => v == null ? null : v * 30;
+const aimFmt = v => v == null ? '—' : v >= 10 ? v.toFixed(0) : v.toFixed(2);
+const aimPct = (a, b) => a ? (b - a) / a * 100 : null;
+const aimPctTxt = p => p == null ? '—' : (p > 0 ? '+' : '') + p.toFixed(0) + '%';
+// เปลี่ยนแปลง: ลด = ดี (เขียว) · เพิ่ม = แดง · ไม่เกิน ±5% = คงที่
+function aimPill(p, word) {
+  if (p == null) return '<span class="mt-pill mt-flat">—</span>';
+  if (Math.abs(p) < 5) return `<span class="mt-pill mt-flat"><i class=i-minus></i> ${word ? 'ใกล้เคียงเดิม ' : ''}${aimPctTxt(p)}</span>`;
+  return p < 0 ? `<span class="mt-pill mt-down"><i class=i-trend-down></i> ${word ? 'ลดลง ' : ''}${aimPctTxt(p)}</span>`
+               : `<span class="mt-pill mt-up"><i class=i-trend-up></i> ${word ? 'เพิ่มขึ้น ' : ''}${aimPctTxt(p)}</span>`;
+}
+
+async function aimLoad() {
+  if (_aim.loading) return;
+  _aim.loading = true;
+  aimRenderBar();
+  const body = document.getElementById('aim-body');
+  if (!_aim.data) body.innerHTML = '<div class="mt-empty">กำลังโหลด...</div>';
+  const d = await api(`/api/ai-impact?mode=${_aim.mode}&pre=${_aim.pre}`, { silent: true });
+  _aim.loading = false;
+  if (!d || d.error) {
+    body.innerHTML = `<div class="mt-empty">โหลดไม่สำเร็จ${d?.error ? ': ' + esc(d.error) : ''} (ถ้าเพิ่งอัปเดตโค้ด ให้รีสตาร์ท server ก่อน)</div>`;
+    return;
+  }
+  _aim.data = d;
+  document.getElementById('aim-updated').textContent =
+    'อัปเดต ' + new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
+  aimRender();
+}
+function aimSetMode(m) { _aim.mode = m; _aim.data = null; aimLoad(); }
+function aimSetPre(n) { _aim.pre = n; _aim.data = null; aimLoad(); }
+function aimRenderBar() {
+  document.getElementById('aim-mode').innerHTML = [['bug', 'alert', 'Bug โปรแกรม'], ['all', 'chart', 'ทุกเคส']].map(([k, ic, l]) =>
+    `<button class="${_aim.mode === k ? 'on' : ''}" onclick="aimSetMode('${k}')"><i class=i-${ic}></i> ${l}</button>`).join('');
+  document.getElementById('aim-pre').innerHTML = [14, 30, 60].map(n =>
+    `<button class="${_aim.pre === n ? 'on' : ''}" onclick="aimSetPre(${n})">ก่อนติดตั้ง ${n} วัน</button>`).join('');
+}
+
+function aimRender() {
+  aimRenderBar();
+  if (_mtCharts['aim']) { _mtCharts['aim'].destroy(); delete _mtCharts['aim']; }
+  const d = _aim.data, body = document.getElementById('aim-body');
+  if (!d) return;
+  const fd = x => x ? fmtDateShort(x + 'T00:00:00') : '—';
+  document.getElementById('aim-hint').innerHTML = `ร้านที่ติดตั้ง = ร้านที่มีเคสคำว่า <b>${d.keywords.map(esc).join(' / ')}</b> ตั้งแต่ ${fd(d.since)}
+    · เทียบ <b>${d.pre} วันก่อนติดตั้ง</b> กับ<b>หลังติดตั้งถึงเมื่อวาน</b> (ไม่นับวันติดตั้งและวันนี้ · ไม่นับเคสติดตั้งเอง)
+    · กลุ่มเทียบ = ร้านที่ไม่ได้ติดตั้ง ${(d.n_ctl || 0).toLocaleString()} ร้านในช่วงวันเดียวกัน`;
+  if (d.empty) {
+    body.innerHTML = `<div class="mt-empty">ยังไม่พบร้านที่ติดตั้ง AI<br><span style="font-size:.78rem">ให้น้องลงเคสตอนติดตั้งโดยมีคำว่า ${d.keywords.map(esc).join(' / ')}</span></div>`;
+    return;
+  }
+  const s = d.summary;
+  const aiP = aimPct(s.ai_pre, s.ai_post), ctlP = aimPct(s.ctl_pre, s.ctl_post);
+  const net = aiP != null && ctlP != null ? aiP - ctlP : null;
+  const avgPost = s.stores ? s.post_days / s.stores : 0;
+  const due = d.median_install ? new Date(Date.parse(d.median_install) + 31 * 86400000).toISOString().slice(0, 10) : null;
+  const all = d.stores.filter(x => !x.excluded);
+  const waiting = all.filter(x => !x.counted).length;
+  const days = all.map(x => x.install_day).sort();
+  const unit = _aim.mode === 'bug' ? 'Bug' : 'เคส';
+  const k = (label, val, sub, cls) => `<div class="stat-flat"><div class="label">${label}</div><div class="value ${cls}">${val}</div><div class="sub">${sub}</div></div>`;
+  const verdict = net == null ? 'ยังเทียบไม่ได้'
+    : Math.abs(net) < 5 ? 'ไม่ต่างจากร้านที่ไม่ได้ติดตั้ง' : net < 0 ? 'ลดลงมากกว่าร้านที่ไม่ได้ติดตั้ง' : 'เพิ่มขึ้นมากกว่าร้านที่ไม่ได้ติดตั้ง';
+  document.getElementById('aim-kpis').innerHTML =
+    k('<i class=i-store></i> ร้านที่ติดตั้ง AI', `${s.stores}<span style="font-size:.9rem;color:var(--muted)"> / ${all.length}</span>`,
+      `ติดตั้ง ${fd(days[0])} – ${fd(days[days.length - 1])}${waiting ? ` · ${waiting} ร้านยังไม่นับ` : ''}`, 'blue')
+    + k(`ร้านที่ติดตั้ง AI · ${unit}/ร้าน/เดือน`, `${aimFmt(aimMonth(s.ai_pre))} → ${aimFmt(aimMonth(s.ai_post))}`,
+      `${aimPill(aiP)} · ก่อน ${s.ai_pre_n} · หลัง ${s.ai_post_n} ${unit}`, 'orange')
+    + k(`ร้านที่ไม่ได้ติดตั้ง · ${unit}/ร้าน/เดือน`, `${aimFmt(aimMonth(s.ctl_pre))} → ${aimFmt(aimMonth(s.ctl_post))}`,
+      `${aimPill(ctlP)} · ช่วงวันเดียวกัน`, 'white')
+    + k('ผลสุทธิของ AI', net == null ? '—' : aimPctTxt(net), verdict, net == null || Math.abs(net) < 5 ? 'white' : net < 0 ? 'green' : 'orange');
+
+  const warn = avgPost < 30 ? `<div class="aim-warn"><i class=i-clock></i> ข้อมูลหลังติดตั้งเฉลี่ยแค่ <b>${avgPost.toFixed(0)} วัน</b> — ตัวเลขยังแกว่งได้มาก
+    ควรสรุปผลเมื่อครบ 30 วัน${due ? ` (ประมาณ <b>${fd(due)}</b>)` : ''}</div>` : '';
+  const tagRows = (d.by_tag || []).filter(t => t.ai_pre_n + t.ai_post_n > 0)
+    .sort((a, b) => (b.ai_pre_n + b.ai_post_n) - (a.ai_pre_n + a.ai_post_n));
+  const byTag = _aim.mode !== 'bug' ? '' : `<div class="mt-tbl-wrap" style="margin-top:.75rem">
+    <div class="mt-tt-head"><i class=i-alert style="color:${MT_GROUPS.problem.col}"></i> แยกตามประเภท Bug <span class="mt-meta" style="font-weight:400">· ${unit}/ร้าน/เดือน · ดูว่าปัญหาแบบไหนที่ AI ช่วยได้</span></div>
+    <table class="mt-tbl"><thead><tr><th>ประเภท Bug</th><th class="r">AI ก่อน</th><th class="r">AI หลัง</th><th>AI เปลี่ยน</th>
+      <th class="r">ไม่ติดตั้ง ก่อน</th><th class="r">ไม่ติดตั้ง หลัง</th><th>ไม่ติดตั้ง เปลี่ยน</th><th class="r">ผลสุทธิ</th></tr></thead>
+    <tbody>${tagRows.map(t => { const a = aimPct(t.ai_pre, t.ai_post), c = aimPct(t.ctl_pre, t.ctl_post), n = a != null && c != null ? a - c : null;
+      return `<tr><td><b>${esc(t.title)}</b><span class="sub">ก่อน ${t.ai_pre_n} · หลัง ${t.ai_post_n} เคส</span></td>
+        <td class="r num">${aimFmt(aimMonth(t.ai_pre))}</td><td class="r num"><b>${aimFmt(aimMonth(t.ai_post))}</b></td><td>${aimPill(a)}</td>
+        <td class="r num mt-meta">${aimFmt(aimMonth(t.ctl_pre))}</td><td class="r num mt-meta">${aimFmt(aimMonth(t.ctl_post))}</td><td>${aimPill(c)}</td>
+        <td class="r num"><b class="${n == null || Math.abs(n) < 5 ? '' : n < 0 ? 'aim-good' : 'aim-bad'}">${aimPctTxt(n)}</b></td></tr>`; }).join('')
+      || '<tr><td colspan="8" class="mt-meta" style="text-align:center;padding:1.2rem">ยังไม่มีเคส Bug ของร้านที่ติดตั้ง</td></tr>'}</tbody></table></div>`;
+  body.innerHTML = `${warn}
+    <div class="mt-ov-card">
+      <div class="mt-ov-title">${unit}ต่อร้านต่อเดือน — ร้านที่ติดตั้ง AI เทียบร้านที่ไม่ได้ติดตั้ง</div>
+      <div class="mt-ov-sub">ค่าเฉลี่ย 7 วันย้อนหลัง (ปรับเป็นต่อเดือน) · เส้นประ = วันที่ร้านส่วนใหญ่ติดตั้ง${d.data_start ? ` · ข้อมูล Tag เริ่ม ${fd(d.data_start)}` : ''}</div>
+      <div style="position:relative;height:250px;margin-top:.5rem"><canvas id="aim-chart"></canvas></div>
+    </div>
+    ${byTag}
+    <div class="mt-ov-card" style="padding:0;overflow:hidden;margin-top:.75rem">
+      <div class="mt-st-head">
+        <div style="flex:1;min-width:200px"><div class="mt-ov-title">ร้านที่ติดตั้ง AI <span class="mt-meta" style="font-weight:400">· ${d.stores.length} ร้าน</span></div>
+          <div class="mt-ov-sub">ร้านที่คำค้นจับผิด (ไม่ได้ติดตั้ง AI จริง) กด “ไม่นับ” เพื่อตัดออกจากการวัดผล</div></div>
+        <label class="svc-search" style="margin:0;max-width:260px;min-width:180px"><i class=i-search style="color:#8a8f97"></i>
+          <input id="aim-q" type="text" placeholder="ค้นหาร้าน / แบรนด์..." value="${esc(_aim.q)}" oninput="_aim.q=this.value;aimRenderStores()"
+            style="border:none;padding:0;background:none;box-shadow:none"/></label>
+        <button class="svc-btn-ghost" onclick="aimExport()" style="height:34px"><i class=i-download></i> Export CSV</button>
+      </div>
+      <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>ร้าน / แบรนด์</th><th>วันติดตั้ง</th>
+        <th class="r">ก่อน</th><th class="r">หลัง</th><th class="r">${unit}/เดือน ก่อน → หลัง</th><th>เปลี่ยน</th><th></th></tr></thead>
+        <tbody id="aim-stores"></tbody></table></div>
+    </div>`;
+  aimRenderStores();
+  aimDrawChart(d);
+}
+
+function aimStoreRows() {
+  const q = _aim.q.trim().toLowerCase();
+  return (_aim.data?.stores || []).filter(s => !q || [s.company, s.grp].some(v => (v || '').toLowerCase().includes(q)));
+}
+function aimRenderStores() {
+  const tb = document.getElementById('aim-stores'); if (!tb) return;
+  const d = _aim.data, fd = x => x ? fmtDateShort(x + 'T00:00:00') : '—';
+  const rows = aimStoreRows();
+  tb.innerHTML = rows.map(s => {
+    const why = s.excluded ? 'ตัดออกแล้ว' : !s.post_days ? 'ยังไม่มีข้อมูลหลังติดตั้ง' : !s.pre_days ? 'ติดตั้งก่อนมีข้อมูล Tag' : '';
+    const a = s.pre_days ? s.pre / s.pre_days * 30 : null, b = s.post_days ? s.post / s.post_days * 30 : null;
+    return `<tr class="${s.counted ? '' : 'aim-off'}">
+      <td>${esc(s.company || '—')}<span class="sub">${esc(s.grp || 'ร้าน')}</span></td>
+      <td class="num">${fd(s.install_day)}<span class="sub" title="${esc(s.install_desc || '')}">เคส #${s.install_case}${s.install_cases > 1 ? ` · +${s.install_cases - 1}` : ''}</span></td>
+      <td class="r num">${s.pre_days ? `${s.pre}<span class="sub">${s.pre_days} วัน</span>` : '—'}</td>
+      <td class="r num">${s.post_days ? `${s.post}<span class="sub">${s.post_days} วัน</span>` : '—'}</td>
+      <td class="r num">${a == null || b == null ? '—' : `${aimFmt(a)} → <b>${aimFmt(b)}</b>`}</td>
+      <td>${why ? `<span class="mt-meta">${why}</span>` : aimPill(aimPct(a, b))}</td>
+      <td class="r"><button class="mt-mini" onclick="aimExclude(${s.rid},${!s.excluded})">${s.excluded ? 'นับกลับ' : 'ไม่นับ'}</button></td></tr>`;
+  }).join('') || `<tr><td colspan="7" class="mt-meta" style="text-align:center;padding:1.2rem">ไม่พบร้านที่ค้นหา</td></tr>`;
+}
+async function aimExclude(rid, exclude) {
+  const s = _aim.data?.stores.find(x => x.rid === rid);
+  if (exclude && !confirm(`ไม่นับ “${s?.company || ''}” เป็นร้านที่ติดตั้ง AI?\n(ร้านนี้จะไม่อยู่ทั้งกลุ่ม AI และกลุ่มเทียบ)`)) return;
+  const d = await api('/api/ai-impact/exclude', { method: 'POST', silent: true, body: { rid, exclude } });
+  if (!d || d.error) { showToast(d?.error || 'บันทึกไม่สำเร็จ', 'error'); return; }
+  showToast(exclude ? 'ตัดร้านนี้ออกแล้ว — คำนวณใหม่' : 'นับร้านนี้กลับแล้ว — คำนวณใหม่');
+  aimLoad();
+}
+function aimExport() {
+  const d = _aim.data; if (!d) return;
+  const unit = _aim.mode === 'bug' ? 'Bug' : 'เคส';
+  const head = ['ร้าน', 'แบรนด์', 'วันติดตั้ง', 'เคสติดตั้ง', `${unit} ก่อน`, 'วันก่อน', `${unit} หลัง`, 'วันหลัง', `${unit}/เดือน ก่อน`, `${unit}/เดือน หลัง`, 'เปลี่ยน %', 'นับในการวัดผล'];
+  const rows = aimStoreRows().map(s => {
+    const a = s.pre_days ? s.pre / s.pre_days * 30 : null, b = s.post_days ? s.post / s.post_days * 30 : null, p = aimPct(a, b);
+    return [s.company, s.grp || '', s.install_day, s.install_case, s.pre, s.pre_days, s.post, s.post_days,
+      a == null ? '' : a.toFixed(2), b == null ? '' : b.toFixed(2), p == null ? '' : p.toFixed(0), s.counted ? 'นับ' : s.excluded ? 'ตัดออก' : 'ยังไม่นับ'];
+  });
+  const csv = '﻿' + [head, ...rows].map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = `ai-impact-${_aim.mode}-${d.to}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+function aimDrawChart(d) {
+  const cv = document.getElementById('aim-chart');
+  if (!cv || typeof Chart === 'undefined' || !d.labels?.length) return;
+  const css = getComputedStyle(document.documentElement);
+  const muted = css.getPropertyValue('--muted').trim() || '#5b616b';
+  const grid = css.getPropertyValue('--line-2').trim() || '#efede7';
+  const primary = css.getPropertyValue('--primary').trim() || '#35685f';
+  // ค่าเฉลี่ย 7 วันย้อนหลัง ต่อร้าน ปรับเป็นต่อเดือน
+  const roll = (arr, n) => arr.map((_, i) => { const a = Math.max(0, i - 6), xs = arr.slice(a, i + 1); return +(xs.reduce((x, y) => x + y, 0) / xs.length / n * 30).toFixed(3); });
+  const iInst = d.median_install ? d.labels.indexOf(d.median_install) : -1;
+  const marker = {
+    id: 'aimInstall',
+    afterDatasetsDraw(chart) {
+      if (iInst < 0) return;
+      const x = chart.scales.x.getPixelForValue(iInst), { top, bottom } = chart.chartArea, ctx = chart.ctx;
+      ctx.save(); ctx.strokeStyle = primary; ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]);
+      ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.stroke();
+      ctx.setLineDash([]); ctx.fillStyle = primary; ctx.font = '600 11px sans-serif';
+      ctx.textAlign = x > chart.chartArea.right - 110 ? 'right' : 'left';
+      ctx.fillText('ติดตั้ง AI', x + (ctx.textAlign === 'right' ? -4 : 4), top + 11);
+      ctx.restore();
+    }
+  };
+  _mtCharts['aim'] = new Chart(cv, {
+    type: 'line',
+    data: {
+      labels: d.labels.map(x => new Date(x + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })),
+      datasets: [
+        { label: `ร้านที่ติดตั้ง AI (${d.n_ai} ร้าน)`, data: roll(d.ai_daily, d.n_ai || 1), borderColor: '#e34948', backgroundColor: '#e34948', borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4, tension: .3 },
+        { label: `ร้านที่ไม่ได้ติดตั้ง (${(d.n_ctl || 0).toLocaleString()} ร้าน)`, data: roll(d.ctl_daily, d.n_ctl || 1), borderColor: '#8a8f97', backgroundColor: '#8a8f97', borderWidth: 2, borderDash: [5, 4], pointRadius: 0, pointHoverRadius: 4, tension: .3 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 14, boxHeight: 2, color: muted, font: { size: 11 } } },
+        tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${aimFmt(c.raw)} ต่อร้าน/เดือน` } }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: muted, maxTicksLimit: 14, font: { size: 10 } } },
+        y: { beginAtZero: true, grid: { color: grid }, ticks: { color: muted, font: { size: 10 } } }
+      }
+    },
+    plugins: [marker]
+  });
 }
 
 // อัปเดตตัวเลขอัตโนมัติทุก 5 นาที ขณะเปิดแท็บนี้อยู่ (เคสที่น้องๆ ติด Tag ระหว่างวัน)
