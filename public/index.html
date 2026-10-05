@@ -491,6 +491,7 @@ textarea{resize:vertical;min-height:80px}
 .mt-tbl tr.aim-brand:hover td{background:#faf9f6}
 .mt-tbl tr.aim-branch td{font-size:.78rem;padding-top:.5rem;padding-bottom:.5rem;background:#faf9f6}
 .mt-tbl tr.aim-branch td:first-child{padding-left:2.2rem;color:#4d535b}
+.mt-tbl tr.aim-sub-head td{font-size:.72rem;color:var(--muted);font-weight:600;padding-top:.6rem;padding-bottom:.3rem}
 .aim-src{display:inline-block;padding:0 .4rem;border-radius:999px;background:#eaf1fb;color:#2a5f9e;font-weight:600}
 .aim-pick{display:flex;align-items:center;gap:.4rem;padding:.5rem .7rem;border:1px solid var(--primary);border-radius:10px;background:var(--primary-soft);margin-bottom:.4rem;font-size:.85rem}
 .aim-list{max-height:220px;overflow:auto;margin-top:.3rem}
@@ -21172,6 +21173,7 @@ async function mtShowCases(ctx) {
   document.getElementById('mt-d-title').textContent = ctx.title;
   document.getElementById('mt-d-sub').textContent = `${ctx.sub} · ${days} วันล่าสุด`;
   document.getElementById('mt-d-store-th').style.display = ctx.store ? 'none' : '';
+  document.querySelector('#modal-mt-detail thead th:nth-child(3)').textContent = 'Tag';
   const tb = document.getElementById('mt-d-tbody');
   tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:1.5rem;color:var(--muted)">กำลังโหลด...</td></tr>';
   if (!document.getElementById('modal-mt-detail').classList.contains('open')) openModal('modal-mt-detail');
@@ -21455,7 +21457,7 @@ function aimRender() {
 
   const warn = avgPost < 30 ? `<div class="aim-warn"><i class=i-clock></i> ข้อมูลหลังติดตั้งเฉลี่ยแค่ <b>${avgPost.toFixed(0)} วัน</b> — ตัวเลขยังแกว่งได้มาก
     ควรสรุปผลเมื่อครบ 30 วัน${due ? ` (ประมาณ <b>${fd(due)}</b>)` : ''}</div>` : '';
-  const tagRows = (d.by_tag || []).filter(t => t.group && t.ai_pre_n + t.ai_post_n > 0)
+  _aim.tagRows = (d.by_tag || []).filter(t => t.group && t.ai_pre_n + t.ai_post_n > 0)
     .sort((a, b) => (b.ai_pre_n + b.ai_post_n) - (a.ai_pre_n + a.ai_post_n));
   const gBadge = g => g === 'service' ? '<span class="mt-type mt-type-svc">IT Service</span>' : g === 'problem' ? '<span class="mt-type mt-type-bug">Bug</span>' : '';
   body.innerHTML = `${warn}
@@ -21466,12 +21468,9 @@ function aimRender() {
       <div style="position:relative;height:300px;margin-top:.5rem"><canvas id="aim-chart"></canvas></div>
     </div>
     <div class="mt-tbl-wrap" style="margin-top:.75rem">
-      <div class="mt-tt-head"><i class=i-tag style="color:var(--primary)"></i> แยกตาม Tag <span class="mt-meta" style="font-weight:400">· ${unit}/ร้าน/เดือน ก่อน vs หลังติดตั้ง · ดูว่าปัญหาแบบไหนลดลง</span></div>
+      <div class="mt-tt-head"><i class=i-tag style="color:var(--primary)"></i> แยกตาม Tag <span class="mt-meta" style="font-weight:400">· ${unit}/ร้าน/เดือน ก่อน vs หลังติดตั้ง · ดูว่าปัญหาแบบไหนลดลง · คลิกแถวเพื่อดูร้านที่เกิดบ่อย</span></div>
       <table class="mt-tbl"><thead><tr><th>Tag</th><th class="r">ก่อน</th><th class="r">หลัง</th><th>เปลี่ยน</th><th class="r">จำนวนเคส ก่อน → หลัง</th></tr></thead>
-      <tbody>${tagRows.map(t => `<tr><td><b>${esc(t.title)}</b> ${gBadge(t.group)}</td>
-        <td class="r num">${aimFmt(aimMonth(t.ai_pre))}</td><td class="r num"><b>${aimFmt(aimMonth(t.ai_post))}</b></td>
-        <td>${aimPill(aimPct(t.ai_pre, t.ai_post))}</td><td class="r num mt-meta">${t.ai_pre_n} → ${t.ai_post_n}</td></tr>`).join('')
-        || '<tr><td colspan="5" class="mt-meta" style="text-align:center;padding:1.2rem">ยังไม่มีเคสของร้านที่ติดตั้ง</td></tr>'}</tbody></table>
+      <tbody id="aim-tag-body">${aimTagRowsHtml()}</tbody></table>
     </div>
     <div class="mt-ov-card" style="padding:0;overflow:hidden;margin-top:.75rem">
       <div class="mt-st-head">
@@ -21494,6 +21493,80 @@ function aimRender() {
   aimDrawChart(d);
 }
 
+// ── แยกตาม Tag: กดแถวเพื่อดูว่า Tag นี้เกิดที่ร้านไหนมากที่สุด → ดูเคสของร้านนั้น
+const _aimTagOpen = new Set();
+function aimTagRowsHtml() {
+  const rows = _aim.tagRows || [];
+  const gBadge = g => g === 'service' ? '<span class="mt-type mt-type-svc">IT Service</span>' : g === 'problem' ? '<span class="mt-type mt-type-bug">Bug</span>' : '';
+  if (!rows.length) return '<tr><td colspan="5" class="mt-meta" style="text-align:center;padding:1.2rem">ยังไม่มีเคสของร้านที่ติดตั้ง</td></tr>';
+  return rows.map(t => {
+    const open = _aimTagOpen.has(t.title);
+    return `<tr class="mt-row${open ? ' open' : ''}" data-t="${mtAttr(t.title)}" onclick="aimToggleTag(this.dataset.t)" title="คลิกเพื่อดูร้านที่เกิดบ่อย">
+      <td><b>${esc(t.title)}</b> ${gBadge(t.group)}<span class="sub">${open ? 'ซ่อนรายชื่อร้าน' : 'ดูร้านที่เกิดบ่อย ›'}</span></td>
+      <td class="r num">${aimFmt(aimMonth(t.ai_pre))}</td><td class="r num"><b>${aimFmt(aimMonth(t.ai_post))}</b></td>
+      <td>${aimPill(aimPct(t.ai_pre, t.ai_post))}</td><td class="r num mt-meta">${t.ai_pre_n} → ${t.ai_post_n}</td></tr>`
+      + (open ? aimTagStoresHtml(t) : '');
+  }).join('');
+}
+function aimTagStoresHtml(t) {
+  const fd = x => x ? fmtDateShort(x + 'T00:00:00') : '—';
+  const list = (_aim.data?.stores || []).filter(s => s.counted && s.tags?.[t.title])
+    .map(s => ({ s, pre: s.tags[t.title][0], post: s.tags[t.title][1] }))
+    .sort((a, b) => (b.pre + b.post) - (a.pre + a.post) || b.post - a.post);
+  if (!list.length) return '<tr class="aim-branch"><td colspan="5" class="mt-meta">ไม่มีร้านที่นับได้</td></tr>';
+  const TOP = 15;
+  return `<tr class="aim-branch aim-sub-head"><td colspan="5">ร้านที่เกิด “${esc(t.title)}” มากที่สุด · ${list.length} ร้าน · ตัวเลข = ${_aim.mode === 'bug' ? 'Bug' : 'เคส'}/เดือน ก่อน → หลังติดตั้ง</td></tr>`
+    + list.slice(0, TOP).map(({ s, pre, post }) => {
+      const a = s.pre_days ? pre / s.pre_days * 30 : null, b = s.post_days ? post / s.post_days * 30 : null;
+      return `<tr class="aim-branch">
+        <td>${esc(s.company || '—')}<span class="sub">${esc(s.grp || 'ร้าน')} · ติดตั้ง ${fd(s.install_day)}</span></td>
+        <td class="r num">${aimFmt(a)}</td><td class="r num"><b>${aimFmt(b)}</b></td>
+        <td>${aimPill(aimPct(a, b))}</td>
+        <td class="r num" style="white-space:nowrap"><span class="mt-meta">${pre} → ${post} เคส</span>
+          <button class="mt-mini" style="margin-left:.4rem" onclick="event.stopPropagation();aimShowCases(${s.rid},${t.id || 0},this.dataset.t)" data-t="${mtAttr(t.title)}">ดูเคส ›</button></td></tr>`;
+    }).join('')
+    + (list.length > TOP ? `<tr class="aim-branch"><td colspan="5" class="mt-meta">… อีก ${list.length - TOP} ร้าน</td></tr>` : '');
+}
+function aimToggleTag(title) {
+  _aimTagOpen.has(title) ? _aimTagOpen.delete(title) : _aimTagOpen.add(title);
+  const tb = document.getElementById('aim-tag-body');
+  if (tb) tb.innerHTML = aimTagRowsHtml();
+}
+// เคสของร้านนี้ที่ติด Tag นี้ ช่วงก่อน + หลังติดตั้ง
+async function aimShowCases(rid, tagId, title) {
+  const s = _aim.data?.stores.find(x => x.rid === rid);
+  if (!s || !tagId) { showToast('ดูเคสไม่ได้ — ลองรีเฟรชหน้าใหม่', 'error'); return; }
+  const fd = x => x ? fmtDateShort(x + 'T00:00:00') : '—';
+  const n = s.tags?.[title] || [0, 0];
+  _mtDetailCtx = null;
+  document.getElementById('mt-d-title').textContent = `${title} — ${s.company}`;
+  document.getElementById('mt-d-sub').textContent = `ติดตั้ง AI ${fd(s.install_day)} · ก่อนติดตั้ง ${n[0]} เคส (${s.pre_days} วัน) · หลังติดตั้ง ${n[1]} เคส (${s.post_days} วัน)`;
+  document.getElementById('mt-d-store-th').style.display = 'none';
+  document.querySelector('#modal-mt-detail thead th:nth-child(3)').textContent = 'ช่วง';
+  const tb = document.getElementById('mt-d-tbody');
+  tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:1.5rem;color:var(--muted)">กำลังโหลด...</td></tr>';
+  openModal('modal-mt-detail');
+  const d = await api(`/api/ai-impact/cases?rid=${rid}&tag=${tagId}&from=${s.pre_from}`, { silent: true });
+  if (!d || d.error) { tb.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:1.5rem;color:var(--muted)">${esc(d?.error || 'โหลดไม่สำเร็จ')}</td></tr>`; return; }
+  if (!d.rows.length) { tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:1.5rem;color:var(--muted)">— ไม่มีเคส —</td></tr>'; return; }
+  const td = 'padding:.42rem .7rem;border-bottom:1px solid var(--line-2);vertical-align:top';
+  tb.innerHTML = d.rows.map(r => {
+    const phase = r.d < s.install_day ? '<span class="mt-pill mt-flat">ก่อนติดตั้ง</span>'
+      : r.d === s.install_day ? '<span class="mt-pill mt-flat">วันติดตั้ง</span>'
+      : '<span class="mt-pill" style="background:var(--primary-soft);color:var(--primary)">หลังติดตั้ง</span>';
+    return `<tr>
+      <td style="${td};font-family:monospace;font-size:.76rem;white-space:nowrap">#${r.id}</td>
+      <td style="${td};white-space:nowrap;font-size:.76rem">${fmtDT(r.opened_at)}</td>
+      <td style="${td};white-space:nowrap">${phase}</td>
+      <td style="${td}"><div style="color:#4d535b">${esc((r.description || '').replace(/\s+/g, ' ').slice(0, 400)) || '—'}</div>${
+        (r.solution || '').trim() ? `<div class="mt-sol"><b><i class=i-wrench></i> วิธีแก้ไข${r.agent ? ' · ' + esc(dn(r.agent) || r.agent) : ''}</b>${esc(r.solution.replace(/\s+/g, ' ').slice(0, 600))}</div>`
+          : '<div class="mt-sol none">ยังไม่ได้บันทึกวิธีแก้ไข</div>'}</td>
+      <td style="${td};white-space:nowrap">${esc(r.status || '—')}</td>
+      <td style="${td};white-space:nowrap;font-size:.78rem">${esc(dn(r.agent) || r.agent || '—')}</td>
+    </tr>`;
+  }).join('');
+}
+
 function aimStoreRows() {
   const q = _aim.q.trim().toLowerCase();
   return (_aim.data?.stores || []).filter(s => !q || [s.company, s.grp].some(v => (v || '').toLowerCase().includes(q)));

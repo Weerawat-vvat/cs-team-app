@@ -13115,10 +13115,11 @@ app.get('/api/ai-impact', authRequired, async (request, res) => {
     const firstInstall = ai.reduce((m, s) => s.install_day < m ? s.install_day : m, today);
     let from = dayAdd(firstInstall, -pre), dataStart = null;
     const tagOf = new Map();   // calllog_id → { title, group }
-    (await req().query(`SELECT c.calllog_id, t.title, t.tag_group FROM monitor_tag_cases c
+    (await req().query(`SELECT c.calllog_id, t.id, t.title, t.tag_group FROM monitor_tag_cases c
       JOIN monitor_tags t ON t.id = c.tag_id WHERE t.status='active' ORDER BY c.id`)).recordset
       .forEach(l => { if (!tagOf.has(l.calllog_id) || (mode === 'bug' && l.tag_group === 'problem' && tagOf.get(l.calllog_id).group !== 'problem'))
-        tagOf.set(l.calllog_id, { title: l.title, group: l.tag_group === 'service' ? 'service' : 'problem' }); });
+        tagOf.set(l.calllog_id, { id: l.id, title: l.title, group: l.tag_group === 'service' ? 'service' : 'problem' }); });
+    const tagIdOf = new Map([...tagOf.values()].map(t => [t.title, t.id]));
     if (mode === 'bug') {
       dataStart = await mtDataStart([...tagOf.keys()].map(Number).filter(Number.isInteger));   // ก่อนวันนี้ยังไม่มีข้อมูล Tag — ห้ามนับเป็นศูนย์
       if (dataStart && dataStart > from) from = dataStart;
@@ -13157,6 +13158,12 @@ app.get('/api/ai-impact', authRequired, async (request, res) => {
       s.pre = p0 ? xs.filter(x => x.d >= p0 && x.d < s.install_day).length : 0;
       s.post = xs.filter(x => x.d >= q0).length;
       s.counted = !s.excluded && s.pre_days > 0 && s.post_days > 0;
+      s.pre_from = p0;
+      s.tags = {};   // title → [ก่อน, หลัง] — ไว้ drill-down ว่า Tag นี้เกิดที่ร้านไหน
+      if (s.counted) for (const x of xs) {
+        const i = x.d >= p0 && x.d < s.install_day ? 0 : x.d >= q0 ? 1 : -1;
+        if (i >= 0) (s.tags[x.tag] = s.tags[x.tag] || [0, 0])[i]++;
+      }
       if (!s.counted) continue;
       counted++;
       aPre += s.pre; aPost += s.post; preDays += s.pre_days; postDays += s.post_days;
@@ -13171,7 +13178,7 @@ app.get('/api/ai-impact', authRequired, async (request, res) => {
       median_install: days[Math.floor(days.length / 2)] || null,
       summary: { stores: counted, pre_days: preDays, post_days: postDays, ai_pre_n: aPre, ai_post_n: aPost,
         ai_pre: rate(aPre, preDays), ai_post: rate(aPost, postDays) },
-      by_tag: [...tagAgg.entries()].map(([title, v]) => ({ title, group: tagDaily.get(title)?.group || null,
+      by_tag: [...tagAgg.entries()].map(([title, v]) => ({ title, id: tagIdOf.get(title) || null, group: tagDaily.get(title)?.group || null,
         ai_pre: rate(v.pre, preDays), ai_post: rate(v.post, postDays), ai_pre_n: v.pre, ai_post_n: v.post })),
       stores: [...stores.values()].sort((a, b) => a.install_day.localeCompare(b.install_day) || (a.company || '').localeCompare(b.company || '', 'th'))
     });
@@ -13254,6 +13261,32 @@ app.post('/api/ai-impact/import', authRequired, async (request, res) => {
       }
     }
     res.json({ rows: out, ready: ready.length, saved });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/ai-impact/cases?rid=&tag=&from=YYYY-MM-DD — เคสของร้านนี้ที่ติด Tag นี้ ตั้งแต่ from ถึงเมื่อวาน
+app.get('/api/ai-impact/cases', authRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
+    const rid = +request.query.rid, tag = +request.query.tag, from = String(request.query.from || '');
+    if (!Number.isInteger(rid) || !Number.isInteger(tag) || !/^\d{4}-\d{2}-\d{2}$/.test(from)) return res.status(400).json({ error: 'ข้อมูลไม่ครบ' });
+    const ids = (await req().input('t', sql.Int, tag).query('SELECT calllog_id FROM monitor_tag_cases WHERE tag_id=@t')).recordset
+      .map(x => +x.calllog_id).filter(Number.isInteger);
+    if (!ids.length) return res.json({ rows: [] });
+    const rows = [];
+    for (let i = 0; i < ids.length; i += 2000) {
+      rows.push(...(await extReq().input('rid', sql.Int, rid).input('f', sql.NVarChar, from).query(`
+        SELECT cl.CalllogId AS id, cl.ReceiveDate AS opened_at, CONVERT(char(10), cl.ReceiveDate, 23) AS d,
+               cs.StatusName AS status, u.UserName AS agent,
+               LEFT(cl.CalllogDesc, 400) AS description, LEFT(cl.Solution, 600) AS solution
+        FROM Calllog cl
+        LEFT JOIN CallStatus cs ON cs.StatusId = cl.StatusId
+        LEFT JOIN Users      u  ON u.UserId    = cl.SupportId
+        WHERE cl.Active=1 AND cl.RegistrationId=@rid AND cl.ReceiveDate >= CAST(@f AS DATE)
+          AND cl.ReceiveDate < CAST(GETDATE() AS DATE) AND cl.CalllogId IN (${ids.slice(i, i + 2000).join(',')})`)).recordset);
+    }
+    rows.sort((a, b) => (b.opened_at > a.opened_at ? 1 : -1));
+    res.json({ rows });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
