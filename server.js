@@ -13013,10 +13013,11 @@ app.get('/api/monitor-tags/board', authRequired, async (request, res) => {
 });
 
 // ══ ผลการติดตั้ง AI: ปัญหาลดลงไหมหลังติดตั้ง ══════════════════
-// ร้านที่ติดตั้ง = ร้านที่มีเคสคำว่า SSH / Dataslot / Tunnel (น้องลง log ตอนติดตั้ง) ตั้งแต่ AI_INSTALL_SINCE
+// ร้านที่ติดตั้ง = ร้านที่มีเคสคำว่า SSH / Dataslot / Tunnel / ติดตั้ง ai (น้องลง log ตอนติดตั้ง) ตั้งแต่ AI_INSTALL_SINCE
+// ห้ามใช้ "ai" เดี่ยวๆ — ไปตรงกับ training, email, AIS ฯลฯ
 // วัดผล: ต่อร้าน เทียบ N วันก่อนวันติดตั้ง กับหลังวันติดตั้งถึงเมื่อวาน (ไม่นับวันติดตั้งและวันนี้)
 // และเทียบกับร้านที่ไม่ได้ติดตั้ง (กลุ่มเทียบ) ในช่วงวันเดียวกัน — ยอดรวมขึ้นลงตามช่วงอยู่แล้ว ต้องหักออก
-const AI_INSTALL_KEYWORDS = (process.env.AI_INSTALL_KEYWORDS || 'ssh,dataslot,tunnel')
+const AI_INSTALL_KEYWORDS = (process.env.AI_INSTALL_KEYWORDS || 'ssh,dataslot,tunnel,ติดตั้ง ai,ติดตั้งai')
   .split(',').map(k => k.trim()).filter(Boolean).slice(0, 10);
 const AI_INSTALL_SINCE = /^\d{4}-\d{2}-\d{2}$/.test(process.env.AI_INSTALL_SINCE || '') ? process.env.AI_INSTALL_SINCE : '2026-06-01';
 const AI_PRE_DAYS = [14, 30, 60];
