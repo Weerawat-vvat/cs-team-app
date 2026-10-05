@@ -484,6 +484,8 @@ textarea{resize:vertical;min-height:80px}
 .mt-avg-pill b{font-variant-numeric:tabular-nums;color:var(--text)}
 .aim-warn{display:flex;align-items:center;gap:.45rem;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:12px;padding:.6rem .85rem;font-size:.8rem;margin-bottom:.75rem}
 .aim-good{color:#0f766e}
+.aim-auto{display:inline-flex;align-items:center;gap:.3rem;margin-left:.5rem;padding:.05rem .5rem;border:1px solid var(--border);border-radius:999px;background:#fff;cursor:pointer;color:var(--text);white-space:nowrap}
+.aim-auto input{width:auto!important;margin:0}
 .mt-tbl tr.aim-brand{cursor:pointer}
 .mt-tbl tr.aim-brand td{background:#fdfcfa}
 .mt-tbl tr.aim-brand:hover td{background:#faf9f6}
@@ -21423,11 +21425,14 @@ function aimRender() {
   const d = _aim.data, body = document.getElementById('aim-body');
   if (!d) return;
   const fd = x => x ? fmtDateShort(x + 'T00:00:00') : '—';
-  document.getElementById('aim-hint').innerHTML = `ร้านที่ติดตั้ง = ร้านที่มีเคสคำว่า <b>${d.keywords.map(esc).join(' / ')}</b> ตั้งแต่ ${fd(d.since)}
+  document.getElementById('aim-hint').innerHTML = `ร้านที่ติดตั้ง = ${d.auto_detect
+      ? `ร้านที่มีเคสคำว่า <b>${d.keywords.map(esc).join(' / ')}</b> ตั้งแต่ ${fd(d.since)} + ร้านที่เพิ่มเอง`
+      : '<b>เฉพาะร้านที่เพิ่มเอง / นำเข้า</b> (ปิดการหาจากเคสอยู่)'}
+    <label class="aim-auto"><input type="checkbox" ${d.auto_detect ? 'checked' : ''} onchange="aimSetAutoDetect(this.checked)"/> หาร้านจากเคสอัตโนมัติ</label>
     · เทียบ <b>${d.pre} วันก่อนติดตั้ง</b> กับ<b>หลังติดตั้งถึงเมื่อวาน</b> ของแต่ละร้าน (ไม่นับวันติดตั้งและวันนี้ · ไม่นับเคสติดตั้งเอง)`;
   if (d.empty) {
     document.getElementById('aim-kpis').innerHTML = '';
-    body.innerHTML = `<div class="mt-empty">ยังไม่พบร้านที่ติดตั้ง AI<br><span style="font-size:.78rem">ให้น้องลงเคสตอนติดตั้งโดยมีคำว่า ${d.keywords.map(esc).join(' / ')} หรือ</span>
+    body.innerHTML = `<div class="mt-empty">ยังไม่มีร้านที่ติดตั้ง AI<br><span style="font-size:.78rem">${d.auto_detect ? `ให้น้องลงเคสตอนติดตั้งโดยมีคำว่า ${d.keywords.map(esc).join(' / ')} หรือ` : 'นำเข้าไฟล์รายชื่อร้าน หรือเพิ่มทีละร้าน'}</span>
       <div style="margin-top:.6rem;display:flex;gap:.5rem;justify-content:center"><button class="svc-btn-ghost" onclick="aimOpenImport()"><i class=i-upload></i> นำเข้า</button>
         <button class="svc-btn-primary" onclick="aimOpenAdd()"><i class=i-plus></i> เพิ่มร้าน</button></div></div>`;
     return;
@@ -21477,6 +21482,7 @@ function aimRender() {
           <input id="aim-q" type="text" placeholder="ค้นหาร้าน / แบรนด์..." value="${esc(_aim.q)}" oninput="_aim.q=this.value;aimRenderStores()"
             style="border:none;padding:0;background:none;box-shadow:none"/></label>
         <button class="svc-btn-ghost" onclick="aimExport()" style="height:34px"><i class=i-download></i> Export CSV</button>
+        <button class="svc-btn-ghost" onclick="aimClearAll()" style="height:34px" title="ลบร้านที่เพิ่มเอง/นำเข้าทั้งหมด และปิดการหาจากเคส"><i class=i-trash></i> ล้างรายการ</button>
         <button class="svc-btn-ghost" onclick="aimOpenImport()" style="height:34px"><i class=i-upload></i> นำเข้า</button>
         <button class="svc-btn-primary" onclick="aimOpenAdd()" style="height:34px"><i class=i-plus></i> เพิ่มร้าน</button>
       </div>
@@ -21614,6 +21620,24 @@ async function aimSaveStore() {
   if (!d || d.error) { showToast(d?.error || 'บันทึกไม่สำเร็จ', 'error'); return; }
   closeModal('modal-aim-store');
   showToast(`บันทึก “${_aimPick.name}” ติดตั้ง ${fmtDateShort(day + 'T00:00:00')} แล้ว — คำนวณใหม่`);
+  aimLoad();
+}
+// ล้างรายการทั้งหมด (เริ่มนำเข้าใหม่) — ต้องพิมพ์ยืนยัน
+async function aimClearAll() {
+  const n = (_aim.data?.stores || []).length;
+  const v = prompt(`ล้างรายการร้านที่ติดตั้ง AI ทั้งหมด${n ? ` (${n} ร้าน)` : ''}?\n\n• ลบร้านที่เพิ่มเอง / นำเข้า และรายการ "ไม่นับ"\n• ปิดการหาร้านจากเคสอัตโนมัติ\n• ข้อมูลเคสไม่ถูกลบ\n\nพิมพ์คำว่า ล้าง เพื่อยืนยัน`);
+  if (v === null) return;
+  if (v.trim() !== 'ล้าง') { showToast('ยกเลิก — พิมพ์ไม่ตรง', 'error'); return; }
+  const d = await api('/api/ai-impact/clear', { method: 'POST', silent: true });
+  if (!d || d.error) { showToast(d?.error || 'ล้างไม่สำเร็จ', 'error'); return; }
+  _aimBrandOpen.clear();
+  showToast(`ล้างรายการแล้ว (ลบ ${d.removed} ร้านที่เพิ่มเอง) — นำเข้าใหม่ได้เลย`);
+  aimLoad();
+}
+async function aimSetAutoDetect(on) {
+  const d = await api('/api/ai-impact/auto-detect', { method: 'PUT', silent: true, body: { on } });
+  if (!d || d.error) { showToast(d?.error || 'บันทึกไม่สำเร็จ', 'error'); aimRender(); return; }
+  showToast(on ? 'เปิดการหาร้านจากเคสแล้ว — คำนวณใหม่' : 'ปิดการหาร้านจากเคสแล้ว — นับเฉพาะร้านที่เพิ่มเอง/นำเข้า');
   aimLoad();
 }
 async function aimRemoveManual(rid) {

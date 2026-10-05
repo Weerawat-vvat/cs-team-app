@@ -13026,6 +13026,10 @@ const AI_INSTALL_KEYWORDS = (process.env.AI_INSTALL_KEYWORDS || 'ssh,dataslot,tu
 const AI_INSTALL_SINCE = /^\d{4}-\d{2}-\d{2}$/.test(process.env.AI_INSTALL_SINCE || '') ? process.env.AI_INSTALL_SINCE : '2026-06-01';
 const AI_PRE_DAYS = [14, 30, 60];
 
+async function aiImpactAutoDetect() {
+  const v = (await req().query(`SELECT v FROM ai_impact_settings WHERE k='auto_detect'`)).recordset[0]?.v;
+  return v !== 'off';
+}
 async function ensureAiImpactTables() {
   try {
     await req().query(`
@@ -13045,6 +13049,15 @@ async function ensureAiImpactTables() {
         created_by  NVARCHAR(100) NULL,
         created_at  DATETIME      DEFAULT GETDATE()
       )`);
+    // ค่าตั้งค่าของแท็บ — auto_detect: 'off' = ไม่หาร้านจากเคสคำค้น ใช้เฉพาะร้านที่เพิ่มเอง/นำเข้า
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ai_impact_settings' AND xtype='U')
+      CREATE TABLE ai_impact_settings (
+        k           NVARCHAR(50)  PRIMARY KEY,
+        v           NVARCHAR(200) NULL,
+        updated_by  NVARCHAR(100) NULL,
+        updated_at  DATETIME      DEFAULT GETDATE()
+      )`);
   } catch (e) { console.error('[ai-impact] ensure table:', e.message); }
 }
 
@@ -13057,11 +13070,12 @@ app.get('/api/ai-impact', authRequired, async (request, res) => {
     const today = (await extReq().query(`SELECT CONVERT(char(10), GETDATE(), 23) AS d`)).recordset[0].d;
     const dayAdd = (d, n) => new Date(Date.parse(d + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
 
-    // ── ร้านที่ติดตั้ง AI (เคสแรกที่เจอคำค้น = วันติดตั้ง)
+    // ── ร้านที่ติดตั้ง AI (เคสแรกที่เจอคำค้น = วันติดตั้ง) — ปิดการหาจากเคสได้ (ใช้เฉพาะร้านที่เพิ่มเอง/นำเข้า)
+    const autoDetect = await aiImpactAutoDetect();
     const r = extReq().input('since', sql.NVarChar, AI_INSTALL_SINCE);
     AI_INSTALL_KEYWORDS.forEach((k, i) => r.input('k' + i, sql.NVarChar, '%' + k.replace(/[!%_[]/g, '!$&') + '%'));
     const txt = `(CAST(cl.CalllogDesc AS NVARCHAR(MAX)) + N' ' + ISNULL(CAST(cl.Solution AS NVARCHAR(MAX)), N'') + N' ' + ISNULL(cl.Subject, N''))`;
-    const inst = (await r.query(`
+    const inst = !autoDetect ? [] : (await r.query(`
       SELECT cl.CalllogId AS id, cl.RegistrationId AS rid, CONVERT(char(10), cl.ReceiveDate, 23) AS d,
              cr.CompanyName AS company, CASE WHEN cr.GroupId IS NOT NULL AND cr.GroupId <> 1 THEN cg.GroupName END AS grp,
              LEFT(CAST(cl.CalllogDesc AS NVARCHAR(MAX)), 120) AS descr
@@ -13094,7 +13108,7 @@ app.get('/api/ai-impact', authRequired, async (request, res) => {
       s.install_day = m.d; s.manual = true; s.manual_note = m.note || null; s.manual_by = m.created_by || null;
     }
     const ai = [...stores.values()].filter(s => !s.excluded);
-    const base = { mode, pre, today, keywords: AI_INSTALL_KEYWORDS, since: AI_INSTALL_SINCE };
+    const base = { mode, pre, today, keywords: AI_INSTALL_KEYWORDS, since: AI_INSTALL_SINCE, auto_detect: autoDetect };
     if (!ai.length) return res.json({ ...base, stores: [...stores.values()], labels: [], empty: true });
 
     // ── เคสของร้านที่ติดตั้ง: Bug โปรแกรม (เคสที่ติด Tag กลุ่ม Bug) หรือทุกเคส · Tag ของเคสไว้แยกเส้นในกราฟ
@@ -13240,6 +13254,34 @@ app.post('/api/ai-impact/import', authRequired, async (request, res) => {
       }
     }
     res.json({ rows: out, ready: ready.length, saved });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/ai-impact/clear — ล้างร้านที่เพิ่มเอง/นำเข้า + รายการ "ไม่นับ" และปิดการหาร้านจากเคส (เริ่มนำเข้าใหม่)
+app.post('/api/ai-impact/clear', authRequired, async (request, res) => {
+  try {
+    const out = await req().input('by', sql.NVarChar, request.user?.username || null).query(`
+      DECLARE @n INT = (SELECT COUNT(*) FROM ai_impact_manual);
+      DELETE FROM ai_impact_manual;
+      DELETE FROM ai_impact_excludes;
+      IF EXISTS (SELECT 1 FROM ai_impact_settings WHERE k='auto_detect')
+        UPDATE ai_impact_settings SET v='off', updated_by=@by, updated_at=GETDATE() WHERE k='auto_detect'
+      ELSE INSERT INTO ai_impact_settings (k, v, updated_by) VALUES ('auto_detect', 'off', @by);
+      SELECT @n AS n;`);
+    console.log(`[ai-impact] cleared ${out.recordset[0]?.n || 0} manual stores by ${request.user?.username || '?'}`);
+    res.json({ ok: true, removed: out.recordset[0]?.n || 0 });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT /api/ai-impact/auto-detect {on} — เปิด/ปิดการหาร้านจากเคสคำค้น
+app.put('/api/ai-impact/auto-detect', authRequired, async (request, res) => {
+  try {
+    const v = request.body?.on ? 'on' : 'off';
+    await req().input('v', sql.NVarChar, v).input('by', sql.NVarChar, request.user?.username || null).query(`
+      IF EXISTS (SELECT 1 FROM ai_impact_settings WHERE k='auto_detect')
+        UPDATE ai_impact_settings SET v=@v, updated_by=@by, updated_at=GETDATE() WHERE k='auto_detect'
+      ELSE INSERT INTO ai_impact_settings (k, v, updated_by) VALUES ('auto_detect', @v, @by);`);
+    res.json({ ok: true, auto_detect: v === 'on' });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
