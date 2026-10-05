@@ -13016,7 +13016,7 @@ app.get('/api/monitor-tags/board', authRequired, async (request, res) => {
 // ร้านที่ติดตั้ง = ร้านที่มีเคสคำว่า SSH / Dataslot / Tunnel / ติดตั้ง ai (น้องลง log ตอนติดตั้ง) ตั้งแต่ AI_INSTALL_SINCE
 // ห้ามใช้ "ai" เดี่ยวๆ — ไปตรงกับ training, email, AIS ฯลฯ
 // วัดผล: ต่อร้าน เทียบ N วันก่อนวันติดตั้ง กับหลังวันติดตั้งถึงเมื่อวาน (ไม่นับวันติดตั้งและวันนี้)
-// และเทียบกับร้านที่ไม่ได้ติดตั้ง (กลุ่มเทียบ) ในช่วงวันเดียวกัน — ยอดรวมขึ้นลงตามช่วงอยู่แล้ว ต้องหักออก
+// แสดงเฉพาะร้านที่ติดตั้ง — แยกเป็นเส้นตาม Tag ของเคส
 const AI_INSTALL_KEYWORDS = (process.env.AI_INSTALL_KEYWORDS || 'ssh,dataslot,tunnel,ติดตั้ง ai,ติดตั้งai')
   .split(',').map(k => k.trim()).filter(Boolean).slice(0, 10);
 const AI_INSTALL_SINCE = /^\d{4}-\d{2}-\d{2}$/.test(process.env.AI_INSTALL_SINCE || '') ? process.env.AI_INSTALL_SINCE : '2026-06-01';
@@ -13028,6 +13028,16 @@ async function ensureAiImpactTables() {
       IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ai_impact_excludes' AND xtype='U')
       CREATE TABLE ai_impact_excludes (
         rid         INT           PRIMARY KEY,   -- RegistrationId ที่ไม่ใช่ร้านติดตั้ง AI (คำค้นจับผิด)
+        created_by  NVARCHAR(100) NULL,
+        created_at  DATETIME      DEFAULT GETDATE()
+      )`);
+    // ร้านที่เพิ่มเอง (ไม่มีเคสคำค้น หรือแก้วันติดตั้ง) — มีแถวนี้ = ใช้วันติดตั้งนี้แทนที่ระบบหาเจอ
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ai_impact_manual' AND xtype='U')
+      CREATE TABLE ai_impact_manual (
+        rid         INT           PRIMARY KEY,
+        install_day DATE          NOT NULL,
+        note        NVARCHAR(300) NULL,
         created_by  NVARCHAR(100) NULL,
         created_at  DATETIME      DEFAULT GETDATE()
       )`);
@@ -13066,59 +13076,60 @@ app.get('/api/ai-impact', authRequired, async (request, res) => {
       stores.set(x.rid, { rid: x.rid, company: x.company, grp: x.grp, install_day: x.d, install_case: x.id, install_desc: x.descr,
         install_cases: 1, excluded: excluded.has(x.rid) });
     }
+    // ร้านที่เพิ่มเอง: ใช้วันติดตั้งที่ระบุ (ถ้าระบบหาเจอด้วย = แก้วันติดตั้ง)
+    const manual = (await req().query(`SELECT rid, CONVERT(char(10), install_day, 23) AS d, note, created_by FROM ai_impact_manual`)).recordset;
+    const newRids = manual.map(m => +m.rid).filter(x => Number.isInteger(x) && !stores.has(x));
+    const info = new Map(newRids.length ? (await extReq().query(`
+      SELECT cr.RegistrationId AS rid, cr.CompanyName AS company, CASE WHEN cr.GroupId IS NOT NULL AND cr.GroupId <> 1 THEN cg.GroupName END AS grp
+      FROM CustomerRegistration cr LEFT JOIN CustomerGroup cg ON cg.GroupId = cr.GroupId
+      WHERE cr.RegistrationId IN (${newRids.join(',')})`)).recordset.map(x => [x.rid, x]) : []);
+    for (const m of manual) {
+      const s = stores.get(m.rid) || stores.set(m.rid, { rid: m.rid, company: info.get(m.rid)?.company || `#${m.rid}`, grp: info.get(m.rid)?.grp || null,
+        install_case: null, install_desc: null, install_cases: 0, excluded: excluded.has(m.rid) }).get(m.rid);
+      if (s.install_day && s.install_day !== m.d) s.detected_day = s.install_day;
+      s.install_day = m.d; s.manual = true; s.manual_note = m.note || null; s.manual_by = m.created_by || null;
+    }
     const ai = [...stores.values()].filter(s => !s.excluded);
     const base = { mode, pre, today, keywords: AI_INSTALL_KEYWORDS, since: AI_INSTALL_SINCE };
     if (!ai.length) return res.json({ ...base, stores: [...stores.values()], labels: [], empty: true });
 
-    // ── เคสที่นับ: Bug โปรแกรม (เคสที่ติด Tag กลุ่ม Bug) หรือทุกเคส
+    // ── เคสของร้านที่ติดตั้ง: Bug โปรแกรม (เคสที่ติด Tag กลุ่ม Bug) หรือทุกเคส · Tag ของเคสไว้แยกเส้นในกราฟ
     const firstInstall = ai.reduce((m, s) => s.install_day < m ? s.install_day : m, today);
-    let from = dayAdd(firstInstall, -pre), cases = [], tagOf = new Map(), dataStart = null;
+    let from = dayAdd(firstInstall, -pre), dataStart = null;
+    const tagOf = new Map();   // calllog_id → { title, group }
+    (await req().query(`SELECT c.calllog_id, t.title, t.tag_group FROM monitor_tag_cases c
+      JOIN monitor_tags t ON t.id = c.tag_id WHERE t.status='active' ORDER BY c.id`)).recordset
+      .forEach(l => { if (!tagOf.has(l.calllog_id) || (mode === 'bug' && l.tag_group === 'problem' && tagOf.get(l.calllog_id).group !== 'problem'))
+        tagOf.set(l.calllog_id, { title: l.title, group: l.tag_group === 'service' ? 'service' : 'problem' }); });
     if (mode === 'bug') {
-      const links = (await req().query(`SELECT c.calllog_id, t.title FROM monitor_tag_cases c
-        JOIN monitor_tags t ON t.id = c.tag_id WHERE t.status='active' AND t.tag_group='problem'`)).recordset;
-      links.forEach(l => { if (!tagOf.has(l.calllog_id)) tagOf.set(l.calllog_id, l.title); });
-      const ids = [...tagOf.keys()].map(Number).filter(Number.isInteger);
-      dataStart = await mtDataStart(ids);   // ก่อนวันนี้ยังไม่มีข้อมูล Tag — ห้ามนับเป็นศูนย์
+      dataStart = await mtDataStart([...tagOf.keys()].map(Number).filter(Number.isInteger));   // ก่อนวันนี้ยังไม่มีข้อมูล Tag — ห้ามนับเป็นศูนย์
       if (dataStart && dataStart > from) from = dataStart;
-      for (let i = 0; i < ids.length; i += 2000) {
-        cases.push(...(await extReq().input('f', sql.NVarChar, from).query(`
-          SELECT CalllogId AS id, RegistrationId AS rid, CONVERT(char(10), ReceiveDate, 23) AS d FROM Calllog
-          WHERE Active=1 AND RegistrationId IS NOT NULL AND ReceiveDate >= CAST(@f AS DATE)
-            AND CalllogId IN (${ids.slice(i, i + 2000).join(',')})`)).recordset);
-      }
-    } else {
-      cases = (await extReq().input('f', sql.NVarChar, from).query(`
-        SELECT CalllogId AS id, RegistrationId AS rid, CONVERT(char(10), ReceiveDate, 23) AS d FROM Calllog
-        WHERE Active=1 AND RegistrationId IS NOT NULL AND ReceiveDate >= CAST(@f AS DATE)`)).recordset;
     }
-    // กลุ่มเทียบ = ร้านที่ยังใช้งานอยู่ (มีเคสใน 90 วันก่อนช่วงวัด ถึงวันนี้) และไม่ได้ติดตั้ง AI
-    const active = (await extReq().input('f', sql.NVarChar, dayAdd(from, -90)).query(`
-      SELECT DISTINCT RegistrationId AS rid FROM Calllog WHERE Active=1 AND RegistrationId IS NOT NULL AND ReceiveDate >= CAST(@f AS DATE)`))
-      .recordset.map(x => x.rid);
-    const aiSet = new Set(ai.map(s => s.rid)), ctlSet = new Set(active.filter(x => !stores.has(x)));
-    const nCtl = ctlSet.size || 1;
+    const aiRids = ai.map(s => +s.rid).filter(Number.isInteger);
+    const cases = (await extReq().input('f', sql.NVarChar, from).query(`
+      SELECT CalllogId AS id, RegistrationId AS rid, CONVERT(char(10), ReceiveDate, 23) AS d FROM Calllog
+      WHERE Active=1 AND ReceiveDate >= CAST(@f AS DATE) AND RegistrationId IN (${aiRids.join(',')})`)).recordset
+      .filter(c => !installIds.has(c.id) && (mode === 'all' || tagOf.get(c.id)?.group === 'problem'));
 
-    // ── ตัวเลขรายวัน (ถึงเมื่อวาน)
+    // ── ตัวเลขรายวัน (ถึงเมื่อวาน) ทั้งหมด และแยกตาม Tag
     const labels = []; for (let d = from; d < today; d = dayAdd(d, 1)) labels.push(d);
     const idx = new Map(labels.map((d, i) => [d, i]));
-    const aiDaily = new Array(labels.length).fill(0), ctlDaily = new Array(labels.length).fill(0);
-    const ctlTag = new Map();   // tag → daily counts (กลุ่มเทียบ)
+    const aiDaily = new Array(labels.length).fill(0);
+    const tagDaily = new Map();   // title → { group, daily }
     const perStore = new Map(ai.map(s => [s.rid, []]));
     for (const c of cases) {
-      if (installIds.has(c.id) || !idx.has(c.d)) continue;
-      const i = idx.get(c.d), tag = mode === 'bug' ? tagOf.get(c.id) || '—' : null;
-      if (aiSet.has(c.rid)) { aiDaily[i]++; perStore.get(c.rid).push({ d: c.d, tag }); }
-      else if (ctlSet.has(c.rid)) {
-        ctlDaily[i]++;
-        if (tag) { if (!ctlTag.has(tag)) ctlTag.set(tag, new Array(labels.length).fill(0)); ctlTag.get(tag)[i]++; }
-      }
+      if (!idx.has(c.d)) continue;
+      const i = idx.get(c.d), t = tagOf.get(c.id) || { title: 'ไม่ติด Tag', group: null };
+      aiDaily[i]++;
+      if (!tagDaily.has(t.title)) tagDaily.set(t.title, { group: t.group, daily: new Array(labels.length).fill(0) });
+      tagDaily.get(t.title).daily[i]++;
+      perStore.get(c.rid).push({ d: c.d, tag: t.title });
     }
-    const sumWin = (arr, a, b) => { let n = 0; for (let d = a; d < b; d = dayAdd(d, 1)) n += arr[idx.get(d)] || 0; return n; };
 
     // ── ต่อร้าน: ก่อน [ติดตั้ง − N วัน, วันติดตั้ง) · หลัง (วันติดตั้ง, วันนี้)
-    const tagAgg = new Map();   // tag → {aPre, aPost, cPre, cPost}
-    const T = tag => tagAgg.get(tag) || tagAgg.set(tag, { aPre: 0, aPost: 0, cPre: 0, cPost: 0 }).get(tag);
-    let aPre = 0, aPost = 0, cPre = 0, cPost = 0, preDays = 0, postDays = 0, counted = 0;
+    const tagAgg = new Map();   // title → { pre, post }
+    const T = tag => tagAgg.get(tag) || tagAgg.set(tag, { pre: 0, post: 0 }).get(tag);
+    let aPre = 0, aPost = 0, preDays = 0, postDays = 0, counted = 0;
     for (const s of stores.values()) {
       const p0 = s.install_day > from ? (dayAdd(s.install_day, -pre) > from ? dayAdd(s.install_day, -pre) : from) : null;
       const q0 = dayAdd(s.install_day, 1);
@@ -13127,30 +13138,55 @@ app.get('/api/ai-impact', authRequired, async (request, res) => {
       const xs = perStore.get(s.rid) || [];
       s.pre = p0 ? xs.filter(x => x.d >= p0 && x.d < s.install_day).length : 0;
       s.post = xs.filter(x => x.d >= q0).length;
-      s.ctl_pre = p0 ? sumWin(ctlDaily, p0, s.install_day) / nCtl : 0;
-      s.ctl_post = s.post_days ? sumWin(ctlDaily, q0, today) / nCtl : 0;
       s.counted = !s.excluded && s.pre_days > 0 && s.post_days > 0;
       if (!s.counted) continue;
       counted++;
-      aPre += s.pre; aPost += s.post; cPre += s.ctl_pre; cPost += s.ctl_post; preDays += s.pre_days; postDays += s.post_days;
-      if (mode === 'bug') {
-        for (const x of xs) { if (x.d >= p0 && x.d < s.install_day) T(x.tag).aPre++; else if (x.d >= q0) T(x.tag).aPost++; }
-        for (const [tag, arr] of ctlTag) { T(tag).cPre += sumWin(arr, p0, s.install_day) / nCtl; T(tag).cPost += sumWin(arr, q0, today) / nCtl; }
-      }
+      aPre += s.pre; aPost += s.post; preDays += s.pre_days; postDays += s.post_days;
+      for (const x of xs) { if (x.d >= p0 && x.d < s.install_day) T(x.tag).pre++; else if (x.d >= q0) T(x.tag).post++; }
     }
     const rate = (n, d) => d ? n / d : null;
     const days = [...stores.values()].filter(s => s.counted).map(s => s.install_day).sort();
     res.json({
-      ...base, from, to: dayAdd(today, -1), data_start: dataStart, labels,
-      ai_daily: aiDaily, ctl_daily: ctlDaily, n_ai: aiSet.size, n_ctl: ctlSet.size,
+      ...base, from, to: dayAdd(today, -1), data_start: dataStart, labels, ai_daily: aiDaily, n_ai: aiRids.length,
+      tag_daily: [...tagDaily.entries()].map(([title, v]) => ({ title, group: v.group, daily: v.daily, total: v.daily.reduce((a, b) => a + b, 0) }))
+        .sort((a, b) => b.total - a.total),
       median_install: days[Math.floor(days.length / 2)] || null,
       summary: { stores: counted, pre_days: preDays, post_days: postDays, ai_pre_n: aPre, ai_post_n: aPost,
-        ai_pre: rate(aPre, preDays), ai_post: rate(aPost, postDays), ctl_pre: rate(cPre, preDays), ctl_post: rate(cPost, postDays) },
-      by_tag: mode === 'bug' ? [...tagAgg.entries()].map(([title, v]) => ({ title,
-        ai_pre: rate(v.aPre, preDays), ai_post: rate(v.aPost, postDays), ai_pre_n: v.aPre, ai_post_n: v.aPost,
-        ctl_pre: rate(v.cPre, preDays), ctl_post: rate(v.cPost, postDays) })) : [],
+        ai_pre: rate(aPre, preDays), ai_post: rate(aPost, postDays) },
+      by_tag: [...tagAgg.entries()].map(([title, v]) => ({ title, group: tagDaily.get(title)?.group || null,
+        ai_pre: rate(v.pre, preDays), ai_post: rate(v.post, postDays), ai_pre_n: v.pre, ai_post_n: v.post })),
       stores: [...stores.values()].sort((a, b) => a.install_day.localeCompare(b.install_day) || (a.company || '').localeCompare(b.company || '', 'th'))
     });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/ai-impact/stores {rid, install_day, note} — เพิ่มร้านที่ติดตั้ง AI เอง (หรือแก้วันติดตั้ง)
+app.post('/api/ai-impact/stores', authRequired, async (request, res) => {
+  try {
+    const b = request.body || {};
+    const rid = +b.rid, day = String(b.install_day || '');
+    if (!Number.isInteger(rid) || rid <= 0) return res.status(400).json({ error: 'กรุณาเลือกร้าน' });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || isNaN(Date.parse(day))) return res.status(400).json({ error: 'วันที่ติดตั้งไม่ถูกต้อง' });
+    if (day > bangkokToday()) return res.status(400).json({ error: 'วันที่ติดตั้งต้องไม่เกินวันนี้' });
+    if (getExtPool()) {
+      const ok = (await extReq().input('rid', sql.Int, rid).query('SELECT TOP 1 RegistrationId FROM CustomerRegistration WHERE RegistrationId=@rid')).recordset[0];
+      if (!ok) return res.status(404).json({ error: 'ไม่พบร้านนี้' });
+    }
+    await req().input('rid', sql.Int, rid).input('d', sql.NVarChar, day)
+      .input('nt', sql.NVarChar, String(b.note || '').trim().slice(0, 300) || null).input('by', sql.NVarChar, request.user?.username || null)
+      .query(`IF EXISTS (SELECT 1 FROM ai_impact_manual WHERE rid=@rid)
+                UPDATE ai_impact_manual SET install_day=CAST(@d AS DATE), note=@nt, created_by=@by, created_at=GETDATE() WHERE rid=@rid
+              ELSE INSERT INTO ai_impact_manual (rid, install_day, note, created_by) VALUES (@rid, CAST(@d AS DATE), @nt, @by);
+              DELETE FROM ai_impact_excludes WHERE rid=@rid;`);
+    res.json({ ok: true, rid, install_day: day });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE /api/ai-impact/stores/:rid — ลบร้านที่เพิ่มเอง (ร้านที่ระบบหาเจอจะกลับไปใช้วันจากเคส)
+app.delete('/api/ai-impact/stores/:rid', authRequired, async (request, res) => {
+  try {
+    await req().input('rid', sql.Int, +request.params.rid).query('DELETE FROM ai_impact_manual WHERE rid=@rid');
+    res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

@@ -484,6 +484,11 @@ textarea{resize:vertical;min-height:80px}
 .mt-avg-pill b{font-variant-numeric:tabular-nums;color:var(--text)}
 .aim-warn{display:flex;align-items:center;gap:.45rem;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:12px;padding:.6rem .85rem;font-size:.8rem;margin-bottom:.75rem}
 .aim-good{color:#0f766e}
+.aim-src{display:inline-block;padding:0 .4rem;border-radius:999px;background:#eaf1fb;color:#2a5f9e;font-weight:600}
+.aim-pick{display:flex;align-items:center;gap:.4rem;padding:.5rem .7rem;border:1px solid var(--primary);border-radius:10px;background:var(--primary-soft);margin-bottom:.4rem;font-size:.85rem}
+.aim-list{max-height:220px;overflow:auto;margin-top:.3rem}
+.aim-opt{display:flex;align-items:center;gap:.4rem;width:100%;text-align:left;border:none;background:none;padding:.45rem .5rem;border-radius:8px;cursor:pointer;font-family:inherit;font-size:.82rem;color:var(--text)}
+.aim-opt:hover{background:#f3f1ec}
 .aim-bad{color:#be123c}
 .mt-tbl tr.aim-off td{color:var(--muted);background:#fbfaf7}
 .mt-board-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem}
@@ -2599,6 +2604,27 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
       <div class="mt-meta" style="margin:.8rem 0 .3rem">ตัวอย่างการเรียกใช้</div>
       <pre id="api-m-curl" class="mt-code" style="white-space:pre-wrap;margin:0;padding:.6rem .7rem"></pre>
       <div style="display:flex;justify-content:flex-end;margin-top:.8rem"><button class="svc-btn-ghost" onclick="closeModal('modal-api-key')">ปิด</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- ผลการติดตั้ง AI: เพิ่มร้าน / แก้วันติดตั้ง -->
+<div class="overlay" id="modal-aim-store">
+  <div class="modal mt-form" style="max-width:480px;padding:1.2rem">
+    <div class="modal-head">
+      <div style="font-size:1.05rem;font-weight:600" id="aim-a-title">เพิ่มร้านที่ติดตั้ง AI</div>
+      <button class="modal-close" onclick="closeModal('modal-aim-store')">×</button>
+    </div>
+    <div class="row"><label>ร้าน</label>
+      <div class="aim-pick" id="aim-a-pick" style="display:none"></div>
+      <input id="aim-a-q" placeholder="พิมพ์ชื่อร้านอย่างน้อย 2 ตัวอักษร..." autocomplete="off" oninput="aimSearchStore(this.value)"/>
+      <div class="aim-list" id="aim-a-list"></div>
+    </div>
+    <div class="row"><label>วันที่ติดตั้ง AI</label><input type="date" id="aim-a-day"/></div>
+    <div class="row"><label>หมายเหตุ</label><input id="aim-a-note" placeholder="เช่น ติดตั้งหน้างาน ไม่ได้เปิดเคส"/></div>
+    <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:.5rem">
+      <button class="svc-btn-ghost" onclick="closeModal('modal-aim-store')">ยกเลิก</button>
+      <button class="svc-btn-primary" id="aim-a-save" onclick="aimSaveStore()"><i class=i-save></i> บันทึก</button>
     </div>
   </div>
 </div>
@@ -21313,7 +21339,7 @@ async function mtResolve(id) {
 }
 
 // ══ ผลการติดตั้ง AI ═══════════════════════════════════════
-// เทียบเคสต่อร้านก่อน/หลังติดตั้ง กับร้านที่ไม่ได้ติดตั้ง (กลุ่มเทียบ) ในช่วงวันเดียวกัน — แสดงเป็นเคส/ร้าน/เดือน
+// เฉพาะร้านที่ติดตั้ง: เทียบเคสต่อร้านก่อน/หลังติดตั้ง (แสดงเป็นเคส/ร้าน/เดือน) และกราฟแยกตาม Tag
 let _aim = { mode: 'bug', pre: 30, data: null, q: '', loading: false };
 const aimMonth = v => v == null ? null : v * 30;
 const aimFmt = v => v == null ? '—' : v >= 10 ? v.toFixed(0) : v.toFixed(2);
@@ -21360,15 +21386,15 @@ function aimRender() {
   if (!d) return;
   const fd = x => x ? fmtDateShort(x + 'T00:00:00') : '—';
   document.getElementById('aim-hint').innerHTML = `ร้านที่ติดตั้ง = ร้านที่มีเคสคำว่า <b>${d.keywords.map(esc).join(' / ')}</b> ตั้งแต่ ${fd(d.since)}
-    · เทียบ <b>${d.pre} วันก่อนติดตั้ง</b> กับ<b>หลังติดตั้งถึงเมื่อวาน</b> (ไม่นับวันติดตั้งและวันนี้ · ไม่นับเคสติดตั้งเอง)
-    · กลุ่มเทียบ = ร้านที่ไม่ได้ติดตั้ง ${(d.n_ctl || 0).toLocaleString()} ร้านในช่วงวันเดียวกัน`;
+    · เทียบ <b>${d.pre} วันก่อนติดตั้ง</b> กับ<b>หลังติดตั้งถึงเมื่อวาน</b> ของแต่ละร้าน (ไม่นับวันติดตั้งและวันนี้ · ไม่นับเคสติดตั้งเอง)`;
   if (d.empty) {
-    body.innerHTML = `<div class="mt-empty">ยังไม่พบร้านที่ติดตั้ง AI<br><span style="font-size:.78rem">ให้น้องลงเคสตอนติดตั้งโดยมีคำว่า ${d.keywords.map(esc).join(' / ')}</span></div>`;
+    document.getElementById('aim-kpis').innerHTML = '';
+    body.innerHTML = `<div class="mt-empty">ยังไม่พบร้านที่ติดตั้ง AI<br><span style="font-size:.78rem">ให้น้องลงเคสตอนติดตั้งโดยมีคำว่า ${d.keywords.map(esc).join(' / ')} หรือ</span>
+      <div style="margin-top:.6rem"><button class="svc-btn-primary" onclick="aimOpenAdd()"><i class=i-plus></i> เพิ่มร้าน</button></div></div>`;
     return;
   }
   const s = d.summary;
-  const aiP = aimPct(s.ai_pre, s.ai_post), ctlP = aimPct(s.ctl_pre, s.ctl_post);
-  const net = aiP != null && ctlP != null ? aiP - ctlP : null;
+  const p = aimPct(s.ai_pre, s.ai_post);
   const avgPost = s.stores ? s.post_days / s.stores : 0;
   const due = d.median_install ? new Date(Date.parse(d.median_install) + 31 * 86400000).toISOString().slice(0, 10) : null;
   const all = d.stores.filter(x => !x.excluded);
@@ -21376,46 +21402,41 @@ function aimRender() {
   const days = all.map(x => x.install_day).sort();
   const unit = _aim.mode === 'bug' ? 'Bug' : 'เคส';
   const k = (label, val, sub, cls) => `<div class="stat-flat"><div class="label">${label}</div><div class="value ${cls}">${val}</div><div class="sub">${sub}</div></div>`;
-  const verdict = net == null ? 'ยังเทียบไม่ได้'
-    : Math.abs(net) < 5 ? 'ไม่ต่างจากร้านที่ไม่ได้ติดตั้ง' : net < 0 ? 'ลดลงมากกว่าร้านที่ไม่ได้ติดตั้ง' : 'เพิ่มขึ้นมากกว่าร้านที่ไม่ได้ติดตั้ง';
   document.getElementById('aim-kpis').innerHTML =
     k('<i class=i-store></i> ร้านที่ติดตั้ง AI', `${s.stores}<span style="font-size:.9rem;color:var(--muted)"> / ${all.length}</span>`,
       `ติดตั้ง ${fd(days[0])} – ${fd(days[days.length - 1])}${waiting ? ` · ${waiting} ร้านยังไม่นับ` : ''}`, 'blue')
-    + k(`ร้านที่ติดตั้ง AI · ${unit}/ร้าน/เดือน`, `${aimFmt(aimMonth(s.ai_pre))} → ${aimFmt(aimMonth(s.ai_post))}`,
-      `${aimPill(aiP)} · ก่อน ${s.ai_pre_n} · หลัง ${s.ai_post_n} ${unit}`, 'orange')
-    + k(`ร้านที่ไม่ได้ติดตั้ง · ${unit}/ร้าน/เดือน`, `${aimFmt(aimMonth(s.ctl_pre))} → ${aimFmt(aimMonth(s.ctl_post))}`,
-      `${aimPill(ctlP)} · ช่วงวันเดียวกัน`, 'white')
-    + k('ผลสุทธิของ AI', net == null ? '—' : aimPctTxt(net), verdict, net == null || Math.abs(net) < 5 ? 'white' : net < 0 ? 'green' : 'orange');
+    + k(`ก่อนติดตั้ง · ${unit}/ร้าน/เดือน`, aimFmt(aimMonth(s.ai_pre)), `${s.ai_pre_n} ${unit} ใน ${d.pre} วันก่อนติดตั้ง`, 'white')
+    + k(`หลังติดตั้ง · ${unit}/ร้าน/เดือน`, aimFmt(aimMonth(s.ai_post)), `${s.ai_post_n} ${unit} · หลังติดตั้งเฉลี่ย ${avgPost.toFixed(0)} วัน`, 'orange')
+    + k('เปลี่ยนแปลง', aimPctTxt(p), aimPill(p, true), p == null || Math.abs(p) < 5 ? 'white' : p < 0 ? 'green' : 'orange');
 
   const warn = avgPost < 30 ? `<div class="aim-warn"><i class=i-clock></i> ข้อมูลหลังติดตั้งเฉลี่ยแค่ <b>${avgPost.toFixed(0)} วัน</b> — ตัวเลขยังแกว่งได้มาก
     ควรสรุปผลเมื่อครบ 30 วัน${due ? ` (ประมาณ <b>${fd(due)}</b>)` : ''}</div>` : '';
-  const tagRows = (d.by_tag || []).filter(t => t.ai_pre_n + t.ai_post_n > 0)
+  const tagRows = (d.by_tag || []).filter(t => t.group && t.ai_pre_n + t.ai_post_n > 0)
     .sort((a, b) => (b.ai_pre_n + b.ai_post_n) - (a.ai_pre_n + a.ai_post_n));
-  const byTag = _aim.mode !== 'bug' ? '' : `<div class="mt-tbl-wrap" style="margin-top:.75rem">
-    <div class="mt-tt-head"><i class=i-alert style="color:${MT_GROUPS.problem.col}"></i> แยกตามประเภท Bug <span class="mt-meta" style="font-weight:400">· ${unit}/ร้าน/เดือน · ดูว่าปัญหาแบบไหนที่ AI ช่วยได้</span></div>
-    <table class="mt-tbl"><thead><tr><th>ประเภท Bug</th><th class="r">AI ก่อน</th><th class="r">AI หลัง</th><th>AI เปลี่ยน</th>
-      <th class="r">ไม่ติดตั้ง ก่อน</th><th class="r">ไม่ติดตั้ง หลัง</th><th>ไม่ติดตั้ง เปลี่ยน</th><th class="r">ผลสุทธิ</th></tr></thead>
-    <tbody>${tagRows.map(t => { const a = aimPct(t.ai_pre, t.ai_post), c = aimPct(t.ctl_pre, t.ctl_post), n = a != null && c != null ? a - c : null;
-      return `<tr><td><b>${esc(t.title)}</b><span class="sub">ก่อน ${t.ai_pre_n} · หลัง ${t.ai_post_n} เคส</span></td>
-        <td class="r num">${aimFmt(aimMonth(t.ai_pre))}</td><td class="r num"><b>${aimFmt(aimMonth(t.ai_post))}</b></td><td>${aimPill(a)}</td>
-        <td class="r num mt-meta">${aimFmt(aimMonth(t.ctl_pre))}</td><td class="r num mt-meta">${aimFmt(aimMonth(t.ctl_post))}</td><td>${aimPill(c)}</td>
-        <td class="r num"><b class="${n == null || Math.abs(n) < 5 ? '' : n < 0 ? 'aim-good' : 'aim-bad'}">${aimPctTxt(n)}</b></td></tr>`; }).join('')
-      || '<tr><td colspan="8" class="mt-meta" style="text-align:center;padding:1.2rem">ยังไม่มีเคส Bug ของร้านที่ติดตั้ง</td></tr>'}</tbody></table></div>`;
+  const gBadge = g => g === 'service' ? '<span class="mt-type mt-type-svc">IT Service</span>' : g === 'problem' ? '<span class="mt-type mt-type-bug">Bug</span>' : '';
   body.innerHTML = `${warn}
     <div class="mt-ov-card">
-      <div class="mt-ov-title">${unit}ต่อร้านต่อเดือน — ร้านที่ติดตั้ง AI เทียบร้านที่ไม่ได้ติดตั้ง</div>
-      <div class="mt-ov-sub">ค่าเฉลี่ย 7 วันย้อนหลัง (ปรับเป็นต่อเดือน) · เส้นประ = วันที่ร้านส่วนใหญ่ติดตั้ง${d.data_start ? ` · ข้อมูล Tag เริ่ม ${fd(d.data_start)}` : ''}</div>
-      <div style="position:relative;height:250px;margin-top:.5rem"><canvas id="aim-chart"></canvas></div>
+      <div class="mt-ov-title">${unit}ต่อวันของร้านที่ติดตั้ง AI — แยกตาม Tag</div>
+      <div class="mt-ov-sub">${d.n_ai} ร้าน · ค่าเฉลี่ย 7 วันย้อนหลัง · เส้นประตั้ง = วันที่ร้านส่วนใหญ่ติดตั้ง · คลิกชื่อใน legend เพื่อซ่อน/แสดง${_aim.mode === 'all' ? ' · ไม่รวมเคสที่ไม่ได้ติด Tag' : ''}${d.data_start ? ` · ข้อมูล Tag เริ่ม ${fd(d.data_start)}` : ''}</div>
+      <div style="position:relative;height:300px;margin-top:.5rem"><canvas id="aim-chart"></canvas></div>
     </div>
-    ${byTag}
+    <div class="mt-tbl-wrap" style="margin-top:.75rem">
+      <div class="mt-tt-head"><i class=i-tag style="color:var(--primary)"></i> แยกตาม Tag <span class="mt-meta" style="font-weight:400">· ${unit}/ร้าน/เดือน ก่อน vs หลังติดตั้ง · ดูว่าปัญหาแบบไหนลดลง</span></div>
+      <table class="mt-tbl"><thead><tr><th>Tag</th><th class="r">ก่อน</th><th class="r">หลัง</th><th>เปลี่ยน</th><th class="r">จำนวนเคส ก่อน → หลัง</th></tr></thead>
+      <tbody>${tagRows.map(t => `<tr><td><b>${esc(t.title)}</b> ${gBadge(t.group)}</td>
+        <td class="r num">${aimFmt(aimMonth(t.ai_pre))}</td><td class="r num"><b>${aimFmt(aimMonth(t.ai_post))}</b></td>
+        <td>${aimPill(aimPct(t.ai_pre, t.ai_post))}</td><td class="r num mt-meta">${t.ai_pre_n} → ${t.ai_post_n}</td></tr>`).join('')
+        || '<tr><td colspan="5" class="mt-meta" style="text-align:center;padding:1.2rem">ยังไม่มีเคสของร้านที่ติดตั้ง</td></tr>'}</tbody></table>
+    </div>
     <div class="mt-ov-card" style="padding:0;overflow:hidden;margin-top:.75rem">
       <div class="mt-st-head">
         <div style="flex:1;min-width:200px"><div class="mt-ov-title">ร้านที่ติดตั้ง AI <span class="mt-meta" style="font-weight:400">· ${d.stores.length} ร้าน</span></div>
-          <div class="mt-ov-sub">ร้านที่คำค้นจับผิด (ไม่ได้ติดตั้ง AI จริง) กด “ไม่นับ” เพื่อตัดออกจากการวัดผล</div></div>
+          <div class="mt-ov-sub">ร้านที่ไม่มีเคสคำค้น กด “เพิ่มร้าน” · ร้านที่คำค้นจับผิด กด “ไม่นับ” · วันติดตั้งไม่ตรง กด “แก้วัน”</div></div>
         <label class="svc-search" style="margin:0;max-width:260px;min-width:180px"><i class=i-search style="color:#8a8f97"></i>
           <input id="aim-q" type="text" placeholder="ค้นหาร้าน / แบรนด์..." value="${esc(_aim.q)}" oninput="_aim.q=this.value;aimRenderStores()"
             style="border:none;padding:0;background:none;box-shadow:none"/></label>
         <button class="svc-btn-ghost" onclick="aimExport()" style="height:34px"><i class=i-download></i> Export CSV</button>
+        <button class="svc-btn-primary" onclick="aimOpenAdd()" style="height:34px"><i class=i-plus></i> เพิ่มร้าน</button>
       </div>
       <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>ร้าน / แบรนด์</th><th>วันติดตั้ง</th>
         <th class="r">ก่อน</th><th class="r">หลัง</th><th class="r">${unit}/เดือน ก่อน → หลัง</th><th>เปลี่ยน</th><th></th></tr></thead>
@@ -21438,20 +21459,90 @@ function aimRenderStores() {
     const a = s.pre_days ? s.pre / s.pre_days * 30 : null, b = s.post_days ? s.post / s.post_days * 30 : null;
     return `<tr class="${s.counted ? '' : 'aim-off'}">
       <td>${esc(s.company || '—')}<span class="sub">${esc(s.grp || 'ร้าน')}</span></td>
-      <td class="num">${fd(s.install_day)}<span class="sub" title="${esc(s.install_desc || '')}">เคส #${s.install_case}${s.install_cases > 1 ? ` · +${s.install_cases - 1}` : ''}</span></td>
+      <td class="num">${fd(s.install_day)}${s.manual
+        ? `<span class="sub" title="${esc(s.manual_note || '')}"><span class="aim-src">เพิ่มเอง</span>${s.manual_by ? ' ' + esc(dn(s.manual_by) || s.manual_by) : ''}${s.detected_day ? ` · จากเคส ${fd(s.detected_day)}` : ''}</span>`
+        : `<span class="sub" title="${esc(s.install_desc || '')}">เคส #${s.install_case}${s.install_cases > 1 ? ` · +${s.install_cases - 1}` : ''}</span>`}</td>
       <td class="r num">${s.pre_days ? `${s.pre}<span class="sub">${s.pre_days} วัน</span>` : '—'}</td>
       <td class="r num">${s.post_days ? `${s.post}<span class="sub">${s.post_days} วัน</span>` : '—'}</td>
       <td class="r num">${a == null || b == null ? '—' : `${aimFmt(a)} → <b>${aimFmt(b)}</b>`}</td>
       <td>${why ? `<span class="mt-meta">${why}</span>` : aimPill(aimPct(a, b))}</td>
-      <td class="r"><button class="mt-mini" onclick="aimExclude(${s.rid},${!s.excluded})">${s.excluded ? 'นับกลับ' : 'ไม่นับ'}</button></td></tr>`;
+      <td class="r" style="white-space:nowrap">
+        <button class="mt-mini" onclick="aimOpenAdd(${s.rid})" title="แก้วันที่ติดตั้ง"><i class=i-pencil></i> แก้วัน</button>
+        ${s.manual && !s.install_case
+          ? `<button class="mt-mini" onclick="aimRemoveManual(${s.rid})" title="ลบร้านที่เพิ่มเอง"><i class=i-trash></i> ลบ</button>`
+          : `<button class="mt-mini" onclick="aimExclude(${s.rid},${!s.excluded})">${s.excluded ? 'นับกลับ' : 'ไม่นับ'}</button>`}
+        ${s.manual && s.install_case ? `<button class="mt-mini" onclick="aimRemoveManual(${s.rid})" title="กลับไปใช้วันจากเคส">ใช้วันจากเคส</button>` : ''}</td></tr>`;
   }).join('') || `<tr><td colspan="7" class="mt-meta" style="text-align:center;padding:1.2rem">ไม่พบร้านที่ค้นหา</td></tr>`;
 }
 async function aimExclude(rid, exclude) {
   const s = _aim.data?.stores.find(x => x.rid === rid);
-  if (exclude && !confirm(`ไม่นับ “${s?.company || ''}” เป็นร้านที่ติดตั้ง AI?\n(ร้านนี้จะไม่อยู่ทั้งกลุ่ม AI และกลุ่มเทียบ)`)) return;
+  if (exclude && !confirm(`ไม่นับ “${s?.company || ''}” เป็นร้านที่ติดตั้ง AI?`)) return;
   const d = await api('/api/ai-impact/exclude', { method: 'POST', silent: true, body: { rid, exclude } });
   if (!d || d.error) { showToast(d?.error || 'บันทึกไม่สำเร็จ', 'error'); return; }
   showToast(exclude ? 'ตัดร้านนี้ออกแล้ว — คำนวณใหม่' : 'นับร้านนี้กลับแล้ว — คำนวณใหม่');
+  aimLoad();
+}
+// ── เพิ่มร้านที่ติดตั้ง AI เอง / แก้วันติดตั้ง
+let _aimPick = null, _aimSearchT = null, _aimEdit = false;
+function aimOpenAdd(rid) {
+  const s = rid ? _aim.data?.stores.find(x => x.rid === rid) : null;
+  _aimPick = s ? { id: s.rid, name: s.company } : null;
+  _aimEdit = !!s;
+  document.getElementById('aim-a-title').textContent = s ? 'แก้วันที่ติดตั้ง AI' : 'เพิ่มร้านที่ติดตั้ง AI';
+  document.getElementById('aim-a-q').value = '';
+  document.getElementById('aim-a-list').innerHTML = '';
+  document.getElementById('aim-a-day').value = s?.install_day || mtLocalInput(new Date()).slice(0, 10);
+  document.getElementById('aim-a-day').max = mtLocalInput(new Date()).slice(0, 10);
+  document.getElementById('aim-a-note').value = s?.manual_note || '';
+  aimShowPick();
+  openModal('modal-aim-store');
+  if (!s) setTimeout(() => document.getElementById('aim-a-q').focus(), 60);
+}
+function aimShowPick() {
+  const el = document.getElementById('aim-a-pick');
+  el.innerHTML = _aimPick ? `<i class=i-store></i> <b>${esc(_aimPick.name)}</b>${_aimEdit ? ''
+    : ` <button class="mt-mini" style="margin-left:auto" onclick="_aimPick=null;aimShowPick();document.getElementById('aim-a-q').focus()">เปลี่ยน</button>`}` : '';
+  el.style.display = _aimPick ? '' : 'none';
+  document.getElementById('aim-a-q').style.display = _aimPick ? 'none' : '';
+}
+function aimSearchStore(v) {
+  clearTimeout(_aimSearchT);
+  const list = document.getElementById('aim-a-list');
+  if (v.trim().length < 2) { list.innerHTML = ''; return; }
+  _aimSearchT = setTimeout(async () => {
+    const rows = await api('/api/requirements/search-customer?q=' + encodeURIComponent(v.trim()), { silent: true });
+    const have = new Set((_aim.data?.stores || []).filter(x => !x.excluded).map(x => x.rid));
+    list.innerHTML = Array.isArray(rows) && rows.length
+      ? rows.map(r => `<button type="button" class="aim-opt" onclick="aimPickStore(${r.id}, this.dataset.n)" data-n="${mtAttr(r.name)}">
+          <i class=i-store></i> ${esc(r.name)}${have.has(r.id) ? ' <span class="mt-pill mt-flat" style="margin-left:auto">อยู่ในรายการแล้ว</span>' : ''}</button>`).join('')
+      : '<div class="mt-meta" style="padding:.4rem .2rem">ไม่พบร้าน</div>';
+  }, 250);
+}
+function aimPickStore(id, name) {
+  _aimPick = { id, name };
+  document.getElementById('aim-a-list').innerHTML = '';
+  document.getElementById('aim-a-q').value = '';
+  aimShowPick();
+}
+async function aimSaveStore() {
+  if (!_aimPick) { showToast('กรุณาเลือกร้าน', 'error'); document.getElementById('aim-a-q').focus(); return; }
+  const day = document.getElementById('aim-a-day').value;
+  if (!day) { showToast('กรุณาระบุวันที่ติดตั้ง', 'error'); return; }
+  const btn = document.getElementById('aim-a-save'); btn.disabled = true;
+  const d = await api('/api/ai-impact/stores', { method: 'POST', silent: true,
+    body: { rid: _aimPick.id, install_day: day, note: document.getElementById('aim-a-note').value } });
+  btn.disabled = false;
+  if (!d || d.error) { showToast(d?.error || 'บันทึกไม่สำเร็จ', 'error'); return; }
+  closeModal('modal-aim-store');
+  showToast(`บันทึก “${_aimPick.name}” ติดตั้ง ${fmtDateShort(day + 'T00:00:00')} แล้ว — คำนวณใหม่`);
+  aimLoad();
+}
+async function aimRemoveManual(rid) {
+  const s = _aim.data?.stores.find(x => x.rid === rid);
+  if (!confirm(s?.install_case ? `กลับไปใช้วันติดตั้งจากเคส #${s.install_case} ?` : `ลบ “${s?.company || ''}” ออกจากร้านที่ติดตั้ง AI ?`)) return;
+  const d = await api(`/api/ai-impact/stores/${rid}`, { method: 'DELETE', silent: true });
+  if (!d || d.error) { showToast(d?.error || 'ลบไม่สำเร็จ', 'error'); return; }
+  showToast('บันทึกแล้ว — คำนวณใหม่');
   aimLoad();
 }
 function aimExport() {
@@ -21478,8 +21569,17 @@ function aimDrawChart(d) {
   const muted = css.getPropertyValue('--muted').trim() || '#5b616b';
   const grid = css.getPropertyValue('--line-2').trim() || '#efede7';
   const primary = css.getPropertyValue('--primary').trim() || '#35685f';
-  // ค่าเฉลี่ย 7 วันย้อนหลัง ต่อร้าน ปรับเป็นต่อเดือน
-  const roll = (arr, n) => arr.map((_, i) => { const a = Math.max(0, i - 6), xs = arr.slice(a, i + 1); return +(xs.reduce((x, y) => x + y, 0) / xs.length / n * 30).toFixed(3); });
+  // ค่าเฉลี่ย 7 วันย้อนหลัง (เคส/วัน) — เส้นไม่กระโดดตามวันหยุด
+  const roll = arr => arr.map((_, i) => { const xs = arr.slice(Math.max(0, i - 6), i + 1); return +(xs.reduce((x, y) => x + y, 0) / xs.length).toFixed(2); });
+  const dark = document.documentElement.dataset.theme === 'dark';
+  const PAL = dark ? ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767']
+                   : ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948'];
+  const tags = (d.tag_daily || []).filter(t => t.total && t.group);   // ไม่รวมเคสที่ยังไม่ติด Tag
+  const top = tags.slice(0, 8), rest = tags.slice(8);
+  const ds = top.map((t, i) => ({ label: t.title, data: roll(t.daily), borderColor: PAL[i], backgroundColor: PAL[i],
+    borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: .3 }));
+  if (rest.length) ds.push({ label: `อื่นๆ (${rest.length} Tag)`, data: roll(d.labels.map((_, i) => rest.reduce((a, t) => a + t.daily[i], 0))),
+    borderColor: '#9aa0a8', backgroundColor: '#9aa0a8', borderWidth: 2, borderDash: [4, 3], pointRadius: 0, pointHoverRadius: 4, tension: .3 });
   const iInst = d.median_install ? d.labels.indexOf(d.median_install) : -1;
   const marker = {
     id: 'aimInstall',
@@ -21496,23 +21596,17 @@ function aimDrawChart(d) {
   };
   _mtCharts['aim'] = new Chart(cv, {
     type: 'line',
-    data: {
-      labels: d.labels.map(x => new Date(x + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })),
-      datasets: [
-        { label: `ร้านที่ติดตั้ง AI (${d.n_ai} ร้าน)`, data: roll(d.ai_daily, d.n_ai || 1), borderColor: '#e34948', backgroundColor: '#e34948', borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4, tension: .3 },
-        { label: `ร้านที่ไม่ได้ติดตั้ง (${(d.n_ctl || 0).toLocaleString()} ร้าน)`, data: roll(d.ctl_daily, d.n_ctl || 1), borderColor: '#8a8f97', backgroundColor: '#8a8f97', borderWidth: 2, borderDash: [5, 4], pointRadius: 0, pointHoverRadius: 4, tension: .3 }
-      ]
-    },
+    data: { labels: d.labels.map(x => new Date(x + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })), datasets: ds },
     options: {
       responsive: true, maintainAspectRatio: false, animation: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { position: 'bottom', labels: { boxWidth: 14, boxHeight: 2, color: muted, font: { size: 11 } } },
-        tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${aimFmt(c.raw)} ต่อร้าน/เดือน` } }
+        tooltip: { itemSort: (a, b) => b.raw - a.raw, callbacks: { label: c => ` ${c.dataset.label}: ${c.raw} เคส/วัน` } }
       },
       scales: {
         x: { grid: { display: false }, ticks: { color: muted, maxTicksLimit: 14, font: { size: 10 } } },
-        y: { beginAtZero: true, grid: { color: grid }, ticks: { color: muted, font: { size: 10 } } }
+        y: { beginAtZero: true, grid: { color: grid }, ticks: { color: muted, font: { size: 10 } }, title: { display: true, text: 'เคส/วัน', color: muted, font: { size: 10 } } }
       }
     },
     plugins: [marker]
