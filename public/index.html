@@ -2625,7 +2625,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
     </div>
     <div class="row"><label>ร้าน</label>
       <div class="aim-pick" id="aim-a-pick" style="display:none"></div>
-      <input id="aim-a-q" placeholder="พิมพ์ชื่อร้านอย่างน้อย 2 ตัวอักษร..." autocomplete="off" oninput="aimSearchStore(this.value)"/>
+      <input id="aim-a-q" placeholder="พิมพ์ชื่อร้านเพื่อค้นหา..." autocomplete="off" oninput="aimSearchStore(this.value)"/>
       <div class="aim-list" id="aim-a-list"></div>
     </div>
     <div class="row"><label>วันที่ติดตั้ง AI</label><input type="date" id="aim-a-day"/></div>
@@ -21667,14 +21667,17 @@ function aimSearchStore(v) {
   clearTimeout(_aimSearchT);
   const list = document.getElementById('aim-a-list');
   if (v.trim().length < 2) { list.innerHTML = ''; return; }
+  // ค้นหาร้านแบบเดียวกับหน้า "เปิด Case"
   _aimSearchT = setTimeout(async () => {
-    const rows = await api('/api/requirements/search-customer?q=' + encodeURIComponent(v.trim()), { silent: true });
+    const rows = await api('/api/repair/search-shop?q=' + encodeURIComponent(v.trim()), { silent: true });
     const have = new Set((_aim.data?.stores || []).filter(x => !x.excluded).map(x => x.rid));
     list.innerHTML = Array.isArray(rows) && rows.length
-      ? rows.map(r => `<button type="button" class="aim-opt" onclick="aimPickStore(${r.id}, this.dataset.n)" data-n="${mtAttr(r.name)}">
-          <i class=i-store></i> ${esc(r.name)}${have.has(r.id) ? ' <span class="mt-pill mt-flat" style="margin-left:auto">อยู่ในรายการแล้ว</span>' : ''}</button>`).join('')
+      ? rows.map(r => `<button type="button" class="aim-opt" onclick="aimPickStore(${r.RegistrationId}, this.dataset.n)" data-n="${mtAttr(r.CompanyName)}">
+          <i class=i-store></i><span style="min-width:0"><span style="display:block">${esc(r.CompanyName)}</span>${
+            r.GroupId && r.GroupId !== 1 && r.GroupName ? `<span class="mt-meta">${esc(r.GroupName)}</span>` : ''}</span>${
+            have.has(r.RegistrationId) ? ' <span class="mt-pill mt-flat" style="margin-left:auto">อยู่ในรายการแล้ว</span>' : ''}</button>`).join('')
       : '<div class="mt-meta" style="padding:.4rem .2rem">ไม่พบร้าน</div>';
-  }, 250);
+  }, 300);
 }
 function aimPickStore(id, name) {
   _aimPick = { id, name };
