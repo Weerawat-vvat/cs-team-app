@@ -21488,7 +21488,8 @@ function aimRender() {
       <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>แบรนด์ / ร้าน</th><th>วันติดตั้ง</th>
         <th class="r">ก่อน</th><th class="r">หลัง</th><th class="r">${unit}/เดือน ก่อน → หลัง</th><th>เปลี่ยน</th><th></th></tr></thead>
         <tbody id="aim-stores"></tbody></table></div>
-    </div>`;
+    </div>
+    ${aimDailyInstallHtml(d)}`;
   aimRenderStores();
   aimDrawChart(d);
 }
@@ -21567,6 +21568,37 @@ async function aimShowCases(rid, tagId, title) {
   }).join('');
 }
 
+// ── ติดตั้ง AI รายวัน: จำนวนร้านต่อวันที่ติดตั้ง + ยอดสะสม (ไม่นับร้านที่กด "ไม่นับ")
+function aimDailyInstallHtml(d) {
+  const by = new Map();
+  for (const s of (d.stores || []).filter(x => !x.excluded)) {
+    if (!by.has(s.install_day)) by.set(s.install_day, []);
+    by.get(s.install_day).push(s);
+  }
+  const days = [...by.keys()].sort();
+  if (!days.length) return '';
+  const max = Math.max(...days.map(k => by.get(k).length));
+  let cum = 0;
+  const rows = days.map(k => {
+    const list = by.get(k); cum += list.length;
+    // รวมสาขาแบรนด์เดียวกัน เช่น "Oshinei 28 สาขา"
+    const g = new Map();
+    list.forEach(s => { const n = s.grp || s.company || '—'; g.set(n, (g.get(n) || 0) + 1); });
+    const names = [...g.entries()].sort((a, b) => b[1] - a[1])
+      .map(([n, c]) => `<span class="mt-svc-chip">${esc(n)}${c > 1 ? ` <b>${c} สาขา</b>` : ''}</span>`).join('');
+    return { k, n: list.length, cum, names };
+  }).reverse();   // วันล่าสุดอยู่บน
+  const wd = k => new Date(k + 'T00:00:00').toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short', year: '2-digit' });
+  return `<div class="mt-ov-card" style="padding:0;overflow:hidden;margin-top:.75rem">
+    <div class="mt-st-head"><div style="flex:1"><div class="mt-ov-title">ติดตั้ง AI รายวัน <span class="mt-meta" style="font-weight:400">· ${days.length} วัน · รวม ${cum} ร้าน</span></div>
+      <div class="mt-ov-sub">นับตามวันที่ติดตั้งของแต่ละร้าน · ไม่นับร้านที่กด “ไม่นับ”</div></div></div>
+    <div style="overflow-x:auto;max-height:420px;overflow-y:auto"><table class="mt-tbl">
+      <thead><tr><th>วันที่ติดตั้ง</th><th class="r">จำนวนร้าน</th><th style="width:22%"></th><th class="r">สะสม</th><th>ร้าน / แบรนด์</th></tr></thead>
+      <tbody>${rows.map(r => `<tr><td class="num">${wd(r.k)}</td><td class="r num"><b>${r.n}</b></td>
+        <td><div class="mt-share"><span style="width:${(r.n / max * 100).toFixed(1)}%;background:var(--primary)"></span></div></td>
+        <td class="r num mt-meta">${r.cum}</td><td>${r.names}</td></tr>`).join('')}</tbody></table></div>
+  </div>`;
+}
 function aimStoreRows() {
   const q = _aim.q.trim().toLowerCase();
   return (_aim.data?.stores || []).filter(s => !q || [s.company, s.grp].some(v => (v || '').toLowerCase().includes(q)));
