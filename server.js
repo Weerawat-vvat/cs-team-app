@@ -13061,6 +13061,70 @@ async function ensureAiImpactTables() {
   } catch (e) { console.error('[ai-impact] ensure table:', e.message); }
 }
 
+// ── ร้านที่ติดตั้ง AI แล้ว (ชุดเดียวกับแท็บผลการติดตั้ง) — rid → { d: วันติดตั้ง, src: 'case'|'manual', cid }
+// ใช้ที่หน้าเปิด Case (ป้าย "ติดตั้ง AI แล้ว") และรายงานตามพนักงาน · cache 1 นาที ล้างทุกครั้งที่มีการแก้รายการ
+let _aiInstCache = { at: 0, map: null };
+app.use('/api/ai-impact', (request, res, next) => { if (request.method !== 'GET') _aiInstCache.at = 0; next(); });
+async function aiInstalledMap() {
+  if (_aiInstCache.map && Date.now() - _aiInstCache.at < 60 * 1000) return _aiInstCache.map;
+  const map = new Map();
+  if (getExtPool() && await aiImpactAutoDetect()) {
+    const r = extReq().input('since', sql.NVarChar, AI_INSTALL_SINCE);
+    AI_INSTALL_KEYWORDS.forEach((k, i) => r.input('k' + i, sql.NVarChar, '%' + k.replace(/[!%_[]/g, '!$&') + '%'));
+    const txt = `(CAST(cl.CalllogDesc AS NVARCHAR(MAX)) + N' ' + ISNULL(CAST(cl.Solution AS NVARCHAR(MAX)), N'') + N' ' + ISNULL(cl.Subject, N''))`;
+    (await r.query(`SELECT cl.RegistrationId AS rid, CONVERT(char(10), MIN(cl.ReceiveDate), 23) AS d, MIN(cl.CalllogId) AS cid
+      FROM Calllog cl WHERE cl.Active=1 AND cl.RegistrationId IS NOT NULL AND cl.ReceiveDate >= CAST(@since AS DATE)
+        AND (${AI_INSTALL_KEYWORDS.map((_, i) => `${txt} LIKE @k${i} ESCAPE '!'`).join(' OR ')})
+      GROUP BY cl.RegistrationId`)).recordset.forEach(x => map.set(x.rid, { d: x.d, src: 'case', cid: x.cid }));
+  }
+  (await req().query(`SELECT rid, CONVERT(char(10), install_day, 23) AS d FROM ai_impact_manual`)).recordset
+    .forEach(x => map.set(x.rid, { d: x.d, src: 'manual', cid: map.get(x.rid)?.cid || null }));
+  (await req().query('SELECT rid FROM ai_impact_excludes')).recordset.forEach(x => map.delete(x.rid));
+  _aiInstCache = { at: Date.now(), map };
+  return map;
+}
+
+// GET /api/ai-impact/installed — { rid: วันติดตั้ง } ทั้งหมด (ไว้ติดป้ายตอนค้นหาร้าน)
+app.get('/api/ai-impact/installed', authRequired, async (request, res) => {
+  try {
+    const map = await aiInstalledMap();
+    res.json({ stores: Object.fromEntries([...map].map(([rid, v]) => [rid, v.d])) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/ai-impact/agent-report?from=&to= — แต่ละวัน น้องแต่ละคนรับเคสของร้านกี่ร้าน แยกตามสถานะติดตั้ง AI ของร้าน ณ วันนั้น
+//   installed = ติดตั้งก่อนวันที่รับเคส · today = ติดตั้งในวันเดียวกับที่รับเคส · missing = ยังไม่ได้ติดตั้ง (ณ วันนั้น)
+app.get('/api/ai-impact/agent-report', authRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
+    const today = bangkokToday();
+    const day = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : null;
+    let from = day(request.query.from) || today, to = day(request.query.to) || from;
+    if (from > to) [from, to] = [to, from];
+    if ((Date.parse(to) - Date.parse(from)) / 86400000 > 62) return res.status(400).json({ error: 'เลือกได้ไม่เกิน 62 วัน' });
+    const inst = await aiInstalledMap();
+    const rows = (await extReq().input('f', sql.NVarChar, from).input('t', sql.NVarChar, to).query(`
+      SELECT CONVERT(char(10), cl.ReceiveDate, 23) AS d, cl.RegistrationId AS rid, u.UserName AS agent,
+             cr.CompanyName AS company, CASE WHEN cr.GroupId IS NOT NULL AND cr.GroupId <> 1 THEN cg.GroupName END AS grp,
+             COUNT(*) AS cases, MIN(cl.CalllogId) AS cid
+      FROM Calllog cl
+      LEFT JOIN Users                u  ON u.UserId          = cl.SupportId
+      LEFT JOIN CustomerRegistration cr ON cr.RegistrationId = cl.RegistrationId
+      LEFT JOIN CustomerGroup        cg ON cg.GroupId        = cr.GroupId
+      WHERE cl.Active=1 AND cl.RegistrationId IS NOT NULL
+        AND cl.ReceiveDate >= CAST(@f AS DATE) AND cl.ReceiveDate < DATEADD(day, 1, CAST(@t AS DATE))
+      GROUP BY CONVERT(char(10), cl.ReceiveDate, 23), cl.RegistrationId, u.UserName, cr.CompanyName,
+               CASE WHEN cr.GroupId IS NOT NULL AND cr.GroupId <> 1 THEN cg.GroupName END`)).recordset;
+    const out = rows.map(x => {
+      const i = inst.get(x.rid);
+      const status = !i || i.d > x.d ? 'missing' : i.d === x.d ? 'today' : 'installed';
+      return { d: x.d, agent: x.agent || '(ไม่ระบุ)', rid: x.rid, company: x.company, grp: x.grp, cases: x.cases, cid: x.cid,
+        status, install_day: i?.d || null };
+    });
+    res.json({ from, to, total_installed: inst.size, rows: out });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // GET /api/ai-impact?mode=bug|all&pre=30
 app.get('/api/ai-impact', authRequired, async (request, res) => {
   try {

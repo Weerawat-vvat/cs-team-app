@@ -484,6 +484,12 @@ textarea{resize:vertical;min-height:80px}
 .mt-avg-pill b{font-variant-numeric:tabular-nums;color:var(--text)}
 .aim-warn{display:flex;align-items:center;gap:.45rem;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:12px;padding:.6rem .85rem;font-size:.8rem;margin-bottom:.75rem}
 .aim-good{color:#0f766e}
+.ai-inst{display:inline-flex;align-items:center;gap:.25rem;margin-top:.15rem;padding:.02rem .5rem;border-radius:999px;background:#eaf4ee;color:#2f6b4f;font-size:.68rem;font-weight:600;white-space:nowrap}
+.ai-inst [class^="i-"]{width:.9em;height:.9em}
+.ai-inst.no{background:#f3f1ec;color:#6f747c;font-weight:500}
+.aim-date{width:auto!important;height:34px}
+.aim-stack{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--line-2)}
+.aim-stack span{display:block;height:100%}
 .aim-auto{display:inline-flex;align-items:center;gap:.3rem;margin-left:.5rem;padding:.05rem .5rem;border:1px solid var(--border);border-radius:999px;background:#fff;cursor:pointer;color:var(--text);white-space:nowrap}
 .aim-auto input{width:auto!important;margin:0}
 .mt-tbl tr.aim-brand{cursor:pointer}
@@ -1662,15 +1668,19 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
   <!-- ════ TAB 5: ผลการติดตั้ง AI ════ -->
   <div id="dash-tab-aiimpact" style="display:none">
     <div class="mt-kind-bar">
-      <div class="svc-seg" id="aim-mode" role="tablist" aria-label="นับเคส"></div>
+      <div class="svc-seg" id="aim-view" role="tablist" aria-label="มุมมอง"></div>
+      <div class="svc-seg mt-seg-sm" id="aim-mode" role="tablist" aria-label="นับเคส"></div>
       <div class="svc-seg mt-seg-sm" id="aim-pre" role="tablist" aria-label="ช่วงก่อนติดตั้ง"></div>
       <span style="flex:1"></span>
       <span id="aim-updated" class="mt-updated" style="margin-left:0"></span>
-      <button class="svc-btn-ghost" onclick="aimLoad()" style="height:34px"><i class=i-refresh></i> รีเฟรช</button>
+      <button class="svc-btn-ghost" onclick="aimOpenImport()" style="height:34px"><i class=i-upload></i> นำเข้า</button>
+      <button class="svc-btn-primary" onclick="aimOpenAdd()" style="height:34px"><i class=i-plus></i> เพิ่มร้านที่ติดตั้ง</button>
+      <button class="svc-btn-ghost" onclick="_aimView === 'report' ? aimRepLoad() : aimLoad()" style="height:34px" title="รีเฟรช"><i class=i-refresh></i></button>
     </div>
     <div class="mt-meta" id="aim-hint" style="margin:-.25rem 0 .75rem;line-height:1.55"></div>
     <div class="mt-kpis" id="aim-kpis"></div>
     <div id="aim-body"><div class="mt-empty">กำลังโหลด...</div></div>
+    <div id="aim-report" style="display:none"></div>
   </div><!-- /dash-tab-aiimpact -->
 
 
@@ -14326,7 +14336,7 @@ function ccShopSearch() {
     const res = document.getElementById('cc-shop-results');
     if (!res) return;
     if (q.length < 2) { res.style.display='none'; return; }
-    const data = await api(`/api/repair/search-shop?q=${encodeURIComponent(q)}`);
+    const [data] = await Promise.all([api(`/api/repair/search-shop?q=${encodeURIComponent(q)}`), aiInstLoad()]);
     if (!data.length) { res.style.display='none'; return; }
     res.style.display = '';
     res.innerHTML = data.map(s=>`
@@ -14334,13 +14344,14 @@ function ccShopSearch() {
            data-phone="${escHtml(s.Phone||s.MobilePhone||'')}" data-contact="${escHtml(s.ContactName||'')}"
            style="padding:.42rem .75rem;cursor:pointer;font-size:.82rem;border-bottom:1px solid #f0eee9"
            onmouseover="this.style.background='#faf9f6'" onmouseout="this.style.background=''">
-        <div style="font-weight:600">${escHtml(s.CompanyName)}</div>
+        <div style="font-weight:600">${escHtml(s.CompanyName)}</div>${aiInstBadge(s.RegistrationId)}
       </div>`).join('');
     res.querySelectorAll('.rp-shop-item').forEach(el => {
       el.addEventListener('click', () => {
         document.getElementById('cc-registration-id').value = el.dataset.id;
         document.getElementById('cc-shop-search').value = el.dataset.name;
-        document.getElementById('cc-shop-selected').textContent = `${el.dataset.name}`;
+        document.getElementById('cc-shop-selected').innerHTML = `${escHtml(el.dataset.name)} ${aiInstBadge(+el.dataset.id)
+          || '<span class="ai-inst no">ยังไม่ได้ติดตั้ง AI (SSH)</span>'}`;
         // Auto-fill contact
         if (el.dataset.contact) document.getElementById('cc-inform-name').value = el.dataset.contact;
         if (el.dataset.phone)   document.getElementById('cc-inform-tel').value  = el.dataset.phone;
@@ -20091,7 +20102,7 @@ function switchDashTab(tab) {
   document.getElementById('dash-tab-btn-5').classList.toggle('active', tab === 5);
   if (tab === 2) loadIssueAnalytics();
   if (tab === 4) mtLoad();
-  if (tab === 5) aimLoad();
+  if (tab === 5) { aimApplyView(); if (_aimView === 'report') aimRepLoad(); else aimLoad(); }
 }
 
 async function loadIssueAnalytics() {
@@ -21476,14 +21487,12 @@ function aimRender() {
       <div class="mt-st-head">
         <div style="flex:1;min-width:200px"><div class="mt-ov-title">ร้านที่ติดตั้ง AI <span class="mt-meta" style="font-weight:400">· ${(() => { const b = new Set(d.stores.map(x => x.grp).filter(Boolean)).size, n = d.stores.filter(x => !x.grp).length;
           return `${b ? b + ' แบรนด์ (' + d.stores.filter(x => x.grp).length + ' สาขา) · ' : ''}${n} ร้าน`; })()}</span></div>
-          <div class="mt-ov-sub">ร้านที่ไม่มีเคสคำค้น กด “เพิ่มร้าน” · ร้านที่คำค้นจับผิด กด “ไม่นับ” · วันติดตั้งไม่ตรง กด “แก้วัน”</div></div>
+          <div class="mt-ov-sub">เพิ่มร้าน / นำเข้า ได้ที่ปุ่มด้านบน · ร้านที่คำค้นจับผิด กด “ไม่นับ” · วันติดตั้งไม่ตรง กด “แก้วัน”</div></div>
         <label class="svc-search" style="margin:0;max-width:260px;min-width:180px"><i class=i-search style="color:#8a8f97"></i>
           <input id="aim-q" type="text" placeholder="ค้นหาร้าน / แบรนด์..." value="${esc(_aim.q)}" oninput="_aim.q=this.value;aimRenderStores()"
             style="border:none;padding:0;background:none;box-shadow:none"/></label>
         <button class="svc-btn-ghost" onclick="aimExport()" style="height:34px"><i class=i-download></i> Export CSV</button>
         <button class="svc-btn-ghost" onclick="aimClearAll()" style="height:34px" title="ลบร้านที่เพิ่มเอง/นำเข้าทั้งหมด และปิดการหาจากเคส"><i class=i-trash></i> ล้างรายการ</button>
-        <button class="svc-btn-ghost" onclick="aimOpenImport()" style="height:34px"><i class=i-upload></i> นำเข้า</button>
-        <button class="svc-btn-primary" onclick="aimOpenAdd()" style="height:34px"><i class=i-plus></i> เพิ่มร้าน</button>
       </div>
       <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>แบรนด์ / ร้าน</th><th>วันติดตั้ง</th>
         <th class="r">ก่อน</th><th class="r">หลัง</th><th class="r">${unit}/เดือน ก่อน → หลัง</th><th>เปลี่ยน</th><th></th></tr></thead>
@@ -21566,6 +21575,155 @@ async function aimShowCases(rid, tagId, title) {
       <td style="${td};white-space:nowrap;font-size:.78rem">${esc(dn(r.agent) || r.agent || '—')}</td>
     </tr>`;
   }).join('');
+}
+
+// ── ร้านที่ติดตั้ง AI แล้ว (ไว้ติดป้ายตอนค้นหาร้านในหน้าเปิด Case) ──
+let _aiInst = { at: 0, map: {} };
+async function aiInstLoad() {
+  if (Date.now() - _aiInst.at < 2 * 60 * 1000) return _aiInst.map;
+  const d = await api('/api/ai-impact/installed', { silent: true });
+  if (d && d.stores) _aiInst = { at: Date.now(), map: d.stores };
+  return _aiInst.map;
+}
+const aiInstBadge = rid => {
+  const d = _aiInst.map[rid];
+  return d ? `<span class="ai-inst"><i class=i-check></i> ติดตั้ง AI (SSH) แล้ว · ${fmtDateShort(d + 'T00:00:00')}</span>` : '';
+};
+
+// ══ รายงาน: น้องแต่ละคนรับเคสของร้านที่ติดตั้ง AI แล้ว / ยังไม่ติดตั้ง ══
+let _aimView = (() => { try { return localStorage.getItem('aim-view') === 'report' ? 'report' : 'impact'; } catch { return 'impact'; } })();
+let _aimRep = { from: null, to: null, data: null, open: new Set() };
+function aimSetView(v) {
+  _aimView = v;
+  try { localStorage.setItem('aim-view', v); } catch {}
+  aimApplyView();
+  if (v === 'report') aimRepLoad(); else if (!_aim.data) aimLoad();
+}
+function aimApplyView() {
+  const rep = _aimView === 'report';
+  document.getElementById('aim-view').innerHTML = [['impact', 'chart', 'ผลการติดตั้ง'], ['report', 'user', 'รายงานตามพนักงาน']].map(([k, ic, l]) =>
+    `<button class="${_aimView === k ? 'on' : ''}" onclick="aimSetView('${k}')"><i class=i-${ic}></i> ${l}</button>`).join('');
+  ['aim-mode', 'aim-pre', 'aim-hint', 'aim-kpis', 'aim-body', 'aim-updated'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = rep ? 'none' : ''; });
+  document.getElementById('aim-report').style.display = rep ? '' : 'none';
+}
+const aimRepDay = n => mtLocalInput(new Date(Date.now() - n * 86400000)).slice(0, 10);
+function aimRepQuick(n) {
+  if (n === 1) { _aimRep.from = _aimRep.to = aimRepDay(1); }
+  else { _aimRep.from = aimRepDay(Math.max(0, n - 1)); _aimRep.to = aimRepDay(0); }
+  aimRepLoad();
+}
+async function aimRepLoad() {
+  if (!_aimRep.from) { _aimRep.from = aimRepDay(6); _aimRep.to = aimRepDay(0); }
+  const box = document.getElementById('aim-report');
+  box.innerHTML = aimRepBar() + '<div class="mt-empty">กำลังโหลด...</div>';
+  const d = await api(`/api/ai-impact/agent-report?from=${_aimRep.from}&to=${_aimRep.to}`, { silent: true });
+  if (!d || d.error) { box.innerHTML = aimRepBar() + `<div class="mt-empty">โหลดไม่สำเร็จ${d?.error ? ': ' + esc(d.error) : ''} (ถ้าเพิ่งอัปเดตโค้ด ให้รีสตาร์ท server ก่อน)</div>`; return; }
+  _aimRep.data = d;
+  aimRepRender();
+}
+function aimRepBar() {
+  const q = [[0, 'วันนี้'], [1, 'เมื่อวาน'], [7, '7 วัน'], [30, '30 วัน']];
+  const isOn = n => n === 1 ? _aimRep.from === aimRepDay(1) && _aimRep.to === aimRepDay(1)
+    : _aimRep.to === aimRepDay(0) && _aimRep.from === aimRepDay(Math.max(0, n - 1));
+  return `<div class="mt-svc-bar">
+    <input type="date" class="svc-date aim-date" value="${_aimRep.from || ''}" onchange="_aimRep.from=this.value;aimRepLoad()" aria-label="ตั้งแต่วันที่"/>
+    <span class="mt-meta">ถึง</span>
+    <input type="date" class="svc-date aim-date" value="${_aimRep.to || ''}" onchange="_aimRep.to=this.value;aimRepLoad()" aria-label="ถึงวันที่"/>
+    <div class="svc-seg mt-seg-sm">${q.map(([n, l]) => `<button class="${isOn(n) ? 'on' : ''}" onclick="aimRepQuick(${n})">${l}</button>`).join('')}</div>
+    <span style="flex:1"></span>
+    <button class="svc-btn-ghost" onclick="aimRepExport()" style="height:34px"><i class=i-download></i> Export CSV</button>
+  </div>
+  <div class="mt-meta" style="margin:-.3rem 0 .75rem;line-height:1.55">นับต่อ <b>ร้าน × วัน × พนักงาน</b> (ร้านเดียวกันแจ้งหลายเคสในวันเดียว = 1)
+    · <b>ติดตั้งแล้ว</b> = ร้านติดตั้ง AI ก่อนวันที่รับเคส · <b>ติดตั้งวันนั้น</b> = ติดตั้งในวันที่รับเคส · <b>ยังไม่ติดตั้ง</b> = ณ วันนั้นร้านยังไม่มี AI (SSH)</div>`;
+}
+function aimRepAgg(rows) {
+  const by = new Map();
+  for (const x of rows) {
+    const a = by.get(x.agent) || by.set(x.agent, { agent: x.agent, stores: 0, installed: 0, today: 0, missing: 0, miss: [] }).get(x.agent);
+    a.stores++; a[x.status]++;
+    if (x.status === 'missing') a.miss.push(x);
+  }
+  return [...by.values()].map(a => ({ ...a, ok: a.stores ? (a.installed + a.today) / a.stores : 0 }));
+}
+function aimRepRender() {
+  const d = _aimRep.data, box = document.getElementById('aim-report');
+  if (!d) return;
+  const fd = x => x ? fmtDateShort(x + 'T00:00:00') : '—';
+  const nm = a => esc(dn(a) || a);
+  const rows = d.rows;
+  const sum = k => rows.filter(x => x.status === k).length;
+  const total = rows.length, inst = sum('installed'), today = sum('today'), miss = sum('missing');
+  const pct = (n, t) => t ? Math.round(n / t * 100) + '%' : '—';
+  const k = (label, val, sub, cls) => `<div class="stat-flat"><div class="label">${label}</div><div class="value ${cls}">${val}</div><div class="sub">${sub}</div></div>`;
+  const agents = aimRepAgg(rows).sort((a, b) => b.missing - a.missing || b.stores - a.stores);
+  const bar = (a, w) => `<div class="aim-stack" title="ติดตั้งแล้ว ${a.installed} · ติดตั้งวันนั้น ${a.today} · ยังไม่ติดตั้ง ${a.missing}">
+    <span style="width:${(a.installed / w * 100).toFixed(1)}%;background:#1baf7a"></span><span style="width:${(a.today / w * 100).toFixed(1)}%;background:#2a78d6"></span><span style="width:${(a.missing / w * 100).toFixed(1)}%;background:#e34948"></span></div>`;
+  const agentRows = agents.map(a => {
+    const open = _aimRep.open.has(a.agent);
+    return `<tr class="mt-row${open ? ' open' : ''}" data-a="${mtAttr(a.agent)}" onclick="aimRepToggle(this.dataset.a)">
+      <td><b>${nm(a.agent)}</b><span class="sub">${open ? 'ซ่อนรายชื่อร้าน' : a.missing ? `ดูร้านที่ยังไม่ติดตั้ง ${a.missing} ร้าน ›` : 'ครบทุกร้าน'}</span></td>
+      <td class="r num">${a.stores}</td><td class="r num">${a.installed}</td><td class="r num"><b style="color:#2a5f9e">${a.today || ''}</b></td>
+      <td class="r num"><b style="color:${a.missing ? '#be123c' : 'inherit'}">${a.missing}</b></td>
+      <td style="min-width:140px">${bar(a, a.stores || 1)}</td>
+      <td class="r num">${a.missing ? pct(a.installed + a.today, a.stores) : '<span class="mt-pill mt-down"><i class=i-check></i> ครบ</span>'}</td></tr>`
+      + (open ? aimRepMissHtml(a) : '');
+  }).join('');
+  // รายวัน
+  const days = [...new Set(rows.map(x => x.d))].sort().reverse();
+  const dayRows = days.map(dd => {
+    const xs = rows.filter(x => x.d === dd), ag = aimRepAgg(xs);
+    const inst = xs.filter(x => x.status === 'installed').length, td = xs.filter(x => x.status === 'today').length, ms = xs.filter(x => x.status === 'missing').length;
+    const doers = ag.filter(a => a.today).sort((a, b) => b.today - a.today).map(a => `<span class="mt-svc-chip sv">${nm(a.agent)} <b>${a.today}</b></span>`).join('');
+    const missers = ag.filter(a => a.missing).sort((a, b) => b.missing - a.missing).slice(0, 4)
+      .map(a => `<span class="mt-svc-chip bg">${nm(a.agent)} <b>${a.missing}</b></span>`).join('');
+    return `<tr><td class="num">${new Date(dd + 'T00:00:00').toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' })}</td>
+      <td class="r num">${xs.length}</td><td class="r num">${inst}</td><td class="r num"><b style="color:#2a5f9e">${td || ''}</b></td>
+      <td class="r num"><b style="color:#be123c">${ms}</b></td><td>${doers || '<span class="mt-meta">—</span>'}</td><td>${missers || '<span class="mt-meta">—</span>'}</td></tr>`;
+  }).join('');
+  box.innerHTML = aimRepBar() + `
+    <div class="mt-kpis">
+      ${k('ร้านที่รับเคส', total.toLocaleString(), `${fd(d.from)} – ${fd(d.to)} · ${agents.length} คน`, 'blue')}
+      ${k('<i class=i-check></i> ติดตั้งแล้ว', inst.toLocaleString(), `${pct(inst, total)} ของร้านที่รับเคส`, 'green')}
+      ${k('ติดตั้งในวันที่รับเคส', today.toLocaleString(), `${pct(today, total)} · น้องติดตั้งเพิ่มระหว่างรับเคส`, 'white')}
+      ${k('ยังไม่ติดตั้ง', miss.toLocaleString(), `${pct(miss, total)} · โอกาสติดตั้งเพิ่ม`, 'orange')}
+    </div>
+    <div class="mt-tbl-wrap">
+      <div class="mt-tt-head"><i class=i-user style="color:var(--primary)"></i> สรุปตามพนักงาน <span class="mt-meta" style="font-weight:400">· เรียงจากยังไม่ติดตั้งมากสุด · คลิกเพื่อดูรายชื่อร้าน</span></div>
+      <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>พนักงาน</th><th class="r">ร้านที่รับเคส</th><th class="r">ติดตั้งแล้ว</th><th class="r">ติดตั้งวันนั้น</th>
+        <th class="r">ยังไม่ติดตั้ง</th><th></th><th class="r">ครบ</th></tr></thead>
+        <tbody>${agentRows || '<tr><td colspan="7" class="mt-meta" style="text-align:center;padding:1.2rem">ไม่มีเคสในช่วงนี้</td></tr>'}</tbody></table></div>
+    </div>
+    <div class="mt-tbl-wrap" style="margin-top:.75rem">
+      <div class="mt-tt-head"><i class=i-calendar style="color:var(--primary)"></i> รายวัน</div>
+      <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>วันที่</th><th class="r">ร้านที่รับเคส</th><th class="r">ติดตั้งแล้ว</th><th class="r">ติดตั้งวันนั้น</th>
+        <th class="r">ยังไม่ติดตั้ง</th><th>ติดตั้งระหว่างรับเคส</th><th>ยังไม่ติดตั้งมากสุด</th></tr></thead>
+        <tbody>${dayRows || '<tr><td colspan="7" class="mt-meta" style="text-align:center;padding:1.2rem">ไม่มีเคสในช่วงนี้</td></tr>'}</tbody></table></div>
+    </div>`;
+}
+function aimRepMissHtml(a) {
+  const fd = x => x ? fmtDateShort(x + 'T00:00:00') : '—';
+  const xs = [...a.miss].sort((p, q) => q.d.localeCompare(p.d)), TOP = 40;
+  if (!xs.length) return '';
+  return `<tr class="aim-branch aim-sub-head"><td colspan="7">ร้านที่ ${esc(dn(a.agent) || a.agent)} รับเคสแต่ยังไม่ได้ติดตั้ง AI (SSH) · ${xs.length} ร้าน</td></tr>`
+    + xs.slice(0, TOP).map(x => `<tr class="aim-branch">
+      <td>${esc(x.company || '—')}<span class="sub">${esc(x.grp || 'ร้าน')}${x.install_day ? ` · ติดตั้งภายหลัง ${fd(x.install_day)}` : ''}</span></td>
+      <td class="num mt-meta">${fd(x.d)}</td><td colspan="3" class="mt-meta">${x.cases} เคส · #${x.cid}</td>
+      <td colspan="2" class="r"><button class="mt-mini" onclick="event.stopPropagation();aimOpenAdd(null,{rid:${x.rid},name:this.dataset.n})" data-n="${mtAttr(x.company || '')}"><i class=i-plus></i> บันทึกว่าติดตั้งแล้ว</button></td></tr>`).join('')
+    + (xs.length > TOP ? `<tr class="aim-branch"><td colspan="7" class="mt-meta">… อีก ${xs.length - TOP} ร้าน — Export CSV เพื่อดูทั้งหมด</td></tr>` : '');
+}
+function aimRepToggle(a) { _aimRep.open.has(a) ? _aimRep.open.delete(a) : _aimRep.open.add(a); aimRepRender(); }
+function aimRepExport() {
+  const d = _aimRep.data; if (!d) return;
+  const st = { installed: 'ติดตั้งแล้ว', today: 'ติดตั้งวันนั้น', missing: 'ยังไม่ติดตั้ง' };
+  const head = ['วันที่', 'พนักงาน', 'ร้าน', 'แบรนด์', 'จำนวนเคส', 'เคสแรก', 'สถานะ AI (SSH)', 'วันติดตั้ง'];
+  const rows = [...d.rows].sort((a, b) => a.d.localeCompare(b.d) || a.agent.localeCompare(b.agent))
+    .map(x => [x.d, dn(x.agent) || x.agent, x.company || '', x.grp || '', x.cases, x.cid, st[x.status], x.install_day || '']);
+  const csv = '﻿' + [head, ...rows].map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = `ai-install-by-agent-${d.from}_${d.to}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 
 // ── ติดตั้ง AI รายวัน: จำนวนร้านต่อวันที่ติดตั้ง + ยอดสะสม (ไม่นับร้านที่กด "ไม่นับ")
@@ -21674,10 +21832,10 @@ async function aimExclude(rid, exclude) {
 }
 // ── เพิ่มร้านที่ติดตั้ง AI เอง / แก้วันติดตั้ง
 let _aimPick = null, _aimSearchT = null, _aimEdit = false;
-function aimOpenAdd(rid) {
+function aimOpenAdd(rid, pre) {
   const s = rid ? _aim.data?.stores.find(x => x.rid === rid) : null;
-  _aimPick = s ? { id: s.rid, name: s.company } : null;
-  _aimEdit = !!s;
+  _aimPick = s ? { id: s.rid, name: s.company } : pre ? { id: pre.rid, name: pre.name } : null;
+  _aimEdit = !!s || !!pre;
   document.getElementById('aim-a-title').textContent = s ? 'แก้วันที่ติดตั้ง AI' : 'เพิ่มร้านที่ติดตั้ง AI';
   document.getElementById('aim-a-q').value = '';
   document.getElementById('aim-a-list').innerHTML = '';
@@ -21728,7 +21886,8 @@ async function aimSaveStore() {
   if (!d || d.error) { showToast(d?.error || 'บันทึกไม่สำเร็จ', 'error'); return; }
   closeModal('modal-aim-store');
   showToast(`บันทึก “${_aimPick.name}” ติดตั้ง ${fmtDateShort(day + 'T00:00:00')} แล้ว — คำนวณใหม่`);
-  aimLoad();
+  _aiInst.at = 0;
+  if (_aimView === 'report') aimRepLoad(); else aimLoad();
 }
 // ล้างรายการทั้งหมด (เริ่มนำเข้าใหม่) — ต้องพิมพ์ยืนยัน
 async function aimClearAll() {
