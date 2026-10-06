@@ -486,6 +486,8 @@ textarea{resize:vertical;min-height:80px}
 .aim-good{color:#0f766e}
 .ai-inst{display:inline-flex;align-items:center;gap:.25rem;margin-top:.15rem;padding:.02rem .5rem;border-radius:999px;background:#eaf4ee;color:#2f6b4f;font-size:.68rem;font-weight:600;white-space:nowrap}
 .ai-inst [class^="i-"]{width:.9em;height:.9em}
+.mt-ai-only{display:inline-flex;align-items:center;gap:.35rem;height:34px;padding:0 .7rem;border:1px solid var(--border);border-radius:999px;background:#fff;font-size:.78rem;color:var(--text);cursor:pointer;white-space:nowrap}
+.mt-ai-only input{width:auto!important;margin:0}
 .tk-ai{display:inline-flex;align-items:center;gap:.15rem;flex-shrink:0;padding:0 .4rem;border-radius:999px;background:#eaf4ee;color:#2f6b4f;font-size:.66rem;font-weight:700;line-height:1.5}
 .tk-ai [class^="i-"]{width:.85em;height:.85em}
 .ai-inst.no{background:#f3f1ec;color:#6f747c;font-weight:500}
@@ -1659,6 +1661,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
     <div class="mt-kind-bar">
       <div class="svc-seg" id="mt-kind" role="tablist" aria-label="มุมมอง"></div>
       <div class="svc-seg mt-seg-sm" id="mt-days" role="tablist" aria-label="ช่วงเวลา"></div>
+      <label class="mt-ai-only" id="mt-ai-only"></label>
       <span style="flex:1"></span>
       <span id="mt-updated" class="mt-updated" style="margin-left:0"></span>
       <button class="svc-btn-ghost" onclick="mtOpenSuggest()" style="height:34px" title="เคสที่ AI ไม่มั่นใจ รอคนยืนยัน"><i class=i-spark></i> เคสแนะนำ <span id="mt-sg-badge" class="mt-tab-count" style="display:none"></span></button>
@@ -20823,13 +20826,19 @@ const MT_GROUPS = {
 const MT_DAYS = [7, 30, 90, 180];
 const mtStore = (k, def, ok) => { try { const v = localStorage.getItem(k); return ok(v) ? v : def; } catch { return def; } };
 let _mtKind = mtStore('mt-kind', 'all', v => ['all', 'problem', 'service'].includes(v));
-let _mtBoard = { days: +mtStore('mt-days', '30', v => MT_DAYS.includes(+v)), data: null, q: '', tag: null };
+let _mtBoard = { days: +mtStore('mt-days', '30', v => MT_DAYS.includes(+v)), data: null, q: '', tag: null,
+  ai: mtStore('mt-ai', '0', v => v === '1' || v === '0') === '1' };   // ai = เฉพาะร้านที่ติดตั้ง AI
 const mtGroupOf = t => mtIsService(t) ? 'service' : 'problem';
 
 function mtSetKind(k) {
   _mtKind = k; _mtBoard.tag = null;
   try { localStorage.setItem('mt-kind', k); } catch {}
   mtRender();
+}
+function mtSetAiOnly(on) {
+  _mtBoard.ai = on;
+  try { localStorage.setItem('mt-ai', on ? '1' : '0'); } catch {}
+  mtLoad();
 }
 function mtSetDays(n) {
   _mtBoard.days = n;
@@ -20844,11 +20853,15 @@ function mtRenderKindBar() {
     `<button class="${_mtKind === k ? 'on' : ''}" onclick="mtSetKind('${k}')"><i class=i-${ic}></i> ${l} <span class="mt-tab-count">${n(k)}</span></button>`).join('');
   document.getElementById('mt-days').innerHTML = MT_DAYS.map(n =>
     `<button class="${_mtBoard.days === n ? 'on' : ''}" onclick="mtSetDays(${n})">${n} วัน</button>`).join('');
+  const aiBox = document.getElementById('mt-ai-only');
+  if (aiBox) aiBox.innerHTML = `<input type="checkbox" ${_mtBoard.ai ? 'checked' : ''} onchange="mtSetAiOnly(this.checked)"/>
+    <span class="tk-ai"><i class=i-check></i> AI</span> เฉพาะร้านที่ติดตั้ง AI`;
   const d = _mtBoard.data;
   document.getElementById('mt-kind-hint').innerHTML = (_mtKind === 'service'
     ? 'งานที่ร้านขอให้ทำ — ดูว่าร้านไหนแจ้งงานบริการอะไร เพื่อเสนอขายบริการ'
     : _mtKind === 'problem' ? 'ระบบทำงานผิดพลาด — ดูว่า Bug ไหนเกิดบ่อย เพิ่มขึ้นหรือลดลง และเกิดที่ร้านไหน'
     : 'AI จัดเคสทุกเที่ยงคืนว่าเป็น Bug โปรแกรม หรือ IT Service')
+    + (d?.ai_only ? ` · <b style="color:#2f6b4f">เฉพาะร้านที่ติดตั้ง AI ${d.ai_stores} ร้าน</b>` : '')
     + (d ? ` · ช่วง <b>${fmtDateShort(d.from + 'T00:00:00')} – ${fmtDateShort(d.to + 'T00:00:00')}</b>${d.from === d.data_start ? ' (ข้อมูลเริ่ม ' + fmtDateShort(d.data_start + 'T00:00:00') + ')' : ''}` : '');
 }
 
@@ -21197,7 +21210,7 @@ async function mtShowCases(ctx) {
   const tb = document.getElementById('mt-d-tbody');
   tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:1.5rem;color:var(--muted)">กำลังโหลด...</td></tr>';
   if (!document.getElementById('modal-mt-detail').classList.contains('open')) openModal('modal-mt-detail');
-  const qs = `?days=${days}${ctx.store ? '&store=' + encodeURIComponent(ctx.store) : ''}${ctx.brand ? '&brand=' + encodeURIComponent(ctx.brand) : ''}`;
+  const qs = `?days=${days}${ctx.store ? '&store=' + encodeURIComponent(ctx.store) : ''}${ctx.brand ? '&brand=' + encodeURIComponent(ctx.brand) : ''}${_mtBoard.ai ? '&ai=1' : ''}`;
   const res = await Promise.all(ctx.tagIds.map(id => api(`/api/monitor-tags/${id}/tickets${qs}`, { silent: true })
     .then(x => (x?.rows || []).map(r => ({ ...r, tag: _mtTags.find(t => t.id === id) })))));
   if (_mtDetailCtx !== ctx) return;
@@ -21261,7 +21274,7 @@ async function mtLoad(opts = {}) {
   mtRenderKindBar();
   const [t, b] = await Promise.all([
     api('/api/monitor-tags?status=active&lite=1', { silent: true }),
-    api('/api/monitor-tags/board?days=' + _mtBoard.days, { silent: true })]);
+    api('/api/monitor-tags/board?days=' + _mtBoard.days + (_mtBoard.ai ? '&ai=1' : ''), { silent: true })]);
   _mtLoading = false;
   if (_mtReloadQueued) { _mtReloadQueued = false; return mtLoad({ quiet: true }); }
   if (!t || t.error || !b || b.error || !Array.isArray(b.tags)) {
@@ -21651,7 +21664,7 @@ function aimRepBar() {
     <button class="svc-btn-ghost" onclick="aimRepExport()" style="height:34px"><i class=i-download></i> Export CSV</button>
   </div>
   <div class="mt-meta" style="margin:-.3rem 0 .75rem;line-height:1.55"><b>เริ่มนับ ${fmtDateShort(_aimRep.start + 'T00:00:00')}</b> · นับต่อ <b>ร้าน × วัน × พนักงาน</b> (ร้านเดียวกันแจ้งหลายเคสในวันเดียว = 1)
-    · <b>ลงไปแล้ว</b> = ร้านที่ติดตั้ง AI ในวันที่น้องรับเคส · <b>ติดตั้งแล้ว</b> = ร้านที่มี AI แล้ว (รวมที่เพิ่งลง) · <b>ยังไม่ติดตั้ง</b> = ณ วันนั้นร้านยังไม่มี AI (SSH)</div>`;
+    · <b>ลงไปแล้ว</b> = น้องแจ้งติดตั้งเอง (ลงเคส "ติดตั้ง ai / SSH" หรือกดเพิ่มร้านที่ตัวเองรับเคส) · <b>ติดตั้งแล้ว</b> = ร้านที่รับเคสมี AI แล้ว · <b>ยังไม่ติดตั้ง</b> = ณ วันนั้นร้านยังไม่มี AI (SSH)</div>`;
 }
 function aimRepAgg(rows) {
   const by = new Map();
@@ -21672,53 +21685,53 @@ function aimRepRender() {
   const total = rows.length, inst = sum('installed'), today = sum('today'), miss = sum('missing');
   const pct = (n, t) => t ? Math.round(n / t * 100) + '%' : '—';
   const k = (label, val, sub, cls) => `<div class="stat-flat"><div class="label">${label}</div><div class="value ${cls}">${val}</div><div class="sub">${sub}</div></div>`;
-  // เป้าติดตั้งคนละ N ร้านต่อวัน — นับร้านที่น้องรับเคสในวันเดียวกับที่ร้านติดตั้ง AI ("ติดตั้งวันนั้น")
+  // เป้าติดตั้งคนละ N ร้านต่อวัน — "ลงไปแล้ว" นับเฉพาะการแจ้งติดตั้งจริง (เคสติดตั้งที่น้องลงเอง / ร้านที่น้องกดเพิ่มเอง)
   const target = d.target || 10;
-  const per = new Map();   // agent → Map(วัน → จำนวนที่ติดตั้ง)
-  for (const x of rows) {
-    const m = per.get(x.agent) || per.set(x.agent, new Map()).get(x.agent);
-    m.set(x.d, (m.get(x.d) || 0) + (x.status === 'today' ? 1 : 0));
-  }
+  const rep = d.reported || [];
+  const repN = (agent, day) => rep.filter(x => x.agent === agent && (!day || x.d === day)).length;
+  const workDays = new Map();   // agent → จำนวนวันที่มีเคส
+  for (const x of rows) (workDays.get(x.agent) || workDays.set(x.agent, new Set()).get(x.agent)).add(x.d);
   // ลงไปแล้ว / เป้า — เลือกหลายวัน เป้า = คนละ N × จำนวนวันที่ทำงาน
   const goal = (n, t) => `<div class="aim-goal"><div class="mt-share"><span style="width:${Math.min(100, n / t * 100).toFixed(0)}%;background:${n >= t ? '#1baf7a' : '#eda100'}"></span></div>
     <b>${n}</b><span class="mt-meta">/${t}</span>${n >= t ? ' <i class=i-check style="color:#0f766e" title="ถึงเป้า"></i>' : ''}</div>`;
   const agents = aimRepAgg(rows).map(a => {
-    const days = (per.get(a.agent) || new Map()).size || 1;
-    return { ...a, days, goalN: target * days };
-  }).sort((a, b) => b.today - a.today || b.stores - a.stores);
+    const days = workDays.get(a.agent)?.size || 1;
+    return { ...a, days, goalN: target * days, done: repN(a.agent), doneList: rep.filter(x => x.agent === a.agent) };
+  }).sort((a, b) => b.done - a.done || b.stores - a.stores);
   const agentRows = agents.map(a => {
     const open = _aimRep.open.has(a.agent);
     return `<tr class="mt-row${open ? ' open' : ''}" data-a="${mtAttr(a.agent)}" onclick="aimRepToggle(this.dataset.a)">
-      <td><b>${nm(a.agent)}</b><span class="sub">${open ? 'ซ่อนรายชื่อร้าน' : a.missing ? `ดูร้านที่ยังไม่ติดตั้ง ${a.missing} ร้าน ›` : 'ครบทุกร้าน'}</span></td>
-      <td style="min-width:170px">${goal(a.today, a.goalN)}${a.days > 1 ? `<span class="sub">${a.days} วัน × ${target}</span>` : ''}</td>
+      <td><b>${nm(a.agent)}</b><span class="sub">${open ? 'ซ่อนรายชื่อร้าน' : 'ดูรายชื่อร้าน ›'}</span></td>
+      <td style="min-width:170px">${goal(a.done, a.goalN)}${a.days > 1 ? `<span class="sub">${a.days} วัน × ${target}</span>` : ''}</td>
       <td class="r num">${a.stores}</td>
       <td class="r num"><b style="color:#0f766e">${a.installed + a.today}</b></td>
       <td class="r num"><b style="color:${a.missing ? '#be123c' : 'inherit'}">${a.missing}</b></td></tr>`
-      + (open ? aimRepMissHtml(a) : '');
+      + (open ? aimRepDoneHtml(a) + aimRepMissHtml(a) : '');
   }).join('');
   // รายวัน
   const days = [...new Set(rows.map(x => x.d))].sort().reverse();
   const dayRows = days.map(dd => {
     const xs = rows.filter(x => x.d === dd), ag = aimRepAgg(xs);
     const inst = xs.filter(x => x.status === 'installed').length, td = xs.filter(x => x.status === 'today').length, ms = xs.filter(x => x.status === 'missing').length;
-    const hit = ag.filter(a => a.today >= target).length;
-    const doers = ag.filter(a => a.today).sort((a, b) => b.today - a.today)
-      .map(a => `<span class="mt-svc-chip ${a.today >= target ? 'ok' : 'sv'}">${nm(a.agent)} <b>${a.today}/${target}</b>${a.today >= target ? ' ✓' : ''}</span>`).join('');
+    const dn0 = ag.map(a => ({ agent: a.agent, n: repN(a.agent, dd) })).filter(a => a.n);
+    const hit = dn0.filter(a => a.n >= target).length;
+    const doers = dn0.sort((a, b) => b.n - a.n)
+      .map(a => `<span class="mt-svc-chip ${a.n >= target ? 'ok' : 'sv'}">${nm(a.agent)} <b>${a.n}/${target}</b>${a.n >= target ? ' ✓' : ''}</span>`).join('');
     return `<tr><td class="num">${new Date(dd + 'T00:00:00').toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' })}</td>
       <td class="r num">${xs.length}</td><td class="r num"><b style="color:#0f766e">${inst + td}</b></td>
       <td class="r num"><b style="color:#be123c">${ms}</b></td>
       <td>${doers || '<span class="mt-meta">ยังไม่มีใครลง</span>'}${hit ? ` <span class="mt-meta">· ถึงเป้า ${hit} คน</span>` : ''}</td></tr>`;
   }).join('');
   // วันนี้: กี่คนถึงเป้า
-  const t0 = aimRepDay(0), todayAg = aimRepAgg(rows.filter(x => x.d === t0));
-  const hitToday = todayAg.filter(a => a.today >= target).length, best = [...todayAg].sort((a, b) => b.today - a.today)[0];
+  const t0 = aimRepDay(0), todayAg = aimRepAgg(rows.filter(x => x.d === t0)).map(a => ({ ...a, n: repN(a.agent, t0) }));
+  const hitToday = todayAg.filter(a => a.n >= target).length, best = [...todayAg].sort((a, b) => b.n - a.n)[0];
   box.innerHTML = aimRepBar() + `
     <div class="mt-kpis">
       ${k(`<i class=i-wrench></i> วันนี้ถึงเป้า · คนละ ${target} ร้าน`, `${hitToday}<span style="font-size:.9rem;color:var(--muted)"> / ${todayAg.length} คน</span>`,
-        todayAg.length ? `ติดตั้งวันนี้รวม ${todayAg.reduce((s, a) => s + a.today, 0)} ร้าน${best?.today ? ` · สูงสุด ${nm(best.agent)} ${best.today} ร้าน` : ''}` : 'ยังไม่มีเคสวันนี้',
+        todayAg.length ? `แจ้งติดตั้งวันนี้รวม ${todayAg.reduce((s, a) => s + a.n, 0)} ร้าน${best?.n ? ` · สูงสุด ${nm(best.agent)} ${best.n} ร้าน` : ''}` : 'ยังไม่มีเคสวันนี้',
         todayAg.length && hitToday === todayAg.length ? 'green' : 'orange')}
       ${k('ร้านที่รับเคส', total.toLocaleString(), `${fd(d.from)} – ${fd(d.to)} · ${agents.length} คน`, 'blue')}
-      ${k('<i class=i-check></i> ติดตั้งแล้ว', (inst + today).toLocaleString(), `${pct(inst + today, total)} ของร้านที่รับเคส · ติดตั้งระหว่างรับเคส ${today}`, 'green')}
+      ${k('<i class=i-check></i> ติดตั้งแล้ว', (inst + today).toLocaleString(), `${pct(inst + today, total)} ของร้านที่รับเคสมี AI แล้ว`, 'green')}
       ${k('ยังไม่ติดตั้ง', miss.toLocaleString(), `${pct(miss, total)} · โอกาสติดตั้งเพิ่ม`, 'white')}
     </div>
     <div class="mt-tbl-wrap">
@@ -21733,6 +21746,16 @@ function aimRepRender() {
         <th class="r">ยังไม่ติดตั้ง</th><th>ลงไปแล้ว / เป้า (รายคน)</th></tr></thead>
         <tbody>${dayRows || '<tr><td colspan="5" class="mt-meta" style="text-align:center;padding:1.2rem">ไม่มีเคสในช่วงนี้</td></tr>'}</tbody></table></div>
     </div>`;
+}
+function aimRepDoneHtml(a) {
+  const fd = x => x ? fmtDateShort(x + 'T00:00:00') : '—';
+  const xs = [...(a.doneList || [])].sort((p, q) => q.d.localeCompare(p.d));
+  if (!xs.length) return `<tr class="aim-branch aim-sub-head"><td colspan="7">${esc(dn(a.agent) || a.agent)} ยังไม่มีการแจ้งติดตั้งในช่วงนี้</td></tr>`;
+  return `<tr class="aim-branch aim-sub-head"><td colspan="7">ร้านที่ ${esc(dn(a.agent) || a.agent)} แจ้งติดตั้ง AI · ${xs.length} ร้าน</td></tr>`
+    + xs.map(x => `<tr class="aim-branch">
+      <td>${esc(x.company || '—')}<span class="sub">${esc(x.grp || 'ร้าน')}</span></td>
+      <td class="num mt-meta">${fd(x.d)}</td>
+      <td colspan="5" class="mt-meta">${x.src === 'case' ? `เคสติดตั้ง #${x.cid}` : 'กดเพิ่มร้านเอง'}</td></tr>`).join('');
 }
 function aimRepMissHtml(a) {
   const fd = x => x ? fmtDateShort(x + 'T00:00:00') : '—';

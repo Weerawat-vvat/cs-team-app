@@ -12913,7 +12913,7 @@ app.get('/api/monitor-tags/:id/tickets', authRequired, async (request, res) => {
     const rows = (await r.query(`
       DECLARE @e DATETIME = ISNULL(@en, GETDATE());
       SELECT TOP 1000
-        cl.CalllogId AS id, cl.ReceiveDate AS opened_at, cl.CloseDate AS closed_at,
+        cl.CalllogId AS id, cl.RegistrationId AS rid, cl.ReceiveDate AS opened_at, cl.CloseDate AS closed_at,
         CASE WHEN cl.ReceiveDate >= @c THEN 'post' ELSE 'pre' END AS phase,
         cs.StatusName AS status, u.UserName AS agent,
         LEFT(cl.CalllogDesc, 400) AS description, LEFT(cl.Solution, 600) AS solution,
@@ -12928,6 +12928,10 @@ app.get('/api/monitor-tags/:id/tickets', authRequired, async (request, res) => {
       ORDER BY cl.ReceiveDate DESC`)).recordset;
     const ls = new Set(tag.linked_ids);
     rows.forEach(x => { x.linked = ls.has(x.id); });
+    if (request.query.ai === '1') {
+      const inst = await aiInstalledMap();
+      return res.json({ tag, rows: rows.filter(x => inst.has(x.rid)) });
+    }
     res.json({ tag, rows });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -12960,6 +12964,9 @@ app.get('/api/monitor-tags/board', authRequired, async (request, res) => {
     const days = MT_SERVICE_DAYS.includes(+request.query.days) ? +request.query.days : 30;
     const tags = (await req().query(`SELECT id, tag_group FROM monitor_tags WHERE status='active'`)).recordset;
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
+    // ?ai=1 — เฉพาะร้านที่ติดตั้ง AI (รายชื่อเดียวกับแท็บผลการติดตั้ง AI)
+    const aiRids = request.query.ai === '1' ? [...(await aiInstalledMap()).keys()].map(Number).filter(Number.isInteger) : null;
+    const aiSet = aiRids ? new Set(aiRids) : null;
     const today = (await extReq().query(`SELECT CONVERT(char(10), GETDATE(), 23) AS d`)).recordset[0].d;
     const dayStr = n => new Date(Date.parse(today + 'T00:00:00Z') - n * 86400000).toISOString().slice(0, 10);
     const links = tags.length ? (await req().query(`SELECT tag_id, calllog_id FROM monitor_tag_cases
@@ -12981,13 +12988,14 @@ app.get('/api/monitor-tags/board', authRequired, async (request, res) => {
         LEFT JOIN CustomerRegistration xr ON xr.RegistrationId = cl.RegistrationId
         LEFT JOIN CustomerGroup        xg ON xg.GroupId        = xr.GroupId
         WHERE cl.Active=1 AND cl.CalllogId IN (${ids.slice(i, i + 2000).join(',')}) AND cl.ReceiveDate >= CAST(@pf AS DATE)`))
-        .recordset.forEach(r => info.set(r.id, r));
+        .recordset.forEach(r => { if (!aiSet || aiSet.has(r.rid)) info.set(r.id, r); });
     }
     // เคสทั้งหมดต่อวัน (ไว้ดูสัดส่วนที่ติด Tag)
     const all = new Array(labels.length).fill(0);
-    (await extReq().input('f', sql.NVarChar, from).query(`
+    if (!aiSet || aiRids.length) (await extReq().input('f', sql.NVarChar, from).query(`
       SELECT CONVERT(char(10), ReceiveDate, 23) AS d, COUNT(*) AS n FROM Calllog
-      WHERE Active=1 AND ReceiveDate >= CAST(@f AS DATE) GROUP BY CONVERT(char(10), ReceiveDate, 23)`))
+      WHERE Active=1 AND ReceiveDate >= CAST(@f AS DATE)${aiSet ? ` AND RegistrationId IN (${aiRids.join(',')})` : ''}
+      GROUP BY CONVERT(char(10), ReceiveDate, 23)`))
       .recordset.forEach(r => { if (idx.has(r.d)) all[idx.get(r.d)] = r.n; });
 
     const T = new Map(tags.map(t => [t.id, { id: t.id, cur: 0, prev: 0, daily: new Array(labels.length).fill(0), stores: new Set(), last_at: null }]));
@@ -13009,7 +13017,7 @@ app.get('/api/monitor-tags/board', authRequired, async (request, res) => {
       stores.set(k, st);
     }
     res.json({
-      days, from, to: today, labels, all, tagged: tagged.size, prev_ok: prevOk, data_start: dataStart,
+      days, from, to: today, labels, all, tagged: tagged.size, prev_ok: prevOk, data_start: dataStart, ai_only: !!aiSet, ai_stores: aiRids?.length ?? null,
       tags: [...T.values()].map(t => ({ ...t, stores: t.stores.size })),
       stores: [...stores.values()]
     });
@@ -13021,7 +13029,7 @@ app.get('/api/monitor-tags/board', authRequired, async (request, res) => {
 // ห้ามใช้ "ai" เดี่ยวๆ — ไปตรงกับ training, email, AIS ฯลฯ
 // วัดผล: ต่อร้าน เทียบ N วันก่อนวันติดตั้ง กับหลังวันติดตั้งถึงเมื่อวาน (ไม่นับวันติดตั้งและวันนี้)
 // แสดงเฉพาะร้านที่ติดตั้ง — แยกเป็นเส้นตาม Tag ของเคส
-const AI_INSTALL_KEYWORDS = (process.env.AI_INSTALL_KEYWORDS || 'ssh,dataslot,tunnel,ติดตั้ง ai,ติดตั้งai')
+const AI_INSTALL_KEYWORDS = (process.env.AI_INSTALL_KEYWORDS || 'ssh,dataslot,tunnel,ติดตั้ง ai,ติดตั้งai,ติดตั้งโปรแกรม ai,ติดตั้งโปรแกรมai')
   .split(',').map(k => k.trim()).filter(Boolean).slice(0, 10);
 const AI_INSTALL_SINCE = /^\d{4}-\d{2}-\d{2}$/.test(process.env.AI_INSTALL_SINCE || '') ? process.env.AI_INSTALL_SINCE : '2026-06-01';
 const AI_PRE_DAYS = [14, 30, 60];
@@ -13106,7 +13114,7 @@ app.get('/api/ai-impact/agent-report', authRequired, async (request, res) => {
     let from = day(request.query.from) || today, to = day(request.query.to) || from;
     if (from > to) [from, to] = [to, from];
     if (from < AI_REPORT_START) from = AI_REPORT_START;
-    if (to < from) return res.json({ from, to, start: AI_REPORT_START, target: AI_INSTALL_TARGET, installs: {}, total_installed: 0, rows: [] });
+    if (to < from) return res.json({ from, to, start: AI_REPORT_START, target: AI_INSTALL_TARGET, installs: {}, total_installed: 0, rows: [], reported: [] });
     if ((Date.parse(to) - Date.parse(from)) / 86400000 > 62) return res.status(400).json({ error: 'เลือกได้ไม่เกิน 62 วัน' });
     const inst = await aiInstalledMap();
     const rows = (await extReq().input('f', sql.NVarChar, from).input('t', sql.NVarChar, to).query(`
@@ -13129,7 +13137,55 @@ app.get('/api/ai-impact/agent-report', authRequired, async (request, res) => {
     });
     const installs = {};   // วัน → จำนวนร้านที่ติดตั้งวันนั้น (ทุกแหล่ง)
     for (const v of inst.values()) if (v.d >= from && v.d <= to) installs[v.d] = (installs[v.d] || 0) + 1;
-    res.json({ from, to, start: AI_REPORT_START, target: AI_INSTALL_TARGET, installs, total_installed: inst.size, rows: out });
+
+    // ── การแจ้งติดตั้งจริง (ใช้นับ "ลงไปแล้ว" ของแต่ละคน)
+    //    1) เคสติดตั้งที่น้องลงเอง (มีคำค้น SSH / Dataslot / ติดตั้ง ai) → คนที่ลงเคส
+    //    2) ร้านที่น้องกด "เพิ่มร้านที่ติดตั้ง" เอง → คนที่กด เฉพาะเมื่อคนนั้นรับเคสของร้านนั้นในวันนั้นด้วย
+    //       (หัวหน้ากดเพิ่มแทนไม่นับเป็นของหัวหน้า) · ร้านที่นำเข้าจากไฟล์ไม่นับให้ใคร
+    const reported = new Map();   // `${d}|${agent}|${rid}` → แถว
+    const excluded = new Set((await req().query('SELECT rid FROM ai_impact_excludes')).recordset.map(x => x.rid));
+    if (await aiImpactAutoDetect()) {
+      const r = extReq().input('f', sql.NVarChar, from).input('t', sql.NVarChar, to);
+      AI_INSTALL_KEYWORDS.forEach((k, i) => r.input('k' + i, sql.NVarChar, '%' + k.replace(/[!%_[]/g, '!$&') + '%'));
+      const txt = `(CAST(cl.CalllogDesc AS NVARCHAR(MAX)) + N' ' + ISNULL(CAST(cl.Solution AS NVARCHAR(MAX)), N'') + N' ' + ISNULL(cl.Subject, N''))`;
+      (await r.query(`
+        SELECT CONVERT(char(10), cl.ReceiveDate, 23) AS d, cl.RegistrationId AS rid, u.UserName AS agent, cl.CalllogId AS cid,
+               cr.CompanyName AS company, CASE WHEN cr.GroupId IS NOT NULL AND cr.GroupId <> 1 THEN cg.GroupName END AS grp
+        FROM Calllog cl
+        LEFT JOIN Users                u  ON u.UserId          = cl.SupportId
+        LEFT JOIN CustomerRegistration cr ON cr.RegistrationId = cl.RegistrationId
+        LEFT JOIN CustomerGroup        cg ON cg.GroupId        = cr.GroupId
+        WHERE cl.Active=1 AND cl.RegistrationId IS NOT NULL
+          AND cl.ReceiveDate >= CAST(@f AS DATE) AND cl.ReceiveDate < DATEADD(day, 1, CAST(@t AS DATE))
+          AND (${AI_INSTALL_KEYWORDS.map((_, i) => `${txt} LIKE @k${i} ESCAPE '!'`).join(' OR ')})
+        ORDER BY cl.CalllogId`)).recordset.forEach(x => {
+          if (excluded.has(x.rid)) return;
+          const key = `${x.d}|${x.agent || '(ไม่ระบุ)'}|${x.rid}`;
+          if (!reported.has(key)) reported.set(key, { d: x.d, agent: x.agent || '(ไม่ระบุ)', rid: x.rid, company: x.company, grp: x.grp, src: 'case', cid: x.cid });
+        });
+    }
+    const man = (await req().input('f', sql.NVarChar, from).input('t', sql.NVarChar, to).query(`
+      SELECT m.rid, CONVERT(char(10), m.install_day, 23) AS d, m.created_by, au.ext_username
+      FROM ai_impact_manual m LEFT JOIN app_users au ON au.username = m.created_by
+      WHERE m.install_day BETWEEN CAST(@f AS DATE) AND CAST(@t AS DATE) AND ISNULL(m.created_by, '') NOT LIKE 'import:%'`)).recordset
+      .filter(x => x.ext_username && !excluded.has(x.rid));
+    // ชื่อพนักงานในเคส (ตัวพิมพ์ตาม Calllog) ของคนที่รับเคสร้านนั้นในวันนั้น
+    const handled = new Map(out.map(x => [`${x.d}|${String(x.agent).toLowerCase()}|${x.rid}`, x.agent]));
+    if (man.length) {
+      const info = new Map((await extReq().query(`
+        SELECT cr.RegistrationId AS rid, cr.CompanyName AS company, CASE WHEN cr.GroupId IS NOT NULL AND cr.GroupId <> 1 THEN cg.GroupName END AS grp
+        FROM CustomerRegistration cr LEFT JOIN CustomerGroup cg ON cg.GroupId = cr.GroupId
+        WHERE cr.RegistrationId IN (${[...new Set(man.map(x => +x.rid))].join(',')})`)).recordset.map(x => [x.rid, x]));
+      for (const x of man) {
+        const agent = handled.get(`${x.d}|${String(x.ext_username).toLowerCase()}|${x.rid}`);
+        if (!agent) continue;
+        const key = `${x.d}|${agent}|${x.rid}`;
+        if (!reported.has(key)) reported.set(key, { d: x.d, agent, rid: x.rid, company: info.get(x.rid)?.company || `#${x.rid}`,
+          grp: info.get(x.rid)?.grp || null, src: 'manual', cid: null });
+      }
+    }
+    res.json({ from, to, start: AI_REPORT_START, target: AI_INSTALL_TARGET, installs, total_installed: inst.size, rows: out,
+      reported: [...reported.values()] });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
