@@ -486,6 +486,8 @@ textarea{resize:vertical;min-height:80px}
 .aim-good{color:#0f766e}
 .ai-inst{display:inline-flex;align-items:center;gap:.25rem;margin-top:.15rem;padding:.02rem .5rem;border-radius:999px;background:#eaf4ee;color:#2f6b4f;font-size:.68rem;font-weight:600;white-space:nowrap}
 .ai-inst [class^="i-"]{width:.9em;height:.9em}
+.tk-ai{display:inline-flex;align-items:center;gap:.15rem;flex-shrink:0;padding:0 .4rem;border-radius:999px;background:#eaf4ee;color:#2f6b4f;font-size:.66rem;font-weight:700;line-height:1.5}
+.tk-ai [class^="i-"]{width:.85em;height:.85em}
 .ai-inst.no{background:#f3f1ec;color:#6f747c;font-weight:500}
 .aim-date{width:auto!important;height:34px}
 .aim-goal{display:flex;align-items:center;gap:.4rem;white-space:nowrap}
@@ -9874,6 +9876,9 @@ async function loadTickets() {
   tkExpandedRows.clear();
   _tkPage = 1; // reset to page 1 on new data load
   renderTickets();
+  // ป้าย "AI" หน้าชื่อร้านที่ติดตั้ง AI (SSH) แล้ว — โหลดรายชื่อร้าน (cache 2 นาที) แล้ววาดใหม่ถ้าเพิ่งได้มา
+  const hadInst = _aiInst.at;
+  aiInstLoad().then(() => { if (_aiInst.at !== hadInst) renderTickets(); });
 }
 
 // Channel the case came in through (Calllog.InformType). Old rows hold '' or '[EditValue is null]' → 'ไม่ระบุ'
@@ -9987,6 +9992,7 @@ function renderTickets() {
       <td style="min-width:0">
         <div class="tk-desc tk-desc-main" title="${escHtml(problemText)}">${escHtml(problemText) || '<span style="color:#8a8f97">—</span>'}</div>
         <div class="tk-sub" style="display:flex;align-items:center;gap:.35rem;margin-top:.25rem">
+          ${_aiInst.map[t.registration_id] ? `<span class="tk-ai" title="ติดตั้ง AI (SSH) แล้ว · ${fmtDateShort(_aiInst.map[t.registration_id] + 'T00:00:00')}"><i class=i-check></i> AI</span>` : ''}
           <span style="overflow:hidden;text-overflow:ellipsis" title="${escHtml(company)}">${escHtml(company||'—')}</span>
           ${company ? `<button class="tk-linkbtn" onclick="genCustomerLink(event,'${companyArg}',this)" title="สร้าง/Copy link ลูกค้า" aria-label="Copy link ลูกค้า" tabindex="-1"><i class=i-link></i></button>` : ''}
           ${t.problem_type_detail ? `<span class="tk-ptype" title="${escHtml(t.problem_type_detail)}">${escHtml(t.problem_type_detail)}</span>` : ''}
