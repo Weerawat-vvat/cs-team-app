@@ -524,6 +524,7 @@ textarea{resize:vertical;min-height:80px}
 button.mt-svc-chip{border:none;cursor:pointer;font-family:inherit}
 button.mt-svc-chip:hover{background:#e9e6df}
 .mt-svc-chip.bg{background:#fbeceb;color:#8f2f27}
+.mt-svc-chip.ok{background:#d9f2e3;color:#0f5c3f;font-weight:600}
 .mt-svc-chip.sv{background:#eaf1fb;color:#24538a}
 @media(max-width:1100px){.mt-board-2{grid-template-columns:1fr}}
 .mt-svc-bar{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem}
@@ -21671,55 +21672,69 @@ function aimRepRender() {
   const total = rows.length, inst = sum('installed'), today = sum('today'), miss = sum('missing');
   const pct = (n, t) => t ? Math.round(n / t * 100) + '%' : '—';
   const k = (label, val, sub, cls) => `<div class="stat-flat"><div class="label">${label}</div><div class="value ${cls}">${val}</div><div class="sub">${sub}</div></div>`;
-  const agents = aimRepAgg(rows).sort((a, b) => b.missing - a.missing || b.stores - a.stores);
+  // เป้าติดตั้งคนละ N ร้านต่อวัน — นับร้านที่น้องรับเคสในวันเดียวกับที่ร้านติดตั้ง AI ("ติดตั้งวันนั้น")
+  const target = d.target || 10;
+  const per = new Map();   // agent → Map(วัน → จำนวนที่ติดตั้ง)
+  for (const x of rows) {
+    const m = per.get(x.agent) || per.set(x.agent, new Map()).get(x.agent);
+    m.set(x.d, (m.get(x.d) || 0) + (x.status === 'today' ? 1 : 0));
+  }
+  const goal = (v, label) => `<div class="aim-goal"><div class="mt-share"><span style="width:${Math.min(100, v / target * 100).toFixed(0)}%;background:${v >= target ? '#1baf7a' : '#eda100'}"></span></div>
+    <b>${label ?? v}</b><span class="mt-meta">/${target}</span>${v >= target ? ' <i class=i-check style="color:#0f766e" title="ถึงเป้า"></i>' : ''}</div>`;
+  const agents = aimRepAgg(rows).map(a => {
+    const m = per.get(a.agent) || new Map(), days = m.size || 1;
+    return { ...a, days, avg: a.today / days, hit: [...m.values()].filter(n => n >= target).length };
+  }).sort((a, b) => b.avg - a.avg || b.today - a.today || b.stores - a.stores);
   const bar = (a, w) => `<div class="aim-stack" title="ติดตั้งแล้ว ${a.installed} · ติดตั้งวันนั้น ${a.today} · ยังไม่ติดตั้ง ${a.missing}">
     <span style="width:${(a.installed / w * 100).toFixed(1)}%;background:#1baf7a"></span><span style="width:${(a.today / w * 100).toFixed(1)}%;background:#2a78d6"></span><span style="width:${(a.missing / w * 100).toFixed(1)}%;background:#e34948"></span></div>`;
   const agentRows = agents.map(a => {
     const open = _aimRep.open.has(a.agent);
     return `<tr class="mt-row${open ? ' open' : ''}" data-a="${mtAttr(a.agent)}" onclick="aimRepToggle(this.dataset.a)">
       <td><b>${nm(a.agent)}</b><span class="sub">${open ? 'ซ่อนรายชื่อร้าน' : a.missing ? `ดูร้านที่ยังไม่ติดตั้ง ${a.missing} ร้าน ›` : 'ครบทุกร้าน'}</span></td>
-      <td class="r num">${a.stores}</td><td class="r num">${a.installed}</td><td class="r num"><b style="color:#2a5f9e">${a.today || ''}</b></td>
+      <td style="min-width:150px">${goal(a.avg, a.days > 1 ? a.avg.toFixed(1) : a.today)}<span class="sub">${a.days > 1 ? `รวม ${a.today} ร้าน · ${a.days} วัน` : ''}</span></td>
+      <td class="r num">${a.hit ? `<b style="color:#0f766e">${a.hit}</b>` : '0'}<span class="mt-meta">/${a.days}</span></td>
+      <td class="r num">${a.stores}</td><td class="r num">${a.installed}</td>
       <td class="r num"><b style="color:${a.missing ? '#be123c' : 'inherit'}">${a.missing}</b></td>
-      <td style="min-width:140px">${bar(a, a.stores || 1)}</td>
-      <td class="r num">${a.missing ? pct(a.installed + a.today, a.stores) : '<span class="mt-pill mt-down"><i class=i-check></i> ครบ</span>'}</td></tr>`
+      <td style="min-width:120px">${bar(a, a.stores || 1)}</td></tr>`
       + (open ? aimRepMissHtml(a) : '');
   }).join('');
   // รายวัน
-  // เป้าติดตั้งต่อวัน (ทั้งทีม) — นับจากวันติดตั้งในรายชื่อร้าน
-  const target = d.target || 10, installs = d.installs || {};
-  const goal = n => `<div class="aim-goal"><div class="mt-share"><span style="width:${Math.min(100, n / target * 100).toFixed(0)}%;background:${n >= target ? '#1baf7a' : '#eda100'}"></span></div>
-    <b>${n}</b><span class="mt-meta">/${target}</span>${n >= target ? ' <i class=i-check style="color:#0f766e" title="ถึงเป้า"></i>' : ''}</div>`;
-  const days = [...new Set([...rows.map(x => x.d), ...Object.keys(installs)])].sort().reverse();
+  const days = [...new Set(rows.map(x => x.d))].sort().reverse();
   const dayRows = days.map(dd => {
     const xs = rows.filter(x => x.d === dd), ag = aimRepAgg(xs);
     const inst = xs.filter(x => x.status === 'installed').length, td = xs.filter(x => x.status === 'today').length, ms = xs.filter(x => x.status === 'missing').length;
-    const doers = ag.filter(a => a.today).sort((a, b) => b.today - a.today).map(a => `<span class="mt-svc-chip sv">${nm(a.agent)} <b>${a.today}</b></span>`).join('');
+    const hit = ag.filter(a => a.today >= target).length;
+    const doers = ag.filter(a => a.today).sort((a, b) => b.today - a.today)
+      .map(a => `<span class="mt-svc-chip ${a.today >= target ? 'ok' : 'sv'}">${nm(a.agent)} <b>${a.today}</b>${a.today >= target ? ' ✓' : ''}</span>`).join('');
     const missers = ag.filter(a => a.missing).sort((a, b) => b.missing - a.missing).slice(0, 4)
       .map(a => `<span class="mt-svc-chip bg">${nm(a.agent)} <b>${a.missing}</b></span>`).join('');
     return `<tr><td class="num">${new Date(dd + 'T00:00:00').toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' })}</td>
-      <td>${goal(installs[dd] || 0)}</td>
-      <td class="r num">${xs.length}</td><td class="r num">${inst}</td><td class="r num"><b style="color:#2a5f9e">${td || ''}</b></td>
+      <td class="r num">${hit ? `<b style="color:#0f766e">${hit}</b>` : '0'}<span class="mt-meta">/${ag.length} คน</span></td>
+      <td class="r num"><b style="color:#2a5f9e">${td || ''}</b></td>
+      <td class="r num">${xs.length}</td><td class="r num">${inst}</td>
       <td class="r num"><b style="color:#be123c">${ms}</b></td><td>${doers || '<span class="mt-meta">—</span>'}</td><td>${missers || '<span class="mt-meta">—</span>'}</td></tr>`;
   }).join('');
+  // วันนี้: กี่คนถึงเป้า
+  const t0 = aimRepDay(0), todayAg = aimRepAgg(rows.filter(x => x.d === t0));
+  const hitToday = todayAg.filter(a => a.today >= target).length, best = [...todayAg].sort((a, b) => b.today - a.today)[0];
   box.innerHTML = aimRepBar() + `
     <div class="mt-kpis">
-      ${(() => { const td0 = installs[aimRepDay(0)] || 0, nDays = Math.max(1, Math.round((Date.parse(d.to) - Date.parse(d.from)) / 86400000) + 1);
-        const sumI = Object.values(installs).reduce((a, b) => a + b, 0), hit = Object.values(installs).filter(n => n >= target).length;
-        return k(`<i class=i-wrench></i> ติดตั้งวันนี้ · เป้า ${target} ร้าน`, `${td0}<span style="font-size:.9rem;color:var(--muted)"> / ${target}</span>`,
-          `${td0 >= target ? '<b style="color:#0f766e">ถึงเป้าแล้ว ✓</b>' : `อีก ${target - td0} ร้าน`} · เฉลี่ย ${(sumI / nDays).toFixed(1)}/วัน · ถึงเป้า ${hit}/${nDays} วัน`, td0 >= target ? 'green' : 'orange'); })()}
+      ${k(`<i class=i-wrench></i> วันนี้ถึงเป้า · คนละ ${target} ร้าน`, `${hitToday}<span style="font-size:.9rem;color:var(--muted)"> / ${todayAg.length} คน</span>`,
+        todayAg.length ? `ติดตั้งวันนี้รวม ${todayAg.reduce((s, a) => s + a.today, 0)} ร้าน${best?.today ? ` · สูงสุด ${nm(best.agent)} ${best.today} ร้าน` : ''}` : 'ยังไม่มีเคสวันนี้',
+        todayAg.length && hitToday === todayAg.length ? 'green' : 'orange')}
       ${k('ร้านที่รับเคส', total.toLocaleString(), `${fd(d.from)} – ${fd(d.to)} · ${agents.length} คน`, 'blue')}
       ${k('<i class=i-check></i> ติดตั้งแล้ว', (inst + today).toLocaleString(), `${pct(inst + today, total)} ของร้านที่รับเคส · ติดตั้งระหว่างรับเคส ${today}`, 'green')}
       ${k('ยังไม่ติดตั้ง', miss.toLocaleString(), `${pct(miss, total)} · โอกาสติดตั้งเพิ่ม`, 'white')}
     </div>
     <div class="mt-tbl-wrap">
-      <div class="mt-tt-head"><i class=i-user style="color:var(--primary)"></i> สรุปตามพนักงาน <span class="mt-meta" style="font-weight:400">· เรียงจากยังไม่ติดตั้งมากสุด · คลิกเพื่อดูรายชื่อร้าน</span></div>
-      <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>พนักงาน</th><th class="r">ร้านที่รับเคส</th><th class="r">ติดตั้งแล้ว</th><th class="r">ติดตั้งวันนั้น</th>
-        <th class="r">ยังไม่ติดตั้ง</th><th></th><th class="r">ครบ</th></tr></thead>
+      <div class="mt-tt-head"><i class=i-user style="color:var(--primary)"></i> สรุปตามพนักงาน <span class="mt-meta" style="font-weight:400">· เป้าคนละ ${target} ร้าน/วัน · เรียงจากติดตั้งต่อวันมากสุด · คลิกเพื่อดูร้านที่ยังไม่ติดตั้ง</span></div>
+      <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>พนักงาน</th><th>ติดตั้ง/วัน (เป้า ${target})</th><th class="r">วันที่ถึงเป้า</th>
+        <th class="r">ร้านที่รับเคส</th><th class="r">ติดตั้งแล้ว</th><th class="r">ยังไม่ติดตั้ง</th><th></th></tr></thead>
         <tbody>${agentRows || '<tr><td colspan="7" class="mt-meta" style="text-align:center;padding:1.2rem">ไม่มีเคสในช่วงนี้</td></tr>'}</tbody></table></div>
     </div>
     <div class="mt-tbl-wrap" style="margin-top:.75rem">
-      <div class="mt-tt-head"><i class=i-calendar style="color:var(--primary)"></i> รายวัน <span class="mt-meta" style="font-weight:400">· เป้าติดตั้ง ${target} ร้าน/วัน</span></div>
-      <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>วันที่</th><th style="min-width:150px">ติดตั้ง (เป้า ${target})</th><th class="r">ร้านที่รับเคส</th><th class="r">ติดตั้งแล้ว</th><th class="r">ติดตั้งวันนั้น</th>
+      <div class="mt-tt-head"><i class=i-calendar style="color:var(--primary)"></i> รายวัน <span class="mt-meta" style="font-weight:400">· ชิปเขียว ✓ = ถึงเป้า ${target} ร้าน</span></div>
+      <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>วันที่</th><th class="r">ถึงเป้า</th><th class="r">ติดตั้งรวม</th><th class="r">ร้านที่รับเคส</th><th class="r">ติดตั้งแล้ว</th>
         <th class="r">ยังไม่ติดตั้ง</th><th>ติดตั้งระหว่างรับเคส</th><th>ยังไม่ติดตั้งมากสุด</th></tr></thead>
         <tbody>${dayRows || '<tr><td colspan="8" class="mt-meta" style="text-align:center;padding:1.2rem">ไม่มีเคสในช่วงนี้</td></tr>'}</tbody></table></div>
     </div>`;
@@ -21773,10 +21788,10 @@ function aimDailyInstallHtml(d) {
   const wd = k => new Date(k + 'T00:00:00').toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short', year: '2-digit' });
   return `<div class="mt-ov-card" style="padding:0;overflow:hidden;margin-top:.75rem">
     <div class="mt-st-head"><div style="flex:1"><div class="mt-ov-title">ติดตั้ง AI รายวัน <span class="mt-meta" style="font-weight:400">· ${days.length} วัน · รวม ${cum} ร้าน</span></div>
-      <div class="mt-ov-sub">นับตามวันที่ติดตั้งของแต่ละร้าน · ไม่นับร้านที่กด “ไม่นับ” · ✓ = ถึงเป้า ${d.target || 10} ร้าน/วัน</div></div></div>
+      <div class="mt-ov-sub">นับตามวันที่ติดตั้งของแต่ละร้าน · ไม่นับร้านที่กด “ไม่นับ” · เป้าคนละ ${d.target || 10} ร้าน/วัน ดูที่ “รายงานตามพนักงาน”</div></div></div>
     <div style="overflow-x:auto;max-height:420px;overflow-y:auto"><table class="mt-tbl">
       <thead><tr><th>วันที่ติดตั้ง</th><th class="r">จำนวนร้าน</th><th style="width:22%"></th><th class="r">สะสม</th><th>ร้าน / แบรนด์</th></tr></thead>
-      <tbody>${rows.map(r => `<tr><td class="num">${wd(r.k)}</td><td class="r num"><b>${r.n}</b>${r.n >= (d.target || 10) ? ' <i class=i-check style="color:#0f766e" title="ถึงเป้า"></i>' : ''}</td>
+      <tbody>${rows.map(r => `<tr><td class="num">${wd(r.k)}</td><td class="r num"><b>${r.n}</b></td>
         <td><div class="mt-share"><span style="width:${(r.n / max * 100).toFixed(1)}%;background:var(--primary)"></span></div></td>
         <td class="r num mt-meta">${r.cum}</td><td>${r.names}</td></tr>`).join('')}</tbody></table></div>
   </div>`;

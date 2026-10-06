@@ -13094,7 +13094,7 @@ app.get('/api/ai-impact/installed', authRequired, async (request, res) => {
 
 // รายงานตามพนักงานเริ่มนับวันนี้ — ก่อนหน้านี้ยังไม่มีขั้นตอนให้น้องติดตั้งตอนรับเคส (ตั้งเองได้ด้วย AI_REPORT_START)
 const AI_REPORT_START = /^\d{4}-\d{2}-\d{2}$/.test(process.env.AI_REPORT_START || '') ? process.env.AI_REPORT_START : '2026-10-06';
-// เป้าติดตั้ง AI ต่อวัน (ทั้งทีม) — นับจากวันติดตั้งในรายชื่อร้านที่ติดตั้ง
+// เป้าติดตั้ง AI คนละกี่ร้านต่อวัน — หน้าเว็บนับร้านที่น้องรับเคสในวันเดียวกับที่ร้านติดตั้ง
 const AI_INSTALL_TARGET = Math.max(1, +process.env.AI_INSTALL_TARGET || 10);
 // GET /api/ai-impact/agent-report?from=&to= — แต่ละวัน น้องแต่ละคนรับเคสของร้านกี่ร้าน แยกตามสถานะติดตั้ง AI ของร้าน ณ วันนั้น
 //   installed = ติดตั้งก่อนวันที่รับเคส · today = ติดตั้งในวันเดียวกับที่รับเคส · missing = ยังไม่ได้ติดตั้ง (ณ วันนั้น)
