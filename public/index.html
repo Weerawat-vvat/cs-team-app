@@ -488,6 +488,8 @@ textarea{resize:vertical;min-height:80px}
 .ai-inst [class^="i-"]{width:.9em;height:.9em}
 .ai-inst.no{background:#f3f1ec;color:#6f747c;font-weight:500}
 .aim-date{width:auto!important;height:34px}
+.aim-goal{display:flex;align-items:center;gap:.4rem;white-space:nowrap}
+.aim-goal .mt-share{flex:1;min-width:60px}
 .aim-stack{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--line-2)}
 .aim-stack span{display:block;height:100%}
 .aim-auto{display:inline-flex;align-items:center;gap:.3rem;margin-left:.5rem;padding:.05rem .5rem;border:1px solid var(--border);border-radius:999px;background:#fff;cursor:pointer;color:var(--text);white-space:nowrap}
@@ -21503,229 +21505,245 @@ function aimRender() {
   aimDrawChart(d);
 }
 
-// ── แยกตาม Tag: กดแถวเพื่อดูว่า Tag นี้เกิดที่ร้านไหนมากที่สุด → ดูเคสของร้านนั้น
-const _aimTagOpen = new Set();
-function aimTagRowsHtml() {
-  const rows = _aim.tagRows || [];
-  const gBadge = g => g === 'service' ? '<span class="mt-type mt-type-svc">IT Service</span>' : g === 'problem' ? '<span class="mt-type mt-type-bug">Bug</span>' : '';
-  if (!rows.length) return '<tr><td colspan="5" class="mt-meta" style="text-align:center;padding:1.2rem">ยังไม่มีเคสของร้านที่ติดตั้ง</td></tr>';
-  return rows.map(t => {
-    const open = _aimTagOpen.has(t.title);
-    return `<tr class="mt-row${open ? ' open' : ''}" data-t="${mtAttr(t.title)}" onclick="aimToggleTag(this.dataset.t)" title="คลิกเพื่อดูร้านที่เกิดบ่อย">
-      <td><b>${esc(t.title)}</b> ${gBadge(t.group)}<span class="sub">${open ? 'ซ่อนรายชื่อร้าน' : 'ดูร้านที่เกิดบ่อย ›'}</span></td>
-      <td class="r num">${aimFmt(aimMonth(t.ai_pre))}</td><td class="r num"><b>${aimFmt(aimMonth(t.ai_post))}</b></td>
-      <td>${aimPill(aimPct(t.ai_pre, t.ai_post))}</td><td class="r num mt-meta">${t.ai_pre_n} → ${t.ai_post_n}</td></tr>`
-      + (open ? aimTagStoresHtml(t) : '');
-  }).join('');
-}
-function aimTagStoresHtml(t) {
-  const fd = x => x ? fmtDateShort(x + 'T00:00:00') : '—';
-  const list = (_aim.data?.stores || []).filter(s => s.counted && s.tags?.[t.title])
-    .map(s => ({ s, pre: s.tags[t.title][0], post: s.tags[t.title][1] }))
-    .sort((a, b) => (b.pre + b.post) - (a.pre + a.post) || b.post - a.post);
-  if (!list.length) return '<tr class="aim-branch"><td colspan="5" class="mt-meta">ไม่มีร้านที่นับได้</td></tr>';
-  const TOP = 15;
-  return `<tr class="aim-branch aim-sub-head"><td colspan="5">ร้านที่เกิด “${esc(t.title)}” มากที่สุด · ${list.length} ร้าน · ตัวเลข = ${_aim.mode === 'bug' ? 'Bug' : 'เคส'}/เดือน ก่อน → หลังติดตั้ง</td></tr>`
-    + list.slice(0, TOP).map(({ s, pre, post }) => {
-      const a = s.pre_days ? pre / s.pre_days * 30 : null, b = s.post_days ? post / s.post_days * 30 : null;
-      return `<tr class="aim-branch">
-        <td>${esc(s.company || '—')}<span class="sub">${esc(s.grp || 'ร้าน')} · ติดตั้ง ${fd(s.install_day)}</span></td>
-        <td class="r num">${aimFmt(a)}</td><td class="r num"><b>${aimFmt(b)}</b></td>
-        <td>${aimPill(aimPct(a, b))}</td>
-        <td class="r num" style="white-space:nowrap"><span class="mt-meta">${pre} → ${post} เคส</span>
-          <button class="mt-mini" style="margin-left:.4rem" onclick="event.stopPropagation();aimShowCases(${s.rid},${t.id || 0},this.dataset.t)" data-t="${mtAttr(t.title)}">ดูเคส ›</button></td></tr>`;
-    }).join('')
-    + (list.length > TOP ? `<tr class="aim-branch"><td colspan="5" class="mt-meta">… อีก ${list.length - TOP} ร้าน</td></tr>` : '');
-}
-function aimToggleTag(title) {
-  _aimTagOpen.has(title) ? _aimTagOpen.delete(title) : _aimTagOpen.add(title);
-  const tb = document.getElementById('aim-tag-body');
-  if (tb) tb.innerHTML = aimTagRowsHtml();
-}
-// เคสของร้านนี้ที่ติด Tag นี้ ช่วงก่อน + หลังติดตั้ง
-async function aimShowCases(rid, tagId, title) {
-  const s = _aim.data?.stores.find(x => x.rid === rid);
-  if (!s || !tagId) { showToast('ดูเคสไม่ได้ — ลองรีเฟรชหน้าใหม่', 'error'); return; }
-  const fd = x => x ? fmtDateShort(x + 'T00:00:00') : '—';
-  const n = s.tags?.[title] || [0, 0];
-  _mtDetailCtx = null;
-  document.getElementById('mt-d-title').textContent = `${title} — ${s.company}`;
-  document.getElementById('mt-d-sub').textContent = `ติดตั้ง AI ${fd(s.install_day)} · ก่อนติดตั้ง ${n[0]} เคส (${s.pre_days} วัน) · หลังติดตั้ง ${n[1]} เคส (${s.post_days} วัน)`;
-  document.getElementById('mt-d-store-th').style.display = 'none';
-  document.querySelector('#modal-mt-detail thead th:nth-child(3)').textContent = 'ช่วง';
-  const tb = document.getElementById('mt-d-tbody');
-  tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:1.5rem;color:var(--muted)">กำลังโหลด...</td></tr>';
-  openModal('modal-mt-detail');
-  const d = await api(`/api/ai-impact/cases?rid=${rid}&tag=${tagId}&from=${s.pre_from}`, { silent: true });
-  if (!d || d.error) { tb.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:1.5rem;color:var(--muted)">${esc(d?.error || 'โหลดไม่สำเร็จ')}</td></tr>`; return; }
-  if (!d.rows.length) { tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:1.5rem;color:var(--muted)">— ไม่มีเคส —</td></tr>'; return; }
-  const td = 'padding:.42rem .7rem;border-bottom:1px solid var(--line-2);vertical-align:top';
-  tb.innerHTML = d.rows.map(r => {
-    const phase = r.d < s.install_day ? '<span class="mt-pill mt-flat">ก่อนติดตั้ง</span>'
-      : r.d === s.install_day ? '<span class="mt-pill mt-flat">วันติดตั้ง</span>'
-      : '<span class="mt-pill" style="background:var(--primary-soft);color:var(--primary)">หลังติดตั้ง</span>';
-    return `<tr>
-      <td style="${td};font-family:monospace;font-size:.76rem;white-space:nowrap">#${r.id}</td>
-      <td style="${td};white-space:nowrap;font-size:.76rem">${fmtDT(r.opened_at)}</td>
-      <td style="${td};white-space:nowrap">${phase}</td>
-      <td style="${td}"><div style="color:#4d535b">${esc((r.description || '').replace(/\s+/g, ' ').slice(0, 400)) || '—'}</div>${
-        (r.solution || '').trim() ? `<div class="mt-sol"><b><i class=i-wrench></i> วิธีแก้ไข${r.agent ? ' · ' + esc(dn(r.agent) || r.agent) : ''}</b>${esc(r.solution.replace(/\s+/g, ' ').slice(0, 600))}</div>`
-          : '<div class="mt-sol none">ยังไม่ได้บันทึกวิธีแก้ไข</div>'}</td>
-      <td style="${td};white-space:nowrap">${esc(r.status || '—')}</td>
-      <td style="${td};white-space:nowrap;font-size:.78rem">${esc(dn(r.agent) || r.agent || '—')}</td>
-    </tr>`;
-  }).join('');
-}
-
-// ── ร้านที่ติดตั้ง AI แล้ว (ไว้ติดป้ายตอนค้นหาร้านในหน้าเปิด Case) ──
-let _aiInst = { at: 0, map: {} };
-async function aiInstLoad() {
-  if (Date.now() - _aiInst.at < 2 * 60 * 1000) return _aiInst.map;
-  const d = await api('/api/ai-impact/installed', { silent: true });
-  if (d && d.stores) _aiInst = { at: Date.now(), map: d.stores };
-  return _aiInst.map;
-}
-const aiInstBadge = rid => {
-  const d = _aiInst.map[rid];
-  return d ? `<span class="ai-inst"><i class=i-check></i> ติดตั้ง AI (SSH) แล้ว · ${fmtDateShort(d + 'T00:00:00')}</span>` : '';
-};
-
-// ══ รายงาน: น้องแต่ละคนรับเคสของร้านที่ติดตั้ง AI แล้ว / ยังไม่ติดตั้ง ══
-let _aimView = (() => { try { return localStorage.getItem('aim-view') === 'report' ? 'report' : 'impact'; } catch { return 'impact'; } })();
-let _aimRep = { from: null, to: null, data: null, open: new Set() };
-function aimSetView(v) {
-  _aimView = v;
-  try { localStorage.setItem('aim-view', v); } catch {}
-  aimApplyView();
-  if (v === 'report') aimRepLoad(); else if (!_aim.data) aimLoad();
-}
-function aimApplyView() {
-  const rep = _aimView === 'report';
-  document.getElementById('aim-view').innerHTML = [['impact', 'chart', 'ผลการติดตั้ง'], ['report', 'user', 'รายงานตามพนักงาน']].map(([k, ic, l]) =>
-    `<button class="${_aimView === k ? 'on' : ''}" onclick="aimSetView('${k}')"><i class=i-${ic}></i> ${l}</button>`).join('');
-  ['aim-mode', 'aim-pre', 'aim-hint', 'aim-kpis', 'aim-body', 'aim-updated'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = rep ? 'none' : ''; });
-  document.getElementById('aim-report').style.display = rep ? '' : 'none';
-}
-const aimRepDay = n => mtLocalInput(new Date(Date.now() - n * 86400000)).slice(0, 10);
-function aimRepQuick(n) {
-  if (n === 1) { _aimRep.from = _aimRep.to = aimRepDay(1); }
-  else { _aimRep.from = aimRepDay(Math.max(0, n - 1)); _aimRep.to = aimRepDay(0); }
-  aimRepLoad();
-}
-async function aimRepLoad() {
-  if (!_aimRep.from) { _aimRep.from = aimRepDay(6); _aimRep.to = aimRepDay(0); }
-  const box = document.getElementById('aim-report');
-  box.innerHTML = aimRepBar() + '<div class="mt-empty">กำลังโหลด...</div>';
-  const d = await api(`/api/ai-impact/agent-report?from=${_aimRep.from}&to=${_aimRep.to}`, { silent: true });
-  if (!d || d.error) { box.innerHTML = aimRepBar() + `<div class="mt-empty">โหลดไม่สำเร็จ${d?.error ? ': ' + esc(d.error) : ''} (ถ้าเพิ่งอัปเดตโค้ด ให้รีสตาร์ท server ก่อน)</div>`; return; }
-  _aimRep.data = d;
-  aimRepRender();
-}
-function aimRepBar() {
-  const q = [[0, 'วันนี้'], [1, 'เมื่อวาน'], [7, '7 วัน'], [30, '30 วัน']];
-  const isOn = n => n === 1 ? _aimRep.from === aimRepDay(1) && _aimRep.to === aimRepDay(1)
-    : _aimRep.to === aimRepDay(0) && _aimRep.from === aimRepDay(Math.max(0, n - 1));
-  return `<div class="mt-svc-bar">
-    <input type="date" class="svc-date aim-date" value="${_aimRep.from || ''}" onchange="_aimRep.from=this.value;aimRepLoad()" aria-label="ตั้งแต่วันที่"/>
-    <span class="mt-meta">ถึง</span>
-    <input type="date" class="svc-date aim-date" value="${_aimRep.to || ''}" onchange="_aimRep.to=this.value;aimRepLoad()" aria-label="ถึงวันที่"/>
-    <div class="svc-seg mt-seg-sm">${q.map(([n, l]) => `<button class="${isOn(n) ? 'on' : ''}" onclick="aimRepQuick(${n})">${l}</button>`).join('')}</div>
-    <span style="flex:1"></span>
-    <button class="svc-btn-ghost" onclick="aimRepExport()" style="height:34px"><i class=i-download></i> Export CSV</button>
-  </div>
-  <div class="mt-meta" style="margin:-.3rem 0 .75rem;line-height:1.55">นับต่อ <b>ร้าน × วัน × พนักงาน</b> (ร้านเดียวกันแจ้งหลายเคสในวันเดียว = 1)
-    · <b>ติดตั้งแล้ว</b> = ร้านติดตั้ง AI ก่อนวันที่รับเคส · <b>ติดตั้งวันนั้น</b> = ติดตั้งในวันที่รับเคส · <b>ยังไม่ติดตั้ง</b> = ณ วันนั้นร้านยังไม่มี AI (SSH)</div>`;
-}
-function aimRepAgg(rows) {
-  const by = new Map();
-  for (const x of rows) {
-    const a = by.get(x.agent) || by.set(x.agent, { agent: x.agent, stores: 0, installed: 0, today: 0, missing: 0, miss: [] }).get(x.agent);
-    a.stores++; a[x.status]++;
-    if (x.status === 'missing') a.miss.push(x);
-  }
-  return [...by.values()].map(a => ({ ...a, ok: a.stores ? (a.installed + a.today) / a.stores : 0 }));
-}
-function aimRepRender() {
-  const d = _aimRep.data, box = document.getElementById('aim-report');
-  if (!d) return;
-  const fd = x => x ? fmtDateShort(x + 'T00:00:00') : '—';
-  const nm = a => esc(dn(a) || a);
-  const rows = d.rows;
-  const sum = k => rows.filter(x => x.status === k).length;
-  const total = rows.length, inst = sum('installed'), today = sum('today'), miss = sum('missing');
-  const pct = (n, t) => t ? Math.round(n / t * 100) + '%' : '—';
-  const k = (label, val, sub, cls) => `<div class="stat-flat"><div class="label">${label}</div><div class="value ${cls}">${val}</div><div class="sub">${sub}</div></div>`;
-  const agents = aimRepAgg(rows).sort((a, b) => b.missing - a.missing || b.stores - a.stores);
-  const bar = (a, w) => `<div class="aim-stack" title="ติดตั้งแล้ว ${a.installed} · ติดตั้งวันนั้น ${a.today} · ยังไม่ติดตั้ง ${a.missing}">
-    <span style="width:${(a.installed / w * 100).toFixed(1)}%;background:#1baf7a"></span><span style="width:${(a.today / w * 100).toFixed(1)}%;background:#2a78d6"></span><span style="width:${(a.missing / w * 100).toFixed(1)}%;background:#e34948"></span></div>`;
-  const agentRows = agents.map(a => {
-    const open = _aimRep.open.has(a.agent);
-    return `<tr class="mt-row${open ? ' open' : ''}" data-a="${mtAttr(a.agent)}" onclick="aimRepToggle(this.dataset.a)">
-      <td><b>${nm(a.agent)}</b><span class="sub">${open ? 'ซ่อนรายชื่อร้าน' : a.missing ? `ดูร้านที่ยังไม่ติดตั้ง ${a.missing} ร้าน ›` : 'ครบทุกร้าน'}</span></td>
-      <td class="r num">${a.stores}</td><td class="r num">${a.installed}</td><td class="r num"><b style="color:#2a5f9e">${a.today || ''}</b></td>
-      <td class="r num"><b style="color:${a.missing ? '#be123c' : 'inherit'}">${a.missing}</b></td>
-      <td style="min-width:140px">${bar(a, a.stores || 1)}</td>
-      <td class="r num">${a.missing ? pct(a.installed + a.today, a.stores) : '<span class="mt-pill mt-down"><i class=i-check></i> ครบ</span>'}</td></tr>`
-      + (open ? aimRepMissHtml(a) : '');
-  }).join('');
-  // รายวัน
-  const days = [...new Set(rows.map(x => x.d))].sort().reverse();
-  const dayRows = days.map(dd => {
-    const xs = rows.filter(x => x.d === dd), ag = aimRepAgg(xs);
-    const inst = xs.filter(x => x.status === 'installed').length, td = xs.filter(x => x.status === 'today').length, ms = xs.filter(x => x.status === 'missing').length;
-    const doers = ag.filter(a => a.today).sort((a, b) => b.today - a.today).map(a => `<span class="mt-svc-chip sv">${nm(a.agent)} <b>${a.today}</b></span>`).join('');
-    const missers = ag.filter(a => a.missing).sort((a, b) => b.missing - a.missing).slice(0, 4)
-      .map(a => `<span class="mt-svc-chip bg">${nm(a.agent)} <b>${a.missing}</b></span>`).join('');
-    return `<tr><td class="num">${new Date(dd + 'T00:00:00').toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' })}</td>
-      <td class="r num">${xs.length}</td><td class="r num">${inst}</td><td class="r num"><b style="color:#2a5f9e">${td || ''}</b></td>
-      <td class="r num"><b style="color:#be123c">${ms}</b></td><td>${doers || '<span class="mt-meta">—</span>'}</td><td>${missers || '<span class="mt-meta">—</span>'}</td></tr>`;
-  }).join('');
-  box.innerHTML = aimRepBar() + `
-    <div class="mt-kpis">
-      ${k('ร้านที่รับเคส', total.toLocaleString(), `${fd(d.from)} – ${fd(d.to)} · ${agents.length} คน`, 'blue')}
-      ${k('<i class=i-check></i> ติดตั้งแล้ว', inst.toLocaleString(), `${pct(inst, total)} ของร้านที่รับเคส`, 'green')}
-      ${k('ติดตั้งในวันที่รับเคส', today.toLocaleString(), `${pct(today, total)} · น้องติดตั้งเพิ่มระหว่างรับเคส`, 'white')}
-      ${k('ยังไม่ติดตั้ง', miss.toLocaleString(), `${pct(miss, total)} · โอกาสติดตั้งเพิ่ม`, 'orange')}
-    </div>
-    <div class="mt-tbl-wrap">
-      <div class="mt-tt-head"><i class=i-user style="color:var(--primary)"></i> สรุปตามพนักงาน <span class="mt-meta" style="font-weight:400">· เรียงจากยังไม่ติดตั้งมากสุด · คลิกเพื่อดูรายชื่อร้าน</span></div>
-      <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>พนักงาน</th><th class="r">ร้านที่รับเคส</th><th class="r">ติดตั้งแล้ว</th><th class="r">ติดตั้งวันนั้น</th>
-        <th class="r">ยังไม่ติดตั้ง</th><th></th><th class="r">ครบ</th></tr></thead>
-        <tbody>${agentRows || '<tr><td colspan="7" class="mt-meta" style="text-align:center;padding:1.2rem">ไม่มีเคสในช่วงนี้</td></tr>'}</tbody></table></div>
-    </div>
-    <div class="mt-tbl-wrap" style="margin-top:.75rem">
-      <div class="mt-tt-head"><i class=i-calendar style="color:var(--primary)"></i> รายวัน</div>
-      <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>วันที่</th><th class="r">ร้านที่รับเคส</th><th class="r">ติดตั้งแล้ว</th><th class="r">ติดตั้งวันนั้น</th>
-        <th class="r">ยังไม่ติดตั้ง</th><th>ติดตั้งระหว่างรับเคส</th><th>ยังไม่ติดตั้งมากสุด</th></tr></thead>
-        <tbody>${dayRows || '<tr><td colspan="7" class="mt-meta" style="text-align:center;padding:1.2rem">ไม่มีเคสในช่วงนี้</td></tr>'}</tbody></table></div>
-    </div>`;
-}
-function aimRepMissHtml(a) {
-  const fd = x => x ? fmtDateShort(x + 'T00:00:00') : '—';
-  const xs = [...a.miss].sort((p, q) => q.d.localeCompare(p.d)), TOP = 40;
-  if (!xs.length) return '';
-  return `<tr class="aim-branch aim-sub-head"><td colspan="7">ร้านที่ ${esc(dn(a.agent) || a.agent)} รับเคสแต่ยังไม่ได้ติดตั้ง AI (SSH) · ${xs.length} ร้าน</td></tr>`
-    + xs.slice(0, TOP).map(x => `<tr class="aim-branch">
-      <td>${esc(x.company || '—')}<span class="sub">${esc(x.grp || 'ร้าน')}${x.install_day ? ` · ติดตั้งภายหลัง ${fd(x.install_day)}` : ''}</span></td>
-      <td class="num mt-meta">${fd(x.d)}</td><td colspan="3" class="mt-meta">${x.cases} เคส · #${x.cid}</td>
-      <td colspan="2" class="r"><button class="mt-mini" onclick="event.stopPropagation();aimOpenAdd(null,{rid:${x.rid},name:this.dataset.n})" data-n="${mtAttr(x.company || '')}"><i class=i-plus></i> บันทึกว่าติดตั้งแล้ว</button></td></tr>`).join('')
-    + (xs.length > TOP ? `<tr class="aim-branch"><td colspan="7" class="mt-meta">… อีก ${xs.length - TOP} ร้าน — Export CSV เพื่อดูทั้งหมด</td></tr>` : '');
-}
-function aimRepToggle(a) { _aimRep.open.has(a) ? _aimRep.open.delete(a) : _aimRep.open.add(a); aimRepRender(); }
-function aimRepExport() {
-  const d = _aimRep.data; if (!d) return;
-  const st = { installed: 'ติดตั้งแล้ว', today: 'ติดตั้งวันนั้น', missing: 'ยังไม่ติดตั้ง' };
-  const head = ['วันที่', 'พนักงาน', 'ร้าน', 'แบรนด์', 'จำนวนเคส', 'เคสแรก', 'สถานะ AI (SSH)', 'วันติดตั้ง'];
-  const rows = [...d.rows].sort((a, b) => a.d.localeCompare(b.d) || a.agent.localeCompare(b.agent))
-    .map(x => [x.d, dn(x.agent) || x.agent, x.company || '', x.grp || '', x.cases, x.cid, st[x.status], x.install_day || '']);
-  const csv = '﻿' + [head, ...rows].map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-  a.download = `ai-install-by-agent-${d.from}_${d.to}.csv`;
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-}
-
+// ── แยกตาม Tag: กดแถวเพื่อดูว่า Tag นี้เกิดที่ร้านไหนมากที่สุด → ดูเคสของร้านนั้น
+const _aimTagOpen = new Set();
+function aimTagRowsHtml() {
+  const rows = _aim.tagRows || [];
+  const gBadge = g => g === 'service' ? '<span class="mt-type mt-type-svc">IT Service</span>' : g === 'problem' ? '<span class="mt-type mt-type-bug">Bug</span>' : '';
+  if (!rows.length) return '<tr><td colspan="5" class="mt-meta" style="text-align:center;padding:1.2rem">ยังไม่มีเคสของร้านที่ติดตั้ง</td></tr>';
+  return rows.map(t => {
+    const open = _aimTagOpen.has(t.title);
+    return `<tr class="mt-row${open ? ' open' : ''}" data-t="${mtAttr(t.title)}" onclick="aimToggleTag(this.dataset.t)" title="คลิกเพื่อดูร้านที่เกิดบ่อย">
+      <td><b>${esc(t.title)}</b> ${gBadge(t.group)}<span class="sub">${open ? 'ซ่อนรายชื่อร้าน' : 'ดูร้านที่เกิดบ่อย ›'}</span></td>
+      <td class="r num">${aimFmt(aimMonth(t.ai_pre))}</td><td class="r num"><b>${aimFmt(aimMonth(t.ai_post))}</b></td>
+      <td>${aimPill(aimPct(t.ai_pre, t.ai_post))}</td><td class="r num mt-meta">${t.ai_pre_n} → ${t.ai_post_n}</td></tr>`
+      + (open ? aimTagStoresHtml(t) : '');
+  }).join('');
+}
+function aimTagStoresHtml(t) {
+  const fd = x => x ? fmtDateShort(x + 'T00:00:00') : '—';
+  const list = (_aim.data?.stores || []).filter(s => s.counted && s.tags?.[t.title])
+    .map(s => ({ s, pre: s.tags[t.title][0], post: s.tags[t.title][1] }))
+    .sort((a, b) => (b.pre + b.post) - (a.pre + a.post) || b.post - a.post);
+  if (!list.length) return '<tr class="aim-branch"><td colspan="5" class="mt-meta">ไม่มีร้านที่นับได้</td></tr>';
+  const TOP = 15;
+  return `<tr class="aim-branch aim-sub-head"><td colspan="5">ร้านที่เกิด “${esc(t.title)}” มากที่สุด · ${list.length} ร้าน · ตัวเลข = ${_aim.mode === 'bug' ? 'Bug' : 'เคส'}/เดือน ก่อน → หลังติดตั้ง</td></tr>`
+    + list.slice(0, TOP).map(({ s, pre, post }) => {
+      const a = s.pre_days ? pre / s.pre_days * 30 : null, b = s.post_days ? post / s.post_days * 30 : null;
+      return `<tr class="aim-branch">
+        <td>${esc(s.company || '—')}<span class="sub">${esc(s.grp || 'ร้าน')} · ติดตั้ง ${fd(s.install_day)}</span></td>
+        <td class="r num">${aimFmt(a)}</td><td class="r num"><b>${aimFmt(b)}</b></td>
+        <td>${aimPill(aimPct(a, b))}</td>
+        <td class="r num" style="white-space:nowrap"><span class="mt-meta">${pre} → ${post} เคส</span>
+          <button class="mt-mini" style="margin-left:.4rem" onclick="event.stopPropagation();aimShowCases(${s.rid},${t.id || 0},this.dataset.t)" data-t="${mtAttr(t.title)}">ดูเคส ›</button></td></tr>`;
+    }).join('')
+    + (list.length > TOP ? `<tr class="aim-branch"><td colspan="5" class="mt-meta">… อีก ${list.length - TOP} ร้าน</td></tr>` : '');
+}
+function aimToggleTag(title) {
+  _aimTagOpen.has(title) ? _aimTagOpen.delete(title) : _aimTagOpen.add(title);
+  const tb = document.getElementById('aim-tag-body');
+  if (tb) tb.innerHTML = aimTagRowsHtml();
+}
+// เคสของร้านนี้ที่ติด Tag นี้ ช่วงก่อน + หลังติดตั้ง
+async function aimShowCases(rid, tagId, title) {
+  const s = _aim.data?.stores.find(x => x.rid === rid);
+  if (!s || !tagId) { showToast('ดูเคสไม่ได้ — ลองรีเฟรชหน้าใหม่', 'error'); return; }
+  const fd = x => x ? fmtDateShort(x + 'T00:00:00') : '—';
+  const n = s.tags?.[title] || [0, 0];
+  _mtDetailCtx = null;
+  document.getElementById('mt-d-title').textContent = `${title} — ${s.company}`;
+  document.getElementById('mt-d-sub').textContent = `ติดตั้ง AI ${fd(s.install_day)} · ก่อนติดตั้ง ${n[0]} เคส (${s.pre_days} วัน) · หลังติดตั้ง ${n[1]} เคส (${s.post_days} วัน)`;
+  document.getElementById('mt-d-store-th').style.display = 'none';
+  document.querySelector('#modal-mt-detail thead th:nth-child(3)').textContent = 'ช่วง';
+  const tb = document.getElementById('mt-d-tbody');
+  tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:1.5rem;color:var(--muted)">กำลังโหลด...</td></tr>';
+  openModal('modal-mt-detail');
+  const d = await api(`/api/ai-impact/cases?rid=${rid}&tag=${tagId}&from=${s.pre_from}`, { silent: true });
+  if (!d || d.error) { tb.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:1.5rem;color:var(--muted)">${esc(d?.error || 'โหลดไม่สำเร็จ')}</td></tr>`; return; }
+  if (!d.rows.length) { tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:1.5rem;color:var(--muted)">— ไม่มีเคส —</td></tr>'; return; }
+  const td = 'padding:.42rem .7rem;border-bottom:1px solid var(--line-2);vertical-align:top';
+  tb.innerHTML = d.rows.map(r => {
+    const phase = r.d < s.install_day ? '<span class="mt-pill mt-flat">ก่อนติดตั้ง</span>'
+      : r.d === s.install_day ? '<span class="mt-pill mt-flat">วันติดตั้ง</span>'
+      : '<span class="mt-pill" style="background:var(--primary-soft);color:var(--primary)">หลังติดตั้ง</span>';
+    return `<tr>
+      <td style="${td};font-family:monospace;font-size:.76rem;white-space:nowrap">#${r.id}</td>
+      <td style="${td};white-space:nowrap;font-size:.76rem">${fmtDT(r.opened_at)}</td>
+      <td style="${td};white-space:nowrap">${phase}</td>
+      <td style="${td}"><div style="color:#4d535b">${esc((r.description || '').replace(/\s+/g, ' ').slice(0, 400)) || '—'}</div>${
+        (r.solution || '').trim() ? `<div class="mt-sol"><b><i class=i-wrench></i> วิธีแก้ไข${r.agent ? ' · ' + esc(dn(r.agent) || r.agent) : ''}</b>${esc(r.solution.replace(/\s+/g, ' ').slice(0, 600))}</div>`
+          : '<div class="mt-sol none">ยังไม่ได้บันทึกวิธีแก้ไข</div>'}</td>
+      <td style="${td};white-space:nowrap">${esc(r.status || '—')}</td>
+      <td style="${td};white-space:nowrap;font-size:.78rem">${esc(dn(r.agent) || r.agent || '—')}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── ร้านที่ติดตั้ง AI แล้ว (ไว้ติดป้ายตอนค้นหาร้านในหน้าเปิด Case) ──
+let _aiInst = { at: 0, map: {} };
+async function aiInstLoad() {
+  if (Date.now() - _aiInst.at < 2 * 60 * 1000) return _aiInst.map;
+  const d = await api('/api/ai-impact/installed', { silent: true });
+  if (d && d.stores) _aiInst = { at: Date.now(), map: d.stores };
+  return _aiInst.map;
+}
+const aiInstBadge = rid => {
+  const d = _aiInst.map[rid];
+  return d ? `<span class="ai-inst"><i class=i-check></i> ติดตั้ง AI (SSH) แล้ว · ${fmtDateShort(d + 'T00:00:00')}</span>` : '';
+};
+
+// ══ รายงาน: น้องแต่ละคนรับเคสของร้านที่ติดตั้ง AI แล้ว / ยังไม่ติดตั้ง ══
+let _aimView = (() => { try { return localStorage.getItem('aim-view') === 'report' ? 'report' : 'impact'; } catch { return 'impact'; } })();
+let _aimRep = { from: null, to: null, data: null, open: new Set(), start: '2026-10-06' };   // start = วันเริ่มนับ (server ส่งค่าจริงมา)
+const aimRepClamp = () => { if (_aimRep.from < _aimRep.start) _aimRep.from = _aimRep.start; if (_aimRep.to < _aimRep.from) _aimRep.to = _aimRep.from; };
+function aimSetView(v) {
+  _aimView = v;
+  try { localStorage.setItem('aim-view', v); } catch {}
+  aimApplyView();
+  if (v === 'report') aimRepLoad(); else if (!_aim.data) aimLoad();
+}
+function aimApplyView() {
+  const rep = _aimView === 'report';
+  document.getElementById('aim-view').innerHTML = [['impact', 'chart', 'ผลการติดตั้ง'], ['report', 'user', 'รายงานตามพนักงาน']].map(([k, ic, l]) =>
+    `<button class="${_aimView === k ? 'on' : ''}" onclick="aimSetView('${k}')"><i class=i-${ic}></i> ${l}</button>`).join('');
+  ['aim-mode', 'aim-pre', 'aim-hint', 'aim-kpis', 'aim-body', 'aim-updated'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = rep ? 'none' : ''; });
+  document.getElementById('aim-report').style.display = rep ? '' : 'none';
+}
+const aimRepDay = n => mtLocalInput(new Date(Date.now() - n * 86400000)).slice(0, 10);
+function aimRepQuick(n) {
+  if (n === 'all') { _aimRep.from = _aimRep.start; _aimRep.to = aimRepDay(0); }
+  else if (n === 1) { _aimRep.from = _aimRep.to = aimRepDay(1); }
+  else { _aimRep.from = aimRepDay(Math.max(0, n - 1)); _aimRep.to = aimRepDay(0); }
+  aimRepClamp();
+  aimRepLoad();
+}
+async function aimRepLoad() {
+  if (!_aimRep.from) { _aimRep.from = _aimRep.start; _aimRep.to = aimRepDay(0); }
+  aimRepClamp();
+  const box = document.getElementById('aim-report');
+  box.innerHTML = aimRepBar() + '<div class="mt-empty">กำลังโหลด...</div>';
+  const d = await api(`/api/ai-impact/agent-report?from=${_aimRep.from}&to=${_aimRep.to}`, { silent: true });
+  if (!d || d.error) { box.innerHTML = aimRepBar() + `<div class="mt-empty">โหลดไม่สำเร็จ${d?.error ? ': ' + esc(d.error) : ''} (ถ้าเพิ่งอัปเดตโค้ด ให้รีสตาร์ท server ก่อน)</div>`; return; }
+  _aimRep.data = d;
+  if (d.start) _aimRep.start = d.start;
+  aimRepRender();
+}
+function aimRepBar() {
+  // ปุ่มลัดที่ย้อนก่อนวันเริ่มนับจะไม่แสดง (ยกเว้น "ตั้งแต่เริ่มนับ" / "วันนี้")
+  const q = [['all', 'ตั้งแต่เริ่มนับ'], [0, 'วันนี้'], [1, 'เมื่อวาน'], [7, '7 วัน'], [30, '30 วัน']]
+    .filter(([n]) => n === 'all' || n === 0 || aimRepDay(n === 1 ? 1 : n - 1) >= _aimRep.start);
+  const isOn = n => n === 'all' ? _aimRep.from === _aimRep.start && _aimRep.to === aimRepDay(0)
+    : n === 1 ? _aimRep.from === aimRepDay(1) && _aimRep.to === aimRepDay(1)
+    : _aimRep.to === aimRepDay(0) && _aimRep.from === aimRepDay(Math.max(0, n - 1));
+  return `<div class="mt-svc-bar">
+    <input type="date" class="svc-date aim-date" value="${_aimRep.from || ''}" min="${_aimRep.start}" onchange="_aimRep.from=this.value;aimRepLoad()" aria-label="ตั้งแต่วันที่"/>
+    <span class="mt-meta">ถึง</span>
+    <input type="date" class="svc-date aim-date" value="${_aimRep.to || ''}" min="${_aimRep.start}" onchange="_aimRep.to=this.value;aimRepLoad()" aria-label="ถึงวันที่"/>
+    <div class="svc-seg mt-seg-sm">${q.map(([n, l]) => `<button class="${isOn(n) ? 'on' : ''}" onclick="aimRepQuick(${n === 'all' ? "'all'" : n})">${l}</button>`).join('')}</div>
+    <span style="flex:1"></span>
+    <button class="svc-btn-ghost" onclick="aimRepExport()" style="height:34px"><i class=i-download></i> Export CSV</button>
+  </div>
+  <div class="mt-meta" style="margin:-.3rem 0 .75rem;line-height:1.55"><b>เริ่มนับ ${fmtDateShort(_aimRep.start + 'T00:00:00')}</b> · นับต่อ <b>ร้าน × วัน × พนักงาน</b> (ร้านเดียวกันแจ้งหลายเคสในวันเดียว = 1)
+    · <b>ติดตั้งแล้ว</b> = ร้านติดตั้ง AI ก่อนวันที่รับเคส · <b>ติดตั้งวันนั้น</b> = ติดตั้งในวันที่รับเคส · <b>ยังไม่ติดตั้ง</b> = ณ วันนั้นร้านยังไม่มี AI (SSH)</div>`;
+}
+function aimRepAgg(rows) {
+  const by = new Map();
+  for (const x of rows) {
+    const a = by.get(x.agent) || by.set(x.agent, { agent: x.agent, stores: 0, installed: 0, today: 0, missing: 0, miss: [] }).get(x.agent);
+    a.stores++; a[x.status]++;
+    if (x.status === 'missing') a.miss.push(x);
+  }
+  return [...by.values()].map(a => ({ ...a, ok: a.stores ? (a.installed + a.today) / a.stores : 0 }));
+}
+function aimRepRender() {
+  const d = _aimRep.data, box = document.getElementById('aim-report');
+  if (!d) return;
+  const fd = x => x ? fmtDateShort(x + 'T00:00:00') : '—';
+  const nm = a => esc(dn(a) || a);
+  const rows = d.rows;
+  const sum = k => rows.filter(x => x.status === k).length;
+  const total = rows.length, inst = sum('installed'), today = sum('today'), miss = sum('missing');
+  const pct = (n, t) => t ? Math.round(n / t * 100) + '%' : '—';
+  const k = (label, val, sub, cls) => `<div class="stat-flat"><div class="label">${label}</div><div class="value ${cls}">${val}</div><div class="sub">${sub}</div></div>`;
+  const agents = aimRepAgg(rows).sort((a, b) => b.missing - a.missing || b.stores - a.stores);
+  const bar = (a, w) => `<div class="aim-stack" title="ติดตั้งแล้ว ${a.installed} · ติดตั้งวันนั้น ${a.today} · ยังไม่ติดตั้ง ${a.missing}">
+    <span style="width:${(a.installed / w * 100).toFixed(1)}%;background:#1baf7a"></span><span style="width:${(a.today / w * 100).toFixed(1)}%;background:#2a78d6"></span><span style="width:${(a.missing / w * 100).toFixed(1)}%;background:#e34948"></span></div>`;
+  const agentRows = agents.map(a => {
+    const open = _aimRep.open.has(a.agent);
+    return `<tr class="mt-row${open ? ' open' : ''}" data-a="${mtAttr(a.agent)}" onclick="aimRepToggle(this.dataset.a)">
+      <td><b>${nm(a.agent)}</b><span class="sub">${open ? 'ซ่อนรายชื่อร้าน' : a.missing ? `ดูร้านที่ยังไม่ติดตั้ง ${a.missing} ร้าน ›` : 'ครบทุกร้าน'}</span></td>
+      <td class="r num">${a.stores}</td><td class="r num">${a.installed}</td><td class="r num"><b style="color:#2a5f9e">${a.today || ''}</b></td>
+      <td class="r num"><b style="color:${a.missing ? '#be123c' : 'inherit'}">${a.missing}</b></td>
+      <td style="min-width:140px">${bar(a, a.stores || 1)}</td>
+      <td class="r num">${a.missing ? pct(a.installed + a.today, a.stores) : '<span class="mt-pill mt-down"><i class=i-check></i> ครบ</span>'}</td></tr>`
+      + (open ? aimRepMissHtml(a) : '');
+  }).join('');
+  // รายวัน
+  // เป้าติดตั้งต่อวัน (ทั้งทีม) — นับจากวันติดตั้งในรายชื่อร้าน
+  const target = d.target || 10, installs = d.installs || {};
+  const goal = n => `<div class="aim-goal"><div class="mt-share"><span style="width:${Math.min(100, n / target * 100).toFixed(0)}%;background:${n >= target ? '#1baf7a' : '#eda100'}"></span></div>
+    <b>${n}</b><span class="mt-meta">/${target}</span>${n >= target ? ' <i class=i-check style="color:#0f766e" title="ถึงเป้า"></i>' : ''}</div>`;
+  const days = [...new Set([...rows.map(x => x.d), ...Object.keys(installs)])].sort().reverse();
+  const dayRows = days.map(dd => {
+    const xs = rows.filter(x => x.d === dd), ag = aimRepAgg(xs);
+    const inst = xs.filter(x => x.status === 'installed').length, td = xs.filter(x => x.status === 'today').length, ms = xs.filter(x => x.status === 'missing').length;
+    const doers = ag.filter(a => a.today).sort((a, b) => b.today - a.today).map(a => `<span class="mt-svc-chip sv">${nm(a.agent)} <b>${a.today}</b></span>`).join('');
+    const missers = ag.filter(a => a.missing).sort((a, b) => b.missing - a.missing).slice(0, 4)
+      .map(a => `<span class="mt-svc-chip bg">${nm(a.agent)} <b>${a.missing}</b></span>`).join('');
+    return `<tr><td class="num">${new Date(dd + 'T00:00:00').toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' })}</td>
+      <td>${goal(installs[dd] || 0)}</td>
+      <td class="r num">${xs.length}</td><td class="r num">${inst}</td><td class="r num"><b style="color:#2a5f9e">${td || ''}</b></td>
+      <td class="r num"><b style="color:#be123c">${ms}</b></td><td>${doers || '<span class="mt-meta">—</span>'}</td><td>${missers || '<span class="mt-meta">—</span>'}</td></tr>`;
+  }).join('');
+  box.innerHTML = aimRepBar() + `
+    <div class="mt-kpis">
+      ${(() => { const td0 = installs[aimRepDay(0)] || 0, nDays = Math.max(1, Math.round((Date.parse(d.to) - Date.parse(d.from)) / 86400000) + 1);
+        const sumI = Object.values(installs).reduce((a, b) => a + b, 0), hit = Object.values(installs).filter(n => n >= target).length;
+        return k(`<i class=i-wrench></i> ติดตั้งวันนี้ · เป้า ${target} ร้าน`, `${td0}<span style="font-size:.9rem;color:var(--muted)"> / ${target}</span>`,
+          `${td0 >= target ? '<b style="color:#0f766e">ถึงเป้าแล้ว ✓</b>' : `อีก ${target - td0} ร้าน`} · เฉลี่ย ${(sumI / nDays).toFixed(1)}/วัน · ถึงเป้า ${hit}/${nDays} วัน`, td0 >= target ? 'green' : 'orange'); })()}
+      ${k('ร้านที่รับเคส', total.toLocaleString(), `${fd(d.from)} – ${fd(d.to)} · ${agents.length} คน`, 'blue')}
+      ${k('<i class=i-check></i> ติดตั้งแล้ว', (inst + today).toLocaleString(), `${pct(inst + today, total)} ของร้านที่รับเคส · ติดตั้งระหว่างรับเคส ${today}`, 'green')}
+      ${k('ยังไม่ติดตั้ง', miss.toLocaleString(), `${pct(miss, total)} · โอกาสติดตั้งเพิ่ม`, 'white')}
+    </div>
+    <div class="mt-tbl-wrap">
+      <div class="mt-tt-head"><i class=i-user style="color:var(--primary)"></i> สรุปตามพนักงาน <span class="mt-meta" style="font-weight:400">· เรียงจากยังไม่ติดตั้งมากสุด · คลิกเพื่อดูรายชื่อร้าน</span></div>
+      <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>พนักงาน</th><th class="r">ร้านที่รับเคส</th><th class="r">ติดตั้งแล้ว</th><th class="r">ติดตั้งวันนั้น</th>
+        <th class="r">ยังไม่ติดตั้ง</th><th></th><th class="r">ครบ</th></tr></thead>
+        <tbody>${agentRows || '<tr><td colspan="7" class="mt-meta" style="text-align:center;padding:1.2rem">ไม่มีเคสในช่วงนี้</td></tr>'}</tbody></table></div>
+    </div>
+    <div class="mt-tbl-wrap" style="margin-top:.75rem">
+      <div class="mt-tt-head"><i class=i-calendar style="color:var(--primary)"></i> รายวัน <span class="mt-meta" style="font-weight:400">· เป้าติดตั้ง ${target} ร้าน/วัน</span></div>
+      <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>วันที่</th><th style="min-width:150px">ติดตั้ง (เป้า ${target})</th><th class="r">ร้านที่รับเคส</th><th class="r">ติดตั้งแล้ว</th><th class="r">ติดตั้งวันนั้น</th>
+        <th class="r">ยังไม่ติดตั้ง</th><th>ติดตั้งระหว่างรับเคส</th><th>ยังไม่ติดตั้งมากสุด</th></tr></thead>
+        <tbody>${dayRows || '<tr><td colspan="8" class="mt-meta" style="text-align:center;padding:1.2rem">ไม่มีเคสในช่วงนี้</td></tr>'}</tbody></table></div>
+    </div>`;
+}
+function aimRepMissHtml(a) {
+  const fd = x => x ? fmtDateShort(x + 'T00:00:00') : '—';
+  const xs = [...a.miss].sort((p, q) => q.d.localeCompare(p.d)), TOP = 40;
+  if (!xs.length) return '';
+  return `<tr class="aim-branch aim-sub-head"><td colspan="7">ร้านที่ ${esc(dn(a.agent) || a.agent)} รับเคสแต่ยังไม่ได้ติดตั้ง AI (SSH) · ${xs.length} ร้าน</td></tr>`
+    + xs.slice(0, TOP).map(x => `<tr class="aim-branch">
+      <td>${esc(x.company || '—')}<span class="sub">${esc(x.grp || 'ร้าน')}${x.install_day ? ` · ติดตั้งภายหลัง ${fd(x.install_day)}` : ''}</span></td>
+      <td class="num mt-meta">${fd(x.d)}</td><td colspan="3" class="mt-meta">${x.cases} เคส · #${x.cid}</td>
+      <td colspan="2" class="r"><button class="mt-mini" onclick="event.stopPropagation();aimOpenAdd(null,{rid:${x.rid},name:this.dataset.n})" data-n="${mtAttr(x.company || '')}"><i class=i-plus></i> บันทึกว่าติดตั้งแล้ว</button></td></tr>`).join('')
+    + (xs.length > TOP ? `<tr class="aim-branch"><td colspan="7" class="mt-meta">… อีก ${xs.length - TOP} ร้าน — Export CSV เพื่อดูทั้งหมด</td></tr>` : '');
+}
+function aimRepToggle(a) { _aimRep.open.has(a) ? _aimRep.open.delete(a) : _aimRep.open.add(a); aimRepRender(); }
+function aimRepExport() {
+  const d = _aimRep.data; if (!d) return;
+  const st = { installed: 'ติดตั้งแล้ว', today: 'ติดตั้งวันนั้น', missing: 'ยังไม่ติดตั้ง' };
+  const head = ['วันที่', 'พนักงาน', 'ร้าน', 'แบรนด์', 'จำนวนเคส', 'เคสแรก', 'สถานะ AI (SSH)', 'วันติดตั้ง'];
+  const rows = [...d.rows].sort((a, b) => a.d.localeCompare(b.d) || a.agent.localeCompare(b.agent))
+    .map(x => [x.d, dn(x.agent) || x.agent, x.company || '', x.grp || '', x.cases, x.cid, st[x.status], x.install_day || '']);
+  const csv = '﻿' + [head, ...rows].map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = `ai-install-by-agent-${d.from}_${d.to}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
 // ── ติดตั้ง AI รายวัน: จำนวนร้านต่อวันที่ติดตั้ง + ยอดสะสม (ไม่นับร้านที่กด "ไม่นับ")
 function aimDailyInstallHtml(d) {
   const by = new Map();
@@ -21749,10 +21767,10 @@ function aimDailyInstallHtml(d) {
   const wd = k => new Date(k + 'T00:00:00').toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short', year: '2-digit' });
   return `<div class="mt-ov-card" style="padding:0;overflow:hidden;margin-top:.75rem">
     <div class="mt-st-head"><div style="flex:1"><div class="mt-ov-title">ติดตั้ง AI รายวัน <span class="mt-meta" style="font-weight:400">· ${days.length} วัน · รวม ${cum} ร้าน</span></div>
-      <div class="mt-ov-sub">นับตามวันที่ติดตั้งของแต่ละร้าน · ไม่นับร้านที่กด “ไม่นับ”</div></div></div>
+      <div class="mt-ov-sub">นับตามวันที่ติดตั้งของแต่ละร้าน · ไม่นับร้านที่กด “ไม่นับ” · ✓ = ถึงเป้า ${d.target || 10} ร้าน/วัน</div></div></div>
     <div style="overflow-x:auto;max-height:420px;overflow-y:auto"><table class="mt-tbl">
       <thead><tr><th>วันที่ติดตั้ง</th><th class="r">จำนวนร้าน</th><th style="width:22%"></th><th class="r">สะสม</th><th>ร้าน / แบรนด์</th></tr></thead>
-      <tbody>${rows.map(r => `<tr><td class="num">${wd(r.k)}</td><td class="r num"><b>${r.n}</b></td>
+      <tbody>${rows.map(r => `<tr><td class="num">${wd(r.k)}</td><td class="r num"><b>${r.n}</b>${r.n >= (d.target || 10) ? ' <i class=i-check style="color:#0f766e" title="ถึงเป้า"></i>' : ''}</td>
         <td><div class="mt-share"><span style="width:${(r.n / max * 100).toFixed(1)}%;background:var(--primary)"></span></div></td>
         <td class="r num mt-meta">${r.cum}</td><td>${r.names}</td></tr>`).join('')}</tbody></table></div>
   </div>`;

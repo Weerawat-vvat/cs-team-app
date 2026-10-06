@@ -13092,6 +13092,10 @@ app.get('/api/ai-impact/installed', authRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// รายงานตามพนักงานเริ่มนับวันนี้ — ก่อนหน้านี้ยังไม่มีขั้นตอนให้น้องติดตั้งตอนรับเคส (ตั้งเองได้ด้วย AI_REPORT_START)
+const AI_REPORT_START = /^\d{4}-\d{2}-\d{2}$/.test(process.env.AI_REPORT_START || '') ? process.env.AI_REPORT_START : '2026-10-06';
+// เป้าติดตั้ง AI ต่อวัน (ทั้งทีม) — นับจากวันติดตั้งในรายชื่อร้านที่ติดตั้ง
+const AI_INSTALL_TARGET = Math.max(1, +process.env.AI_INSTALL_TARGET || 10);
 // GET /api/ai-impact/agent-report?from=&to= — แต่ละวัน น้องแต่ละคนรับเคสของร้านกี่ร้าน แยกตามสถานะติดตั้ง AI ของร้าน ณ วันนั้น
 //   installed = ติดตั้งก่อนวันที่รับเคส · today = ติดตั้งในวันเดียวกับที่รับเคส · missing = ยังไม่ได้ติดตั้ง (ณ วันนั้น)
 app.get('/api/ai-impact/agent-report', authRequired, async (request, res) => {
@@ -13101,6 +13105,8 @@ app.get('/api/ai-impact/agent-report', authRequired, async (request, res) => {
     const day = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : null;
     let from = day(request.query.from) || today, to = day(request.query.to) || from;
     if (from > to) [from, to] = [to, from];
+    if (from < AI_REPORT_START) from = AI_REPORT_START;
+    if (to < from) return res.json({ from, to, start: AI_REPORT_START, target: AI_INSTALL_TARGET, installs: {}, total_installed: 0, rows: [] });
     if ((Date.parse(to) - Date.parse(from)) / 86400000 > 62) return res.status(400).json({ error: 'เลือกได้ไม่เกิน 62 วัน' });
     const inst = await aiInstalledMap();
     const rows = (await extReq().input('f', sql.NVarChar, from).input('t', sql.NVarChar, to).query(`
@@ -13121,7 +13127,9 @@ app.get('/api/ai-impact/agent-report', authRequired, async (request, res) => {
       return { d: x.d, agent: x.agent || '(ไม่ระบุ)', rid: x.rid, company: x.company, grp: x.grp, cases: x.cases, cid: x.cid,
         status, install_day: i?.d || null };
     });
-    res.json({ from, to, total_installed: inst.size, rows: out });
+    const installs = {};   // วัน → จำนวนร้านที่ติดตั้งวันนั้น (ทุกแหล่ง)
+    for (const v of inst.values()) if (v.d >= from && v.d <= to) installs[v.d] = (installs[v.d] || 0) + 1;
+    res.json({ from, to, start: AI_REPORT_START, target: AI_INSTALL_TARGET, installs, total_installed: inst.size, rows: out });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -13172,7 +13180,7 @@ app.get('/api/ai-impact', authRequired, async (request, res) => {
       s.install_day = m.d; s.manual = true; s.manual_note = m.note || null; s.manual_by = m.created_by || null;
     }
     const ai = [...stores.values()].filter(s => !s.excluded);
-    const base = { mode, pre, today, keywords: AI_INSTALL_KEYWORDS, since: AI_INSTALL_SINCE, auto_detect: autoDetect };
+    const base = { mode, pre, today, keywords: AI_INSTALL_KEYWORDS, since: AI_INSTALL_SINCE, auto_detect: autoDetect, target: AI_INSTALL_TARGET };
     if (!ai.length) return res.json({ ...base, stores: [...stores.values()], labels: [], empty: true });
 
     // ── เคสของร้านที่ติดตั้ง: Bug โปรแกรม (เคสที่ติด Tag กลุ่ม Bug) หรือทุกเคส · Tag ของเคสไว้แยกเส้นในกราฟ
