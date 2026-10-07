@@ -505,6 +505,7 @@ textarea{resize:vertical;min-height:80px}
 .mt-tbl tr.aim-branch td:first-child{padding-left:2.2rem;color:#4d535b}
 .mt-tbl tr.aim-sub-head td{font-size:.72rem;color:var(--muted);font-weight:600;padding-top:.6rem;padding-bottom:.3rem}
 .aim-src{display:inline-block;padding:0 .4rem;border-radius:999px;background:#eaf1fb;color:#2a5f9e;font-weight:600}
+.aim-src.ok{background:#eaf4ee;color:#2f6b4f}
 .aim-pick{display:flex;align-items:center;gap:.4rem;padding:.5rem .7rem;border:1px solid var(--primary);border-radius:10px;background:var(--primary-soft);margin-bottom:.4rem;font-size:.85rem}
 .aim-list{max-height:220px;overflow:auto;margin-top:.3rem}
 .aim-opt{display:flex;align-items:center;gap:.4rem;width:100%;text-align:left;border:none;background:none;padding:.45rem .5rem;border-radius:8px;cursor:pointer;font-family:inherit;font-size:.82rem;color:var(--text)}
@@ -1681,6 +1682,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
       <div class="svc-seg mt-seg-sm" id="aim-pre" role="tablist" aria-label="ช่วงก่อนติดตั้ง"></div>
       <span style="flex:1"></span>
       <span id="aim-updated" class="mt-updated" style="margin-left:0"></span>
+      <button class="svc-btn-ghost" onclick="aimOpenPending()" style="height:34px" title="เคสติดตั้ง AI ที่ยังไม่ได้ยืนยัน"><i class=i-check></i> รอยืนยัน <span id="aim-pend-badge" class="mt-tab-count" style="display:none"></span></button>
       <button class="svc-btn-ghost" onclick="aimOpenImport()" style="height:34px"><i class=i-upload></i> นำเข้า</button>
       <button class="svc-btn-primary" onclick="aimOpenAdd()" style="height:34px"><i class=i-plus></i> เพิ่มร้านที่ติดตั้ง</button>
       <button class="svc-btn-ghost" onclick="_aimView === 'report' ? aimRepLoad() : aimLoad()" style="height:34px" title="รีเฟรช"><i class=i-refresh></i></button>
@@ -2651,6 +2653,25 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
     <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:.5rem">
       <button class="svc-btn-ghost" onclick="closeModal('modal-aim-store')">ยกเลิก</button>
       <button class="svc-btn-primary" id="aim-a-save" onclick="aimSaveStore()"><i class=i-save></i> บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- ผลการติดตั้ง AI: เคสติดตั้งที่รอยืนยัน -->
+<div class="overlay" id="modal-aim-pending">
+  <div class="modal mt-form" style="max-width:980px;width:96vw;padding:0;max-height:92vh;display:flex;flex-direction:column;overflow:hidden">
+    <div class="modal-head" style="padding:1.1rem 1.25rem .85rem;margin:0">
+      <div style="min-width:0">
+        <div style="font-size:1.08rem;font-weight:600">เคสติดตั้ง AI ที่รอยืนยัน</div>
+        <div class="mt-meta" id="aim-pend-sub">ตรวจกับน้อง Support ว่าติดตั้งจริงแล้วกดยืนยัน — วันติดตั้ง = วันของเคส · ผู้ติดตั้ง = คนลงเคส</div>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-aim-pending')">×</button>
+    </div>
+    <div id="aim-pend-body" class="cc-body" style="padding-top:.3rem"></div>
+    <div class="cc-foot">
+      <label class="mt-meta" style="display:inline-flex;align-items:center;gap:.35rem;margin-right:auto"><input type="checkbox" id="aim-pend-all" style="width:auto" onchange="aimPendSelectAll(this.checked)"/> เลือกทั้งหมด · <span id="aim-pend-sel">0</span> รายการ</label>
+      <button class="svc-btn-ghost" onclick="aimPendDecide('reject')"><i class=i-trash></i> ไม่ใช่การติดตั้ง</button>
+      <button class="svc-btn-primary" onclick="aimPendDecide('confirm')"><i class=i-check></i> ยืนยันติดตั้งจริง</button>
     </div>
   </div>
 </div>
@@ -20114,7 +20135,7 @@ function switchDashTab(tab) {
   document.getElementById('dash-tab-btn-5').classList.toggle('active', tab === 5);
   if (tab === 2) loadIssueAnalytics();
   if (tab === 4) mtLoad();
-  if (tab === 5) { aimApplyView(); if (_aimView === 'report') aimRepLoad(); else aimLoad(); }
+  if (tab === 5) { aimApplyView(); if (_aimView === 'report') aimRepLoad(); else aimLoad(); aimPendBadge(); }
 }
 
 async function loadIssueAnalytics() {
@@ -21460,10 +21481,8 @@ function aimRender() {
   const d = _aim.data, body = document.getElementById('aim-body');
   if (!d) return;
   const fd = x => x ? fmtDateShort(x + 'T00:00:00') : '—';
-  document.getElementById('aim-hint').innerHTML = `ร้านที่ติดตั้ง = ${d.auto_detect
-      ? `ร้านที่มีเคสคำว่า <b>${d.keywords.map(esc).join(' / ')}</b> ตั้งแต่ ${fd(d.since)} + ร้านที่เพิ่มเอง`
-      : '<b>เฉพาะร้านที่เพิ่มเอง / นำเข้า</b> (ปิดการหาจากเคสอยู่)'}
-    <label class="aim-auto"><input type="checkbox" ${d.auto_detect ? 'checked' : ''} onchange="aimSetAutoDetect(this.checked)"/> หาร้านจากเคสอัตโนมัติ</label>
+  document.getElementById('aim-hint').innerHTML = `ร้านที่ติดตั้ง = <b>เฉพาะร้านที่ Support ยืนยันแล้ว</b> (ยืนยันจากเคสติดตั้ง / เพิ่มเอง / นำเข้า)
+    · เคสที่มีคำว่า ${d.keywords.map(esc).join(' / ')} ต้องกด <b>ยืนยัน</b> ใน “รอยืนยัน” ก่อนจึงจะนับ
     · เทียบ <b>${d.pre} วันก่อนติดตั้ง</b> กับ<b>หลังติดตั้งถึงเมื่อวาน</b> ของแต่ละร้าน (ไม่นับวันติดตั้งและวันนี้ · ไม่นับเคสติดตั้งเอง)`;
   if (d.empty) {
     document.getElementById('aim-kpis').innerHTML = '';
@@ -21664,7 +21683,7 @@ function aimRepBar() {
     <button class="svc-btn-ghost" onclick="aimRepExport()" style="height:34px"><i class=i-download></i> Export CSV</button>
   </div>
   <div class="mt-meta" style="margin:-.3rem 0 .75rem;line-height:1.55"><b>เริ่มนับ ${fmtDateShort(_aimRep.start + 'T00:00:00')}</b> · นับต่อ <b>ร้าน × วัน × พนักงาน</b> (ร้านเดียวกันแจ้งหลายเคสในวันเดียว = 1)
-    · <b>ลงไปแล้ว</b> = น้องแจ้งติดตั้งเอง (ลงเคส "ติดตั้ง ai / SSH" หรือกดเพิ่มร้านที่ตัวเองรับเคส) · <b>ติดตั้งแล้ว</b> = ร้านที่รับเคสมี AI แล้ว · <b>ยังไม่ติดตั้ง</b> = ณ วันนั้นร้านยังไม่มี AI (SSH)</div>`;
+    · <b>ลงไปแล้ว</b> = การติดตั้งที่ยืนยันแล้ว (เคสติดตั้งที่กดยืนยัน หรือน้องกดเพิ่มร้านที่ตัวเองรับเคส) · <b>ติดตั้งแล้ว</b> = ร้านที่รับเคสมี AI แล้ว · <b>ยังไม่ติดตั้ง</b> = ณ วันนั้นร้านยังไม่มี AI (SSH)</div>`;
 }
 function aimRepAgg(rows) {
   const by = new Map();
@@ -21834,17 +21853,18 @@ function aimRenderStores() {
     const n = nums(s.pre, s.pre_days, s.post, s.post_days);
     return `<tr class="${branch ? 'aim-branch ' : ''}${s.counted ? '' : 'aim-off'}">
       <td>${esc(s.company || '—')}${branch ? '' : '<span class="sub">ร้าน</span>'}</td>
-      <td class="num">${fd(s.install_day)}${s.manual
-        ? `<span class="sub" title="${esc(s.manual_note || '')}"><span class="aim-src">เพิ่มเอง</span>${s.manual_by ? ' ' + esc(dn(s.manual_by) || s.manual_by) : ''}${s.detected_day ? ` · จากเคส ${fd(s.detected_day)}` : ''}</span>`
-        : `<span class="sub" title="${esc(s.install_desc || '')}">เคส #${s.install_case}${s.install_cases > 1 ? ` · +${s.install_cases - 1}` : ''}</span>`}</td>
+      <td class="num">${fd(s.install_day)}${s.confirmed
+        ? `<span class="sub" title="${esc(s.manual_note || '')}"><span class="aim-src ok">ยืนยันจากเคส</span> #${s.install_case}${s.installer ? ' · ' + esc(dn(s.installer) || s.installer) : ''}</span>`
+        : s.manual
+        ? `<span class="sub" title="${esc(s.manual_note || '')}"><span class="aim-src">${String(s.manual_by || '').startsWith('import:') ? 'นำเข้า' : 'เพิ่มเอง'}</span>${s.manual_by && !String(s.manual_by).startsWith('import:') ? ' ' + esc(dn(s.manual_by) || s.manual_by) : ''}</span>`
+        : `<span class="sub" title="${esc(s.install_desc || '')}">เคส #${s.install_case}</span>`}</td>
       ${n.html}
       <td>${why ? `<span class="mt-meta">${why}</span>` : aimPill(aimPct(n.a, n.b))}</td>
       <td class="r" style="white-space:nowrap">
         <button class="mt-mini" onclick="aimOpenAdd(${s.rid})" title="แก้วันที่ติดตั้ง"><i class=i-pencil></i> แก้วัน</button>
-        ${s.manual && !s.install_case
-          ? `<button class="mt-mini" onclick="aimRemoveManual(${s.rid})" title="ลบร้านที่เพิ่มเอง"><i class=i-trash></i> ลบ</button>`
-          : `<button class="mt-mini" onclick="aimExclude(${s.rid},${!s.excluded})">${s.excluded ? 'นับกลับ' : 'ไม่นับ'}</button>`}
-        ${s.manual && s.install_case ? `<button class="mt-mini" onclick="aimRemoveManual(${s.rid})" title="กลับไปใช้วันจากเคส">ใช้วันจากเคส</button>` : ''}</td></tr>`;
+        ${s.manual
+          ? `<button class="mt-mini" onclick="aimRemoveManual(${s.rid})" title="เอาร้านนี้ออกจากรายชื่อร้านที่ติดตั้ง"><i class=i-trash></i> ลบ</button>`
+          : `<button class="mt-mini" onclick="aimExclude(${s.rid},${!s.excluded})">${s.excluded ? 'นับกลับ' : 'ไม่นับ'}</button>`}</td></tr>`;
   };
   // สาขาของแบรนด์เดียวกัน (License Group) รวมเป็นแถวเดียว · ร้านเดี่ยว / ร้านในกลุ่ม INF แสดงชื่อร้านเหมือนเดิม
   const groups = new Map();
@@ -21958,6 +21978,63 @@ async function aimClearAll() {
   showToast(`ล้างรายการแล้ว (ลบ ${d.removed} ร้านที่เพิ่มเอง) — นำเข้าใหม่ได้เลย`);
   aimLoad();
 }
+// ── เคสติดตั้ง AI ที่รอยืนยัน (มีคำค้นแต่ร้านยังไม่อยู่ในรายชื่อที่ยืนยันแล้ว)
+let _aimPend = { rows: [], sel: new Set() };
+async function aimPendBadge() {
+  const d = await api('/api/ai-impact/pending', { silent: true });
+  if (!d || d.error) return null;
+  _aimPend.rows = d.rows || [];
+  const b = document.getElementById('aim-pend-badge');
+  if (b) { b.textContent = _aimPend.rows.length; b.style.display = _aimPend.rows.length ? '' : 'none'; }
+  return d;
+}
+async function aimOpenPending() {
+  _aimPend.sel = new Set();
+  document.getElementById('aim-pend-body').innerHTML = '<div class="mt-meta" style="padding:1rem 0">กำลังโหลด...</div>';
+  openModal('modal-aim-pending');
+  const d = await aimPendBadge();
+  if (!d) { document.getElementById('aim-pend-body').innerHTML = '<div class="mt-empty">โหลดไม่สำเร็จ (ถ้าเพิ่งอัปเดตโค้ด ให้รีสตาร์ท server ก่อน)</div>'; return; }
+  aimPendRender();
+}
+function aimPendRender() {
+  const fd = x => x ? fmtDateShort(x + 'T00:00:00') : '—';
+  const rows = _aimPend.rows, body = document.getElementById('aim-pend-body');
+  document.getElementById('aim-pend-sel').textContent = _aimPend.sel.size;
+  document.getElementById('aim-pend-all').checked = rows.length > 0 && _aimPend.sel.size === rows.length;
+  if (!rows.length) { body.innerHTML = '<div class="mt-empty"><i class=i-check></i> ไม่มีเคสติดตั้งที่รอยืนยัน</div>'; return; }
+  body.innerHTML = rows.map(x => { const on = _aimPend.sel.has(x.rid);
+    return `<div class="mt-sg-item${on ? ' on' : ''}" onclick="aimPendToggle(${x.rid})">
+      <input type="checkbox" ${on ? 'checked' : ''} onclick="event.stopPropagation();aimPendToggle(${x.rid})"/>
+      <div class="b">
+        <div class="mt-meta">${fd(x.d)} · <b>${esc(dn(x.agent) || x.agent || '—')}</b> · เคส #${x.cid}${x.cases > 1 ? ` (+${x.cases - 1} เคส)` : ''}</div>
+        <div class="d"><b>${esc(x.company || '—')}</b>${x.grp ? ` <span class="mt-meta">· ${esc(x.grp)}</span>` : ''}</div>
+        <div class="why">${esc((x.descr || '').replace(/\s+/g, ' '))}${(x.solution || '').trim() ? ` · แก้ไข: ${esc(x.solution.replace(/\s+/g, ' '))}` : ''}</div>
+      </div>
+      <div class="act" onclick="event.stopPropagation()">
+        <button class="mt-mini" onclick="aimPendDecide('confirm',[${x.rid}])" title="ร้านนี้ติดตั้ง AI จริง"><i class=i-check></i> ยืนยัน</button>
+        <button class="mt-mini" onclick="aimPendDecide('reject',[${x.rid}])" title="ไม่ใช่การติดตั้ง AI"><i class=i-trash></i> ไม่ใช่</button>
+      </div>
+    </div>`; }).join('');
+}
+function aimPendToggle(rid) { _aimPend.sel.has(rid) ? _aimPend.sel.delete(rid) : _aimPend.sel.add(rid); aimPendRender(); }
+function aimPendSelectAll(on) { _aimPend.sel = new Set(on ? _aimPend.rows.map(x => x.rid) : []); aimPendRender(); }
+async function aimPendDecide(action, rids) {
+  rids = rids || [..._aimPend.sel];
+  if (!rids.length) { showToast('ยังไม่ได้เลือกรายการ', 'error'); return; }
+  const rows = _aimPend.rows.filter(x => rids.includes(x.rid));
+  // ยืนยัน = ใช้เคสแรกของร้าน · ไม่ใช่ = ซ่อนเคสคำค้นทุกเคสของร้านนั้น
+  const cids = action === 'confirm' ? rows.map(x => x.cid) : rows.flatMap(x => x.cids || [x.cid]);
+  if (action === 'reject' && !confirm(`ยืนยันว่า ${rows.length} ร้านนี้ไม่ใช่การติดตั้ง AI ?`)) return;
+  const d = await api('/api/ai-impact/pending/decide', { method: 'POST', silent: true, body: { cids, action } });
+  if (!d || d.error) { showToast(d?.error || 'บันทึกไม่สำเร็จ', 'error'); return; }
+  showToast(action === 'confirm' ? `ยืนยันติดตั้งแล้ว ${rows.length} ร้าน — คำนวณใหม่` : `ตัดออก ${rows.length} ร้าน`);
+  _aimPend.rows = _aimPend.rows.filter(x => !rids.includes(x.rid));
+  rids.forEach(r => _aimPend.sel.delete(r));
+  aimPendRender();
+  const b = document.getElementById('aim-pend-badge');
+  if (b) { b.textContent = _aimPend.rows.length; b.style.display = _aimPend.rows.length ? '' : 'none'; }
+  if (action === 'confirm') { _aiInst.at = 0; if (_aimView === 'report') aimRepLoad(); else aimLoad(); }
+}
 async function aimSetAutoDetect(on) {
   const d = await api('/api/ai-impact/auto-detect', { method: 'PUT', silent: true, body: { on } });
   if (!d || d.error) { showToast(d?.error || 'บันทึกไม่สำเร็จ', 'error'); aimRender(); return; }
@@ -21966,7 +22043,7 @@ async function aimSetAutoDetect(on) {
 }
 async function aimRemoveManual(rid) {
   const s = _aim.data?.stores.find(x => x.rid === rid);
-  if (!confirm(s?.install_case ? `กลับไปใช้วันติดตั้งจากเคส #${s.install_case} ?` : `ลบ “${s?.company || ''}” ออกจากร้านที่ติดตั้ง AI ?`)) return;
+  if (!confirm(`ลบ “${s?.company || ''}” ออกจากร้านที่ติดตั้ง AI ?${s?.confirmed ? '\n(เคสติดตั้งจะกลับไปอยู่ใน “รอยืนยัน”)' : ''}`)) return;
   const d = await api(`/api/ai-impact/stores/${rid}`, { method: 'DELETE', silent: true });
   if (!d || d.error) { showToast(d?.error || 'ลบไม่สำเร็จ', 'error'); return; }
   showToast('บันทึกแล้ว — คำนวณใหม่');

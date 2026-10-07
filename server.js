@@ -13034,10 +13034,9 @@ const AI_INSTALL_KEYWORDS = (process.env.AI_INSTALL_KEYWORDS || 'ssh,dataslot,tu
 const AI_INSTALL_SINCE = /^\d{4}-\d{2}-\d{2}$/.test(process.env.AI_INSTALL_SINCE || '') ? process.env.AI_INSTALL_SINCE : '2026-06-01';
 const AI_PRE_DAYS = [14, 30, 60];
 
-async function aiImpactAutoDetect() {
-  const v = (await req().query(`SELECT v FROM ai_impact_settings WHERE k='auto_detect'`)).recordset[0]?.v;
-  return v !== 'off';
-}
+// ร้านที่ติดตั้ง AI = เฉพาะร้านที่ Support ยืนยันแล้ว (ai_impact_manual: เพิ่มเอง / นำเข้า / กดยืนยันจากเคส)
+// เคสที่มีคำค้น (ติดตั้ง ai / SSH ฯลฯ) ไม่นับเองอัตโนมัติ — ขึ้นเป็น "รอยืนยัน" ให้คนกดยืนยันก่อน
+async function aiImpactAutoDetect() { return false; }
 async function ensureAiImpactTables() {
   try {
     await req().query(`
@@ -13057,7 +13056,18 @@ async function ensureAiImpactTables() {
         created_by  NVARCHAR(100) NULL,
         created_at  DATETIME      DEFAULT GETDATE()
       )`);
-    // ค่าตั้งค่าของแท็บ — auto_detect: 'off' = ไม่หาร้านจากเคสคำค้น ใช้เฉพาะร้านที่เพิ่มเอง/นำเข้า
+    await req().query(`
+      IF COL_LENGTH('ai_impact_manual','case_id') IS NULL ALTER TABLE ai_impact_manual ADD case_id INT NULL;
+      IF COL_LENGTH('ai_impact_manual','installer') IS NULL ALTER TABLE ai_impact_manual ADD installer NVARCHAR(100) NULL;`);
+    // เคสคำค้นที่กด "ไม่ใช่การติดตั้ง" — ไม่ขึ้นในรายการรอยืนยันอีก
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ai_impact_rejects' AND xtype='U')
+      CREATE TABLE ai_impact_rejects (
+        cid         INT           PRIMARY KEY,
+        created_by  NVARCHAR(100) NULL,
+        created_at  DATETIME      DEFAULT GETDATE()
+      )`);
+    // ค่าตั้งค่าของแท็บ
     await req().query(`
       IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ai_impact_settings' AND xtype='U')
       CREATE TABLE ai_impact_settings (
@@ -13139,7 +13149,7 @@ app.get('/api/ai-impact/agent-report', authRequired, async (request, res) => {
     for (const v of inst.values()) if (v.d >= from && v.d <= to) installs[v.d] = (installs[v.d] || 0) + 1;
 
     // ── การแจ้งติดตั้งจริง (ใช้นับ "ลงไปแล้ว" ของแต่ละคน)
-    //    1) เคสติดตั้งที่น้องลงเอง (มีคำค้น SSH / Dataslot / ติดตั้ง ai) → คนที่ลงเคส
+    //    1) เคสติดตั้งที่ยืนยันแล้ว (กด "ยืนยันติดตั้งจริง" จากรายการรอยืนยัน) → คนที่ลงเคส
     //    2) ร้านที่น้องกด "เพิ่มร้านที่ติดตั้ง" เอง → คนที่กด เฉพาะเมื่อคนนั้นรับเคสของร้านนั้นในวันนั้นด้วย
     //       (หัวหน้ากดเพิ่มแทนไม่นับเป็นของหัวหน้า) · ร้านที่นำเข้าจากไฟล์ไม่นับให้ใคร
     const reported = new Map();   // `${d}|${agent}|${rid}` → แถว
@@ -13164,13 +13174,21 @@ app.get('/api/ai-impact/agent-report', authRequired, async (request, res) => {
           if (!reported.has(key)) reported.set(key, { d: x.d, agent: x.agent || '(ไม่ระบุ)', rid: x.rid, company: x.company, grp: x.grp, src: 'case', cid: x.cid });
         });
     }
-    const man = (await req().input('f', sql.NVarChar, from).input('t', sql.NVarChar, to).query(`
-      SELECT m.rid, CONVERT(char(10), m.install_day, 23) AS d, m.created_by, au.ext_username
+    const manAll = (await req().input('f', sql.NVarChar, from).input('t', sql.NVarChar, to).query(`
+      SELECT m.rid, CONVERT(char(10), m.install_day, 23) AS d, m.created_by, m.case_id, m.installer, au.ext_username
       FROM ai_impact_manual m LEFT JOIN app_users au ON au.username = m.created_by
       WHERE m.install_day BETWEEN CAST(@f AS DATE) AND CAST(@t AS DATE) AND ISNULL(m.created_by, '') NOT LIKE 'import:%'`)).recordset
-      .filter(x => x.ext_username && !excluded.has(x.rid));
+      .filter(x => !excluded.has(x.rid));
+    const confirmedCase = manAll.filter(x => x.case_id && x.installer);
+    const man = manAll.filter(x => !(x.case_id && x.installer) && x.ext_username);
     // ชื่อพนักงานในเคส (ตัวพิมพ์ตาม Calllog) ของคนที่รับเคสร้านนั้นในวันนั้น
     const handled = new Map(out.map(x => [`${x.d}|${String(x.agent).toLowerCase()}|${x.rid}`, x.agent]));
+    const nameOf = new Map(out.map(x => [x.rid, x]));
+    for (const x of confirmedCase) {
+      const key = `${x.d}|${x.installer}|${x.rid}`;
+      if (!reported.has(key)) reported.set(key, { d: x.d, agent: x.installer, rid: x.rid, company: nameOf.get(x.rid)?.company || `#${x.rid}`,
+        grp: nameOf.get(x.rid)?.grp || null, src: 'case', cid: x.case_id });
+    }
     if (man.length) {
       const info = new Map((await extReq().query(`
         SELECT cr.RegistrationId AS rid, cr.CompanyName AS company, CASE WHEN cr.GroupId IS NOT NULL AND cr.GroupId <> 1 THEN cg.GroupName END AS grp
@@ -13223,7 +13241,7 @@ app.get('/api/ai-impact', authRequired, async (request, res) => {
         install_cases: 1, excluded: excluded.has(x.rid) });
     }
     // ร้านที่เพิ่มเอง: ใช้วันติดตั้งที่ระบุ (ถ้าระบบหาเจอด้วย = แก้วันติดตั้ง)
-    const manual = (await req().query(`SELECT rid, CONVERT(char(10), install_day, 23) AS d, note, created_by FROM ai_impact_manual`)).recordset;
+    const manual = (await req().query(`SELECT rid, CONVERT(char(10), install_day, 23) AS d, note, created_by, case_id, installer FROM ai_impact_manual`)).recordset;
     const newRids = manual.map(m => +m.rid).filter(x => Number.isInteger(x) && !stores.has(x));
     const info = new Map(newRids.length ? (await extReq().query(`
       SELECT cr.RegistrationId AS rid, cr.CompanyName AS company, CASE WHEN cr.GroupId IS NOT NULL AND cr.GroupId <> 1 THEN cg.GroupName END AS grp
@@ -13234,6 +13252,7 @@ app.get('/api/ai-impact', authRequired, async (request, res) => {
         install_case: null, install_desc: null, install_cases: 0, excluded: excluded.has(m.rid) }).get(m.rid);
       if (s.install_day && s.install_day !== m.d) s.detected_day = s.install_day;
       s.install_day = m.d; s.manual = true; s.manual_note = m.note || null; s.manual_by = m.created_by || null;
+      if (m.case_id) { s.install_case = m.case_id; s.install_cases = Math.max(1, s.install_cases || 0); s.confirmed = true; s.installer = m.installer || null; }
     }
     const ai = [...stores.values()].filter(s => !s.excluded);
     const base = { mode, pre, today, keywords: AI_INSTALL_KEYWORDS, since: AI_INSTALL_SINCE, auto_detect: autoDetect, target: AI_INSTALL_TARGET };
@@ -13415,6 +13434,72 @@ app.get('/api/ai-impact/cases', authRequired, async (request, res) => {
     }
     rows.sort((a, b) => (b.opened_at > a.opened_at ? 1 : -1));
     res.json({ rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/ai-impact/pending — เคสที่มีคำค้นติดตั้ง AI ของร้านที่ยังไม่ได้ยืนยัน (1 แถวต่อร้าน = เคสแรก)
+app.get('/api/ai-impact/pending', authRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
+    const confirmed = new Set((await req().query('SELECT rid FROM ai_impact_manual')).recordset.map(x => x.rid));
+    const excluded = new Set((await req().query('SELECT rid FROM ai_impact_excludes')).recordset.map(x => x.rid));
+    const rejected = new Set((await req().query('SELECT cid FROM ai_impact_rejects')).recordset.map(x => x.cid));
+    const r = extReq().input('since', sql.NVarChar, AI_INSTALL_SINCE);
+    AI_INSTALL_KEYWORDS.forEach((k, i) => r.input('k' + i, sql.NVarChar, '%' + k.replace(/[!%_[]/g, '!$&') + '%'));
+    const txt = `(CAST(cl.CalllogDesc AS NVARCHAR(MAX)) + N' ' + ISNULL(CAST(cl.Solution AS NVARCHAR(MAX)), N'') + N' ' + ISNULL(cl.Subject, N''))`;
+    const rows = (await r.query(`
+      SELECT cl.CalllogId AS cid, CONVERT(char(10), cl.ReceiveDate, 23) AS d, cl.ReceiveDate AS at, cl.RegistrationId AS rid,
+             u.UserName AS agent, cr.CompanyName AS company, CASE WHEN cr.GroupId IS NOT NULL AND cr.GroupId <> 1 THEN cg.GroupName END AS grp,
+             LEFT(CAST(cl.CalllogDesc AS NVARCHAR(MAX)), 200) AS descr, LEFT(CAST(cl.Solution AS NVARCHAR(MAX)), 200) AS solution
+      FROM Calllog cl
+      LEFT JOIN Users                u  ON u.UserId          = cl.SupportId
+      LEFT JOIN CustomerRegistration cr ON cr.RegistrationId = cl.RegistrationId
+      LEFT JOIN CustomerGroup        cg ON cg.GroupId        = cr.GroupId
+      WHERE cl.Active=1 AND cl.RegistrationId IS NOT NULL AND cl.ReceiveDate >= CAST(@since AS DATE)
+        AND (${AI_INSTALL_KEYWORDS.map((_, i) => `${txt} LIKE @k${i} ESCAPE '!'`).join(' OR ')})
+      ORDER BY cl.ReceiveDate`)).recordset;
+    const byStore = new Map();
+    for (const x of rows) {
+      if (confirmed.has(x.rid) || excluded.has(x.rid) || rejected.has(x.cid)) continue;
+      const s = byStore.get(x.rid);
+      if (s) { s.cases++; s.cids.push(x.cid); continue; }
+      byStore.set(x.rid, { ...x, cases: 1, cids: [x.cid] });
+    }
+    res.json({ keywords: AI_INSTALL_KEYWORDS, since: AI_INSTALL_SINCE,
+      rows: [...byStore.values()].sort((a, b) => b.d.localeCompare(a.d) || a.cid - b.cid) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/ai-impact/pending/decide {cids:[...], action:'confirm'|'reject'}
+//   confirm = ยืนยันติดตั้งจริง → บันทึกร้าน (วันติดตั้ง = วันของเคส, ผู้ติดตั้ง = คนลงเคส)
+//   reject  = ไม่ใช่การติดตั้ง → เคสคำค้นทั้งหมดของร้านนั้นไม่ขึ้นในรายการรอยืนยันอีก
+app.post('/api/ai-impact/pending/decide', authRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
+    const cids = (Array.isArray(request.body?.cids) ? request.body.cids : []).map(Number).filter(Number.isInteger).slice(0, 500);
+    const action = request.body?.action === 'reject' ? 'reject' : 'confirm';
+    if (!cids.length) return res.status(400).json({ error: 'ยังไม่ได้เลือกรายการ' });
+    const cases = (await extReq().query(`
+      SELECT cl.CalllogId AS cid, cl.RegistrationId AS rid, CONVERT(char(10), cl.ReceiveDate, 23) AS d, u.UserName AS agent
+      FROM Calllog cl LEFT JOIN Users u ON u.UserId = cl.SupportId
+      WHERE cl.CalllogId IN (${cids.join(',')}) AND cl.RegistrationId IS NOT NULL`)).recordset;
+    const by = request.user?.username || null;
+    let done = 0;
+    for (const c of cases) {
+      const q = req().input('rid', sql.Int, c.rid).input('cid', sql.Int, c.cid).input('d', sql.NVarChar, c.d)
+        .input('ag', sql.NVarChar, c.agent || null).input('by', sql.NVarChar, by)
+        .input('nt', sql.NVarChar, `ยืนยันจากเคส #${c.cid}${c.agent ? ' · ลงโดย ' + c.agent : ''}`);
+      if (action === 'confirm') {
+        await q.query(`
+          IF NOT EXISTS (SELECT 1 FROM ai_impact_manual WHERE rid=@rid)
+            INSERT INTO ai_impact_manual (rid, install_day, note, created_by, case_id, installer) VALUES (@rid, CAST(@d AS DATE), @nt, @by, @cid, @ag);
+          DELETE FROM ai_impact_excludes WHERE rid=@rid;`);
+      } else {
+        await q.query(`IF NOT EXISTS (SELECT 1 FROM ai_impact_rejects WHERE cid=@cid) INSERT INTO ai_impact_rejects (cid, created_by) VALUES (@cid, @by);`);
+      }
+      done++;
+    }
+    res.json({ ok: true, done, action });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
