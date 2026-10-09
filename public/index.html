@@ -4142,6 +4142,9 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
       <option value="normal">ปกติ</option>
       <option value="low">ต่ำ</option>
     </select>
+    <select id="swu-filter-group" class="svc-select" onchange="renderSwUpdate()" aria-label="กลุ่ม License">
+      <option value="">ทุกกลุ่ม License</option>
+    </select>
     <button class="svc-icon-btn" onclick="loadSwUpdate()" title="โหลดใหม่" aria-label="โหลดใหม่"><i class=i-refresh></i></button>
   </div>
 
@@ -21750,7 +21753,7 @@ function aimRepRender() {
         todayAg.length ? `แจ้งติดตั้งวันนี้รวม ${todayAg.reduce((s, a) => s + a.n, 0)} ร้าน${best?.n ? ` · สูงสุด ${nm(best.agent)} ${best.n} ร้าน` : ''}` : 'ยังไม่มีเคสวันนี้',
         todayAg.length && hitToday === todayAg.length ? 'green' : 'orange')}
       ${k('ร้านที่รับเคส', total.toLocaleString(), `${fd(d.from)} – ${fd(d.to)} · ${agents.length} คน`, 'blue')}
-      ${k('<i class=i-check></i> ติดตั้งแล้ว', (inst + today).toLocaleString(), `${pct(inst + today, total)} ของร้านที่รับเคสมี AI แล้ว`, 'green')}
+      ${k('<i class=i-check></i> ติดตั้งแล้ว', (inst + today).toLocaleString(), `<b style="color:#0f766e">ใหม่ ${today.toLocaleString()}</b> <span title="ติดตั้งในวันเดียวกับที่รับเคส">(ติดตั้งวันที่รับเคส)</span> · มีอยู่เดิม ${inst.toLocaleString()}<br>${pct(inst + today, total)} ของร้านที่รับเคสมี AI แล้ว`, 'green')}
       ${k('ยังไม่ติดตั้ง', miss.toLocaleString(), `${pct(miss, total)} · โอกาสติดตั้งเพิ่ม`, 'white')}
     </div>
     <div class="mt-tbl-wrap">
@@ -24323,6 +24326,8 @@ const SWU_TAB_TEST = {
   done:      r => r.status === 'done',
 };
 function swuSetTab(tab) { _swuTab = tab; renderSwUpdate(); }
+const SWU_NO_GROUP = '__none__';   // key ของร้านที่ไม่มีกลุ่ม License
+const _swuCollapsed = new Set();     // กลุ่ม License ที่ย่อไว้
 let _swuUsers = [];
 
 async function loadSwUpdate() {
@@ -24356,21 +24361,40 @@ function renderSwUpdate() {
   set('swu-stat-done',      all.filter(SWU_TAB_TEST.done).length);
   document.querySelectorAll('#swu-tabs .svc-tab').forEach(t => t.classList.toggle('on', (t.dataset.tab || '') === _swuTab));
 
+  // ตัวเลือกกลุ่ม License — สร้างจากข้อมูลที่โหลดมา, คงค่าที่เลือกไว้
+  const grpSel = document.getElementById('swu-filter-group');
+  const grpVal = grpSel?.value || '';
+  if (grpSel) {
+    const counts = {};
+    all.forEach(r => { const g = r.license_group || SWU_NO_GROUP; counts[g] = (counts[g] || 0) + 1; });
+    const names = Object.keys(counts).filter(g => g !== SWU_NO_GROUP).sort((a, b) => a.localeCompare(b, 'th'));
+    if (counts[SWU_NO_GROUP]) names.push(SWU_NO_GROUP);
+    grpSel.innerHTML = '<option value="">ทุกกลุ่ม License</option>' +
+      names.map(g => `<option value="${escHtml(g)}">${escHtml(g === SWU_NO_GROUP ? 'ร้านเดี่ยว (ไม่มีกลุ่ม)' : g)} (${counts[g]})</option>`).join('');
+    grpSel.value = names.includes(grpVal) ? grpVal : '';
+  }
+  const grpFilter = grpSel?.value || '';
+
   const tbody = document.getElementById('swu-tbody');
   if (!tbody) return;
-  const list = SWU_TAB_TEST[_swuTab] ? all.filter(SWU_TAB_TEST[_swuTab]) : all;
+  let list = SWU_TAB_TEST[_swuTab] ? all.filter(SWU_TAB_TEST[_swuTab]) : all;
+  if (grpFilter) list = list.filter(r => (r.license_group || SWU_NO_GROUP) === grpFilter);
   if (!list.length) {
     tbody.innerHTML = `<tr style="cursor:default"><td colspan="9" style="text-align:center;color:var(--muted);padding:3.5rem 1rem">${all.length ? 'ไม่มีงานในแท็บนี้' : 'ไม่พบข้อมูล'}</td></tr>`;
     return;
   }
-  // Group by company_name
-  const groups = [];
-  const groupMap = {};
+  // Group by license group → company_name (ร้านที่ไม่มีกลุ่มไว้ท้ายสุด)
+  const licMap = new Map();
   list.forEach(r => {
+    const lg = r.license_group || SWU_NO_GROUP;
+    if (!licMap.has(lg)) licMap.set(lg, new Map());
+    const shops = licMap.get(lg);
     const key = r.company_name || '—';
-    if (!groupMap[key]) { groupMap[key] = []; groups.push(key); }
-    groupMap[key].push(r);
+    if (!shops.has(key)) shops.set(key, []);
+    shops.get(key).push(r);
   });
+  const licOrder = [...licMap.keys()].sort((a, b) =>
+    (a === SWU_NO_GROUP) - (b === SWU_NO_GROUP) || a.localeCompare(b, 'th'));
 
   const swuAzureCell = (azure_id) => {
     if (!azure_id) return '<span style="color:#b9bcc2">—</span>';
@@ -24383,8 +24407,7 @@ function renderSwUpdate() {
   };
   const fmtD = v => v ? new Date(v).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}) : '<span style="color:#b9bcc2">—</span>';
 
-  tbody.innerHTML = groups.map(shopName => {
-    const rows = groupMap[shopName];
+  const shopBlock = (shopName, rows) => {
     const pendingCount = rows.filter(r => !['done','cancelled'].includes(r.status)).length;
     const aiDay = rows.map(r => _aiInst.map[r.registration_id]).find(Boolean);   // ร้านนี้ติดตั้ง AI (SSH) แล้ว
     const header = `<tr style="cursor:default">
@@ -24420,7 +24443,30 @@ function renderSwUpdate() {
       </tr>`;
     }).join('');
     return header + dataRows;
+  };
+
+  tbody.innerHTML = licOrder.map(lg => {
+    const shops = licMap.get(lg);
+    const jobs = [...shops.values()].flat();
+    const open = jobs.filter(r => !['done','cancelled'].includes(r.status)).length;
+    const collapsed = _swuCollapsed.has(lg);
+    const label = lg === SWU_NO_GROUP ? 'ร้านเดี่ยว (ไม่มีกลุ่ม License)' : lg;
+    const head = `<tr class="swu-lic-row" onclick="swuToggleGroup(this.dataset.g)" data-g="${escHtml(lg)}">
+      <td colspan="9" style="background:#eef1f5;padding:.55rem 1rem;border-bottom:1px solid #d9dee6;cursor:pointer">
+        <span style="display:inline-block;width:1em;color:#6f747c;font-size:.7rem">${collapsed ? '▶' : '▼'}</span>
+        <span style="font-size:.66rem;letter-spacing:.06em;text-transform:uppercase;color:#6f747c;margin-right:.4rem">กลุ่ม License</span>
+        <span style="font-weight:700;font-size:.88rem;color:#1f2a3a">${escHtml(label)}</span>
+        <span style="margin-left:.55rem;font-size:.72rem;color:#6f747c;font-family:'IBM Plex Mono',monospace">${shops.size} ร้าน · ${jobs.length} งาน</span>
+        ${open ? `<span class="uat-tag" style="margin:0 0 0 .45rem;background:#f6f0e2;color:#86671f">${open} รอดำเนินการ</span>` : ''}
+      </td>
+    </tr>`;
+    return head + (collapsed ? '' : [...shops].map(([name, rows]) => shopBlock(name, rows)).join(''));
   }).join('');
+}
+
+function swuToggleGroup(g) {
+  _swuCollapsed.has(g) ? _swuCollapsed.delete(g) : _swuCollapsed.add(g);
+  renderSwUpdate();
 }
 
 function openSwUpdateForm(fuIssue = null) {

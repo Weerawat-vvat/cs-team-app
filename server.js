@@ -5101,6 +5101,32 @@ app.get('/api/sw-update', authRequired, async (request, res) => {
       });
       rows.forEach(r => { r.assignees = aMap[r.id] || []; });
     }
+    // กลุ่ม License (CustomerGroup ที่ไม่ใช่ INF Group) — อยู่ใน LicenseDB; งานเก่าที่ไม่มี registration_id จับคู่ด้วยชื่อร้าน
+    if (rows.length && getExtPool()) {
+      try {
+        const rids = [...new Set(rows.map(r => +r.registration_id).filter(Number.isInteger))];
+        const names = [...new Set(rows.filter(r => !r.registration_id && r.company_name).map(r => r.company_name))].slice(0, 1000);
+        const byRid = new Map(), byName = new Map();
+        if (rids.length) {
+          (await extReq().query(`
+            SELECT cr.RegistrationId AS rid, cg.GroupName AS grp
+            FROM CustomerRegistration cr JOIN CustomerGroup cg ON cg.GroupId = cr.GroupId
+            WHERE cr.GroupId <> 1 AND cr.RegistrationId IN (${rids.join(',')})`)).recordset
+            .forEach(x => byRid.set(x.rid, x.grp));
+        }
+        if (names.length) {
+          const er = extReq();
+          names.forEach((n, i) => er.input(`n${i}`, sql.NVarChar, n));
+          (await er.query(`
+            SELECT cr.CompanyName AS name, MIN(cg.GroupName) AS grp
+            FROM CustomerRegistration cr JOIN CustomerGroup cg ON cg.GroupId = cr.GroupId
+            WHERE cr.GroupId <> 1 AND cr.CompanyName IN (${names.map((_, i) => `@n${i}`).join(',')})
+            GROUP BY cr.CompanyName`)).recordset
+            .forEach(x => byName.set(x.name, x.grp));
+        }
+        rows.forEach(r => { r.license_group = byRid.get(+r.registration_id) || byName.get(r.company_name) || null; });
+      } catch (e) { console.warn('[sw-update] license group lookup failed:', e.message); }
+    }
     res.json(rows);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
