@@ -21705,6 +21705,7 @@ function aimRepRender() {
   const rows = d.rows;
   const sum = k => rows.filter(x => x.status === k).length;
   const total = rows.length, inst = sum('installed'), today = sum('today'), miss = sum('missing');
+  const added = d.added || {}, addedN = Object.values(added).reduce((s, n) => s + n, 0);   // ร้านที่กดเพิ่ม/ยืนยันติดตั้ง ตามวันติดตั้ง
   const pct = (n, t) => t ? Math.round(n / t * 100) + '%' : '—';
   const k = (label, val, sub, cls) => `<div class="stat-flat"><div class="label">${label}</div><div class="value ${cls}">${val}</div><div class="sub">${sub}</div></div>`;
   // เป้าติดตั้งคนละ N ร้านต่อวัน — "ลงไปแล้ว" นับเฉพาะการแจ้งติดตั้งจริง (เคสติดตั้งที่น้องลงเอง / ร้านที่น้องกดเพิ่มเอง)
@@ -21731,7 +21732,7 @@ function aimRepRender() {
       + (open ? aimRepDoneHtml(a) + aimRepMissHtml(a) : '');
   }).join('');
   // รายวัน
-  const days = [...new Set(rows.map(x => x.d))].sort().reverse();
+  const days = [...new Set([...rows.map(x => x.d), ...Object.keys(added)])].sort().reverse();
   const dayRows = days.map(dd => {
     const xs = rows.filter(x => x.d === dd), ag = aimRepAgg(xs);
     const inst = xs.filter(x => x.status === 'installed').length, td = xs.filter(x => x.status === 'today').length, ms = xs.filter(x => x.status === 'missing').length;
@@ -21740,7 +21741,8 @@ function aimRepRender() {
     const doers = dn0.sort((a, b) => b.n - a.n)
       .map(a => `<span class="mt-svc-chip ${a.n >= target ? 'ok' : 'sv'}">${nm(a.agent)} <b>${a.n}/${target}</b>${a.n >= target ? ' ✓' : ''}</span>`).join('');
     return `<tr><td class="num">${new Date(dd + 'T00:00:00').toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' })}</td>
-      <td class="r num">${xs.length}</td><td class="r num"><b style="color:#0f766e">${inst + td}</b></td>
+      <td class="r num"><b style="color:#0f766e">${added[dd] || 0}</b></td>
+      <td class="r num">${xs.length}</td><td class="r num">${inst + td}</td>
       <td class="r num"><b style="color:#be123c">${ms}</b></td>
       <td>${doers || '<span class="mt-meta">ยังไม่มีใครลง</span>'}${hit ? ` <span class="mt-meta">· ถึงเป้า ${hit} คน</span>` : ''}</td></tr>`;
   }).join('');
@@ -21753,7 +21755,7 @@ function aimRepRender() {
         todayAg.length ? `แจ้งติดตั้งวันนี้รวม ${todayAg.reduce((s, a) => s + a.n, 0)} ร้าน${best?.n ? ` · สูงสุด ${nm(best.agent)} ${best.n} ร้าน` : ''}` : 'ยังไม่มีเคสวันนี้',
         todayAg.length && hitToday === todayAg.length ? 'green' : 'orange')}
       ${k('ร้านที่รับเคส', total.toLocaleString(), `${fd(d.from)} – ${fd(d.to)} · ${agents.length} คน`, 'blue')}
-      ${k('<i class=i-check></i> ติดตั้งแล้ว', (inst + today).toLocaleString(), `<b style="color:#0f766e">ใหม่ ${today.toLocaleString()}</b> <span title="ติดตั้งในวันเดียวกับที่รับเคส">(ติดตั้งวันที่รับเคส)</span> · มีอยู่เดิม ${inst.toLocaleString()}<br>${pct(inst + today, total)} ของร้านที่รับเคสมี AI แล้ว`, 'green')}
+      ${k('<i class=i-check></i> ติดตั้งแล้ว', (inst + today).toLocaleString(), `<b style="color:#0f766e" title="ร้านที่กดเพิ่มร้านที่ติดตั้ง / ยืนยันติดตั้ง ในช่วงวันที่นี้">ติดตั้งใหม่ ${addedN.toLocaleString()} ร้าน</b> · มีอยู่เดิม ${inst.toLocaleString()}<br>${pct(inst + today, total)} ของร้านที่รับเคสมี AI แล้ว`, 'green')}
       ${k('ยังไม่ติดตั้ง', miss.toLocaleString(), `${pct(miss, total)} · โอกาสติดตั้งเพิ่ม`, 'white')}
     </div>
     <div class="mt-tbl-wrap">
@@ -21764,9 +21766,9 @@ function aimRepRender() {
     </div>
     <div class="mt-tbl-wrap" style="margin-top:.75rem">
       <div class="mt-tt-head"><i class=i-calendar style="color:var(--primary)"></i> รายวัน <span class="mt-meta" style="font-weight:400">· ชิปเขียว ✓ = ถึงเป้า ${target} ร้าน</span></div>
-      <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>วันที่</th><th class="r">ร้านที่รับเคส</th><th class="r">ติดตั้งแล้ว</th>
+      <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>วันที่</th><th class="r" title="ร้านที่กดเพิ่มร้านที่ติดตั้ง / ยืนยันติดตั้ง วันนั้น">ติดตั้งใหม่</th><th class="r">ร้านที่รับเคส</th><th class="r">มี AI แล้ว</th>
         <th class="r">ยังไม่ติดตั้ง</th><th>ลงไปแล้ว / เป้า (รายคน)</th></tr></thead>
-        <tbody>${dayRows || '<tr><td colspan="5" class="mt-meta" style="text-align:center;padding:1.2rem">ไม่มีเคสในช่วงนี้</td></tr>'}</tbody></table></div>
+        <tbody>${dayRows || '<tr><td colspan="6" class="mt-meta" style="text-align:center;padding:1.2rem">ไม่มีเคสในช่วงนี้</td></tr>'}</tbody></table></div>
     </div>`;
 }
 function aimRepDoneHtml(a) {

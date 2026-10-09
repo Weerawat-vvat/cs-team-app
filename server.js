@@ -13150,7 +13150,7 @@ app.get('/api/ai-impact/agent-report', authRequired, async (request, res) => {
     let from = day(request.query.from) || today, to = day(request.query.to) || from;
     if (from > to) [from, to] = [to, from];
     if (from < AI_REPORT_START) from = AI_REPORT_START;
-    if (to < from) return res.json({ from, to, start: AI_REPORT_START, target: AI_INSTALL_TARGET, installs: {}, total_installed: 0, rows: [], reported: [] });
+    if (to < from) return res.json({ from, to, start: AI_REPORT_START, target: AI_INSTALL_TARGET, installs: {}, added: {}, total_installed: 0, rows: [], reported: [] });
     if ((Date.parse(to) - Date.parse(from)) / 86400000 > 62) return res.status(400).json({ error: 'เลือกได้ไม่เกิน 62 วัน' });
     const inst = await aiInstalledMap();
     const rows = (await extReq().input('f', sql.NVarChar, from).input('t', sql.NVarChar, to).query(`
@@ -13205,6 +13205,9 @@ app.get('/api/ai-impact/agent-report', authRequired, async (request, res) => {
       FROM ai_impact_manual m LEFT JOIN app_users au ON au.username = m.created_by
       WHERE m.install_day BETWEEN CAST(@f AS DATE) AND CAST(@t AS DATE) AND ISNULL(m.created_by, '') NOT LIKE 'import:%'`)).recordset
       .filter(x => !excluded.has(x.rid));
+    // ติดตั้งใหม่รายวัน = ร้านที่กด "เพิ่มร้านที่ติดตั้ง" / ยืนยันจากรายการรอยืนยัน (ไม่นับที่นำเข้าจากไฟล์)
+    const added = {};
+    manAll.forEach(x => { added[x.d] = (added[x.d] || 0) + 1; });
     const confirmedCase = manAll.filter(x => x.case_id && x.installer);
     const man = manAll.filter(x => !(x.case_id && x.installer) && x.ext_username);
     // ชื่อพนักงานในเคส (ตัวพิมพ์ตาม Calllog) ของคนที่รับเคสร้านนั้นในวันนั้น
@@ -13228,7 +13231,7 @@ app.get('/api/ai-impact/agent-report', authRequired, async (request, res) => {
           grp: info.get(x.rid)?.grp || null, src: 'manual', cid: null });
       }
     }
-    res.json({ from, to, start: AI_REPORT_START, target: AI_INSTALL_TARGET, installs, total_installed: inst.size, rows: out,
+    res.json({ from, to, start: AI_REPORT_START, target: AI_INSTALL_TARGET, installs, added, total_installed: inst.size, rows: out,
       reported: [...reported.values()] });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
