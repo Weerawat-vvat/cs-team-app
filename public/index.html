@@ -21705,7 +21705,10 @@ function aimRepRender() {
   const rows = d.rows;
   const sum = k => rows.filter(x => x.status === k).length;
   const total = rows.length, inst = sum('installed'), today = sum('today'), miss = sum('missing');
-  const added = d.added || {}, addedN = Object.values(added).reduce((s, n) => s + n, 0);   // ร้านที่กดเพิ่ม/ยืนยันติดตั้ง ตามวันติดตั้ง
+  const added = d.added || {}, addedN = Object.values(added).reduce((s, n) => s + n, 0);
+  // การ์ดติดตั้ง: นับร้านไม่ซ้ำ (แถวคือร้าน × วัน × พนักงาน — ร้านเดียวอาจซ้ำหลายแถว)
+  const uniq = f => new Set(rows.filter(f).map(x => x.rid)).size;
+  const uAll = uniq(() => true), uHave = uniq(x => x.status !== 'missing');   // ร้านที่กดเพิ่ม/ยืนยันติดตั้ง ตามวันติดตั้ง
   const pct = (n, t) => t ? Math.round(n / t * 100) + '%' : '—';
   const k = (label, val, sub, cls) => `<div class="stat-flat"><div class="label">${label}</div><div class="value ${cls}">${val}</div><div class="sub">${sub}</div></div>`;
   // เป้าติดตั้งคนละ N ร้านต่อวัน — "ลงไปแล้ว" นับเฉพาะการแจ้งติดตั้งจริง (เคสติดตั้งที่น้องลงเอง / ร้านที่น้องกดเพิ่มเอง)
@@ -21755,7 +21758,7 @@ function aimRepRender() {
         todayAg.length ? `แจ้งติดตั้งวันนี้รวม ${todayAg.reduce((s, a) => s + a.n, 0)} ร้าน${best?.n ? ` · สูงสุด ${nm(best.agent)} ${best.n} ร้าน` : ''}` : 'ยังไม่มีเคสวันนี้',
         todayAg.length && hitToday === todayAg.length ? 'green' : 'orange')}
       ${k('ร้านที่รับเคส', total.toLocaleString(), `${fd(d.from)} – ${fd(d.to)} · ${agents.length} คน`, 'blue')}
-      ${k('<i class=i-check></i> ติดตั้งแล้ว', (inst + today).toLocaleString(), `<b style="color:#0f766e" title="ร้านที่กดเพิ่มร้านที่ติดตั้ง / ยืนยันติดตั้ง ในช่วงวันที่นี้">ติดตั้งใหม่ ${addedN.toLocaleString()} ร้าน</b> · มีอยู่เดิม ${inst.toLocaleString()}<br>${pct(inst + today, total)} ของร้านที่รับเคสมี AI แล้ว`, 'green')}
+      ${k('<i class=i-check></i> ติดตั้งใหม่', `${addedN.toLocaleString()}<span style="font-size:.9rem;color:var(--muted)"> ร้าน</span>`, `ร้านที่รับเคสในช่วงนี้มี AI แล้ว <b style="color:#0f766e">${uHave.toLocaleString()}</b> จาก ${uAll.toLocaleString()} ร้าน (${pct(uHave, uAll)})`, 'green')}
       ${k('ยังไม่ติดตั้ง', miss.toLocaleString(), `${pct(miss, total)} · โอกาสติดตั้งเพิ่ม`, 'white')}
     </div>
     <div class="mt-tbl-wrap">
