@@ -1812,6 +1812,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
     <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
       <button class="svc-btn-ghost" onclick="tkExportCSV()" title="Export ข้อมูลที่กรองอยู่เป็น CSV"><i class=i-download></i> Export</button>
       <button class="svc-btn-ghost" onclick="openModal('modal-tk-import')" title="Import Case จาก CSV"><i class=i-upload></i> Import</button>
+      <button class="svc-btn-ghost" onclick="openLineCasePicker()" title="เลือกข้อความไลน์ที่ AI สรุปไว้ แล้วเปิดเป็นเคส"><i class=i-check></i> คัดกรองเคสจาก Line <span id="lc-badge" class="lc-badge" style="display:none"></span></button>
       <button class="svc-btn-primary" onclick="openCreateCaseModal()"><span style="font-size:1.05rem;line-height:1;font-weight:400">+</span> เปิด Case</button>
     </div>
   </div>
@@ -2295,6 +2296,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
       </div>
     </div>
     <div class="cc-body">
+    <div id="cc-line-banner" style="display:none;margin-bottom:.75rem;padding:.6rem .8rem;border-radius:8px;background:#eef6f0;border:1px solid #cfe3d6;font-size:.8rem;color:#2f5d43"></div>
     <div class="cc-grid" style="display:grid;grid-template-columns:1.1fr 1fr;gap:.85rem">
 
     <!-- Left column -->
@@ -2424,6 +2426,36 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
   </div>
 
 </div><!-- /modal-create-case -->
+
+<!-- คัดกรองเคสจาก Line: เลือกข้อความที่ AI สรุปไว้ → เปิดเคส -->
+<div class="overlay" id="modal-line-case">
+  <div class="modal" style="max-width:860px;max-height:88vh;padding:0;display:flex;flex-direction:column;overflow:hidden">
+    <div class="modal-head" style="padding:1.1rem 1.25rem .85rem;margin:0">
+      <div>
+        <div style="font-size:1.08rem;font-weight:600">คัดกรองเคสจาก Line</div>
+        <div class="svc-sub" style="margin:0">ข้อความที่ AI คัดกรองว่าต้องดำเนินการ · กด "เปิดเคส" แล้ว AI จะร่างอาการและ Solution ให้</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:.5rem">
+        <button class="svc-icon-btn" onclick="loadLineCasePicker()" title="โหลดใหม่" aria-label="โหลดใหม่"><i class=i-refresh></i></button>
+        <button class="modal-close" onclick="closeModal('modal-line-case')">×</button>
+      </div>
+    </div>
+    <style>
+      .lc-badge{display:inline-block;min-width:18px;padding:0 5px;border-radius:9px;background:#c0584c;color:#fff;font-size:.68rem;font-weight:700;line-height:18px;text-align:center;margin-left:.3rem}
+      .lc-badge.zero{background:#e6e3dc;color:#8a8f97}
+      .lc-pods{display:flex;gap:.4rem;flex-wrap:wrap;padding:0 1.25rem .65rem}
+      .lc-pod{display:inline-flex;align-items:center;gap:.35rem;height:32px;padding:0 .7rem;border-radius:16px;border:1px solid #e0ddd6;background:#fff;font-size:.8rem;color:#3d424a;cursor:pointer}
+      .lc-pod.on{border-color:var(--primary);background:#eef3fb;color:#1f3f6e;font-weight:600}
+      .lc-pod .dot{width:8px;height:8px;border-radius:50%}
+    </style>
+    <div class="lc-pods" id="lc-pods"></div>
+    <div style="padding:0 1.25rem .6rem">
+      <label class="svc-search" style="width:100%"><i class=i-search style="color:#8a8f97"></i>
+        <input id="lc-search" type="text" placeholder="ค้นหากลุ่ม ลูกค้า หรือข้อความ" oninput="renderLineCasePicker()"/></label>
+    </div>
+    <div id="lc-list" style="overflow:auto;padding:0 1.25rem 1.1rem"></div>
+  </div>
+</div>
 
 <!-- ═══════════════════ PAGE: SPECIALIST ═══════════════════ -->
 <div id="page-specialist" class="page">
@@ -9861,6 +9893,7 @@ async function loadTicketOverdue() {
 async function loadTickets() {
   await initTicketFilters();
   loadTicketOverdue(); // fetch overdue independently — no date filter
+  lcRefreshCounts();   // ป้ายจำนวนข้อความไลน์ค้างบนปุ่ม "คัดกรองเคสจาก Line"
   const status      = document.getElementById('tk-filter-status').value;
   const agent       = document.getElementById('tk-filter-agent').value;
   const team        = document.getElementById('tk-filter-team')?.value || '';
@@ -14244,6 +14277,8 @@ document.addEventListener('keydown', e => {
   }
 });
 async function openCreateCaseModal() {
+  _ccTriageId = null;   // เปิดเคสปกติ — ไม่ผูกกับข้อความไลน์
+  const bn = document.getElementById('cc-line-banner'); if (bn) bn.style.display = 'none';
   ccPendingFiles = [];
   ccRenderFileList();
   openModal('modal-create-case');
@@ -14460,11 +14495,185 @@ async function saveCreateCase() {
     }
   }
 
+  // มาจาก "คัดกรองเคสจาก Line" → ปิดข้อความนั้นว่าแก้ไขและลงบันทึกเรียบร้อยแล้ว
+  if (_ccTriageId) {
+    const tr = await api(`/api/triage/${_ccTriageId}/action`, { method: 'POST', silent: true, body: { action: 'case', calllog_id: r.id } });
+    if (tr?.error) showToast('บันทึก Case แล้ว แต่ปิดข้อความไลน์ไม่สำเร็จ: ' + tr.error, 'error');
+    _lcRows = _lcRows.filter(x => x.id !== _ccTriageId);
+    _ccTriageId = null;
+    lcRefreshCounts();
+  }
+
   document.getElementById('cc-saved-id').textContent = r.id;
   document.getElementById('cc-saved-msg').style.display = '';
   showToast(`บันทึก Case #${r.id} แล้ว`);
   resetCreateCase();
   setTimeout(() => { closeModal('modal-create-case'); loadTickets(); loadSpecialist(); }, 1500);
+}
+
+// ══════════════════════════════════════════════════════════
+//  คัดกรองเคสจาก Line — เลือกข้อความที่ AI คัดกรองไว้ → เปิดเคสพร้อมร่างอาการ/Solution
+// ══════════════════════════════════════════════════════════
+let _ccTriageId = null;   // ข้อความไลน์ที่กำลังลงเคสอยู่ (ปิดให้หลังบันทึกเคส)
+let _lcRows = [];
+
+let _lcPod = '';        // '' = ทุก Pod · 'none' = ยังไม่ได้ Assign · หรือ pod id
+let _lcPods = null;     // รายชื่อ Pod (โหลดครั้งเดียว)
+let _lcCounts = { counts: [], total: 0 };
+
+// ป้ายจำนวนค้างบนปุ่ม + แท็บ Pod ในหน้าต่าง
+async function lcRefreshCounts() {
+  const c = await api('/api/triage/pod-counts', { silent: true });
+  if (!c || c.error) return;
+  _lcCounts = c;
+  const b = document.getElementById('lc-badge');
+  if (b) { b.textContent = c.total > 99 ? '99+' : c.total; b.style.display = c.total ? '' : 'none'; }
+  renderLineCasePods();
+}
+
+function renderLineCasePods() {
+  const box = document.getElementById('lc-pods');
+  if (!box) return;
+  const n = id => (_lcCounts.counts.find(x => (x.pod_id ?? 'none') === id)?.n) || 0;
+  const badge = v => `<span class="lc-badge${v ? '' : ' zero'}">${v}</span>`;
+  const chip = (key, label, cnt, color) => `<button class="lc-pod${String(_lcPod) === String(key) ? ' on' : ''}" onclick="lcSetPod('${key}')">
+    ${color ? `<span class="dot" style="background:${escHtml(color)}"></span>` : ''}${escHtml(label)}${badge(cnt)}</button>`;
+  box.innerHTML = chip('', 'ทั้งหมด', _lcCounts.total)
+    + chip('none', 'ยังไม่ได้ Assign', n('none'), '#b3b6bb')
+    + (_lcPods || []).map(p => chip(p.id, p.code || p.display_name, n(p.id), p.color)).join('');
+}
+
+// เกือบ real time: หน้าต่างเปิดอยู่ → รีเฟรชรายการทุก 30 วิ · อยู่หน้าติดตามเคส → รีเฟรชป้ายจำนวน
+// (เรียกแค่ DB ของเรา ไม่เรียก AI · หยุดเองเมื่อแท็บเบราว์เซอร์ถูกซ่อน)
+setInterval(() => {
+  if (document.hidden) return;
+  if (document.getElementById('modal-line-case')?.classList.contains('open')) {
+    lcRefreshCounts();
+    if (!(document.getElementById('lc-search')?.value)) loadLineCasePicker();
+  } else if (document.getElementById('page-tickets')?.classList.contains('active')) {
+    lcRefreshCounts();
+  }
+}, 30000);
+
+function lcSetPod(key) {
+  _lcPod = key === 'none' || key === '' ? key : +key;
+  renderLineCasePods();
+  loadLineCasePicker();
+}
+
+async function openLineCasePicker() {
+  openModal('modal-line-case');
+  if (!_lcPods) _lcPods = (await api('/api/pods', { silent: true })) || [];
+  if (_lcPods.error) _lcPods = [];
+  await Promise.all([lcRefreshCounts(), loadLineCasePicker()]);
+}
+
+async function loadLineCasePicker() {
+  const box = document.getElementById('lc-list');
+  if (box) box.innerHTML = '<div class="mt-meta" style="text-align:center;padding:2rem">กำลังโหลด…</div>';
+  const podQ = _lcPod === '' ? '' : `&pods=${_lcPod}`;
+  const [o, c] = await Promise.all(['open', 'claimed'].map(st =>
+    api(`/api/triage/inbox?status=${st}&needsAction=1&per=100${podQ}`, { silent: true })));
+  _lcRows = [...(o?.rows || []), ...(c?.rows || [])]
+    .sort((a, b) => (parseDbDate(b.message_time)?.getTime() || 0) - (parseDbDate(a.message_time)?.getTime() || 0));
+  renderLineCasePicker();
+}
+
+function renderLineCasePicker() {
+  const box = document.getElementById('lc-list');
+  if (!box) return;
+  const q = (document.getElementById('lc-search')?.value || '').trim().toLowerCase();
+  const list = q ? _lcRows.filter(r => [r.group_name, r.customer_name, r.summary, r.message_text]
+    .some(v => String(v || '').toLowerCase().includes(q))) : _lcRows;
+  if (!list.length) {
+    box.innerHTML = `<div class="mt-meta" style="text-align:center;padding:2rem">${_lcRows.length ? 'ไม่พบข้อความที่ค้นหา' : 'ไม่มีข้อความที่รอเปิดเคส'}</div>`;
+    return;
+  }
+  const PRI = { urgent: ['เร่งด่วน', '#b04a40'], normal: ['ปกติ', '#86671f'], low: ['ต่ำ', '#6f747c'] };
+  box.innerHTML = list.map(r => {
+    const w = trWaiting(r.message_time), p = PRI[r.priority] || PRI.normal;
+    return `<div style="display:flex;gap:.75rem;align-items:flex-start;padding:.7rem 0;border-bottom:1px solid #f0eee9">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:.74rem;color:#6f747c">
+          <span style="display:inline-block;padding:0 .4rem;border-radius:4px;background:${escHtml(r.pod_color || '#e6e3dc')}22;color:#3d424a;font-weight:600;margin-right:.25rem">${escHtml(r.pod_code || 'ยังไม่ได้ Assign')}</span>
+          <b style="color:#24272c">${escHtml(r.group_name || '—')}</b> · ${escHtml(r.customer_name || 'ลูกค้า')}
+          · <span style="color:${w.color}">${w.txt}</span> · <span style="color:${p[1]}">${p[0]}</span>${r.status === 'claimed' ? ` · รับงานโดย ${escHtml(r.claimed_name || '—')}` : ''}
+        </div>
+        <div style="font-size:.86rem;font-weight:600;color:#24272c;margin:.15rem 0">${escHtml(r.summary || '—')}</div>
+        <div style="font-size:.76rem;color:#5b616b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escHtml(r.message_text || '')}">${escHtml(r.message_text || '')}</div>
+      </div>
+      <button class="svc-btn-primary" style="height:32px;white-space:nowrap" onclick="openCaseFromTriage(${r.id})">เปิดเคส</button>
+    </div>`;
+  }).join('');
+}
+
+function ccSelectShop(id, name, contact, phone) {
+  document.getElementById('cc-registration-id').value = id;
+  document.getElementById('cc-shop-search').value = name;
+  document.getElementById('cc-shop-selected').innerHTML = `${escHtml(name)} ${aiInstBadge(+id)
+    || '<span class="ai-inst no">ยังไม่ได้ติดตั้ง AI (SSH)</span>'}`;
+  if (contact) document.getElementById('cc-inform-name').value = contact;
+  if (phone)   document.getElementById('cc-inform-tel').value  = phone;
+  document.getElementById('cc-shop-results').style.display = 'none';
+}
+
+async function openCaseFromTriage(id) {
+  const t = _lcRows.find(x => x.id === id);
+  closeModal('modal-line-case');
+  resetCreateCase();
+  await openCreateCaseModal();
+  _ccTriageId = id;
+  const banner = document.getElementById('cc-line-banner');
+  const setBanner = extra => {
+    banner.style.display = '';
+    banner.innerHTML = `<b>จาก Line · ${escHtml(t?.group_name || '')}</b> — ${escHtml(t?.summary || '')}
+      <div style="color:#5b616b;margin-top:.2rem">${extra}</div>`;
+  };
+  setBanner('AI กำลังร่างอาการและ Solution…');
+
+  // ช่องที่รู้แน่จากข้อความ
+  const pad = n => String(n).padStart(2, '0');
+  const md = parseDbDate(t?.message_time);
+  if (md) document.getElementById('cc-receive-date').value =
+    `${md.getFullYear()}-${pad(md.getMonth() + 1)}-${pad(md.getDate())}T${pad(md.getHours())}:${pad(md.getMinutes())}`;
+  document.getElementById('cc-inform-type').value = 'Line';
+  document.getElementById('cc-line').value = t?.group_name || '';
+  document.getElementById('cc-inform-name').value = t?.customer_name || '';
+  document.getElementById('cc-description').value = t?.summary || t?.message_text || '';
+
+  const d = await api(`/api/triage/${id}/case-draft`, { silent: true });
+  if (_ccTriageId !== id) return;   // ปิด/เปลี่ยนไปเคสอื่นระหว่างรอ
+  if (!d || d.error) { setBanner('AI ร่างเคสไม่สำเร็จ — กรอกเองได้เลย'); return; }
+
+  if (d.description) document.getElementById('cc-description').value = d.description;
+  if (d.solution)    document.getElementById('cc-solution').value = d.solution;
+  if (d.problem_type_id) {
+    document.getElementById('cc-problem-type').value = d.problem_type_id;
+    ccFilterSubjects();
+  }
+  if (d.subject) { document.getElementById('cc-subject').value = d.subject; ccOnSubjectChange(); }
+
+  // ร้าน: ตรงชื่อกลุ่มร้านเดียว → เลือกให้เลย · หลายร้าน → ให้เลือก · ไม่เจอ → ค้นเอง
+  const stores = d.stores || [];
+  const contactKeep = t?.customer_name;
+  if (stores.length === 1) {
+    const s = stores[0];
+    ccSelectShop(s.RegistrationId, s.CompanyName, '', s.Phone || s.MobilePhone || '');
+    if (contactKeep) document.getElementById('cc-inform-name').value = contactKeep;
+  } else if (stores.length > 1) {
+    const res = document.getElementById('cc-shop-results');
+    res.style.display = '';
+    res.innerHTML = `<div style="padding:.35rem .75rem;font-size:.72rem;color:#6f747c">ร้านที่ตรงกับชื่อกลุ่มไลน์ — เลือก 1 ร้าน</div>` +
+      stores.map(s => `<div class="rp-shop-item" style="padding:.42rem .75rem;cursor:pointer;font-size:.82rem;border-bottom:1px solid #f0eee9"
+        onmouseover="this.style.background='#faf9f6'" onmouseout="this.style.background=''"
+        data-id="${s.RegistrationId}" data-name="${escHtml(s.CompanyName)}" data-phone="${escHtml(s.Phone || s.MobilePhone || '')}">
+        <div style="font-weight:600">${escHtml(s.CompanyName)}</div>${aiInstBadge(s.RegistrationId)}</div>`).join('');
+    res.querySelectorAll('.rp-shop-item').forEach(el => el.addEventListener('click', () =>
+      ccSelectShop(el.dataset.id, el.dataset.name, '', el.dataset.phone)));
+  }
+  setBanner(`${d.ai_error ? 'AI ร่างไม่สำเร็จ ใช้สรุปจากระบบคัดกรองแทน' : 'AI ร่างอาการ / Solution / หัวข้อให้แล้ว — ตรวจแก้ได้'}
+    · ${stores.length === 1 ? 'เลือกร้านจากชื่อกลุ่มให้แล้ว' : stores.length ? 'เลือกร้านจากรายการด้านล่างช่องร้านค้า' : 'ไม่พบร้านจากชื่อกลุ่ม — ค้นหาร้านเอง'}
+    · บันทึกแล้วระบบจะปิดข้อความนี้ให้อัตโนมัติ`);
 }
 
 function resetCreateCase() {

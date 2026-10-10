@@ -6686,8 +6686,19 @@ async function classifyTriageBatch(batchSize = 30) {
     )).recordset;
     rows.forEach(x => existing.add(x.source_msg_id));
   }
-  const todo = inScope.filter(r => !existing.has(r.Id)).slice(0, batchSize);
-  if (!todo.length) return { classified: 0, scanned: inScope.length, hasKey: true, skippedOutOfScope: cand.length - inScope.length };
+  const fresh = inScope.filter(r => !existing.has(r.Id));
+  if (!fresh.length) return { classified: 0, scanned: inScope.length, hasKey: true, skippedOutOfScope: cand.length - inScope.length };
+
+  // ข้อความง่ายๆ (สติกเกอร์ / ขอบคุณ / โอเค / รับทราบ) ตัดสินด้วยกฎ ไม่ต้องเสีย token
+  let ruled = 0;
+  for (const m of fresh) {
+    const o = triageRuleClassify(m.CustomerMessage);
+    if (!o) continue;
+    m._ruled = true;
+    if (await triageInsert(m, o, 'rule')) ruled++;
+  }
+  const todo = fresh.filter(m => !m._ruled).slice(0, batchSize);
+  if (!todo.length) return { classified: ruled, ruled, scanned: inScope.length, hasKey: true, skippedOutOfScope: cand.length - inScope.length };
 
   const list = todo.map((m, i) =>
     `[${i}] ${String(m.CustomerMessage).replace(/\s+/g, ' ').slice(0, 500)}`
@@ -6742,10 +6753,15 @@ ${list}`;
   const byIndex = new Map();
   arr.forEach(o => { if (o && Number.isInteger(o.i)) byIndex.set(o.i, o); });
 
-  let classified = 0;
+  let classified = ruled;
   for (let i = 0; i < todo.length; i++) {
-    const m = todo[i];
-    const o = byIndex.get(i) || {};
+    if (await triageInsert(todo[i], byIndex.get(i) || {}, usedModel)) classified++;
+  }
+  return { classified, ruled, scanned: inScope.length, hasKey: true, skippedOutOfScope: cand.length - inScope.length };
+}
+
+// บันทึกผลคัดกรอง 1 ข้อความ (ข้ามถ้ามีอยู่แล้ว) — คืน true เมื่อสำเร็จ
+async function triageInsert(m, o, model) {
     const needsAction = (o.needs_action === true || o.needs_action === 'true') ? 1 : 0;
     try {
       await req()
@@ -6760,7 +6776,7 @@ ${list}`;
         .input('pri',  sql.NVarChar, triageClean(o.priority, TRIAGE_PRIORITIES, 'normal'))
         .input('sum',  sql.NVarChar, String(o.summary || '').slice(0, 480))
         .input('na',   sql.Bit, needsAction)
-        .input('model', sql.NVarChar, usedModel)
+        .input('model', sql.NVarChar, model)
         .query(`
           IF NOT EXISTS (SELECT 1 FROM line_msg_triage WHERE source_msg_id=@sid)
           INSERT INTO line_msg_triage
@@ -6768,10 +6784,23 @@ ${list}`;
              category, sentiment, priority, summary, needs_action, ai_model)
           VALUES (@sid,@gid,@gname,@cust,@txt,@mtime,@cat,@sen,@pri,@sum,@na,@model)
         `);
-      classified++;
-    } catch (e) { console.error('triage insert failed for id', m.Id, e.message); }
-  }
-  return { classified, scanned: inScope.length, hasKey: true, skippedOutOfScope: cand.length - inScope.length };
+      return true;
+    } catch (e) { console.error('triage insert failed for id', m.Id, e.message); return false; }
+}
+
+// กฎคัดกรองข้อความสั้นที่ไม่ต้องให้ทีมทำอะไร — ตรงทั้งข้อความเท่านั้น (ไม่แน่ใจ = คืน null ให้ AI ตัดสิน)
+function triageRuleClassify(text) {
+  const t = String(text || '').trim();
+  if (!t || t.length > 30) return null;
+  if (/^\[?(sticker|สติกเกอร์|สติ๊กเกอร์)\]?$/i.test(t) || !/[\p{L}\p{N}]/u.test(t))   // สติกเกอร์ / อีโมจิล้วน
+    return { category: 'other', sentiment: 'neutral', priority: 'low', needs_action: false, summary: 'ส่งสติกเกอร์/อีโมจิ' };
+  const w = t.toLowerCase().replace(/[\s!.,~ๆ^_\-+*:;()\[\]"'🙏👍😊🙂😀😄❤️♥]+/gu, '')
+    .replace(/(ครับผม|ครับ|คับ|ค่ะ|คะ|ค่า|จ้า|จ้ะ|นะ|น้า|มากๆ|มาก|เลย|kub|krub|ka|kha|na|jaa)+$/g, '');
+  if (/^(ขอบคุณ|ขอบใจ|ขอบคุน|thank(s|you)?|thx|ty|tq)$/.test(w))
+    return { category: 'thank', sentiment: 'positive', priority: 'low', needs_action: false, summary: 'ลูกค้าขอบคุณ' };
+  if (/^(ok|okay|โอเค|โอเช|รับทราบ|ทราบแล้ว|ได้แล้ว|ใช้ได้แล้ว|เรียบร้อย|เรียบร้อยแล้ว|ได้|ค่ะ|ครับ|คับ|จ้า|ค่า|)$/.test(w))
+    return { category: 'other', sentiment: 'neutral', priority: 'low', needs_action: false, summary: 'ลูกค้ารับทราบ' };
+  return null;
 }
 
 // ── ขอบเขตที่คัดกรอง AI ต้องเฝ้า ─────────────────────────
@@ -7124,10 +7153,121 @@ app.post('/api/triage/:id/action', authRequired, async (request, res) => {
     } else if (action === 'note') {
       await req().input('id', sql.Int, id).input('note', sql.NVarChar, String(note || '').slice(0, 990)).query(
         `UPDATE line_msg_triage SET note=@note, updated_at=GETDATE() WHERE id=@id`);
+    } else if (action === 'case') {
+      // ลงเคสจาก "คัดกรองเคสจาก Line" สำเร็จ → ผูกเลขเคส + ปิดงานว่าแก้ไขและบันทึกเรียบร้อย
+      const cid = parseInt(request.body?.calllog_id);
+      if (!cid) return res.status(400).json({ error: 'calllog_id required' });
+      await ensureTriageCaseCol();
+      await req().input('id', sql.Int, id).input('by', sql.Int, empId).input('cid', sql.Int, cid)
+        .input('note', sql.NVarChar, `ลงเคส #${cid} แล้ว — Case นี้แก้ไขเรียบร้อยและลงบันทึกเรียบร้อยแล้ว`).query(
+        `UPDATE line_msg_triage
+         SET status='done', done_by=@by, done_at=GETDATE(), calllog_id=@cid, note=@note,
+             claimed_by=ISNULL(claimed_by,@by), claimed_at=ISNULL(claimed_at,GETDATE()), updated_at=GETDATE()
+         WHERE id=@id`);
     } else {
       return res.status(400).json({ error: 'unknown action' });
     }
     res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── คัดกรองเคสจาก Line → เปิดเคส ─────────────────────────
+// line_msg_triage.calllog_id = เคสใน Calllog ที่ลงจากข้อความนี้
+let _triageCaseColP = null;
+function ensureTriageCaseCol() {
+  return _triageCaseColP ||= req().query(
+    `IF COL_LENGTH('line_msg_triage','calllog_id') IS NULL ALTER TABLE line_msg_triage ADD calllog_id INT NULL`)
+    .catch(e => { _triageCaseColP = null; throw e; });
+}
+
+// GET /api/triage/pod-counts — ข้อความที่ต้องดำเนินการและยังไม่เสร็จ แยกตาม Pod (pod_id null = ยังไม่ได้ assign)
+app.get('/api/triage/pod-counts', authRequired, async (request, res) => {
+  try {
+    const rows = (await req().query(`
+      SELECT lgp.pod_id, COUNT(*) AS n
+      FROM line_msg_triage t LEFT JOIN line_group_pods lgp ON lgp.group_id = t.group_id
+      WHERE t.status IN ('open','claimed') AND t.needs_action=1 AND ${triageScopeSql()}
+      GROUP BY lgp.pod_id`)).recordset;
+    res.json({ counts: rows.map(r => ({ pod_id: r.pod_id, n: r.n })), total: rows.reduce((s, r) => s + r.n, 0) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/triage/:id/case-draft — AI ร่างเคสจากข้อความ (อาการ / วิธีแก้ / หัวข้อ) + เดาร้านจากชื่อกลุ่มไลน์
+app.get('/api/triage/:id/case-draft', authRequired, async (request, res) => {
+  const id = parseInt(request.params.id);
+  if (!id) return res.status(400).json({ error: 'id required' });
+  try {
+    const t = (await req().input('id', sql.Int, id).query(`
+      SELECT t.id, t.group_id, COALESCE(t.group_name, lgp.group_name) AS group_name, t.customer_name,
+             t.message_text, t.message_time, t.summary, t.category, t.priority
+      FROM line_msg_triage t LEFT JOIN line_group_pods lgp ON lgp.group_id = t.group_id
+      WHERE t.id=@id`)).recordset[0];
+    if (!t) return res.status(404).json({ error: 'ไม่พบข้อความ' });
+
+    // ข้อความรอบๆ ในกลุ่มเดียวกัน (ก่อน 1 ชม. – หลัง 6 ชม.) ให้ AI เห็นบริบท
+    const thread = (await req().input('g', sql.NVarChar, t.group_id).input('mt', sql.DateTime, t.message_time).query(`
+      SELECT TOP 20 customer_name, message_text, message_time FROM line_msg_triage
+      WHERE group_id=@g AND message_time BETWEEN DATEADD(hour,-1,@mt) AND DATEADD(hour,6,@mt)
+      ORDER BY message_time`)).recordset;
+
+    // ร้านที่ชื่ออยู่ในชื่อกลุ่มไลน์ (ยาวสุดก่อน = ตรงสุด)
+    let stores = [];
+    if (getExtPool() && t.group_name) {
+      stores = (await extReq().input('gn', sql.NVarChar, t.group_name).query(`
+        SELECT TOP 5 r.RegistrationId, r.CompanyName, r.Phone, r.MobilePhone, r.ContactName
+        FROM CustomerRegistration r
+        WHERE (r.Hide=0 OR r.Hide IS NULL) AND r.AccurateData=1 AND LEN(r.CompanyName) >= 4
+          AND @gn LIKE N'%' + r.CompanyName + N'%'
+        ORDER BY LEN(r.CompanyName) DESC, r.RegistrationId DESC`).catch(() => ({ recordset: [] }))).recordset;
+    }
+
+    // หัวข้อให้ AI เลือก — ชุดเดียวกับฟอร์มเปิดเคส
+    let subjects = [];
+    if (getExtPool()) {
+      subjects = (await extReq().query(`
+        SELECT s.SubjectName AS name, s.ProblemTypeId AS problem_type_id
+        FROM Subject s WHERE s.Active=1 AND s.SubjectName IS NOT NULL`)).recordset;
+    }
+
+    const convo = thread.map(m => `- ${m.customer_name || 'ลูกค้า'}: ${String(m.message_text || '').replace(/\s+/g, ' ').slice(0, 400)}`).join('\n');
+    const prompt = `คุณคือ Support ที่กำลังลงบันทึกเคสจากข้อความที่ลูกค้าแจ้งในไลน์กลุ่ม "${t.group_name || ''}"
+ข้อความหลัก: ${String(t.message_text || '').replace(/\s+/g, ' ').slice(0, 800)}
+สรุปจากระบบคัดกรอง: ${t.summary || '-'}
+
+บทสนทนาในกลุ่มช่วงนั้น:
+${convo || '-'}
+
+หัวข้อเคสที่เลือกได้ (ต้องเลือกให้ตรงตัวอักษร หรือเว้นว่างถ้าไม่มีที่เหมาะ):
+${subjects.map(s => s.name).join(' | ').slice(0, 6000)}
+
+ตอบเป็น JSON object เดียวเท่านั้น:
+- description: อาการ/รายละเอียดปัญหาที่ลูกค้าแจ้ง ภาษาไทย กระชับ 1-3 ประโยค
+- solution: วิธีแก้ไขที่ทำหรือแนะนำให้ลูกค้า ภาษาไทย กระชับ (ถ้าบทสนทนาไม่บอก ให้เขียนวิธีแก้ที่เหมาะสมที่สุดตามอาการ)
+- subject: หัวข้อเคสจากรายการด้านบน`;
+    const parseObj = txt => {
+      const m = String(txt).match(/\{[\s\S]*\}/);
+      const o = JSON.parse(m ? m[0] : txt);
+      if (!o || typeof o !== 'object') throw new Error('bad AI reply');
+      return o;
+    };
+    let draft = { description: t.summary || t.message_text || '', solution: '', subject: '' }, aiError = null;
+    try {
+      const { value } = await aiGenerate(prompt, { parse: parseObj, prefer: 'gemini', geminiConfig: {
+        generationConfig: { responseMimeType: 'application/json', responseSchema: {
+          type: SchemaType.OBJECT,
+          properties: { description: { type: SchemaType.STRING }, solution: { type: SchemaType.STRING }, subject: { type: SchemaType.STRING } },
+          required: ['description', 'solution', 'subject'] } } } });
+      draft = { description: String(value.description || draft.description), solution: String(value.solution || ''), subject: String(value.subject || '') };
+    } catch (e) { aiError = e.message; }
+    const subj = subjects.find(s => s.name === draft.subject.trim());
+
+    res.json({
+      triage: { id: t.id, group_name: t.group_name, customer_name: t.customer_name, message_text: t.message_text,
+                message_time: t.message_time, summary: t.summary },
+      description: draft.description, solution: draft.solution,
+      subject: subj?.name || null, problem_type_id: subj?.problem_type_id || null,
+      stores, ai_error: aiError,
+    });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -7164,6 +7304,43 @@ async function triageAutoTick() {
   finally { _triageAutoRunning = false; }
 }
 setInterval(triageAutoTick, TRIAGE_AUTO_MIN * 60 * 1000);
+
+// ── คัดกรองเกือบ real time ─────────────────────────────────
+// ทุก TRIAGE_FAST_SECONDS (20) ถามแค่ MAX(Id) ของ LineWaitingReply (เบามาก ไม่เรียก AI)
+// มีข้อความใหม่ → รอให้เงียบ TRIAGE_QUIET_SECONDS (30) ก่อน เพื่อรวมข้อความที่ลูกค้าพิมพ์ติดกันหลายบรรทัด
+// เป็น AI call เดียว (ประหยัด token) · รอนานสุด TRIAGE_MAX_WAIT_SECONDS (90) แม้ยังมีข้อความเข้ามาเรื่อยๆ
+// ปิดได้ด้วย TRIAGE_FAST=off (ยังเหลือรอบปกติทุก TRIAGE_AUTO_MINUTES)
+const TRIAGE_FAST_SEC  = Math.max(5,  parseInt(process.env.TRIAGE_FAST_SECONDS) || 20);
+const TRIAGE_QUIET_SEC = Math.max(0,  parseInt(process.env.TRIAGE_QUIET_SECONDS) || 30);
+const TRIAGE_MAXW_SEC  = Math.max(10, parseInt(process.env.TRIAGE_MAX_WAIT_SECONDS) || 90);
+let _triageSeenId = null, _triageNewSince = null;
+async function triageFastTick() {
+  if ((process.env.TRIAGE_AUTO || '').toLowerCase() !== 'on') return;
+  if ((process.env.TRIAGE_FAST || 'on').toLowerCase() === 'off') return;
+  if (_triageAutoRunning) return;
+  const lb = getLineBotPool();
+  if (!lb) return;
+  try {
+    // วัดความเงียบด้วยนาฬิกาของ LineBotMonitor เอง — กันเวลาคนละเครื่องไม่ตรงกัน
+    const x = (await lb.request().query(`SELECT MAX(Id) AS id,
+        DATEDIFF(second, MAX(MessageTime), GETDATE()) AS quiet FROM dbo.LineWaitingReply`)).recordset[0];
+    if (!x?.id) return;
+    if (_triageSeenId === null) { _triageSeenId = x.id; return; }   // เริ่ม server: รอบปกติเก็บของค้างให้
+    if (x.id <= _triageSeenId) { _triageNewSince = null; return; }
+    _triageNewSince ||= Date.now();
+    const waited = (Date.now() - _triageNewSince) / 1000;
+    if ((x.quiet ?? 1e9) < TRIAGE_QUIET_SEC && waited < TRIAGE_MAXW_SEC) return;
+
+    _triageAutoRunning = true;
+    try {
+      const r = await classifyTriageBatch(60);
+      if (r.error) { console.warn('triage fast error:', r.error); return; }   // ไม่เลื่อน seenId — ลองใหม่รอบหน้า
+      if (r.classified) console.log(`⚡ triage fast: ${r.classified} msg(s)${r.ruled ? ` (กฎ ${r.ruled})` : ''}`);
+      _triageSeenId = x.id; _triageNewSince = null;
+    } finally { _triageAutoRunning = false; }
+  } catch (e) { console.error('triage fast tick error:', e.message); }
+}
+setInterval(triageFastTick, TRIAGE_FAST_SEC * 1000);
 
 // ── ตารางส่งแจ้งเตือน LINE ────────────────────────────────
 // ยิงตรงนาฬิกา เช่น ทุก 30 นาที = 08:00, 08:30, 09:00 … ภายในช่วงเวลาทำงาน
