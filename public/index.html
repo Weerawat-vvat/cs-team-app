@@ -1817,6 +1817,14 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
     </div>
   </div>
 
+  <!-- ข้อความไลน์ค้างแยกตาม Pod — กดเพื่อเปิดคัดกรองเคสจาก Line ของ Pod นั้น -->
+  <div id="tk-lc-strip" style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin:-.25rem 0 .85rem;position:relative">
+    <span style="font-size:.74rem;color:#6f747c;margin-right:.15rem">เคสจาก Line ค้าง</span>
+    <span id="tk-lc-chips" style="display:contents"></span>
+    <button class="svc-icon-btn" style="width:30px;height:30px" onclick="lcToggleStripCfg(event)" title="เลือก Pod ที่จะแสดง" aria-label="เลือก Pod ที่จะแสดง">⚙</button>
+    <div id="tk-lc-cfg" style="display:none;position:absolute;top:36px;right:0;z-index:30;background:#fff;border:1px solid #e0ddd6;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.08);padding:.6rem .8rem;min-width:200px;font-size:.8rem"></div>
+  </div>
+
   <!-- Open/closed tabs + headline metrics -->
   <div class="tk-tabbar">
     <div class="svc-tabs" id="tk-tabs" style="margin-bottom:0;border-bottom:none">
@@ -14523,12 +14531,80 @@ let _lcCounts = { counts: [], total: 0 };
 
 // ป้ายจำนวนค้างบนปุ่ม + แท็บ Pod ในหน้าต่าง
 async function lcRefreshCounts() {
-  const c = await api('/api/triage/pod-counts', { silent: true });
+  const [c, pods] = await Promise.all([api('/api/triage/pod-counts', { silent: true }),
+    _lcPods ? null : api('/api/pods', { silent: true })]);
+  if (pods && !pods.error) _lcPods = pods;
   if (!c || c.error) return;
   _lcCounts = c;
   const b = document.getElementById('lc-badge');
   if (b) { b.textContent = c.total > 99 ? '99+' : c.total; b.style.display = c.total ? '' : 'none'; }
   renderLineCasePods();
+  renderLineCaseStrip();
+}
+
+// ── แถบ Pod บนหน้าติดตามเคส (เลือกได้ว่าแสดง Pod ไหน — จำไว้ในเบราว์เซอร์นี้) ──
+const LC_STRIP_KEY = 'lcStripPods';
+const lcDefaultPod = p => /^(BKK?|CNX)\s*-?\d/i.test(p.code || '');   // ค่าเริ่มต้น: BKK1-3, CNX1-3
+function lcStripSel() {
+  try { const v = JSON.parse(localStorage.getItem(LC_STRIP_KEY)); if (Array.isArray(v)) return v.map(String); } catch {}
+  return ['none', ...(_lcPods || []).filter(lcDefaultPod).map(p => String(p.id))];
+}
+function lcLabel(key) {
+  if (key === 'none') return { label: 'ยังไม่ได้ Assign', color: '#b3b6bb' };
+  const p = (_lcPods || []).find(x => String(x.id) === String(key));
+  return p ? { label: p.code || p.display_name, color: p.color } : null;
+}
+function renderLineCaseStrip() {
+  const box = document.getElementById('tk-lc-chips');
+  if (!box) return;
+  const n = key => (_lcCounts.counts.find(x => String(x.pod_id ?? 'none') === String(key))?.n) || 0;
+  box.innerHTML = lcStripSel().map(key => {
+    const l = lcLabel(key);
+    if (!l) return '';
+    const v = n(key);
+    return `<button class="lc-pod" onclick="lcOpenPod('${key}')" title="ดูข้อความค้างของ ${escHtml(l.label)}">
+      <span class="dot" style="background:${escHtml(l.color || '#b3b6bb')}"></span>${escHtml(l.label)}<span class="lc-badge${v ? '' : ' zero'}">${v}</span></button>`;
+  }).join('');
+  const cfg = document.getElementById('tk-lc-cfg');
+  if (cfg?.style.display !== 'none') renderLineCaseStripCfg();
+}
+function renderLineCaseStripCfg() {
+  const cfg = document.getElementById('tk-lc-cfg');
+  const sel = new Set(lcStripSel());
+  const row = (key, label) => `<label style="display:flex;align-items:center;gap:.45rem;padding:.2rem 0;cursor:pointer">
+    <input type="checkbox" style="width:auto" ${sel.has(String(key)) ? 'checked' : ''} onchange="lcStripToggle('${key}', this.checked)"> ${escHtml(label)}</label>`;
+  cfg.innerHTML = `<div style="font-weight:600;margin-bottom:.3rem">แสดง Pod ที่หน้านี้</div>`
+    + row('none', 'ยังไม่ได้ Assign')
+    + (_lcPods || []).map(p => row(p.id, p.code || p.display_name)).join('')
+    + `<button class="svc-btn-ghost" style="height:28px;margin-top:.4rem;font-size:.74rem" onclick="lcStripReset()">ค่าเริ่มต้น</button>`;
+}
+function lcToggleStripCfg(e) {
+  e?.stopPropagation();
+  const cfg = document.getElementById('tk-lc-cfg');
+  const show = cfg.style.display === 'none';
+  cfg.style.display = show ? '' : 'none';
+  if (show) renderLineCaseStripCfg();
+}
+document.addEventListener('click', e => {
+  const cfg = document.getElementById('tk-lc-cfg');
+  if (cfg && cfg.style.display !== 'none' && !cfg.contains(e.target)) cfg.style.display = 'none';
+});
+function lcStripToggle(key, on) {
+  // คงลำดับตาม: ยังไม่ได้ Assign ก่อน แล้วตามลำดับ Pod
+  const sel = new Set(lcStripSel());
+  on ? sel.add(String(key)) : sel.delete(String(key));
+  const order = ['none', ...(_lcPods || []).map(p => String(p.id))].filter(k => sel.has(k));
+  try { localStorage.setItem(LC_STRIP_KEY, JSON.stringify(order)); } catch {}
+  renderLineCaseStrip();
+}
+function lcStripReset() {
+  try { localStorage.removeItem(LC_STRIP_KEY); } catch {}
+  renderLineCaseStrip();
+  renderLineCaseStripCfg();
+}
+function lcOpenPod(key) {
+  _lcPod = key === 'none' ? 'none' : +key;
+  openLineCasePicker();
 }
 
 function renderLineCasePods() {
