@@ -65,19 +65,80 @@ async function groqGenerate(prompt) {
     headers: { Authorization: `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
     timeout: 60000,
   });
-  return r.data?.choices?.[0]?.message?.content || '';
+  const u = r.data?.usage || {};
+  return { text: r.data?.choices?.[0]?.message?.content || '', inTok: u.prompt_tokens || 0, outTok: u.completion_tokens || 0 };
 }
+
+// ── นับ token ต่อฟีเจอร์ ──────────────────────────────────
+// log ทุก call (🪙) + รวมยอดต่อวัน/ฟีเจอร์ลงตาราง ai_token_usage (เขียนรวดเดียวทุก 1 นาที)
+// ดูสรุป: GET /api/ai/usage?days=7 · ปิด log รายครั้งได้ด้วย AI_USAGE_LOG=off (ยังนับลงตารางเหมือนเดิม)
+const AI_USAGE_LOG = (process.env.AI_USAGE_LOG || 'on').toLowerCase() !== 'off';
+const _aiUsageBuf = new Map();   // `${day}|${feature}|${provider}|${model}` → { calls, inTok, outTok }
+function aiUsage(feature, provider, model, inTok, outTok) {
+  inTok = +inTok || 0; outTok = +outTok || 0;
+  const key = `${bangkokToday()}|${feature || 'other'}|${provider}|${model}`;
+  const b = _aiUsageBuf.get(key) || { calls: 0, inTok: 0, outTok: 0 };
+  b.calls++; b.inTok += inTok; b.outTok += outTok;
+  _aiUsageBuf.set(key, b);
+  if (AI_USAGE_LOG) console.log(`🪙 AI ${feature || 'other'}: ${inTok.toLocaleString()} in + ${outTok.toLocaleString()} out = ${(inTok + outTok).toLocaleString()} token (${provider} ${model})`);
+}
+const geminiUsage = (feature, model, result) => {
+  const m = result?.response?.usageMetadata || {};
+  aiUsage(feature, 'gemini', model, m.promptTokenCount, (m.candidatesTokenCount || 0) + (m.thoughtsTokenCount || 0));
+};
+let _aiUsageTable = false;
+async function ensureAiUsageTable() {
+    if (!_aiUsageTable) {
+      await req().query(`IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ai_token_usage' AND xtype='U')
+        CREATE TABLE ai_token_usage (
+          day DATE NOT NULL, feature NVARCHAR(50) NOT NULL, provider NVARCHAR(20) NOT NULL, model NVARCHAR(100) NOT NULL,
+          calls INT NOT NULL DEFAULT 0, in_tokens BIGINT NOT NULL DEFAULT 0, out_tokens BIGINT NOT NULL DEFAULT 0,
+          updated_at DATETIME DEFAULT GETDATE(),
+          CONSTRAINT pk_ai_token_usage PRIMARY KEY (day, feature, provider, model))`);
+      _aiUsageTable = true;
+    }
+}
+async function flushAiUsage() {
+  if (!_aiUsageBuf.size) return;
+  const rows = [..._aiUsageBuf]; _aiUsageBuf.clear();
+  try {
+    await ensureAiUsageTable();
+    for (const [key, b] of rows) {
+      const [day, feature, provider, model] = key.split('|');
+      await req().input('d', sql.Date, new Date(day + 'T00:00:00Z')).input('f', sql.NVarChar, feature)
+        .input('p', sql.NVarChar, provider).input('m', sql.NVarChar, model)
+        .input('c', sql.Int, b.calls).input('i', sql.BigInt, b.inTok).input('o', sql.BigInt, b.outTok).query(`
+        UPDATE ai_token_usage SET calls=calls+@c, in_tokens=in_tokens+@i, out_tokens=out_tokens+@o, updated_at=GETDATE()
+          WHERE day=@d AND feature=@f AND provider=@p AND model=@m;
+        IF @@ROWCOUNT = 0 INSERT INTO ai_token_usage (day, feature, provider, model, calls, in_tokens, out_tokens)
+          VALUES (@d, @f, @p, @m, @c, @i, @o)`);
+    }
+  } catch (e) {
+    console.error('ai usage flush failed:', e.message);
+    for (const [key, b] of rows) {   // คืนเข้าบัฟเฟอร์ ลองใหม่รอบหน้า
+      const a = _aiUsageBuf.get(key) || { calls: 0, inTok: 0, outTok: 0 };
+      _aiUsageBuf.set(key, { calls: a.calls + b.calls, inTok: a.inTok + b.inTok, outTok: a.outTok + b.outTok });
+    }
+  }
+}
+setInterval(flushAiUsage, 60 * 1000);
 
 // prompt → ข้อความ. parse ใช้แปลง/ตรวจคำตอบ (โยน error = ให้ไปลองอีกเจ้า)
 // geminiConfig คือ responseSchema ฝั่ง Gemini เท่านั้น — Groq อาศัย prompt + parse เอา
 // prefer เลือกว่าจะให้เจ้าไหนเป็นตัวหลัก อีกเจ้าเป็นตัวสำรองอัตโนมัติ
 // ค่าเริ่มต้น = Gemini (ตั้ง AI_PREFER=groq ใน .env เพื่อสลับ)
 const AI_PREFER = (process.env.AI_PREFER || 'gemini').toLowerCase() === 'groq' ? 'groq' : 'gemini';
-async function aiGenerate(prompt, { parse = (t) => t, geminiConfig = null, prefer = AI_PREFER } = {}) {
-  const callGroq = async () => ({ value: parse(await groqGenerate(prompt)), usedModel: GROQ_MODEL });
+async function aiGenerate(prompt, { parse = (t) => t, geminiConfig = null, prefer = AI_PREFER, feature = 'other' } = {}) {
+  // นับ token ก่อน parse — คำตอบที่ parse ไม่ผ่านก็เสีย token ไปแล้ว
+  const callGroq = async () => {
+    const g = await groqGenerate(prompt);
+    aiUsage(feature, 'groq', GROQ_MODEL, g.inTok, g.outTok);
+    return { value: parse(g.text), usedModel: GROQ_MODEL };
+  };
   const callGemini = async () => {
     const model  = genAI.getGenerativeModel({ model: AI_MODEL, ...(geminiConfig || {}) });
     const result = await model.generateContent(prompt);
+    geminiUsage(feature, AI_MODEL, result);
     return { value: parse(result.response.text()), usedModel: AI_MODEL };
   };
   const groq   = { name: 'Groq',   hasKey: () => !!GROQ_API_KEY,               call: callGroq };
@@ -3266,6 +3327,26 @@ const REMOTE_INFO_TOOL = {
 };
 
 // ── 1. AI Chat ─────────────────────────────────────────────
+// GET /api/ai/usage?days=7 — token ที่ใช้ต่อฟีเจอร์ (รวมช่วง + รายวัน)
+app.get('/api/ai/usage', authRequired, async (request, res) => {
+  try {
+    const days = Math.min(90, Math.max(1, parseInt(request.query.days) || 7));
+    await ensureAiUsageTable();
+    await flushAiUsage();
+    const r = req().input('n', sql.Int, days - 1);
+    const range = `day >= CAST(DATEADD(day, -@n, GETDATE()) AS DATE)`;
+    const [byFeature, byDay] = await Promise.all([
+      r.query(`SELECT feature, provider, model, SUM(calls) AS calls, SUM(in_tokens) AS in_tokens, SUM(out_tokens) AS out_tokens,
+                      SUM(in_tokens + out_tokens) AS total_tokens
+               FROM ai_token_usage WHERE ${range} GROUP BY feature, provider, model ORDER BY total_tokens DESC`),
+      req().input('n', sql.Int, days - 1).query(`SELECT CONVERT(char(10), day, 23) AS day, feature, SUM(calls) AS calls,
+                      SUM(in_tokens + out_tokens) AS total_tokens
+               FROM ai_token_usage WHERE ${range} GROUP BY day, feature ORDER BY day DESC, total_tokens DESC`),
+    ]);
+    res.json({ days, by_feature: byFeature.recordset, by_day: byDay.recordset });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/ai/chat', authRequired, async (request, res) => {
   const { message, history = [], image } = request.body;
   if (!message && !image) return res.status(400).json({ error: 'message or image required' });
@@ -3313,6 +3394,7 @@ app.post('/api/ai/chat', authRequired, async (request, res) => {
     // Function-calling loop — let the model search history, then answer
     const MAX_HOPS = 3; // each hop = 1 Gemini request; cap it to protect the daily quota
     let result = await model.generateContent({ contents });
+    geminiUsage('ai_chat', AI_MODEL, result);
     let hop = 0;
     for (; hop < MAX_HOPS; hop++) {
       const calls = result.response.functionCalls();
@@ -3336,6 +3418,7 @@ app.post('/api/ai/chat', authRequired, async (request, res) => {
       }
       contents.push({ role: 'user', parts });
       result = await model.generateContent({ contents });
+      geminiUsage('ai_chat', AI_MODEL, result);
     }
 
     let reply = '';
@@ -3349,6 +3432,7 @@ app.post('/api/ai/chat', authRequired, async (request, res) => {
           'สรุปคำตอบเป็นข้อความภาษาไทยจากผลการค้นที่มีอยู่ตอนนี้ ถ้าไม่พบเคสที่เกี่ยวข้องให้บอกว่าไม่พบ (ห้ามเรียกเครื่องมือเพิ่ม)'
         }] });
         const nudge = await model.generateContent({ contents });
+        geminiUsage('ai_chat', AI_MODEL, nudge);
         reply = (nudge.response.text() || '').trim();
       } catch (e) { console.warn('[ai/chat] nudge failed:', e.message); }
     }
@@ -3392,7 +3476,7 @@ ${context}
 
 ตอบเป็นภาษาไทย กระชับ อ่านง่าย ไม่เกิน 200 คำ`;
 
-    const { value } = await aiGenerate(prompt);
+    const { value } = await aiGenerate(prompt, { feature: 'dashboard_summary' });
     res.json({ summary: value });
   } catch (e) {
     console.error('AI summary error:', e.message);
@@ -3438,7 +3522,7 @@ ${JSON.stringify(approvedLeaves, null, 2)}
 ตอบเป็น JSON array เท่านั้น:
 [{"employee_id": 1, "shift_date": "YYYY-MM-DD", "shift_type": "morning|afternoon|night"}]`;
 
-    const { value: suggestions } = await aiGenerate(prompt, { parse: parseJsonArrayReply });
+    const { value: suggestions } = await aiGenerate(prompt, { parse: parseJsonArrayReply, feature: 'suggest_shifts' });
     res.json({ suggestions, week_start: startDate, end_date: endDate });
   } catch (e) {
     console.error('AI shift error:', e.message);
@@ -3542,7 +3626,7 @@ ${JSON.stringify(rawEvents)}
 - ไม่มั่นใจว่าเป็นใคร → emp_id=null (ห้ามเดามั่ว)
 - คืน JSON array อย่างเดียว ห้ามมีข้อความอื่น`;
 
-    const { value: events, usedModel } = await aiGenerate(prompt, { parse: parseJsonArrayReply });
+    const { value: events, usedModel } = await aiGenerate(prompt, { parse: parseJsonArrayReply, feature: 'empcal_summary' });
 
     // 4) Aggregate per team + collect unmatched as "unknown"
     const teamAgg = {};  // team -> emp_id -> { emp_id, nickname, items[] }
@@ -6682,7 +6766,8 @@ async function classifyTriageBatch(batchSize = 30) {
   // เดิมส่งให้ AI ทุกกลุ่มแล้วค่อยกรองตอนแสดงผล — ตอนนี้กรองก่อนเรียก AI
   // จะได้ไม่เปลืองโควตากับกลุ่มที่ไม่ได้เฝ้า
   const scopeRows = (await req().query(
-    'SELECT group_id, pod_id, notify_target_ids FROM line_group_pods')).recordset;
+    `SELECT lgp.group_id, lgp.pod_id, lgp.notify_target_ids, p.code AS pod_code, p.active AS pod_active
+     FROM line_group_pods lgp LEFT JOIN pods p ON p.id = lgp.pod_id`)).recordset;
   const scopeMap = new Map(scopeRows.map(r => [r.group_id, r]));
   const inScope = cand.filter(r => triageGroupInScope(scopeMap.get(r.GroupId)));
   if (!inScope.length) return { classified: 0, scanned: 0, hasKey: true, skippedOutOfScope: cand.length };
@@ -6756,7 +6841,7 @@ ${list}`;
   let arr, usedModel;
   try {
     // หน้า Pod & Assign ใช้ Gemini เป็นตัวหลัก (responseSchema บังคับรูปแบบได้) Groq เป็นตัวสำรอง
-    ({ value: arr, usedModel } = await aiGenerate(prompt, { parse: parseJsonArrayReply, geminiConfig }));
+    ({ value: arr, usedModel } = await aiGenerate(prompt, { parse: parseJsonArrayReply, geminiConfig, feature: 'triage_classify' }));
   } catch (e) {
     console.error('triage: AI/parse failed:', e.message);
     return { classified: 0, scanned: cand.length, hasKey: true, error: 'AI คัดกรองไม่สำเร็จ: ' + e.message };
@@ -6822,15 +6907,24 @@ function triageRuleClassify(text) {
 // ใช้ได้เฉพาะใน query ที่ join line_group_pods (lgp) ไว้แล้ว
 const TRIAGE_BELL_SQL = (lgp = 'lgp') =>
   `(${lgp}.notify_target_ids IS NOT NULL AND LTRIM(RTRIM(${lgp}.notify_target_ids)) <> '')`;
+// + ทุกกลุ่มใน Pod ที่รหัสตรง TRIAGE_SCOPE_PODS (ค่าเริ่มต้น BK%,CNX% = BKK-1..3, CNX-1..3) ไม่ต้องตั้งกระดิ่งรายกลุ่ม
+const TRIAGE_SCOPE_PODS = String(process.env.TRIAGE_SCOPE_PODS ?? 'BK%,CNX%')
+  .split(',').map(x => x.trim()).filter(x => /^[A-Za-z0-9%_\- ]+$/.test(x));   // ใช้ต่อใน SQL ตรงๆ — รับแค่ตัวอักษรปลอดภัย
+const TRIAGE_SCOPE_POD_SQL = TRIAGE_SCOPE_PODS.length
+  ? `SELECT id FROM pods WHERE active=1 AND (${TRIAGE_SCOPE_PODS.map(x => `code LIKE '${x}'`).join(' OR ')})` : '';
+const TRIAGE_SCOPE_POD_RE = TRIAGE_SCOPE_PODS.length
+  // แปลงรูปแบบ LIKE → regex (รูปแบบผ่านการกรองตัวอักษรข้างบนแล้ว ไม่มีอักขระพิเศษของ regex ให้ escape)
+  ? new RegExp('^(' + TRIAGE_SCOPE_PODS.map(x => x.replace(/%/g, '.*').replace(/_/g, '.')).join('|') + ')$', 'i') : null;
 function triageScopeSql(lgp = 'lgp') {
-  return `(${lgp}.pod_id IS NULL OR ${TRIAGE_BELL_SQL(lgp)})`;
+  return `(${lgp}.pod_id IS NULL OR ${TRIAGE_BELL_SQL(lgp)}${TRIAGE_SCOPE_POD_SQL ? ` OR ${lgp}.pod_id IN (${TRIAGE_SCOPE_POD_SQL})` : ''})`;
 }
 
 // เวอร์ชัน JS ของกฎเดียวกัน สำหรับกรองผู้สมัครข้าม DB (LineBotMonitor → cs_team)
 function triageGroupInScope(row) {
   if (!row) return true;                                  // ไม่มีแถวเลย = ยังไม่ได้ assign
   if (row.pod_id === null || row.pod_id === undefined) return true;  // มีแถวแต่ยังไม่มี Pod
-  return !!String(row.notify_target_ids || '').trim();     // assign แล้ว → ต้องตั้งกระดิ่ง
+  if (TRIAGE_SCOPE_POD_RE && row.pod_active && TRIAGE_SCOPE_POD_RE.test(row.pod_code || '')) return true;   // Pod ที่เฝ้าทั้ง Pod
+  return !!String(row.notify_target_ids || '').trim();     // Pod อื่น → ต้องตั้งกระดิ่ง
 }
 
 // Apply inbox filters from query params onto a request; returns the WHERE clause.
@@ -7306,7 +7400,7 @@ ${subjects.map(s => s.name).join(' | ')}
     };
     let draft = { description: t.summary || t.message_text || '', solution: '', subject: '' }, aiError = null;
     try {
-      const { value } = await aiGenerate(prompt, { parse: parseObj, geminiConfig: {
+      const { value } = await aiGenerate(prompt, { parse: parseObj, feature: 'case_draft', geminiConfig: {
         generationConfig: { responseMimeType: 'application/json', responseSchema: {
           type: SchemaType.OBJECT,
           properties: { description: { type: SchemaType.STRING }, solution: { type: SchemaType.STRING }, subject: { type: SchemaType.STRING } },
@@ -7765,7 +7859,7 @@ ${list}`;
   let arr;
   try {
     // หน้า Pod & Assign ใช้ Gemini เป็นตัวหลัก Groq เป็นตัวสำรอง
-    ({ value: arr } = await aiGenerate(prompt, { parse: parseJsonArrayReply, geminiConfig }));
+    ({ value: arr } = await aiGenerate(prompt, { parse: parseJsonArrayReply, geminiConfig, feature: 'triage_screen' }));
   } catch (e) {
     // AI ล่ม → ไม่กรองอะไรเลย ปล่อยให้แจ้งเตือนตามปกติ (ปลอดภัยกว่าเงียบ)
     console.error('triage screen: AI failed:', e.message);
@@ -13997,7 +14091,9 @@ ${caseList}
       let arr;
       try {
         const model = genAI.getGenerativeModel({ model: MT_SUGGEST_MODEL, ...geminiConfig });
-        arr = parseJsonArrayReply((await model.generateContent(prompt)).response.text());
+        const mtRes = await model.generateContent(prompt);
+        geminiUsage('monitor_tag', MT_SUGGEST_MODEL, mtRes);
+        arr = parseJsonArrayReply(mtRes.response.text());
         usedModel = MT_SUGGEST_MODEL;
       } catch (e) { console.error('[monitor-suggest] AI failed:', e.message); return { evaluated, suggested, error: 'AI ไม่สำเร็จ: ' + e.message }; }
       const hits = new Map();
