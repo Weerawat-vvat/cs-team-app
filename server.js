@@ -17,13 +17,13 @@ const PORT       = process.env.PORT || 3010;
 const AI_MODEL   = process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
 const JWT_SECRET = process.env.JWT_SECRET || 'cs-team-jwt-secret-change-in-prod';
 const genAI      = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '', { apiVersion: 'v1' });
-// Groq (OpenAI-compatible REST) — the primary provider, see aiGenerate() below
+// Groq (OpenAI-compatible REST) — fallback provider, see aiGenerate() below
 const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
 const GROQ_MODEL   = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
 const GROQ_URL     = 'https://api.groq.com/openai/v1/chat/completions';
 
 // ══════════════════════════════════════════════════════════
-//  AI PROVIDERS — Groq เป็นตัวหลัก, Gemini เป็นตัวสำรอง
+//  AI PROVIDERS — Gemini เป็นตัวหลัก, Groq เป็นตัวสำรอง (AI_PREFER=groq สลับกลับได้)
 //  ทุกฟีเจอร์ที่แค่ "ส่ง prompt เข้า → เอาข้อความออก" ให้เรียกผ่าน aiGenerate()
 //  เจ้าใดเจ้าหนึ่งล่มจะได้ไม่ทำให้ฟีเจอร์ตายทั้งตัว
 //  (ยกเว้น /api/ai/chat ที่ใช้ Gemini function-calling โดยเฉพาะ)
@@ -59,8 +59,9 @@ async function groqGenerate(prompt) {
 // prompt → ข้อความ. parse ใช้แปลง/ตรวจคำตอบ (โยน error = ให้ไปลองอีกเจ้า)
 // geminiConfig คือ responseSchema ฝั่ง Gemini เท่านั้น — Groq อาศัย prompt + parse เอา
 // prefer เลือกว่าจะให้เจ้าไหนเป็นตัวหลัก อีกเจ้าเป็นตัวสำรองอัตโนมัติ
-// ('groq' = ค่าเริ่มต้น; หน้า Pod & Assign ใช้ 'gemini')
-async function aiGenerate(prompt, { parse = (t) => t, geminiConfig = null, prefer = 'groq' } = {}) {
+// ค่าเริ่มต้น = Gemini (ตั้ง AI_PREFER=groq ใน .env เพื่อสลับ)
+const AI_PREFER = (process.env.AI_PREFER || 'gemini').toLowerCase() === 'groq' ? 'groq' : 'gemini';
+async function aiGenerate(prompt, { parse = (t) => t, geminiConfig = null, prefer = AI_PREFER } = {}) {
   const callGroq = async () => ({ value: parse(await groqGenerate(prompt)), usedModel: GROQ_MODEL });
   const callGemini = async () => {
     const model  = genAI.getGenerativeModel({ model: AI_MODEL, ...(geminiConfig || {}) });
@@ -6701,7 +6702,7 @@ async function classifyTriageBatch(batchSize = 30) {
   if (!todo.length) return { classified: ruled, ruled, scanned: inScope.length, hasKey: true, skippedOutOfScope: cand.length - inScope.length };
 
   const list = todo.map((m, i) =>
-    `[${i}] ${String(m.CustomerMessage).replace(/\s+/g, ' ').slice(0, 500)}`
+    `[${i}] ${String(m.CustomerMessage).replace(/\s+/g, ' ').slice(0, 300)}`   // 300 ตัวอักษรพอให้จำแนกได้ — ประหยัด token
   ).join('\n');
 
   const prompt = `คุณคือระบบคัดกรองข้อความจากลูกค้าที่ทักเข้ามาในกลุ่ม/แชทไลน์ของทีม Customer Service
@@ -6743,7 +6744,7 @@ ${list}`;
   let arr, usedModel;
   try {
     // หน้า Pod & Assign ใช้ Gemini เป็นตัวหลัก (responseSchema บังคับรูปแบบได้) Groq เป็นตัวสำรอง
-    ({ value: arr, usedModel } = await aiGenerate(prompt, { parse: parseJsonArrayReply, geminiConfig, prefer: 'gemini' }));
+    ({ value: arr, usedModel } = await aiGenerate(prompt, { parse: parseJsonArrayReply, geminiConfig }));
   } catch (e) {
     console.error('triage: AI/parse failed:', e.message);
     return { classified: 0, scanned: cand.length, hasKey: true, error: 'AI คัดกรองไม่สำเร็จ: ' + e.message };
@@ -7192,6 +7193,7 @@ app.get('/api/triage/pod-counts', authRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+let _caseDraftSubj = null;
 // GET /api/triage/:id/case-draft — AI ร่างเคสจากข้อความ (อาการ / วิธีแก้ / หัวข้อ) + เดาร้านจากชื่อกลุ่มไลน์
 app.get('/api/triage/:id/case-draft', authRequired, async (request, res) => {
   const id = parseInt(request.params.id);
@@ -7224,9 +7226,15 @@ app.get('/api/triage/:id/case-draft', authRequired, async (request, res) => {
     // หัวข้อให้ AI เลือก — ชุดเดียวกับฟอร์มเปิดเคส
     let subjects = [];
     if (getExtPool()) {
-      subjects = (await extReq().query(`
-        SELECT s.SubjectName AS name, s.ProblemTypeId AS problem_type_id
-        FROM Subject s WHERE s.Active=1 AND s.SubjectName IS NOT NULL`)).recordset;
+      // เฉพาะหัวข้อที่ใช้บ่อยใน 90 วันล่าสุด (100 อันดับ) — ส่งทั้งหมดเปลือง token มาก · จำไว้ 6 ชม.
+      if (!_caseDraftSubj || Date.now() - _caseDraftSubj.at > 6 * 3600000) {
+        _caseDraftSubj = { at: Date.now(), rows: (await extReq().query(`
+          SELECT TOP 100 s.SubjectName AS name, MIN(s.ProblemTypeId) AS problem_type_id
+          FROM Calllog cl JOIN Subject s ON s.SubjectName = cl.Subject AND s.Active=1
+          WHERE cl.ReceiveDate >= DATEADD(day, -90, GETDATE())
+          GROUP BY s.SubjectName ORDER BY COUNT(*) DESC`)).recordset };
+      }
+      subjects = _caseDraftSubj.rows;
     }
 
     const convo = thread.map(m => `- ${m.customer_name || 'ลูกค้า'}: ${String(m.message_text || '').replace(/\s+/g, ' ').slice(0, 400)}`).join('\n');
@@ -7238,7 +7246,7 @@ app.get('/api/triage/:id/case-draft', authRequired, async (request, res) => {
 ${convo || '-'}
 
 หัวข้อเคสที่เลือกได้ (ต้องเลือกให้ตรงตัวอักษร หรือเว้นว่างถ้าไม่มีที่เหมาะ):
-${subjects.map(s => s.name).join(' | ').slice(0, 6000)}
+${subjects.map(s => s.name).join(' | ')}
 
 ตอบเป็น JSON object เดียวเท่านั้น:
 - description: อาการ/รายละเอียดปัญหาที่ลูกค้าแจ้ง ภาษาไทย กระชับ 1-3 ประโยค
@@ -7252,7 +7260,7 @@ ${subjects.map(s => s.name).join(' | ').slice(0, 6000)}
     };
     let draft = { description: t.summary || t.message_text || '', solution: '', subject: '' }, aiError = null;
     try {
-      const { value } = await aiGenerate(prompt, { parse: parseObj, prefer: 'gemini', geminiConfig: {
+      const { value } = await aiGenerate(prompt, { parse: parseObj, geminiConfig: {
         generationConfig: { responseMimeType: 'application/json', responseSchema: {
           type: SchemaType.OBJECT,
           properties: { description: { type: SchemaType.STRING }, solution: { type: SchemaType.STRING }, subject: { type: SchemaType.STRING } },
@@ -7593,6 +7601,8 @@ async function fetchTriageTails() {
   `)).recordset;
   const map = new Map();
   for (const r of rows) {
+    // สติกเกอร์/อีโมจิล้วนไม่บอกอะไร — ไม่นับเป็นข้อความตามหลัง จะได้ไม่ต้องให้ AI ประเมินใหม่ทุกครั้งที่มีคนส่งสติกเกอร์
+    if (triageRuleClassify(r.message_text)?.summary === 'ส่งสติกเกอร์/อีโมจิ') continue;
     if (!map.has(r.group_id)) map.set(r.group_id, []);
     map.get(r.group_id).push(r);
   }
@@ -7699,7 +7709,7 @@ ${list}`;
   let arr;
   try {
     // หน้า Pod & Assign ใช้ Gemini เป็นตัวหลัก Groq เป็นตัวสำรอง
-    ({ value: arr } = await aiGenerate(prompt, { parse: parseJsonArrayReply, geminiConfig, prefer: 'gemini' }));
+    ({ value: arr } = await aiGenerate(prompt, { parse: parseJsonArrayReply, geminiConfig }));
   } catch (e) {
     // AI ล่ม → ไม่กรองอะไรเลย ปล่อยให้แจ้งเตือนตามปกติ (ปลอดภัยกว่าเงียบ)
     console.error('triage screen: AI failed:', e.message);
@@ -13836,7 +13846,7 @@ app.get('/api/monitor-tags/:id/analysis', authRequired, async (request, res) => 
 // เคสของวันนั้นที่ยังไม่ได้ติด Tag → ให้ AI จับคู่กับ Tag กลางที่เปิดอยู่ → คนกดยืนยัน/ปฏิเสธ
 // ประหยัด token: ส่งครั้งละ 40 เคส, ให้ AI ตอบเฉพาะเคสที่ตรง, เคสที่ประเมินแล้วไม่ส่งซ้ำ
 // (ยกเว้นมี Tag ใหม่เพิ่มเข้ามาหลังประเมิน — เคสที่เคย "ไม่ตรง" จะถูกประเมินใหม่ได้)
-const MT_SUGGEST_BATCH = 40;
+const MT_SUGGEST_BATCH = 80;   // ชุดใหญ่ = ส่งรายชื่อ Tag ซ้ำน้อยลง (ประหยัด token)
 const MT_SUGGEST_AUTO  = (process.env.MONITOR_SUGGEST_AUTO || 'on').toLowerCase() !== 'off';
 // ใช้รุ่นถูกเสมอ (แยกจาก GEMINI_MODEL ของฟีเจอร์อื่น) · Gemini ล่ม = ข้ามรอบนี้ ไม่สลับไปรุ่นแพง
 const MT_SUGGEST_MODEL = process.env.MONITOR_SUGGEST_MODEL || 'gemini-flash-lite-latest';
