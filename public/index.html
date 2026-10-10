@@ -1812,7 +1812,6 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
     <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
       <button class="svc-btn-ghost" onclick="tkExportCSV()" title="Export ข้อมูลที่กรองอยู่เป็น CSV"><i class=i-download></i> Export</button>
       <button class="svc-btn-ghost" onclick="openModal('modal-tk-import')" title="Import Case จาก CSV"><i class=i-upload></i> Import</button>
-      <button class="svc-btn-ghost" onclick="openLineCasePicker()" title="เลือกข้อความไลน์ที่ AI สรุปไว้ แล้วเปิดเป็นเคส"><i class=i-check></i> คัดกรองเคสจาก Line <span id="lc-badge" class="lc-badge" style="display:none"></span></button>
       <button class="svc-btn-primary" onclick="openCreateCaseModal()"><span style="font-size:1.05rem;line-height:1;font-weight:400">+</span> เปิด Case</button>
     </div>
   </div>
@@ -7035,7 +7034,7 @@ function trWaiting(s) {
 
 function trCopyName(btn, enc) {
   const s = decodeURIComponent(enc);
-  const done = () => { const o = btn.textContent; btn.textContent = '✓'; btn.style.color = '#4d8c6a'; setTimeout(() => { btn.textContent = o; btn.style.color = '#8a8f97'; }, 1200); };
+  const done = () => { const o = btn.innerHTML, c = btn.style.color; btn.textContent = '✓'; btn.style.color = '#4d8c6a'; setTimeout(() => { btn.innerHTML = o; btn.style.color = c; }, 1200); };
   if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(s).then(done).catch(done);
   else { const t = document.createElement('textarea'); t.value = s; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); done(); }
 }
@@ -14603,9 +14602,120 @@ function lcStripReset() {
   renderLineCaseStripCfg();
 }
 function lcOpenPod(key) {
-  _lcPod = key === 'none' ? 'none' : +key;
+  _lcPod = key === 'none' || key === '' ? key : +key;
   openLineCasePicker();
 }
+
+// ══════════════════════════════════════════════════════════
+//  แจ้งเตือนเคสใหม่จาก Line (ทุกหน้า) — เสียง + กล่องเด้งมุมขวาล่าง แบบ MSN
+//  เตือนเฉพาะ Pod ที่เลือกไว้ในแถบ "เคสจาก Line ค้าง" (⚙) · ปิดเสียงได้จากกล่องแจ้งเตือน
+// ══════════════════════════════════════════════════════════
+const LC_MUTE_KEY = 'lcAlertMute';
+let _lcAlertLast = null, _lcAudio = null, _lcTitleTimer = null;
+const lcMuted = () => { try { return localStorage.getItem(LC_MUTE_KEY) === '1'; } catch { return false; } };
+
+// เบราว์เซอร์ยอมให้เล่นเสียงหลังผู้ใช้คลิกหน้าเว็บอย่างน้อย 1 ครั้ง
+document.addEventListener('click', () => {
+  try { _lcAudio ||= new (window.AudioContext || window.webkitAudioContext)(); _lcAudio.resume?.(); } catch {}
+}, { capture: true });
+
+function lcPlayChime() {
+  if (lcMuted() || !_lcAudio) return;
+  try {
+    const t0 = _lcAudio.currentTime;
+    // สามโน้ตขึ้น ติ๊ง-ติ๊ง-ติ๋ง คล้ายเสียงข้อความเข้า MSN
+    [[880, 0], [1175, 0.12], [1568, 0.24]].forEach(([f, d]) => {
+      const o = _lcAudio.createOscillator(), g = _lcAudio.createGain();
+      o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t0 + d);
+      g.gain.exponentialRampToValueAtTime(0.25, t0 + d + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + d + 0.35);
+      o.connect(g).connect(_lcAudio.destination);
+      o.start(t0 + d); o.stop(t0 + d + 0.4);
+    });
+  } catch {}
+}
+
+function lcFlashTitle(n) {
+  clearInterval(_lcTitleTimer);
+  const base = document.title.replace(/^\(\d+\) 🔔 .*? · /, '');
+  let on = false;
+  _lcTitleTimer = setInterval(() => {
+    if (!document.hidden) { document.title = base; clearInterval(_lcTitleTimer); return; }
+    on = !on; document.title = on ? `(${n}) 🔔 เคสใหม่จาก Line · ${base}` : base;
+  }, 1000);
+}
+
+function lcShowPopup(rows) {
+  let wrap = document.getElementById('lc-pop-wrap');
+  if (!wrap) {
+    wrap = document.createElement('div');
+    wrap.id = 'lc-pop-wrap';
+    wrap.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:9999;display:flex;flex-direction:column;gap:.5rem;max-width:min(360px,calc(100vw - 32px))';
+    document.body.appendChild(wrap);
+    const st = document.createElement('style');
+    st.textContent = `@keyframes lcPopIn{from{transform:translateY(120%);opacity:0}to{transform:none;opacity:1}}
+      .lc-pop{background:#fff;border:1px solid #d9dee6;border-left:4px solid var(--primary);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.15);
+        padding:.7rem .85rem;animation:lcPopIn .35s ease-out;cursor:pointer;font-size:.8rem;color:#3d424a}
+      .lc-pop:hover{background:#f7f9fc}`;
+    document.head.appendChild(st);
+  }
+  const r = rows[0], more = rows.length - 1;
+  const el = document.createElement('div');
+  el.className = 'lc-pop';
+  if (r.priority === 'urgent') el.style.borderLeftColor = '#c0584c';
+  el.innerHTML = `<div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.25rem">
+      <b style="font-size:.84rem;color:#1f2a3a">🔔 เคสใหม่จาก Line${r.priority === 'urgent' ? ' · <span style="color:#c0584c">เร่งด่วน</span>' : ''}</b>
+      <span style="margin-left:auto;display:flex;gap:.3rem">
+        <button data-act="mute" title="${lcMuted() ? 'เปิดเสียง' : 'ปิดเสียง'}" style="border:none;background:none;cursor:pointer;font-size:.9rem">${lcMuted() ? '🔇' : '🔊'}</button>
+        <button data-act="close" title="ปิด" style="border:none;background:none;cursor:pointer;font-size:1rem;color:#8a8f97">×</button>
+      </span></div>
+    <div><span style="font-weight:600">${escHtml(r.pod_code || 'ยังไม่ได้ Assign')}</span> · ${escHtml(r.group_name || '—')}</div>
+    <div style="margin-top:.2rem;color:#24272c">${escHtml(r.summary || '')}</div>
+    ${more > 0 ? `<div style="margin-top:.25rem;color:#6f747c">และอีก ${more} รายการ</div>` : ''}
+    <div style="margin-top:.35rem;color:var(--primary);font-weight:600">กดเพื่อเปิดเคส →</div>`;
+  const close = () => { el.style.transition = 'opacity .25s'; el.style.opacity = '0'; setTimeout(() => el.remove(), 260); };
+  el.addEventListener('click', e => {
+    const act = e.target.closest('button')?.dataset.act;
+    if (act === 'close') return close();
+    if (act === 'mute') {
+      try { localStorage.setItem(LC_MUTE_KEY, lcMuted() ? '0' : '1'); } catch {}
+      e.target.textContent = lcMuted() ? '🔇' : '🔊';
+      return;
+    }
+    close();
+    showPage('tickets', document.getElementById('nav-btn-tickets'));
+    lcOpenPod(rows.length === 1 || rows.every(x => x.pod_id === r.pod_id) ? (r.pod_id ?? 'none') : '');
+  });
+  wrap.appendChild(el);
+  while (wrap.children.length > 3) wrap.firstChild.remove();
+  setTimeout(close, 20000);
+}
+
+async function lcAlertTick() {
+  if (!authToken || !currentUser) return;
+  const d = await api(`/api/triage/new${_lcAlertLast === null ? '' : `?after=${_lcAlertLast}`}`, { silent: true });
+  if (!d || d.error) return;
+  const first = _lcAlertLast === null;
+  _lcAlertLast = d.last;
+  if (first || !d.rows?.length) return;
+  if (!_lcPods) { const p = await api('/api/pods', { silent: true }); if (Array.isArray(p)) _lcPods = p; }
+  const sel = new Set(lcStripSel());
+  const rows = d.rows.filter(r => sel.has(String(r.pod_id ?? 'none')));
+  if (!rows.length) return;
+  lcPlayChime();
+  lcShowPopup(rows);
+  if (document.hidden) lcFlashTitle(rows.length);
+  if (document.hidden && window.Notification?.permission === 'granted') {
+    try { new Notification('🔔 เคสใหม่จาก Line', { body: `${rows[0].pod_code || 'ยังไม่ได้ Assign'} · ${rows[0].summary || ''}`, tag: 'lc-new' }); } catch {}
+  }
+  lcRefreshCounts();
+}
+setInterval(lcAlertTick, 20000);
+// ขออนุญาตแจ้งเตือนของเบราว์เซอร์ (ใช้ตอนอยู่แท็บอื่น) — ถามครั้งเดียวหลังคลิกแรก
+document.addEventListener('click', () => {
+  if (window.Notification?.permission === 'default') Notification.requestPermission().catch(() => {});
+}, { once: true });
 
 function renderLineCasePods() {
   const box = document.getElementById('lc-pods');
@@ -14668,11 +14778,16 @@ function renderLineCasePicker() {
   const PRI = { urgent: ['เร่งด่วน', '#b04a40'], normal: ['ปกติ', '#86671f'], low: ['ต่ำ', '#6f747c'] };
   box.innerHTML = list.map(r => {
     const w = trWaiting(r.message_time), p = PRI[r.priority] || PRI.normal;
+    // แชทส่วนตัวมีชื่อกลุ่มเป็น "แชทส่วนตัว" เหมือนกันหมด → ใช้ชื่อ LINE ของลูกค้าแทน (ไว้คัดลอกไปค้นหา)
+    const chat = String(r.group_id || '').startsWith('U') ? (String(r.customer_name || '').trim() || r.group_name || '—') : (r.group_name || '—');
     return `<div style="display:flex;gap:.75rem;align-items:flex-start;padding:.7rem 0;border-bottom:1px solid #f0eee9">
       <div style="flex:1;min-width:0">
         <div style="font-size:.74rem;color:#6f747c">
           <span style="display:inline-block;padding:0 .4rem;border-radius:4px;background:${escHtml(r.pod_color || '#e6e3dc')}22;color:#3d424a;font-weight:600;margin-right:.25rem">${escHtml(r.pod_code || 'ยังไม่ได้ Assign')}</span>
-          <b style="color:#24272c">${escHtml(r.group_name || '—')}</b> · ${escHtml(r.customer_name || 'ลูกค้า')}
+          <b style="color:#24272c">${escHtml(chat)}</b>
+          <button title="คัดลอกชื่อไปค้นหาใน LINE / LINE OA" onclick="event.stopPropagation();trCopyName(this,'${encodeURIComponent(chat).replace(/'/g, '%27')}')"
+            style="cursor:pointer;border:1px solid #e0ddd6;border-radius:5px;background:#fff;color:#5b616b;padding:0 .35rem;font-size:.68rem;line-height:1.5;margin:0 .15rem"><i class=i-clipboard></i> คัดลอก</button>
+          · ${escHtml(r.customer_name || 'ลูกค้า')}
           · <span style="color:${w.color}">${w.txt}</span> · <span style="color:${p[1]}">${p[0]}</span>${r.status === 'claimed' ? ` · รับงานโดย ${escHtml(r.claimed_name || '—')}` : ''}
         </div>
         <div style="font-size:.86rem;font-weight:600;color:#24272c;margin:.15rem 0">${escHtml(r.summary || '—')}</div>
@@ -14702,7 +14817,11 @@ async function openCaseFromTriage(id) {
   const banner = document.getElementById('cc-line-banner');
   const setBanner = extra => {
     banner.style.display = '';
-    banner.innerHTML = `<b>จาก Line · ${escHtml(t?.group_name || '')}</b> — ${escHtml(t?.summary || '')}
+    const chat = String(t?.group_id || '').startsWith('U') ? (String(t?.customer_name || '').trim() || t?.group_name || '') : (t?.group_name || '');
+    banner.innerHTML = `<b>จาก Line · ${escHtml(chat)}</b>
+      <button title="คัดลอกชื่อไปค้นหาใน LINE / LINE OA" onclick="trCopyName(this,'${encodeURIComponent(chat).replace(/'/g, '%27')}')"
+        style="cursor:pointer;border:1px solid #cfe3d6;border-radius:5px;background:#fff;color:#2f5d43;padding:0 .35rem;font-size:.68rem;line-height:1.5"><i class=i-clipboard></i> คัดลอก</button>
+      — ${escHtml(t?.summary || '')}
       <div style="color:#5b616b;margin-top:.2rem">${extra}</div>`;
   };
   setBanner('AI กำลังร่างอาการและ Solution…');

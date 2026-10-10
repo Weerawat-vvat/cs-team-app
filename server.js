@@ -7193,6 +7193,25 @@ app.get('/api/triage/pod-counts', authRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// GET /api/triage/new?after=<id> — ข้อความที่ AI ตรวจว่าต้องดำเนินการ ใหม่กว่า id ที่เห็นล่าสุด (แจ้งเตือนเสียงทุกหน้า)
+// ไม่ส่ง after = คืนแค่ id ล่าสุด (ไม่เตือนของค้างเก่าตอนเพิ่งเปิดหน้า)
+app.get('/api/triage/new', authRequired, async (request, res) => {
+  try {
+    const after = parseInt(request.query.after);
+    const last = (await req().query(`SELECT MAX(id) AS id FROM line_msg_triage`)).recordset[0]?.id || 0;
+    if (!Number.isInteger(after) || after >= last) return res.json({ last, rows: [] });
+    const rows = (await req().input('after', sql.Int, after).query(`
+      SELECT TOP 10 t.id, t.group_name, t.customer_name, t.summary, t.priority, t.message_time,
+             lgp.pod_id, p.code AS pod_code, p.color AS pod_color
+      FROM line_msg_triage t
+      LEFT JOIN line_group_pods lgp ON lgp.group_id = t.group_id
+      LEFT JOIN pods p ON p.id = lgp.pod_id
+      WHERE t.id > @after AND t.status='open' AND t.needs_action=1 AND ${triageScopeSql()}
+      ORDER BY t.id DESC`)).recordset;
+    res.json({ last, rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 let _caseDraftSubj = null;
 // GET /api/triage/:id/case-draft — AI ร่างเคสจากข้อความ (อาการ / วิธีแก้ / หัวข้อ) + เดาร้านจากชื่อกลุ่มไลน์
 app.get('/api/triage/:id/case-draft', authRequired, async (request, res) => {
