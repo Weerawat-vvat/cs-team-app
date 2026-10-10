@@ -39,7 +39,17 @@ const aiErrText = (e) => {
 function parseJsonArrayReply(text) {
   const t = String(text || '').trim();
   const a = t.indexOf('['), b = t.lastIndexOf(']');
-  if (a === -1 || b <= a) throw new Error('AI ไม่ได้ตอบกลับเป็น JSON array');
+  if (a === -1 || b <= a) {
+    // บางรุ่นห่อมาเป็น {"items":[...]} หรือส่งมา object เดียว
+    const o = t.indexOf('{'), c = t.lastIndexOf('}');
+    if (o !== -1 && c > o) {
+      const v = JSON.parse(t.slice(o, c + 1));
+      const arr = Object.values(v).find(Array.isArray);
+      if (arr) return arr;
+      if (v && typeof v === 'object') return [v];
+    }
+    throw new Error(t ? 'AI ไม่ได้ตอบกลับเป็น JSON array' : 'AI ตอบกลับว่างเปล่า');
+  }
   return JSON.parse(t.slice(a, b + 1));
 }
 
@@ -48,6 +58,8 @@ async function groqGenerate(prompt) {
   const r = await axios.post(GROQ_URL, {
     model: GROQ_MODEL,
     temperature: 0,
+    // gpt-oss เป็นรุ่นที่คิดก่อนตอบ — คิดน้อยลง = ประหยัด token และไม่หมดโควตาก่อนได้คำตอบ
+    ...(/gpt-oss/i.test(GROQ_MODEL) ? { reasoning_effort: 'low' } : {}),
     messages: [{ role: 'user', content: prompt }],
   }, {
     headers: { Authorization: `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
@@ -6861,12 +6873,19 @@ app.post('/api/triage/classify', authRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ปิดงานอัตโนมัติ (💡 น่าจะแก้แล้ว) — ค่าเริ่มต้นปิด: งานจบได้เฉพาะคนเปิดเคส หรือกด "ไม่ใช่เคส"
+const TRIAGE_AUTO_CLOSE = (process.env.TRIAGE_AUTO_CLOSE || 'off').toLowerCase() === 'on';
 // Inbox list with filters + pagination
+let _triageInboxSyncAt = 0;
 app.get('/api/triage/inbox', authRequired, async (request, res) => {
   try {
-    try { await syncTriageAnswered(); } catch {}     // reflect LINE replies before listing
+    // ดึงสถานะ "ตอบในไลน์แล้ว" ก่อนแสดงผล — ไม่เกินนาทีละครั้ง (เดิมทำทุก request หน้าเว็บที่รีเฟรชเองทุก 30 วิจึงถ่วง DB)
+    if (Date.now() - _triageInboxSyncAt > 60000) {
+      _triageInboxSyncAt = Date.now();
+      try { await syncTriageAnswered(); } catch {}
+    }
     // ปิด 💡 "น่าจะแก้แล้ว" ให้เป็นเสร็จก่อนแสดงผล — จะได้ไม่ค้างอยู่ในกล่องรอทำ
-    if ((process.env.TRIAGE_AUTO_CLOSE || 'on').toLowerCase() !== 'off') {
+    if (TRIAGE_AUTO_CLOSE) {
       try { await closeMaybeResolved(); } catch {}
     }
     const page = Math.max(1, parseInt(request.query.page) || 1);
@@ -7154,6 +7173,14 @@ app.post('/api/triage/:id/action', authRequired, async (request, res) => {
     } else if (action === 'note') {
       await req().input('id', sql.Int, id).input('note', sql.NVarChar, String(note || '').slice(0, 990)).query(
         `UPDATE line_msg_triage SET note=@note, updated_at=GETDATE() WHERE id=@id`);
+    } else if (action === 'dismiss') {
+      // ไม่ใช่เคส — เขี่ยทิ้งจากรายการ (ไม่ลง Calllog)
+      await req().input('id', sql.Int, id).input('by', sql.Int, empId)
+        .input('note', sql.NVarChar, `ไม่ใช่เคส — เขี่ยทิ้งโดย ${request.user?.username || '—'}`).query(
+        `UPDATE line_msg_triage
+         SET status='done', done_by=@by, done_at=GETDATE(), note=@note,
+             claimed_by=ISNULL(claimed_by,@by), claimed_at=ISNULL(claimed_at,GETDATE()), updated_at=GETDATE()
+         WHERE id=@id`);
     } else if (action === 'case') {
       // ลงเคสจาก "คัดกรองเคสจาก Line" สำเร็จ → ผูกเลขเคส + ปิดงานว่าแก้ไขและบันทึกเรียบร้อย
       const cid = parseInt(request.body?.calllog_id);
@@ -7315,8 +7342,8 @@ async function triageAutoTick() {
       if (r.error) console.warn('triage auto error:', r.error);
     }
     // ปิดงานที่ติด 💡 "น่าจะแก้แล้ว" ให้เป็นเสร็จเอง — ทำหลัง classify เพราะต้องรู้ก่อน
-    // ว่าข้อความที่ตามมาเป็น thank/positive ไหม (ปิดด้วย TRIAGE_AUTO_CLOSE=off)
-    if ((process.env.TRIAGE_AUTO_CLOSE || 'on').toLowerCase() !== 'off') {
+    // ว่าข้อความที่ตามมาเป็น thank/positive ไหม — ค่าเริ่มต้นปิด (TRIAGE_AUTO_CLOSE=on เพื่อเปิด)
+    if (TRIAGE_AUTO_CLOSE) {
       try {
         const closed = await closeMaybeResolved();
         if (closed) console.log(`💡 triage auto-close: ปิด ${closed} รายการที่น่าจะแก้แล้ว`);
@@ -7341,10 +7368,11 @@ const TRIAGE_FAST_SEC  = Math.max(5,  parseInt(process.env.TRIAGE_FAST_SECONDS) 
 const TRIAGE_QUIET_SEC = Math.max(0,  parseInt(process.env.TRIAGE_QUIET_SECONDS) || 30);
 const TRIAGE_MAXW_SEC  = Math.max(10, parseInt(process.env.TRIAGE_MAX_WAIT_SECONDS) || 90);
 let _triageSeenId = null, _triageNewSince = null;
+let _triageFastFails = 0, _triageFastPauseUntil = 0;   // AI ล้ม → พักก่อนลองใหม่ (1, 2, 4 … สูงสุด 15 นาที) ไม่ยิงซ้ำทุก 20 วิ
 async function triageFastTick() {
   if ((process.env.TRIAGE_AUTO || '').toLowerCase() !== 'on') return;
   if ((process.env.TRIAGE_FAST || 'on').toLowerCase() === 'off') return;
-  if (_triageAutoRunning) return;
+  if (_triageAutoRunning || Date.now() < _triageFastPauseUntil) return;
   const lb = getLineBotPool();
   if (!lb) return;
   try {
@@ -7361,7 +7389,14 @@ async function triageFastTick() {
     _triageAutoRunning = true;
     try {
       const r = await classifyTriageBatch(60);
-      if (r.error) { console.warn('triage fast error:', r.error); return; }   // ไม่เลื่อน seenId — ลองใหม่รอบหน้า
+      if (r.error) {   // ไม่เลื่อน seenId — ลองใหม่หลังพัก
+        _triageFastFails++;
+        const mins = Math.min(15, 2 ** (_triageFastFails - 1));
+        _triageFastPauseUntil = Date.now() + mins * 60000;
+        console.warn(`triage fast error (พัก ${mins} นาที):`, r.error);
+        return;
+      }
+      _triageFastFails = 0;
       if (r.classified) console.log(`⚡ triage fast: ${r.classified} msg(s)${r.ruled ? ` (กฎ ${r.ruled})` : ''}`);
       _triageSeenId = x.id; _triageNewSince = null;
     } finally { _triageAutoRunning = false; }
@@ -7532,13 +7567,15 @@ async function triageAutoPurgeTick() {
 // If a staff member already replied in the LINE group (LineWaitingReply.Answered=1),
 // auto-close that triage ticket so it drops off the inbox and never alerts again.
 let _triageSyncRunning = false;
+// ตอบในไลน์แล้ว → แค่ติดป้าย ไม่ปิดงานให้ (ต้องมีคนเปิดเคส/กด "ไม่ใช่เคส") · TRIAGE_ANSWERED_CLOSE=on = ปิดให้แบบเดิม
+const TRIAGE_ANSWERED_CLOSE = (process.env.TRIAGE_ANSWERED_CLOSE || 'off').toLowerCase() === 'on';
 async function syncTriageAnswered() {
   if (_triageSyncRunning) return 0;
   const lb = getLineBotPool();
   if (!lb) return 0;
   _triageSyncRunning = true;
   try {
-    const open = (await req().query(`SELECT source_msg_id FROM line_msg_triage WHERE status='open'`)).recordset;
+    const open = (await req().query(`SELECT source_msg_id FROM line_msg_triage WHERE status='open' AND ISNULL(answered_in_line,0)=0`)).recordset;
     if (!open.length) return 0;
     let closed = 0;
     for (let i = 0; i < open.length; i += 200) {
@@ -7555,13 +7592,13 @@ async function syncTriageAnswered() {
           .input('at', sql.DateTime, a.AnsweredTime || null)
           .query(`
             UPDATE line_msg_triage
-            SET status='done', answered_in_line=1, answered_by=@by,
-                done_at=ISNULL(@at, GETDATE()), updated_at=GETDATE()
-            WHERE source_msg_id=@id AND status='open'`);
+            SET answered_in_line=1, answered_by=@by, updated_at=GETDATE()
+              ${TRIAGE_ANSWERED_CLOSE ? ", status='done', done_at=ISNULL(@at, GETDATE())" : ''}
+            WHERE source_msg_id=@id AND status='open' AND ISNULL(answered_in_line,0)=0`);
         closed++;
       }
     }
-    if (closed) console.log(`🔄 triage sync: auto-closed ${closed} ticket(s) already answered in LINE`);
+    if (closed) console.log(`🔄 triage sync: ${closed} ticket(s) answered in LINE${TRIAGE_ANSWERED_CLOSE ? ' — ปิดอัตโนมัติ' : ' (ติดป้าย รอคนเปิดเคส)'}`);
     return closed;
   } catch (e) { console.error('triage sync error:', e.message); return 0; }
   finally { _triageSyncRunning = false; }
@@ -7788,6 +7825,7 @@ async function buildTriageAlert({ aiCalls = true } = {}) {
       LEFT JOIN line_group_pods lgp ON lgp.group_id = t.group_id
       LEFT JOIN pods p ON p.id = lgp.pod_id
       WHERE t.status='open' AND t.needs_action=1 AND t.message_time IS NOT NULL
+        AND ISNULL(t.answered_in_line,0)=0             -- ตอบในไลน์แล้ว ไม่ต้องเตือนว่าค้างตอบ (แต่ยังรอเปิดเคส)
         AND ${triageScopeSql()}                       -- เฉพาะกลุ่มที่ตั้งกระดิ่ง + ที่ยังไม่ได้ assign
         AND NOT EXISTS (                                 -- exclude likely-resolved
           SELECT 1 FROM line_msg_triage t2

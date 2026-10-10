@@ -14790,12 +14790,27 @@ function renderLineCasePicker() {
           · ${escHtml(r.customer_name || 'ลูกค้า')}
           · <span style="color:${w.color}">${w.txt}</span> · <span style="color:${p[1]}">${p[0]}</span>${r.status === 'claimed' ? ` · รับงานโดย ${escHtml(r.claimed_name || '—')}` : ''}
         </div>
-        <div style="font-size:.86rem;font-weight:600;color:#24272c;margin:.15rem 0">${escHtml(r.summary || '—')}</div>
+        <div style="font-size:.86rem;font-weight:600;color:#24272c;margin:.15rem 0">${escHtml(r.summary || '—')}${r.answered_in_line
+          ? ` <span title="ตอบในไลน์แล้ว — ยังต้องลงเคสหรือกด 'ไม่ใช่เคส'" style="font-size:.68rem;font-weight:600;padding:0 .35rem;border-radius:4px;background:#e7f0ea;color:#356b4e;vertical-align:.1em">ตอบในไลน์แล้ว${r.answered_by ? ' · ' + escHtml(r.answered_by) : ''}</span>` : ''}</div>
         <div style="font-size:.76rem;color:#5b616b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escHtml(r.message_text || '')}">${escHtml(r.message_text || '')}</div>
       </div>
-      <button class="svc-btn-primary" style="height:32px;white-space:nowrap" onclick="openCaseFromTriage(${r.id})">เปิดเคส</button>
+      <div style="display:flex;flex-direction:column;gap:.3rem;align-items:stretch">
+        <button class="svc-btn-primary" style="height:32px;white-space:nowrap" onclick="openCaseFromTriage(${r.id})">เปิดเคส</button>
+        <button class="svc-btn-ghost" style="height:28px;white-space:nowrap;font-size:.74rem" onclick="lcDismiss(${r.id}, this)" title="ไม่ใช่เคส — เอาออกจากรายการโดยไม่ลง Calllog">ไม่ใช่เคส</button>
+      </div>
     </div>`;
   }).join('');
+}
+
+async function lcDismiss(id, btn) {
+  if (!confirm('ข้อความนี้ไม่ใช่เคส — เอาออกจากรายการเลยใช่ไหม?')) return;
+  btn.disabled = true;
+  const r = await api(`/api/triage/${id}/action`, { method: 'POST', silent: true, body: { action: 'dismiss' } });
+  if (r?.error) { btn.disabled = false; showToast('❌ ' + r.error, 'error'); return; }
+  _lcRows = _lcRows.filter(x => x.id !== id);
+  renderLineCasePicker();
+  lcRefreshCounts();
+  showToast('เอาออกจากรายการแล้ว');
 }
 
 function ccSelectShop(id, name, contact, phone) {
