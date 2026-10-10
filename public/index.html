@@ -1437,6 +1437,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
   <!-- ── Dashboard Tabs ── -->
   <div class="dash-tabs">
     <button class="dash-tab-btn active" id="dash-tab-btn-1" onclick="switchDashTab(1)">ภาพรวม Agent</button>
+    <button class="dash-tab-btn" id="dash-tab-btn-6" onclick="switchDashTab(6)">ตอบเคสไลน์ไว</button>
     <button class="dash-tab-btn" id="dash-tab-btn-4" onclick="switchDashTab(4)">Monitor Tag <span id="mt-tab-count" class="mt-tab-count" style="display:none"></span></button>
     <button class="dash-tab-btn" id="dash-tab-btn-5" onclick="switchDashTab(5)">ผลการติดตั้ง AI</button>
     <button class="dash-tab-btn" id="dash-tab-btn-2" onclick="switchDashTab(2)">Issue Analytics</button>
@@ -1674,6 +1675,15 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
     <div class="mt-kpis" id="mt-kpis"></div>
     <div id="mt-body"><div class="mt-empty">กำลังโหลด...</div></div>
   </div><!-- /dash-tab-monitor -->
+
+  <!-- ════ TAB 6: Leaderboard ตอบเคสไลน์ไว ════ -->
+  <div id="dash-tab-lineboard" style="display:none">
+    <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.8rem">
+      <select id="llb-pod" class="svc-select" onchange="llbLoad()" style="max-width:180px" aria-label="Pod"><option value="">ทุก Pod</option></select>
+      <span class="mt-meta" id="llb-note"></span>
+    </div>
+    <div id="llb-body"><div class="mt-meta" style="text-align:center;padding:2rem">กำลังโหลด…</div></div>
+  </div>
 
   <!-- ════ TAB 5: ผลการติดตั้ง AI ════ -->
   <div id="dash-tab-aiimpact" style="display:none">
@@ -8610,6 +8620,87 @@ async function loadDashboardAll() {
   await loadDashboardCharts();
   if (_dashTab === 2) loadIssueAnalytics();
   if (_dashTab === 4) mtLoad();
+  if (_dashTab === 6) llbLoad();
+}
+
+// ══════════════════════════════════════════════════════════
+//  Leaderboard ตอบเคสไลน์ไว (แท็บใน Dashboard) — ใช้ช่วงวันที่ของ Dashboard
+// ══════════════════════════════════════════════════════════
+async function llbLoad() {
+  const box = document.getElementById('llb-body');
+  if (!box) return;
+  const podSel = document.getElementById('llb-pod');
+  if (podSel && podSel.options.length <= 1) {
+    if (!_lcPods) { const p = await api('/api/pods', { silent: true }); if (Array.isArray(p)) _lcPods = p; }
+    podSel.innerHTML = '<option value="">ทุก Pod</option><option value="none">ยังไม่ได้ Assign</option>'
+      + (_lcPods || []).map(p => `<option value="${p.id}">${escHtml(p.code || p.display_name)}</option>`).join('');
+  }
+  const f = document.getElementById('dash-date-from')?.value || '', t = document.getElementById('dash-date-to')?.value || '';
+  const pod = podSel?.value || '';
+  box.style.opacity = '.5';
+  const d = await api(`/api/line-leaderboard?from=${f}&to=${t}${pod ? `&pod=${pod}` : ''}`, { silent: true });
+  box.style.opacity = '';
+  if (!d || d.error) { box.innerHTML = `<div class="mt-meta" style="text-align:center;padding:2rem">โหลดไม่สำเร็จ: ${escHtml(d?.error || '')}</div>`; return; }
+
+  const T = d.target_min;
+  const fd = x => new Date(x + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+  document.getElementById('llb-note').textContent =
+    `${fd(d.from)} – ${fd(d.to)} · นับเฉพาะข้อความที่ AI สรุปว่าเป็นเคส (เริ่มนับ ${fd(d.start)}) · เวลาทำงาน 08:00–24:00 · เป้า ${T} นาที`;
+  const mins = s => s == null ? '—' : s < 60 ? `${Math.round(s)} วิ` : s < 3600 ? `${(s / 60).toFixed(1)} นาที` : `${(s / 3600).toFixed(1)} ชม.`;
+  const tm = d.team;
+  if (!tm.cases) {
+    box.innerHTML = `<div class="mt-meta" style="text-align:center;padding:3rem">ยังไม่มีเคสที่ตอบแล้วในช่วงนี้${d.waiting ? ` · มีเคสรอคนตอบ ${d.waiting} เคส` : ''}</div>`;
+    return;
+  }
+  const k = (lab, val, sub) => `<div class="stat-flat"><div class="label">${lab}</div><div class="value">${val}</div><div class="sub">${sub}</div></div>`;
+  let delta = 'ยังไม่มีช่วงก่อนหน้าให้เทียบ';
+  if (d.prev.cases && tm.median_sec != null) {
+    const diff = tm.median_sec - d.prev.median_sec;
+    delta = Math.abs(diff) < 5 ? 'พอๆ กับช่วงก่อนหน้า'
+      : `<span style="color:${diff < 0 ? '#356b4e' : '#b04a40'}">${diff < 0 ? 'เร็วขึ้น' : 'ช้าลง'} ${mins(Math.abs(diff))}</span> จากช่วงก่อนหน้า`;
+  }
+  // ตอบไวสุด = median ต่ำสุด ในคนที่ตอบอย่างน้อย min_cases เคส (ไม่งั้นแสดงแยกว่ายังไม่ครบ)
+  const ranked = d.people.filter(p => p.cases >= d.min_cases), rest = d.people.filter(p => p.cases < d.min_cases);
+  const podium = ranked.slice(0, 3);
+  const card = (p, i) => !p ? '<div></div>' : `<div class="stat-flat" style="text-align:center;${i === 0 ? 'border:2px solid var(--primary);' : ''}">
+      <div class="label">${i === 0 ? '🏆 อันดับ 1 ตอบไวสุด' : `อันดับ ${i + 1}`}</div>
+      <div style="font-weight:700;font-size:${i === 0 ? '1.05rem' : '.95rem'};margin:.15rem 0">${escHtml(p.name)}</div>
+      <div class="value" style="font-size:${i === 0 ? '1.7rem' : '1.35rem'}">${mins(p.median_sec)}</div>
+      <div class="sub">${p.cases} เคส · ใน ${T} นาที ${p.within_pct}%</div></div>`;
+  const C = ['#356b4e', '#6aa583', '#b9d8c5', '#dcd9d2'], L = ['ไม่ถึง 1 นาที', `1–${T} นาที`, `${T}–15 นาที`, 'เกิน 15 นาที'];
+  const dist = p => `<div style="display:flex;gap:2px;height:12px;min-width:140px">${p.buckets.map((v, i) => v ? `<div title="${L[i]}: ${v} เคส (${Math.round(v / p.cases * 100)}%)"
+      style="flex:${v};background:${C[i]};border-radius:${i === 0 ? '4px 0 0 4px' : ''}${i === 3 ? '0 4px 4px 0' : ''}"></div>` : '').join('')}</div>`;
+  const row = (p, i) => `<tr><td class="num mt-meta">${i ?? '—'}</td><td><b>${escHtml(p.name)}</b></td><td style="width:34%">${dist(p)}</td>
+      <td class="r num"><b>${mins(p.median_sec)}</b></td><td class="r num">${p.within_pct}%</td><td class="r num">${p.cases}</td>
+      <td class="r num mt-meta">${p.urgent ? `${p.urgent_within}/${p.urgent}` : '—'}</td>
+      <td class="r num mt-meta">${Math.round(p.logged / p.cases * 100)}%</td></tr>`;
+  const podName = id => id == null ? 'ยังไม่ได้ Assign' : ((_lcPods || []).find(p => p.id === id)?.code || '');
+
+  box.innerHTML = `
+    <div class="mt-kpis">
+      ${k('เวลาตอบกลาง (median) ทีม', mins(tm.median_sec), delta)}
+      ${k(`ตอบภายใน ${T} นาที`, `${tm.within_pct}%`, `เป้า 80% · ${tm.cases} เคส`)}
+      ${k(`เคสด่วน ตอบภายใน ${T} นาที`, tm.urgent ? `${Math.round(tm.urgent_within / tm.urgent * 100)}%` : '—', tm.urgent ? `${tm.urgent_within} จาก ${tm.urgent} เคส` : 'ไม่มีเคสด่วน')}
+      ${k('ตอบแล้ว · ลงเคสแล้ว', `${tm.cases} · ${tm.logged}`, `ลงเคส ${Math.round(tm.logged / tm.cases * 100)}% · รอคนตอบอยู่ ${d.waiting} เคส`)}
+    </div>
+    ${podium.length ? `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem;margin:.9rem 0;align-items:end">
+      ${card(podium[1], 1)}${card(podium[0], 0)}${card(podium[2], 2)}</div>` : ''}
+    <div class="mt-tbl-wrap">
+      <div class="mt-tt-head">อันดับ <span class="mt-meta" style="font-weight:400">· เรียงตามเวลาตอบกลาง · ต้องตอบอย่างน้อย ${d.min_cases} เคสถึงติดอันดับ</span>
+        <span style="margin-left:auto;display:flex;gap:.7rem;font-size:.7rem;color:#6f747c;font-weight:400">${C.map((c, i) => `<span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${c};vertical-align:-.05em"></span> ${L[i]}</span>`).join('')}</span></div>
+      <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>#</th><th>คนตอบ (LINE@)</th><th>การกระจายเวลาตอบ</th><th class="r">median</th>
+        <th class="r">ใน ${T} นาที</th><th class="r">เคส</th><th class="r">ด่วน</th><th class="r">ลงเคส</th></tr></thead>
+        <tbody>${ranked.map((p, i) => row(p, i + 1)).join('')}
+        ${rest.length ? `<tr><td colspan="8" class="mt-meta" style="padding-top:.7rem">ยังไม่ครบ ${d.min_cases} เคส (ไม่จัดอันดับ)</td></tr>${rest.map(p => row(p, null)).join('')}` : ''}</tbody></table></div>
+    </div>
+    <div class="mt-tbl-wrap" style="margin-top:.75rem">
+      <div class="mt-tt-head">ตอบช้าสุดในช่วงนี้ <span class="mt-meta" style="font-weight:400">· ไว้ทบทวนว่าติดตรงไหน</span></div>
+      <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th class="r">รอ</th><th>กลุ่ม / เรื่อง</th><th>Pod</th><th>คนตอบ</th></tr></thead><tbody>
+      ${d.slowest.map(s => `<tr><td class="r num" style="color:${s.sec > T * 60 ? '#b04a40' : 'inherit'};white-space:nowrap"><b>${mins(s.sec)}</b></td>
+        <td><b>${escHtml(s.group_name || '—')}</b>${s.urgent ? ' <span style="color:#b04a40;font-size:.72rem">เร่งด่วน</span>' : ''}<span style="display:block;font-size:.74rem;color:#6f747c">${escHtml(s.summary || '')}</span></td>
+        <td class="mt-meta">${escHtml(podName(s.pod_id))}</td><td>${escHtml(s.answered_by || '—')}</td></tr>`).join('')}
+      </tbody></table></div>
+    </div>`;
 }
 
 async function loadDashboard() {
@@ -20675,6 +20766,9 @@ function switchDashTab(tab) {
   document.getElementById('dash-tab-issues').style.display = tab === 2 ? '' : 'none';
   document.getElementById('dash-tab-monitor').style.display = tab === 4 ? '' : 'none';
   document.getElementById('dash-tab-aiimpact').style.display = tab === 5 ? '' : 'none';
+  document.getElementById('dash-tab-lineboard').style.display = tab === 6 ? '' : 'none';
+  document.getElementById('dash-tab-btn-6').classList.toggle('active', tab === 6);
+  if (tab === 6) llbLoad();
   document.getElementById('dash-tab-btn-1').classList.toggle('active', tab === 1);
   document.getElementById('dash-tab-btn-2').classList.toggle('active', tab === 2);
   document.getElementById('dash-tab-btn-4').classList.toggle('active', tab === 4);

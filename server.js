@@ -7333,6 +7333,164 @@ app.get('/api/triage/new', authRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ══════════════════════════════════════════════════════════
+//  Leaderboard ตอบเคสไลน์ไว — นับเฉพาะข้อความที่ AI คัดกรองว่า "ต้องดำเนินการ" (เป็นเคส)
+//  เก็บผลไว้ในตาราง line_case_response เอง (line_msg_triage ถูกล้างทุก 7 วัน)
+//  เวลาตอบ = เวลาที่มีคนตอบในไลน์ (AnsweredTime) − เวลาข้อความ · ข้อความที่เข้ามาก่อน 08:00 เริ่มนับ 08:00
+// ══════════════════════════════════════════════════════════
+const LINE_LB_START = /^\d{4}-\d{2}-\d{2}$/.test(process.env.LINE_LB_START || '') ? process.env.LINE_LB_START : '2026-10-10';
+const LINE_LB_TARGET_MIN = Math.max(1, parseInt(process.env.LINE_LB_TARGET_MIN) || 5);
+const LINE_LB_WORK_START = 8;   // 08:00 — เวลาทำงาน 08:00-24:00
+let _lcrTable = false, _lcrSyncRunning = false;
+async function ensureLineCaseResponse() {
+  if (_lcrTable) return;
+  await req().query(`IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='line_case_response' AND xtype='U')
+    CREATE TABLE line_case_response (
+      source_msg_id INT PRIMARY KEY,          -- LineWaitingReply.Id
+      group_id      NVARCHAR(100) NULL,
+      group_name    NVARCHAR(300) NULL,
+      pod_id        INT NULL,
+      message_time  DATETIME NOT NULL,
+      summary       NVARCHAR(500) NULL,
+      priority      NVARCHAR(20) NULL,
+      answered_by   NVARCHAR(100) NULL,       -- ชื่อแอดมิน LINE OA (เช่น INF-BOEK)
+      answered_time DATETIME NULL,
+      calllog_id    INT NULL,
+      created_at    DATETIME DEFAULT GETDATE(),
+      updated_at    DATETIME DEFAULT GETDATE())`);
+  _lcrTable = true;
+}
+
+// ทุก 2 นาที: เคสที่ AI คัดกรองแล้วและมีคนตอบในไลน์ → บันทึกคนตอบ + เวลาตอบ · อัปเดตเลขเคสที่ลงแล้ว
+async function syncLineCaseResponse() {
+  if (_lcrSyncRunning) return;
+  const lb = getLineBotPool();
+  if (!lb) return;
+  _lcrSyncRunning = true;
+  try {
+    await ensureLineCaseResponse();
+    await ensureTriageCaseCol();
+    const todo = (await req().input('st', sql.NVarChar, LINE_LB_START).query(`
+      SELECT TOP 1000 t.source_msg_id, t.group_id, COALESCE(t.group_name, lgp.group_name) AS group_name, lgp.pod_id,
+             t.message_time, t.summary, t.priority, t.calllog_id
+      FROM line_msg_triage t
+      LEFT JOIN line_group_pods lgp ON lgp.group_id = t.group_id
+      LEFT JOIN line_case_response r ON r.source_msg_id = t.source_msg_id
+      WHERE t.needs_action = 1 AND t.message_time >= CAST(@st AS DATE) AND t.message_time IS NOT NULL
+        AND (r.source_msg_id IS NULL OR r.answered_time IS NULL)
+      ORDER BY t.message_time`)).recordset;
+    let saved = 0;
+    for (let i = 0; i < todo.length; i += 200) {
+      const chunk = todo.slice(i, i + 200);
+      const lreq = lb.request();
+      chunk.forEach((x, k) => lreq.input('a' + k, sql.Int, x.source_msg_id));
+      const ans = new Map((await lreq.query(`SELECT Id, AnsweredBy, AnsweredTime FROM dbo.LineWaitingReply
+        WHERE Answered=1 AND AnsweredTime IS NOT NULL AND Id IN (${chunk.map((_, k) => '@a' + k).join(',')})`)).recordset.map(a => [a.Id, a]));
+      for (const x of chunk) {
+        const a = ans.get(x.source_msg_id);
+        if (!a) continue;   // ยังไม่มีใครตอบ — รอบหน้าค่อยดูใหม่
+        await req().input('id', sql.Int, x.source_msg_id).input('g', sql.NVarChar, x.group_id).input('gn', sql.NVarChar, x.group_name)
+          .input('pod', sql.Int, x.pod_id).input('mt', sql.DateTime, x.message_time).input('sum', sql.NVarChar, x.summary)
+          .input('pri', sql.NVarChar, x.priority).input('by', sql.NVarChar, a.AnsweredBy || null).input('at', sql.DateTime, a.AnsweredTime)
+          .input('cid', sql.Int, x.calllog_id || null).query(`
+          IF EXISTS (SELECT 1 FROM line_case_response WHERE source_msg_id=@id)
+            UPDATE line_case_response SET answered_by=@by, answered_time=@at, calllog_id=ISNULL(calllog_id,@cid), updated_at=GETDATE() WHERE source_msg_id=@id
+          ELSE
+            INSERT INTO line_case_response (source_msg_id, group_id, group_name, pod_id, message_time, summary, priority, answered_by, answered_time, calllog_id)
+            VALUES (@id, @g, @gn, @pod, @mt, @sum, @pri, @by, @at, @cid)`);
+        saved++;
+      }
+    }
+    // เคสที่ลงเคสทีหลัง (ตอบไปก่อน แล้วค่อยเปิดเคส)
+    await req().query(`UPDATE r SET calllog_id = t.calllog_id, updated_at = GETDATE()
+      FROM line_case_response r JOIN line_msg_triage t ON t.source_msg_id = r.source_msg_id
+      WHERE r.calllog_id IS NULL AND t.calllog_id IS NOT NULL`);
+    if (saved) console.log(`🏁 line leaderboard: บันทึกการตอบ ${saved} เคส`);
+  } catch (e) { console.error('line leaderboard sync error:', e.message); }
+  finally { _lcrSyncRunning = false; }
+}
+setInterval(syncLineCaseResponse, 2 * 60 * 1000);
+
+// GET /api/line-leaderboard?from=YYYY-MM-DD&to=YYYY-MM-DD&pod=<id|none>
+app.get('/api/line-leaderboard', authRequired, async (request, res) => {
+  try {
+    const day = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : null;
+    const today = bangkokToday();
+    let from = day(request.query.from) || today, to = day(request.query.to) || from;
+    if (from > to) [from, to] = [to, from];
+    if (from < LINE_LB_START) from = LINE_LB_START;
+    const pod = request.query.pod;
+    await syncLineCaseResponse();   // ให้ตัวเลขล่าสุด (มีกันรันซ้อนในตัว)
+    await ensureLineCaseResponse();
+
+    const load = async (f, t) => {
+      if (t < f) return [];
+      const r = req().input('f', sql.NVarChar, f).input('t', sql.NVarChar, t);
+      let podSql = '';
+      if (pod === 'none') podSql = 'AND pod_id IS NULL';
+      else if (parseInt(pod)) { podSql = 'AND pod_id = @pod'; r.input('pod', sql.Int, parseInt(pod)); }
+      return (await r.query(`SELECT source_msg_id, group_id, group_name, pod_id, message_time, summary, priority, answered_by, answered_time, calllog_id
+        FROM line_case_response
+        WHERE answered_time IS NOT NULL AND message_time >= CAST(@f AS DATE) AND message_time < DATEADD(day, 1, CAST(@t AS DATE)) ${podSql}`)).recordset;
+    };
+    // ข้อความที่ลูกค้าพิมพ์ติดกันแล้วถูกตอบด้วยการตอบครั้งเดียว = 1 เคส (เริ่มนับจากข้อความแรก)
+    const toEvents = rows => {
+      const m = new Map();
+      for (const r of rows) {
+        const k = `${r.group_id}|${r.answered_by}|${+new Date(r.answered_time)}`;
+        const e = m.get(k);
+        if (!e) m.set(k, { ...r, urgent: r.priority === 'urgent', logged: !!r.calllog_id, msgs: 1 });
+        else {
+          e.msgs++; e.urgent ||= r.priority === 'urgent'; e.logged ||= !!r.calllog_id;
+          if (new Date(r.message_time) < new Date(e.message_time)) Object.assign(e, { message_time: r.message_time, summary: r.summary, source_msg_id: r.source_msg_id });
+        }
+      }
+      // วันที่/เวลาเก็บเป็นเวลาไทยแบบ face value (mssql ส่งมาเป็น UTC) — ใช้ getUTC* อ่านตามตัวเลขที่เก็บ
+      return [...m.values()].map(e => {
+        const mt = new Date(e.message_time), at = new Date(e.answered_time);
+        const start = new Date(mt);
+        if (mt.getUTCHours() < LINE_LB_WORK_START) start.setUTCHours(LINE_LB_WORK_START, 0, 0, 0);
+        return { ...e, sec: Math.max(0, Math.round((at - start) / 1000)) };
+      });
+    };
+    const median = xs => { if (!xs.length) return null; const s = [...xs].sort((a, b) => a - b), h = s.length >> 1; return s.length % 2 ? s[h] : (s[h - 1] + s[h]) / 2; };
+    const T = LINE_LB_TARGET_MIN * 60;
+    const stats = evs => {
+      const secs = evs.map(e => e.sec), urg = evs.filter(e => e.urgent);
+      return {
+        cases: evs.length, median_sec: median(secs),
+        within_pct: evs.length ? Math.round(secs.filter(s => s <= T).length / evs.length * 100) : null,
+        urgent: urg.length, urgent_within: urg.filter(e => e.sec <= T).length,
+        logged: evs.filter(e => e.logged).length,
+        buckets: [60, T, 900, Infinity].map((lim, i, arr) => secs.filter(s => s <= lim && (i === 0 || s > arr[i - 1])).length),
+      };
+    };
+
+    const evs = toEvents(await load(from, to));
+    // ช่วงก่อนหน้าความยาวเท่ากัน (ไว้เทียบเวลาตอบของทีม)
+    const span = Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1;
+    const shift = n => new Date(Date.parse(from) - n * 86400000).toISOString().slice(0, 10);
+    const prev = stats(toEvents(await load(shift(span) < LINE_LB_START ? LINE_LB_START : shift(span), shift(1))));
+
+    const byPerson = new Map();
+    evs.forEach(e => { const k = e.answered_by || '(ไม่ทราบ)'; (byPerson.get(k) || byPerson.set(k, []).get(k)).push(e); });
+    const people = [...byPerson].map(([name, list]) => ({ name, ...stats(list) }))
+      .sort((a, b) => (a.median_sec ?? 1e12) - (b.median_sec ?? 1e12) || b.cases - a.cases);
+
+    // ยังรอคนตอบอยู่ตอนนี้ (เคสจาก AI ที่ยังไม่มีใครตอบในไลน์)
+    const waitR = req().input('st', sql.NVarChar, LINE_LB_START);
+    const waiting = (await waitR.query(`SELECT COUNT(*) AS n FROM line_msg_triage t
+      WHERE t.needs_action=1 AND t.status <> 'done' AND ISNULL(t.answered_in_line,0)=0 AND t.message_time >= CAST(@st AS DATE)`)).recordset[0].n;
+
+    res.json({
+      from, to, start: LINE_LB_START, target_min: LINE_LB_TARGET_MIN, min_cases: 10,
+      team: stats(evs), prev, waiting, people,
+      slowest: [...evs].sort((a, b) => b.sec - a.sec).slice(0, 10)
+        .map(e => ({ sec: e.sec, group_name: e.group_name, summary: e.summary, pod_id: e.pod_id, answered_by: e.answered_by, message_time: e.message_time, urgent: e.urgent })),
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 let _caseDraftSubj = null;
 // GET /api/triage/:id/case-draft — AI ร่างเคสจากข้อความ (อาการ / วิธีแก้ / หัวข้อ) + เดาร้านจากชื่อกลุ่มไลน์
 app.get('/api/triage/:id/case-draft', authRequired, async (request, res) => {
