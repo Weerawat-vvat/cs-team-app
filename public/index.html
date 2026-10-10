@@ -4815,6 +4815,9 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
           <option value="question">คำถาม</option>
           <option value="request">ขอ/ร้องขอ</option>
           <option value="complaint">ร้องเรียน</option>
+          <option value="followup">ทวงถาม</option>
+          <option value="context">ข้อมูลเพิ่ม (เรื่องเดิม)</option>
+          <option value="resolved">แก้ได้แล้ว</option>
         </select>
         <input id="tr-search" placeholder="ค้นข้อความ / กลุ่ม / เลข TASK..." onkeydown="if(event.key==='Enter')loadTriage()" style="flex:1;min-width:160px"/>
       </div>
@@ -6641,6 +6644,9 @@ const TR_CAT = {
   question:  { label: 'คำถาม',     bg:'#3730a3', fg:'#c7d2fe' },
   request:   { label: 'ขอ',        bg:'#134e4a', fg:'#99f6e4' },
   complaint: { label: 'ร้องเรียน', bg:'#7f1d1d', fg:'#e8c9c3' },
+  followup:  { label: 'ทวงถาม',    bg:'#78350f', fg:'#e6d6a8' },
+  context:   { label: 'ข้อมูลเพิ่ม (เรื่องเดิม)', bg:'#3a3f46', fg:'#d6d2c9' },
+  resolved:  { label: 'แก้ได้แล้ว', bg:'#2f5e45', fg:'#cfe0d5' },
   thank:     { label: 'ขอบคุณ',    bg:'#2f5e45', fg:'#cfe0d5' },
   other:     { label: 'อื่นๆ',     bg:'#3a3f46', fg:'#d6d2c9' },
 };
@@ -14499,7 +14505,7 @@ document.addEventListener('keydown', e => {
   }
 });
 async function openCreateCaseModal() {
-  _ccTriageId = null;   // เปิดเคสปกติ — ไม่ผูกกับข้อความไลน์
+  _ccTriageId = null; _ccTriageIds = [];   // เปิดเคสปกติ — ไม่ผูกกับข้อความไลน์
   const bn = document.getElementById('cc-line-banner'); if (bn) bn.style.display = 'none';
   ccPendingFiles = [];
   ccRenderFileList();
@@ -14719,10 +14725,13 @@ async function saveCreateCase() {
 
   // มาจาก "คัดกรองเคสจาก Line" → ปิดข้อความนั้นว่าแก้ไขและลงบันทึกเรียบร้อยแล้ว
   if (_ccTriageId) {
-    const tr = await api(`/api/triage/${_ccTriageId}/action`, { method: 'POST', silent: true, body: { action: 'case', calllog_id: r.id } });
-    if (tr?.error) showToast('บันทึก Case แล้ว แต่ปิดข้อความไลน์ไม่สำเร็จ: ' + tr.error, 'error');
-    _lcRows = _lcRows.filter(x => x.id !== _ccTriageId);
-    _ccTriageId = null;
+    // ปิดทุกข้อความในเรื่องนั้น (ลูกค้าพิมพ์หลายบรรทัด = เคสเดียว)
+    const ids = _ccTriageIds.length ? _ccTriageIds : [_ccTriageId];
+    const res = await Promise.all(ids.map(id => api(`/api/triage/${id}/action`, { method: 'POST', silent: true, body: { action: 'case', calllog_id: r.id } })));
+    const bad = res.find(x => x?.error);
+    if (bad) showToast('บันทึก Case แล้ว แต่ปิดข้อความไลน์บางรายการไม่สำเร็จ: ' + bad.error, 'error');
+    _lcRows = _lcRows.filter(x => !ids.includes(x.id));
+    _ccTriageId = null; _ccTriageIds = [];
     lcRefreshCounts();
   }
 
@@ -14736,6 +14745,7 @@ async function saveCreateCase() {
 // ══════════════════════════════════════════════════════════
 //  คัดกรองเคสจาก Line — เลือกข้อความที่ AI คัดกรองไว้ → เปิดเคสพร้อมร่างอาการ/Solution
 // ══════════════════════════════════════════════════════════
+let _ccTriageIds = [];    // ทุกข้อความในเรื่องเดียวกัน (ปิดพร้อมกันหลังบันทึกเคส)
 let _ccTriageId = null;   // ข้อความไลน์ที่กำลังลงเคสอยู่ (ปิดให้หลังบันทึกเคส)
 let _lcRows = [];
 
@@ -14974,27 +14984,68 @@ async function loadLineCasePicker() {
   if (box) box.innerHTML = '<div class="mt-meta" style="text-align:center;padding:2rem">กำลังโหลด…</div>';
   const podQ = _lcPod === '' ? '' : `&pods=${_lcPod}`;
   const [o, c] = await Promise.all(['open', 'claimed'].map(st =>
-    api(`/api/triage/inbox?status=${st}&needsAction=1&per=100${podQ}`, { silent: true })));
+    api(`/api/triage/inbox?status=${st}&needsAction=1&per=300${podQ}`, { silent: true })));   // ต้องได้ครบทุกข้อความถึงรวมเป็นเรื่องได้ถูก
   _lcRows = [...(o?.rows || []), ...(c?.rows || [])]
     .sort((a, b) => (parseDbDate(b.message_time)?.getTime() || 0) - (parseDbDate(a.message_time)?.getTime() || 0));
   renderLineCasePicker();
 }
 
+// รวมข้อความเป็น "เรื่อง": แชทเดียวกัน ห่างจากข้อความก่อนหน้าไม่เกิน 30 นาที และอยู่ฝั่งเดียวกันของการตอบ
+// (กติกาเดียวกับ TRIAGE_THREAD_START_SQL ฝั่ง server — ตัวเลขบนแถบ Pod จึงตรงกับรายการ)
+const LC_THREAD_MIN = 30;
+function lcThreads(rows) {
+  const t = r => parseDbDate(r.message_time)?.getTime() || 0;
+  const sorted = [...rows].sort((a, b) => String(a.group_id).localeCompare(String(b.group_id)) || t(a) - t(b) || a.id - b.id);
+  const out = [], cur = new Map();
+  for (const r of sorted) {
+    const th = cur.get(r.group_id);
+    if (th && t(r) - th.lastAt <= LC_THREAD_MIN * 60000 && !!th.last.answered_in_line === !!r.answered_in_line) {
+      th.rows.push(r); th.ids.push(r.id); th.last = r; th.lastAt = t(r);
+    } else {
+      const n = { rows: [r], ids: [r.id], first: r, last: r, lastAt: t(r) };
+      cur.set(r.group_id, n); out.push(n);
+    }
+  }
+  const rank = { urgent: 0, normal: 1, low: 2 };
+  out.forEach(th => {
+    th.priority = th.rows.reduce((p, r) => (rank[r.priority] ?? 1) < (rank[p] ?? 1) ? r.priority : p, 'low');
+    th.answered = th.rows.find(r => r.answered_in_line);
+    th.claimed = th.rows.find(r => r.status === 'claimed');
+    th.cats = [...new Set(th.rows.map(r => r.category))];
+  });
+  return out.sort((a, b) => b.lastAt - a.lastAt);
+}
+
+const LC_CAT = {
+  problem:   ['ปัญหา', '#7f2a22', '#fbe9e6'],
+  complaint: ['ร้องเรียน', '#7f1d1d', '#f9dcdc'],
+  followup:  ['ทวงถาม', '#7a4a0b', '#fbefd9'],
+  request:   ['ขอให้ทำ', '#1f4f6e', '#e3eef7'],
+  question:  ['คำถาม', '#3d3a8a', '#e9e8f8'],
+};
+
 function renderLineCasePicker() {
   const box = document.getElementById('lc-list');
   if (!box) return;
   const q = (document.getElementById('lc-search')?.value || '').trim().toLowerCase();
-  const list = q ? _lcRows.filter(r => [r.group_name, r.customer_name, r.summary, r.message_text]
-    .some(v => String(v || '').toLowerCase().includes(q))) : _lcRows;
+  const all = lcThreads(_lcRows);
+  const list = q ? all.filter(th => th.rows.some(r => [r.group_name, r.customer_name, r.summary, r.message_text]
+    .some(v => String(v || '').toLowerCase().includes(q)))) : all;
   if (!list.length) {
     box.innerHTML = `<div class="mt-meta" style="text-align:center;padding:2rem">${_lcRows.length ? 'ไม่พบข้อความที่ค้นหา' : 'ไม่มีข้อความที่รอเปิดเคส'}</div>`;
     return;
   }
   const PRI = { urgent: ['เร่งด่วน', '#b04a40'], normal: ['ปกติ', '#86671f'], low: ['ต่ำ', '#6f747c'] };
-  box.innerHTML = list.map(r => {
-    const w = trWaiting(r.message_time), p = PRI[r.priority] || PRI.normal;
+  const hhmm = v => parseDbDate(v)?.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) || '';
+  box.innerHTML = list.map(th => {
+    const r = th.first, w = trWaiting(r.message_time), p = PRI[th.priority] || PRI.normal;
     // แชทส่วนตัวมีชื่อกลุ่มเป็น "แชทส่วนตัว" เหมือนกันหมด → ใช้ชื่อ LINE ของลูกค้าแทน (ไว้คัดลอกไปค้นหา)
     const chat = String(r.group_id || '').startsWith('U') ? (String(r.customer_name || '').trim() || r.group_name || '—') : (r.group_name || '—');
+    const tags = th.cats.filter(c => LC_CAT[c]).map(c => `<span style="font-size:.66rem;font-weight:600;padding:0 .35rem;border-radius:4px;background:${LC_CAT[c][2]};color:${LC_CAT[c][1]};margin-right:.25rem">${LC_CAT[c][0]}</span>`).join('');
+    const more = th.rows.length > 1 ? `<details style="margin-top:.25rem"><summary style="cursor:pointer;font-size:.74rem;color:var(--primary)">ดูทั้ง ${th.rows.length} ข้อความในเรื่องนี้</summary>
+        <div style="margin:.3rem 0 0 .2rem;border-left:2px solid #e6e3dc;padding-left:.55rem">${th.rows.map(x => `<div style="font-size:.75rem;color:#3d424a;margin:.2rem 0">
+          <span style="color:#8a8f97">${hhmm(x.message_time)}</span> ${escHtml(x.summary || '')}
+          <div style="color:#6f747c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escHtml(x.message_text || '')}">${escHtml(x.message_text || '')}</div></div>`).join('')}</div></details>` : '';
     return `<div style="display:flex;gap:.75rem;align-items:flex-start;padding:.7rem 0;border-bottom:1px solid #f0eee9">
       <div style="flex:1;min-width:0">
         <div style="font-size:.74rem;color:#6f747c">
@@ -15003,26 +15054,30 @@ function renderLineCasePicker() {
           <button title="คัดลอกชื่อไปค้นหาใน LINE / LINE OA" onclick="event.stopPropagation();trCopyName(this,'${encodeURIComponent(chat).replace(/'/g, '%27')}')"
             style="cursor:pointer;border:1px solid #e0ddd6;border-radius:5px;background:#fff;color:#5b616b;padding:0 .35rem;font-size:.68rem;line-height:1.5;margin:0 .15rem"><i class=i-clipboard></i> คัดลอก</button>
           · ${escHtml(r.customer_name || 'ลูกค้า')}
-          · <span style="color:${w.color}">${w.txt}</span> · <span style="color:${p[1]}">${p[0]}</span>${r.status === 'claimed' ? ` · รับงานโดย ${escHtml(r.claimed_name || '—')}` : ''}
+          · <span style="color:${w.color}">${w.txt}</span> · <span style="color:${p[1]}">${p[0]}</span>${th.rows.length > 1 ? ` · ${th.rows.length} ข้อความ` : ''}${th.claimed ? ` · รับงานโดย ${escHtml(th.claimed.claimed_name || '—')}` : ''}
         </div>
-        <div style="font-size:.86rem;font-weight:600;color:#24272c;margin:.15rem 0">${escHtml(r.summary || '—')}${r.answered_in_line
-          ? ` <span title="ตอบในไลน์แล้ว — ยังต้องลงเคสหรือกด 'ไม่ใช่เคส'" style="font-size:.68rem;font-weight:600;padding:0 .35rem;border-radius:4px;background:#e7f0ea;color:#356b4e;vertical-align:.1em">ตอบในไลน์แล้ว${r.answered_by ? ' · ' + escHtml(r.answered_by) : ''}</span>` : ''}</div>
-        <div style="font-size:.76rem;color:#5b616b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escHtml(r.message_text || '')}">${escHtml(r.message_text || '')}</div>
+        <div style="font-size:.86rem;font-weight:600;color:#24272c;margin:.15rem 0">${tags}${escHtml(r.summary || '—')}${th.answered
+          ? ` <span title="ตอบในไลน์แล้ว — ยังต้องลงเคสหรือกด 'ไม่ใช่เคส'" style="font-size:.68rem;font-weight:600;padding:0 .35rem;border-radius:4px;background:#e7f0ea;color:#356b4e;vertical-align:.1em">ตอบในไลน์แล้ว${th.answered.answered_by ? ' · ' + escHtml(th.answered.answered_by) : ''}</span>` : ''}</div>
+        ${th.rows.length > 1 ? '' : `<div style="font-size:.76rem;color:#5b616b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escHtml(r.message_text || '')}">${escHtml(r.message_text || '')}</div>`}
+        ${more}
       </div>
       <div style="display:flex;flex-direction:column;gap:.3rem;align-items:stretch">
         <button class="svc-btn-primary" style="height:32px;white-space:nowrap" onclick="openCaseFromTriage(${r.id})">เปิดเคส</button>
-        <button class="svc-btn-ghost" style="height:28px;white-space:nowrap;font-size:.74rem" onclick="lcDismiss(${r.id}, this)" title="ไม่ใช่เคส — เอาออกจากรายการโดยไม่ลง Calllog">ไม่ใช่เคส</button>
+        <button class="svc-btn-ghost" style="height:28px;white-space:nowrap;font-size:.74rem" onclick="lcDismiss(${r.id}, this)" title="ไม่ใช่เคส — เอาทั้งเรื่องออกจากรายการโดยไม่ลง Calllog">ไม่ใช่เคส</button>
       </div>
     </div>`;
   }).join('');
 }
 
 async function lcDismiss(id, btn) {
-  if (!confirm('ข้อความนี้ไม่ใช่เคส — เอาออกจากรายการเลยใช่ไหม?')) return;
+  const th = lcThreads(_lcRows).find(x => x.ids.includes(id));
+  const ids = th ? th.ids : [id];
+  if (!confirm(ids.length > 1 ? `เรื่องนี้ไม่ใช่เคส — เอาทั้ง ${ids.length} ข้อความออกจากรายการเลยใช่ไหม?` : 'ข้อความนี้ไม่ใช่เคส — เอาออกจากรายการเลยใช่ไหม?')) return;
   btn.disabled = true;
-  const r = await api(`/api/triage/${id}/action`, { method: 'POST', silent: true, body: { action: 'dismiss' } });
-  if (r?.error) { btn.disabled = false; showToast('❌ ' + r.error, 'error'); return; }
-  _lcRows = _lcRows.filter(x => x.id !== id);
+  const res = await Promise.all(ids.map(x => api(`/api/triage/${x}/action`, { method: 'POST', silent: true, body: { action: 'dismiss' } })));
+  const bad = res.find(x => x?.error);
+  if (bad) { btn.disabled = false; showToast('❌ ' + bad.error, 'error'); return; }
+  _lcRows = _lcRows.filter(x => !ids.includes(x.id));
   renderLineCasePicker();
   lcRefreshCounts();
   showToast('เอาออกจากรายการแล้ว');
@@ -15040,10 +15095,12 @@ function ccSelectShop(id, name, contact, phone) {
 
 async function openCaseFromTriage(id) {
   const t = _lcRows.find(x => x.id === id);
+  const th = lcThreads(_lcRows).find(x => x.ids.includes(id));
   closeModal('modal-line-case');
   resetCreateCase();
   await openCreateCaseModal();
   _ccTriageId = id;
+  _ccTriageIds = th ? th.ids : [id];
   const banner = document.getElementById('cc-line-banner');
   const setBanner = extra => {
     banner.style.display = '';

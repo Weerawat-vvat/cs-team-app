@@ -6732,7 +6732,9 @@ app.post('/api/linebot/group-notify', authRequired, managerRequired, async (requ
 //  Source: LineBotMonitor.dbo.LineWaitingReply → app table line_msg_triage.
 //  We never modify the webhook writer's table; triage state lives in cs_team.
 // ══════════════════════════════════════════════════════════
-const TRIAGE_CATEGORIES = ['problem', 'question', 'thank', 'complaint', 'request', 'other'];
+const TRIAGE_CATEGORIES = ['problem', 'complaint', 'followup', 'request', 'question', 'context', 'resolved', 'thank', 'other'];
+// หมวดที่นับเป็นเคส (ต้องมีคนดำเนินการ) — นอกนั้นไม่ใช่เคสใหม่แม้ AI จะตอบ needs_action=true
+const TRIAGE_CASE_CATEGORIES = new Set(['problem', 'complaint', 'followup', 'request', 'question']);
 const TRIAGE_SENTIMENTS = ['positive', 'neutral', 'negative'];
 const TRIAGE_PRIORITIES = ['urgent', 'normal', 'low'];
 const TRIAGE_STATUSES   = ['open', 'claimed', 'done'];
@@ -6744,7 +6746,41 @@ const triageClean = (v, allowed, fallback) => {
 
 // Classify one batch of not-yet-triaged messages. Focus: unanswered + most recent first.
 // Returns { classified, scanned, hasKey, error? }.
+// ชื่อทีมงานที่ bot ไม่นับ (มันรู้จักแค่ "INF-" ตัวใหญ่): inf-/inf_/inf ไม่สนตัวพิมพ์ หรือลงท้าย _info
+function triageIsStaffName(name) {
+  const n = String(name || '').trim();
+  return /^inf[\s_.\-]/i.test(n) || /[\s_.\-]info$/i.test(n);
+}
+let _triageAnsweredAtCol = null;
+function ensureTriageAnsweredAt() {
+  return _triageAnsweredAtCol ||= req().query(
+    `IF COL_LENGTH('line_msg_triage','answered_at') IS NULL ALTER TABLE line_msg_triage ADD answered_at DATETIME NULL`)
+    .catch(e => { _triageAnsweredAtCol = null; throw e; });
+}
+// ข้อความลูกค้าที่ยังไม่ถูกติดว่าตอบ แต่มีข้อความทีมงาน (ai_model='staff') ตามมาในแชทเดียวกันภายใน 1 วัน
+// → ติด "ตอบในไลน์แล้ว" ด้วยชื่อ+เวลาของทีมงานคนแรกที่ตอบ (รันซ้ำได้ ไม่ทำซ้ำแถวเดิม)
+async function triageMarkStaffReplies() {
+  await ensureTriageAnsweredAt();
+  const r = await req().query(`
+    UPDATE c SET answered_in_line = 1, answered_by = s.customer_name, answered_at = s.message_time, updated_at = GETDATE()
+    FROM line_msg_triage c
+    CROSS APPLY (SELECT TOP 1 x.customer_name, x.message_time FROM line_msg_triage x
+                 WHERE x.ai_model = 'staff' AND x.group_id = c.group_id
+                   AND x.message_time > c.message_time AND x.message_time <= DATEADD(day, 1, c.message_time)
+                 ORDER BY x.message_time) s
+    WHERE ISNULL(c.answered_in_line, 0) = 0 AND ISNULL(c.ai_model, '') <> 'staff'
+      AND c.message_time >= DATEADD(day, -2, GETDATE())`);
+  const n = r.rowsAffected?.[0] || 0;
+  if (n) console.log(`👤 triage: ${n} ข้อความถูกนับว่าตอบแล้วโดยทีมงานที่ชื่อไม่ใช่ INF- (เช่น Inf-Christ)`);
+  return n;
+}
+
 async function classifyTriageBatch(batchSize = 30) {
+  const r = await classifyTriageBatchInner(batchSize);
+  try { await triageMarkStaffReplies(); } catch (e) { console.error('triage staff-reply mark error:', e.message); }
+  return r;
+}
+async function classifyTriageBatchInner(batchSize) {
   if (!GROQ_API_KEY && !process.env.GEMINI_API_KEY) return { classified: 0, scanned: 0, hasKey: false };
   const lb = getLineBotPool();
   if (!lb) return { classified: 0, scanned: 0, hasKey: true, error: 'LineBotMonitor DB ไม่ได้เชื่อมต่อ' };
@@ -6787,33 +6823,83 @@ async function classifyTriageBatch(batchSize = 30) {
   const fresh = inScope.filter(r => !existing.has(r.Id));
   if (!fresh.length) return { classified: 0, scanned: inScope.length, hasKey: true, skippedOutOfScope: cand.length - inScope.length };
 
-  // ข้อความง่ายๆ (สติกเกอร์ / ขอบคุณ / โอเค / รับทราบ) ตัดสินด้วยกฎ ไม่ต้องเสีย token
+  // ข้อความจากทีมงานที่ bot จำไม่ได้ (ชื่อไม่ใช่ "INF-" ตัวใหญ่เป๊ะ เช่น Inf-Christ, INF_PARNIN)
+  // → ไม่ส่ง AI · นับเป็น "ตอบแล้ว" ให้ข้อความลูกค้าที่รออยู่ในแชทนั้น (triageMarkStaffReplies หลังจบรอบ)
   let ruled = 0;
   for (const m of fresh) {
+    if (!triageIsStaffName(m.CustomerName)) continue;
+    m._ruled = true;
+    if (await triageInsert(m, { category: 'other', sentiment: 'neutral', priority: 'low', needs_action: false,
+      summary: `ข้อความจากทีมงาน (${String(m.CustomerName).trim()})` }, 'staff')) ruled++;
+  }
+  // ข้อความง่ายๆ (สติกเกอร์ / ขอบคุณ / โอเค / รับทราบ) ตัดสินด้วยกฎ ไม่ต้องเสีย token
+  for (const m of fresh) {
+    if (m._ruled) continue;
     const o = triageRuleClassify(m.CustomerMessage);
     if (!o) continue;
     m._ruled = true;
     if (await triageInsert(m, o, 'rule')) ruled++;
   }
-  const todo = fresh.filter(m => !m._ruled).slice(0, batchSize);
+  // เรียงตามแชท แล้วตามเวลา — ให้ AI เห็นข้อความของแชทเดียวกันต่อเนื่องกัน
+  const todo = fresh.filter(m => !m._ruled).slice(0, batchSize)
+    .sort((a, b) => String(a.GroupId).localeCompare(String(b.GroupId)) || new Date(a.MessageTime) - new Date(b.MessageTime));
   if (!todo.length) return { classified: ruled, ruled, scanned: inScope.length, hasKey: true, skippedOutOfScope: cand.length - inScope.length };
 
-  const list = todo.map((m, i) =>
-    `[${i}] ${String(m.CustomerMessage).replace(/\s+/g, ' ').slice(0, 300)}`   // 300 ตัวอักษรพอให้จำแนกได้ — ประหยัด token
-  ).join('\n');
+  // บริบท: สรุป 4 ข้อความก่อนหน้าในแชทเดียวกัน (ภายใน 3 ชม.) — ใช้แยก "เรื่องใหม่" กับ "ข้อมูลเพิ่มของเรื่องเดิม"
+  const ctx = new Map();
+  try {
+    const gids = [...new Set(todo.map(m => m.GroupId).filter(Boolean))];
+    for (let i = 0; i < gids.length; i += 100) {
+      const r = req();
+      const chunk = gids.slice(i, i + 100);
+      chunk.forEach((g, k) => r.input('g' + k, sql.NVarChar, g));
+      (await r.query(`SELECT group_id, category, summary, answered_in_line FROM (
+          SELECT group_id, category, summary, answered_in_line, message_time,
+                 ROW_NUMBER() OVER (PARTITION BY group_id ORDER BY message_time DESC) AS rn
+          FROM line_msg_triage
+          WHERE group_id IN (${chunk.map((_, k) => '@g' + k).join(',')}) AND message_time >= DATEADD(hour, -3, GETDATE())
+        ) x WHERE rn <= 4 ORDER BY group_id, message_time`)).recordset
+        .forEach(x => (ctx.get(x.group_id) || ctx.set(x.group_id, []).get(x.group_id)).push(x));
+    }
+  } catch (e) { console.warn('triage context load failed:', e.message); }
+
+  const clip = v => String(v || '').replace(/\s+/g, ' ').trim();
+  const blocks = [];
+  let curG = null;
+  todo.forEach((m, i) => {
+    if (m.GroupId !== curG) {
+      curG = m.GroupId;
+      const prev = (ctx.get(m.GroupId) || []).map(x => `  - [${x.category}] ${clip(x.summary).slice(0, 120)}${x.answered_in_line ? ' (แอดมินตอบแล้ว)' : ''}`);
+      blocks.push(`=== แชท: ${clip(m.GroupName).slice(0, 60) || '-'} ===` + (prev.length ? `\nก่อนหน้า (สรุป):\n${prev.join('\n')}` : ''));
+    }
+    blocks.push(`[${i}] ${clip(m.CustomerMessage).slice(0, 300)}`);   // 300 ตัวอักษรพอให้จำแนกได้ — ประหยัด token
+  });
+  const list = blocks.join('\n');
 
   const prompt = `คุณคือระบบคัดกรองข้อความจากลูกค้าที่ทักเข้ามาในกลุ่ม/แชทไลน์ของทีม Customer Service
 จำแนกข้อความแต่ละรายการด้านล่างนี้ แล้วตอบกลับเป็น JSON array เท่านั้น (ห้ามมีข้อความอื่นนอก JSON)
 
+ข้อความถูกจัดกลุ่มตามแชท เรียงตามเวลา บางแชทมี "ก่อนหน้า (สรุป)" ให้ดูว่ากำลังคุยเรื่องอะไรอยู่
+ให้ดูบริบทก่อนเสมอ — ข้อความที่ต่อจากเรื่องเดิม ไม่ใช่เคสใหม่
+
 แต่ละ object ต้องมี field:
 - i        : เลขลำดับข้อความ (ตรงกับ [i] ที่ให้มา)
-- category : หนึ่งใน "problem"(แจ้งปัญหา/เคส) | "question"(คำถาม/สอบถาม) | "thank"(ขอบคุณ/ชม) | "complaint"(ร้องเรียน/ตำหนิ) | "request"(ขอ/ร้องขอให้ทำอะไร) | "other"(อื่นๆ/ทักทาย/ไม่เข้าพวก)
+- category : เลือก 1 อย่าง
+    "problem"   = แจ้งปัญหาระบบ/เครื่องเสีย/error/ใช้งานไม่ได้ เป็นเรื่องใหม่
+    "complaint" = ร้องเรียน ไม่พอใจ ตำหนิบริการ
+    "followup"  = ทวงถาม/ตามเรื่องเดิมที่ยังไม่ได้รับการแก้ เช่น "ยังไม่ได้เลย" "รอนานแล้ว"
+    "request"   = ขอให้ทำ/แก้ข้อมูล/ตั้งค่า เช่น ยกเลิกบิล เพิ่มเมนู ตั้งค่าเครื่องพิมพ์ เป็นเรื่องใหม่
+    "question"  = ถามวิธีใช้/สอบถามข้อมูล เป็นเรื่องใหม่
+    "context"   = ข้อมูลเพิ่มเติมของเรื่องที่คุยอยู่ เช่น ตอบคำถามแอดมิน ส่งเลข Anydesk/IP/รูป อธิบายเพิ่ม
+    "resolved"  = แจ้งว่าแก้ได้แล้ว/ใช้งานได้แล้ว/หายเอง
+    "thank"     = ขอบคุณ/ชม
+    "other"     = ประสานงานทั่วไป นัดเวลา แจ้งอนุมัติ ทักทาย คุยกันเอง
 - sentiment: "positive" | "neutral" | "negative"
-- priority : "urgent"(รีบมาก เช่น ระบบล่ม ใช้งานไม่ได้ ลูกค้าเดือดร้อน) | "normal" | "low"
-- needs_action: true/false — ต้องมีทีมงานเข้าไปทำหรือตอบไหม (ขอบคุณเฉยๆ/ทักทาย = false; แจ้งปัญหา/คำถาม/ขอ/ร้องเรียน = true)
+- priority : "urgent"(ระบบล่ม ขายของไม่ได้ ลูกค้ารออยู่หน้าร้าน) | "normal" | "low"
+- needs_action: true เฉพาะ problem/complaint/followup/request/question ที่ต้องมีทีมงานทำหรือตอบจริง
+                ถ้าไม่แน่ใจว่าเป็นเรื่องใหม่หรือเรื่องเดิม ให้ดูบริบท ถ้าต่อจากเรื่องเดิมให้เป็น "context"
 - summary  : สรุปใจความสั้นๆ 1 ประโยคภาษาไทยว่าลูกค้าต้องการอะไร
 
-ข้อความ:
 ${list}`;
 
   // Gemini บังคับรูปแบบด้วย responseSchema ได้; Groq อาศัย prompt + parseJsonArrayReply แทน
@@ -6860,7 +6946,8 @@ ${list}`;
 
 // บันทึกผลคัดกรอง 1 ข้อความ (ข้ามถ้ามีอยู่แล้ว) — คืน true เมื่อสำเร็จ
 async function triageInsert(m, o, model) {
-    const needsAction = (o.needs_action === true || o.needs_action === 'true') ? 1 : 0;
+    const cat = triageClean(o.category, TRIAGE_CATEGORIES, 'other');
+    const needsAction = (o.needs_action === true || o.needs_action === 'true') && TRIAGE_CASE_CATEGORIES.has(cat) ? 1 : 0;
     try {
       await req()
         .input('sid',  sql.Int, m.Id)
@@ -6869,7 +6956,7 @@ async function triageInsert(m, o, model) {
         .input('cust', sql.NVarChar, m.CustomerName || null)
         .input('txt',  sql.NVarChar(sql.MAX), m.CustomerMessage || null)
         .input('mtime', sql.DateTime, m.MessageTime || null)
-        .input('cat',  sql.NVarChar, triageClean(o.category, TRIAGE_CATEGORIES, 'other'))
+        .input('cat',  sql.NVarChar, cat)
         .input('sen',  sql.NVarChar, triageClean(o.sentiment, TRIAGE_SENTIMENTS, 'neutral'))
         .input('pri',  sql.NVarChar, triageClean(o.priority, TRIAGE_PRIORITIES, 'normal'))
         .input('sum',  sql.NVarChar, String(o.summary || '').slice(0, 480))
@@ -6896,7 +6983,9 @@ function triageRuleClassify(text) {
     .replace(/(ครับผม|ครับ|คับ|ค่ะ|คะ|ค่า|จ้า|จ้ะ|นะ|น้า|มากๆ|มาก|เลย|kub|krub|ka|kha|na|jaa)+$/g, '');
   if (/^(ขอบคุณ|ขอบใจ|ขอบคุน|thank(s|you)?|thx|ty|tq)$/.test(w))
     return { category: 'thank', sentiment: 'positive', priority: 'low', needs_action: false, summary: 'ลูกค้าขอบคุณ' };
-  if (/^(ok|okay|โอเค|โอเช|รับทราบ|ทราบแล้ว|ได้แล้ว|ใช้ได้แล้ว|เรียบร้อย|เรียบร้อยแล้ว|ได้|ค่ะ|ครับ|คับ|จ้า|ค่า|)$/.test(w))
+  if (/^(ได้แล้ว|ใช้ได้แล้ว|เรียบร้อย|เรียบร้อยแล้ว|หายแล้ว|ปกติแล้ว)$/.test(w))
+    return { category: 'resolved', sentiment: 'positive', priority: 'low', needs_action: false, summary: 'ลูกค้าแจ้งว่าใช้งานได้แล้ว' };
+  if (/^(ok|okay|โอเค|โอเช|รับทราบ|ทราบแล้ว|ได้|ค่ะ|ครับ|คับ|จ้า|ค่า|)$/.test(w))
     return { category: 'other', sentiment: 'neutral', priority: 'low', needs_action: false, summary: 'ลูกค้ารับทราบ' };
   return null;
 }
@@ -6983,7 +7072,7 @@ app.get('/api/triage/inbox', authRequired, async (request, res) => {
       try { await closeMaybeResolved(); } catch {}
     }
     const page = Math.max(1, parseInt(request.query.page) || 1);
-    const per  = Math.min(100, Math.max(5, parseInt(request.query.per) || 30));
+    const per  = Math.min(300, Math.max(5, parseInt(request.query.per) || 30));
 
     const r = req();
     const wsql = buildTriageFilter(request.query, r);
@@ -7008,7 +7097,7 @@ app.get('/api/triage/inbox', authRequired, async (request, res) => {
                WHERE t2.group_id = t.group_id
                  AND t2.message_time > t.message_time
                  AND t2.message_time <= DATEADD(hour, 24, t.message_time)  -- within 24h → likely related
-                 AND (t2.category='thank' OR t2.sentiment='positive')
+                 AND (t2.category IN ('thank','resolved') OR t2.sentiment='positive')
              ) THEN 1 ELSE 0 END AS maybe_resolved,
              t.claimed_at, t.done_at, t.note, t.classified_at,
              lgp.pod_id, p.code AS pod_code, p.display_name AS pod_name, p.color AS pod_color,
@@ -7077,7 +7166,7 @@ app.get('/api/triage/stats', authRequired, async (request, res) => {
                    SELECT 1 FROM line_msg_triage t2
                    WHERE t2.group_id = t.group_id AND t2.message_time > t.message_time
                      AND t2.message_time <= DATEADD(hour, 24, t.message_time)
-                     AND (t2.category='thank' OR t2.sentiment='positive')
+                     AND (t2.category IN ('thank','resolved') OR t2.sentiment='positive')
                  ) THEN 1 ELSE 0 END AS maybe
             FROM line_msg_triage t ${SCOPE}
            WHERE t.status='open' AND t.needs_action=1 AND ${inScope}
@@ -7173,7 +7262,7 @@ async function closeMaybeResolved() {
       WHERE t2.group_id = line_msg_triage.group_id
         AND t2.message_time > line_msg_triage.message_time
         AND t2.message_time <= DATEADD(hour, 24, line_msg_triage.message_time)
-        AND (t2.category='thank' OR t2.sentiment='positive'))`);
+        AND (t2.category IN ('thank','resolved') OR t2.sentiment='positive'))`);
   return r.rowsAffected?.[0] || 0;
 }
 
@@ -7302,13 +7391,23 @@ function ensureTriageCaseCol() {
     .catch(e => { _triageCaseColP = null; throw e; });
 }
 
-// GET /api/triage/pod-counts — ข้อความที่ต้องดำเนินการและยังไม่เสร็จ แยกตาม Pod (pod_id null = ยังไม่ได้ assign)
+// "เรื่อง" = ข้อความที่ต้องดำเนินการในแชทเดียวกันที่ห่างกันไม่เกิน TRIAGE_THREAD_MIN นาที (และยังอยู่ฝั่งเดียวกันของการตอบ)
+// ข้อความที่ไม่มีข้อความก่อนหน้าแบบนั้น = จุดเริ่มเรื่องใหม่ · หน้าเว็บรวมรายการด้วยกติกาเดียวกัน (lcThreads)
+const TRIAGE_THREAD_MIN = Math.max(5, parseInt(process.env.TRIAGE_THREAD_MINUTES) || 30);
+const TRIAGE_THREAD_START_SQL = (t = 't') => `NOT EXISTS (
+  SELECT 1 FROM line_msg_triage p
+  WHERE p.group_id = ${t}.group_id AND p.id <> ${t}.id AND p.needs_action = 1 AND p.status IN ('open','claimed')
+    AND p.message_time <= ${t}.message_time AND p.message_time >= DATEADD(minute, -${TRIAGE_THREAD_MIN}, ${t}.message_time)
+    AND (p.message_time < ${t}.message_time OR p.id < ${t}.id)
+    AND ISNULL(p.answered_in_line, 0) = ISNULL(${t}.answered_in_line, 0))`;
+
+// GET /api/triage/pod-counts — จำนวน "เรื่อง" ที่ต้องดำเนินการและยังไม่เสร็จ แยกตาม Pod (pod_id null = ยังไม่ได้ assign)
 app.get('/api/triage/pod-counts', authRequired, async (request, res) => {
   try {
     const rows = (await req().query(`
       SELECT lgp.pod_id, COUNT(*) AS n
       FROM line_msg_triage t LEFT JOIN line_group_pods lgp ON lgp.group_id = t.group_id
-      WHERE t.status IN ('open','claimed') AND t.needs_action=1 AND ${triageScopeSql()}
+      WHERE t.status IN ('open','claimed') AND t.needs_action=1 AND ${triageScopeSql()} AND ${TRIAGE_THREAD_START_SQL()}
       GROUP BY lgp.pod_id`)).recordset;
     res.json({ counts: rows.map(r => ({ pod_id: r.pod_id, n: r.n })), total: rows.reduce((s, r) => s + r.n, 0) });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -7328,6 +7427,7 @@ app.get('/api/triage/new', authRequired, async (request, res) => {
       LEFT JOIN line_group_pods lgp ON lgp.group_id = t.group_id
       LEFT JOIN pods p ON p.id = lgp.pod_id
       WHERE t.id > @after AND t.status='open' AND t.needs_action=1 AND ${triageScopeSql()}
+        AND ${TRIAGE_THREAD_START_SQL()}   -- เตือนเฉพาะเรื่องใหม่ ข้อความต่อจากเรื่องเดิมไม่เด้งซ้ำ
       ORDER BY t.id DESC`)).recordset;
     res.json({ last, rows });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -7370,9 +7470,10 @@ async function syncLineCaseResponse() {
   try {
     await ensureLineCaseResponse();
     await ensureTriageCaseCol();
+    await ensureTriageAnsweredAt();
     const todo = (await req().input('st', sql.NVarChar, LINE_LB_START).query(`
       SELECT TOP 1000 t.source_msg_id, t.group_id, COALESCE(t.group_name, lgp.group_name) AS group_name, lgp.pod_id,
-             t.message_time, t.summary, t.priority, t.calllog_id
+             t.message_time, t.summary, t.priority, t.calllog_id, t.answered_by AS staff_by, t.answered_at AS staff_at
       FROM line_msg_triage t
       LEFT JOIN line_group_pods lgp ON lgp.group_id = t.group_id
       LEFT JOIN line_case_response r ON r.source_msg_id = t.source_msg_id
@@ -7387,7 +7488,11 @@ async function syncLineCaseResponse() {
       const ans = new Map((await lreq.query(`SELECT Id, AnsweredBy, AnsweredTime FROM dbo.LineWaitingReply
         WHERE Answered=1 AND AnsweredTime IS NOT NULL AND Id IN (${chunk.map((_, k) => '@a' + k).join(',')})`)).recordset.map(a => [a.Id, a]));
       for (const x of chunk) {
-        const a = ans.get(x.source_msg_id);
+        // คนตอบ: จาก bot (INF-) หรือทีมงานที่ bot จำชื่อไม่ได้ (answered_at จาก triageMarkStaffReplies) — เอาคนที่ตอบก่อน
+        const botAns = ans.get(x.source_msg_id);
+        const staffAns = x.staff_at ? { AnsweredBy: x.staff_by, AnsweredTime: x.staff_at } : null;
+        const a = !botAns ? staffAns : !staffAns ? botAns
+          : (new Date(staffAns.AnsweredTime) < new Date(botAns.AnsweredTime) ? staffAns : botAns);
         if (!a) continue;   // ยังไม่มีใครตอบ — รอบหน้าค่อยดูใหม่
         await req().input('id', sql.Int, x.source_msg_id).input('g', sql.NVarChar, x.group_id).input('gn', sql.NVarChar, x.group_name)
           .input('pod', sql.Int, x.pod_id).input('mt', sql.DateTime, x.message_time).input('sum', sql.NVarChar, x.summary)
@@ -8083,7 +8188,7 @@ async function buildTriageAlert({ aiCalls = true } = {}) {
           SELECT 1 FROM line_msg_triage t2
           WHERE t2.group_id = t.group_id AND t2.message_time > t.message_time
             AND t2.message_time <= DATEADD(hour, 24, t.message_time)
-            AND (t2.category='thank' OR t2.sentiment='positive'))
+            AND (t2.category IN ('thank','resolved') OR t2.sentiment='positive'))
     )
     SELECT group_name, customer_name, group_id, source_msg_id, message_time, pod_id, pod_name, summary, message_text, waitmin, cnt
     FROM pending WHERE rn = 1
