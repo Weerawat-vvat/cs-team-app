@@ -13393,6 +13393,67 @@ app.post('/api/v1/cases/:id/close', apiKeyRequired('cases:write'), async (reques
   } catch (e) { console.error('[api] close case:', e.message); apiErr(res, 500, 'server_error', 'ปิดเคสไม่สำเร็จ'); }
 });
 
+// PATCH /api/v1/cases/{id} — แก้ไขเคส ส่งเฉพาะช่องที่จะแก้ (ปิดเคสใช้ /close)
+const API_PATCH_TEXT = {   // ช่องข้อความ → คอลัมน์ใน Calllog, ความยาวสูงสุด
+  description:  ['CalllogDesc', 4000], solution: ['Solution', 4000],
+  inform_name:  ['InformName', 200],   inform_tel: ['InformTel', 100], line_contact: ['OnsiteRemark', 200],
+};
+app.patch('/api/v1/cases/:id', apiKeyRequired('cases:write'), async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    if (!Number.isInteger(id) || id <= 0) return apiErr(res, 400, 'invalid_id', 'id ต้องเป็นตัวเลข');
+    if (!getExtPool()) return apiErr(res, 503, 'source_unavailable', 'เชื่อมต่อฐานข้อมูลเคสไม่ได้');
+    const b = request.body || {};
+    const cur = (await extReq().input('id', sql.Int, id).query('SELECT CalllogId, StatusId FROM Calllog WHERE Active=1 AND CalllogId=@id')).recordset[0];
+    if (!cur) return apiErr(res, 404, 'not_found', 'ไม่พบเคสนี้');
+
+    const r = extReq().input('id', sql.Int, id), sets = [];
+    for (const [k, [col, max]] of Object.entries(API_PATCH_TEXT)) {
+      if (!(k in b)) continue;
+      const v = b[k] === null ? '' : String(b[k]).trim();
+      if (k === 'description' && !v) return apiErr(res, 400, 'description_required', 'description ห้ามว่าง');
+      r.input(k, sql.NVarChar, v ? v.slice(0, max) : null);
+      sets.push(`${col}=@${k}`);
+    }
+    if ('subject' in b) {
+      const subj = (await extReq().input('s', sql.NVarChar, String(b.subject || '').trim()).query(
+        'SELECT TOP 1 SubjectName, ProblemTypeId FROM Subject WHERE Active=1 AND SubjectName=@s')).recordset[0];
+      if (!subj) return apiErr(res, 400, 'unknown_subject', `ไม่พบหัวข้อ "${b.subject}" ในระบบ`);
+      r.input('subj', sql.NVarChar, subj.SubjectName).input('ptid', sql.Int, subj.ProblemTypeId || null);
+      sets.push('Subject=@subj', 'ProblemTypeId=@ptid');
+    }
+    if ('agent' in b) {
+      const uid = await apiUserId(b.agent);
+      if (!uid) return apiErr(res, 400, 'unknown_agent', `ไม่พบ username "${b.agent}" ใน Calllog`);
+      r.input('sid', sql.Int, uid);
+      sets.push('SupportId=@sid');
+    }
+    if ('channel' in b) {
+      const ch = API_CHANNELS.find(c => c.toLowerCase() === String(b.channel || '').trim().toLowerCase());
+      if (!ch) return apiErr(res, 400, 'invalid_channel', `channel ต้องเป็นหนึ่งใน ${API_CHANNELS.join(', ')}`);
+      r.input('itype', sql.NVarChar, ch).input('solvety', sql.NVarChar, ch === 'Walk-in' ? 'Walk-in' : 'Remote');
+      sets.push('InformType=@itype', 'SolveType=@solvety');
+    }
+    if ('status' in b) {
+      const st = String(b.status || '').toLowerCase();
+      if (st === 'closed' || st === 'close') return apiErr(res, 400, 'use_close_endpoint', 'ปิดเคสใช้ POST /api/v1/cases/{id}/close');
+      if (!['pending', 'inprogress'].includes(st)) return apiErr(res, 400, 'invalid_status', 'status ใช้ได้แค่ pending หรือ inprogress');
+      if (cur.StatusId === await apiCloseStatusId()) return apiErr(res, 409, 'case_closed', 'เคสนี้ปิดแล้ว เปลี่ยนสถานะผ่าน API ไม่ได้');
+      const sid = (await extReq().input('n', sql.NVarChar, st === 'pending' ? 'Pending' : 'Inprogress').query(
+        'SELECT TOP 1 StatusId FROM CallStatus WHERE StatusName=@n')).recordset[0]?.StatusId;
+      if (!sid) return apiErr(res, 500, 'server_error', 'ไม่พบสถานะในระบบ');
+      r.input('stid', sql.Int, sid);
+      sets.push('StatusId=@stid');
+    }
+    if (!sets.length) return apiErr(res, 400, 'nothing_to_update',
+      `ส่งอย่างน้อย 1 ช่อง: ${[...Object.keys(API_PATCH_TEXT), 'subject', 'agent', 'channel', 'status'].join(', ')}`);
+    await r.query(`UPDATE Calllog SET ${sets.join(', ')}, UpdateDate=GETDATE() WHERE CalllogId=@id AND Active=1`);
+    console.log(`[api] ${request.apiClient?.name}: แก้เคส #${id} (${sets.map(s => s.split('=')[0]).join(', ')})`);
+    res.locals.apiRows = 1;
+    res.json({ data: await apiCaseById(id) });
+  } catch (e) { console.error('[api] update case:', e.message); apiErr(res, 500, 'server_error', 'แก้ไขเคสไม่สำเร็จ'); }
+});
+
 // ── เอกสาร OpenAPI + Swagger UI ───────────────────────────
 app.get('/api/v1/openapi.json', (request, res) => res.json(apiOpenApiSpec(`${request.protocol}://${request.get('host')}`)));
 app.get('/api/v1/docs', (request, res) => res.type('html').send(`<!doctype html><html lang="th"><head><meta charset="utf-8">
@@ -13432,6 +13493,15 @@ function apiOpenApiSpec(server) {
         project_id: { type: 'integer', description: `โปรแกรม ค่าเริ่มต้น ${API_DEFAULT_PROJECT_ID}` },
       } } } } },
     responses: { 201: caseOut('สร้างแล้ว'), 400: err, 401: err, 403: err, 429: err } };
+  const patchSpec = { summary: 'แก้ไขเคส — ส่งเฉพาะช่องที่จะแก้ (scope: cases:write)', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+    requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: {
+      description: { type: 'string' }, solution: { type: 'string' },
+      subject: { type: 'string', description: 'หัวข้อในระบบ (ประเภทปัญหาเปลี่ยนตาม)' },
+      agent: { type: 'string', description: 'username ผู้รับเรื่องคนใหม่' },
+      channel: { type: 'string', enum: API_CHANNELS },
+      status: { type: 'string', enum: ['pending', 'inprogress'], description: 'ปิดเคสใช้ /close · เคสที่ปิดแล้วเปลี่ยนสถานะไม่ได้' },
+      inform_name: { type: 'string' }, inform_tel: { type: 'string' }, line_contact: { type: 'string' } } } } } },
+    responses: { 200: caseOut('แก้แล้ว'), 400: err, 404: err, 409: err, 401: err, 403: err } };
   const closeSpec = { summary: 'ปิดเคส — สถานะ Close Job (scope: cases:write)', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
     requestBody: { content: { 'application/json': { schema: { type: 'object', properties: {
       solution: { type: 'string', description: 'วิธีแก้ไข — ต้องมี ถ้าเคสยังไม่เคยใส่' },
@@ -13470,7 +13540,7 @@ function apiOpenApiSpec(server) {
           page: { type: 'object', properties: { page: { type: 'integer' }, limit: { type: 'integer' }, total: { type: 'integer' }, has_more: { type: 'boolean' } } },
           meta: { type: 'object' } } } } } }, 400: err, 401: err, 403: err, 429: err } } },
       '/api/v1/cases/summary': { get: { summary: 'ตัวเลขสรุป (scope: cases:read)', parameters: filters, responses: { 200: { description: 'ok' }, 400: err, 401: err, 429: err } } },
-      '/api/v1/cases/{id}': { get: { summary: 'เคสเดียว (scope: cases:read)', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+      '/api/v1/cases/{id}': { patch: patchSpec, get: { summary: 'เคสเดียว (scope: cases:read)', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
         responses: { 200: { description: 'ok', content: { 'application/json': { schema: { type: 'object', properties: { data: { $ref: '#/components/schemas/Case' } } } } } }, 404: err, 401: err } } },
       '/api/v1/cases/{id}/close': { post: closeSpec },
     },
