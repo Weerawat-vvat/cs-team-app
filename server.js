@@ -7646,6 +7646,7 @@ app.get('/api/line-leaderboard', authRequired, async (request, res) => {
       const secs = evs.map(e => e.sec), urg = evs.filter(e => e.urgent);
       return {
         cases: evs.length, median_sec: median(secs),
+        within: secs.filter(s => s <= T).length,   // แต้ม = จำนวนเคสที่ตอบทันเป้า
         within_pct: evs.length ? Math.round(secs.filter(s => s <= T).length / evs.length * 100) : null,
         urgent: urg.length, urgent_within: urg.filter(e => e.sec <= T).length,
         logged: evs.filter(e => e.logged).length,
@@ -7661,8 +7662,9 @@ app.get('/api/line-leaderboard', authRequired, async (request, res) => {
 
     const byPerson = new Map();
     evs.forEach(e => { const k = e.answered_by || '(ไม่ทราบ)'; (byPerson.get(k) || byPerson.set(k, []).get(k)).push(e); });
+    // อันดับ = จำนวนเคสที่ตอบทันเป้า (ต้องทั้งเยอะและทัน) · เสมอกันดูคนที่ตอบไวกว่า
     const people = [...byPerson].map(([name, list]) => ({ name, ...stats(list) }))
-      .sort((a, b) => (a.median_sec ?? 1e12) - (b.median_sec ?? 1e12) || b.cases - a.cases);
+      .sort((a, b) => b.within - a.within || (a.median_sec ?? 1e12) - (b.median_sec ?? 1e12) || b.cases - a.cases);
 
     // ยังรอคนตอบอยู่ตอนนี้ (เคสจาก AI ที่ยังไม่มีใครตอบในไลน์)
     const waitR = req().input('st', sql.NVarChar, LINE_LB_START);

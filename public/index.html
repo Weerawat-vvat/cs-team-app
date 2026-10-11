@@ -8694,19 +8694,25 @@ async function llbLoad() {
     delta = Math.abs(diff) < 5 ? 'พอๆ กับช่วงก่อนหน้า'
       : `<span style="color:${diff < 0 ? '#356b4e' : '#b04a40'}">${diff < 0 ? 'เร็วขึ้น' : 'ช้าลง'} ${mins(Math.abs(diff))}</span> จากช่วงก่อนหน้า`;
   }
-  // ตอบไวสุด = median ต่ำสุด ในคนที่ตอบอย่างน้อย min_cases เคส (ไม่งั้นแสดงแยกว่ายังไม่ครบ)
-  const ranked = d.people.filter(p => p.cases >= d.min_cases), rest = d.people.filter(p => p.cases < d.min_cases);
-  const podium = ranked.slice(0, 3);
+  // อันดับ = จำนวนเคสที่ตอบทันเป้า (server เรียงมาแล้ว) — ทุกคนติดอันดับ
+  // รางวัลย่อย ⚡ ไวสุด / 🎯 แม่นสุด คิดเฉพาะคนที่ตอบอย่างน้อย min_cases เคส
+  const ranked = d.people, podium = ranked.slice(0, 3);
+  const eligible = ranked.filter(p => p.cases >= d.min_cases);
+  const fastest = [...eligible].sort((a, b) => (a.median_sec ?? 1e12) - (b.median_sec ?? 1e12))[0];
+  const sharpest = [...eligible].sort((a, b) => b.within_pct - a.within_pct || b.cases - a.cases)[0];
+  const award = (ic, lab, p, val) => p ? `<div class="stat-flat" style="display:flex;align-items:center;gap:.6rem;padding:.6rem .8rem">
+      <span style="font-size:1.3rem">${ic}</span><div><div class="label">${lab}</div><div style="font-weight:700">${escHtml(p.name)} <span class="mt-meta" style="font-weight:400">· ${val}</span></div></div></div>` : '';
   const card = (p, i) => !p ? '<div></div>' : `<div class="stat-flat" style="text-align:center;${i === 0 ? 'border:2px solid var(--primary);' : ''}">
-      <div class="label">${i === 0 ? '🏆 อันดับ 1 ตอบไวสุด' : `อันดับ ${i + 1}`}</div>
+      <div class="label">${i === 0 ? '🏆 อันดับ 1' : `อันดับ ${i + 1}`}</div>
       <div style="font-weight:700;font-size:${i === 0 ? '1.05rem' : '.95rem'};margin:.15rem 0">${escHtml(p.name)}</div>
-      <div class="value" style="font-size:${i === 0 ? '1.7rem' : '1.35rem'}">${mins(p.median_sec)}</div>
-      <div class="sub">${p.cases} เคส · ใน ${T} นาที ${p.within_pct}%</div></div>`;
+      <div class="value" style="font-size:${i === 0 ? '1.7rem' : '1.35rem'}">${p.within}<span style="font-size:.8rem;color:var(--muted);font-weight:400"> เคสทันเป้า</span></div>
+      <div class="sub">จาก ${p.cases} เคส (${p.within_pct}%) · median ${mins(p.median_sec)}</div></div>`;
   const C = ['#356b4e', '#6aa583', '#b9d8c5', '#dcd9d2'], L = ['ไม่ถึง 1 นาที', `1–${T} นาที`, `${T}–15 นาที`, 'เกิน 15 นาที'];
   const dist = p => `<div style="display:flex;gap:2px;height:12px;min-width:140px">${p.buckets.map((v, i) => v ? `<div title="${L[i]}: ${v} เคส (${Math.round(v / p.cases * 100)}%)"
       style="flex:${v};background:${C[i]};border-radius:${i === 0 ? '4px 0 0 4px' : ''}${i === 3 ? '0 4px 4px 0' : ''}"></div>` : '').join('')}</div>`;
-  const row = (p, i) => `<tr><td class="num mt-meta">${i ?? '—'}</td><td><b>${escHtml(p.name)}</b></td><td style="width:34%">${dist(p)}</td>
-      <td class="r num"><b>${mins(p.median_sec)}</b></td><td class="r num">${p.within_pct}%</td><td class="r num">${p.cases}</td>
+  const row = (p, i) => `<tr><td class="num mt-meta">${i ?? '—'}</td><td><b>${escHtml(p.name)}</b>${p === fastest ? ' <span title="ตอบไวที่สุด">⚡</span>' : ''}${p === sharpest ? ' <span title="ตอบทันเป้าสม่ำเสมอที่สุด">🎯</span>' : ''}</td>
+      <td class="r num"><b>${p.within}</b></td><td style="width:30%">${dist(p)}</td>
+      <td class="r num">${mins(p.median_sec)}</td><td class="r num">${p.within_pct}%</td><td class="r num">${p.cases}</td>
       <td class="r num mt-meta">${p.urgent ? `${p.urgent_within}/${p.urgent}` : '—'}</td>
       <td class="r num mt-meta">${Math.round(p.logged / p.cases * 100)}%</td></tr>`;
   const podName = id => id == null ? 'ยังไม่ได้ Assign' : ((_lcPods || []).find(p => p.id === id)?.code || '');
@@ -8720,13 +8726,14 @@ async function llbLoad() {
     </div>
     ${podium.length ? `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem;margin:.9rem 0;align-items:end">
       ${card(podium[1], 1)}${card(podium[0], 0)}${card(podium[2], 2)}</div>` : ''}
+    ${fastest || sharpest ? `<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem;margin:0 0 .9rem">
+      ${award('⚡', 'ตอบไวที่สุด (median)', fastest, mins(fastest?.median_sec))}${award('🎯', 'ตอบทันเป้าสม่ำเสมอที่สุด', sharpest, `${sharpest?.within_pct}% จาก ${sharpest?.cases} เคส`)}</div>` : ''}
     <div class="mt-tbl-wrap">
-      <div class="mt-tt-head">อันดับ <span class="mt-meta" style="font-weight:400">· เรียงตามเวลาตอบกลาง · ต้องตอบอย่างน้อย ${d.min_cases} เคสถึงติดอันดับ</span>
+      <div class="mt-tt-head">อันดับ <span class="mt-meta" style="font-weight:400">· เรียงตามจำนวนเคสที่ตอบทันเป้า ${T} นาที (ต้องทั้งเยอะและทัน) · ⚡/🎯 คิดจากคนที่ตอบอย่างน้อย ${d.min_cases} เคส</span>
         <span style="margin-left:auto;display:flex;gap:.7rem;font-size:.7rem;color:#6f747c;font-weight:400">${C.map((c, i) => `<span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${c};vertical-align:-.05em"></span> ${L[i]}</span>`).join('')}</span></div>
-      <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>#</th><th>คนตอบ (LINE@)</th><th>การกระจายเวลาตอบ</th><th class="r">median</th>
+      <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>#</th><th>คนตอบ (LINE@)</th><th class="r" title="จำนวนเคสที่ตอบภายใน ${T} นาที">ทันเป้า</th><th>การกระจายเวลาตอบ</th><th class="r">median</th>
         <th class="r">ใน ${T} นาที</th><th class="r">เคส</th><th class="r">ด่วน</th><th class="r">ลงเคส</th></tr></thead>
-        <tbody>${ranked.map((p, i) => row(p, i + 1)).join('')}
-        ${rest.length ? `<tr><td colspan="8" class="mt-meta" style="padding-top:.7rem">ยังไม่ครบ ${d.min_cases} เคส (ไม่จัดอันดับ)</td></tr>${rest.map(p => row(p, null)).join('')}` : ''}</tbody></table></div>
+        <tbody>${ranked.map((p, i) => row(p, i + 1)).join('')}</tbody></table></div>
     </div>
     <div class="mt-tbl-wrap" style="margin-top:.75rem">
       <div class="mt-tt-head">ตอบช้าสุดในช่วงนี้ <span class="mt-meta" style="font-weight:400">· ไว้ทบทวนว่าติดตรงไหน</span></div>
