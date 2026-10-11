@@ -13018,7 +13018,7 @@ app.get('/api/dashboard/issues', authRequired, async (request, res) => {
 //  ยืนยันตัวตนด้วย API Key (X-API-Key) แยกตามระบบที่เชื่อม · มี scope · จำกัดจำนวนครั้ง · เก็บ log
 //  เอกสาร: GET /api/v1/docs  (OpenAPI: /api/v1/openapi.json)
 // ══════════════════════════════════════════════════════════
-const API_SCOPES        = ['cases:read'];
+const API_SCOPES        = ['cases:read', 'cases:write'];   // write = เปิดเคส / ปิดเคส
 const API_RATE_PER_MIN  = Math.max(1, parseInt(process.env.API_RATE_PER_MIN) || 60);
 const API_MAX_RANGE_DAY = 31;     // ช่วงวันที่ต่อครั้งไม่เกิน — กัน query หนักไปถึง LicenseDB
 const API_MAX_LIMIT     = 500;
@@ -13267,6 +13267,132 @@ app.get('/api/v1/cases/:id', apiKeyRequired('cases:read'), async (request, res) 
   } catch (e) { console.error('[api] case:', e.message); apiErr(res, 500, 'server_error', 'ดึงข้อมูลไม่สำเร็จ'); }
 });
 
+// ══ เขียนเคส (scope: cases:write) — ลงตาราง Calllog แบบเดียวกับปุ่ม "เปิด Case" ในหน้าเว็บ ══
+const API_CHANNELS = ['Phone', 'Line', 'Email', 'Walk-in', 'Remote'];
+const API_DEFAULT_PROJECT_ID = parseInt(process.env.API_DEFAULT_PROJECT_ID) || 12;   // Easy Restaurant (Trunk)
+// เวลา: รับ ISO มี timezone (2026-10-11T09:30:00+07:00) หรือไม่มี (2026-10-11 09:30 = เวลาไทย)
+// → ค่า "face value" เวลาไทยแบบที่ Calllog เก็บ · undefined = ไม่ได้ส่งมา · null = รูปแบบผิด
+function apiParseTime(v) {
+  if (v === undefined || v === null || v === '') return undefined;
+  const s = String(v).trim();
+  if (/(Z|[+-]\d{2}:?\d{2})$/.test(s)) {
+    const d = new Date(s);
+    return isNaN(d) ? null : new Date(d.getTime() + 7 * 3600000);
+  }
+  const m = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(:\d{2})?$/.exec(s);
+  if (!m) return null;
+  const d = new Date(`${m[1]}T${m[2]}${m[3] || ':00'}Z`);
+  return isNaN(d) ? null : d;
+}
+async function apiUserId(name) {
+  if (!name) return null;
+  const u = (await extReq().input('un', sql.NVarChar, String(name).trim()).query('SELECT TOP 1 UserId FROM Users WHERE UserName=@un')).recordset[0];
+  return u ? u.UserId : null;
+}
+let _apiCloseStatusId = null;
+async function apiCloseStatusId() {
+  if (_apiCloseStatusId) return _apiCloseStatusId;
+  const r = (await extReq().query(`SELECT TOP 1 StatusId FROM CallStatus WHERE StatusName LIKE '%close%' ORDER BY StatusId`)).recordset[0];
+  return (_apiCloseStatusId = r?.StatusId || 4);   // "Close Job"
+}
+const apiCaseById = async id => {
+  const rows = (await extReq().input('id', sql.Int, id).query(`SELECT ${API_CASE_SELECT} ${API_CASE_FROM} WHERE cl.Active=1 AND cl.CalllogId=@id`)).recordset;
+  return rows.length ? (await apiShapeCases(rows))[0] : null;
+};
+
+// POST /api/v1/cases — เปิดเคสใหม่
+app.post('/api/v1/cases', apiKeyRequired('cases:write'), async (request, res) => {
+  try {
+    if (!getExtPool()) return apiErr(res, 503, 'source_unavailable', 'เชื่อมต่อฐานข้อมูลเคสไม่ได้');
+    const b = request.body || {};
+    const rid = parseInt(b.registration_id);
+    if (!rid) return apiErr(res, 400, 'invalid_registration_id', 'registration_id (รหัสร้าน) ต้องเป็นตัวเลข');
+    const desc = String(b.description || '').trim();
+    if (!desc) return apiErr(res, 400, 'description_required', 'ต้องส่ง description (อาการ/รายละเอียดปัญหา)');
+    if (!b.subject) return apiErr(res, 400, 'subject_required', 'ต้องส่ง subject (หัวข้อเคส ตรงกับรายการหัวข้อในระบบ)');
+    if (!b.agent) return apiErr(res, 400, 'agent_required', 'ต้องส่ง agent (username ผู้รับเรื่องใน Calllog)');
+    const channel = b.channel ? API_CHANNELS.find(c => c.toLowerCase() === String(b.channel).trim().toLowerCase()) : 'Line';
+    if (!channel) return apiErr(res, 400, 'invalid_channel', `channel ต้องเป็นหนึ่งใน ${API_CHANNELS.join(', ')}`);
+    const st = String(b.status || 'pending').toLowerCase();
+    if (!['pending', 'inprogress'].includes(st)) return apiErr(res, 400, 'invalid_status', 'status ตอนเปิดเคสใช้ได้แค่ pending หรือ inprogress (ปิดเคสใช้ /cases/{id}/close)');
+    const receivedAt = apiParseTime(b.received_at);
+    if (receivedAt === null) return apiErr(res, 400, 'invalid_received_at', 'received_at ต้องเป็น ISO 8601 เช่น 2026-10-11T09:30:00+07:00');
+
+    const store = (await extReq().input('rid', sql.Int, rid).query(
+      'SELECT TOP 1 RegistrationId FROM CustomerRegistration WHERE RegistrationId=@rid AND (Hide=0 OR Hide IS NULL)')).recordset[0];
+    if (!store) return apiErr(res, 400, 'unknown_registration_id', `ไม่พบร้าน registration_id ${rid}`);
+    const subj = (await extReq().input('s', sql.NVarChar, String(b.subject).trim()).query(
+      'SELECT TOP 1 SubjectName, ProblemTypeId FROM Subject WHERE Active=1 AND SubjectName=@s')).recordset[0];
+    if (!subj) return apiErr(res, 400, 'unknown_subject', `ไม่พบหัวข้อ "${b.subject}" ในระบบ`);
+    const agentId = await apiUserId(b.agent);
+    if (!agentId) return apiErr(res, 400, 'unknown_agent', `ไม่พบ username "${b.agent}" ใน Calllog`);
+    const statusId = (await extReq().input('n', sql.NVarChar, st === 'pending' ? 'Pending' : 'Inprogress').query(
+      'SELECT TOP 1 StatusId FROM CallStatus WHERE StatusName=@n')).recordset[0]?.StatusId || null;
+
+    const id = (await extReq()
+      .input('rid',  sql.Int, rid)
+      .input('rd',   sql.DateTime, receivedAt || null)
+      .input('desc', sql.NVarChar, desc.slice(0, 4000))
+      .input('iname', sql.NVarChar, b.inform_name ? String(b.inform_name).slice(0, 200) : null)
+      .input('itel', sql.NVarChar, b.inform_tel ? String(b.inform_tel).slice(0, 100) : null)
+      .input('itype', sql.NVarChar, channel)
+      .input('line', sql.NVarChar, b.line_contact ? String(b.line_contact).slice(0, 200) : null)
+      .input('sid',  sql.Int, agentId)
+      .input('stid', sql.Int, statusId)
+      .input('pid',  sql.Int, parseInt(b.project_id) || API_DEFAULT_PROJECT_ID)
+      .input('ptid', sql.Int, subj.ProblemTypeId || null)
+      .input('subj', sql.NVarChar, subj.SubjectName)
+      .input('sol',  sql.NVarChar, b.solution ? String(b.solution).slice(0, 4000) : null)
+      .input('solvety', sql.NVarChar, ['Walk-in'].includes(channel) ? 'Walk-in' : 'Remote')
+      .query(`INSERT INTO Calllog
+        (RegistrationId, ReceiveDate, CloseDate, DueDate, CalllogDesc, InformName, InformTel,
+         InformType, OnsiteRemark, SupportId, StatusId, ProjectId, ProblemTypeId,
+         Subject, Solution, SolveType, UserId, CloseById, Active, InsertDate, UpdateDate)
+        OUTPUT INSERTED.CalllogId AS id
+        VALUES (@rid, ISNULL(@rd, GETDATE()), NULL, NULL, @desc, @iname, @itel,
+                @itype, @line, @sid, @stid, @pid, @ptid, @subj, @sol, @solvety, @sid, NULL, 1, GETDATE(), GETDATE())`)).recordset[0].id;
+    console.log(`[api] ${request.apiClient?.name}: เปิดเคส #${id}`);
+    res.locals.apiRows = 1;
+    res.status(201).json({ data: await apiCaseById(id) });
+  } catch (e) { console.error('[api] create case:', e.message); apiErr(res, 500, 'server_error', 'เปิดเคสไม่สำเร็จ'); }
+});
+
+// POST /api/v1/cases/{id}/close — ปิดเคส (สถานะ Close Job)
+app.post('/api/v1/cases/:id/close', apiKeyRequired('cases:write'), async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    if (!Number.isInteger(id) || id <= 0) return apiErr(res, 400, 'invalid_id', 'id ต้องเป็นตัวเลข');
+    if (!getExtPool()) return apiErr(res, 503, 'source_unavailable', 'เชื่อมต่อฐานข้อมูลเคสไม่ได้');
+    const b = request.body || {};
+    const cur = (await extReq().input('id', sql.Int, id).query(
+      `SELECT CalllogId, StatusId, ReceiveDate, SupportId, CAST(Solution AS NVARCHAR(MAX)) AS Solution FROM Calllog WHERE Active=1 AND CalllogId=@id`)).recordset[0];
+    if (!cur) return apiErr(res, 404, 'not_found', 'ไม่พบเคสนี้');
+    const closeId = await apiCloseStatusId();
+    if (cur.StatusId === closeId) {
+      res.locals.apiRows = 1;
+      return res.status(409).json({ error: { code: 'already_closed', message: 'เคสนี้ปิดไปแล้ว' }, data: await apiCaseById(id) });
+    }
+    const sol = String(b.solution || '').trim();
+    if (!sol && !String(cur.Solution || '').trim()) return apiErr(res, 400, 'solution_required', 'ต้องส่ง solution (วิธีแก้ไข) ก่อนปิดเคส');
+    const closedAt = apiParseTime(b.closed_at);
+    if (closedAt === null) return apiErr(res, 400, 'invalid_closed_at', 'closed_at ต้องเป็น ISO 8601 เช่น 2026-10-11T10:15:00+07:00');
+    if (closedAt && cur.ReceiveDate && closedAt < new Date(cur.ReceiveDate)) return apiErr(res, 400, 'invalid_closed_at', 'closed_at ต้องไม่ก่อนเวลารับเคส');
+    let closer = cur.SupportId;
+    if (b.agent) {
+      closer = await apiUserId(b.agent);
+      if (!closer) return apiErr(res, 400, 'unknown_agent', `ไม่พบ username "${b.agent}" ใน Calllog`);
+    }
+    await extReq().input('id', sql.Int, id).input('st', sql.Int, closeId).input('cd', sql.DateTime, closedAt || null)
+      .input('sol', sql.NVarChar, sol ? sol.slice(0, 4000) : null).input('cb', sql.Int, closer || null).query(`
+      UPDATE Calllog SET StatusId=@st, CloseDate=ISNULL(@cd, GETDATE()), DueDate=ISNULL(@cd, GETDATE()),
+             Solution=ISNULL(@sol, Solution), CloseById=@cb, UpdateDate=GETDATE()
+      WHERE CalllogId=@id AND Active=1`);
+    console.log(`[api] ${request.apiClient?.name}: ปิดเคส #${id}`);
+    res.locals.apiRows = 1;
+    res.json({ data: await apiCaseById(id) });
+  } catch (e) { console.error('[api] close case:', e.message); apiErr(res, 500, 'server_error', 'ปิดเคสไม่สำเร็จ'); }
+});
+
 // ── เอกสาร OpenAPI + Swagger UI ───────────────────────────
 app.get('/api/v1/openapi.json', (request, res) => res.json(apiOpenApiSpec(`${request.protocol}://${request.get('host')}`)));
 app.get('/api/v1/docs', (request, res) => res.type('html').send(`<!doctype html><html lang="th"><head><meta charset="utf-8">
@@ -13290,10 +13416,32 @@ function apiOpenApiSpec(server) {
     { name: 'q', in: 'query', schema: { type: 'string' }, description: 'ค้นหาในหัวข้อ / ร้าน / รายละเอียด' },
   ];
   const err = { description: 'error', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } };
+  const caseOut = d => ({ description: d, content: { 'application/json': { schema: { type: 'object', properties: { data: { $ref: '#/components/schemas/Case' } } } } } });
+  const createSpec = { summary: 'เปิดเคสใหม่ (scope: cases:write)', requestBody: { required: true, content: { 'application/json': { schema: {
+      type: 'object', required: ['registration_id', 'subject', 'description', 'agent'],
+      properties: {
+        registration_id: { type: 'integer', description: 'รหัสร้าน (RegistrationId)', example: 12345 },
+        subject: { type: 'string', description: 'หัวข้อเคส — ต้องตรงกับรายการหัวข้อในระบบ (ประเภทปัญหาจะใส่ให้ตามหัวข้อ)' },
+        description: { type: 'string', description: 'อาการ / รายละเอียดปัญหา' },
+        agent: { type: 'string', description: 'username ผู้รับเรื่องใน Calllog', example: 'boek' },
+        solution: { type: 'string', description: 'วิธีแก้ไข (ใส่ทีหลังตอนปิดเคสก็ได้)' },
+        channel: { type: 'string', enum: API_CHANNELS, default: 'Line' },
+        status: { type: 'string', enum: ['pending', 'inprogress'], default: 'pending' },
+        received_at: { type: 'string', format: 'date-time', description: 'เวลารับเคส ค่าเริ่มต้นตอนนี้', example: '2026-10-11T09:30:00+07:00' },
+        inform_name: { type: 'string', description: 'ชื่อผู้แจ้ง' }, inform_tel: { type: 'string' }, line_contact: { type: 'string', description: 'LINE / ชื่อกลุ่มไลน์' },
+        project_id: { type: 'integer', description: `โปรแกรม ค่าเริ่มต้น ${API_DEFAULT_PROJECT_ID}` },
+      } } } } },
+    responses: { 201: caseOut('สร้างแล้ว'), 400: err, 401: err, 403: err, 429: err } };
+  const closeSpec = { summary: 'ปิดเคส — สถานะ Close Job (scope: cases:write)', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+    requestBody: { content: { 'application/json': { schema: { type: 'object', properties: {
+      solution: { type: 'string', description: 'วิธีแก้ไข — ต้องมี ถ้าเคสยังไม่เคยใส่' },
+      closed_at: { type: 'string', format: 'date-time', description: 'เวลาปิด ค่าเริ่มต้นตอนนี้' },
+      agent: { type: 'string', description: 'username คนปิดเคส ค่าเริ่มต้น = ผู้รับเรื่อง' } } } } } },
+    responses: { 200: caseOut('ปิดแล้ว'), 400: err, 404: err, 409: { description: 'ปิดไปแล้ว (ส่ง data ของเคสกลับมาด้วย)' }, 401: err, 403: err } };
   return {
     openapi: '3.0.3',
     info: { title: 'CS Team API', version: 'v1', description:
-      `ดึงข้อมูล "ติดตามเคส" แบบอ่านอย่างเดียว\n\n- ส่ง API Key ใน header \`X-API-Key\` (ขอ key จากผู้ดูแลระบบ)\n- จำกัด ${API_RATE_PER_MIN} ครั้ง/นาที ต่อ key (เกินจะได้ 429)\n- เวลาเป็นเวลาไทย (+07:00)` },
+      `ดึงข้อมูล "ติดตามเคส" (cases:read) · เปิดเคส / ปิดเคส (cases:write — ลงตาราง Calllog จริง)\n\n- ส่ง API Key ใน header \`X-API-Key\` (ขอ key จากผู้ดูแลระบบ)\n- จำกัด ${API_RATE_PER_MIN} ครั้ง/นาที ต่อ key (เกินจะได้ 429)\n- เวลาเป็นเวลาไทย (+07:00)` },
     servers: [{ url: server }],
     components: {
       securitySchemes: { ApiKey: { type: 'apiKey', in: 'header', name: 'X-API-Key' } },
@@ -13314,7 +13462,7 @@ function apiOpenApiSpec(server) {
     security: [{ ApiKey: [] }],
     paths: {
       '/api/v1/health': { get: { summary: 'เช็คสถานะ API', security: [], responses: { 200: { description: 'ok' } } } },
-      '/api/v1/cases': { get: { summary: 'รายการเคส (scope: cases:read)', parameters: [...filters,
+      '/api/v1/cases': { post: createSpec, get: { summary: 'รายการเคส (scope: cases:read)', parameters: [...filters,
           { name: 'limit', in: 'query', schema: { type: 'integer', default: 100, maximum: API_MAX_LIMIT } },
           { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } }],
         responses: { 200: { description: 'ok', content: { 'application/json': { schema: { type: 'object', properties: {
@@ -13324,6 +13472,7 @@ function apiOpenApiSpec(server) {
       '/api/v1/cases/summary': { get: { summary: 'ตัวเลขสรุป (scope: cases:read)', parameters: filters, responses: { 200: { description: 'ok' }, 400: err, 401: err, 429: err } } },
       '/api/v1/cases/{id}': { get: { summary: 'เคสเดียว (scope: cases:read)', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
         responses: { 200: { description: 'ok', content: { 'application/json': { schema: { type: 'object', properties: { data: { $ref: '#/components/schemas/Case' } } } } } }, 404: err, 401: err } } },
+      '/api/v1/cases/{id}/close': { post: closeSpec },
     },
   };
 }

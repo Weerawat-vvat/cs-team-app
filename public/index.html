@@ -2692,7 +2692,9 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
       <div class="row"><label>หมายเหตุ</label><input id="api-m-note" placeholder="ใครเป็นผู้ดูแล / ใช้ทำอะไร"/></div>
       <div class="row"><label>หมดอายุ</label>
         <select id="api-m-exp"><option value="90">90 วัน</option><option value="180">180 วัน</option><option value="365" selected>1 ปี</option><option value="0">ไม่หมดอายุ</option></select></div>
-      <div class="row"><label>สิทธิ์</label><div class="mt-meta"><input type="checkbox" checked disabled style="width:auto"/> cases:read — อ่านข้อมูลติดตามเคส</div></div>
+      <div class="row"><label>สิทธิ์</label><div class="mt-meta" style="display:flex;flex-direction:column;gap:.3rem">
+        <label style="display:flex;gap:.4rem;align-items:center"><input type="checkbox" checked disabled style="width:auto"/> cases:read — อ่านข้อมูลติดตามเคส</label>
+        <label style="display:flex;gap:.4rem;align-items:center;cursor:pointer"><input type="checkbox" id="api-m-write" style="width:auto"/> cases:write — เปิดเคส / ปิดเคส (เขียนลง Calllog จริง)</label></div></div>
       <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:.4rem">
         <button class="svc-btn-ghost" onclick="closeModal('modal-api-key')">ยกเลิก</button>
         <button class="svc-btn-primary" onclick="apiCreate()">สร้าง Key</button>
@@ -13683,6 +13685,7 @@ function apiOpenCreate() {
   document.getElementById('api-m-form').style.display = '';
   document.getElementById('api-m-show').style.display = 'none';
   document.getElementById('api-m-name').value = ''; document.getElementById('api-m-note').value = '';
+  const w = document.getElementById('api-m-write'); if (w) w.checked = false;   // สิทธิ์เขียนต้องติ๊กเองทุกครั้ง
   openModal('modal-api-key');
   setTimeout(() => document.getElementById('api-m-name').focus(), 50);
 }
@@ -13705,7 +13708,8 @@ async function apiCreate() {
   const name = document.getElementById('api-m-name').value.trim();
   if (!name) { showToast('กรุณาตั้งชื่อระบบที่จะเชื่อม', 'error'); return; }
   const d = await api('/api/api-clients', { method: 'POST', silent: true, body: {
-    name, note: document.getElementById('api-m-note').value, expires_days: +document.getElementById('api-m-exp').value, scopes: ['cases:read'] } });
+    name, note: document.getElementById('api-m-note').value, expires_days: +document.getElementById('api-m-exp').value,
+    scopes: ['cases:read', ...(document.getElementById('api-m-write')?.checked ? ['cases:write'] : [])] } });
   if (!d || d.error) { showToast(d?.error || 'สร้างไม่สำเร็จ', 'error'); return; }
   apiShowKey(`API Key ของ “${d.name}”`, d.api_key);
   loadApiClients();
