@@ -13910,6 +13910,7 @@ const LINE_EVENTS = [
   { key: 'service_request',  label: 'แจ้งงานบริการ' },
   { key: 'empcal_summary',   label: 'ตารางงานพนักงาน (สรุปรายวัน 08:00)' },
   { key: 'triage_alert',     label: 'Ticket ไลน์ค้าง (เกิน 15/30 นาที)' },
+  { key: 'urgent_line_case', label: '🚨 เคสด่วนจาก Line ค้างเกิน 1 ชม. (ยังไม่ตอบ/ยังไม่เปิด-ปิดเคส)' },
   { key: 'triage_alert_groups', label: 'แจ้งเตือนตามกลุ่ม LINE ที่เลือก' },
   { key: 'sw_update',        label: 'แจ้งงานอัพเดท SW (แจ้งใหม่/ปิดงาน)' },
   { key: 'impl_request',     label: 'รับเรื่องประสานงาน (สร้าง/ปิดงาน)' },
@@ -14109,7 +14110,7 @@ function renderLineTargets(targets) {
       ? `<div style="margin-top:.2rem;padding-left:.3rem;border-left:2px solid #bae6fd">${
           podIdList.map(pid => `<span style="display:inline-block;background:#f0f9ff;color:#0369a1;border-radius:4px;padding:1px 5px;font-size:.65rem;margin:1px" title="รับเฉพาะ ticket ค้างของ Pod นี้">${escHtml(podName(pid))}</span>`).join('')
         }</div>`
-      : (evList.includes('triage_alert')
+      : (evList.includes('triage_alert') || evList.includes('urgent_line_case')
           ? `<div style="margin-top:.2rem;padding-left:.3rem;border-left:2px solid #bae6fd"><span style="font-size:.65rem;color:#8a8f97">ทุก Pod (สรุปรวม)</span></div>`
           : '');
     const MINW_LABEL = { 30: 'เกิน 30 นาที', 120: 'เกิน 2 ชม.', 1440: 'เกิน 1 วัน' };
@@ -14157,7 +14158,7 @@ async function openLineTargetForm(target = null) {
   let pods = [];
   try { pods = await api('/api/pods', { silent: true }) || []; } catch {}
   const podList = String(target?.pod_ids || '').split(',').map(s => s.trim()).filter(Boolean);
-  const hasTriage = !evList.length || evList.includes('triage_alert');
+  const hasTriage = !evList.length || evList.includes('triage_alert') || evList.includes('urgent_line_case');
 
 
   const checkboxes = LINE_EVENTS.map(ev => `
@@ -14285,8 +14286,8 @@ function lfToggleServeTypes() {
   const hasServiceReq = checked.some(c => c.value === 'service_request');
   const sw = document.getElementById('lf-serve-wrap');
   if (sw) sw.style.display = (hasServiceReq || noEvChecked) ? '' : 'none';
-  // Pod scope มีผลกับ triage_alert เท่านั้น
-  const hasTriage = checked.some(c => c.value === 'triage_alert');
+  // Pod scope มีผลกับ triage_alert และเคสด่วนจาก Line
+  const hasTriage = checked.some(c => c.value === 'triage_alert' || c.value === 'urgent_line_case');
   const pw = document.getElementById('lf-pod-wrap');
   if (pw) pw.style.display = (hasTriage || noEvChecked) ? '' : 'none';
 }

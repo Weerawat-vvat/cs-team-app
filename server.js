@@ -537,6 +537,8 @@ async function sendLineNotify(message, eventType = null, opts = {}) {
     let sent = 0;
 
     for (const target of targets) {
+      // เหตุการณ์แบบ opt-in: กลุ่มที่ตั้ง "รับทุกเหตุการณ์" (events ว่าง) จะไม่ได้รับ ต้องติ๊กเลือกเอง
+      if (eventType && opts.optIn && !String(target.events || '').trim()) continue;
       // Filter by eventType
       if (eventType && target.events) {
         const allowed = target.events.split(',').map(e => e.trim());
@@ -7903,6 +7905,81 @@ async function triageAlertSchedulerTick() {
   finally { _triageAlertRunning = false; }
 }
 setInterval(triageAlertSchedulerTick, 30 * 1000);
+
+// ── แจ้งเตือน LINE: เคสด่วนจาก Line ค้างเกิน 1 ชม. ─────────────────
+// เงื่อนไข: AI ว่าด่วน + ต้องดำเนินการ · ยังไม่เปิดเคส/ปิดเคส (status ยังไม่ done) · ยังไม่มีใครตอบในไลน์
+//         · รอเกิน TRIAGE_URGENT_ALERT_MIN นาที (ค่าเริ่มต้น 60) — แจ้งครั้งเดียวต่อข้อความ (urgent_alerted_at)
+// ส่งถึงกลุ่ม LINE ที่ติ๊กเหตุการณ์ "urgent_line_case" ในตั้งค่า → LINE Notifications (กรองตาม Pod ของกลุ่มนั้นได้)
+// ช่วงเวลาส่ง TRIAGE_URGENT_ALERT_HOURS (ค่าเริ่มต้น 8-23) · ปิดด้วย TRIAGE_URGENT_ALERT=off
+const URGENT_ALERT_ON  = (process.env.TRIAGE_URGENT_ALERT || 'on').toLowerCase() !== 'off';
+const URGENT_ALERT_MIN = Math.max(5, parseInt(process.env.TRIAGE_URGENT_ALERT_MIN) || 60);
+const [URGENT_H_FROM, URGENT_H_TO] = (/^(\d{1,2})-(\d{1,2})$/.exec(process.env.TRIAGE_URGENT_ALERT_HOURS || '') || [0, 8, 23]).slice(1).map(Number);
+let _urgentColP = null, _urgentRunning = false;
+function ensureUrgentAlertCol() {
+  return _urgentColP ||= req().query(
+    `IF COL_LENGTH('line_msg_triage','urgent_alerted_at') IS NULL ALTER TABLE line_msg_triage ADD urgent_alerted_at DATETIME NULL`)
+    .catch(e => { _urgentColP = null; throw e; });
+}
+async function urgentLineCaseTick() {
+  if (!URGENT_ALERT_ON || _urgentRunning) return;
+  const hh = +new Date().toLocaleTimeString('en-GB', { hour: '2-digit', hour12: false, timeZone: 'Asia/Bangkok' }).slice(0, 2);
+  if (hh < URGENT_H_FROM || hh > URGENT_H_TO) return;
+  const lb = getLineBotPool();
+  if (!lb) return;
+  _urgentRunning = true;
+  try {
+    await ensureUrgentAlertCol();
+    try { await syncTriageAnswered(); } catch {}   // สถานะ "ตอบในไลน์แล้ว" ล่าสุดก่อนตัดสิน
+    // เวลาข้อความมาจากนาฬิกาเครื่อง LineBotMonitor — วัดเวลารอด้วยนาฬิกาเครื่องเดียวกัน (cs_team เดินไม่ตรงกัน)
+    const lbNow = (await lb.request().query('SELECT GETDATE() AS now')).recordset[0].now;
+    const cut = new Date(lbNow.getTime() - URGENT_ALERT_MIN * 60000);
+    const rows = (await req().input('cut', sql.DateTime, cut).query(`
+      SELECT t.id, t.group_id, COALESCE(t.group_name, lgp.group_name) AS group_name, t.customer_name, t.summary,
+             t.message_time, lgp.pod_id, p.code AS pod_code
+      FROM line_msg_triage t
+      LEFT JOIN line_group_pods lgp ON lgp.group_id = t.group_id
+      LEFT JOIN pods p ON p.id = lgp.pod_id
+      WHERE t.needs_action = 1 AND t.priority = 'urgent' AND t.status IN ('open','claimed')
+        AND ISNULL(t.answered_in_line, 0) = 0 AND t.urgent_alerted_at IS NULL
+        AND t.message_time <= @cut AND t.message_time >= DATEADD(day, -1, @cut)
+        AND ${triageScopeSql()}
+      ORDER BY t.message_time`)).recordset;
+    if (!rows.length) return;
+
+    // แชทเดียวกัน = 1 บรรทัด (ใช้ข้อความแรกที่รอนานสุด)
+    const byChat = new Map();
+    rows.forEach(r => { if (!byChat.has(r.group_id)) byChat.set(r.group_id, { ...r, n: 0 }); byChat.get(r.group_id).n++; });
+    const chats = [...byChat.values()];
+    const waitTxt = mt => {
+      const m = Math.round((lbNow - new Date(mt)) / 60000);
+      return m >= 60 ? `${Math.floor(m / 60)} ชม.${m % 60 ? ` ${m % 60} นาที` : ''}` : `${m} นาที`;
+    };
+    const clip = (v, n) => { v = String(v || '').replace(/\s+/g, ' ').trim(); return v.length > n ? v.slice(0, n - 1) + '…' : v; };
+    const build = list => !list.length ? '' : [
+      `🚨 เคสด่วนจาก LINE ค้างเกิน ${URGENT_ALERT_MIN >= 60 ? URGENT_ALERT_MIN / 60 + ' ชม.' : URGENT_ALERT_MIN + ' นาที'} (${list.length} เรื่อง)`,
+      'ยังไม่มีคนตอบในไลน์ และยังไม่ได้เปิดเคส/ปิดเคส',
+      '',
+      ...list.slice(0, 15).map(c => `• [${c.pod_code || 'ยังไม่ได้ Assign'}] ${clip(c.group_name, 40)} — ${clip(c.summary, 70)} (รอ ${waitTxt(c.message_time)})`),
+      ...(list.length > 15 ? [`…และอีก ${list.length - 15} เรื่อง`] : []),
+      '',
+      '👉 จัดการได้ที่ หน้าติดตามเคส → เคสจาก Line ค้าง',
+    ].join('\n');
+
+    // กลุ่มที่ผูก Pod ไว้ได้เฉพาะเรื่องของ Pod นั้น · ไม่ผูก = ได้ทุกเรื่อง
+    const sent = await sendLineNotify(target => {
+      const pods = parsePodIds(target.pod_ids);
+      return build(pods.length ? chats.filter(c => pods.includes(c.pod_id)) : chats);
+    }, 'urgent_line_case', { optIn: true });
+
+    if (sent) {
+      const ids = rows.map(r => +r.id).join(',');
+      await req().query(`UPDATE line_msg_triage SET urgent_alerted_at = GETDATE() WHERE id IN (${ids})`);
+      console.log(`🚨 urgent line case: แจ้งเตือน ${chats.length} เรื่อง → ${sent} กลุ่ม LINE`);
+    }
+  } catch (e) { console.error('urgent line case alert error:', e.message); }
+  finally { _urgentRunning = false; }
+}
+setInterval(urgentLineCaseTick, 5 * 60 * 1000);
 
 // ── ตั้งค่าคัดกรอง / แจ้งเตือน ที่แก้ได้จากหน้าเว็บ ────────
 // เก็บเป็นแถวเดียว (id=1) แทนการแก้ .env แล้วรีสตาร์ท
