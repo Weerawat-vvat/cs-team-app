@@ -7906,13 +7906,13 @@ async function triageAlertSchedulerTick() {
 }
 setInterval(triageAlertSchedulerTick, 30 * 1000);
 
-// ── แจ้งเตือน LINE: เคสด่วนจาก Line ค้างเกิน 1 ชม. ─────────────────
+// ── แจ้งเตือน LINE: เคสด่วนจาก Line ค้างเกิน 30 นาที ─────────────────
 // เงื่อนไข: AI ว่าด่วน + ต้องดำเนินการ · ยังไม่เปิดเคส/ปิดเคส (status ยังไม่ done) · ยังไม่มีใครตอบในไลน์
-//         · รอเกิน TRIAGE_URGENT_ALERT_MIN นาที (ค่าเริ่มต้น 60) — แจ้งครั้งเดียวต่อข้อความ (urgent_alerted_at)
+//         · รอเกิน TRIAGE_URGENT_ALERT_MIN นาที (ค่าเริ่มต้น 30) — แจ้งครั้งเดียวต่อข้อความ (urgent_alerted_at)
 // ส่งถึงกลุ่ม LINE ที่ติ๊กเหตุการณ์ "urgent_line_case" ในตั้งค่า → LINE Notifications (กรองตาม Pod ของกลุ่มนั้นได้)
 // ช่วงเวลาส่ง TRIAGE_URGENT_ALERT_HOURS (ค่าเริ่มต้น 8-23) · ปิดด้วย TRIAGE_URGENT_ALERT=off
 const URGENT_ALERT_ON  = (process.env.TRIAGE_URGENT_ALERT || 'on').toLowerCase() !== 'off';
-const URGENT_ALERT_MIN = Math.max(5, parseInt(process.env.TRIAGE_URGENT_ALERT_MIN) || 60);
+const URGENT_ALERT_MIN = Math.max(5, parseInt(process.env.TRIAGE_URGENT_ALERT_MIN) || 30);
 const [URGENT_H_FROM, URGENT_H_TO] = (/^(\d{1,2})-(\d{1,2})$/.exec(process.env.TRIAGE_URGENT_ALERT_HOURS || '') || [0, 8, 23]).slice(1).map(Number);
 let _urgentColP = null, _urgentRunning = false;
 function ensureUrgentAlertCol() {
@@ -8522,6 +8522,8 @@ async function getGroupNotifyMap() {
   return map;
 }
 
+// ตัวเลือก "ส่งเฉพาะที่รอนานเกิน" ถูกเอาออกจากหน้าตั้งค่าแล้ว — ทุกกลุ่มได้ทุกระดับ (ค่าเก่าใน line_notify_targets.min_wait_min ไม่มีผล)
+const targetMinWait = () => 0;
 async function sendTriageAlert(alert) {
   // ปลายทางที่ติ๊ก 'triage_alert_groups' จะได้เฉพาะกลุ่ม LINE ที่เลือกให้มันไว้
   let byGroup = 0;
@@ -8529,7 +8531,7 @@ async function sendTriageAlert(alert) {
     const gmap = await getGroupNotifyMap();
     if (gmap.size) {
       byGroup = await sendLineNotify((target) => {
-        const minW  = Math.max(0, parseInt(target.min_wait_min) || 0);
+        const minW  = targetMinWait(target);
         const items = (alert.items || []).filter(x => (gmap.get(x.groupId) || []).includes(target.id));
         if (!items.length) return null;              // กลุ่มที่เลือกไว้ไม่มีของค้าง → ไม่ต้องรบกวน
         const sub = formatTriageAlert(items, target.name, true, minW);
@@ -8540,7 +8542,7 @@ async function sendTriageAlert(alert) {
 
   const byPod = await sendLineNotify((target) => {
     const ids  = parsePodIds(target.pod_ids);
-    const minW = Math.max(0, parseInt(target.min_wait_min) || 0);
+    const minW = targetMinWait(target);
     if (ids.length) {
       const sub = triageAlertForPods(alert, ids, target.name, minW);
       return sub ? sub.text : null;          // Pod ที่เลือกไม่มีของค้าง → ไม่ต้องรบกวนกลุ่ม
@@ -8571,7 +8573,7 @@ app.get('/api/triage/alert-preview', authRequired, async (request, res) => {
          ORDER BY name`)).recordset;
       targets = rows.map(t => {
         const ids  = parsePodIds(t.pod_ids);
-        const minW = Math.max(0, parseInt(t.min_wait_min) || 0);
+        const minW = targetMinWait(t);
         const sub = ids.length ? triageAlertForPods(a, ids, t.name, minW)
                   : minW > 0   ? (() => { const s = formatTriageAlert(a.items || [], null, false, minW); return s.hasAny ? s : null; })()
                   : (a.hasAny ? a : null);
@@ -15352,7 +15354,7 @@ app.post('/api/settings/line/targets/:id/test', authRequired, async (request, re
       // ทดสอบด้วยข้อความจริง — ถ้ากลุ่มนี้ผูก Pod ไว้ ให้เห็นเฉพาะของ Pod ตัวเอง
       const a = await buildTriageAlert();
       const ids  = parsePodIds(target.pod_ids);
-      const minW = Math.max(0, parseInt(target.min_wait_min) || 0);
+      const minW = targetMinWait(target);
       if (ids.length) {
         const sub = triageAlertForPods(a, ids, target.name, minW);
         const names = ids.map(id => a.pods.find(p => p.pod_id === id)?.pod_name || `Pod #${id}`);
