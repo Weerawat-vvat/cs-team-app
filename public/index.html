@@ -14114,6 +14114,7 @@ function renderLineTargets(targets) {
     // Pod scope — มีผลกับ triage_alert เท่านั้น
     const podIdList = String(t.pod_ids || '').split(',').map(s => s.trim()).filter(Boolean);
     const podName = (pid) => {
+      if (String(pid) === '0') return 'ยังไม่ได้ Assign';   // Pod id 0 = กลุ่มลูกค้าที่ยังไม่ผูก Pod
       const p = (_linePods || []).find(x => String(x.id) === String(pid));
       return p ? (p.display_name || p.code) : 'Pod #' + pid;
     };
@@ -14247,7 +14248,7 @@ async function openLineTargetForm(target = null) {
           </span>
         </div>
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.35rem">
-          ${pods.map(p => `
+          ${[{ id: 0, display_name: 'ยังไม่ได้ Assign' }, ...pods].map(p => `
             <label style="display:flex;align-items:center;gap:.35rem;font-size:.77rem;cursor:pointer;
                           background:#fff;border:1px solid #bae6fd;border-radius:6px;padding:.3rem .55rem">
               <input type="checkbox" name="line_pod_id" value="${p.id}"

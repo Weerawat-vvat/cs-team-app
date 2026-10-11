@@ -7970,7 +7970,7 @@ async function urgentLineCaseTick() {
     // กลุ่มที่ผูก Pod ไว้ได้เฉพาะเรื่องของ Pod นั้น · ไม่ผูก = ได้ทุกเรื่อง
     const sent = await sendLineNotify(target => {
       const pods = parsePodIds(target.pod_ids);
-      return build(pods.length ? chats.filter(c => pods.includes(c.pod_id)) : chats);
+      return build(pods.length ? chats.filter(c => pods.includes(c.pod_id ?? POD_UNASSIGNED)) : chats);
     }, 'urgent_line_case', { optIn: true });
 
     if (sent) {
@@ -8488,9 +8488,12 @@ function formatTriageAlert(items, podLabel = null, perLinePod = false, minWait =
 }
 
 // "1,2,5" → [1,2,5]  (parseInt กัน injection ไปด้วย)
+// Pod id 0 = "ยังไม่ได้ Assign" (กลุ่มลูกค้าที่ยังไม่ผูก Pod) — เลือกในตั้งค่า LINE ได้เหมือน Pod ปกติ
+const POD_UNASSIGNED = 0;
 function parsePodIds(str) {
-  return String(str || '').split(',').map(s => parseInt(s)).filter(Boolean);
+  return String(str || '').split(',').map(s => parseInt(s)).filter(n => Number.isInteger(n) && n >= 0);
 }
+const podLabel = (alert, id) => id === POD_UNASSIGNED ? 'ยังไม่ได้ Assign' : (alert.pods.find(p => p.pod_id === id)?.pod_name || `Pod #${id}`);
 
 // รายการ id คั่นด้วยจุลภาค → array ของตัวเลข (ใช้กับ notify_target_ids ของกลุ่ม LINE)
 const parseIdList = (str) => String(str || '').split(',').map(x => parseInt(x, 10)).filter(Boolean);
@@ -8500,7 +8503,7 @@ const parseIdList = (str) => String(str || '').split(',').map(x => parseInt(x, 1
 function triageAlertForPods(alert, podIds, label = null, minWait = 0) {
   const want = new Set(podIds);
   if (!want.size) return null;
-  let mine = (alert.items || []).filter(x => x.podId && want.has(x.podId));
+  let mine = (alert.items || []).filter(x => want.has(x.podId || POD_UNASSIGNED));
   if (minWait > 0) mine = mine.filter(x => x.waitMin >= minWait);
   if (!mine.length) return null;
   // ไม่มีชื่อกลุ่มก็ขึ้นหัวเรื่องด้วย Pod ที่มีของค้างจริงเท่านั้น
@@ -8581,7 +8584,7 @@ app.get('/api/triage/alert-preview', authRequired, async (request, res) => {
                   : (a.hasAny ? a : null);
         return {
           id: t.id, name: t.name, pod_ids: ids, min_wait_min: minW, active: !!t.active,
-          pod_names: ids.map(id => a.pods.find(p => p.pod_id === id)?.pod_name || `Pod #${id}`),
+          pod_names: ids.map(id => podLabel(a, id)),
           count: sub ? (sub.overdayCount + sub.urgentCount + sub.warnCount) : 0,
           will_send: !!sub && !!t.active,     // ปิดอยู่ = ไม่ส่ง แม้จะมีของค้าง
         };
@@ -15578,7 +15581,7 @@ app.post('/api/settings/line/targets/:id/test', authRequired, async (request, re
       const minW = targetMinWait(target);
       if (ids.length) {
         const sub = triageAlertForPods(a, ids, target.name, minW);
-        const names = ids.map(id => a.pods.find(p => p.pod_id === id)?.pod_name || `Pod #${id}`);
+        const names = ids.map(id => podLabel(a, id));
         msg = sub ? sub.text : `✅ [${names.join(' · ')}] ไม่มี ticket ค้างที่ต้องรีบ`;
       } else if (minW > 0) {
         const sub = formatTriageAlert(a.items || [], null, false, minW);
