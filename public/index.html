@@ -2454,7 +2454,8 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
         <div class="svc-sub" style="margin:0">ข้อความที่ AI คัดกรองว่าต้องดำเนินการ · กด "เปิดเคส" แล้ว AI จะร่างอาการและ Solution ให้</div>
       </div>
       <div style="display:flex;align-items:center;gap:.5rem">
-        <button class="svc-icon-btn" onclick="loadLineCasePicker()" title="โหลดใหม่" aria-label="โหลดใหม่"><i class=i-refresh></i></button>
+        <button class="svc-btn-ghost" id="lc-hist-btn" style="height:34px" onclick="lcToggleHistory()" title="ประวัติการปิดเคส">ประวัติปิดเคส</button>
+        <button class="svc-icon-btn" onclick="_lcHistory ? lcLoadHistory() : loadLineCasePicker()" title="โหลดใหม่" aria-label="โหลดใหม่"><i class=i-refresh></i></button>
         <button class="modal-close" onclick="closeModal('modal-line-case')">×</button>
       </div>
     </div>
@@ -2472,6 +2473,32 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
         <input id="lc-search" type="text" placeholder="ค้นหากลุ่ม ลูกค้า หรือข้อความ" oninput="renderLineCasePicker()"/></label>
     </div>
     <div id="lc-list" style="overflow:auto;padding:0 1.25rem 1.1rem"></div>
+  </div>
+</div>
+
+<!-- ปิดเคสจาก Line — ถามเหตุผลก่อนปิด (เก็บประวัติถาวร) -->
+<div class="overlay" id="modal-lc-close">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-head">
+      <div style="font-size:1.02rem;font-weight:600">ปิดเคส — ปิดเพราะอะไร?</div>
+      <button class="modal-close" onclick="closeModal('modal-lc-close')">×</button>
+    </div>
+    <div id="lc-close-what" style="font-size:.8rem;color:#5b616b;margin-bottom:.7rem"></div>
+    <div style="display:flex;flex-direction:column;gap:.45rem;font-size:.86rem">
+      <label style="display:flex;gap:.5rem;align-items:flex-start;cursor:pointer"><input type="radio" name="lc-close-reason" value="manual" style="width:auto;margin-top:.2rem" onchange="lcCloseReasonChanged()">
+        <span><b>ลงระบบไปแล้ว</b><span style="display:block;font-size:.74rem;color:#6f747c">เปิดเคสใน Calllog เองแล้ว (Manual) ไม่ได้กดผ่านหน้านี้</span></span></label>
+      <div id="lc-close-cid-wrap" style="display:none;margin:0 0 .2rem 1.6rem">
+        <input id="lc-close-cid" type="text" inputmode="numeric" placeholder="เลขเคส เช่น 482913 (ไม่บังคับ)" style="width:100%">
+      </div>
+      <label style="display:flex;gap:.5rem;align-items:flex-start;cursor:pointer"><input type="radio" name="lc-close-reason" value="not_case" style="width:auto;margin-top:.2rem" onchange="lcCloseReasonChanged()">
+        <span><b>ไม่ใช่เคส</b><span style="display:block;font-size:.74rem;color:#6f747c">คุยกันเอง ข้อมูลเพิ่มของเรื่องเดิม ประสานงาน</span></span></label>
+      <input id="lc-close-note" type="text" placeholder="หมายเหตุ (ไม่บังคับ)" maxlength="300" style="margin-top:.3rem">
+      <div id="lc-close-err" style="display:none;color:#b04a40;font-size:.78rem"></div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:1rem">
+      <button class="svc-btn-ghost" onclick="closeModal('modal-lc-close')">ยกเลิก</button>
+      <button class="svc-btn-primary" id="lc-close-ok" onclick="lcCloseConfirm()">ปิดเคส</button>
+    </div>
   </div>
 </div>
 
@@ -14727,7 +14754,9 @@ async function saveCreateCase() {
   if (_ccTriageId) {
     // ปิดทุกข้อความในเรื่องนั้น (ลูกค้าพิมพ์หลายบรรทัด = เคสเดียว)
     const ids = _ccTriageIds.length ? _ccTriageIds : [_ccTriageId];
-    const res = await Promise.all(ids.map(id => api(`/api/triage/${id}/action`, { method: 'POST', silent: true, body: { action: 'case', calllog_id: r.id } })));
+    // ประวัติการปิดเคส: บันทึกแถวเดียวต่อเรื่อง (ข้อความแรก)
+    const res = await Promise.all(ids.map((id, i) => api(`/api/triage/${id}/action`, { method: 'POST', silent: true,
+      body: { action: 'case', calllog_id: r.id, count: ids.length, log: i === 0 } })));
     const bad = res.find(x => x?.error);
     if (bad) showToast('บันทึก Case แล้ว แต่ปิดข้อความไลน์บางรายการไม่สำเร็จ: ' + bad.error, 'error');
     _lcRows = _lcRows.filter(x => !ids.includes(x.id));
@@ -14960,7 +14989,7 @@ setInterval(() => {
   if (document.hidden) return;
   if (document.getElementById('modal-line-case')?.classList.contains('open')) {
     lcRefreshCounts();
-    if (!(document.getElementById('lc-search')?.value)) loadLineCasePicker();
+    if (!(document.getElementById('lc-search')?.value) && !_lcHistory) loadLineCasePicker();
   } else if (document.getElementById('page-tickets')?.classList.contains('active')) {
     lcRefreshCounts();
   }
@@ -14973,6 +15002,7 @@ function lcSetPod(key) {
 }
 
 async function openLineCasePicker() {
+  if (_lcHistory) lcToggleHistory();   // เปิดใหม่ให้เริ่มที่รายการเสมอ
   openModal('modal-line-case');
   if (!_lcPods) _lcPods = (await api('/api/pods', { silent: true })) || [];
   if (_lcPods.error) _lcPods = [];
@@ -15063,24 +15093,81 @@ function renderLineCasePicker() {
       </div>
       <div style="display:flex;flex-direction:column;gap:.3rem;align-items:stretch">
         <button class="svc-btn-primary" style="height:32px;white-space:nowrap" onclick="openCaseFromTriage(${r.id})">เปิดเคส</button>
-        <button class="svc-btn-ghost" style="height:28px;white-space:nowrap;font-size:.74rem" onclick="lcDismiss(${r.id}, this)" title="ไม่ใช่เคส — เอาทั้งเรื่องออกจากรายการโดยไม่ลง Calllog">ไม่ใช่เคส</button>
+        <button class="svc-btn-ghost" style="height:28px;white-space:nowrap;font-size:.74rem" onclick="lcClose(${r.id})" title="ปิดเรื่องนี้โดยไม่เปิดเคสผ่านระบบ — จะถามเหตุผล">ปิดเคส</button>
       </div>
     </div>`;
   }).join('');
 }
 
-async function lcDismiss(id, btn) {
+// ── ปิดเคส (ไม่ผ่านการเปิดเคสในระบบ) — ต้องเลือกเหตุผล · เก็บประวัติที่ server ──
+let _lcCloseIds = [];
+function lcClose(id) {
   const th = lcThreads(_lcRows).find(x => x.ids.includes(id));
-  const ids = th ? th.ids : [id];
-  if (!confirm(ids.length > 1 ? `เรื่องนี้ไม่ใช่เคส — เอาทั้ง ${ids.length} ข้อความออกจากรายการเลยใช่ไหม?` : 'ข้อความนี้ไม่ใช่เคส — เอาออกจากรายการเลยใช่ไหม?')) return;
-  btn.disabled = true;
-  const res = await Promise.all(ids.map(x => api(`/api/triage/${x}/action`, { method: 'POST', silent: true, body: { action: 'dismiss' } })));
-  const bad = res.find(x => x?.error);
-  if (bad) { btn.disabled = false; showToast('❌ ' + bad.error, 'error'); return; }
-  _lcRows = _lcRows.filter(x => !ids.includes(x.id));
+  _lcCloseIds = th ? th.ids : [id];
+  const r = th?.first || _lcRows.find(x => x.id === id);
+  document.getElementById('lc-close-what').innerHTML = `<b>${escHtml(r?.group_name || '')}</b> · ${escHtml(r?.summary || '')}${_lcCloseIds.length > 1 ? ` · ${_lcCloseIds.length} ข้อความ` : ''}`;
+  document.querySelectorAll('input[name="lc-close-reason"]').forEach(x => { x.checked = false; });
+  ['lc-close-cid', 'lc-close-note'].forEach(x => { document.getElementById(x).value = ''; });
+  document.getElementById('lc-close-err').style.display = 'none';
+  lcCloseReasonChanged();
+  openModal('modal-lc-close');
+}
+function lcCloseReasonChanged() {
+  const v = document.querySelector('input[name="lc-close-reason"]:checked')?.value;
+  document.getElementById('lc-close-cid-wrap').style.display = v === 'manual' ? '' : 'none';
+  document.getElementById('lc-close-err').style.display = 'none';
+}
+async function lcCloseConfirm() {
+  const reason = document.querySelector('input[name="lc-close-reason"]:checked')?.value;
+  const err = document.getElementById('lc-close-err');
+  if (!reason) { err.textContent = 'เลือกเหตุผลก่อนปิดเคส'; err.style.display = ''; return; }
+  const cid = reason === 'manual' ? document.getElementById('lc-close-cid').value.trim() : '';
+  if (cid && !/^#?\d+$/.test(cid)) { err.textContent = 'เลขเคสต้องเป็นตัวเลข'; err.style.display = ''; return; }
+  const note = document.getElementById('lc-close-note').value.trim();
+  const ok = document.getElementById('lc-close-ok');
+  ok.disabled = true;
+  // ข้อความแรกของเรื่องตรวจเลขเคส + บันทึกประวัติ (1 แถวต่อเรื่อง) แล้วค่อยปิดข้อความที่เหลือ
+  const [first, ...rest] = _lcCloseIds;
+  const body = { action: 'close', reason, calllog_id: cid || undefined, note, count: _lcCloseIds.length };
+  const r1 = await api(`/api/triage/${first}/action`, { method: 'POST', silent: true, body });
+  if (r1?.error) { ok.disabled = false; err.textContent = r1.error; err.style.display = ''; return; }
+  const res = await Promise.all(rest.map(x => api(`/api/triage/${x}/action`, { method: 'POST', silent: true, body: { ...body, log: false } })));
+  ok.disabled = false;
+  if (res.some(x => x?.error)) showToast('ปิดบางข้อความไม่สำเร็จ ลองโหลดใหม่', 'error');
+  _lcRows = _lcRows.filter(x => !_lcCloseIds.includes(x.id));
+  closeModal('modal-lc-close');
   renderLineCasePicker();
   lcRefreshCounts();
-  showToast('เอาออกจากรายการแล้ว');
+  showToast('ปิดเคสแล้ว');
+}
+
+// ── ประวัติการปิดเคส (แทนรายการในหน้าต่างเดียวกัน) ──
+let _lcHistory = false;
+function lcToggleHistory() {
+  _lcHistory = !_lcHistory;
+  document.getElementById('lc-hist-btn').textContent = _lcHistory ? '← กลับไปรายการ' : 'ประวัติปิดเคส';
+  ['lc-pods', 'lc-search'].forEach(x => { const el = document.getElementById(x); (x === 'lc-search' ? el?.closest('div') : el).style.display = _lcHistory ? 'none' : ''; });
+  _lcHistory ? lcLoadHistory() : renderLineCasePicker();
+}
+async function lcLoadHistory(days = 7) {
+  const box = document.getElementById('lc-list');
+  box.innerHTML = '<div class="mt-meta" style="text-align:center;padding:2rem">กำลังโหลด…</div>';
+  const d = await api(`/api/triage/close-log?days=${days}`, { silent: true });
+  if (!d || d.error) { box.innerHTML = `<div class="mt-meta" style="text-align:center;padding:2rem">โหลดไม่สำเร็จ: ${escHtml(d?.error || '')}</div>`; return; }
+  const COLOR = { case_system: '#356b4e', manual: '#1f4f6e', not_case: '#8a8f97' };
+  const total = d.summary.reduce((s, x) => s + x.n, 0);
+  const sum = Object.keys(d.reasons).map(k => {
+    const n = d.summary.find(x => x.reason === k)?.n || 0;
+    return `<span style="font-size:.76rem;padding:.15rem .55rem;border-radius:12px;border:1px solid #e0ddd6"><b style="color:${COLOR[k]}">${n}</b> ${escHtml(d.reasons[k])}${total ? ` (${Math.round(n / total * 100)}%)` : ''}</span>`;
+  }).join(' ');
+  const when = v => parseDbDate(v)?.toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) || '';
+  box.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:.35rem;align-items:center;margin-bottom:.6rem">
+      <span class="mt-meta">${d.days} วันล่าสุด · ${total} เรื่อง:</span>${sum}</div>`
+    + (d.rows.length ? d.rows.map(x => `<div style="padding:.55rem 0;border-bottom:1px solid #f0eee9;font-size:.8rem">
+      <div style="color:#6f747c;font-size:.72rem">${when(x.closed_at)} · ${escHtml(x.closed_by_name || '—')} · <b style="color:${COLOR[x.reason] || '#3d424a'}">${escHtml(d.reasons[x.reason] || x.reason)}</b>${x.calllog_id ? ` · เคส #${x.calllog_id}` : ''}${x.msg_count > 1 ? ` · ${x.msg_count} ข้อความ` : ''}</div>
+      <div><span style="font-weight:600">${escHtml(x.pod_code || 'ยังไม่ได้ Assign')}</span> · ${escHtml(x.group_name || '—')} — ${escHtml(x.summary || '')}</div>
+      ${x.note ? `<div style="color:#5b616b;font-size:.74rem">หมายเหตุ: ${escHtml(x.note)}</div>` : ''}</div>`).join('')
+      : '<div class="mt-meta" style="text-align:center;padding:2rem">ยังไม่มีประวัติการปิดเคส</div>');
 }
 
 function ccSelectShop(id, name, contact, phone) {

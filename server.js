@@ -7334,6 +7334,70 @@ app.post('/api/triage/purge', authRequired, managerRequired, async (request, res
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── ประวัติการปิดเคสจาก Line (เก็บถาวร — line_msg_triage ถูกล้างทุก 7 วัน) ──
+const LC_CLOSE_REASONS = {
+  case_system: 'เปิดเคสผ่านระบบ',
+  manual:      'ลงระบบไปแล้ว (Manual)',
+  not_case:    'ไม่ใช่เคส',
+};
+let _lcCloseLogTable = false;
+async function ensureLcCloseLog() {
+  if (_lcCloseLogTable) return;
+  await req().query(`IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='line_case_close_log' AND xtype='U')
+    CREATE TABLE line_case_close_log (
+      id             INT IDENTITY PRIMARY KEY,
+      triage_id      INT NULL,
+      source_msg_id  INT NULL,
+      group_id       NVARCHAR(100) NULL,
+      group_name     NVARCHAR(300) NULL,
+      pod_id         INT NULL,
+      message_time   DATETIME NULL,
+      category       NVARCHAR(20) NULL,
+      summary        NVARCHAR(500) NULL,
+      message_text   NVARCHAR(1000) NULL,
+      reason         NVARCHAR(20) NOT NULL,      -- case_system | manual | not_case
+      calllog_id     INT NULL,
+      note           NVARCHAR(300) NULL,
+      msg_count      INT NULL,                   -- จำนวนข้อความในเรื่อง (ลูกค้าพิมพ์หลายบรรทัด)
+      closed_by      INT NULL,                   -- employees.id
+      closed_by_name NVARCHAR(100) NULL,
+      closed_at      DATETIME DEFAULT GETDATE())`);
+  _lcCloseLogTable = true;
+}
+async function lcCloseLog(triageId, reason, calllogId, note, user, body = {}) {
+  // ปิดทั้งเรื่องหน้าเว็บส่งมาทีละข้อความ — บันทึกประวัติแค่ข้อความแรกของเรื่อง (log=false = ข้าม)
+  if (body.log === false) return;
+  try {
+    await ensureLcCloseLog();
+    await req().input('id', sql.Int, triageId).input('r', sql.NVarChar, reason).input('cid', sql.Int, calllogId || null)
+      .input('note', sql.NVarChar, note || null).input('by', sql.Int, user?.employee_id || null)
+      .input('byn', sql.NVarChar, user?.username || null).input('mc', sql.Int, parseInt(body.count) || 1).query(`
+      INSERT INTO line_case_close_log (triage_id, source_msg_id, group_id, group_name, pod_id, message_time, category, summary,
+                                       message_text, reason, calllog_id, note, msg_count, closed_by, closed_by_name)
+      SELECT t.id, t.source_msg_id, t.group_id, COALESCE(t.group_name, lgp.group_name), lgp.pod_id, t.message_time, t.category, t.summary,
+             LEFT(t.message_text, 1000), @r, @cid, @note, @mc, @by, @byn
+      FROM line_msg_triage t LEFT JOIN line_group_pods lgp ON lgp.group_id = t.group_id WHERE t.id = @id`);
+  } catch (e) { console.error('line case close log failed:', e.message); }
+}
+
+// GET /api/triage/close-log?days=7&reason= — ประวัติการปิดเคสจาก Line (ล่าสุดก่อน) + สรุปตามเหตุผล
+app.get('/api/triage/close-log', authRequired, async (request, res) => {
+  try {
+    await ensureLcCloseLog();
+    const days = Math.min(90, Math.max(1, parseInt(request.query.days) || 7));
+    const reason = LC_CLOSE_REASONS[request.query.reason] ? request.query.reason : '';
+    const r = req().input('n', sql.Int, days - 1);
+    if (reason) r.input('r', sql.NVarChar, reason);
+    const where = `closed_at >= CAST(DATEADD(day, -@n, GETDATE()) AS DATE)`;
+    const rows = (await r.query(`
+      SELECT TOP 300 l.*, p.code AS pod_code FROM line_case_close_log l LEFT JOIN pods p ON p.id = l.pod_id
+      WHERE ${where} ${reason ? 'AND l.reason=@r' : ''} ORDER BY l.closed_at DESC`)).recordset;
+    const summary = (await req().input('n', sql.Int, days - 1).query(`
+      SELECT reason, COUNT(*) AS n FROM line_case_close_log WHERE ${where} GROUP BY reason`)).recordset;
+    res.json({ days, reasons: LC_CLOSE_REASONS, summary, rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Team action on a triaged message: claim / done / reopen / note
 app.post('/api/triage/:id/action', authRequired, async (request, res) => {
   const id = parseInt(request.params.id);
@@ -7356,14 +7420,29 @@ app.post('/api/triage/:id/action', authRequired, async (request, res) => {
     } else if (action === 'note') {
       await req().input('id', sql.Int, id).input('note', sql.NVarChar, String(note || '').slice(0, 990)).query(
         `UPDATE line_msg_triage SET note=@note, updated_at=GETDATE() WHERE id=@id`);
-    } else if (action === 'dismiss') {
-      // ไม่ใช่เคส — เขี่ยทิ้งจากรายการ (ไม่ลง Calllog)
-      await req().input('id', sql.Int, id).input('by', sql.Int, empId)
-        .input('note', sql.NVarChar, `ไม่ใช่เคส — เขี่ยทิ้งโดย ${request.user?.username || '—'}`).query(
+    } else if (action === 'close' || action === 'dismiss') {
+      // ปิดเคสจาก "คัดกรองเคสจาก Line" พร้อมเหตุผล (dismiss = ชื่อเก่าของ not_case)
+      const reason = action === 'dismiss' ? 'not_case' : String(request.body?.reason || '');
+      if (!LC_CLOSE_REASONS[reason] || reason === 'case_system') return res.status(400).json({ error: 'reason ไม่ถูกต้อง' });
+      let cid = null;
+      if (reason === 'manual' && request.body?.calllog_id) {
+        cid = parseInt(String(request.body.calllog_id).replace(/\D/g, ''));
+        if (!cid) return res.status(400).json({ error: 'เลขเคสไม่ถูกต้อง' });
+        if (getExtPool()) {
+          const ok = (await extReq().input('cid', sql.Int, cid).query('SELECT 1 AS x FROM Calllog WHERE CalllogId=@cid')).recordset.length;
+          if (!ok) return res.status(400).json({ error: `ไม่พบเคส #${cid} ใน Calllog` });
+        }
+      }
+      const extra = String(note || '').trim().slice(0, 300);
+      const text = `ปิดเคส: ${LC_CLOSE_REASONS[reason]}${cid ? ` #${cid}` : ''}${extra ? ` — ${extra}` : ''} (${request.user?.username || '—'})`;
+      await ensureTriageCaseCol();
+      await req().input('id', sql.Int, id).input('by', sql.Int, empId).input('cid', sql.Int, cid)
+        .input('note', sql.NVarChar, text.slice(0, 990)).query(
         `UPDATE line_msg_triage
-         SET status='done', done_by=@by, done_at=GETDATE(), note=@note,
+         SET status='done', done_by=@by, done_at=GETDATE(), note=@note, calllog_id=ISNULL(@cid, calllog_id),
              claimed_by=ISNULL(claimed_by,@by), claimed_at=ISNULL(claimed_at,GETDATE()), updated_at=GETDATE()
          WHERE id=@id`);
+      await lcCloseLog(id, reason, cid, extra, request.user, request.body);
     } else if (action === 'case') {
       // ลงเคสจาก "คัดกรองเคสจาก Line" สำเร็จ → ผูกเลขเคส + ปิดงานว่าแก้ไขและบันทึกเรียบร้อย
       const cid = parseInt(request.body?.calllog_id);
@@ -7375,6 +7454,7 @@ app.post('/api/triage/:id/action', authRequired, async (request, res) => {
          SET status='done', done_by=@by, done_at=GETDATE(), calllog_id=@cid, note=@note,
              claimed_by=ISNULL(claimed_by,@by), claimed_at=ISNULL(claimed_at,GETDATE()), updated_at=GETDATE()
          WHERE id=@id`);
+      await lcCloseLog(id, 'case_system', cid, '', request.user, request.body);
     } else {
       return res.status(400).json({ error: 'unknown action' });
     }
