@@ -1688,15 +1688,14 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
   <!-- ════ TAB 5: ผลการติดตั้ง AI ════ -->
   <div id="dash-tab-aiimpact" style="display:none">
     <div class="mt-kind-bar">
-      <div class="svc-seg" id="aim-view" role="tablist" aria-label="มุมมอง"></div>
+      <div class="svc-seg" id="aim-view" role="tablist" aria-label="มุมมอง" style="display:none"></div>
       <div class="svc-seg mt-seg-sm" id="aim-mode" role="tablist" aria-label="นับเคส"></div>
       <div class="svc-seg mt-seg-sm" id="aim-pre" role="tablist" aria-label="ช่วงก่อนติดตั้ง"></div>
       <span style="flex:1"></span>
       <span id="aim-updated" class="mt-updated" style="margin-left:0"></span>
-      <button class="svc-btn-ghost" onclick="aimOpenPending()" style="height:34px" title="เคสติดตั้ง AI ที่ยังไม่ได้ยืนยัน"><i class=i-check></i> รอยืนยัน <span id="aim-pend-badge" class="mt-tab-count" style="display:none"></span></button>
       <button class="svc-btn-ghost" onclick="aimOpenImport()" style="height:34px"><i class=i-upload></i> นำเข้า</button>
       <button class="svc-btn-primary" onclick="aimOpenAdd()" style="height:34px"><i class=i-plus></i> เพิ่มร้านที่ติดตั้ง</button>
-      <button class="svc-btn-ghost" onclick="_aimView === 'report' ? aimRepLoad() : aimLoad()" style="height:34px" title="รีเฟรช"><i class=i-refresh></i></button>
+      <button class="svc-btn-ghost" onclick="aimRepLoad()" style="height:34px" title="รีเฟรช"><i class=i-refresh></i></button>
     </div>
     <div class="mt-meta" id="aim-hint" style="margin:-.25rem 0 .75rem;line-height:1.55"></div>
     <div class="mt-kpis" id="aim-kpis"></div>
@@ -10314,10 +10313,7 @@ function renderTickets() {
           </div>` : ''}
           ${attHtml}
           <div style="margin-top:.55rem;padding-top:.6rem;border-top:1px solid #efede7;display:flex;justify-content:flex-end;gap:.4rem" onclick="event.stopPropagation()">
-            ${mtTagFor(mtTicketRow(t))
-              ? `<button class="svc-btn-ghost" style="height:34px;color:var(--primary)" onclick="mtOpenFromTicket(${t.id})" title="${escHtml('มอนิเตอร์อยู่: ' + mtTagFor(mtTicketRow(t)).title + ' — คลิกเพื่อย้าย/เอาออก/เพิ่ม Tag')}"><i class=i-tag></i> มอนิเตอร์อยู่</button>`
-              : `<button class="svc-btn-ghost" style="height:34px" onclick="mtOpenFromTicket(${t.id})" title="ติดตามหัวข้อนี้ของสาขา/กลุ่มนี้ในแท็บ Monitor Tag"><i class=i-tag></i> ติด Tag</button>`}
-            ${isLeadRole() ? `<button class="svc-btn-ghost" style="height:34px" onclick="openEditTicket(${t.id})"><i class=i-pencil></i> แก้ไข</button>` : ''}
+            ${canEditTicket() ? `<button class="svc-btn-ghost" style="height:34px" onclick="openEditTicket(${t.id})"><i class=i-pencil></i> แก้ไข</button>` : ''}
           </div>
         </td>
       </tr>`);
@@ -11969,6 +11965,8 @@ function hideLoginOverlay() {
 
 function isLeadRole()    { return currentUser && ['team_lead','manager','admin'].includes(currentUser.role); }
 function isManagerRole() { return currentUser && ['manager','admin'].includes(currentUser.role); }
+// แก้ไขเคสในหน้าติดตามเคส — พนักงาน (staff) แก้ได้ด้วย
+function canEditTicket() { return currentUser && ['staff','team_lead','manager','admin'].includes(currentUser.role); }
 // Designated leave-request approvers — Pon (employee #2), Boek (employee #17), Nart (employee #14)
 const LEAVE_APPROVER_EMPLOYEE_IDS = [2, 17, 14];
 function canApproveLeave() { return currentUser && LEAVE_APPROVER_EMPLOYEE_IDS.includes(currentUser.employee_id); }
@@ -20920,7 +20918,7 @@ function switchDashTab(tab) {
   document.getElementById('dash-tab-btn-5').classList.toggle('active', tab === 5);
   if (tab === 2) loadIssueAnalytics();
   if (tab === 4) mtLoad();
-  if (tab === 5) { aimApplyView(); if (_aimView === 'report') aimRepLoad(); else aimLoad(); aimPendBadge(); }
+  if (tab === 5) { aimApplyView(); aimRepLoad(); }   // แสดงแค่ "รายงานตามพนักงาน"
 }
 
 async function loadIssueAnalytics() {
@@ -22487,7 +22485,8 @@ const aiInstBadge = rid => {
 };
 
 // ══ รายงาน: น้องแต่ละคนรับเคสของร้านที่ติดตั้ง AI แล้ว / ยังไม่ติดตั้ง ══
-let _aimView = (() => { try { return localStorage.getItem('aim-view') === 'report' ? 'report' : 'impact'; } catch { return 'impact'; } })();
+// แท็บนี้แสดงแค่ "รายงานตามพนักงาน" (มุมมอง "ผลการติดตั้ง" ซ่อนไว้ — โค้ดยังอยู่ ถ้าต้องการกลับมาใช้)
+let _aimView = 'report';
 let _aimRep = { from: null, to: null, data: null, open: new Set(), start: '2026-10-06' };   // start = วันเริ่มนับ (server ส่งค่าจริงมา)
 const aimRepClamp = () => { if (_aimRep.from < _aimRep.start) _aimRep.from = _aimRep.start; if (_aimRep.to < _aimRep.from) _aimRep.to = _aimRep.from; };
 function aimSetView(v) {
@@ -22765,7 +22764,7 @@ async function aimExclude(rid, exclude) {
   const d = await api('/api/ai-impact/exclude', { method: 'POST', silent: true, body: { rid, exclude } });
   if (!d || d.error) { showToast(d?.error || 'บันทึกไม่สำเร็จ', 'error'); return; }
   showToast(exclude ? 'ตัดร้านนี้ออกแล้ว — คำนวณใหม่' : 'นับร้านนี้กลับแล้ว — คำนวณใหม่');
-  aimLoad();
+  aimRepLoad();
 }
 // ── เพิ่มร้านที่ติดตั้ง AI เอง / แก้วันติดตั้ง
 let _aimPick = null, _aimSearchT = null, _aimEdit = false;
@@ -22836,7 +22835,7 @@ async function aimClearAll() {
   if (!d || d.error) { showToast(d?.error || 'ล้างไม่สำเร็จ', 'error'); return; }
   _aimBrandOpen.clear();
   showToast(`ล้างรายการแล้ว (ลบ ${d.removed} ร้านที่เพิ่มเอง) — นำเข้าใหม่ได้เลย`);
-  aimLoad();
+  aimRepLoad();
 }
 // ── เคสติดตั้ง AI ที่รอยืนยัน (มีคำค้นแต่ร้านยังไม่อยู่ในรายชื่อที่ยืนยันแล้ว)
 let _aimPend = { rows: [], sel: new Set() };
@@ -22899,7 +22898,7 @@ async function aimSetAutoDetect(on) {
   const d = await api('/api/ai-impact/auto-detect', { method: 'PUT', silent: true, body: { on } });
   if (!d || d.error) { showToast(d?.error || 'บันทึกไม่สำเร็จ', 'error'); aimRender(); return; }
   showToast(on ? 'เปิดการหาร้านจากเคสแล้ว — คำนวณใหม่' : 'ปิดการหาร้านจากเคสแล้ว — นับเฉพาะร้านที่เพิ่มเอง/นำเข้า');
-  aimLoad();
+  aimRepLoad();
 }
 async function aimRemoveManual(rid) {
   const s = _aim.data?.stores.find(x => x.rid === rid);
@@ -22907,7 +22906,7 @@ async function aimRemoveManual(rid) {
   const d = await api(`/api/ai-impact/stores/${rid}`, { method: 'DELETE', silent: true });
   if (!d || d.error) { showToast(d?.error || 'ลบไม่สำเร็จ', 'error'); return; }
   showToast('บันทึกแล้ว — คำนวณใหม่');
-  aimLoad();
+  aimRepLoad();
 }
 // ── นำเข้าร้านที่ติดตั้ง AI จากไฟล์ .xlsx / .csv หรือวางจาก Excel ─────
 // ไฟล์: คอลัมน์ ร้าน (ชื่อหรือรหัสร้าน) · วันที่ติดตั้ง · หมายเหตุ (มีหัวตารางหรือไม่ก็ได้)
@@ -23075,7 +23074,7 @@ async function aimImportCommit() {
   if (!d || d.error) { showToast(d?.error || 'นำเข้าไม่สำเร็จ', 'error'); return; }
   closeModal('modal-aim-import');
   showToast(`นำเข้าร้านที่ติดตั้ง AI ${d.saved} ร้านแล้ว — คำนวณใหม่`);
-  aimLoad();
+  aimRepLoad();
 }
 
 function aimExport() {

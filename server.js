@@ -14494,6 +14494,27 @@ setInterval(async () => {
   await mtAcceptPending(days[0], days[days.length - 1]).catch(e => console.error('[monitor-suggest] accept pending:', e.message));
 }, 30 * 1000);
 
+// รอบรายชั่วโมง (MONITOR_SUGGEST_HOURLY=off เพื่อปิด) — แนะนำ/ติด Tag ให้เคส "วันนี้" ระหว่างวัน
+// ประหยัด token: suggestMonitorTags ข้ามเคสที่ประเมินไปแล้ว (ชุด Tag เดิม) → รอบนี้ส่ง AI เฉพาะเคสใหม่ในชั่วโมงนั้น
+// ไม่มีเคสใหม่ = ไม่เรียก AI เลย · ทำเฉพาะช่วงเวลาทำงาน (MONITOR_SUGGEST_HOURS, ค่าเริ่มต้น 8-23) · รอบเที่ยงคืนยังเก็บตกทั้งวันเหมือนเดิม
+const MT_SUGGEST_HOURLY = (process.env.MONITOR_SUGGEST_HOURLY || 'on').toLowerCase() !== 'off';
+const [MT_SG_H_FROM, MT_SG_H_TO] = (/^(\d{1,2})-(\d{1,2})$/.exec(process.env.MONITOR_SUGGEST_HOURS || '') || [0, 8, 23]).slice(1).map(Number);
+let _mtSuggestLastHour = null;
+setInterval(async () => {
+  if (!MT_SUGGEST_AUTO || !MT_SUGGEST_HOURLY) return;
+  const now = new Date();
+  const hh = +now.toLocaleTimeString('en-GB', { hour: '2-digit', hour12: false, timeZone: 'Asia/Bangkok' }).slice(0, 2);
+  const mm = +now.toLocaleTimeString('en-GB', { minute: '2-digit', timeZone: 'Asia/Bangkok' }).slice(-2);
+  const today = bangkokToday(), key = `${today} ${hh}`;
+  if (mm < 5 || hh < MT_SG_H_FROM || hh > MT_SG_H_TO || _mtSuggestLastHour === key) return;   // ทุกต้นชั่วโมง (:05)
+  _mtSuggestLastHour = key;
+  try {
+    const r = await suggestMonitorTags(today, { autoAccept: MT_SUGGEST_AUTO_ACCEPT });
+    if (r?.busy) _mtSuggestLastHour = null;   // รอบอื่นกำลังทำอยู่ — ลองใหม่ในนาทีถัดไป
+    await mtAcceptPending(today, today);
+  } catch (e) { console.error('[monitor-suggest] hourly error:', e.message); }
+}, 60 * 1000);
+
 // รหัสผ่านของหน้า "เคสแนะนำ" (MONITOR_SUGGEST_PASSWORD ใน .env) — ไม่ตั้ง = ไม่ต้องใส่รหัส
 // หน้าเว็บส่งมาใน header X-Suggest-Password ทุกครั้ง · ผิด = 403 (หน่วงเวลากันเดารหัส)
 const MT_SUGGEST_PASSWORD = process.env.MONITOR_SUGGEST_PASSWORD || '';
