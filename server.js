@@ -3691,35 +3691,62 @@ ${JSON.stringify(rawEvents)}
 }
 
 // Render the summary as a LINE-friendly plain-text message
+// ข้อความสรุปตารางงานเข้า LINE — แบบกระชับ:
+//  · คนที่มีแค่กะงาน → รวมคนเวลาเดียวกันไว้บรรทัดเดียว "08-17 Fluke, Mike" (ไม่ต้องซ้ำ "กะงาน · Helpdesk Cnx")
+//  · งานหน้างาน/อื่นๆ → "• ชื่อ เวลา งาน ร้าน" (งานจาก #แท็ก, ร้านตัดสาขา/วงเล็บ/เลข SO ออก)
+//  · คนลา → รวมบรรทัดเดียวท้ายข้อความ
 function formatEmpcalLine(data, opts = {}) {
-  const TYPE = { shift: 'กะงาน', leave: 'ลา', onsite: 'หน้างาน', other: 'อื่นๆ' };
   const [y, m, d] = data.date.split('-');
-  const timeOf = (it) => it.start ? (it.end ? `${it.start}-${it.end}` : it.start) : 'ทั้งวัน';
-  const cleanNote = (n) => (n || '')
-    .replace(/\d{1,2}[:.]\d{2}\s*[-–]\s*\d{1,2}[:.]\d{2}/g, '')
-    .replace(/^\s*กะ\s*/, '')
-    .replace(/\s{2,}/g, ' ')
-    .replace(/^[\s·:：-]+|[\s·:：-]+$/g, '')
-    .trim();
-  const lineFor = (it) => {
-    const note = cleanNote(it.note);
-    return `${timeOf(it)} ${TYPE[it.type] || TYPE.other}${note ? ' · ' + note : ''}`;
+  const hm = t => /^\d{2}:00$/.test(t) ? t.slice(0, 2) : t;   // 08:00 → 08 · 08:30 คงไว้
+  const timeOf = it => it.start ? (it.end ? `${hm(it.start)}-${hm(it.end)}` : hm(it.start)) : 'ทั้งวัน';
+  const byStart = items => [...items].sort((a, b) => (a.start || '').localeCompare(b.start || ''));
+  const TASK = { 'แสตนบาย': 'Standby', 'สแตนบาย': 'Standby', 'standby': 'Standby', 'เทรนนิ่ง': 'Training', 'เทรนนิ้ง': 'Training', 'training': 'Training' };
+  // "ร้าน AKIYOSHI (อะคิโยชิ) - Siam Square One #แสตนบาย SO69-1394" → { task: 'Standby', store: 'AKIYOSHI' }
+  const workOf = note => {
+    let n = String(note || '').replace(/\d{1,2}[:.]\d{2}\s*[-–]\s*\d{1,2}[:.]\d{2}/g, '').replace(/\bSO\d{2}-\d+\b/gi, '');
+    const tags = [...n.matchAll(/#([^#]+)/g)].map(x => x[1].trim()).filter(Boolean);
+    n = n.replace(/#[^#]*/g, '');
+    let store = n.replace(/^\s*ร้าน\s*/, '').replace(/\([^)]*\)/g, '').split(/\s+[-–]\s+|\s+สาขา\s*/)[0];
+    store = store.replace(/\s{2,}/g, ' ').replace(/^[\s·:：|-]+|[\s·:：|-]+$/g, '').trim();
+    const task = tags.map(t => TASK[t.toLowerCase()] || t).join(' / ');
+    return [task, store].filter(Boolean).join(' · ');
   };
-  let out = `🗓️ ตารางงานพนักงาน ${d}/${m}/${y}\n`;
-  for (const t of (data.teams || [])) {
-    out += `\n👥 ${t.team} (${t.people.length})\n`;
-    for (const p of t.people) {
-      const items = [...p.items].sort((a, b) => (a.start || '').localeCompare(b.start || ''));
-      out += `• ${p.nickname}: ${items.map(lineFor).join(' | ')}\n`;
+  // กะปกติของ Helpdesk (โน้ตมีแค่เวลา/"กะ"/"Helpdesk Bkk|Cnx") → ไม่ต้องแสดงโน้ต
+  const isHelpdeskNote = n => {
+    const s = String(n || '').replace(/\d{1,2}[:.]\d{2}\s*[-–]\s*\d{1,2}[:.]\d{2}/g, '').replace(/^\s*กะ(งาน)?\s*/, '').replace(/[\s·:：-]+/g, ' ').trim();
+    return !s || /^(helpdesk|hd)\b/i.test(s);
+  };
+  const leaves = [];
+  const leaveOf = (name, it) => {
+    const note = String(it.note || '').replace(/^ลา\s*/, '').trim();
+    leaves.push(note && note !== 'ลา' ? `${name} (${note})` : name);
+  };
+  // คนหนึ่งคน → null (อยู่ในกลุ่มเวลา) หรือบรรทัด "•"
+  const personLine = (name, items, slots) => {
+    const work = byStart(items).filter(it => it.type !== 'leave');
+    items.filter(it => it.type === 'leave').forEach(it => leaveOf(name, it));
+    if (!work.length) return null;
+    if (work.every(it => it.type === 'shift' && isHelpdeskNote(it.note))) {
+      const key = work.map(timeOf).join(', ');
+      (slots.get(key) || slots.set(key, []).get(key)).push(name);
+      return null;
     }
-  }
-  if ((data.unknown || []).length) {
-    out += `\n❓ ไม่รู้จัก\n`;
-    for (const u of data.unknown) {
-      const items = [...u.items].sort((a, b) => (a.start || '').localeCompare(b.start || ''));
-      out += `• ${u.raw}: ${items.map(lineFor).join(' | ')}\n`;
-    }
-  }
+    return `• ${name} ${work.map(it => {
+      const w = it.type === 'shift' && isHelpdeskNote(it.note) ? '' : workOf(it.note);
+      return `${timeOf(it)}${w ? ' ' + w : ''}`;
+    }).join(' | ')}`;
+  };
+  const section = (title, people, nameOf) => {
+    const slots = new Map(), lines = [];
+    for (const p of people) { const l = personLine(nameOf(p), p.items, slots); if (l) lines.push(l); }
+    const slotLines = [...slots].sort((a, b) => a[0].localeCompare(b[0])).map(([t, names]) => `${t} ${names.join(', ')}`);
+    return slotLines.length || lines.length ? `\n${title}\n${[...slotLines, ...lines].join('\n')}\n` : '';
+  };
+
+  let out = `🗓️ ตารางงาน ${d}/${m}/${y}\n`;
+  for (const t of (data.teams || [])) out += section(`👥 ${t.team}`, t.people, p => p.nickname);
+  if ((data.unknown || []).length) out += section('❓ ไม่รู้จัก', data.unknown, u => u.raw);
+  if (leaves.length) out += `\n🏖 ลา: ${leaves.join(', ')}\n`;
   // ดึงข้อมูลใหม่ไม่สำเร็จ ต้องใช้ข้อมูลเดิม → บอกในข้อความให้รู้ตัว
   if (opts.stale) out += `\n⚠️ ดึงปฏิทินใหม่ไม่สำเร็จ — ข้อมูลนี้มาจากที่บันทึกไว้ก่อนหน้า อาจไม่ตรงกับปฏิทินล่าสุด\n`;
   return out.trim();
