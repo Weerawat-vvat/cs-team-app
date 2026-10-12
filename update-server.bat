@@ -8,6 +8,7 @@ rem   3. if nothing started, run the task "CS Team App"
 rem   4. show the last lines of server_out.log
 rem ============================================================
 setlocal
+chcp 65001 >nul
 cd /d "%~dp0"
 
 net session >nul 2>&1
@@ -42,7 +43,7 @@ if errorlevel 1 (
 
 echo.
 echo === 3/3 last lines of server_out.log (look for "CS Team App running") ===
-powershell -NoProfile -Command "Get-Content -Path 'server_out.log' -Tail 15"
+powershell -NoProfile -Command "[Console]::OutputEncoding=[Text.Encoding]::UTF8; Get-Content -Path 'server_out.log' -Tail 15 -Encoding UTF8"
 echo.
 echo Errors (if any) are in server_err.log
 pause
