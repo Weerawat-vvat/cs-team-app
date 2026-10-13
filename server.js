@@ -5269,30 +5269,6 @@ async function swuOpenJobFor(group, rid) {
   return null;
 }
 
-// GET /api/sw-update/search?q= — ค้นทั้ง "กลุ่ม License" (ชื่อกลุ่ม) และร้าน/License รายตัว
-app.get('/api/sw-update/search', authRequired, async (request, res) => {
-  try {
-    const q = String(request.query.q || '').trim();
-    if (q.length < 2 || !getExtPool()) return res.json({ groups: [], shops: [] });
-    const [groups, shops] = await Promise.all([
-      extReq().input('q', sql.NVarChar, `%${q}%`).query(`
-        SELECT TOP 15 cg.GroupId, cg.GroupName, COUNT(r.RegistrationId) AS branches
-        FROM CustomerGroup cg
-        JOIN CustomerRegistration r ON r.GroupId = cg.GroupId AND (r.Hide = 0 OR r.Hide IS NULL) AND r.AccurateData = 1
-        WHERE cg.GroupId <> 1 AND cg.GroupName LIKE @q
-        GROUP BY cg.GroupId, cg.GroupName
-        ORDER BY cg.GroupName`),
-      extReq().input('q', sql.NVarChar, `%${q}%`).query(`
-        SELECT TOP 40 r.RegistrationId, r.CompanyName, r.GroupId, cg.GroupName
-        FROM CustomerRegistration r
-        LEFT JOIN CustomerGroup cg ON cg.GroupId = r.GroupId
-        WHERE (r.Hide = 0 OR r.Hide IS NULL) AND r.AccurateData = 1 AND r.CompanyName LIKE @q
-        ORDER BY r.CompanyName`),
-    ]);
-    res.json({ groups: groups.recordset, shops: shops.recordset });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
 // GET /api/sw-update/branch-options?gid= | ?rid= — ทุก License ในกลุ่ม (ร้านเดี่ยว INF = ตัวเอง)
 app.get('/api/sw-update/branch-options', authRequired, async (request, res) => {
   try {
