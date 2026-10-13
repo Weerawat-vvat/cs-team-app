@@ -951,18 +951,56 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
 .svc-tbl tbody tr:hover{background:#faf9f6}
 .svc-tbl tbody tr:last-child td{border-bottom:none}
 .svc-jobno{font-family:'IBM Plex Mono',monospace;font-size:.76rem;color:#4d535b;white-space:nowrap}
-/* งานอัพเดท SW — ตารางสาขา/จำนวนเครื่อง; คอลัมน์ "ทำจริง/สำเร็จ" โผล่เฉพาะตอนปิดงาน */
-.swu-br-row{display:grid;grid-template-columns:1fr 92px 28px;gap:.35rem;align-items:center;margin-bottom:.3rem}
-.swu-br-row .swu-br-done{display:none}
-#swu-branches-section.closing .swu-br-row{grid-template-columns:44px 1fr 80px 80px 28px}
-#swu-branches-section.closing .swu-br-done{display:block;text-align:center}
-.swu-br-head{font-size:.68rem;color:#6f747c;margin-bottom:.2rem}
-.swu-br-row input[type=text],.swu-br-row input[type=number]{width:100%;min-width:0;border:1px solid var(--border);border-radius:7px;padding:.28rem .5rem;font-size:.8rem}
-.swu-br-row input[type=number]{font-family:'IBM Plex Mono',monospace;text-align:right}
-.swu-br-row input:disabled{background:#f3f2ef;color:#a3a7ad}
-.swu-br-del{border:0;background:none;color:#a3a7ad;cursor:pointer;font-size:1rem;line-height:1}
-.swu-br-del:hover{color:#b04a40}
-@media (max-width:520px){#swu-branches-section.closing .swu-br-row{grid-template-columns:32px 1fr 62px 62px 24px}}
+/* งานอัพเดท SW — ฟอร์มเลือกสาขา + หน้า checklist สาขา */
+.swu-pick{border:1px solid var(--border);border-radius:9px;padding:.15rem .6rem;max-height:240px;overflow-y:auto}
+.swu-pick-row{display:flex;align-items:center;gap:.45rem;padding:.3rem 0;font-size:.8rem;border-bottom:1px dashed #eeece7;cursor:pointer}
+.swu-pick-row:last-child{border-bottom:0}
+.swu-pick-row.all{font-weight:600;border-bottom:1px solid #e6e3dc;position:sticky;top:0;background:#fff}
+.swu-pick-row input{width:15px;height:15px;cursor:pointer}
+.swu-pill{font-size:.66rem;padding:.05rem .42rem;border-radius:20px;white-space:nowrap;font-weight:600;vertical-align:.08em}
+.swu-pill.hq{background:#e8eef7;color:#3d5f8f}.swu-pill.rep{background:#fde8e6;color:#a8443a}
+.swu-pill.ok{background:#e6f1ea;color:#3f7a5a}.swu-pill.part{background:#f6f0e2;color:#86671f}
+.swu-pill.no{background:#f1f0ed;color:#7b7f86}.swu-pill.bad{background:#fbeee6;color:#a2562f}
+.swu-kick{font-size:.66rem;letter-spacing:.06em;text-transform:uppercase;color:#6f747c;font-weight:400}
+.swu-note{font-size:.72rem;color:#6f747c}
+.swu-in{border:1px solid var(--border);border-radius:7px;padding:.3rem .5rem;font-size:.8rem;font-family:inherit;background:#fff;width:100%;min-width:0}
+.swu-hdr-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem}
+.swu-hdr-grid label{font-size:.7rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.15rem}
+.swu-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:.55rem;margin:.85rem 0 .4rem}
+.swu-tile{border:1px solid #ebe9e3;border-radius:10px;padding:.5rem .7rem}
+.swu-tile .v{font-size:1.3rem;font-weight:700;font-family:'IBM Plex Mono',monospace;line-height:1.2}
+.swu-tile .v small{font-size:.75rem;color:#8a8f97;margin-left:.1rem}
+.swu-tile .k{font-size:.7rem;color:#6f747c}
+.swu-prog{height:8px;background:#eeece7;border-radius:8px;overflow:hidden}
+.swu-prog i{display:block;height:100%;background:#3f7a5a}
+.swu-sec-t{display:flex;justify-content:space-between;align-items:center;gap:.5rem;font-size:.84rem;font-weight:700;margin:1rem 0 .4rem;flex-wrap:wrap}
+.swu-btn-s{font-size:.74rem!important;padding:.18rem .55rem!important}
+.swu-iss{border:1px solid #ebe9e3;border-radius:10px}
+.swu-iss-r{display:grid;grid-template-columns:22px 1fr auto;gap:.55rem;align-items:start;padding:.45rem .7rem;border-bottom:1px solid #f0eee9;font-size:.82rem}
+.swu-iss-r:last-child{border-bottom:0}
+.swu-iss-n{width:22px;height:22px;border-radius:50%;background:#eef1f5;color:#3d5f8f;font-size:.7rem;display:grid;place-items:center;font-weight:700}
+.swu-x{border:0;background:none;color:#a3a7ad;cursor:pointer;font-size:.95rem;line-height:1;padding:0 .15rem}
+.swu-x:hover{color:#b04a40}
+.swu-cl{width:100%;border-collapse:collapse;font-size:.82rem}
+.swu-cl th{font-size:.68rem;color:#6f747c;font-weight:600;text-align:left;padding:.4rem .5rem;border-bottom:1px solid #e6e3dc;background:#faf9f6}
+.swu-cl td{padding:.45rem .5rem;border-bottom:1px solid #f0eee9;vertical-align:middle}
+.swu-cl .r{text-align:right}
+.swu-cl tr.done>td{background:#f5faf7}
+.swu-cl tr.blocked>td{background:#fdf7f2}
+.swu-cl tr.swu-sub>td{padding-top:0;font-size:.76rem;border-top:0}
+.swu-num{font-family:'IBM Plex Mono',monospace;font-weight:600}
+.swu-tot{width:58px;text-align:right;font-family:'IBM Plex Mono',monospace;border:1px solid var(--border);border-radius:7px;padding:.22rem .4rem;font-size:.8rem}
+.swu-tot:disabled{border-color:transparent;background:transparent}
+.swu-who{display:inline-flex;align-items:center;gap:.15rem;background:#eef1f5;border-radius:5px;padding:0 .35rem;margin:1px 3px 1px 0;font-size:.74rem;white-space:nowrap}
+.swu-rec{display:flex;gap:.25rem;align-items:center;justify-content:flex-end}
+.swu-rec input{width:52px;text-align:right;font-family:'IBM Plex Mono',monospace;border:1px solid var(--border);border-radius:7px;padding:.22rem .35rem;font-size:.8rem}
+.swu-rec :disabled{opacity:.4;cursor:not-allowed}
+.swu-mini{height:4px;background:#eeece7;border-radius:4px;overflow:hidden;margin-top:.25rem;max-width:220px}
+.swu-mini i{display:block;height:100%;background:#3f7a5a}
+.swu-block-form{display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;background:#fdf7f2;border:1px solid #f0d9c8;border-radius:8px;padding:.45rem .55rem}
+.swu-block-form select{width:auto}
+.swu-banner{background:#e6f1ea;color:#3f7a5a;border-radius:8px;padding:.55rem .75rem;font-size:.82rem;margin-top:.8rem;display:flex;justify-content:space-between;align-items:center;gap:.5rem}
+@media (max-width:640px){.swu-hdr-grid,.swu-tiles{grid-template-columns:repeat(2,1fr)}}
 .svc-title{font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4}
 .svc-meta{font-size:.74rem;color:#6f747c;margin-top:.15rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .svc-meta .mono{font-family:'IBM Plex Mono',monospace}
@@ -6457,7 +6495,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // click outside to close
 // Modals ที่ห้ามปิดเมื่อกด outside (ข้อมูลอาจหาย)
-const NO_BACKDROP_CLOSE = new Set(['modal-repair-link','modal-repair-form','modal-repair-detail','modal-person','modal-create-case','modal-edit-ticket-full','modal-specialist-detail','modal-assign-specialist','modal-add-sp','modal-edit-sp','modal-si-entry','modal-si-import','modal-fu-add-issue','modal-sk-entry','modal-sw-update-form','modal-uat-form','modal-uat-detail','modal-uat-issue-form','modal-tk-import','modal-news-form','modal-weekly-pattern','modal-tr-add','modal-hr-password','modal-impl-form','modal-pod-form','modal-cust-form','modal-pod-members','modal-cust-detail']);
+const NO_BACKDROP_CLOSE = new Set(['modal-repair-link','modal-repair-form','modal-repair-detail','modal-person','modal-create-case','modal-edit-ticket-full','modal-specialist-detail','modal-assign-specialist','modal-add-sp','modal-edit-sp','modal-si-entry','modal-si-import','modal-fu-add-issue','modal-sk-entry','modal-sw-update-form','modal-swu-detail','modal-uat-form','modal-uat-detail','modal-uat-issue-form','modal-tk-import','modal-news-form','modal-weekly-pattern','modal-tr-add','modal-hr-password','modal-impl-form','modal-pod-form','modal-cust-form','modal-pod-members','modal-cust-detail']);
 
 document.querySelectorAll('.overlay').forEach(el => {
   el.addEventListener('click', e => {
@@ -18033,25 +18071,8 @@ async function fuSaveField(id, field, val) {
       issue.fix_date         = r?.fix_date ?? null;
       issue.resolved_by_name = r?.resolved_by_name ?? null;
       fuLoadSidebarStats();
-      // Auto-create SW Update job when set to แก้ไขแล้วรออัพเดท
-      if (val === 'fixed_waiting_update') {
-        fuClosePanel();           // close slide panel first
-        fuCreateSwUpdate(issue);  // then open SW Update form
-      }
     }
   }
-}
-
-function fuCreateSwUpdate(issue) {
-  // Check if a SW Update job already exists for this FU issue
-  const existing = _swuData.find(j => j.fu_issue_id === issue.id);
-  if (existing) {
-    showToast(`มีงานอัพเดท SW #${existing.id} สำหรับ Follow Up นี้อยู่แล้ว`, 'warning');
-    openSwUpdateEdit(existing.id);  // open the existing job for review
-    return;
-  }
-  showToast('เปิดฟอร์มสร้างงานอัพเดท SW...', 'info');
-  openSwUpdateForm(issue);
 }
 
 // ── Add Issue ─────────────────────────────────────────────
@@ -18572,9 +18593,6 @@ async function fuSaveAll() {
   if (body.status !== undefined) fuLoadSidebarStats();
 
   showToast(`บันทึกแล้ว (${keys.length} ฟิลด์)`);
-
-  // Same auto-flow as inline edit: set to "แก้ไขแล้วรออัพเดท" → open SW Update form
-  if (body.status === 'fixed_waiting_update') { fuClosePanel(); fuCreateSwUpdate(issue); return; }
 
   await fuRenderPanel();
 }
@@ -25199,6 +25217,25 @@ function swuSetTab(tab) { _swuTab = tab; renderSwUpdate(); }
 const SWU_NO_GROUP = '__none__';   // key ของร้านที่ไม่มีกลุ่ม License
 const _swuCollapsed = new Set();     // กลุ่ม License ที่ย่อไว้
 let _swuUsers = [];
+const SWU_BLOCK_REASONS = ['ร้านปิด / ปิดปรับปรุง', 'ติดต่อร้านไม่ได้', 'ร้านไม่สะดวก / ขอเลื่อน', 'เครื่องมีปัญหา (ฮาร์ดแวร์)', 'อื่นๆ'];
+const swuIsHQ = name => /\bHQ\b|สำนักงานใหญ่|head ?office/i.test(name || '');
+const swuIsManager = () => ['manager', 'team_lead', 'admin'].includes(currentUser?.role);
+
+// สรุปตัวเลขของงาน: สาขาครบ / ไม่ได้ / ทั้งหมด, เครื่องทั้งหมด / สำเร็จ
+function swuStats(j) {
+  const bs = j.branches || [];
+  const total = bs.reduce((s, b) => s + (b.devices_planned || 0), 0);
+  const ok = bs.reduce((s, b) => s + (b.devices_done || 0), 0);
+  const blockedLeft = bs.filter(b => b.status === 'blocked').reduce((s, b) => s + Math.max(0, (b.devices_planned || 0) - (b.devices_done || 0)), 0);
+  return {
+    n: bs.length,
+    done: bs.filter(b => b.status === 'done').length,
+    blocked: bs.filter(b => b.status === 'blocked').length,
+    unknown: bs.filter(b => b.devices_planned == null && b.status !== 'blocked').length,
+    total, ok, remain: Math.max(0, total - ok - blockedLeft), blockedLeft,
+    ready: bs.length > 0 && bs.every(b => b.status === 'done' || b.status === 'blocked'),
+  };
+}
 
 async function loadSwUpdate() {
   if (!_swuUsers.length) {
@@ -25213,8 +25250,9 @@ async function loadSwUpdate() {
   if (priority) url += `priority=${encodeURIComponent(priority)}&`;
   if (q)        url += `q=${encodeURIComponent(q)}&`;
   const [rows] = await Promise.all([api(url), aiInstLoad()]);   // aiInstLoad: ป้าย AI หน้าชื่อร้าน
-  _swuData = rows || [];
+  _swuData = Array.isArray(rows) ? rows : [];
   renderSwUpdate();
+  if (_swuDetailId && document.getElementById('modal-swu-detail')?.classList.contains('open')) swuRenderDetail();
 }
 
 function swuSearchDebounce() {
@@ -25253,15 +25291,12 @@ function renderSwUpdate() {
     tbody.innerHTML = `<tr style="cursor:default"><td colspan="9" style="text-align:center;color:var(--muted);padding:3.5rem 1rem">${all.length ? 'ไม่มีงานในแท็บนี้' : 'ไม่พบข้อมูล'}</td></tr>`;
     return;
   }
-  // Group by license group → company_name (ร้านที่ไม่มีกลุ่มไว้ท้ายสุด)
+  // Group by license group (ร้านที่ไม่มีกลุ่มไว้ท้ายสุด)
   const licMap = new Map();
   list.forEach(r => {
     const lg = r.license_group || SWU_NO_GROUP;
-    if (!licMap.has(lg)) licMap.set(lg, new Map());
-    const shops = licMap.get(lg);
-    const key = r.company_name || '—';
-    if (!shops.has(key)) shops.set(key, []);
-    shops.get(key).push(r);
+    if (!licMap.has(lg)) licMap.set(lg, []);
+    licMap.get(lg).push(r);
   });
   const licOrder = [...licMap.keys()].sort((a, b) =>
     (a === SWU_NO_GROUP) - (b === SWU_NO_GROUP) || a.localeCompare(b, 'th'));
@@ -25277,48 +25312,42 @@ function renderSwUpdate() {
   };
   const fmtD = v => v ? new Date(v).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}) : '<span style="color:#b9bcc2">—</span>';
 
-  const shopBlock = (shopName, rows) => {
-    const pendingCount = rows.filter(r => !['done','cancelled'].includes(r.status)).length;
-    const aiDay = rows.map(r => _aiInst.map[r.registration_id]).find(Boolean);   // ร้านนี้ติดตั้ง AI (SSH) แล้ว
-    const header = `<tr style="cursor:default">
-      <td colspan="9" style="background:#faf9f6;padding:.6rem 1rem;border-bottom:1px solid #e6e3dc">
-        ${aiDay ? `<span class="tk-ai" style="margin-right:.4rem;vertical-align:.1em" title="ติดตั้ง AI (SSH) แล้ว · ${fmtDateShort(aiDay + 'T00:00:00')}"><i class=i-check></i> AI</span>` : ''}<span style="font-weight:600;font-size:.84rem;color:#24272c">${escHtml(shopName)}</span>
-        <span style="margin-left:.55rem;font-size:.72rem;color:#6f747c;font-family:'IBM Plex Mono',monospace">${rows.length} งาน</span>
-        ${pendingCount ? `<span class="uat-tag" style="margin:0 0 0 .45rem;background:#f6f0e2;color:#86671f">${pendingCount} รอดำเนินการ</span>` : ''}
+  const jobRow = r => {
+    const st  = SWU_STATUS[r.status]    || SWU_STATUS.pending;
+    const pri = SWU_PRIORITY[r.priority] || SWU_PRIORITY.normal;
+    const iss = r.issues || [];
+    const first = iss[0] || { description: r.description, azure_id: r.azure_id };
+    const s = swuStats(r);
+    const aiDay = _aiInst.map[r.registration_id];
+    const ver = r.version_installed || r.version_recommend || '';
+    const prog = s.n
+      ? `<div class="svc-meta">${s.done}/${s.n} สาขา · ${s.ok}/${s.total}${s.unknown ? '+?' : ''} เครื่อง${s.blocked ? ` · <span style="color:#a2562f">อัพเดทไม่ได้ ${s.blocked}</span>` : ''}</div>`
+      : '';
+    return `<tr onclick="openSwUpdateDetail(${r.id})">
+      <td><span class="svc-jobno">#${r.id}</span></td>
+      <td style="min-width:0">
+        <div class="svc-title" title="${escHtml(first.description||'')}">${aiDay ? `<span class="tk-ai" style="margin-right:.35rem" title="ติดตั้ง AI (SSH) แล้ว"><i class=i-check></i> AI</span>` : ''}${escHtml(first.description||'—')}${iss.length > 1 ? ` <span class="uat-tag" style="margin:0 0 0 .3rem">+${iss.length - 1} ปัญหา</span>` : ''}</div>
+        <div class="svc-meta">${escHtml(r.company_name || '')}${ver ? ` · <span class="mono">${escHtml(ver)}</span>` : ''}</div>
+        ${prog}
+      </td>
+      <td><div class="uat-pri" style="color:${pri.color};margin:0">${pri.label}</div></td>
+      <td><span class="uat-st" style="background:${st.bg};color:${st.color}">${st.label}</span></td>
+      <td style="font-size:.8rem;white-space:nowrap">${fmtD(r.received_date)}</td>
+      <td style="font-size:.8rem;white-space:nowrap">${fmtD(r.appointment_date)}</td>
+      <td style="font-size:.8rem">
+        <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(r.reporter_name||'—')}</div>
+        ${r.assignees && r.assignees.length ? `<div class="tk-sub">${r.assignees.map(a=>escHtml(a.name||'')).join(', ')}</div>` : ''}
+      </td>
+      <td>${swuAzureCell(first.azure_id)}</td>
+      <td onclick="event.stopPropagation()" style="white-space:nowrap;vertical-align:middle">
+        <button class="uat-act" onclick="openSwUpdateDetail(${r.id})" title="เปิด checklist" aria-label="เปิด checklist"><i class=i-pencil></i></button>
+        <button class="uat-act danger" onclick="deleteSwUpdate(${r.id})" title="ลบ" aria-label="ลบ"><i class=i-trash></i></button>
       </td>
     </tr>`;
-    const dataRows = rows.map(r => {
-      const st  = SWU_STATUS[r.status]    || SWU_STATUS.pending;
-      const pri = SWU_PRIORITY[r.priority] || SWU_PRIORITY.normal;
-      const ver = r.version_recommend || '';
-      return `<tr onclick="openSwUpdateDetail(${r.id})">
-        <td><span class="svc-jobno">#${r.id}</span></td>
-        <td style="min-width:0">
-          <div class="svc-title" title="${escHtml(r.description||'')}">${escHtml(r.description||'—')}</div>
-          ${ver ? `<div class="svc-meta" title="${escHtml(ver)}"><span class="mono">${escHtml(ver)}</span></div>` : ''}
-          ${swuBranchMeta(r)}
-        </td>
-        <td><div class="uat-pri" style="color:${pri.color};margin:0">${pri.label}</div></td>
-        <td><span class="uat-st" style="background:${st.bg};color:${st.color}">${st.label}</span></td>
-        <td style="font-size:.8rem;white-space:nowrap">${fmtD(r.received_date)}</td>
-        <td style="font-size:.8rem;white-space:nowrap">${fmtD(r.appointment_date)}</td>
-        <td style="font-size:.8rem">
-          <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(r.reporter_name||'—')}</div>
-          ${r.assignees && r.assignees.length ? `<div class="tk-sub">${r.assignees.map(a=>escHtml(a.name||'')).join(', ')}</div>` : ''}
-        </td>
-        <td>${swuAzureCell(r.azure_id)}</td>
-        <td onclick="event.stopPropagation()" style="white-space:nowrap;vertical-align:middle">
-          <button class="uat-act" onclick="openSwUpdateEdit(${r.id})" title="แก้ไข" aria-label="แก้ไข"><i class=i-pencil></i></button>
-          <button class="uat-act danger" onclick="deleteSwUpdate(${r.id})" title="ลบ" aria-label="ลบ"><i class=i-trash></i></button>
-        </td>
-      </tr>`;
-    }).join('');
-    return header + dataRows;
   };
 
   tbody.innerHTML = licOrder.map(lg => {
-    const shops = licMap.get(lg);
-    const jobs = [...shops.values()].flat();
+    const jobs = licMap.get(lg);
     const open = jobs.filter(r => !['done','cancelled'].includes(r.status)).length;
     const collapsed = _swuCollapsed.has(lg);
     const label = lg === SWU_NO_GROUP ? 'ร้านเดี่ยว (ไม่มีกลุ่ม License)' : lg;
@@ -25327,28 +25356,12 @@ function renderSwUpdate() {
         <span style="display:inline-block;width:1em;color:#6f747c;font-size:.7rem">${collapsed ? '▶' : '▼'}</span>
         <span style="font-size:.66rem;letter-spacing:.06em;text-transform:uppercase;color:#6f747c;margin-right:.4rem">กลุ่ม License</span>
         <span style="font-weight:700;font-size:.88rem;color:#1f2a3a">${escHtml(label)}</span>
-        <span style="margin-left:.55rem;font-size:.72rem;color:#6f747c;font-family:'IBM Plex Mono',monospace">${shops.size} ร้าน · ${jobs.length} งาน</span>
+        <span style="margin-left:.55rem;font-size:.72rem;color:#6f747c;font-family:'IBM Plex Mono',monospace">${jobs.length} งาน</span>
         ${open ? `<span class="uat-tag" style="margin:0 0 0 .45rem;background:#f6f0e2;color:#86671f">${open} รอดำเนินการ</span>` : ''}
       </td>
     </tr>`;
-    return head + (collapsed ? '' : [...shops].map(([name, rows]) => shopBlock(name, rows)).join(''));
+    return head + (collapsed ? '' : jobs.map(jobRow).join(''));
   }).join('');
-}
-
-// "3 สาขา · 8 เครื่อง" (งานเปิด) / "✓ 2/3 สาขา · 6 เครื่อง · v3.2.1" (งานปิด) — hover ดูรายสาขา
-function swuBranchMeta(r) {
-  const bs = r.branches || [];
-  if (!bs.length) return r.version_installed ? `<div class="svc-meta">ลง <span class="mono">${escHtml(r.version_installed)}</span></div>` : '';
-  const tip = bs.map(b => `${b.is_done ? '✓' : '·'} ${b.branch_name}: ${r.status === 'done' ? (b.devices_done ?? 0) + '/' : ''}${b.devices_planned ?? '?'} เครื่อง`).join('\n');
-  let txt;
-  if (r.status === 'done') {
-    const done = bs.filter(b => b.is_done);
-    txt = `✓ ${done.length}/${bs.length} สาขา · ${done.reduce((s, b) => s + (b.devices_done || 0), 0)} เครื่อง` +
-      (r.version_installed ? ` · <span class="mono">${escHtml(r.version_installed)}</span>` : '');
-  } else {
-    txt = `${bs.length} สาขา · ${bs.reduce((s, b) => s + (b.devices_planned || 0), 0)} เครื่อง`;
-  }
-  return `<div class="svc-meta" title="${escHtml(tip)}">${txt}</div>`;
 }
 
 function swuToggleGroup(g) {
@@ -25356,184 +25369,22 @@ function swuToggleGroup(g) {
   renderSwUpdate();
 }
 
-// ── สาขา / จำนวนเครื่อง ในฟอร์ม — แก้ที่ _swuBranches แล้ว render ใหม่เฉพาะตอนเพิ่ม/ลบแถว (พิมพ์อยู่จะได้ไม่หลุดโฟกัส) ──
-let _swuBranches = [];        // [{registration_id, branch_name, devices_planned, devices_done, is_done}]
-let _swuBranchOpts = [];      // [{RegistrationId, CompanyName}] สาขาในกลุ่ม License เดียวกับร้านที่เลือก
-let _swuWasDone = false;      // งานนี้ปิดไปแล้วก่อนเปิดฟอร์ม (ไม่ต้องเติมค่าเริ่มต้นตอนปิดงานซ้ำ)
+// ════════ ฟอร์มแจ้งงาน: ร้านที่แจ้ง → ระบบดึง HQ + ทุกสาขาในกลุ่มให้เลือก ════════
+let _swuPick = [];          // [{RegistrationId, CompanyName, on}]
+let _swuPickGroup = null;   // {id, name} | null
+let _swuPickOpenJob = null; // งานของกลุ่มนี้ที่ยังเปิดอยู่
 
-function swuRenderBranches() {
-  const list = document.getElementById('swu-branch-list');
-  if (!list) return;
-  list.innerHTML = _swuBranches.map((b, i) => `
-    <div class="swu-br-row">
-      <span class="swu-br-done"><input type="checkbox" ${b.is_done ? 'checked' : ''} onchange="swuBranchSet(${i},'is_done',this.checked)" style="cursor:pointer;width:16px;height:16px"></span>
-      <input type="text" list="swu-branch-options" value="${escHtml(b.branch_name || '')}" placeholder="ชื่อสาขา เช่น สาขาบางแสน" oninput="swuBranchSet(${i},'branch_name',this.value)">
-      <input type="number" min="0" step="1" value="${b.devices_planned ?? ''}" placeholder="0" oninput="swuBranchSet(${i},'devices_planned',this.value)">
-      <span class="swu-br-done"><input type="number" min="0" step="1" value="${b.devices_done ?? ''}" placeholder="0" ${b.is_done ? '' : 'disabled'} data-done-input="${i}" oninput="swuBranchSet(${i},'devices_done',this.value)"></span>
-      <button type="button" class="swu-br-del" onclick="swuRemoveBranch(${i})" title="ลบสาขา" aria-label="ลบสาขา">×</button>
-    </div>`).join('') ||
-    `<div style="font-size:.76rem;color:#a3a7ad;padding:.2rem 0">ยังไม่มีสาขา — กด "+ เพิ่มสาขา"</div>`;
-  swuBranchSummary();
-}
-
-function swuBranchSet(i, key, val) {
-  const b = _swuBranches[i];
-  if (!b) return;
-  if (key === 'branch_name') {
-    b.branch_name = val;
-    const opt = _swuBranchOpts.find(o => o.CompanyName === val.trim());
-    b.registration_id = opt ? opt.RegistrationId : null;
-  } else if (key === 'is_done') {
-    b.is_done = val;
-    if (val && b.devices_done == null) b.devices_done = b.devices_planned;
-    const inp = document.querySelector(`[data-done-input="${i}"]`);
-    if (inp) { inp.disabled = !val; inp.value = b.devices_done ?? ''; }
-  } else {
-    b[key] = val === '' ? null : Math.max(0, parseInt(val) || 0);
-  }
-  swuBranchSummary();
-}
-
-function swuBranchSummary() {
-  const el = document.getElementById('swu-branches-sum');
-  if (!el) return;
-  const named = _swuBranches.filter(b => (b.branch_name || '').trim());
-  const planned = named.reduce((s, b) => s + (b.devices_planned || 0), 0);
-  const closing = document.getElementById('swu-branches-section')?.classList.contains('closing');
-  if (closing) {
-    const done = named.filter(b => b.is_done);
-    el.textContent = `สำเร็จ ${done.length}/${named.length} สาขา · ${done.reduce((s, b) => s + (b.devices_done || 0), 0)}/${planned} เครื่อง`;
-  } else {
-    el.textContent = named.length ? `รวม ${named.length} สาขา · ${planned} เครื่อง` : '';
-  }
-  const allBtn = document.getElementById('swu-add-all-branches');
-  if (allBtn) {
-    const missing = _swuBranchOpts.filter(o => !_swuBranches.some(b => b.registration_id === o.RegistrationId)).length;
-    allBtn.style.display = _swuBranchOpts.length > 1 && missing ? '' : 'none';
-    allBtn.textContent = `+ เพิ่มทุกสาขาในกลุ่ม (${missing})`;
-  }
-}
-
-function swuAddBranch() {
-  const closing = document.getElementById('swu-branches-section')?.classList.contains('closing');
-  _swuBranches.push({ registration_id: null, branch_name: '', devices_planned: null, devices_done: null, is_done: !!closing });
-  swuRenderBranches();
-  document.querySelector('#swu-branch-list .swu-br-row:last-child input[type=text]')?.focus();
-}
-
-function swuAddAllBranches() {
-  const closing = document.getElementById('swu-branches-section')?.classList.contains('closing');
-  _swuBranches = _swuBranches.filter(b => (b.branch_name || '').trim());   // ทิ้งแถวว่าง
-  _swuBranchOpts.forEach(o => {
-    if (_swuBranches.some(b => b.registration_id === o.RegistrationId)) return;
-    _swuBranches.push({ registration_id: o.RegistrationId, branch_name: o.CompanyName, devices_planned: null, devices_done: null, is_done: !!closing });
-  });
-  swuRenderBranches();
-}
-
-function swuRemoveBranch(i) {
-  _swuBranches.splice(i, 1);
-  swuRenderBranches();
-}
-
-// โหลดรายชื่อสาขาในกลุ่ม License ของร้านที่เลือก → ใช้เป็นตัวเลือกในช่องชื่อสาขา
-async function swuLoadBranchOptions(rid) {
-  _swuBranchOpts = [];
-  const dl = document.getElementById('swu-branch-options');
-  if (dl) dl.innerHTML = '';
-  if (rid) {
-    const rows = await api(`/api/sw-update/branch-options?rid=${rid}`, { silent: true });
-    _swuBranchOpts = Array.isArray(rows) ? rows : [];
-    if (dl) dl.innerHTML = _swuBranchOpts.map(o => `<option value="${escHtml(o.CompanyName)}"></option>`).join('');
-  }
-  swuBranchSummary();
-}
-
-// เลือกร้านใหม่ในฟอร์มแจ้งงาน → ใส่ร้านนั้นเป็นสาขาแรกให้ (ถ้ายังไม่ได้กรอกสาขาเอง)
-function swuSeedBranchFromShop(rid, name) {
-  const filled = _swuBranches.filter(b => (b.branch_name || '').trim());
-  if (!filled.length && name) {
-    _swuBranches = [{ registration_id: rid || null, branch_name: name, devices_planned: null, devices_done: null, is_done: false }];
-    swuRenderBranches();
-  }
-  swuLoadBranchOptions(rid);
-}
-
-// โหมดปิดงาน: โชว์คอลัมน์ ทำจริง/สำเร็จ, เติมค่าเริ่มต้น (ทุกสาขาทำเสร็จตามแผน) ตอนเพิ่งเปลี่ยนเป็นเสร็จ
-function swuSetClosingMode(on) {
-  const sec = document.getElementById('swu-branches-section');
-  if (!sec) return;
-  const was = sec.classList.contains('closing');
-  sec.classList.toggle('closing', on);
-  document.getElementById('swu-branches-label').innerHTML = on
-    ? 'สาขาที่ดำเนินการจริง / จำนวนเครื่องที่อัปเดตสำเร็จ <span style="color:#b04a40">*</span>'
-    : 'สาขาที่ต้องอัพเดท / จำนวนเครื่อง <span style="color:#b04a40">*</span>';
-  if (on && !was && !_swuWasDone) {
-    _swuBranches.forEach(b => {
-      if (!b.is_done) { b.is_done = true; if (b.devices_done == null) b.devices_done = b.devices_planned; }
-    });
-    if (!_swuBranches.length) swuAddBranch();
-  }
-  swuRenderBranches();
-}
-
-// KPI งานอัพเดทรายคน (งาน / สาขา / เครื่อง) ตามเดือน
-async function openSwuKpi() {
-  const inp = document.getElementById('swu-kpi-month');
-  if (inp && !inp.value) inp.value = new Date().toISOString().slice(0, 7);
-  openModal('modal-swu-kpi');
-  await loadSwuKpi();
-}
-
-async function loadSwuKpi() {
-  const month = document.getElementById('swu-kpi-month')?.value || '';
-  const body = document.getElementById('swu-kpi-body');
-  if (!body) return;
-  body.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:1.5rem">กำลังโหลด…</td></tr>`;
-  const r = await api(`/api/sw-update/kpi?month=${encodeURIComponent(month)}`, { silent: true });
-  const rows = r?.rows || [];
-  if (r?.error || !rows.length) {
-    body.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:1.5rem">${escHtml(r?.error || 'ยังไม่มีงานที่ปิดในเดือนนี้')}</td></tr>`;
-    return;
-  }
-  const num = v => `<td style="text-align:right;font-family:'IBM Plex Mono',monospace">${v || 0}</td>`;
-  body.innerHTML = rows.map(x => `<tr>
-    <td>${escHtml(x.name || '—')}</td>${num(x.jobs)}${num(x.branches)}${num(x.devices)}
-    <td style="font-size:.72rem;color:#86671f">${x.jobs_no_detail ? `${x.jobs_no_detail} งานไม่มีข้อมูลสาขา` : ''}</td>
-  </tr>`).join('');
-}
-
-function openSwUpdateForm(fuIssue = null) {
-  document.getElementById('swu-edit-id').value = '';
-  document.getElementById('swu-fu-issue-id').value = fuIssue?.id || '';
-
-  // Shop name: when coming from Follow Up, use folder_name (shop) then board_name as fallback (no dialog)
-  const fuShopName = fuIssue ? (fuIssue.folder_name || fuIssue.board_name || '') : '';
-  const companyInput = document.getElementById('swu-company');
-  const shopSelected = document.getElementById('swu-shop-selected');
-  companyInput.value = fuShopName;
+function openSwUpdateForm() {
+  document.getElementById('swu-company').value = '';
+  document.getElementById('swu-company').readOnly = false;
   document.getElementById('swu-registration-id').value = '';
   document.getElementById('swu-shop-results').style.display = 'none';
-  if (fuShopName) {
-    companyInput.readOnly = true;
-    companyInput.style.background = '#f0fdf4';
-    companyInput.style.color = '#15803d';
-    companyInput.style.fontWeight = '600';
-    shopSelected.innerHTML = `<span style="color:#0891b2;font-size:.72rem">ดึงจาก Follow Up อัตโนมัติ</span>`;
-  } else {
-    companyInput.readOnly = false;
-    companyInput.style.background = '';
-    companyInput.style.color = '';
-    companyInput.style.fontWeight = '';
-    shopSelected.textContent = '';
-  }
-
+  document.getElementById('swu-shop-selected').textContent = '';
   document.getElementById('swu-received-date').value = new Date().toISOString().slice(0,10);
   document.getElementById('swu-priority').value = 'normal';
-  document.getElementById('swu-status').value = 'pending';
-  document.getElementById('swu-description').value = fuIssue?.detail || fuIssue?.subject || '';
+  document.getElementById('swu-description').value = '';
   document.getElementById('swu-appointment-date').value = '';
-  document.getElementById('swu-azure-id').value = fuIssue?.issue_url || '';
+  document.getElementById('swu-azure-id').value = '';
   document.getElementById('swu-version').value = 'latest';  // default Latest
   document.getElementById('swu-version-custom').value = '';
   document.getElementById('swu-version-custom').style.display = 'none';
@@ -25544,186 +25395,105 @@ function openSwUpdateForm(fuIssue = null) {
     const me = _swuUsers.find(u => u.id === (currentUser?.id));
     if (me) sel.value = me.id;
   }
-  document.getElementById('modal-sw-update-form-title').textContent =
-    fuIssue ? `อัพเดท SW — FU #${fuIssue.id} ${fuShopName}` : 'แจ้งงานอัพเดท Software';
-  // Show FU link badge if linked
-  const fuBadge = document.getElementById('swu-fu-badge');
-  if (fuBadge) {
-    fuBadge.style.display = fuIssue ? '' : 'none';
-    fuBadge.innerHTML = fuIssue
-      ? `เชื่อมกับ Follow Up #${fuIssue.id}${fuShopName ? ` · <strong>${escHtml(fuShopName)}</strong>` : ''}`
-      : '';
-  }
-  _swuWasDone = false;
-  _swuBranches = fuShopName
-    ? [{ registration_id: null, branch_name: fuShopName, devices_planned: null, devices_done: null, is_done: false }]
-    : [];
-  document.getElementById('swu-version-installed').value = '';
-  swuLoadBranchOptions(null);
-  swuRenderAssigneeCheckboxes([]);
-  swuToggleAssigneesSection();
+  _swuPick = []; _swuPickGroup = null; _swuPickOpenJob = null;
+  swuRenderPick();
   openModal('modal-sw-update-form');
 }
 
-function openSwUpdateEdit(id) {
-  const r = _swuData.find(x => x.id === id);
-  if (!r) return;
-  openSwUpdateForm();
-  document.getElementById('swu-edit-id').value = id;
-  document.getElementById('swu-company').value = r.company_name || '';
-  document.getElementById('swu-registration-id').value = r.registration_id || '';
-  if (r.company_name) document.getElementById('swu-shop-selected').textContent = '✅ ' + r.company_name;
-  document.getElementById('swu-received-date').value = r.received_date ? r.received_date.slice(0,10) : '';
-  document.getElementById('swu-priority').value = r.priority || 'normal';
-  document.getElementById('swu-status').value = r.status || 'pending';
-  document.getElementById('swu-description').value = r.description || '';
-  document.getElementById('swu-appointment-date').value = r.appointment_date ? r.appointment_date.slice(0,10) : '';
-  document.getElementById('swu-azure-id').value = r.azure_id || '';
-  const ver = r.version_recommend || '';
-  const vsel = document.getElementById('swu-version');
-  const vCustom = document.getElementById('swu-version-custom');
-  if (!ver || ver === 'latest' || ver === 'stable') {
-    vsel.value = ver;
-    vCustom.style.display = 'none';
-  } else {
-    vsel.value = 'custom';
-    vCustom.style.display = '';
-    vCustom.value = ver;
+function swuRenderPick() {
+  const box = document.getElementById('swu-pick');
+  if (!box) return;
+  const info = document.getElementById('swu-pick-info');
+  if (!_swuPick.length) {
+    box.innerHTML = `<div style="font-size:.76rem;color:#a3a7ad;padding:.35rem 0">เลือกร้านที่แจ้งก่อน — ระบบจะดึง HQ และทุกสาขาในกลุ่มมาให้</div>`;
+    if (info) info.innerHTML = '';
+    return;
   }
-  if (document.getElementById('swu-reporter') && r.reported_by) {
-    document.getElementById('swu-reporter').value = r.reported_by;
-  }
-  document.getElementById('modal-sw-update-form-title').textContent = 'แก้ไขงาน #' + id;
-  // Preserve fu_issue_id if present
-  document.getElementById('swu-fu-issue-id').value = r.fu_issue_id || '';
-  const fuBadge = document.getElementById('swu-fu-badge');
-  if (fuBadge) {
-    fuBadge.style.display = r.fu_issue_id ? '' : 'none';
-    fuBadge.textContent   = r.fu_issue_id ? `เชื่อมกับ Follow Up #${r.fu_issue_id}` : '';
-  }
-  // สาขา / จำนวนเครื่อง / เวอร์ชันที่ลงจริง
-  _swuWasDone = r.status === 'done';
-  _swuBranches = (r.branches || []).map(b => ({ ...b, is_done: !!b.is_done }));
-  document.getElementById('swu-version-installed').value = r.version_installed || '';
-  swuLoadBranchOptions(r.registration_id);
-  // Load assignees checkboxes
-  const checkedIds = (r.assignees || []).map(a => a.user_id);
-  swuRenderAssigneeCheckboxes(checkedIds);
-  swuToggleAssigneesSection();
+  const on = _swuPick.filter(p => p.on).length;
+  const rid = parseInt(document.getElementById('swu-registration-id').value) || null;
+  box.innerHTML =
+    `<label class="swu-pick-row all"><input type="checkbox" id="swu-pick-all"> เลือกทั้งหมด <span style="font-weight:400;color:#6f747c">(${on}/${_swuPick.length})</span></label>` +
+    _swuPick.map((p, i) => `<label class="swu-pick-row"><input type="checkbox" ${p.on ? 'checked' : ''} onchange="_swuPick[${i}].on=this.checked;swuRenderPick()">
+      ${escHtml(p.CompanyName)}${swuIsHQ(p.CompanyName) ? ' <span class="swu-pill hq">HQ</span>' : ''}${p.RegistrationId === rid ? ' <span class="swu-pill rep">ร้านที่แจ้ง</span>' : ''}
+      ${p.last_total ? `<span style="margin-left:auto;font-size:.7rem;color:#8a8f97">${p.last_total} เครื่อง (ครั้งก่อน)</span>` : ''}</label>`).join('');
+  const all = document.getElementById('swu-pick-all');
+  all.checked = on === _swuPick.length;
+  all.indeterminate = on > 0 && on < _swuPick.length;
+  all.onchange = () => { _swuPick.forEach(p => p.on = all.checked); swuRenderPick(); };
+  if (info) info.innerHTML =
+    (_swuPickGroup ? `กลุ่ม License: <b>${escHtml(_swuPickGroup.name)}</b> · ` : 'ร้านเดี่ยว · ') + `ต้องอัพเดท ${on} แห่ง · จำนวนเครื่องกรอกตอนอัพเดทจริง` +
+    (_swuPickOpenJob ? `<div style="color:#86671f;margin-top:.2rem">⚠ กลุ่มนี้มีงาน #${_swuPickOpenJob} เปิดอยู่ — กดบันทึกแล้วระบบจะถามว่าจะเพิ่มปัญหานี้เข้างานเดิมไหม</div>` : '');
 }
 
-async function openSwUpdateDetail(id) {
-  openSwUpdateEdit(id);
-}
-
-function swuToggleAssigneesSection() {
-  const st = document.getElementById('swu-status')?.value;
-  const sec = document.getElementById('swu-assignees-section');
-  if (!sec) return;
-  sec.style.display = (st === 'done') ? '' : 'none';
-  if (st === 'done') {
-    let checked = swuGetCheckedAssignees();
-    if (!checked.length && !_swuWasDone && currentUser?.id) checked = [currentUser.id];   // ปิดงานเอง → ติ๊กตัวเองไว้ก่อน
-    swuRenderAssigneeCheckboxes(checked);
-    const vi = document.getElementById('swu-version-installed');
-    const vsel = document.getElementById('swu-version').value;
-    if (vi && !vi.value && vsel === 'custom') vi.value = document.getElementById('swu-version-custom').value.trim();
-  }
-  swuSetClosingMode(st === 'done');
-}
-
-function swuRenderAssigneeCheckboxes(checkedIds = []) {
-  const container = document.getElementById('swu-assignees-list');
-  if (!container || !_swuUsers.length) return;
-  container.innerHTML = _swuUsers.map(u => {
-    const uid = u.id;
-    const name = escHtml(u.nickname || u.name || u.username);
-    const checked = checkedIds.includes(uid) ? 'checked' : '';
-    return `<label style="display:flex;align-items:center;gap:.3rem;font-size:.8rem;cursor:pointer;white-space:nowrap">
-      <input type="checkbox" value="${uid}" ${checked} style="cursor:pointer" class="swu-assignee-cb">
-      ${name}
-    </label>`;
-  }).join('');
-}
-
-function swuGetCheckedAssignees() {
-  return Array.from(document.querySelectorAll('.swu-assignee-cb:checked'))
-    .map(cb => parseInt(cb.value));
+async function swuLoadPick(rid, name) {
+  _swuPick = [{ RegistrationId: rid, CompanyName: name, on: true }];
+  _swuPickGroup = null; _swuPickOpenJob = null;
+  swuRenderPick();
+  if (!rid) return;
+  const r = await api(`/api/sw-update/branch-options?rid=${rid}`, { silent: true });
+  if (!r || r.error || !Array.isArray(r.branches) || !r.branches.length) return;
+  _swuPickGroup = r.group; _swuPickOpenJob = r.open_job_id;
+  // HQ ขึ้นก่อน ตามด้วยชื่อสาขา
+  _swuPick = r.branches.map(b => ({ ...b, on: true }))
+    .sort((a, b) => swuIsHQ(b.CompanyName) - swuIsHQ(a.CompanyName) || a.CompanyName.localeCompare(b.CompanyName, 'th', { numeric: true }));
+  swuRenderPick();
 }
 
 async function saveSwUpdateForm() {
-  const editId    = document.getElementById('swu-edit-id').value;
-  const fuIssueId = parseInt(document.getElementById('swu-fu-issue-id').value) || null;
-  const company   = document.getElementById('swu-company').value.trim();
-  if (!company) { showToast('กรุณาระบุร้านค้า', 'error'); return; }
+  const company = document.getElementById('swu-company').value.trim();
+  const rid = parseInt(document.getElementById('swu-registration-id').value) || null;
+  const description = document.getElementById('swu-description').value.trim();
+  if (!company) { showToast('กรุณาระบุร้านที่แจ้งปัญหา', 'error'); return; }
+  if (!description) { showToast('กรุณาระบุรายละเอียดปัญหา', 'error'); return; }
+  // พิมพ์ชื่อร้านเองโดยไม่เลือกจากรายการ → ถือเป็นร้านเดียว
+  if (!_swuPick.length) _swuPick = [{ RegistrationId: null, CompanyName: company, on: true }];
+  const branches = _swuPick.filter(p => p.on).map(p => ({ registration_id: p.RegistrationId, branch_name: p.CompanyName }));
+  if (!branches.length) { showToast('กรุณาเลือกสาขาที่ต้องอัพเดทอย่างน้อย 1 แห่ง', 'error'); return; }
   const vsel = document.getElementById('swu-version').value;
   const version_recommend = vsel === 'custom'
     ? document.getElementById('swu-version-custom').value.trim() || null
     : vsel || null;
-  const newStatus = document.getElementById('swu-status').value || 'pending';
-  const branches = _swuBranches.filter(b => (b.branch_name || '').trim());
-  const versionInstalled = document.getElementById('swu-version-installed').value.trim();
-  const closingNow = newStatus === 'done' && !_swuWasDone;
-  if (!editId && !branches.length) { showToast('กรุณาระบุสาขาที่ต้องอัพเดทอย่างน้อย 1 สาขา', 'error'); return; }
-  if (!editId && branches.some(b => !(b.devices_planned > 0))) { showToast('กรุณาระบุจำนวนเครื่องของทุกสาขา', 'error'); return; }
-  if (closingNow) {
-    const done = branches.filter(b => b.is_done);
-    if (!done.length) { showToast('กรุณาติ๊กสาขาที่ดำเนินการจริงอย่างน้อย 1 สาขา', 'error'); return; }
-    if (done.some(b => !(b.devices_done > 0))) { showToast('กรุณาระบุจำนวนเครื่องที่อัปเดตสำเร็จของทุกสาขาที่ติ๊ก', 'error'); return; }
-    if (!versionInstalled) { showToast('กรุณาระบุเวอร์ชันที่อัปเดต', 'error'); return; }
-    if (!swuGetCheckedAssignees().length) { showToast('กรุณาเลือกผู้ดำเนินการอย่างน้อย 1 คน', 'error'); return; }
-  }
   const body = {
-    registration_id:  parseInt(document.getElementById('swu-registration-id').value) || null,
+    registration_id:  rid,
     company_name:     company,
     received_date:    document.getElementById('swu-received-date').value || null,
     appointment_date: document.getElementById('swu-appointment-date').value || null,
     priority:         document.getElementById('swu-priority').value || 'normal',
-    status:           newStatus,
-    description:      document.getElementById('swu-description').value.trim() || null,
+    description,
     azure_id:         document.getElementById('swu-azure-id').value.trim() || null,
     version_recommend,
     reported_by:      parseInt(document.getElementById('swu-reporter').value) || null,
-    fu_issue_id:      fuIssueId,
-    assignees:        newStatus === 'done' ? swuGetCheckedAssignees() : undefined,
     branches,
-    version_installed: newStatus === 'done' ? versionInstalled || null : undefined,
   };
-  try {
-    if (editId) {
-      const r = await api(`/api/sw-update/${editId}`, { method:'PUT', body, silent:true });
-      if (r?.error) { showToast('❌ ' + r.error, 'error'); return; }
-      showToast('แก้ไขงานแล้ว', 'success');
-      // If SW done and was linked to FU → auto-refresh FU list
-      if (newStatus === 'done' && r?.fu_issue_id) {
-        const fuIssue = _fuIssues.find(i => i.id === r.fu_issue_id);
-        if (fuIssue) { fuIssue.status = 'resolved'; fuRender(); fuLoadSidebarStats(); }
-        showToast('Follow Up #' + r.fu_issue_id + ' อัพเดทเป็น "แก้แล้ว" แล้ว', 'success');
-      }
-    } else {
-      const r = await api('/api/sw-update', { method:'POST', body, silent:true });
-      // Server returns 409 if a job already exists for this FU issue
-      if (r?.existing_id) {
-        closeModal('modal-sw-update-form');
-        showToast(`มีงานอัพเดท SW #${r.existing_id} สำหรับ Follow Up นี้อยู่แล้ว`, 'warning');
-        await loadSwUpdate();
-        openSwUpdateEdit(r.existing_id);
-        return;
-      }
-      if (r?.error) { showToast('❌ ' + r.error, 'error'); return; }
-      const fuMsg = fuIssueId ? ` (เชื่อม FU #${fuIssueId})` : '';
-      showToast('เพิ่มงานอัพเดท SW แล้ว' + fuMsg, 'success');
+  let r = await api('/api/sw-update', { method:'POST', body, silent:true });
+  if (r?.existing_id) {
+    if (confirm(`กลุ่มนี้มีงานอัพเดท #${r.existing_id} เปิดอยู่แล้ว\n\nเพิ่มปัญหานี้เข้างาน #${r.existing_id} เลยไหม? (ทุกสาขาจะลง patch เดียวกัน)\n\nกด "ยกเลิก" เพื่อเลือกเปิดงานใหม่แยก`)) {
+      const x = await api(`/api/sw-update/${r.existing_id}/issues`, { method:'POST', silent:true,
+        body: { description, azure_id: body.azure_id, registration_id: rid, branch_name: company, reported_by: body.reported_by } });
+      if (x?.error) { showToast('❌ ' + x.error, 'error'); return; }
+      showToast(`เพิ่มปัญหาเข้างาน #${r.existing_id} แล้ว`, 'success');
+      closeModal('modal-sw-update-form');
+      await loadSwUpdate();
+      openSwUpdateDetail(r.existing_id);
+      return;
     }
-    closeModal('modal-sw-update-form');
-    loadSwUpdate();
-    swuUpdateBadge();
-  } catch(e) { showToast('❌ ' + e.message, 'error'); }
+    if (!confirm('เปิดงานใหม่แยกจากงานเดิม?')) return;
+    r = await api('/api/sw-update', { method:'POST', body: { ...body, force_new: true }, silent:true });
+  }
+  if (!r || r.error) { showToast('❌ ' + (r?.error || 'บันทึกไม่สำเร็จ'), 'error'); return; }
+  showToast('แจ้งงานอัพเดท SW แล้ว', 'success');
+  closeModal('modal-sw-update-form');
+  await loadSwUpdate();
+  swuUpdateBadge();
+  openSwUpdateDetail(r.id);
 }
 
 async function deleteSwUpdate(id) {
   if (!confirm('ลบงานอัพเดท #' + id + '?')) return;
-  await api(`/api/sw-update/${id}`, { method:'DELETE', silent:true });
+  const r = await api(`/api/sw-update/${id}`, { method:'DELETE', silent:true });
+  if (r?.error) { showToast('❌ ' + r.error, 'error'); return; }
   showToast('ลบแล้ว');
+  if (_swuDetailId === id) closeModal('modal-swu-detail');
   loadSwUpdate();
   swuUpdateBadge();
 }
@@ -25738,6 +25508,7 @@ function swuShopSearch() {
     if (q.length < 2) { res.style.display = 'none'; return; }
     document.getElementById('swu-registration-id').value = '';
     document.getElementById('swu-shop-selected').textContent = '';
+    _swuPick = []; _swuPickGroup = null; _swuPickOpenJob = null; swuRenderPick();
     const data = await api(`/api/repair/search-shop?q=${encodeURIComponent(q)}`);
     if (!data || !data.length) { res.style.display = 'none'; return; }
     res.style.display = '';
@@ -25746,7 +25517,7 @@ function swuShopSearch() {
         style="padding:.4rem .65rem;cursor:pointer;font-size:.8rem;border-bottom:1px solid #f0eee9"
         onmouseover="this.style.background='#faf9f6'" onmouseout="this.style.background=''">
         <div style="font-weight:600">${escHtml(s.CompanyName)}</div>
-        ${s.BranchName ? `<span style="font-size:.72rem;color:var(--muted)">${escHtml(s.BranchName)}</span>` : ''}
+        ${s.GroupName && s.GroupId !== 1 ? `<span style="font-size:.72rem;color:var(--muted)">กลุ่ม ${escHtml(s.GroupName)}</span>` : ''}
       </div>`).join('');
     res.querySelectorAll('.rp-shop-item').forEach(el => {
       el.addEventListener('click', () => {
@@ -25754,7 +25525,7 @@ function swuShopSearch() {
         document.getElementById('swu-company').value = el.dataset.name;
         document.getElementById('swu-shop-selected').textContent = 'เลือกแล้ว: ' + el.dataset.name;
         res.style.display = 'none';
-        swuSeedBranchFromShop(parseInt(el.dataset.id) || null, el.dataset.name);
+        swuLoadPick(parseInt(el.dataset.id) || null, el.dataset.name);
       });
     });
   }, 300);
@@ -25764,6 +25535,238 @@ function swuVersionChange() {
   const v = document.getElementById('swu-version').value;
   const custom = document.getElementById('swu-version-custom');
   if (custom) custom.style.display = v === 'custom' ? '' : 'none';
+}
+
+// ════════ หน้างาน: ภาพรวม + ปัญหาที่แก้ + checklist สาขา ════════
+let _swuDetailId = null;
+let _swuBlockOpen = null;   // branch id ที่กำลังกรอก "อัพเดทไม่ได้"
+let _swuDetailOpts = [];    // สาขาในกลุ่ม (สำหรับ + เพิ่มสาขา)
+
+function openSwUpdateDetail(id) {
+  if (!_swuData.find(x => x.id === id)) return;
+  _swuDetailId = id; _swuBlockOpen = null; _swuDetailOpts = [];
+  swuRenderDetail();
+  openModal('modal-swu-detail');
+  const j = _swuData.find(x => x.id === id);
+  if (j?.registration_id) api(`/api/sw-update/branch-options?rid=${j.registration_id}`, { silent: true })
+    .then(r => { _swuDetailOpts = r?.branches || []; const dl = document.getElementById('swu-d-branch-opts');
+      if (dl) dl.innerHTML = _swuDetailOpts.map(o => `<option value="${escHtml(o.CompanyName)}"></option>`).join(''); });
+}
+const openSwUpdateEdit = openSwUpdateDetail;
+
+async function swuAct(promise, okMsg) {
+  const r = await promise;
+  if (r?.error) { showToast('❌ ' + r.error, 'error'); return false; }
+  if (okMsg) showToast(okMsg, 'success');
+  await loadSwUpdate();
+  swuUpdateBadge();
+  return true;
+}
+
+function swuRenderDetail() {
+  const j = _swuData.find(x => x.id === _swuDetailId);
+  const el = document.getElementById('swu-detail-body');
+  if (!j || !el) return;
+  const closed = ['done', 'cancelled'].includes(j.status);
+  const s = swuStats(j);
+  const st = SWU_STATUS[j.status] || SWU_STATUS.pending;
+  const me = currentUser?.id, mgr = swuIsManager();
+  const fmt = v => v ? new Date(v).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }) : '';
+  const fmtT = v => v ? new Date(v).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+  const ver = j.version_recommend || '';
+  const verOpt = ['latest', 'stable'].includes(ver) || !ver ? ver : 'custom';
+
+  document.getElementById('swu-detail-title').innerHTML =
+    `<div class="swu-kick">งานอัพเดท #${j.id}${j.license_group ? ' · กลุ่ม License' : ''}</div>${escHtml(j.license_group || j.company_name || '—')}`;
+
+  const issues = (j.issues || []).map((it, i) => `
+    <div class="swu-iss-r">
+      <span class="swu-iss-n">${i + 1}</span>
+      <div style="min-width:0">${escHtml(it.description || '—')}
+        <div class="swu-note">แจ้งจาก <b>${escHtml(it.branch_name || '—')}</b> · ${escHtml(it.reporter_name || '—')} · ${fmt(it.created_at)}</div></div>
+      <div style="display:flex;gap:.3rem;align-items:center">
+        ${it.azure_id ? (it.azure_id.startsWith('http')
+          ? `<a class="mono swu-note" href="${escHtml(it.azure_id)}" target="_blank" rel="noopener">Azure ${escHtml((it.azure_id.match(/\/(\d+)\/?$/) || [, 'link'])[1])}</a>`
+          : `<span class="mono swu-note">Azure ${escHtml(it.azure_id)}</span>`) : ''}
+        ${!closed && (j.issues.length > 1) && (it.created_by === me || mgr) ? `<button class="swu-x" title="ลบปัญหานี้" onclick="swuDelIssue(${it.id})">×</button>` : ''}
+      </div>
+    </div>`).join('') || '<div class="swu-note" style="padding:.5rem .7rem">—</div>';
+
+  const sorted = [...(j.branches || [])].sort((a, c) =>
+    swuIsHQ(c.branch_name) - swuIsHQ(a.branch_name) || a.branch_name.localeCompare(c.branch_name, 'th', { numeric: true }));
+  const rows = sorted.map(b => {
+    const done = b.devices_done || 0, total = b.devices_planned;
+    const remain = total == null ? null : Math.max(0, total - done);
+    const pill = b.status === 'done' ? '<span class="swu-pill ok">✓ ครบ</span>'
+      : b.status === 'blocked' ? '<span class="swu-pill bad">อัพเดทไม่ได้</span>'
+      : done ? '<span class="swu-pill part">บางส่วน</span>' : '<span class="swu-pill no">ยังไม่ทำ</span>';
+    const byUser = {};
+    (b.logs || []).forEach(l => { (byUser[l.user_id] = byUser[l.user_id] || { name: l.name, n: 0, logs: [] }).n += l.devices; byUser[l.user_id].logs.push(l); });
+    const who = Object.entries(byUser).map(([uid, u]) => {
+      const canDel = !closed && (+uid === me || mgr);
+      const last = u.logs[u.logs.length - 1];
+      return `<span class="swu-who" title="${escHtml(u.logs.map(l => `${l.devices} เครื่อง · ${fmtT(l.created_at)}`).join('\n'))}">🔒 ${escHtml(u.name || '—')} ${u.n}${canDel ? `<button class="swu-x" title="ยกเลิกรายการล่าสุด (${last.devices} เครื่อง)" onclick="swuDelLog(${last.id})">×</button>` : ''}</span>`;
+    }).join('') || '<span class="swu-note">—</span>';
+    let act = '<span class="swu-note">—</span>';
+    if (!closed && b.status === 'blocked') {
+      act = `<button class="btn btn-ghost swu-btn-s" onclick="swuUnblock(${b.id})">ยกเลิก "อัพเดทไม่ได้"</button>`;
+    } else if (!closed && b.status !== 'done') {
+      const noTotal = !(total > 0);
+      act = `<div class="swu-rec">
+        <input type="number" min="1" id="swu-add-${b.id}" value="${remain || ''}" placeholder="0" ${noTotal ? 'disabled title="ใส่จำนวนทั้งหมดก่อน"' : ''} onkeydown="if(event.key==='Enter')swuLog(${b.id})">
+        <button class="btn btn-primary swu-btn-s" ${noTotal ? 'disabled' : ''} onclick="swuLog(${b.id})" title="บันทึกว่าคุณอัพเดทแล้ว">✓</button>
+        <button class="btn btn-ghost swu-btn-s" onclick="swuToggleBlock(${b.id})" title="อัพเดทไม่ได้ (ระบุเหตุผล)">ไม่ได้</button>
+        ${!done ? `<button class="swu-x" title="เอาสาขานี้ออก" onclick="swuDelBranch(${b.id})">×</button>` : ''}
+      </div>`;
+    }
+    const blockInfo = b.status === 'blocked'
+      ? `<tr class="swu-sub"><td colspan="6"><span style="color:#a2562f">⚠ ${escHtml(b.block_reason || '')}</span> — ${escHtml(b.block_note || '')} <span class="swu-note">· ${escHtml(b.blocked_by_name || '')} ${fmtT(b.blocked_at)}</span></td></tr>` : '';
+    const blockForm = _swuBlockOpen === b.id
+      ? `<tr class="swu-sub"><td colspan="6"><div class="swu-block-form">
+          <b style="font-size:.76rem">อัพเดทไม่ได้ — ${escHtml(b.branch_name)}</b>
+          <select class="swu-in" id="swu-blk-r-${b.id}"><option value="">— เลือกเหตุผล —</option>${SWU_BLOCK_REASONS.map(x => `<option>${escHtml(x)}</option>`).join('')}</select>
+          <input class="swu-in" id="swu-blk-n-${b.id}" placeholder="หมายเหตุ (จำเป็น) เช่น ร้านแจ้งปิดปรับปรุงถึง 30 ต.ค." style="flex:1;min-width:180px">
+          <button class="btn btn-primary swu-btn-s" onclick="swuBlock(${b.id})">บันทึก</button>
+          <button class="btn btn-ghost swu-btn-s" onclick="swuToggleBlock(${b.id})">ยกเลิก</button>
+        </div></td></tr>` : '';
+    return `<tr class="${b.status === 'done' ? 'done' : b.status === 'blocked' ? 'blocked' : ''}">
+      <td>${escHtml(b.branch_name)}${swuIsHQ(b.branch_name) ? ' <span class="swu-pill hq">HQ</span>' : ''} ${pill}
+        ${total ? `<div class="swu-mini"><i style="width:${Math.min(100, done / total * 100)}%"></i></div>` : ''}</td>
+      <td class="r"><input type="number" min="1" class="swu-tot" value="${total ?? ''}" placeholder="?" ${closed ? 'disabled' : ''} onchange="swuSetTotal(${b.id}, this.value)"></td>
+      <td class="r swu-num" style="color:var(--primary-dk)">${done}</td>
+      <td class="r swu-num" style="color:${remain ? '#b04a40' : '#3f7a5a'}">${remain == null ? '<span class="swu-note">?</span>' : b.status === 'blocked' ? '<span class="swu-note">–</span>' : remain}</td>
+      <td>${who}</td>
+      <td>${act}</td>
+    </tr>${blockInfo}${blockForm}`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="swu-note" style="margin:-.35rem 0 .6rem">ร้านที่แจ้ง ${escHtml(j.company_name || '—')} · เปิดโดย ${escHtml(j.reporter_name || '—')} ${fmt(j.created_at)}</div>
+    <div class="swu-hdr-grid">
+      <div><label>สถานะ</label><select class="swu-in" ${j.status === 'done' && !mgr ? 'disabled' : ''} onchange="swuSetField('status', this.value)">
+        ${Object.entries(SWU_STATUS).map(([k, v]) => `<option value="${k}" ${k === j.status ? 'selected' : ''}>${v.label}</option>`).join('')}</select></div>
+      <div><label>วันนัด</label><input type="date" class="swu-in" value="${j.appointment_date ? j.appointment_date.slice(0, 10) : ''}" ${closed ? 'disabled' : ''} onchange="swuSetField('appointment_date', this.value)"></div>
+      <div><label>เวอร์ชัน (patch)</label><div style="display:flex;gap:.3rem">
+        <select class="swu-in" ${closed ? 'disabled' : ''} onchange="this.value==='custom' ? (this.nextElementSibling.style.display='', this.nextElementSibling.focus()) : swuSetField('version_recommend', this.value)">
+          <option value="" ${!verOpt ? 'selected' : ''}>—</option><option value="latest" ${verOpt === 'latest' ? 'selected' : ''}>Latest</option>
+          <option value="stable" ${verOpt === 'stable' ? 'selected' : ''}>Stable</option><option value="custom" ${verOpt === 'custom' ? 'selected' : ''}>ระบุเอง</option></select>
+        <input class="swu-in mono" style="${verOpt === 'custom' ? '' : 'display:none'}" value="${verOpt === 'custom' ? escHtml(ver) : ''}" placeholder="v3.2.1" ${closed ? 'disabled' : ''} onchange="swuSetField('version_recommend', this.value.trim())"></div></div>
+      <div><label>ความสำคัญ</label><select class="swu-in" ${closed ? 'disabled' : ''} onchange="swuSetField('priority', this.value)">
+        ${Object.entries(SWU_PRIORITY).map(([k, v]) => `<option value="${k}" ${k === j.priority ? 'selected' : ''}>${v.label}</option>`).join('')}</select></div>
+    </div>
+
+    <div class="swu-tiles">
+      <div class="swu-tile"><div class="v">${s.done}/${s.n}</div><div class="k">สาขาครบ${s.blocked ? ` · ไม่ได้ ${s.blocked}` : ''}</div></div>
+      <div class="swu-tile"><div class="v">${s.total}${s.unknown ? '<small>+?</small>' : ''}</div><div class="k">เครื่องทั้งหมด</div></div>
+      <div class="swu-tile"><div class="v" style="color:#3f7a5a">${s.ok}</div><div class="k">สำเร็จ</div></div>
+      <div class="swu-tile"><div class="v" style="color:#b04a40">${s.remain}${s.unknown ? '<small>+?</small>' : ''}</div><div class="k">ค้าง${s.blockedLeft ? ` · อัพเดทไม่ได้ ${s.blockedLeft}` : ''}</div></div>
+    </div>
+    <div class="swu-prog"><i style="width:${s.total ? s.ok / s.total * 100 : 0}%"></i></div>
+
+    <div class="swu-sec-t"><span>ปัญหาที่แก้ในรอบนี้ (${(j.issues || []).length})</span>
+      ${closed ? '' : `<button class="btn btn-ghost swu-btn-s" onclick="document.getElementById('swu-iss-form').style.display='flex'">+ เพิ่มปัญหา</button>`}</div>
+    <div class="swu-iss">${issues}</div>
+    <div id="swu-iss-form" class="swu-block-form" style="display:none;margin-top:.4rem">
+      <input class="swu-in" id="swu-iss-desc" placeholder="รายละเอียดปัญหา" style="flex:2;min-width:200px">
+      <input class="swu-in" id="swu-iss-branch" list="swu-d-branch-opts" placeholder="แจ้งจากสาขา" style="flex:1;min-width:140px">
+      <input class="swu-in mono" id="swu-iss-az" placeholder="Azure (ถ้ามี)" style="width:120px">
+      <button class="btn btn-primary swu-btn-s" onclick="swuAddIssue()">เพิ่ม</button>
+    </div>
+
+    <div class="swu-sec-t"><span>Checklist สาขา</span>
+      ${closed ? '' : `<span style="display:flex;gap:.3rem"><input class="swu-in" id="swu-add-branch" list="swu-d-branch-opts" placeholder="ชื่อสาขา" style="width:170px"><button class="btn btn-ghost swu-btn-s" onclick="swuAddBranch()">+ เพิ่มสาขา</button></span>`}</div>
+    <datalist id="swu-d-branch-opts">${_swuDetailOpts.map(o => `<option value="${escHtml(o.CompanyName)}"></option>`).join('')}</datalist>
+    <div class="tbl-wrap"><table class="swu-cl">
+      <thead><tr><th>สาขา</th><th class="r">ทั้งหมด</th><th class="r">สำเร็จ</th><th class="r">ค้าง</th><th>คนทำ</th><th class="r">ทำเพิ่ม</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="6" class="swu-note" style="text-align:center;padding:1rem">ยังไม่มีสาขา</td></tr>'}</tbody>
+    </table></div>
+    <div class="swu-note" style="margin-top:.35rem">ใส่จำนวนเครื่องแล้วกด ✓ — ชื่อคนทำคือคนที่กด (ล็อก) · ทำไม่หมดก็แก้ตัวเลข แล้วค่อยบันทึกเพิ่มทีหลังได้ · "ไม่ได้" = อัพเดทสาขานี้ไม่ได้ (ระบุเหตุผล + หมายเหตุ)</div>
+    ${!closed && s.ready ? `<div class="swu-banner"><span>✓ ครบทุกสาขาแล้ว — สำเร็จ ${s.ok}/${s.total} เครื่อง${s.blocked ? ` · อัพเดทไม่ได้ ${s.blocked} สาขา` : ''}</span><button class="btn btn-primary" onclick="swuSetField('status','done')">ปิดงาน</button></div>` : ''}
+    ${j.status === 'done' ? `<div class="swu-banner">✓ ปิดงานแล้ว${j.version_installed ? ` · ลงเวอร์ชัน <span class="mono">${escHtml(j.version_installed)}</span>` : ''}</div>` : ''}`;
+}
+
+async function swuSetField(key, val) {
+  if (key === 'status' && val === 'done' && !confirm('ปิดงานนี้?')) { swuRenderDetail(); return; }
+  const ok = await swuAct(api(`/api/sw-update/${_swuDetailId}`, { method: 'PUT', body: { [key]: val || null }, silent: true }),
+    key === 'status' && val === 'done' ? 'ปิดงานแล้ว' : 'บันทึกแล้ว');
+  if (!ok) swuRenderDetail();
+}
+async function swuSetTotal(bid, v) {
+  if (!await swuAct(api(`/api/sw-update/branches/${bid}`, { method: 'PUT', body: { total: v }, silent: true }))) swuRenderDetail();
+}
+function swuLog(bid) {
+  const n = parseInt(document.getElementById('swu-add-' + bid)?.value);
+  if (!(n > 0)) { showToast('ใส่จำนวนเครื่องที่อัพเดทสำเร็จ', 'error'); return; }
+  swuAct(api(`/api/sw-update/branches/${bid}/log`, { method: 'POST', body: { devices: n }, silent: true }), `บันทึก ${n} เครื่องแล้ว`);
+}
+function swuDelLog(lid) {
+  if (!confirm('ยกเลิกรายการที่บันทึกนี้?')) return;
+  swuAct(api(`/api/sw-update/logs/${lid}`, { method: 'DELETE', silent: true }), 'ยกเลิกแล้ว');
+}
+function swuToggleBlock(bid) { _swuBlockOpen = _swuBlockOpen === bid ? null : bid; swuRenderDetail(); }
+async function swuBlock(bid) {
+  const reason = document.getElementById('swu-blk-r-' + bid)?.value;
+  const note = document.getElementById('swu-blk-n-' + bid)?.value.trim();
+  if (!reason) { showToast('กรุณาเลือกเหตุผล', 'error'); return; }
+  if (!note) { showToast('กรุณาระบุหมายเหตุ', 'error'); return; }
+  _swuBlockOpen = null;
+  await swuAct(api(`/api/sw-update/branches/${bid}/block`, { method: 'POST', body: { reason, note }, silent: true }), 'บันทึกแล้ว');
+}
+function swuUnblock(bid) {
+  if (!confirm('ยกเลิกสถานะ "อัพเดทไม่ได้" ของสาขานี้?')) return;
+  swuAct(api(`/api/sw-update/branches/${bid}/block`, { method: 'DELETE', silent: true }));
+}
+function swuDelBranch(bid) {
+  if (!confirm('เอาสาขานี้ออกจากงาน?')) return;
+  swuAct(api(`/api/sw-update/branches/${bid}`, { method: 'DELETE', silent: true }));
+}
+function swuAddBranch() {
+  const name = document.getElementById('swu-add-branch')?.value.trim();
+  if (!name) return;
+  const opt = _swuDetailOpts.find(o => o.CompanyName === name);
+  swuAct(api(`/api/sw-update/${_swuDetailId}/branches`, { method: 'POST', body: { branch_name: name, registration_id: opt?.RegistrationId || null }, silent: true }), 'เพิ่มสาขาแล้ว');
+}
+function swuAddIssue() {
+  const description = document.getElementById('swu-iss-desc')?.value.trim();
+  const branch_name = document.getElementById('swu-iss-branch')?.value.trim();
+  if (!description) { showToast('กรุณาระบุรายละเอียดปัญหา', 'error'); return; }
+  const opt = _swuDetailOpts.find(o => o.CompanyName === branch_name);
+  swuAct(api(`/api/sw-update/${_swuDetailId}/issues`, { method: 'POST', silent: true,
+    body: { description, branch_name: branch_name || null, registration_id: opt?.RegistrationId || null, azure_id: document.getElementById('swu-iss-az')?.value.trim() || null } }), 'เพิ่มปัญหาแล้ว');
+}
+function swuDelIssue(iid) {
+  if (!confirm('ลบปัญหานี้ออกจากงาน?')) return;
+  swuAct(api(`/api/sw-update/issues/${iid}`, { method: 'DELETE', silent: true }), 'ลบแล้ว');
+}
+
+// KPI งานอัพเดทรายคน (งาน / สาขา / เครื่อง) ตามเดือน — นับจากวันที่กด ✓ จริง
+async function openSwuKpi() {
+  const inp = document.getElementById('swu-kpi-month');
+  if (inp && !inp.value) inp.value = new Date().toISOString().slice(0, 7);
+  openModal('modal-swu-kpi');
+  await loadSwuKpi();
+}
+
+async function loadSwuKpi() {
+  const month = document.getElementById('swu-kpi-month')?.value || '';
+  const body = document.getElementById('swu-kpi-body');
+  if (!body) return;
+  body.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:1.5rem">กำลังโหลด…</td></tr>`;
+  const r = await api(`/api/sw-update/kpi?month=${encodeURIComponent(month)}`, { silent: true });
+  const rows = r?.rows || [];
+  if (r?.error || !rows.length) {
+    body.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:1.5rem">${escHtml(r?.error || 'ยังไม่มีการบันทึกในเดือนนี้')}</td></tr>`;
+    return;
+  }
+  const num = v => `<td style="text-align:right;font-family:'IBM Plex Mono',monospace">${v || 0}</td>`;
+  const fmtT = v => new Date(v).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  body.innerHTML = rows.map((x, i) => `<tr style="cursor:pointer" onclick="document.getElementById('swu-kpi-d${i}').style.display=document.getElementById('swu-kpi-d${i}').style.display?'':'none'">
+      <td>▸ ${escHtml(x.name || '—')}</td>${num(x.jobs)}${num(x.branches)}${num(x.devices)}</tr>
+    <tr id="swu-kpi-d${i}" style="display:none"><td colspan="4" style="background:#faf9f6;font-size:.76rem">
+      ${(x.items || []).map(d => `<div style="display:flex;gap:.6rem;padding:.12rem 0"><span class="mono" style="color:#6f747c">#${d.job_id}</span>
+        <span style="flex:1">${escHtml(d.license_group || d.company_name || '')} · ${escHtml(d.branch_name)}</span>
+        <span class="mono">${d.devices} เครื่อง</span><span style="color:#8a8f97">${fmtT(d.created_at)}</span></div>`).join('')}
+    </td></tr>`).join('');
 }
 
 async function swuUpdateBadge() {
@@ -27702,15 +27705,10 @@ async function generateFromPattern() {
       <div id="modal-sw-update-form-title" style="font-size:1.08rem;font-weight:600;letter-spacing:-.005em">แจ้งงานอัพเดท Software</div>
       <button class="modal-close" onclick="closeModal('modal-sw-update-form')">×</button>
     </div>
-    <input type="hidden" id="swu-edit-id"/>
-    <input type="hidden" id="swu-fu-issue-id"/>
 
-    <!-- FU link badge -->
-    <div id="swu-fu-badge" style="display:none;font-size:.75rem;font-weight:600;color:#2f6f73;background:#e5f0f0;border:1px solid #a5f3fc;border-radius:7px;padding:.3rem .7rem;margin-bottom:.6rem"></div>
-
-    <!-- ร้านค้า -->
+    <!-- ร้านที่แจ้ง -->
     <div style="position:relative;margin-bottom:.6rem">
-      <label style="font-size:.75rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.25rem">ร้านค้า <span style="color:#b04a40">*</span></label>
+      <label style="font-size:.75rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.25rem">ร้านที่แจ้งปัญหา <span style="color:#b04a40">*</span></label>
       <input id="swu-company" type="text" placeholder="พิมพ์ชื่อร้านเพื่อค้นหา..." oninput="swuShopSearch()" autocomplete="off"
         style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.38rem .65rem;font-size:.83rem;outline:none"/>
       <div id="swu-shop-results" style="position:absolute;z-index:200;background:#fff;border:1px solid var(--border);border-radius:8px;max-height:180px;overflow-y:auto;width:100%;display:none;box-shadow:0 4px 12px #0002"></div>
@@ -27718,32 +27716,50 @@ async function generateFromPattern() {
       <div id="swu-shop-selected" style="font-size:.75rem;color:#3f7a5a;margin-top:.15rem"></div>
     </div>
 
-    <!-- สาขา + จำนวนเครื่อง (ตอนปิดงาน: ติ๊กสาขาที่ทำจริง + จำนวนเครื่องที่สำเร็จ) -->
-    <div id="swu-branches-section" style="margin-bottom:.6rem;border:1px solid var(--border);border-radius:9px;padding:.55rem .65rem">
-      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.35rem">
-        <label id="swu-branches-label" style="font-size:.75rem;font-weight:600;color:#4d535b;flex:1">สาขาที่ต้องอัพเดท / จำนวนเครื่อง <span style="color:#b04a40">*</span></label>
-        <span id="swu-branches-sum" style="font-size:.72rem;color:#6f747c;font-family:'IBM Plex Mono',monospace"></span>
-      </div>
-      <div id="swu-branch-head" class="swu-br-row swu-br-head">
-        <span class="swu-br-done">ทำจริง</span><span>สาขา</span><span>เครื่อง (แผน)</span><span class="swu-br-done">สำเร็จ</span><span></span>
-      </div>
-      <div id="swu-branch-list"></div>
-      <datalist id="swu-branch-options"></datalist>
-      <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.4rem">
-        <button type="button" class="btn btn-ghost" style="font-size:.74rem;padding:.2rem .6rem" onclick="swuAddBranch()">+ เพิ่มสาขา</button>
-        <button type="button" id="swu-add-all-branches" class="btn btn-ghost" style="font-size:.74rem;padding:.2rem .6rem;display:none" onclick="swuAddAllBranches()"></button>
-      </div>
+    <!-- รายละเอียดของปัญหา -->
+    <div style="margin-bottom:.5rem">
+      <label style="font-size:.72rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.2rem">รายละเอียดปัญหา <span style="color:#b04a40">*</span></label>
+      <textarea id="swu-description" rows="3" placeholder="อธิบายปัญหา / เหตุผลที่ต้องอัพเดท..."
+        style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.35rem .6rem;font-size:.82rem;resize:vertical;font-family:inherit"></textarea>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.5rem">
-      <!-- วันที่รับแจ้ง -->
+      <div>
+        <label style="font-size:.72rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.2rem">เลข Issue ID ใน Azure</label>
+        <input id="swu-azure-id" type="text" placeholder="เช่น AB#1234 (ถ้ามี)"
+          style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem;font-family:monospace"/>
+      </div>
+      <div>
+        <label style="font-size:.72rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.2rem">เวอร์ชัน (patch) ที่ต้องลง</label>
+        <select id="swu-version" onchange="swuVersionChange()" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem;font-family:inherit">
+          <option value="">— เลือกเวอร์ชั่น —</option>
+          <option value="latest">ล่าสุด (Latest)</option>
+          <option value="stable">Stable</option>
+          <option value="custom">ระบุเอง</option>
+        </select>
+        <input id="swu-version-custom" type="text" placeholder="ระบุเวอร์ชั่นเอง เช่น v3.2.1"
+          style="display:none;margin-top:.35rem;width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem;font-family:monospace"/>
+      </div>
+    </div>
+
+    <!-- สาขาที่ต้องอัพเดท (ดึงจากกลุ่ม License) -->
+    <div style="margin-bottom:.6rem">
+      <label style="font-size:.72rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.2rem">ต้องอัพเดทที่ <span style="font-weight:400;color:#6f747c">— ดึงจากกลุ่ม License อัตโนมัติ ทุกแห่งต้องเป็น patch เดียวกัน</span></label>
+      <div id="swu-pick" class="swu-pick"></div>
+      <div id="swu-pick-info" style="font-size:.72rem;color:#6f747c;margin-top:.3rem"></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem;margin-bottom:.5rem">
       <div>
         <label style="font-size:.72rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.2rem">วันที่รับแจ้ง</label>
         <input id="swu-received-date" type="date" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem"/>
       </div>
-      <!-- ระดับความสำคัญ -->
       <div>
-        <label style="font-size:.72rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.2rem">ระดับความสำคัญ</label>
+        <label style="font-size:.72rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.2rem">วันนัด (ถ้ารู้แล้ว)</label>
+        <input id="swu-appointment-date" type="date" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem"/>
+      </div>
+      <div>
+        <label style="font-size:.72rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.2rem">ความสำคัญ</label>
         <select id="swu-priority" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem;font-family:inherit">
           <option value="urgent">เร่งด่วน</option>
           <option value="high">สูง</option>
@@ -27753,82 +27769,34 @@ async function generateFromPattern() {
       </div>
     </div>
 
-    <!-- สถานะ -->
-    <div style="margin-bottom:.5rem">
-      <label style="font-size:.72rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.2rem">สถานะ</label>
-      <select id="swu-status" onchange="swuToggleAssigneesSection()" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem;font-family:inherit">
-        <option value="pending" selected>รอดำเนินการ</option>
-        <option value="scheduling">กำลังนัดหมาย</option>
-        <option value="scheduled">นัดหมายแล้ว</option>
-        <option value="updating">กำลังอัพเดท</option>
-        <option value="done">เสร็จสิ้น</option>
-        <option value="cancelled">ยกเลิก</option>
-      </select>
-    </div>
-
-    <!-- รายละเอียดของปัญหา -->
-    <div style="margin-bottom:.5rem">
-      <label style="font-size:.72rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.2rem">รายละเอียดของปัญหา</label>
-      <textarea id="swu-description" rows="3" placeholder="อธิบายรายละเอียดของปัญหา / เหตุผลที่ต้องอัพเดท..."
-        style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.35rem .6rem;font-size:.82rem;resize:vertical;font-family:inherit"></textarea>
-    </div>
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.5rem">
-      <!-- วันที่นัดหมายลูกค้า -->
-      <div>
-        <label style="font-size:.72rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.2rem">วันที่นัดหมายลูกค้า</label>
-        <input id="swu-appointment-date" type="date" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem"/>
-      </div>
-      <!-- เลข Issue ID ใน Azure -->
-      <div>
-        <label style="font-size:.72rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.2rem">เลข Issue ID ใน Azure</label>
-        <input id="swu-azure-id" type="text" placeholder="เช่น AB#1234 (ถ้ามี)"
-          style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem;font-family:monospace"/>
-      </div>
-    </div>
-
-    <!-- เวอร์ชั่นที่แนะนำ -->
-    <div style="margin-bottom:.5rem">
-      <label style="font-size:.72rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.2rem">เวอร์ชั่นที่แนะนำ</label>
-      <select id="swu-version" onchange="swuVersionChange()" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem;font-family:inherit">
-        <option value="">— เลือกเวอร์ชั่น —</option>
-        <option value="latest">ล่าสุด (Latest)</option>
-        <option value="stable">Stable</option>
-        <option value="custom">ระบุเอง</option>
-      </select>
-      <input id="swu-version-custom" type="text" placeholder="ระบุเวอร์ชั่นเอง เช่น v3.2.1"
-        style="display:none;margin-top:.35rem;width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem;font-family:monospace"/>
-    </div>
-
-    <!-- ผู้แจ้งอัพเดท -->
-    <div style="margin-bottom:.6rem">
-      <label style="font-size:.72rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.2rem">ผู้แจ้งอัพเดท</label>
+    <div style="margin-bottom:.75rem">
+      <label style="font-size:.72rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.2rem">ผู้แจ้ง</label>
       <select id="swu-reporter" style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem;font-family:inherit">
         <option value="">— เลือกผู้แจ้ง —</option>
       </select>
     </div>
 
-    <!-- ผู้ดำเนินการ (แสดงเมื่อสถานะ = done) -->
-    <div id="swu-assignees-section" style="display:none;margin-bottom:.75rem;border:1px solid #c9dbd5;border-radius:9px;padding:.65rem .75rem;background:#eef4f1">
-      <div style="font-size:.8rem;font-weight:700;color:var(--primary-dk);margin-bottom:.15rem">สรุปหน้างาน (บังคับกรอกเมื่อปิดงาน)</div>
-      <div style="font-size:.72rem;color:#5d6b66;margin-bottom:.5rem">ติ๊กสาขาที่ทำจริงและจำนวนเครื่องที่สำเร็จในตารางสาขาด้านบน — ใช้คำนวณ KPI รายคน</div>
-      <label style="font-size:.72rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.2rem">เวอร์ชันที่อัปเดต <span style="color:#b04a40">*</span></label>
-      <input id="swu-version-installed" type="text" placeholder="เวอร์ชันที่ลงจริง เช่น v3.2.1"
-        style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.32rem .55rem;font-size:.82rem;font-family:monospace;margin-bottom:.6rem;background:#fff"/>
-      <label style="font-size:.72rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.35rem">ผู้ดำเนินการ (นับ KPI SW Update) <span style="color:#b04a40">*</span></label>
-      <div id="swu-assignees-list" style="display:flex;flex-wrap:wrap;gap:.35rem .75rem;max-height:160px;overflow-y:auto"></div>
-    </div>
-
     <div class="btn-group">
-      <button class="btn btn-primary" onclick="saveSwUpdateForm()">บันทึก</button>
+      <button class="btn btn-primary" onclick="saveSwUpdateForm()">แจ้งงาน</button>
       <button class="btn btn-ghost" onclick="closeModal('modal-sw-update-form')">ยกเลิก</button>
     </div>
   </div>
 </div>
 
+<!-- ══════════ SW UPDATE DETAIL (checklist สาขา) ══════════ -->
+<div class="overlay" id="modal-swu-detail">
+  <div class="modal" style="max-width:920px;width:100%;max-height:92vh;overflow-y:auto;padding:1.1rem 1.25rem">
+    <div class="modal-head">
+      <div id="swu-detail-title" style="font-size:1.2rem;font-weight:700;line-height:1.25"></div>
+      <button class="modal-close" onclick="closeModal('modal-swu-detail')">×</button>
+    </div>
+    <div id="swu-detail-body"></div>
+  </div>
+</div>
+
 <!-- ══════════ SW UPDATE KPI (รายคน) ══════════ -->
 <div class="overlay" id="modal-swu-kpi">
-  <div class="modal" style="max-width:560px;max-height:90vh;overflow-y:auto;padding:1.1rem 1.25rem">
+  <div class="modal" style="max-width:600px;max-height:90vh;overflow-y:auto;padding:1.1rem 1.25rem">
     <div class="modal-head">
       <div style="font-size:1.08rem;font-weight:600">KPI งานอัพเดท Software รายคน</div>
       <button class="modal-close" onclick="closeModal('modal-swu-kpi')">×</button>
@@ -27839,11 +27807,11 @@ async function generateFromPattern() {
     </div>
     <div class="tbl-wrap">
       <table class="svc-tbl" style="width:100%">
-        <thead><tr><th>ผู้ดำเนินการ</th><th style="text-align:right">งาน</th><th style="text-align:right">สาขา</th><th style="text-align:right">เครื่อง</th><th></th></tr></thead>
+        <thead><tr><th>ผู้ดำเนินการ</th><th style="text-align:right">งาน</th><th style="text-align:right">สาขา</th><th style="text-align:right">เครื่อง</th></tr></thead>
         <tbody id="swu-kpi-body"></tbody>
       </table>
     </div>
-    <div style="font-size:.72rem;color:#6f747c;margin-top:.5rem">นับจากงานสถานะ "เสร็จสิ้น" ที่บันทึกล่าสุดในเดือนนั้น · งานที่มีผู้ดำเนินการหลายคน นับเต็มให้ทุกคน</div>
+    <div style="font-size:.72rem;color:#6f747c;margin-top:.5rem">นับจากการกด ✓ ใน checklist สาขา ตามวันที่บันทึกจริง · กดชื่อเพื่อดูรายการ</div>
   </div>
 </div>
 
