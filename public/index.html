@@ -25581,18 +25581,64 @@ function swuVersionChange() {
 // ════════ หน้างาน: ภาพรวม + ปัญหาที่แก้ + checklist สาขา ════════
 let _swuDetailId = null;
 let _swuBlockOpen = null;   // branch id ที่กำลังกรอก "อัพเดทไม่ได้"
-let _swuDetailOpts = [];    // สาขาในกลุ่ม (สำหรับ + เพิ่มสาขา)
+let _swuDetailOpts = [];    // ทุก License ในกลุ่ม (สำหรับเลือกสาขา)
+let _swuPickerSel = null;   // Set ของ index ใน _swuDetailOpts ที่ติ๊กไว้ — null = ปิดตัวเลือกอยู่
 
 function openSwUpdateDetail(id) {
   if (!_swuData.find(x => x.id === id)) return;
-  _swuDetailId = id; _swuBlockOpen = null; _swuDetailOpts = [];
+  _swuDetailId = id; _swuBlockOpen = null; _swuDetailOpts = []; _swuPickerSel = null;
   swuRenderDetail();
   openModal('modal-swu-detail');
   const j = _swuData.find(x => x.id === id);
   const q = j?.group_id ? `gid=${j.group_id}` : j?.registration_id ? `rid=${j.registration_id}` : '';
   if (q) api(`/api/sw-update/branch-options?${q}`, { silent: true })
-    .then(r => { _swuDetailOpts = r?.branches || []; const dl = document.getElementById('swu-d-branch-opts');
-      if (dl) dl.innerHTML = _swuDetailOpts.map(o => `<option value="${escHtml(o.CompanyName)}"></option>`).join(''); });
+    .then(r => {
+      if (_swuDetailId !== id) return;
+      _swuDetailOpts = (r?.branches || []).sort((a, b) =>
+        swuIsHQ(b.CompanyName) - swuIsHQ(a.CompanyName) || a.CompanyName.localeCompare(b.CompanyName, 'th', { numeric: true }));
+      swuRenderDetail();
+    });
+}
+
+// สาขาในงานที่ตรงกับ License นี้ (จับด้วย RegistrationId ก่อน ไม่มีค่อยใช้ชื่อ)
+const swuBranchOf = (j, o) => (j.branches || []).find(b =>
+  (b.registration_id && b.registration_id === o.RegistrationId) || (!b.registration_id && b.branch_name === o.CompanyName));
+// สาขาที่มีคนบันทึกผลหรือระบุว่าอัพเดทไม่ได้แล้ว เอาออกไม่ได้
+const swuBranchLocked = b => b && ((b.devices_done || 0) > 0 || b.status === 'blocked');
+
+function swuOpenPicker() {
+  const j = _swuData.find(x => x.id === _swuDetailId);
+  if (!j) return;
+  _swuPickerSel = new Set(_swuDetailOpts.map((o, i) => swuBranchOf(j, o) ? i : -1).filter(i => i >= 0));
+  swuRenderDetail();
+}
+function swuPickerSet(i, on) {
+  const j = _swuData.find(x => x.id === _swuDetailId);
+  const idx = i == null ? _swuDetailOpts.map((_, k) => k) : [i];
+  idx.forEach(k => {
+    if (!on && swuBranchLocked(swuBranchOf(j, _swuDetailOpts[k]))) return;
+    on ? _swuPickerSel.add(k) : _swuPickerSel.delete(k);
+  });
+  swuRenderDetail();
+}
+async function swuSavePicker() {
+  const j = _swuData.find(x => x.id === _swuDetailId);
+  if (!j || !_swuPickerSel) return;
+  const add = _swuDetailOpts.filter((o, i) => _swuPickerSel.has(i) && !swuBranchOf(j, o));
+  const remove = _swuDetailOpts.map((o, i) => !_swuPickerSel.has(i) && swuBranchOf(j, o)).filter(b => b && !swuBranchLocked(b));
+  if (!add.length && !remove.length) { _swuPickerSel = null; swuRenderDetail(); return; }
+  if (remove.length && !confirm(`เอาออก ${remove.length} สาขา: ${remove.map(b => b.branch_name).join(', ')}?`)) return;
+  for (const o of add) {
+    const r = await api(`/api/sw-update/${j.id}/branches`, { method: 'POST', silent: true, body: { branch_name: o.CompanyName, registration_id: o.RegistrationId } });
+    if (r?.error) { showToast('❌ ' + r.error, 'error'); break; }
+  }
+  for (const b of remove) {
+    const r = await api(`/api/sw-update/branches/${b.id}`, { method: 'DELETE', silent: true });
+    if (r?.error) { showToast('❌ ' + r.error, 'error'); break; }
+  }
+  _swuPickerSel = null;
+  showToast(`บันทึกสาขาแล้ว${add.length ? ` · เพิ่ม ${add.length}` : ''}${remove.length ? ` · เอาออก ${remove.length}` : ''}`, 'success');
+  await loadSwUpdate();
 }
 const openSwUpdateEdit = openSwUpdateDetail;
 
@@ -25716,8 +25762,20 @@ function swuRenderDetail() {
     </div>
 
     <div class="swu-sec-t"><span>Checklist สาขา</span>
-      ${closed ? '' : `<span style="display:flex;gap:.3rem"><input class="swu-in" id="swu-add-branch" list="swu-d-branch-opts" placeholder="ชื่อสาขา" style="width:170px"><button class="btn btn-ghost swu-btn-s" onclick="swuAddBranch()">+ เพิ่มสาขา</button></span>`}</div>
+      ${closed ? '' : _swuDetailOpts.length > 1
+        ? `<button class="btn btn-ghost swu-btn-s" onclick="${_swuPickerSel ? '_swuPickerSel=null;swuRenderDetail()' : 'swuOpenPicker()'}">${_swuPickerSel ? 'ปิดตัวเลือก' : `เลือกสาขาในกลุ่ม (${_swuDetailOpts.filter(o => swuBranchOf(j, o)).length}/${_swuDetailOpts.length})`}</button>`
+        : `<span style="display:flex;gap:.3rem"><input class="swu-in" id="swu-add-branch" list="swu-d-branch-opts" placeholder="ชื่อสาขา" style="width:170px"><button class="btn btn-ghost swu-btn-s" onclick="swuAddBranch()">+ เพิ่มสาขา</button></span>`}</div>
     <datalist id="swu-d-branch-opts">${_swuDetailOpts.map(o => `<option value="${escHtml(o.CompanyName)}"></option>`).join('')}</datalist>
+    ${_swuPickerSel && !closed ? `<div class="swu-pick" style="margin-bottom:.6rem;max-height:300px">
+      <label class="swu-pick-row all"><input type="checkbox" ${_swuPickerSel.size === _swuDetailOpts.length ? 'checked' : ''} onchange="swuPickerSet(null, this.checked)">
+        ทุก License ในกลุ่ม ${escHtml(j.license_group || '')} — เลือกทั้งหมด <span style="font-weight:400;color:#6f747c">(${_swuPickerSel.size}/${_swuDetailOpts.length})</span></label>
+      ${_swuDetailOpts.map((o, i) => { const lk = swuBranchLocked(swuBranchOf(j, o)); return `<label class="swu-pick-row" ${lk ? 'title="มีคนบันทึกผลแล้ว เอาออกไม่ได้" style="cursor:default"' : ''}>
+        <input type="checkbox" ${_swuPickerSel.has(i) ? 'checked' : ''} ${lk ? 'disabled' : ''} onchange="swuPickerSet(${i}, this.checked)">
+        ${escHtml(o.CompanyName)}${swuIsHQ(o.CompanyName) ? ' <span class="swu-pill hq">HQ</span>' : ''}${lk ? ' <span style="font-size:.7rem;color:#8a8f97">🔒 บันทึกผลแล้ว</span>' : ''}</label>`; }).join('')}
+      <div style="display:flex;gap:.4rem;padding:.45rem 0 .3rem;position:sticky;bottom:0;background:#fff">
+        <button class="btn btn-primary swu-btn-s" onclick="swuSavePicker()">บันทึกสาขา</button>
+        <button class="btn btn-ghost swu-btn-s" onclick="_swuPickerSel=null;swuRenderDetail()">ยกเลิก</button></div>
+    </div>` : ''}
     <div class="tbl-wrap"><table class="swu-cl">
       <thead><tr><th>สาขา</th><th class="r">ทั้งหมด</th><th class="r">สำเร็จ</th><th class="r">ค้าง</th><th>คนทำ</th><th class="r">ทำเพิ่ม</th></tr></thead>
       <tbody>${rows || '<tr><td colspan="6" class="swu-note" style="text-align:center;padding:1rem">ยังไม่มีสาขา</td></tr>'}</tbody>
