@@ -5253,33 +5253,66 @@ async function swuBranchCtx(bid) {
 }
 const SWU_CLOSED = ['done', 'cancelled'];
 
-// GET /api/sw-update/branch-options?rid= — HQ + ทุกสาขาในกลุ่ม License ของร้านที่เลือก (ร้านเดี่ยว = ตัวเอง)
+async function swuGroupById(gid) {
+  if (!gid || gid === 1 || !getExtPool()) return null;
+  const r = (await extReq().input('gid', sql.Int, gid).query('SELECT GroupId AS id, GroupName AS name FROM CustomerGroup WHERE GroupId=@gid')).recordset[0];
+  return r || null;
+}
+
+async function swuOpenJobFor(group, rid) {
+  if (group) return (await req().input('gid', sql.Int, group.id).query(`
+    SELECT TOP 1 id FROM sw_update_jobs
+    WHERE group_id = @gid AND status NOT IN ('done','cancelled') ORDER BY id DESC`)).recordset[0]?.id || null;
+  if (rid) return (await req().input('rid', sql.Int, rid).query(`
+    SELECT TOP 1 id FROM sw_update_jobs
+    WHERE group_id IS NULL AND registration_id = @rid AND status NOT IN ('done','cancelled') ORDER BY id DESC`)).recordset[0]?.id || null;
+  return null;
+}
+
+// GET /api/sw-update/search?q= — ค้นทั้ง "กลุ่ม License" (ชื่อกลุ่ม) และร้าน/License รายตัว
+app.get('/api/sw-update/search', authRequired, async (request, res) => {
+  try {
+    const q = String(request.query.q || '').trim();
+    if (q.length < 2 || !getExtPool()) return res.json({ groups: [], shops: [] });
+    const [groups, shops] = await Promise.all([
+      extReq().input('q', sql.NVarChar, `%${q}%`).query(`
+        SELECT TOP 15 cg.GroupId, cg.GroupName, COUNT(r.RegistrationId) AS branches
+        FROM CustomerGroup cg
+        JOIN CustomerRegistration r ON r.GroupId = cg.GroupId AND (r.Hide = 0 OR r.Hide IS NULL) AND r.AccurateData = 1
+        WHERE cg.GroupId <> 1 AND cg.GroupName LIKE @q
+        GROUP BY cg.GroupId, cg.GroupName
+        ORDER BY cg.GroupName`),
+      extReq().input('q', sql.NVarChar, `%${q}%`).query(`
+        SELECT TOP 40 r.RegistrationId, r.CompanyName, r.GroupId, cg.GroupName
+        FROM CustomerRegistration r
+        LEFT JOIN CustomerGroup cg ON cg.GroupId = r.GroupId
+        WHERE (r.Hide = 0 OR r.Hide IS NULL) AND r.AccurateData = 1 AND r.CompanyName LIKE @q
+        ORDER BY r.CompanyName`),
+    ]);
+    res.json({ groups: groups.recordset, shops: shops.recordset });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/sw-update/branch-options?gid= | ?rid= — ทุก License ในกลุ่ม (ร้านเดี่ยว INF = ตัวเอง)
 app.get('/api/sw-update/branch-options', authRequired, async (request, res) => {
   try {
-    const rid = parseInt(request.query.rid);
-    if (!rid || !getExtPool()) return res.json({ group: null, branches: [] });
-    const rows = (await extReq().input('rid', sql.Int, rid).query(`
-      SELECT r.RegistrationId, r.CompanyName
-      FROM CustomerRegistration me
-      JOIN CustomerRegistration r
-        ON (me.GroupId <> 1 AND r.GroupId = me.GroupId) OR r.RegistrationId = me.RegistrationId
-      WHERE me.RegistrationId = @rid
-        AND (r.RegistrationId = @rid OR ((r.Hide = 0 OR r.Hide IS NULL) AND r.AccurateData = 1))
-      ORDER BY r.CompanyName`)).recordset;
+    const rid = parseInt(request.query.rid) || null;
+    let gid = parseInt(request.query.gid) || null;
+    if ((!rid && !gid) || !getExtPool()) return res.json({ group: null, branches: [] });
+    const group = gid ? await swuGroupById(gid) : await swuGroupOf(rid);
+    let rows;
+    if (group) {
+      rows = (await extReq().input('gid', sql.Int, group.id).input('rid', sql.Int, rid).query(`
+        SELECT RegistrationId, CompanyName FROM CustomerRegistration
+        WHERE GroupId = @gid AND (RegistrationId = @rid OR ((Hide = 0 OR Hide IS NULL) AND AccurateData = 1))
+        ORDER BY CompanyName`)).recordset;
+    } else if (rid) {
+      rows = (await extReq().input('rid', sql.Int, rid).query(`
+        SELECT RegistrationId, CompanyName FROM CustomerRegistration WHERE RegistrationId = @rid`)).recordset;
+    } else rows = [];
     const last = await swuLastTotals(rows.map(r => r.RegistrationId));
     rows.forEach(r => { r.last_total = last.get(r.RegistrationId) ?? null; });
-    const group = await swuGroupOf(rid);
-    let open = null;
-    if (group) {
-      open = (await req().input('gid', sql.Int, group.id).query(`
-        SELECT TOP 1 id FROM sw_update_jobs
-        WHERE group_id = @gid AND status NOT IN ('done','cancelled') ORDER BY id DESC`)).recordset[0]?.id || null;
-    } else {
-      open = (await req().input('rid', sql.Int, rid).query(`
-        SELECT TOP 1 id FROM sw_update_jobs
-        WHERE group_id IS NULL AND registration_id = @rid AND status NOT IN ('done','cancelled') ORDER BY id DESC`)).recordset[0]?.id || null;
-    }
-    res.json({ group, branches: rows, open_job_id: open });
+    res.json({ group, branches: rows, open_job_id: await swuOpenJobFor(group, rid) });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -5407,13 +5440,11 @@ app.post('/api/sw-update', authRequired, async (request, res) => {
   try {
     const b = request.body;
     const rid = parseInt(b.registration_id) || null;
-    const group = await swuGroupOf(rid).catch(() => null);
+    const gid = parseInt(b.group_id) || null;
+    const group = await (gid ? swuGroupById(gid) : swuGroupOf(rid)).catch(() => null);
     if (!b.force_new) {
-      const open = group
-        ? (await req().input('gid', sql.Int, group.id).query(`SELECT TOP 1 id FROM sw_update_jobs WHERE group_id=@gid AND status NOT IN ('done','cancelled') ORDER BY id DESC`)).recordset[0]
-        : rid ? (await req().input('rid', sql.Int, rid).query(`SELECT TOP 1 id FROM sw_update_jobs WHERE group_id IS NULL AND registration_id=@rid AND status NOT IN ('done','cancelled') ORDER BY id DESC`)).recordset[0]
-        : null;
-      if (open) return res.status(409).json({ error: `กลุ่มนี้มีงานอัพเดท #${open.id} เปิดอยู่แล้ว`, existing_id: open.id });
+      const open = await swuOpenJobFor(group, rid);
+      if (open) return res.status(409).json({ error: `กลุ่มนี้มีงานอัพเดท #${open} เปิดอยู่แล้ว`, existing_id: open });
     }
     const branches = (Array.isArray(b.branches) ? b.branches : [])
       .map(x => ({ rid: parseInt(x.registration_id) || null, name: String(x.branch_name || '').trim().slice(0, 255) }))
