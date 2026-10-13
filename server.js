@@ -5190,6 +5190,81 @@ const swuThaiDate = (d) => d
   ? new Date(d).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })
   : '';
 
+// รายการสาขาจากฟอร์ม → แถวที่สะอาด (ตัดแถวไม่มีชื่อ, จำนวนเครื่องต้องเป็นจำนวนเต็ม ≥ 0)
+const swuCleanBranches = (list) => (Array.isArray(list) ? list : [])
+  .map(x => {
+    const n = v => (v === '' || v == null || !Number.isFinite(+v)) ? null : Math.max(0, Math.round(+v));
+    return {
+      registration_id: Number.isInteger(+x.registration_id) && +x.registration_id > 0 ? +x.registration_id : null,
+      branch_name: String(x.branch_name || '').trim().slice(0, 255),
+      devices_planned: n(x.devices_planned),
+      devices_done: n(x.devices_done),
+      is_done: !!x.is_done,
+    };
+  })
+  .filter(x => x.branch_name);
+
+async function swuSaveBranches(jobId, branches) {
+  await req().input('jid', sql.Int, jobId).query('DELETE FROM sw_update_branches WHERE job_id=@jid');
+  for (const b of branches) {
+    await req()
+      .input('jid', sql.Int, jobId)
+      .input('rid', sql.Int, b.registration_id)
+      .input('bn',  sql.NVarChar, b.branch_name)
+      .input('dp',  sql.Int, b.devices_planned)
+      .input('dd',  sql.Int, b.is_done ? b.devices_done : null)
+      .input('ok',  sql.Bit, b.is_done ? 1 : 0)
+      .query(`INSERT INTO sw_update_branches (job_id, registration_id, branch_name, devices_planned, devices_done, is_done)
+              VALUES (@jid, @rid, @bn, @dp, @dd, @ok)`);
+  }
+}
+
+// GET /api/sw-update/branch-options?rid= — สาขาทั้งหมดในกลุ่ม License เดียวกับร้านที่เลือก (ร้านเดี่ยว = ตัวเอง)
+app.get('/api/sw-update/branch-options', authRequired, async (request, res) => {
+  try {
+    const rid = parseInt(request.query.rid);
+    if (!rid || !getExtPool()) return res.json([]);
+    const rows = (await extReq().input('rid', sql.Int, rid).query(`
+      SELECT r.RegistrationId, r.CompanyName
+      FROM CustomerRegistration me
+      JOIN CustomerRegistration r
+        ON (me.GroupId <> 1 AND r.GroupId = me.GroupId) OR r.RegistrationId = me.RegistrationId
+      WHERE me.RegistrationId = @rid
+        AND (r.RegistrationId = @rid OR ((r.Hide = 0 OR r.Hide IS NULL) AND r.AccurateData = 1))
+      ORDER BY CASE WHEN r.RegistrationId = @rid THEN 0 ELSE 1 END, r.CompanyName`)).recordset;
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/sw-update/kpi?month=YYYY-MM — ปริมาณงานจริงรายคน: งาน / สาขา / เครื่อง ที่ปิดในเดือนนั้น
+// ผู้ดำเนินการหลายคนในงานเดียว ได้เครดิตเต็มทุกคน (เหมือน KPI นับงานเดิม)
+app.get('/api/sw-update/kpi', authRequired, async (request, res) => {
+  try {
+    const m = /^(\d{4})-(\d{2})$/.exec(request.query.month || '');
+    const now = new Date();
+    const y = m ? +m[1] : now.getFullYear(), mo = m ? +m[2] - 1 : now.getMonth();
+    const ms = new Date(y, mo, 1), me = new Date(y, mo + 1, 1);
+    const rows = (await req().input('ms', sql.DateTime, ms).input('me', sql.DateTime, me).query(`
+      WITH jb AS (
+        SELECT j.id,
+               (SELECT COUNT(*) FROM sw_update_branches b WHERE b.job_id = j.id AND b.is_done = 1) AS branches,
+               (SELECT ISNULL(SUM(b.devices_done), 0) FROM sw_update_branches b WHERE b.job_id = j.id AND b.is_done = 1) AS devices
+        FROM sw_update_jobs j
+        WHERE j.status = 'done' AND j.updated_at >= @ms AND j.updated_at < @me
+      )
+      SELECT a.user_id, ISNULL(e.nickname, e.name) AS name,
+             COUNT(*) AS jobs, SUM(jb.branches) AS branches, SUM(jb.devices) AS devices,
+             SUM(CASE WHEN jb.branches = 0 THEN 1 ELSE 0 END) AS jobs_no_detail
+      FROM jb
+      JOIN sw_update_assignees a ON a.job_id = jb.id
+      JOIN app_users au ON au.id = a.user_id
+      LEFT JOIN employees e ON e.id = au.employee_id
+      GROUP BY a.user_id, ISNULL(e.nickname, e.name)
+      ORDER BY SUM(jb.devices) DESC, COUNT(*) DESC`)).recordset;
+    res.json({ month: `${y}-${String(mo + 1).padStart(2, '0')}`, rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // GET /api/sw-update
 app.get('/api/sw-update', authRequired, async (request, res) => {
   try {
@@ -5226,6 +5301,12 @@ app.get('/api/sw-update', authRequired, async (request, res) => {
         aMap[a.job_id].push({ user_id: a.user_id, name: a.name });
       });
       rows.forEach(r => { r.assignees = aMap[r.id] || []; });
+      const bMap = {};
+      (await req().query(`
+        SELECT job_id, registration_id, branch_name, devices_planned, devices_done, is_done
+        FROM sw_update_branches WHERE job_id IN (${ids}) ORDER BY job_id, id
+      `)).recordset.forEach(b => { (bMap[b.job_id] = bMap[b.job_id] || []).push(b); });
+      rows.forEach(r => { r.branches = bMap[r.id] || []; });
     }
     // กลุ่ม License (CustomerGroup ที่ไม่ใช่ INF Group) — อยู่ใน LicenseDB; งานเก่าที่ไม่มี registration_id จับคู่ด้วยชื่อร้าน
     if (rows.length && getExtPool()) {
@@ -5288,14 +5369,18 @@ app.post('/api/sw-update', authRequired, async (request, res) => {
         OUTPUT INSERTED.id
         VALUES(@rid,@cn,@rd,@ad,@pr,@st,@desc,@azid,@ver,@rb,@fuid,@cb)`);
     const newId = result.recordset[0].id;
+    const branches = swuCleanBranches(b.branches);
+    if (branches.length) await swuSaveBranches(newId, branches);
 
     try {
       const uname = request.user.nickname || request.user.name || request.user.username || '—';
       const detail = String(b.description || '').replace(/\s+/g, ' ').trim().slice(0, 200);
       const ap = swuThaiDate(b.appointment_date);
+      const plannedDev = branches.reduce((s, x) => s + (x.devices_planned || 0), 0);
       await sendLineNotify(
         `\n💿[แจ้งงานอัพเดท SW] #${newId}` +
         (b.company_name ? `\nร้าน: ${b.company_name}` : '') +
+        (branches.length ? `\nสาขา: ${branches.length} สาขา${plannedDev ? ` · ${plannedDev} เครื่อง` : ''}` : '') +
         (detail ? `\nรายละเอียด: ${detail}` : '') +
         (b.version_recommend ? `\nเวอร์ชันที่แนะนำ: ${b.version_recommend}` : '') +
         (ap ? `\nนัดหมาย: ${ap}` : '') +
@@ -5316,6 +5401,16 @@ app.put('/api/sw-update/:id', authRequired, async (request, res) => {
     // Fetch fu_issue_id before update (stored at creation)
     const cur = (await req().input('id', sql.Int, id)
       .query('SELECT * FROM sw_update_jobs WHERE id=@id')).recordset[0];
+    if (!cur) return res.status(404).json({ error: 'ไม่พบงาน' });
+    const branches = Array.isArray(b.branches) ? swuCleanBranches(b.branches) : null;
+    // ปิดงาน (เพิ่งเปลี่ยนเป็นเสร็จ) ต้องมีสรุปหน้างานครบ ถึงจะนับ KPI ได้ — งานที่ปิดไปก่อนหน้านี้แก้ได้ตามเดิม
+    if (b.status === 'done' && cur.status !== 'done') {
+      const done = (branches || []).filter(x => x.is_done);
+      if (!done.length) return res.status(400).json({ error: 'กรุณาเลือกสาขาที่ดำเนินการจริงอย่างน้อย 1 สาขา' });
+      if (done.some(x => !(x.devices_done > 0))) return res.status(400).json({ error: 'กรุณาระบุจำนวนเครื่องที่อัปเดตสำเร็จของทุกสาขาที่ติ๊กไว้' });
+      if (!String(b.version_installed || '').trim()) return res.status(400).json({ error: 'กรุณาระบุเวอร์ชันที่อัปเดต' });
+      if (!Array.isArray(b.assignees) || !b.assignees.some(Boolean)) return res.status(400).json({ error: 'กรุณาเลือกผู้ดำเนินการอย่างน้อย 1 คน' });
+    }
     await req()
       .input('id',   sql.Int,      id)
       .input('rid',  sql.Int,      b.registration_id   || null)
@@ -5328,6 +5423,7 @@ app.put('/api/sw-update/:id', authRequired, async (request, res) => {
       .input('azid', sql.NVarChar, b.azure_id           || null)
       .input('ver',  sql.NVarChar, b.version_recommend  || null)
       .input('rb',   sql.Int,      b.reported_by        || null)
+      .input('vi',   sql.NVarChar, b.status === 'done' ? (String(b.version_installed || '').trim() || cur.version_installed || null) : cur.version_installed)
       .input('ub',   sql.Int,      request.user.id)
       .query(`UPDATE sw_update_jobs SET
         registration_id=@rid, company_name=@cn,
@@ -5335,8 +5431,10 @@ app.put('/api/sw-update/:id', authRequired, async (request, res) => {
         priority=@pr, status=@st,
         description=@desc, azure_id=@azid,
         version_recommend=@ver, reported_by=@rb,
+        version_installed=@vi,
         updated_at=GETDATE(), updated_by=@ub
         WHERE id=@id`);
+    if (branches) await swuSaveBranches(id, branches);
     // Save assignees (replace all)
     if (Array.isArray(b.assignees)) {
       await req().input('jid', sql.Int, id).query(`DELETE FROM sw_update_assignees WHERE job_id=@jid`);
@@ -5361,10 +5459,15 @@ app.put('/api/sw-update/:id', authRequired, async (request, res) => {
       try {
         const uname = request.user.nickname || request.user.name || request.user.username || '—';
         const company = b.company_name || cur.company_name;
+        const done = (branches || []).filter(x => x.is_done);
+        const devs = done.reduce((s, x) => s + (x.devices_done || 0), 0);
+        const ver = String(b.version_installed || '').trim() || b.version_recommend || cur.version_recommend;
         await sendLineNotify(
           `\n✅[อัพเดท SW เสร็จแล้ว] #${id}` +
           (company ? `\nร้าน: ${company}` : '') +
-          ((b.version_recommend || cur.version_recommend) ? `\nเวอร์ชัน: ${b.version_recommend || cur.version_recommend}` : '') +
+          (done.length ? `\nสาขา: ${done.map(x => x.branch_name).join(', ').slice(0, 300)}` +
+            `\nรวม: ${done.length} สาขา · ${devs} เครื่อง` : '') +
+          (ver ? `\nเวอร์ชัน: ${ver}` : '') +
           `\nปิดงานโดย: ${uname}`, 'sw_update');
       } catch (e) { console.warn('sw_update done notify failed:', e.message); }
     }
@@ -5376,7 +5479,7 @@ app.put('/api/sw-update/:id', authRequired, async (request, res) => {
 app.delete('/api/sw-update/:id', authRequired, managerRequired, async (request, res) => {
   try {
     await req().input('id', sql.Int, parseInt(request.params.id))
-      .query('DELETE FROM sw_update_jobs WHERE id=@id');
+      .query('DELETE FROM sw_update_branches WHERE job_id=@id; DELETE FROM sw_update_jobs WHERE id=@id');
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -11795,6 +11898,26 @@ async function ensureSwUpdateTable() {
     await req().query(`
       IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('sw_update_assignees') AND name='UQ_sw_assignees_job_user')
         ALTER TABLE sw_update_assignees ADD CONSTRAINT UQ_sw_assignees_job_user UNIQUE (job_id, user_id)
+    `);
+    // KPI งานอัพเดท: เวอร์ชันที่ลงจริงตอนปิดงาน + รายสาขา/จำนวนเครื่อง (1 งานอาจมีหลายสาขา)
+    await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('sw_update_jobs') AND name='version_installed')
+      ALTER TABLE sw_update_jobs ADD version_installed NVARCHAR(200) NULL`);
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='sw_update_branches' AND xtype='U')
+      CREATE TABLE sw_update_branches (
+        id              INT PRIMARY KEY IDENTITY,
+        job_id          INT NOT NULL,
+        registration_id INT NULL,
+        branch_name     NVARCHAR(255) NOT NULL,
+        devices_planned INT NULL,
+        devices_done    INT NULL,
+        is_done         BIT NOT NULL DEFAULT 0,
+        created_at      DATETIME DEFAULT GETDATE()
+      )
+    `);
+    await req().query(`
+      IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('sw_update_branches') AND name='IX_sw_branches_job')
+        CREATE INDEX IX_sw_branches_job ON sw_update_branches (job_id)
     `);
     console.log('✅ sw_update_jobs table ready');
   } catch(e) { console.error('❌ sw_update_jobs error:', e.message); }
