@@ -5206,13 +5206,31 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
 
   <!-- ── Tab Bar ── -->
   <div class="svc-tabs">
-    <button id="si-tab-btn-remote" class="svc-tab on" onclick="siSwitchTab('remote')">ข้อมูลรีโมท</button>
+    <button id="si-tab-btn-ipcheck" class="svc-tab on" onclick="siSwitchTab('ipcheck')">IP Tencent</button>
+    <button id="si-tab-btn-remote" class="svc-tab" onclick="siSwitchTab('remote')">ข้อมูลรีโมท</button>
     <button id="si-tab-btn-knowledge" class="svc-tab" onclick="siSwitchTab('knowledge')">สิ่งที่ควรรู้</button>
     <button id="si-tab-btn-training" class="svc-tab" onclick="siSwitchTab('training')">เทรนนิ่ง</button>
   </div>
 
+  <!-- ── Tab 0: เครื่อง CVM บน Tencent Cloud + IP ── -->
+  <div id="si-panel-ipcheck">
+    <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.75rem">
+      <select id="cvm-region" onchange="cvmRender()"
+        style="border:1px solid var(--border);border-radius:10px;height:36px;padding:0 .7rem;font-size:.82rem;font-family:inherit;outline:none;background:#fff;min-width:140px">
+        <option value="">ทุก region</option>
+      </select>
+      <input id="cvm-search" type="text" placeholder="ค้นหาชื่อเครื่อง / IP / Instance ID..." oninput="cvmRender()"
+        style="border:1px solid var(--border);border-radius:10px;height:36px;padding:0 .8rem;font-size:.82rem;min-width:240px;outline:none;flex:1"/>
+      <button class="btn btn-primary btn-sm" id="cvm-btn" onclick="cvmLoad()">ดึงรายชื่อเครื่อง</button>
+      <span id="cvm-updated" style="font-size:.75rem;color:var(--muted)"></span>
+    </div>
+    <div id="cvm-list">
+      <div style="text-align:center;color:var(--muted);padding:2rem;font-size:.9rem">กด "ดึงรายชื่อเครื่อง" เพื่อโหลดรายชื่อเครื่อง CVM จาก Tencent Cloud</div>
+    </div>
+  </div>
+
   <!-- ── Tab 1: ข้อมูลรีโมท ── -->
-  <div id="si-panel-remote">
+  <div id="si-panel-remote" style="display:none">
     <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.75rem">
       <input id="si-search" type="text" placeholder="ค้นหา แบรนด์ สาขา ผู้ติดต่อ ชื่อเครื่อง Anydesk IP..."
              oninput="siSearchDebounce()"
@@ -6552,7 +6570,10 @@ function showPage(name, btn) {
     else svcLoadList();
     svcLoadProjects();
   }
-  if (name === 'shopinfo') { loadShopInfo(); }
+  if (name === 'shopinfo') {
+    loadShopInfo();
+    if (document.getElementById('si-panel-ipcheck').style.display !== 'none' && !_cvmData) cvmLoad();
+  }
   if (name === 'uat') { loadUat(); }
   if (name === 'sw-update') { loadSwUpdate(); }
   if (name === 'impl')      { loadImplRequests(); }
@@ -24062,12 +24083,78 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 
+// ── เครื่อง CVM บน Tencent Cloud ─────────────────────────
+let _cvmData = null;
+
+async function cvmLoad() {
+  const btn = document.getElementById('cvm-btn');
+  const el = document.getElementById('cvm-list');
+  btn.disabled = true; btn.textContent = 'กำลังดึง...';
+  el.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-size:.9rem">กำลังดึงข้อมูลจาก Tencent Cloud...</div>';
+  try {
+    const data = await api('/api/tencent/cvm');
+    if (!data || data.error) throw new Error(data?.error || 'ไม่มีข้อมูล');
+    _cvmData = data;
+    const sel = document.getElementById('cvm-region');
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">ทุก region</option>' +
+      data.regions.map(r => `<option value="${esc(r)}"${r === cur ? ' selected' : ''}>${esc(r)}</option>`).join('');
+    document.getElementById('cvm-updated').textContent =
+      'อัปเดต ' + new Date(data.fetched_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+    cvmRender();
+  } catch (e) {
+    _cvmData = null;
+    el.innerHTML = `<div style="color:#c0584c;padding:1rem;text-align:center">ดึงข้อมูลไม่สำเร็จ: ${esc(e.message)}</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = 'ดึงรายชื่อเครื่อง';
+  }
+}
+
+function cvmRender() {
+  if (!_cvmData) return;
+  const el = document.getElementById('cvm-list');
+  const region = document.getElementById('cvm-region').value;
+  const q = document.getElementById('cvm-search').value.trim().toLowerCase();
+  const rows = _cvmData.instances.filter(i =>
+    (!region || i.region === region) &&
+    (!q || [i.name, i.id, ...i.public_ips, ...i.private_ips].some(v => String(v || '').toLowerCase().includes(q))));
+
+  const stateBadge = s => {
+    const [bg, fg] = s === 'RUNNING' ? ['#e7f6ec', '#1f7a3f'] : s === 'STOPPED' ? ['#f1f2f4', '#6b7078'] : ['#fff4e0', '#a8660b'];
+    return `<span style="background:${bg};color:${fg};border-radius:20px;padding:.12rem .6rem;font-weight:600;font-size:.74rem;white-space:nowrap">${esc(s || '-')}</span>`;
+  };
+  const ipCell = ips => ips.length
+    ? ips.map(ip => `<div style="white-space:nowrap">${esc(ip)}<button class="si-copy-btn" onclick="siCopy('${esc(ip)}',this)">copy</button></div>`).join('')
+    : '<span style="color:#d6d2c9">—</span>';
+  const errHtml = (_cvmData.errors || []).map(e =>
+    `<div style="color:#c0584c;font-size:.8rem;margin-bottom:.3rem">${esc(e.region)}: ${esc(e.error)}</div>`).join('');
+
+  const td = 'padding:.45rem .5rem;border-bottom:1px solid var(--border);vertical-align:top';
+  el.innerHTML = errHtml + `
+    <div style="font-size:.8rem;color:var(--muted);margin-bottom:.4rem">${rows.length} เครื่อง${rows.length !== _cvmData.instances.length ? ` (จากทั้งหมด ${_cvmData.instances.length})` : ''}</div>
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.84rem">
+      <thead><tr style="text-align:left;color:var(--muted)">
+        <th style="${td}">ชื่อเครื่อง</th><th style="${td}">Region</th><th style="${td}">IP Public</th>
+        <th style="${td}">IP ภายใน</th><th style="${td}">สเปก</th><th style="${td}">สถานะ</th>
+      </tr></thead>
+      <tbody>${rows.map(i => `<tr>
+        <td style="${td}"><b>${esc(i.name || '-')}</b><div style="font-size:.72rem;color:var(--muted);font-family:monospace">${esc(i.id)}</div></td>
+        <td style="${td};font-size:.8rem">${esc(i.zone || i.region)}</td>
+        <td style="${td};font-family:monospace">${ipCell(i.public_ips)}</td>
+        <td style="${td};font-family:monospace">${ipCell(i.private_ips)}</td>
+        <td style="${td};font-size:.78rem">${i.cpu ?? '-'} vCPU / ${i.memory ?? '-'} GB<div style="color:var(--muted)">${esc(i.os)}</div></td>
+        <td style="${td}">${stateBadge(i.state)}</td>
+      </tr>`).join('') || `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:1.5rem">ไม่พบเครื่อง</td></tr>`}</tbody>
+    </table></div>`;
+}
+
 function siSwitchTab(tab) {
-  ['remote','knowledge','training'].forEach(t => {
+  ['ipcheck','remote','knowledge','training'].forEach(t => {
     document.getElementById(`si-panel-${t}`).style.display = t === tab ? '' : 'none';
     const btn = document.getElementById(`si-tab-btn-${t}`);
     if (btn) btn.classList.toggle('on', t === tab);
   });
+  if (tab === 'ipcheck' && !_cvmData) cvmLoad();
   if (tab === 'knowledge') { skLoadBrandFilter(); skLoad(); }
   if (tab === 'training')  { trInitFilter(); trLoad(); }
 }

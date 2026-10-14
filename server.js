@@ -13185,6 +13185,80 @@ app.delete('/api/shopinfo/terminal/:id', authRequired, async (request, res) => {
 });
 
 // ══════════════════════════════════════════════════════════
+//  TENCENT CLOUD — CVM instance list (DescribeInstances)
+//  Needs TENCENT_SECRET_ID / TENCENT_SECRET_KEY / TENCENT_REGIONS in .env
+// ══════════════════════════════════════════════════════════
+
+// Signs and sends one Tencent Cloud API 3.0 request (TC3-HMAC-SHA256)
+async function tencentCall(service, version, action, region, payload) {
+  const id = process.env.TENCENT_SECRET_ID, key = process.env.TENCENT_SECRET_KEY;
+  const host = `${service}.tencentcloudapi.com`;
+  const body = JSON.stringify(payload || {});
+  const ts = Math.floor(Date.now() / 1000);
+  const date = new Date(ts * 1000).toISOString().slice(0, 10);
+  const sha = s => crypto.createHash('sha256').update(s).digest('hex');
+  const hmac = (k, s) => crypto.createHmac('sha256', k).update(s).digest();
+
+  const canonical = `POST\n/\n\ncontent-type:application/json; charset=utf-8\nhost:${host}\n\ncontent-type;host\n${sha(body)}`;
+  const scope = `${date}/${service}/tc3_request`;
+  const toSign = `TC3-HMAC-SHA256\n${ts}\n${scope}\n${sha(canonical)}`;
+  const signKey = hmac(hmac(hmac('TC3' + key, date), service), 'tc3_request');
+  const signature = crypto.createHmac('sha256', signKey).update(toSign).digest('hex');
+
+  const r = await fetch(`https://${host}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      Host: host,
+      Authorization: `TC3-HMAC-SHA256 Credential=${id}/${scope}, SignedHeaders=content-type;host, Signature=${signature}`,
+      'X-TC-Action': action,
+      'X-TC-Timestamp': String(ts),
+      'X-TC-Version': version,
+      'X-TC-Region': region,
+    },
+    body,
+  });
+  const j = await r.json();
+  if (j.Response?.Error) throw new Error(`${j.Response.Error.Code}: ${j.Response.Error.Message}`);
+  return j.Response;
+}
+
+// GET /api/tencent/cvm — all CVM instances across TENCENT_REGIONS
+app.get('/api/tencent/cvm', authRequired, async (request, res) => {
+  if (!process.env.TENCENT_SECRET_ID || !process.env.TENCENT_SECRET_KEY) {
+    return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่า TENCENT_SECRET_ID / TENCENT_SECRET_KEY ในไฟล์ .env' });
+  }
+  const regions = (process.env.TENCENT_REGIONS || 'ap-bangkok').split(',').map(s => s.trim()).filter(Boolean);
+  const instances = [], errors = [];
+  await Promise.all(regions.map(async region => {
+    try {
+      for (let offset = 0; ; offset += 100) {
+        const r = await tencentCall('cvm', '2017-03-12', 'DescribeInstances', region, { Offset: offset, Limit: 100 });
+        for (const i of r.InstanceSet || []) {
+          instances.push({
+            id: i.InstanceId,
+            name: i.InstanceName,
+            region,
+            zone: i.Placement?.Zone || '',
+            public_ips: i.PublicIpAddresses || [],
+            private_ips: i.PrivateIpAddresses || [],
+            state: i.InstanceState,
+            os: i.OsName || '',
+            cpu: i.CPU, memory: i.Memory,
+            expired_time: i.ExpiredTime || null,
+          });
+        }
+        if (offset + 100 >= (r.TotalCount || 0)) break;
+      }
+    } catch (e) {
+      errors.push({ region, error: e.message });
+    }
+  }));
+  instances.sort((a, b) => a.region.localeCompare(b.region) || String(a.name).localeCompare(String(b.name)));
+  res.json({ regions, instances, errors, fetched_at: new Date().toISOString() });
+});
+
+// ══════════════════════════════════════════════════════════
 //  SHOP INFO — New flat entries API
 // ══════════════════════════════════════════════════════════
 
