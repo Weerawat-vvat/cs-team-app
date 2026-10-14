@@ -5222,6 +5222,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
       <input id="cvm-search" type="text" placeholder="ค้นหาชื่อเครื่อง / IP / Instance ID..." oninput="cvmRender()"
         style="border:1px solid var(--border);border-radius:10px;height:36px;padding:0 .8rem;font-size:.82rem;min-width:240px;outline:none;flex:1"/>
       <button class="btn btn-primary btn-sm" id="cvm-btn" onclick="cvmLoad()">ดึงรายชื่อเครื่อง</button>
+      <button class="btn btn-ghost btn-sm" onclick="cvmExportCSV()" title="Export รายการที่แสดงอยู่เป็น CSV">Export</button>
       <span id="cvm-updated" style="font-size:.75rem;color:var(--muted)"></span>
     </div>
     <div id="cvm-list">
@@ -24110,14 +24111,37 @@ async function cvmLoad() {
   }
 }
 
+// Instances matching the current region filter and search box
+function cvmFiltered() {
+  const region = document.getElementById('cvm-region').value;
+  const q = document.getElementById('cvm-search').value.trim().toLowerCase();
+  return _cvmData.instances.filter(i =>
+    (!region || i.region === region) &&
+    (!q || [i.name, i.id, ...i.public_ips, ...i.private_ips].some(v => String(v || '').toLowerCase().includes(q))));
+}
+
+function cvmExportCSV() {
+  if (!_cvmData) { showToast('ยังไม่มีข้อมูล กด "ดึงรายชื่อเครื่อง" ก่อน', 'error'); return; }
+  const rows = cvmFiltered();
+  if (!rows.length) { showToast('ไม่มีข้อมูลให้ export', 'error'); return; }
+  const headers = ['name','instance_id','region','zone','public_ip','private_ip','state','cpu','memory_gb','os','expired_time'];
+  const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  const lines = rows.map(i => [
+    i.name, i.id, i.region, i.zone, i.public_ips.join(' '), i.private_ips.join(' '),
+    i.state, i.cpu, i.memory, i.os, i.expired_time,
+  ].map(q).join(','));
+  const csv = headers.join(',') + '\n' + lines.join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `tencent_cvm_${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function cvmRender() {
   if (!_cvmData) return;
   const el = document.getElementById('cvm-list');
-  const region = document.getElementById('cvm-region').value;
-  const q = document.getElementById('cvm-search').value.trim().toLowerCase();
-  const rows = _cvmData.instances.filter(i =>
-    (!region || i.region === region) &&
-    (!q || [i.name, i.id, ...i.public_ips, ...i.private_ips].some(v => String(v || '').toLowerCase().includes(q))));
+  const rows = cvmFiltered();
 
   const stateBadge = s => {
     const [bg, fg] = s === 'RUNNING' ? ['#e7f6ec', '#1f7a3f'] : s === 'STOPPED' ? ['#f1f2f4', '#6b7078'] : ['#fff4e0', '#a8660b'];
