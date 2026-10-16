@@ -1497,8 +1497,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
   <div class="dash-tabs">
     <button class="dash-tab-btn active" id="dash-tab-btn-1" onclick="switchDashTab(1)">ภาพรวม Agent</button>
     <button class="dash-tab-btn" id="dash-tab-btn-6" onclick="switchDashTab(6)">ตอบเคสไลน์ไว</button>
-    <button class="dash-tab-btn" id="dash-tab-btn-4" onclick="switchDashTab(4)">Monitor Tag <span id="mt-tab-count" class="mt-tab-count" style="display:none"></span></button>
-    <button class="dash-tab-btn" id="dash-tab-btn-5" onclick="switchDashTab(5)">ผลการติดตั้ง AI</button>
+    <button class="dash-tab-btn" id="dash-tab-btn-4" onclick="switchDashTab(4)">Monitor Tag <span id="mt-tab-count" class="mt-tab-count" style="display:none"></span></button>    <button class="dash-tab-btn" id="dash-tab-btn-5" onclick="switchDashTab(5)">ผลการติดตั้ง AI</button>
     <button class="dash-tab-btn" id="dash-tab-btn-2" onclick="switchDashTab(2)">Issue Analytics</button>
   </div>
 
@@ -8743,7 +8742,8 @@ async function loadDashboardAll() {
 }
 
 // ══════════════════════════════════════════════════════════
-//  Leaderboard ตอบเคสไลน์ไว (แท็บใน Dashboard) — ใช้ช่วงวันที่ของ Dashboard
+//  ตอบเคสไลน์ไว (แท็บใน Dashboard) — ใช้ช่วงวันที่ของ Dashboard
+//  ความเร็วตอบ (/api/line-leaderboard, ตามชื่อ LINE@) + ผลการปิดเรื่องและเรื่องที่หลุด (/api/line-summary)
 // ══════════════════════════════════════════════════════════
 async function llbLoad() {
   const box = document.getElementById('llb-body');
@@ -8756,28 +8756,50 @@ async function llbLoad() {
   }
   const f = document.getElementById('dash-date-from')?.value || '', t = document.getElementById('dash-date-to')?.value || '';
   const pod = podSel?.value || '';
+  const qs = `from=${f}&to=${t}${pod ? `&pod=${pod}` : ''}`;
   box.style.opacity = '.5';
-  const d = await api(`/api/line-leaderboard?from=${f}&to=${t}${pod ? `&pod=${pod}` : ''}`, { silent: true });
+  const [d, s] = await Promise.all([
+    api(`/api/line-leaderboard?${qs}`, { silent: true }),
+    api(`/api/line-summary?${qs}`, { silent: true }),
+  ]);
   box.style.opacity = '';
   if (!d || d.error) { box.innerHTML = `<div class="mt-meta" style="text-align:center;padding:2rem">โหลดไม่สำเร็จ: ${escHtml(d?.error || '')}</div>`; return; }
+  const sum = s && !s.error ? s : null;
 
   const T = d.target_min;
   const fd = x => new Date(x + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
   document.getElementById('llb-note').textContent =
     `${fd(d.from)} – ${fd(d.to)} · นับเฉพาะข้อความที่ AI สรุปว่าเป็นเคส (เริ่มนับ ${fd(d.start)}) · เวลาทำงาน 08:00–24:00 · เป้า ${T} นาที`;
   const mins = s => s == null ? '—' : s < 60 ? `${Math.round(s)} วิ` : s < 3600 ? `${(s / 60).toFixed(1)} นาที` : `${(s / 3600).toFixed(1)} ชม.`;
+  const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
+  const num = n => (n || 0).toLocaleString('th-TH');
   const tm = d.team;
-  if (!tm.cases) {
-    box.innerHTML = `<div class="mt-meta" style="text-align:center;padding:3rem">ยังไม่มีเคสที่ตอบแล้วในช่วงนี้${d.waiting ? ` · มีเคสรอคนตอบ ${d.waiting} เคส` : ''}</div>`;
+  const tot = sum?.totals || { case_system: 0, manual: 0, not_case: 0, total: 0 };
+  const lk = sum?.leaks || { waiting: d.waiting, answered_unclosed: 0, auto_closed: 0, alerted: 0, answered_after_alert: 0, alerted_waiting: 0 };
+  if (!tm.cases && !tot.total) {
+    box.innerHTML = `<div class="mt-meta" style="text-align:center;padding:3rem">ยังไม่มีเคสที่ตอบหรือปิดในช่วงนี้${d.waiting ? ` · มีเคสรอคนตอบ ${d.waiting} เคส` : ''}</div>`;
     return;
   }
-  const k = (lab, val, sub) => `<div class="stat-flat"><div class="label">${lab}</div><div class="value">${val}</div><div class="sub">${sub}</div></div>`;
+  const k = (lab, val, sub, color) => `<div class="stat-flat"><div class="label">${lab}</div><div class="value${color ? ' ' + color : ''}">${val}</div><div class="sub">${sub}</div></div>`;
+  const head = (title, note, right = '') => `<div class="mt-tt-head">${title} <span class="mt-meta" style="font-weight:400">${note ? '· ' + note : ''}</span>${right ? `<span style="margin-left:auto;display:flex;gap:.7rem;flex-wrap:wrap;font-size:.7rem;color:#6f747c;font-weight:400">${right}</span>` : ''}</div>`;
+  const section = title => `<div style="font-size:.95rem;font-weight:700;margin:1.4rem 0 .6rem;color:#3a3f46">${title}</div>`;
+
+  // ── ตัวเลขหลัก: ความเร็วตอบ + ผลการปิด + งานค้าง ──
   let delta = 'ยังไม่มีช่วงก่อนหน้าให้เทียบ';
   if (d.prev.cases && tm.median_sec != null) {
     const diff = tm.median_sec - d.prev.median_sec;
     delta = Math.abs(diff) < 5 ? 'พอๆ กับช่วงก่อนหน้า'
       : `<span style="color:${diff < 0 ? '#356b4e' : '#b04a40'}">${diff < 0 ? 'เร็วขึ้น' : 'ช้าลง'} ${mins(Math.abs(diff))}</span> จากช่วงก่อนหน้า`;
   }
+  const open = lk.waiting + lk.answered_unclosed;
+  const kpis = `<div class="mt-kpis">
+    ${k('เวลาตอบกลาง (median) ทีม', mins(tm.median_sec), delta)}
+    ${k(`ตอบภายใน ${T} นาที`, tm.cases ? `${tm.within_pct}%` : '—', `เป้า 80% · ${tm.cases} เคส${tm.urgent ? ` · ด่วนทันเป้า ${tm.urgent_within}/${tm.urgent}` : ''}`)}
+    ${k('เรื่องที่ปิดแล้ว', num(tot.total), sum ? `ลงเป็นเคส ${pct(tot.case_system + tot.manual, tot.total)}% · เฉลี่ย ${num(Math.round(tot.total / sum.days))}/วัน` : 'โหลดสรุปไม่สำเร็จ')}
+    ${k('ค้างอยู่ตอนนี้', num(open), `รอคนตอบ ${lk.waiting} · ตอบแล้วรอปิด ${lk.answered_unclosed}`, open ? 'orange' : 'green')}
+  </div>`;
+
+  // ── ความเร็วตอบ (อันดับตามชื่อ LINE@) ──
   // อันดับ = จำนวนเคสที่ตอบทันเป้า (server เรียงมาแล้ว) — ทุกคนติดอันดับ
   // รางวัลย่อย ⚡ ไวสุด / 🎯 แม่นสุด คิดเฉพาะคนที่ตอบอย่างน้อย min_cases เคส
   const ranked = d.people, podium = ranked.slice(0, 3);
@@ -8801,32 +8823,117 @@ async function llbLoad() {
       <td class="r num mt-meta">${Math.round(p.logged / p.cases * 100)}%</td></tr>`;
   const podName = id => id == null ? 'ยังไม่ได้ Assign' : ((_lcPods || []).find(p => p.id === id)?.code || '');
 
-  box.innerHTML = `
-    <div class="mt-kpis">
-      ${k('เวลาตอบกลาง (median) ทีม', mins(tm.median_sec), delta)}
-      ${k(`ตอบภายใน ${T} นาที`, `${tm.within_pct}%`, `เป้า 80% · ${tm.cases} เคส`)}
-      ${k(`เคสด่วน ตอบภายใน ${T} นาที`, tm.urgent ? `${Math.round(tm.urgent_within / tm.urgent * 100)}%` : '—', tm.urgent ? `${tm.urgent_within} จาก ${tm.urgent} เคส` : 'ไม่มีเคสด่วน')}
-      ${k('ตอบแล้ว · ลงเคสแล้ว', `${tm.cases} · ${tm.logged}`, `ลงเคส ${Math.round(tm.logged / tm.cases * 100)}% · รอคนตอบอยู่ ${d.waiting} เคส`)}
-    </div>
-    ${podium.length ? `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem;margin:.9rem 0;align-items:end">
+  const speed = !tm.cases ? '' : `${section('ความเร็วในการตอบ')}
+    ${podium.length ? `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem;margin:0 0 .9rem;align-items:end">
       ${card(podium[1], 1)}${card(podium[0], 0)}${card(podium[2], 2)}</div>` : ''}
     ${fastest || sharpest ? `<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem;margin:0 0 .9rem">
       ${award('⚡', 'ตอบไวที่สุด (median)', fastest, mins(fastest?.median_sec))}${award('🎯', 'ตอบทันเป้าสม่ำเสมอที่สุด', sharpest, `${sharpest?.within_pct}% จาก ${sharpest?.cases} เคส`)}</div>` : ''}
     <div class="mt-tbl-wrap">
-      <div class="mt-tt-head">อันดับ <span class="mt-meta" style="font-weight:400">· เรียงตามจำนวนเคสที่ตอบทันเป้า ${T} นาที (ต้องทั้งเยอะและทัน) · ⚡/🎯 คิดจากคนที่ตอบอย่างน้อย ${d.min_cases} เคส</span>
-        <span style="margin-left:auto;display:flex;gap:.7rem;font-size:.7rem;color:#6f747c;font-weight:400">${C.map((c, i) => `<span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${c};vertical-align:-.05em"></span> ${L[i]}</span>`).join('')}</span></div>
+      ${head('อันดับ', `เรียงตามจำนวนเคสที่ตอบทันเป้า ${T} นาที (ต้องทั้งเยอะและทัน) · ⚡/🎯 คิดจากคนที่ตอบอย่างน้อย ${d.min_cases} เคส`,
+        C.map((c, i) => `<span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${c};vertical-align:-.05em"></span> ${L[i]}</span>`).join(''))}
       <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>#</th><th>คนตอบ (LINE@)</th><th class="r" title="จำนวนเคสที่ตอบภายใน ${T} นาที">ทันเป้า</th><th>การกระจายเวลาตอบ</th><th class="r">median</th>
         <th class="r">ใน ${T} นาที</th><th class="r">เคส</th><th class="r">ด่วน</th><th class="r">ลงเคส</th></tr></thead>
         <tbody>${ranked.map((p, i) => row(p, i + 1)).join('')}</tbody></table></div>
-    </div>
-    <div class="mt-tbl-wrap" style="margin-top:.75rem">
-      <div class="mt-tt-head">ตอบช้าสุดในช่วงนี้ <span class="mt-meta" style="font-weight:400">· ไว้ทบทวนว่าติดตรงไหน</span></div>
+    </div>`;
+
+  // ── ผลการปิดเรื่อง (ตามผู้ใช้ระบบที่กดปิด) ──
+  let closing = '';
+  if (sum && tot.total) {
+    const R = [['case_system', '#3d6b9a'], ['manual', '#6aa583'], ['not_case', '#cfcbc2']];
+    const legend = R.map(([key, c]) => `<span style="white-space:nowrap"><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${c};vertical-align:-.05em"></span> ${escHtml(sum.reasons[key])}</span>`).join('');
+    const bar = (o, h = 12) => `<div style="display:flex;gap:2px;height:${h}px">${R.map(([key, c]) => o[key] ? `<div title="${escHtml(sum.reasons[key])}: ${o[key]} (${pct(o[key], o.total)}%)" style="flex:${o[key]};background:${c}"></div>` : '').join('')}</div>`;
+    const dayMax = Math.max(1, ...sum.daily.map(x => x.total));
+    const daily = sum.daily.length > 1 ? `
+      <div style="display:flex;align-items:flex-end;gap:.8rem;height:150px;margin:.9rem .9rem 0">
+        ${sum.daily.map(x => `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;height:100%;justify-content:flex-end" title="${fd(x.day)}: ${x.total} เรื่อง">
+          <span style="font-size:.7rem;color:#6f747c">${x.total}</span>
+          <div style="width:100%;max-width:56px;display:flex;flex-direction:column-reverse;gap:2px;height:${Math.round(x.total / dayMax * 120)}px;border-radius:4px 4px 0 0;overflow:hidden">
+            ${R.map(([key, c]) => x[key] ? `<div style="flex:${x[key]};background:${c}"></div>` : '').join('')}
+          </div></div>`).join('')}
+      </div>
+      <div style="display:flex;gap:.8rem;margin:.3rem .9rem 0;font-size:.7rem;color:#6f747c">${sum.daily.map(x => `<div style="flex:1;text-align:center">${fd(x.day)}</div>`).join('')}</div>` : '';
+    const pMax = Math.max(1, ...sum.people.map(p => p.total));
+    closing = `${section('ผลการปิดเรื่อง')}
+      <div class="mt-tbl-wrap" style="padding-bottom:.8rem">
+        ${head('ผลการคัดกรอง', `${num(tot.total)} เรื่อง${sum.daily.length > 1 ? ' · รายวัน' : ''}`, legend)}
+        <div style="margin:.2rem .9rem 0;border-radius:4px;overflow:hidden">${bar(tot, 20)}</div>
+        <div style="display:flex;gap:1.2rem;flex-wrap:wrap;margin:.45rem .9rem 0;font-size:.78rem;color:#4d535b">
+          ${R.map(([key]) => `<span>${escHtml(sum.reasons[key])} <b>${num(tot[key])}</b> (${pct(tot[key], tot.total)}%)</span>`).join('')}
+        </div>${daily}
+      </div>
+      <div class="mt-tbl-wrap" style="margin-top:.75rem">
+        ${head('คนปิดเรื่อง', 'เรียงตามจำนวนเรื่องที่ปิด · ชื่อผู้ใช้ระบบที่กดปิดในกล่องคัดกรอง', legend)}
+        <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>#</th><th>พนักงาน</th><th class="r">ปิดแล้ว</th><th style="width:26%">สัดส่วนผล</th>
+          <th class="r">เปิดเคส</th><th class="r">Manual</th><th class="r">ไม่ใช่เคส</th><th class="r" title="สัดส่วนที่ลงเป็นเคส (ระบบ + Manual)">ลงเคส</th>
+          <th class="r" title="จำนวนวันที่มีการปิดเรื่อง">วันทำงาน</th><th class="r">เฉลี่ย/วัน</th></tr></thead><tbody>
+          ${sum.people.map((p, i) => `<tr><td class="num mt-meta">${i + 1}</td><td><b>${escHtml(p.name)}</b></td><td class="r num"><b>${num(p.total)}</b></td>
+            <td><div style="width:${Math.max(8, Math.round(p.total / pMax * 100))}%;min-width:24px">${bar(p)}</div></td>
+            <td class="r num">${p.case_system || '—'}</td><td class="r num">${p.manual || '—'}</td><td class="r num mt-meta">${p.not_case || '—'}</td>
+            <td class="r num">${pct(p.case_system + p.manual, p.total)}%</td><td class="r num mt-meta">${p.active_days}</td>
+            <td class="r num">${Math.round(p.total / Math.max(1, p.active_days))}</td></tr>`).join('')}
+        </tbody></table></div>
+      </div>`;
+  }
+
+  // ── เรื่องที่หลุด / ไม่มีเจ้าของ ──
+  let leaks = '';
+  if (sum) {
+    const noReply = Math.max(0, lk.alerted - lk.answered_after_alert);
+    const tile = (bg, fg, lab, val, sub) => `<div class="stat-flat" style="background:${bg};border-color:transparent">
+      <div class="label" style="color:${fg}">${lab}</div><div class="value" style="color:${fg}">${num(val)}</div><div class="sub">${sub}</div></div>`;
+    const oldest = new Date(Date.now() - (sum.retention_days || 7) * 86400000).toISOString().slice(0, 10);
+    const podRows = sum.pods.filter(p => p.total || p.waiting || p.answered_unclosed || p.auto_closed);
+    const hours = Array.from({ length: 24 }, (_, h) => sum.hourly.find(x => x.h === h)?.n || 0);
+    const hMax = Math.max(1, ...hours), peak = hours.indexOf(hMax);
+    const ago = x => { const m = Math.round((Date.now() - parseDbDate(x)) / 60000); return m >= 60 ? `${Math.floor(m / 60)} ชม. ${m % 60} นาที` : `${Math.max(0, m)} นาที`; };
+    leaks = `${section(`เรื่องที่หลุด / ไม่มีเจ้าของ <span class="mt-meta" style="font-weight:400">· ข้อมูลคัดกรองเก็บ ${sum.retention_days || 7} วัน${sum.from < oldest ? ' — ช่วงที่เลือกเก่ากว่านั้น ตัวเลขส่วนนี้จะไม่ครบ' : ''}</span>`)}
+      <div class="mt-kpis">
+        ${tile('#fbeceb', '#a23b33', 'แจ้งเตือนแล้ว ไม่มีการตอบในไลน์', noReply, `จากที่แจ้งเตือน ${lk.alerted} เรื่อง · ยังค้างอยู่ ${lk.alerted_waiting}`)}
+        ${tile('#fdf3e1', '#86671f', 'ยังไม่มีคนตอบ', lk.waiting, 'เรื่องที่ยังเปิดอยู่ ไม่มีใครตอบในไลน์')}
+        ${tile('#fdf3e1', '#86671f', 'ตอบในไลน์แล้ว แต่ยังไม่ปิด', lk.answered_unclosed, 'ยังไม่ได้เลือกผล (เปิดเคส / Manual / ไม่ใช่เคส)')}
+        ${tile('#f3f2ef', '#4d535b', 'ระบบปิดให้', lk.auto_closed, 'ข้อความที่ปิดอัตโนมัติ ไม่มีคนรับผิดชอบ')}
+      </div>
+      ${podRows.length ? `<div class="mt-tbl-wrap" style="margin-top:.75rem">
+        ${head('แยกตาม Pod', 'ใช้หาจุดที่ต้องเพิ่มคนเฝ้า')}
+        <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>Pod</th><th class="r">ปิดแล้ว</th><th class="r">ลงเคส</th><th class="r">ไม่ใช่เคส</th>
+          <th class="r">ยังไม่มีคนตอบ</th><th class="r">ตอบแต่ยังไม่ปิด</th><th class="r">ระบบปิดให้</th></tr></thead><tbody>
+          ${podRows.map(p => `<tr><td><b>${escHtml(p.code)}</b></td><td class="r num">${num(p.total)}</td><td class="r num">${num(p.case_system + p.manual)}</td>
+            <td class="r num mt-meta">${num(p.not_case)}</td>
+            <td class="r num" style="${p.waiting ? 'color:#a23b33;font-weight:700' : ''}">${p.waiting || '—'}</td>
+            <td class="r num" style="${p.answered_unclosed ? 'color:#86671f;font-weight:700' : ''}">${p.answered_unclosed || '—'}</td>
+            <td class="r num mt-meta">${p.auto_closed || '—'}</td></tr>`).join('')}
+        </tbody></table></div></div>` : ''}
+      ${tot.total ? `<div class="mt-tbl-wrap" style="margin-top:.75rem;padding-bottom:.8rem">
+        ${head('ช่วงเวลาที่เรื่องเข้า', `พีค ${String(peak).padStart(2, '0')}:00–${String(peak + 1).padStart(2, '0')}:00 (${hMax} เรื่อง)`)}
+        <div style="display:flex;align-items:flex-end;gap:3px;height:90px;margin:.4rem .9rem 0">
+          ${hours.map((v, h) => `<div title="${String(h).padStart(2, '0')}:00 — ${v} เรื่อง" style="flex:1;height:${Math.max(v ? 2 : 0, Math.round(v / hMax * 86))}px;background:${v >= hMax * .8 ? '#3d6b9a' : '#9db4cf'};border-radius:3px 3px 0 0"></div>`).join('')}
+        </div>
+        <div style="display:flex;justify-content:space-between;margin:.3rem .9rem 0;font-size:.7rem;color:#6f747c"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>23:00</span></div>
+      </div>` : ''}
+      ${sum.leak_items.length ? `<div class="mt-tbl-wrap" style="margin-top:.75rem">
+        ${head('รายการที่ยังค้าง', 'คลิกเพื่อเปิดกล่องคัดกรองของ Pod นั้น')}
+        <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>สถานะ</th><th>กลุ่ม / เรื่อง</th><th>Pod</th><th class="r">รอมาแล้ว</th></tr></thead><tbody>
+          ${sum.leak_items.map(r => {
+            const [bg, fg, lab] = r.answered_in_line ? ['#fdf3e1', '#86671f', `ตอบแล้วรอปิด${r.answered_by ? ' · ' + r.answered_by : ''}`]
+              : r.urgent_alerted_at ? ['#fbeceb', '#a23b33', 'แจ้งเตือนแล้ว ไม่มีคนตอบ'] : ['#f3f2ef', '#4d535b', 'ยังไม่มีคนตอบ'];
+            return `<tr style="cursor:pointer" onclick="lcOpenPod('${r.pod_id ?? 'none'}')">
+              <td><span style="background:${bg};color:${fg};border-radius:20px;padding:.1rem .55rem;font-size:.72rem;font-weight:600;white-space:nowrap">${escHtml(lab)}</span></td>
+              <td><b>${escHtml(r.group_name || '—')}</b>${r.priority === 'urgent' ? ' <span style="color:#b04a40;font-size:.72rem">เร่งด่วน</span>' : ''}<span style="display:block;font-size:.74rem;color:#6f747c">${escHtml(r.summary || '')}</span></td>
+              <td class="mt-meta">${escHtml(r.pod_code || '')}</td><td class="r num" style="white-space:nowrap">${ago(r.message_time)}</td></tr>`;
+          }).join('')}
+        </tbody></table></div></div>` : ''}`;
+  }
+
+  const slowest = d.slowest.length ? `<div class="mt-tbl-wrap" style="margin-top:.75rem">
+      ${head('ตอบช้าสุดในช่วงนี้', 'ไว้ทบทวนว่าติดตรงไหน')}
       <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th class="r">รอ</th><th>กลุ่ม / เรื่อง</th><th>Pod</th><th>คนตอบ</th></tr></thead><tbody>
       ${d.slowest.map(s => `<tr><td class="r num" style="color:${s.sec > T * 60 ? '#b04a40' : 'inherit'};white-space:nowrap"><b>${mins(s.sec)}</b></td>
         <td><b>${escHtml(s.group_name || '—')}</b>${s.urgent ? ' <span style="color:#b04a40;font-size:.72rem">เร่งด่วน</span>' : ''}<span style="display:block;font-size:.74rem;color:#6f747c">${escHtml(s.summary || '')}</span></td>
         <td class="mt-meta">${escHtml(podName(s.pod_id))}</td><td>${escHtml(s.answered_by || '—')}</td></tr>`).join('')}
       </tbody></table></div>
-    </div>`;
+    </div>` : '';
+
+  box.innerHTML = kpis + speed + slowest + closing + leaks;
 }
 
 async function loadDashboard() {

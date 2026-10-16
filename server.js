@@ -8038,6 +8038,111 @@ app.get('/api/line-leaderboard', authRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ══════════════════════════════════════════════════════════
+//  สรุปงานคัดกรอง Line (แสดงในแท็บ "ตอบเคสไลน์ไว" ของ Dashboard)
+//  ผลงาน/ปริมาณงาน = line_case_close_log (เก็บถาวร, 1 แถว = 1 เรื่อง)
+//  เรื่องที่หลุด = line_msg_triage (ถูกล้างทุก 7 วัน — ย้อนหลังได้ไม่เกิน 7 วัน)
+// ══════════════════════════════════════════════════════════
+// GET /api/line-summary?from=YYYY-MM-DD&to=YYYY-MM-DD&pod=<id|none>
+app.get('/api/line-summary', authRequired, async (request, res) => {
+  try {
+    await ensureLcCloseLog();
+    await ensureUrgentAlertCol();
+    const day = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : null;
+    let from = day(request.query.from) || bangkokToday(), to = day(request.query.to) || from;
+    if (from > to) [from, to] = [to, from];
+    const pod = request.query.pod;
+    const podId = parseInt(pod) || null;
+    const bind = r => { r.input('f', sql.NVarChar, from).input('t', sql.NVarChar, to); if (podId) r.input('pod', sql.Int, podId); return r; };
+    const podSql = col => pod === 'none' ? `AND ${col} IS NULL` : podId ? `AND ${col} = @pod` : '';
+    const inRange = col => `${col} >= CAST(@f AS DATE) AND ${col} < DATEADD(day, 1, CAST(@t AS DATE))`;
+
+    // ── ผลงานจากประวัติการปิด ──
+    const L = `FROM line_case_close_log l WHERE ${inRange('l.closed_at')} ${podSql('l.pod_id')}`;
+    const [byReason, daily, hourly, pods, people] = (await bind(req()).query(`
+      SELECT reason, COUNT(*) AS n ${L} GROUP BY reason;
+      SELECT CONVERT(char(10), l.closed_at, 23) AS day, reason, COUNT(*) AS n ${L} GROUP BY CONVERT(char(10), l.closed_at, 23), reason;
+      SELECT DATEPART(hour, l.message_time) AS h, COUNT(*) AS n ${L} AND l.message_time IS NOT NULL GROUP BY DATEPART(hour, l.message_time);
+      SELECT l.pod_id, reason, COUNT(*) AS n ${L} GROUP BY l.pod_id, reason;
+      SELECT ISNULL(l.closed_by_name, N'(ไม่ทราบ)') AS name, reason, COUNT(*) AS n,
+             SUM(ISNULL(l.msg_count, 1)) AS msgs, COUNT(DISTINCT CONVERT(char(10), l.closed_at, 23)) AS active_days
+        ${L} GROUP BY ISNULL(l.closed_by_name, N'(ไม่ทราบ)'), reason;`)).recordsets;
+
+    const pivot = (rows, keyOf) => {
+      const m = new Map();
+      for (const r of rows) {
+        const k = keyOf(r);
+        const o = m.get(k) || m.set(k, { case_system: 0, manual: 0, not_case: 0, total: 0 }).get(k);
+        o[r.reason] = (o[r.reason] || 0) + r.n; o.total += r.n;
+      }
+      return m;
+    };
+    const personMap = pivot(people, r => r.name);
+    for (const r of people) {
+      const o = personMap.get(r.name);
+      o.msgs = (o.msgs || 0) + r.msgs;
+      o.active_days = Math.max(o.active_days || 0, r.active_days);
+    }
+
+    // ── เรื่องที่หลุด (เฉพาะกลุ่มที่คัดกรองเฝ้าอยู่ — ตัวเลขเดียวกับกล่องคัดกรอง) ──
+    const T = `FROM line_msg_triage t LEFT JOIN line_group_pods lgp ON lgp.group_id = t.group_id
+      WHERE t.needs_action = 1 AND ${inRange('t.message_time')}
+        AND ${triageScopeSql()} ${podSql('lgp.pod_id')}`;
+    const OPEN = `t.status IN ('open','claimed') AND ${TRIAGE_THREAD_START_SQL()}`;
+    const [leakPods, alerts, items] = (await bind(req()).query(`
+      -- SUM ครอบ subquery ไม่ได้ — คิด flag ในตารางย่อยก่อน
+      SELECT x.pod_id,
+             SUM(CASE WHEN x.is_open = 1 AND x.answered = 0 THEN 1 ELSE 0 END) AS waiting,
+             SUM(CASE WHEN x.is_open = 1 AND x.answered = 0 AND x.alerted = 1 THEN 1 ELSE 0 END) AS alerted_waiting,
+             SUM(CASE WHEN x.is_open = 1 AND x.answered = 1 THEN 1 ELSE 0 END) AS answered_unclosed,
+             SUM(x.auto_closed) AS auto_closed
+        FROM (
+          SELECT lgp.pod_id,
+                 CASE WHEN ${OPEN} THEN 1 ELSE 0 END AS is_open,
+                 ISNULL(CAST(t.answered_in_line AS INT), 0) AS answered,
+                 CASE WHEN t.urgent_alerted_at IS NOT NULL THEN 1 ELSE 0 END AS alerted,
+                 CASE WHEN t.auto_closed = 1 AND t.done_by IS NULL THEN 1 ELSE 0 END AS auto_closed
+            ${T}
+        ) x GROUP BY x.pod_id;
+      -- แจ้งเตือนส่งเป็นรายแชท: แชทเดียวกันในรอบเดียวกัน = 1 เรื่อง
+      SELECT COUNT(DISTINCT CONCAT(t.group_id, '|', CONVERT(char(16), t.urgent_alerted_at, 120))) AS alerted,
+             COUNT(DISTINCT CASE WHEN t.answered_in_line = 1 THEN CONCAT(t.group_id, '|', CONVERT(char(16), t.urgent_alerted_at, 120)) END) AS answered_after
+        ${T} AND t.urgent_alerted_at IS NOT NULL;
+      SELECT TOP 60 t.id, COALESCE(t.group_name, lgp.group_name) AS group_name, t.summary, t.priority, t.message_time,
+             t.answered_in_line, t.answered_by, t.urgent_alerted_at, lgp.pod_id
+        ${T} AND ${OPEN}
+        ORDER BY CASE WHEN t.urgent_alerted_at IS NOT NULL AND ISNULL(t.answered_in_line,0) = 0 THEN 0
+                      WHEN ISNULL(t.answered_in_line,0) = 0 THEN 1 ELSE 2 END, t.message_time;`)).recordsets;
+
+    const sum = k => leakPods.reduce((s, r) => s + (r[k] || 0), 0);
+    const podCodes = new Map((await req().query('SELECT id, code FROM pods')).recordset.map(p => [p.id, p.code]));
+    const podStats = pivot(pods, r => r.pod_id ?? 0);
+    for (const r of leakPods) {
+      const o = podStats.get(r.pod_id ?? 0) || podStats.set(r.pod_id ?? 0, { case_system: 0, manual: 0, not_case: 0, total: 0 }).get(r.pod_id ?? 0);
+      Object.assign(o, { waiting: r.waiting, alerted_waiting: r.alerted_waiting, answered_unclosed: r.answered_unclosed, auto_closed: r.auto_closed });
+    }
+
+    res.json({
+      from, to,
+      days: Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1,
+      retention_days: TRIAGE_CFG.retentionDays,
+      reasons: LC_CLOSE_REASONS,
+      totals: pivot(byReason, () => 'all').get('all') || { case_system: 0, manual: 0, not_case: 0, total: 0 },
+      daily: [...pivot(daily, r => r.day)].map(([day, o]) => ({ day, ...o })).sort((a, b) => a.day.localeCompare(b.day)),
+      hourly: hourly.map(r => ({ h: r.h, n: r.n })),
+      pods: [...podStats].map(([id, o]) => ({ pod_id: id || null, code: id ? podCodes.get(id) || `#${id}` : 'ยังไม่ได้ Assign', ...o }))
+        .sort((a, b) => b.total - a.total),
+      people: [...personMap].map(([name, o]) => ({ name, ...o })).sort((a, b) => b.total - a.total),
+      leaks: {
+        waiting: sum('waiting'), alerted_waiting: sum('alerted_waiting'),
+        answered_unclosed: sum('answered_unclosed'), auto_closed: sum('auto_closed'),
+        alerted: alerts[0]?.alerted || 0, answered_after_alert: alerts[0]?.answered_after || 0,
+      },
+      leak_items: items.map(r => ({ ...r, pod_code: r.pod_id ? podCodes.get(r.pod_id) || '' : 'ยังไม่ได้ Assign' })),
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 let _caseDraftSubj = null;
 // GET /api/triage/:id/case-draft — AI ร่างเคสจากข้อความ (อาการ / วิธีแก้ / หัวข้อ) + เดาร้านจากชื่อกลุ่มไลน์
 app.get('/api/triage/:id/case-draft', authRequired, async (request, res) => {
