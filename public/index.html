@@ -8734,20 +8734,23 @@ async function dashRefreshOnShift() {
 // wrapper ที่ใช้แทน loadDashboard();loadDashboardCharts() ทุกที่
 // เมื่อ preset=today → await loadDashboard ก่อนเพื่อให้ _onShiftExtUsernames พร้อม
 async function loadDashboardAll() {
+  // ตอบเคสไลน์ไวไม่พึ่งข้อมูลภาพรวม — โหลดทันที ไม่ต้องรอ (ภาพรวมช้า และถ้าพังแท็บนี้จะไม่อัปเดตตามวันที่)
+  if (_dashTab === 6) llbLoad();
   await loadDashboard();
   await loadDashboardCharts();
   if (_dashTab === 2) loadIssueAnalytics();
   if (_dashTab === 4) mtLoad();
-  if (_dashTab === 6) llbLoad();
 }
 
 // ══════════════════════════════════════════════════════════
 //  ตอบเคสไลน์ไว (แท็บใน Dashboard) — ใช้ช่วงวันที่ของ Dashboard
 //  ความเร็วตอบ (/api/line-leaderboard, ตามชื่อ LINE@) + ผลการปิดเรื่องและเรื่องที่หลุด (/api/line-summary)
 // ══════════════════════════════════════════════════════════
+let _llbSeq = 0;   // กดเปลี่ยนวันที่รัวๆ — ใช้แค่ผลของครั้งล่าสุด
 async function llbLoad() {
   const box = document.getElementById('llb-body');
   if (!box) return;
+  const seq = ++_llbSeq;
   const podSel = document.getElementById('llb-pod');
   if (podSel && podSel.options.length <= 1) {
     if (!_lcPods) { const p = await api('/api/pods', { silent: true }); if (Array.isArray(p)) _lcPods = p; }
@@ -8762,6 +8765,7 @@ async function llbLoad() {
     api(`/api/line-leaderboard?${qs}`, { silent: true }),
     api(`/api/line-summary?${qs}`, { silent: true }),
   ]);
+  if (seq !== _llbSeq) return;
   box.style.opacity = '';
   if (!d || d.error) { box.innerHTML = `<div class="mt-meta" style="text-align:center;padding:2rem">โหลดไม่สำเร็จ: ${escHtml(d?.error || '')}</div>`; return; }
   const sum = s && !s.error ? s : null;
