@@ -14526,13 +14526,15 @@ app.get('/api/monitor-tags/:id/tickets', authRequired, async (request, res) => {
       storeCond += ` AND EXISTS (SELECT 1 FROM CustomerRegistration fx JOIN CustomerGroup fg ON fg.GroupId = fx.GroupId
         WHERE fx.RegistrationId = cl.RegistrationId AND fx.GroupId <> 1 AND fg.GroupName = @fbrand)`;
     }
+    // ?full=1 — ข้อความเต็ม (Export Excel ไว้หา root cause) · ปกติตัดสั้นไว้แสดงใน popup
+    const full = request.query.full === '1';
     const rows = (await r.query(`
       DECLARE @e DATETIME = ISNULL(@en, GETDATE());
-      SELECT TOP 1000
+      SELECT TOP ${full ? 5000 : 1000}
         cl.CalllogId AS id, cl.RegistrationId AS rid, cl.ReceiveDate AS opened_at, cl.CloseDate AS closed_at,
         CASE WHEN cl.ReceiveDate >= @c THEN 'post' ELSE 'pre' END AS phase,
         cs.StatusName AS status, u.UserName AS agent,
-        LEFT(cl.CalllogDesc, 400) AS description, LEFT(cl.Solution, 600) AS solution,
+        ${full ? 'cl.CalllogDesc AS description, cl.Solution AS solution,' : 'LEFT(cl.CalllogDesc, 400) AS description, LEFT(cl.Solution, 600) AS solution,'}
         (SELECT TOP 1 x.CompanyName FROM CustomerRegistration x WHERE x.RegistrationId = cl.RegistrationId) AS company
       FROM Calllog cl ${m.join}
       LEFT JOIN CallStatus cs ON cs.StatusId = cl.StatusId

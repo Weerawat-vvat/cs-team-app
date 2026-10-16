@@ -21969,15 +21969,22 @@ function mtTagTableHtml(list, g, compact) {
   return `<div class="mt-tbl-wrap">
     <div class="mt-tt-head"><i class=i-${G.icon} style="color:${G.col}"></i> ${G.label}
       <span class="mt-meta" style="font-weight:400">· ${list.length} Tag · ${list.reduce((a, x) => a + x.s.cur, 0).toLocaleString()} เคส · เฉลี่ย <b>${mtFmtAvg(groupAvg)}</b>/วัน</span>
-      <button class="svc-btn-ghost" onclick="mtTagsExportXlsx('${g}')" style="margin-left:auto;height:28px;font-size:.74rem;padding:0 .6rem" title="Export ${G.label} เป็นไฟล์ Excel (สรุป Tag + เคสรายวัน)"><i class=i-download></i> Export Excel</button></div>
+      <button class="svc-btn-ghost" onclick="mtTagsExportXlsx('${g}', this)" style="margin-left:auto;height:28px;font-size:.74rem;padding:0 .6rem" title="Export ${G.label} เป็นไฟล์ Excel (สรุป Tag + เคสรายวัน)"><i class=i-download></i> Export Excel</button></div>
     <table class="mt-tbl"><thead><tr><th>Tag</th><th class="r">เคส</th><th class="r" title="${mtAvgNote(d)}">เฉลี่ย/วัน</th><th>สัดส่วน</th><th>เทียบช่วงก่อน</th>
       ${compact ? '' : '<th class="r">ร้าน</th><th>แนวโน้มรายวัน</th><th>ล่าสุด</th>'}<th></th></tr></thead>
     <tbody>${rows || `<tr><td colspan="9" class="mt-meta" style="text-align:center;padding:1.2rem">ยังไม่มี Tag ในกลุ่มนี้</td></tr>`}</tbody></table></div>`;
 }
 
-// Export ตาราง Tag ของกลุ่ม (Bug โปรแกรม / IT Service) เป็น .xlsx — ชีต "สรุป Tag" + ชีต "รายวัน"
-function mtTagsExportXlsx(g) {
+// Export ตาราง Tag ของกลุ่ม (Bug โปรแกรม / IT Service) เป็น .xlsx — ชีต "สรุป Tag" + "รายละเอียดเคส" + "รายวัน"
+// รายละเอียดเคส = อาการ + วิธีแก้ไขเต็มของทุกเคส (ช่วงเดียวกับ popup) ไว้หา root cause ว่าต้องแก้โปรแกรมตรงไหน
+async function mtTagsExportXlsx(g, btn) {
   const d = _mtBoard.data; if (!d) return;
+  if (btn) { if (btn.disabled) return; btn.disabled = true; btn.dataset.html = btn.innerHTML; btn.innerHTML = '<i class=i-download></i> กำลังดึงเคส...'; }
+  try { await mtTagsExportXlsxRun(g, d); }
+  catch (e) { showToast('Export ไม่สำเร็จ: ' + e.message, 'error'); }
+  finally { if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.html; } }
+}
+async function mtTagsExportXlsxRun(g, d) {
   const G = MT_GROUPS[g];
   const stat = new Map(d.tags.map(x => [x.id, x]));
   const empty = { cur: 0, prev: 0, daily: [], stores: 0, last_at: null };
@@ -21989,12 +21996,25 @@ function mtTagsExportXlsx(g) {
   const summary = [
     [`${G.label} · ช่วง ${d.from} ถึง ${d.to} (${d.labels.length} วัน)${d.ai_only ? ` · เฉพาะร้านที่ติดตั้ง AI ${d.ai_stores} ร้าน` : ''} · ${mtAvgNote(d)}`],
     [],
-    ['Tag', 'ประเภท', 'เคส', 'เฉลี่ย/วัน', 'สัดส่วน (%)', ...(d.prev_ok ? ['ช่วงก่อน', 'เปลี่ยนแปลง (%)'] : []), 'ร้าน', 'แจ้งล่าสุด', 'หมายเหตุ'],
+    ['Tag', 'ประเภท', 'เคส', 'เฉลี่ย/วัน', 'สัดส่วน (%)', ...(d.prev_ok ? ['ช่วงก่อน', 'เปลี่ยนแปลง (%)'] : []), 'ร้าน', 'แจ้งล่าสุด', 'หมายเหตุ', 'วิธีตรวจสอบ', 'วิธีแก้ไข'],
     ...list.map(({ t, s }) => [t.title || '', MT_TYPES[t.tag_type]?.label || '', s.cur, r2(mtAvgOf(s.daily, d)), total ? r2(s.cur / total * 100) : 0,
       ...(d.prev_ok ? [s.prev, s.prev ? r2((s.cur - s.prev) / s.prev * 100) : ''] : []),
-      s.stores, s.last_at ? fmtDateShort(s.last_at) : '', (t.note || '').replace(/\s+/g, ' ').trim()]),
+      s.stores, s.last_at ? fmtDateShort(s.last_at) : '', (t.note || '').trim(), (t.check_script || '').trim(), (t.fix_script || '').trim()]),
     ['รวม', '', total, r2(mtAvgOf(d.labels.map((_, i) => list.reduce((a, x) => a + (x.s.daily[i] || 0), 0)), d)), total ? 100 : 0,
-      ...(d.prev_ok ? [list.reduce((a, x) => a + x.s.prev, 0), ''] : []), '', '', '']
+      ...(d.prev_ok ? [list.reduce((a, x) => a + x.s.prev, 0), ''] : []), '', '', '', '', '']
+  ];
+  const sumWrap = [summary[2].length - 3, summary[2].length - 2, summary[2].length - 1];
+  // เคสของทุก Tag ที่มีเคส — ข้อความเต็ม (full=1) · ช่วง/ตัวกรองเดียวกับ popup ของ Tag
+  const qs = `?days=${_mtBoard.days}&full=1${_mtBoard.ai ? '&ai=1' : ''}`;
+  const got = await Promise.all(list.filter(x => x.s.cur).map(({ t }) => api(`/api/monitor-tags/${t.id}/tickets${qs}`, { silent: true })
+    .then(r => { if (!r || r.error) throw new Error(r?.error || `ดึงเคสของ “${t.title}” ไม่ได้`); return r.rows.map(c => ({ ...c, t })); })));
+  const dt = v => { if (!v) return ''; const x = parseDbDate(v), p = n => String(n).padStart(2, '0');
+    return `${x.getFullYear()}-${p(x.getMonth() + 1)}-${p(x.getDate())} ${p(x.getHours())}:${p(x.getMinutes())}`; };
+  const txt = v => String(v || '').replace(/\r\n?/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+  const cases = [
+    ['Tag', 'เลขเคส', 'วันที่แจ้ง', 'วันที่ปิด', 'ร้าน', 'สถานะ', 'ผู้รับเคส', 'อาการ / รายละเอียด', 'วิธีแก้ไข', 'Root cause', 'จุดที่ต้องแก้ในโปรแกรม'],
+    ...got.flat().map(c => [c.t.title || '', c.id, dt(c.opened_at), dt(c.closed_at), c.company || '', c.status || '',
+      dn(c.agent) || c.agent || '', txt(c.description), txt(c.solution) || '(ยังไม่ได้บันทึกวิธีแก้ไข)', '', ''])
   ];
   const daily = [
     ['วันที่', ...list.map(x => x.t.title || ''), 'รวม'],
@@ -22003,7 +22023,8 @@ function mtTagsExportXlsx(g) {
       return [day, ...v, v.reduce((a, b) => a + b, 0)];
     })
   ];
-  const blob = mtXlsxBlob([{ name: 'สรุป Tag', rows: summary, head: 3 }, { name: 'รายวัน', rows: daily, head: 1 }]);
+  const blob = mtXlsxBlob([{ name: 'สรุป Tag', rows: summary, head: 3, wrap: sumWrap },
+    { name: 'รายละเอียดเคส', rows: cases, head: 1, wrap: [7, 8, 9, 10] }, { name: 'รายวัน', rows: daily, head: 1 }]);
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `monitor-tag-${g === 'service' ? 'it-service' : 'bug'}-${d.from}_${d.to}.xlsx`;
@@ -22019,13 +22040,14 @@ function mtXlsxBlob(sheets) {
   const sheetXml = sh => {
     const w = [];
     sh.rows.forEach((r, ri) => r.forEach((v, ci) => { const l = String(v ?? '').length; if (ri + 1 >= (sh.head || 1)) w[ci] = Math.max(w[ci] || 8, Math.min(60, l + 2)); }));
+    (sh.wrap || []).forEach(ci => { w[ci] = 60; });
     return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
       + (sh.head ? `<sheetViews><sheetView workbookViewId="0"><pane ySplit="${sh.head}" topLeftCell="A${sh.head + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>` : '')
       + `<cols>${w.map((v, i) => `<col min="${i + 1}" max="${i + 1}" width="${v}" customWidth="1"/>`).join('')}</cols><sheetData>`
       + sh.rows.map((r, ri) => `<row r="${ri + 1}">${r.map((v, ci) => {
           if (v === '' || v == null) return '';
-          const ref = col(ci) + (ri + 1), st = ri + 1 === sh.head ? ' s="1"' : '';
-          return typeof v === 'number' && isFinite(v) ? `<c r="${ref}"${st}><v>${v}</v></c>` : `<c r="${ref}" t="inlineStr"${st}><is><t xml:space="preserve">${x(v)}</t></is></c>`;
+          const ref = col(ci) + (ri + 1), st = ri + 1 === sh.head ? ' s="1"' : ri + 1 > (sh.head || 0) && sh.wrap?.includes(ci) ? ' s="2"' : '';
+          return typeof v === 'number' && isFinite(v) ? `<c r="${ref}"${st}><v>${v}</v></c>` : `<c r="${ref}" t="inlineStr"${st}><is><t xml:space="preserve">${x(String(v).slice(0, 32000))}</t></is></c>`;
         }).join('')}</row>`).join('')
       + '</sheetData></worksheet>';
   };
@@ -22038,7 +22060,7 @@ function mtXlsxBlob(sheets) {
     ['xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
       + sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')
       + `<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
-    ['xl/styles.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Tahoma"/></font><font><b/><sz val="11"/><name val="Tahoma"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF1F0EC"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>'],
+    ['xl/styles.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Tahoma"/></font><font><b/><sz val="11"/><name val="Tahoma"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF1F0EC"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>'],
     ...sheets.map((s, i) => [`xl/worksheets/sheet${i + 1}.xml`, sheetXml(s)])
   ];
   // zip (store) — CRC32 + local headers + central directory
