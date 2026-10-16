@@ -14546,6 +14546,11 @@ app.get('/api/monitor-tags/:id/tickets', authRequired, async (request, res) => {
       ORDER BY cl.ReceiveDate DESC`)).recordset;
     const ls = new Set(tag.linked_ids);
     rows.forEach(x => { x.linked = ls.has(x.id); });
+    // full=1 (Export) — ใส่วันที่ร้านลง SSH / ติดตั้ง AI ไว้ด้วย (null = ยังไม่ลง)
+    if (full) {
+      const inst = await aiInstalledMap();
+      rows.forEach(x => { x.ssh_day = inst.get(x.rid)?.d || null; });
+    }
     if (request.query.ai === '1') {
       const inst = await aiInstalledMap();
       return res.json({ tag, rows: rows.filter(x => inst.has(x.rid)) });

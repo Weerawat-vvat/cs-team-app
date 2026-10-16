@@ -22012,9 +22012,15 @@ async function mtTagsExportXlsxRun(g, d) {
     return `${x.getFullYear()}-${p(x.getMonth() + 1)}-${p(x.getDate())} ${p(x.getHours())}:${p(x.getMinutes())}`; };
   const txt = v => String(v || '').replace(/\r\n?/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
   const cases = [
-    ['Tag', 'เลขเคส', 'วันที่แจ้ง', 'วันที่ปิด', 'ร้าน', 'สถานะ', 'ผู้รับเคส', 'อาการ / รายละเอียด', 'วิธีแก้ไข', 'Root cause', 'จุดที่ต้องแก้ในโปรแกรม'],
-    ...got.flat().map(c => [c.t.title || '', c.id, dt(c.opened_at), dt(c.closed_at), c.company || '', c.status || '',
-      dn(c.agent) || c.agent || '', txt(c.description), txt(c.solution) || '(ยังไม่ได้บันทึกวิธีแก้ไข)', '', ''])
+    ['Tag', 'เลขเคส', 'วันที่แจ้ง', 'วันที่ปิด', 'ร้าน', 'ลง SSH', 'วันที่ลง SSH', 'เคสเกิด', 'สถานะ', 'ผู้รับเคส', 'อาการ / รายละเอียด', 'วิธีแก้ไข', 'Root cause', 'จุดที่ต้องแก้ในโปรแกรม'],
+    ...got.flat().map(c => {
+      // เทียบวันที่แจ้งเคสกับวันลง SSH ของร้าน — วันเดียวกันนับเป็น "วันที่ลง"
+      const day = dt(c.opened_at).slice(0, 10);
+      const when = !c.ssh_day ? '' : day < c.ssh_day ? 'ก่อนลง SSH' : day > c.ssh_day ? 'หลังลง SSH' : 'วันที่ลง SSH';
+      return [c.t.title || '', c.id, dt(c.opened_at), dt(c.closed_at), c.company || '',
+        c.ssh_day ? 'ลงแล้ว' : c.ssh_day === null ? 'ยังไม่ลง' : '', c.ssh_day || '', when, c.status || '',
+        dn(c.agent) || c.agent || '', txt(c.description), txt(c.solution) || '(ยังไม่ได้บันทึกวิธีแก้ไข)', '', ''];
+    })
   ];
   const daily = [
     ['วันที่', ...list.map(x => x.t.title || ''), 'รวม'],
@@ -22024,7 +22030,7 @@ async function mtTagsExportXlsxRun(g, d) {
     })
   ];
   const blob = mtXlsxBlob([{ name: 'สรุป Tag', rows: summary, head: 3, wrap: sumWrap },
-    { name: 'รายละเอียดเคส', rows: cases, head: 1, wrap: [7, 8, 9, 10] }, { name: 'รายวัน', rows: daily, head: 1 }]);
+    { name: 'รายละเอียดเคส', rows: cases, head: 1, wrap: [10, 11, 12, 13] }, { name: 'รายวัน', rows: daily, head: 1 }]);
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `monitor-tag-${g === 'service' ? 'it-service' : 'bug'}-${d.from}_${d.to}.xlsx`;
