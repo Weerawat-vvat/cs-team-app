@@ -8147,6 +8147,8 @@ app.post('/api/triage/teach', authRequired, async (request, res) => {
     const o = request.body || {};
     const err = teachValidate(o);
     if (err) return res.status(400).json({ error: err });
+    // ไม่มีการสอนแบบทุกกลุ่มแล้ว — ต้องผูกกับกลุ่ม Line เสมอ
+    if (!teachStr(o.group_id, 100)) return res.status(400).json({ error: 'เลือกกลุ่ม Line ที่จะใช้' });
     res.json({ ok: true, id: await teachInsert(request, o) });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -8162,6 +8164,7 @@ app.put('/api/triage/teach/:id', authRequired, async (request, res) => {
     if (b.term !== undefined) { sets.push('term=@t'); r.input('t', sql.NVarChar, teachStr(b.term, 500)); }
     if (b.meaning !== undefined) { sets.push('meaning=@m'); r.input('m', sql.NVarChar, teachStr(b.meaning, 500)); }
     if (b.work_type_id !== undefined) { sets.push('work_type_id=@w'); r.input('w', sql.Int, parseInt(b.work_type_id) || null); }
+    if (b.group_id !== undefined && !teachStr(b.group_id, 100)) return res.status(400).json({ error: 'ต้องผูกกับกลุ่ม Line' });
     if (b.group_id !== undefined) { sets.push('group_id=@g'); r.input('g', sql.NVarChar, teachStr(b.group_id, 100)); }
     if (b.active !== undefined) { sets.push('active=@a'); r.input('a', sql.Bit, b.active ? 1 : 0); }
     if (!sets.length) return res.json({ ok: true });
@@ -8213,7 +8216,7 @@ app.post('/api/triage/:id/teach', authRequired, async (request, res) => {
     if (remember === 'keyword' && (!teachStr(b.keywords, 500) || !wt)) return res.status(400).json({ error: 'ตั้งเป็นกฎต้องใส่คำสำคัญและเลือกประเภทงาน' });
     const cat = TRIAGE_CATEGORIES.includes(b.category) ? b.category : row.category;
     const summary = teachStr(b.summary, 480) || row.summary;
-    const scopeGid = b.scope === 'all' ? null : row.group_id;
+    const scopeGid = row.group_id; // สอนจากข้อความ = ใช้กับแชทนั้นเท่านั้น (ไม่มีตัวเลือกทุกกลุ่มแล้ว)
     const reasons = (Array.isArray(b.reasons) ? b.reasons : []).map(String).join(',').slice(0, 100) || null;
 
     // 1) แก้ข้อความนี้ทันที — หมวดที่ไม่ใช่เคส = ไม่ต้องดำเนินการ

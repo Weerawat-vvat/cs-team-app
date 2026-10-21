@@ -5151,10 +5151,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
       </div>
       <input id="tt-keywords" type="text" placeholder="ปิดบิล, คืนบิล, ยกเลิกบิล" style="display:none;margin-top:.4rem"/>
     </div>
-    <div class="form-group">
-      <label>ใช้กับ</label>
-      <select id="tt-scope"><option value="group">แชทนี้เท่านั้น</option><option value="all">ทุกกลุ่ม</option></select>
-    </div>
+    <div class="ai-muted" style="margin-bottom:.4rem">ใช้กับแชทนี้เท่านั้น</div>
     <div class="ai-err" id="tt-err"></div>
     <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;margin-top:.6rem">
       <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-tr-teach');openAiTeach()">ดูทั้งหมดที่สอนไว้</button>
@@ -7411,7 +7408,6 @@ async function openTeachFromRow(id) {
   ttAddTerm();
   document.querySelector('input[name="tt-remember"][value="example"]').checked = true;
   document.getElementById('tt-keywords').value = '';
-  document.getElementById('tt-scope').value = 'group';
   document.getElementById('tt-err').textContent = '';
   ttReasonChanged(); ttRememberChanged();
   openModal('modal-tr-teach');
@@ -7455,10 +7451,9 @@ async function ttSave() {
   err.textContent = '';
   const btn = document.getElementById('tt-save');
   btn.disabled = true; const orig = btn.textContent; btn.textContent = 'กำลังบันทึก...';
-  const scope = document.getElementById('tt-scope').value;
   const res = await api(`/api/triage/${r.id}/teach`, { method: 'POST', silent: true, body: {
     summary, category: document.getElementById('tt-cat').value, work_type_id: wtv ? parseInt(wtv) : null,
-    terms, remember, keywords, scope, reasons } });
+    terms, remember, keywords, reasons } });
   // เลือกประเภทที่แชทนี้ยังไม่ได้เปิด = เปิดให้แชทนี้ไปด้วย
   const t = aiActiveTypes().find(x => x.id === parseInt(wtv));
   if (res && !res.error && t && !aiTypeOn(r.group_id, t))
@@ -7604,7 +7599,7 @@ function renderAiItems() {
       </div>
       <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.4rem;align-items:center">
         <select id="ai-ni-wt" class="ai-in">${aiTypeOptions(null, 'ประเภทงาน: ไม่ระบุ')}</select>
-        <select id="ai-ni-g" class="ai-in" style="max-width:260px">${aiGroupOptions('', 'ใช้กับทุกกลุ่ม')}</select>
+        <select id="ai-ni-g" class="ai-in" style="max-width:260px">${aiGroupOptions(_aiGroupSel, '— เลือกกลุ่ม Line —')}</select>
         <button class="btn btn-sm btn-primary" onclick="aiAddItem()" style="margin-left:auto">เพิ่ม</button>
       </div>
       <div class="ai-err" id="ai-ni-err"></div>
@@ -7641,6 +7636,7 @@ async function aiAddItem() {
   const kind = document.getElementById('ai-ni-kind').value, err = document.getElementById('ai-ni-err');
   const body = { kind, term: document.getElementById('ai-ni-term').value.trim(), meaning: document.getElementById('ai-ni-mean').value.trim(),
     work_type_id: parseInt(document.getElementById('ai-ni-wt').value) || null, group_id: document.getElementById('ai-ni-g').value || null };
+  if (!body.group_id) { err.textContent = 'เลือกกลุ่ม Line ที่จะใช้'; return; }
   if (kind === 'term' && (!body.term || !body.meaning)) { err.textContent = 'ใส่ทั้งคำและความหมาย'; return; }
   if (kind === 'keyword' && (!body.term || !body.work_type_id)) { err.textContent = 'ใส่คำสำคัญ และเลือกประเภทงาน'; return; }
   if (kind === 'rule' && !body.meaning) { err.textContent = 'ใส่ประโยคอธิบาย'; return; }
