@@ -18906,6 +18906,11 @@ async function fuDeleteIssue(id) {
   const r = await api(`/api/fu/issues/${id}`, { method:'DELETE', silent:true });
   if (r?.error) { showToast('❌ '+r.error,'error'); return; }
   _fuIssues = _fuIssues.filter(i=>i.id!==id);
+  // The modal swaps _fuIssues for [issue] and restores _fuIssuesSaved on close —
+  // drop the deleted row there too, or it reappears until a full page reload.
+  if (_fuIssuesSaved) _fuIssuesSaved = _fuIssuesSaved.filter(i=>i.id!==id);
+  delete _fuByAssigneeMap[id];
+  _fuNavIds = _fuNavIds.filter(n=>n!==id);
   if (_fuPanelId===id) fuClosePanel();
   else fuRender();
   showToast('ลบแล้ว');
