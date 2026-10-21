@@ -2536,6 +2536,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
         <div class="svc-sub" style="margin:0">ข้อความที่ AI คัดกรองว่าต้องดำเนินการ · กด "เปิดเคส" แล้ว AI จะร่างอาการและ Solution ให้</div>
       </div>
       <div style="display:flex;align-items:center;gap:.5rem">
+        <button class="svc-btn-ghost" style="height:34px" onclick="openAiTeach()" title="ประเภทงาน คำเฉพาะ กฎ และตัวอย่างที่ทีมสอน AI ไว้">สอน AI</button>
         <button class="svc-btn-ghost" id="lc-hist-btn" style="height:34px" onclick="lcToggleHistory()" title="ประวัติการปิดเคส">ประวัติปิดเคส</button>
         <button class="svc-icon-btn" onclick="_lcHistory ? lcLoadHistory() : loadLineCasePicker()" title="โหลดใหม่" aria-label="โหลดใหม่"><i class=i-refresh></i></button>
         <button class="modal-close" onclick="closeModal('modal-line-case')">×</button>
@@ -4903,6 +4904,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
         <button class="btn btn-sm btn-ghost" id="tr-close-maybe-btn" onclick="triageCloseMaybe()" style="display:none;color:#c29a3c">ปิดที่น่าจะแก้แล้ว</button>
         <button class="btn btn-sm btn-ghost" onclick="triageCloseStale()" style="color:#b04a40" title="ปิดงานค้างเก่าทั้งหมด เหลือไว้แต่ของใหม่">ล้างงานค้างเก่า</button>
         <button class="btn btn-sm btn-ghost" onclick="triagePurgeOld()" style="color:#b04a40" title="ลบข้อมูลคัดกรองที่เก่ากว่าที่ตั้งไว้ทิ้งถาวร">ล้างข้อมูลเก่า</button>
+        <button class="btn btn-sm btn-ghost" onclick="openAiTeach()" title="ประเภทงาน คำเฉพาะ กฎ และตัวอย่างที่ทีมสอน AI ไว้">สอน AI</button>
         <button class="btn btn-sm btn-ghost" onclick="openTriageSettings()" title="ตั้งรอบส่งแจ้งเตือน LINE และอายุข้อมูลที่เก็บ">ตั้งค่า</button>
         <button class="btn btn-sm btn-ghost" onclick="triagePreviewAlert()">แจ้งเตือน LINE</button>
         <button class="btn btn-sm btn-primary" id="tr-classify-btn" onclick="triageClassify()">คัดกรองเดี๋ยวนี้</button>
@@ -5095,6 +5097,92 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
       <button class="btn btn-ghost" onclick="closeModal('modal-tr-settings')">ยกเลิก</button>
       <button class="btn btn-primary" id="trs-save" onclick="saveTriageSettings()">บันทึก</button>
     </div>
+  </div>
+</div>
+
+<!-- สอน AI จากข้อความเดียว (ปุ่ม "สอน AI" ในรายการ) -->
+<style>
+  .ai-chip{display:inline-block;padding:0 .4rem;border-radius:5px;font-size:.66rem;font-weight:600;line-height:1.6;white-space:nowrap}
+  .ai-row{display:flex;gap:.6rem;align-items:flex-start;padding:.55rem 0;border-top:1px solid #f0eee9}
+  .ai-row:first-child{border-top:none}
+  .ai-tabs{display:flex;gap:.3rem;border-bottom:1px solid var(--border);margin-bottom:.8rem;flex-wrap:wrap}
+  .ai-tab{border:none;background:transparent;padding:.45rem .8rem;font-size:.82rem;font-family:inherit;color:#5b616b;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+  .ai-tab.on{color:var(--primary);border-bottom-color:var(--primary);font-weight:600}
+  .ai-in{border:1.5px solid var(--border);border-radius:8px;padding:.35rem .6rem;font-size:.82rem;font-family:inherit;outline:none;min-width:0}
+  .ai-err{font-size:.76rem;color:#b04a40;min-height:1em;margin-top:.3rem}
+  .ai-muted{font-size:.72rem;color:#8a8f97}
+</style>
+<div class="overlay" id="modal-tr-teach" style="z-index:210">
+  <div class="modal" style="max-width:580px">
+    <div class="modal-head">
+      <div>
+        <div style="font-size:1.05rem;font-weight:600">สอน AI จากข้อความนี้</div>
+        <div class="svc-sub" id="tt-chat" style="margin:0"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-tr-teach')">×</button>
+    </div>
+    <div id="tt-msg" style="background:#f6f5f2;border-radius:10px;padding:.6rem .75rem;font-size:.82rem;margin-bottom:.8rem;white-space:pre-wrap;word-break:break-word"></div>
+    <div class="form-group"><label>สรุปที่ถูกต้อง</label><input id="tt-summary" type="text" maxlength="480"/></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 .7rem">
+      <div class="form-group"><label>หมวดที่ถูกต้อง</label><select id="tt-cat"></select></div>
+      <div class="form-group"><label>ประเภทงาน</label><select id="tt-wt" onchange="ttRememberChanged()"></select>
+        <div id="tt-wt-hint" class="ai-muted" style="margin-top:.25rem"></div></div>
+    </div>
+    <div class="form-group">
+      <label>AI ผิดเพราะ… (เลือกได้มากกว่า 1)</label>
+      <div style="display:flex;gap:.9rem;flex-wrap:wrap;font-size:.8rem">
+        <label style="display:flex;gap:.3rem;align-items:center;font-weight:400;margin:0"><input type="checkbox" class="tt-reason" value="word" onchange="ttReasonChanged()" style="width:auto"/> ไม่รู้จักคำเฉพาะ</label>
+        <label style="display:flex;gap:.3rem;align-items:center;font-weight:400;margin:0"><input type="checkbox" class="tt-reason" value="context" style="width:auto"/> ไม่ดูบริบทแชท</label>
+        <label style="display:flex;gap:.3rem;align-items:center;font-weight:400;margin:0"><input type="checkbox" class="tt-reason" value="over" style="width:auto"/> สรุปเกินจริง</label>
+        <label style="display:flex;gap:.3rem;align-items:center;font-weight:400;margin:0"><input type="checkbox" class="tt-reason" value="type" style="width:auto"/> ประเภทงานผิด</label>
+      </div>
+    </div>
+    <div id="tt-terms-box" class="form-group" style="display:none">
+      <label>คำที่ AI ไม่รู้จัก และความหมาย</label>
+      <div id="tt-terms"></div>
+      <button type="button" class="btn btn-sm btn-ghost" onclick="ttAddTerm()" style="margin-top:.3rem">+ เพิ่มคำ</button>
+    </div>
+    <div class="form-group">
+      <label>ให้ AI จำแค่ไหน</label>
+      <div style="display:flex;flex-direction:column;gap:.3rem;font-size:.8rem">
+        <label style="display:flex;gap:.4rem;align-items:center;font-weight:400;margin:0"><input type="radio" name="tt-remember" value="none" onchange="ttRememberChanged()" style="width:auto"/> แก้ข้อความนี้อย่างเดียว</label>
+        <label style="display:flex;gap:.4rem;align-items:center;font-weight:400;margin:0"><input type="radio" name="tt-remember" value="example" checked onchange="ttRememberChanged()" style="width:auto"/> จำเป็นตัวอย่าง — เจอข้อความคล้ายกันให้ทำแบบนี้</label>
+        <label style="display:flex;gap:.4rem;align-items:center;font-weight:400;margin:0"><input type="radio" name="tt-remember" value="keyword" onchange="ttRememberChanged()" style="width:auto"/> ตั้งเป็นกฎ — ข้อความที่มีคำเหล่านี้ = ประเภทงานที่เลือก</label>
+      </div>
+      <input id="tt-keywords" type="text" placeholder="ปิดบิล, คืนบิล, ยกเลิกบิล" style="display:none;margin-top:.4rem"/>
+    </div>
+    <div class="form-group">
+      <label>ใช้กับ</label>
+      <select id="tt-scope"><option value="group">แชทนี้เท่านั้น</option><option value="all">ทุกกลุ่ม</option></select>
+    </div>
+    <div class="ai-err" id="tt-err"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;margin-top:.6rem">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-tr-teach');openAiTeach()">ดูทั้งหมดที่สอนไว้</button>
+      <div style="display:flex;gap:.5rem">
+        <button class="btn btn-ghost" onclick="closeModal('modal-tr-teach')">ยกเลิก</button>
+        <button class="btn btn-primary" id="tt-save" onclick="ttSave()">บันทึกและสอน AI</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- หน้า "สอน AI": ประเภทงาน · ตั้งค่ารายกลุ่ม · สิ่งที่สอนไว้ · ทดสอบ -->
+<div class="overlay" id="modal-ai-teach" style="z-index:205">
+  <div class="modal" style="max-width:820px;max-height:88vh">
+    <div class="modal-head">
+      <div>
+        <div style="font-size:1.08rem;font-weight:600">สอน AI คัดกรองข้อความ LINE</div>
+        <div class="svc-sub" style="margin:0">ทุกคนในทีมเพิ่ม/แก้ได้ · มีผลตั้งแต่รอบคัดกรองถัดไป · ไม่มีการลบจริง ปิดไว้แล้วเปิดคืนได้</div>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-ai-teach')">×</button>
+    </div>
+    <div class="ai-tabs" id="ai-tabs">
+      <button class="ai-tab on" data-tab="types" onclick="aiTab('types')">ประเภทงาน</button>
+      <button class="ai-tab" data-tab="groups" onclick="aiTab('groups')">ตั้งค่ารายกลุ่ม</button>
+      <button class="ai-tab" data-tab="items" onclick="aiTab('items')">คำเฉพาะ / กฎ / ตัวอย่าง</button>
+      <button class="ai-tab" data-tab="test" onclick="aiTab('test')">ทดสอบ</button>
+    </div>
+    <div id="ai-body"><div class="ai-muted" style="text-align:center;padding:2rem">กำลังโหลด…</div></div>
   </div>
 </div>
 
@@ -7255,7 +7343,7 @@ function renderTriageRow(r) {
       ${sender}${pod}
     </td>
     <td>
-      <div style="font-size:.8rem" title="${msg}">${catChip}${short || '<span style=\"color:#5b616b\">(ว่าง)</span>'}</div>
+      <div style="font-size:.8rem" title="${msg}">${aiWorkTypeChip(r)}${catChip}${short || '<span style=\"color:#5b616b\">(ว่าง)</span>'}</div>
       ${r.summary ? `<div style="font-size:.66rem;color:#7fa3c8;margin-top:2px">↳ ${esc(r.summary)}</div>` : ''}
     </td>
     <td>
@@ -7263,14 +7351,339 @@ function renderTriageRow(r) {
       ${who}
       ${r.maybe_resolved ? `<div style="font-size:.62rem;color:#c29a3c;margin-top:2px" title="ในกลุ่มนี้มีข้อความขอบคุณ/บวกใหม่กว่า — ลูกค้าอาจแก้ได้แล้ว">น่าจะแก้แล้ว</div>` : ''}
     </td>
-    <td>${actions}</td>
+    <td>${actions}<div><button class="btn btn-sm btn-ghost" style="padding:1px 7px;font-size:.66rem;margin-top:3px;color:var(--primary)" onclick="openTeachFromRow(${r.id})" title="AI สรุปผิด / ประเภทงานผิด — แก้แล้วสอนให้จำ">สอน AI</button></div></td>
   </tr>`;
 }
 
+let _trRowsById = new Map();
 function renderTriageTable(rows) {
   const tbody = document.getElementById('tr-tbody');
+  _trRowsById = new Map(rows.map(r => [r.id, r]));
   if (!rows.length) { tbody.innerHTML = `<tr><td colspan="5" class="empty">ไม่มี ticket ในเงื่อนไขนี้</td></tr>`; return; }
   tbody.innerHTML = rows.map(renderTriageRow).join('');
+}
+
+// ══════════════════════════════════════════════════════════
+//  สอน AI — ประเภทงาน (ทีมกำหนดเอง) · คำเฉพาะ · คำสำคัญ · กฎ · ตัวอย่าง
+// ══════════════════════════════════════════════════════════
+let _aiT = null, _aiTabName = 'types', _aiGroupSel = '', _aiGroupQ = '', _aiItemKind = '', _aiShowOff = false, _ttRow = null;
+const AI_KIND = { term: ['คำเฉพาะ', '#3c3489', '#eeedfe'], keyword: ['คำสำคัญ', '#085041', '#e1f5ee'], rule: ['กฎ', '#633806', '#faeeda'], example: ['ตัวอย่าง', '#0c447c', '#e6f1fb'] };
+const aiH = s => escHtml(String(s ?? ''));
+const aiChat = r => String(r.group_id || '').startsWith('U') ? (String(r.customer_name || '').trim() || r.group_name || '—') : (r.group_name || '—');
+
+// ป้ายประเภทงานบนรายการ — มีจุดบอกว่าใครตัดสิน (AI / คำสำคัญ / ทีมงาน) และ "ไม่แจ้งเตือน" ถ้ากลุ่มตั้งไว้
+function aiWorkTypeChip(r) {
+  if (!r.work_type_name) return '';
+  const c = r.work_type_color || '#5b616b';
+  const by = { ai: 'AI ตัดสิน', keyword: 'ตรงคำสำคัญที่ทีมตั้งไว้', staff: 'ทีมงานระบุ' }[r.work_type_src] || '';
+  return `<span class="ai-chip" title="${aiH(by)}" style="background:${c}1f;color:${c};margin-right:.25rem">${aiH(r.work_type_name)}${r.work_type_src === 'staff' ? ' ✓' : ''}</span>`
+    + (r.muted ? `<span class="ai-chip" title="กลุ่มนี้ตั้งไม่แจ้งเตือนงานประเภทนี้" style="background:#f1efe8;color:#5f5e5a;margin-right:.25rem">ไม่แจ้งเตือน</span>` : '');
+}
+
+async function aiLoad() {
+  const d = await api('/api/triage/teach?_t=' + Date.now(), { silent: true });
+  if (!d || d.error) throw new Error(d?.error || 'โหลดไม่สำเร็จ');
+  _aiT = d;
+  return d;
+}
+const aiActiveTypes = () => (_aiT?.types || []).filter(t => !t.archived);
+const aiGw = (gid, tid) => (_aiT?.groupTypes || []).find(x => x.group_id === gid && x.work_type_id === tid);
+function aiTypeOn(gid, t) { const g = aiGw(gid, t.id); return g ? !!g.enabled : !!t.all_groups; }
+function aiTypeNotify(gid, t) { const g = aiGw(gid, t.id); return g && g.notify !== null && g.notify !== undefined ? !!g.notify : !!t.notify; }
+const aiGroupName = gid => !gid ? 'ทุกกลุ่ม' : ((_aiT?.groups || []).find(g => g.group_id === gid)?.name || gid);
+
+// ── หน้าต่าง "สอน AI จากข้อความนี้" ──
+async function openTeachFromRow(id) {
+  const r = _lcRows.find(x => x.id === id) || _trRowsById.get(id);
+  if (!r) return;
+  try { if (!_aiT) await aiLoad(); } catch (e) { alert('❌ ' + e.message); return; }
+  _ttRow = r;
+  document.getElementById('tt-chat').textContent = `${aiChat(r)}${r.pod_code ? ' · ' + r.pod_code : ''}`;
+  document.getElementById('tt-msg').innerHTML = `${aiH(r.message_text || '(ว่าง)')}<div class="ai-muted" style="margin-top:.35rem">AI สรุป: ${aiH(r.summary || '—')}</div>`;
+  document.getElementById('tt-summary').value = r.summary || '';
+  document.getElementById('tt-cat').innerHTML = (_aiT.categories || Object.keys(TR_CAT))
+    .map(c => `<option value="${c}"${c === r.category ? ' selected' : ''}>${aiH(TR_CAT[c]?.label || c)}${['problem','complaint','followup','request','question'].includes(c) ? '' : ' (ไม่ใช่เคส)'}</option>`).join('');
+  const types = aiActiveTypes();
+  document.getElementById('tt-wt').innerHTML = `<option value="">— ไม่ระบุ —</option>` + types.map(t =>
+    `<option value="${t.id}"${t.id === r.work_type_id ? ' selected' : ''}>${aiH(t.name)}${aiTypeOn(r.group_id, t) ? '' : ' (ยังไม่เปิดในแชทนี้)'}</option>`).join('');
+  document.querySelectorAll('.tt-reason').forEach(x => x.checked = false);
+  document.getElementById('tt-terms').innerHTML = '';
+  ttAddTerm();
+  document.querySelector('input[name="tt-remember"][value="example"]').checked = true;
+  document.getElementById('tt-keywords').value = '';
+  document.getElementById('tt-scope').value = 'group';
+  document.getElementById('tt-err').textContent = '';
+  ttReasonChanged(); ttRememberChanged();
+  openModal('modal-tr-teach');
+}
+function ttAddTerm() {
+  const box = document.getElementById('tt-terms');
+  const row = document.createElement('div');
+  row.style.cssText = 'display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:.4rem;margin-top:.3rem';
+  row.innerHTML = `<input class="ai-in tt-term" type="text" placeholder="Stagg, Stag"/><input class="ai-in tt-mean" type="text" placeholder="Staging = ทีมกำลังกวาด/เตรียมข้อมูล ไม่ใช่ระบบค้าง"/>`;
+  box.appendChild(row);
+}
+function ttReasonChanged() {
+  const on = document.querySelector('.tt-reason[value="word"]')?.checked;
+  document.getElementById('tt-terms-box').style.display = on ? '' : 'none';
+}
+function ttRememberChanged() {
+  const rem = document.querySelector('input[name="tt-remember"]:checked')?.value;
+  document.getElementById('tt-keywords').style.display = rem === 'keyword' ? '' : 'none';
+  const wt = parseInt(document.getElementById('tt-wt').value);
+  const t = aiActiveTypes().find(x => x.id === wt);
+  const hint = document.getElementById('tt-wt-hint');
+  if (!t || !_ttRow) { hint.textContent = ''; return; }
+  const on = aiTypeOn(_ttRow.group_id, t);
+  hint.textContent = (on ? '' : 'บันทึกแล้วจะเปิดประเภทนี้ให้แชทนี้ด้วย · ')
+    + (aiTypeNotify(_ttRow.group_id, t) ? 'แชทนี้แจ้งเตือนงานประเภทนี้' : 'แชทนี้ไม่แจ้งเตือนงานประเภทนี้');
+}
+async function ttSave() {
+  const r = _ttRow; if (!r) return;
+  const err = document.getElementById('tt-err');
+  const reasons = [...document.querySelectorAll('.tt-reason:checked')].map(x => x.value);
+  const terms = reasons.includes('word') ? [...document.querySelectorAll('#tt-terms > div')].map(d => ({
+    term: d.querySelector('.tt-term').value.trim(), meaning: d.querySelector('.tt-mean').value.trim() })).filter(x => x.term || x.meaning) : [];
+  if (terms.some(x => !x.term || !x.meaning)) { err.textContent = 'คำเฉพาะต้องใส่ทั้งคำและความหมาย'; return; }
+  if (reasons.includes('word') && !terms.length) { err.textContent = 'ใส่คำที่ AI ไม่รู้จักอย่างน้อย 1 คำ หรือเอาติ๊กออก'; return; }
+  const remember = document.querySelector('input[name="tt-remember"]:checked')?.value || 'example';
+  const wtv = document.getElementById('tt-wt').value;
+  const keywords = document.getElementById('tt-keywords').value.trim();
+  if (remember === 'keyword' && (!keywords || !wtv)) { err.textContent = 'ตั้งเป็นกฎต้องใส่คำสำคัญ และเลือกประเภทงาน'; return; }
+  const summary = document.getElementById('tt-summary').value.trim();
+  if (!summary) { err.textContent = 'ใส่สรุปที่ถูกต้องก่อน'; return; }
+  err.textContent = '';
+  const btn = document.getElementById('tt-save');
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'กำลังบันทึก...';
+  const scope = document.getElementById('tt-scope').value;
+  const res = await api(`/api/triage/${r.id}/teach`, { method: 'POST', silent: true, body: {
+    summary, category: document.getElementById('tt-cat').value, work_type_id: wtv ? parseInt(wtv) : null,
+    terms, remember, keywords, scope, reasons } });
+  // เลือกประเภทที่แชทนี้ยังไม่ได้เปิด = เปิดให้แชทนี้ไปด้วย
+  const t = aiActiveTypes().find(x => x.id === parseInt(wtv));
+  if (res && !res.error && t && !aiTypeOn(r.group_id, t))
+    await api('/api/triage/group-work-types', { method: 'PUT', silent: true, body: { group_id: r.group_id, work_type_id: t.id, enabled: true, notify: aiGw(r.group_id, t.id)?.notify ?? null } });
+  btn.disabled = false; btn.textContent = orig;
+  if (!res || res.error) { err.textContent = res?.error || 'บันทึกไม่สำเร็จ'; return; }
+  _aiT = null;
+  closeModal('modal-tr-teach');
+  if (document.getElementById('modal-line-case')?.classList.contains('open')) loadLineCasePicker();
+  if (document.getElementById('tr-tbody')) loadTriage();
+}
+
+// ── หน้า "สอน AI" ──
+async function openAiTeach(tab) {
+  openModal('modal-ai-teach');
+  if (tab) _aiTabName = tab;
+  document.getElementById('ai-body').innerHTML = '<div class="ai-muted" style="text-align:center;padding:2rem">กำลังโหลด…</div>';
+  try { await aiLoad(); } catch (e) { document.getElementById('ai-body').innerHTML = `<div class="ai-err">${aiH(e.message)}</div>`; return; }
+  aiTab(_aiTabName);
+}
+function aiTab(name) {
+  _aiTabName = name;
+  document.querySelectorAll('#ai-tabs .ai-tab').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
+  ({ types: renderAiTypes, groups: renderAiGroups, items: renderAiItems, test: renderAiTest }[name] || renderAiTypes)();
+}
+async function aiReload() { try { await aiLoad(); } catch {} aiTab(_aiTabName); }
+async function aiPut(path, body) {
+  const r = await api(path, { method: 'PUT', body, silent: true });
+  if (!r || r.error) { alert('❌ ' + (r?.error || 'บันทึกไม่สำเร็จ')); return false; }
+  await aiReload(); return true;
+}
+const aiTypeOptions = (sel, empty = '— ไม่ระบุ —') => `<option value="">${empty}</option>` +
+  aiActiveTypes().map(t => `<option value="${t.id}"${t.id === sel ? ' selected' : ''}>${aiH(t.name)}</option>`).join('');
+const aiGroupOptions = (sel, allLabel = 'ทุกกลุ่ม') => `<option value="">${allLabel}</option>` +
+  (_aiT.groups || []).map(g => `<option value="${aiH(g.group_id)}"${g.group_id === sel ? ' selected' : ''}>${aiH(g.name)}${g.pod_code ? ' · ' + aiH(g.pod_code) : ''}</option>`).join('');
+
+function renderAiTypes() {
+  const types = _aiT.types || [];
+  const nGroups = t => (_aiT.groupTypes || []).filter(x => x.work_type_id === t.id && x.enabled).length;
+  document.getElementById('ai-body').innerHTML = `
+    <div class="ai-muted" style="margin-bottom:.5rem">ประเภทงานที่ AI เลือกให้แต่ละข้อความ · "ใช้กับทุกกลุ่ม" = ไม่ต้องเปิดทีละกลุ่ม · ปิด "แจ้งเตือน" = ข้อความประเภทนี้ไม่ส่งแจ้งเตือน (ยังอยู่ในรายการ) · ตั้งต่างกันรายกลุ่มได้ในแท็บถัดไป</div>
+    <div>${types.map(t => `<div class="ai-row" style="${t.archived ? 'opacity:.5' : ''}">
+      <div style="flex:1;min-width:0">
+        <span class="ai-chip" style="background:${t.color || '#5b616b'}1f;color:${t.color || '#5b616b'};font-size:.78rem">${aiH(t.name)}</span>
+        ${t.archived ? '<span class="ai-muted">(เก็บแล้ว)</span>' : ''}
+        <div style="font-size:.8rem;color:#3d424a;margin-top:.2rem">${aiH(t.description || '— ยังไม่มีคำอธิบาย (ช่วยให้ AI เลือกถูก) —')}</div>
+        <div class="ai-muted">${t.all_groups ? 'ใช้กับทุกกลุ่ม' : `เปิดไว้ ${nGroups(t)} กลุ่ม`} · สร้างโดย ${aiH(t.created_by || '—')}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:.25rem;align-items:flex-end;font-size:.76rem">
+        ${t.archived ? '' : `<label style="display:flex;gap:.3rem;align-items:center"><input type="checkbox" ${t.all_groups ? 'checked' : ''} onchange="aiPut('/api/triage/work-types/${t.id}',{all_groups:this.checked})"/> ใช้กับทุกกลุ่ม</label>
+        <label style="display:flex;gap:.3rem;align-items:center"><input type="checkbox" ${t.notify ? 'checked' : ''} onchange="aiPut('/api/triage/work-types/${t.id}',{notify:this.checked})"/> แจ้งเตือน</label>`}
+        <div style="display:flex;gap:.3rem">
+          ${t.archived ? '' : `<button class="btn btn-sm btn-ghost" onclick="aiEditType(${t.id})">แก้ไข</button>`}
+          <button class="btn btn-sm btn-ghost" onclick="aiPut('/api/triage/work-types/${t.id}',{archived:${t.archived ? 'false' : 'true'}})">${t.archived ? 'นำกลับมาใช้' : 'เก็บ'}</button>
+        </div>
+      </div></div>`).join('') || '<div class="ai-muted">ยังไม่มีประเภทงาน</div>'}</div>
+    <div style="border-top:1px solid var(--border);margin-top:.6rem;padding-top:.7rem">
+      <div style="font-size:.82rem;font-weight:600;margin-bottom:.4rem">เพิ่มประเภทงาน</div>
+      <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+        <input id="ai-nt-name" class="ai-in" placeholder="ชื่อ เช่น งานบัญชี" style="flex:1;min-width:140px"/>
+        <input id="ai-nt-desc" class="ai-in" placeholder="อธิบายให้ AI เข้าใจว่างานแบบไหนเป็นประเภทนี้" style="flex:3;min-width:220px"/>
+        <input id="ai-nt-color" type="color" value="#534ab7" title="สีป้าย" style="width:38px;height:32px;border:none;background:none;padding:0"/>
+        <button class="btn btn-sm btn-primary" onclick="aiAddType()">เพิ่ม</button>
+      </div>
+      <div class="ai-err" id="ai-nt-err"></div>
+    </div>`;
+}
+async function aiAddType() {
+  const name = document.getElementById('ai-nt-name').value.trim();
+  const err = document.getElementById('ai-nt-err');
+  if (!name) { err.textContent = 'ใส่ชื่อประเภทงานก่อน'; return; }
+  const r = await api('/api/triage/work-types', { method: 'POST', silent: true, body: {
+    name, description: document.getElementById('ai-nt-desc').value.trim(), color: document.getElementById('ai-nt-color').value } });
+  if (!r || r.error) { err.textContent = r?.error || 'เพิ่มไม่สำเร็จ'; return; }
+  await aiReload();
+}
+async function aiEditType(id) {
+  const t = (_aiT.types || []).find(x => x.id === id); if (!t) return;
+  const name = prompt('ชื่อประเภทงาน (เปลี่ยนแล้วข้อความเก่าจะขึ้นชื่อใหม่ด้วย):', t.name); if (name === null) return;
+  const description = prompt('คำอธิบายให้ AI:', t.description || ''); if (description === null) return;
+  await aiPut(`/api/triage/work-types/${id}`, { name, description });
+}
+
+function renderAiGroups() {
+  const q = _aiGroupQ.trim().toLowerCase();
+  const groups = (_aiT.groups || []).filter(g => !q || String(g.name).toLowerCase().includes(q) || String(g.pod_code || '').toLowerCase().includes(q));
+  const types = aiActiveTypes();
+  const sel = _aiGroupSel;
+  const cfg = id => (_aiT.groupTypes || []).filter(x => x.group_id === id && x.enabled).length;
+  document.getElementById('ai-body').innerHTML = `
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:1rem">
+      <div>
+        <input class="ai-in" id="ai-gq" placeholder="ค้นหากลุ่ม / Pod" value="${aiH(_aiGroupQ)}" oninput="aiGroupSearch(this.value)" style="width:100%;margin-bottom:.4rem"/>
+        <div style="max-height:52vh;overflow:auto;border:1px solid var(--border);border-radius:10px">
+          ${groups.slice(0, 200).map(g => `<div onclick="_aiGroupSel='${aiH(g.group_id)}';renderAiGroups()" style="cursor:pointer;padding:.4rem .6rem;font-size:.8rem;border-bottom:1px solid #f0eee9;${g.group_id === sel ? 'background:#eef3fb;font-weight:600' : ''}">
+            ${aiH(g.name)}<div class="ai-muted">${aiH(g.pod_code || 'ยังไม่ได้ Assign')}${cfg(g.group_id) ? ` · ตั้งค่าแล้ว ${cfg(g.group_id)} ประเภท` : ''}</div></div>`).join('') || '<div class="ai-muted" style="padding:.6rem">ไม่พบกลุ่ม</div>'}
+        </div>
+      </div>
+      <div>${!sel ? '<div class="ai-muted" style="padding:2rem 0;text-align:center">เลือกกลุ่มทางซ้าย แล้วติ๊กประเภทงานที่กลุ่มนั้นใช้ และเลือกว่าจะแจ้งเตือนไหม</div>' : `
+        <div style="font-size:.9rem;font-weight:600;margin-bottom:.15rem">${aiH(aiGroupName(sel))}</div>
+        <div class="ai-muted" style="margin-bottom:.5rem">ติ๊ก = AI จะเลือกประเภทนี้ให้ข้อความของกลุ่มนี้ได้ · "ไม่แจ้งเตือน" = ไม่ส่งแจ้งเตือน LINE / popup แต่ข้อความยังอยู่ในรายการ · AI ไม่มั่นใจ = แจ้งเตือนตามปกติ</div>
+        ${types.map(t => { const g = aiGw(sel, t.id); const on = aiTypeOn(sel, t); const nv = g && g.notify !== null && g.notify !== undefined ? (g.notify ? '1' : '0') : '';
+          return `<div class="ai-row" style="align-items:center">
+            <label style="flex:1;display:flex;gap:.4rem;align-items:center;font-size:.82rem;cursor:pointer">
+              <input type="checkbox" ${on ? 'checked' : ''} onchange="aiSetGroupType('${aiH(sel)}',${t.id},this.checked,undefined)"/>
+              <span class="ai-chip" style="background:${t.color || '#5b616b'}1f;color:${t.color || '#5b616b'}">${aiH(t.name)}</span>
+              ${!g && t.all_groups ? '<span class="ai-muted">(ใช้กับทุกกลุ่ม)</span>' : ''}</label>
+            <select class="ai-in" ${on ? '' : 'disabled'} onchange="aiSetGroupType('${aiH(sel)}',${t.id},undefined,this.value)">
+              <option value=""${nv === '' ? ' selected' : ''}>ตามค่าของประเภท (${t.notify ? 'แจ้งเตือน' : 'ไม่แจ้งเตือน'})</option>
+              <option value="1"${nv === '1' ? ' selected' : ''}>แจ้งเตือน</option>
+              <option value="0"${nv === '0' ? ' selected' : ''}>ไม่แจ้งเตือน</option>
+            </select></div>`; }).join('') || '<div class="ai-muted">ยังไม่มีประเภทงาน — เพิ่มในแท็บ "ประเภทงาน" ก่อน</div>'}`}
+      </div>
+    </div>`;
+}
+function aiGroupSearch(v) {
+  _aiGroupQ = v; renderAiGroups();
+  const e = document.getElementById('ai-gq'); e.focus(); e.setSelectionRange(e.value.length, e.value.length);
+}
+async function aiSetGroupType(gid, tid, enabled, notifyVal) {
+  const t = aiActiveTypes().find(x => x.id === tid); const g = aiGw(gid, tid);
+  const body = { group_id: gid, work_type_id: tid,
+    enabled: enabled !== undefined ? enabled : aiTypeOn(gid, t),
+    notify: notifyVal !== undefined ? (notifyVal === '' ? null : notifyVal === '1') : (g ? g.notify : null) };
+  await aiPut('/api/triage/group-work-types', body);
+}
+
+function renderAiItems() {
+  const items = (_aiT.items || []).filter(x => (!_aiItemKind || x.kind === _aiItemKind) && (_aiShowOff || x.active));
+  const tname = id => aiActiveTypes().find(t => t.id === id) || (_aiT.types || []).find(t => t.id === id);
+  document.getElementById('ai-body').innerHTML = `
+    <div style="background:#f6f5f2;border-radius:10px;padding:.7rem .8rem;margin-bottom:.8rem">
+      <div style="font-size:.82rem;font-weight:600;margin-bottom:.4rem">เพิ่มสิ่งที่จะสอน</div>
+      <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+        <select id="ai-ni-kind" class="ai-in" onchange="aiItemKindChanged()">
+          <option value="term">คำเฉพาะ — คำนี้แปลว่าอะไร</option>
+          <option value="keyword">คำสำคัญ — มีคำนี้ = ประเภทงานนี้ (ไม่ต้องถาม AI)</option>
+          <option value="rule">กฎ — ประโยคอธิบายให้ AI อ่าน</option>
+          <option value="example">ตัวอย่าง — ข้อความแบบนี้ สรุปแบบนี้</option>
+        </select>
+        <input id="ai-ni-term" class="ai-in" style="flex:1;min-width:140px"/>
+        <input id="ai-ni-mean" class="ai-in" style="flex:2;min-width:200px"/>
+      </div>
+      <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.4rem;align-items:center">
+        <select id="ai-ni-wt" class="ai-in">${aiTypeOptions(null, 'ประเภทงาน: ไม่ระบุ')}</select>
+        <select id="ai-ni-g" class="ai-in" style="max-width:260px">${aiGroupOptions('', 'ใช้กับทุกกลุ่ม')}</select>
+        <button class="btn btn-sm btn-primary" onclick="aiAddItem()" style="margin-left:auto">เพิ่ม</button>
+      </div>
+      <div class="ai-err" id="ai-ni-err"></div>
+    </div>
+    <div style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center;margin-bottom:.3rem">
+      ${[['', 'ทั้งหมด'], ['term', 'คำเฉพาะ'], ['keyword', 'คำสำคัญ'], ['rule', 'กฎ'], ['example', 'ตัวอย่าง']].map(([k, l]) =>
+        `<button class="btn btn-sm ${_aiItemKind === k ? 'btn-primary' : 'btn-ghost'}" onclick="_aiItemKind='${k}';renderAiItems()">${l}</button>`).join('')}
+      <label style="margin-left:auto;font-size:.76rem;display:flex;gap:.3rem;align-items:center"><input type="checkbox" ${_aiShowOff ? 'checked' : ''} onchange="_aiShowOff=this.checked;renderAiItems()"/> แสดงที่ปิดไว้</label>
+    </div>
+    <div>${items.map(x => { const k = AI_KIND[x.kind] || AI_KIND.rule; const t = x.work_type_id ? tname(x.work_type_id) : null;
+      return `<div class="ai-row" style="${x.active ? '' : 'opacity:.5'}">
+        <span class="ai-chip" style="background:${k[2]};color:${k[1]}">${k[0]}</span>
+        <div style="flex:1;min-width:0;font-size:.8rem">
+          ${x.term ? `<b style="font-weight:600">${aiH(x.term)}</b>` : ''}${x.term && x.meaning ? ' → ' : ''}${aiH(x.meaning || '')}
+          ${t ? ` <span class="ai-chip" style="background:${t.color || '#5b616b'}1f;color:${t.color || '#5b616b'}">${aiH(t.name)}</span>` : ''}
+          ${x.category ? ` <span class="ai-muted">[${aiH(TR_CAT[x.category]?.label || x.category)}]</span>` : ''}
+          <div class="ai-muted">${aiH(aiGroupName(x.group_id))} · เพิ่มโดย ${aiH(x.created_by || '—')} · AI ใช้ไปแล้ว ${x.use_count || 0} ครั้ง</div>
+        </div>
+        <div style="display:flex;gap:.25rem">
+          ${x.active ? `<button class="btn btn-sm btn-ghost" onclick="aiEditItem(${x.id})">แก้ไข</button>` : ''}
+          <button class="btn btn-sm btn-ghost" onclick="aiPut('/api/triage/teach/${x.id}',{active:${x.active ? 'false' : 'true'}})">${x.active ? 'ปิด' : 'เปิด'}</button>
+        </div></div>`; }).join('') || '<div class="ai-muted" style="padding:1rem 0">ยังไม่มี — สอนได้จากปุ่ม "สอน AI" ในรายการข้อความ หรือเพิ่มด้านบน</div>'}</div>`;
+  aiItemKindChanged();
+}
+function aiItemKindChanged() {
+  const k = document.getElementById('ai-ni-kind')?.value; if (!k) return;
+  const term = document.getElementById('ai-ni-term'), mean = document.getElementById('ai-ni-mean');
+  const ph = { term: ['Stagg, Stag', 'Staging = ทีมกำลังกวาด/เตรียมข้อมูล ไม่ใช่ระบบค้าง'], keyword: ['ปิดบิล, คืนบิล, ยกเลิกบิล', ''],
+    rule: ['', 'ขอยกเลิกบิล/คืนบิลที่พนักงานกดผิด ถือเป็นงาน IT/Oper'], example: ['ข้อความลูกค้า', 'สรุปที่ถูกต้อง'] }[k];
+  term.placeholder = ph[0]; mean.placeholder = ph[1];
+  term.style.display = k === 'rule' ? 'none' : ''; mean.style.display = k === 'keyword' ? 'none' : '';
+}
+async function aiAddItem() {
+  const kind = document.getElementById('ai-ni-kind').value, err = document.getElementById('ai-ni-err');
+  const body = { kind, term: document.getElementById('ai-ni-term').value.trim(), meaning: document.getElementById('ai-ni-mean').value.trim(),
+    work_type_id: parseInt(document.getElementById('ai-ni-wt').value) || null, group_id: document.getElementById('ai-ni-g').value || null };
+  if (kind === 'term' && (!body.term || !body.meaning)) { err.textContent = 'ใส่ทั้งคำและความหมาย'; return; }
+  if (kind === 'keyword' && (!body.term || !body.work_type_id)) { err.textContent = 'ใส่คำสำคัญ และเลือกประเภทงาน'; return; }
+  if (kind === 'rule' && !body.meaning) { err.textContent = 'ใส่ประโยคอธิบาย'; return; }
+  if (kind === 'example' && (!body.term || !body.meaning)) { err.textContent = 'ใส่ข้อความตัวอย่างและสรุปที่ถูกต้อง'; return; }
+  const r = await api('/api/triage/teach', { method: 'POST', silent: true, body });
+  if (!r || r.error) { err.textContent = r?.error || 'เพิ่มไม่สำเร็จ'; return; }
+  await aiReload();
+}
+async function aiEditItem(id) {
+  const x = (_aiT.items || []).find(i => i.id === id); if (!x) return;
+  const body = {};
+  if (x.kind !== 'rule') { const v = prompt(x.kind === 'keyword' ? 'คำสำคัญ (คั่นด้วย ,):' : x.kind === 'example' ? 'ข้อความตัวอย่าง:' : 'คำ:', x.term || ''); if (v === null) return; body.term = v; }
+  if (x.kind !== 'keyword') { const v = prompt(x.kind === 'rule' ? 'ประโยคอธิบาย:' : x.kind === 'example' ? 'สรุปที่ถูกต้อง:' : 'ความหมาย:', x.meaning || ''); if (v === null) return; body.meaning = v; }
+  await aiPut(`/api/triage/teach/${id}`, body);
+}
+
+function renderAiTest() {
+  document.getElementById('ai-body').innerHTML = `
+    <div class="ai-muted" style="margin-bottom:.5rem">ลองพิมพ์ข้อความแบบที่ลูกค้าส่งมา ระบบจะคัดกรองด้วยสิ่งที่สอนไว้ตอนนี้ (ไม่บันทึกอะไร ใช้ AI 1 ครั้ง)</div>
+    <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.4rem">
+      <select id="ai-test-g" class="ai-in" style="max-width:320px">${aiGroupOptions(_aiGroupSel, 'ไม่ระบุกลุ่ม (ใช้เฉพาะที่ตั้งเป็นทุกกลุ่ม)')}</select>
+    </div>
+    <textarea id="ai-test-text" class="ai-in" rows="3" style="width:100%;resize:vertical" placeholder="Stagg อยู่นะครับ รอแป๊บ"></textarea>
+    <div style="display:flex;justify-content:flex-end;margin-top:.4rem"><button class="btn btn-sm btn-primary" id="ai-test-btn" onclick="aiRunTest()">ลองคัดกรอง</button></div>
+    <div id="ai-test-out" style="margin-top:.6rem"></div>`;
+}
+async function aiRunTest() {
+  const text = document.getElementById('ai-test-text').value.trim(), out = document.getElementById('ai-test-out');
+  if (!text) { out.innerHTML = '<div class="ai-err">พิมพ์ข้อความก่อน</div>'; return; }
+  const gsel = document.getElementById('ai-test-g');
+  const btn = document.getElementById('ai-test-btn'); btn.disabled = true; out.innerHTML = '<div class="ai-muted">AI กำลังคัดกรอง…</div>';
+  const r = await api('/api/triage/teach/test', { method: 'POST', silent: true, body: { text, group_id: gsel.value || null, group_name: gsel.value ? gsel.selectedOptions[0].textContent : null } });
+  btn.disabled = false;
+  if (!r || r.error) { out.innerHTML = `<div class="ai-err">${aiH(r?.error || 'ทดสอบไม่สำเร็จ')}</div>`; return; }
+  const t = aiActiveTypes().find(x => x.id === r.work_type_id);
+  const src = { ai: 'AI เลือก', keyword: 'ตรงคำสำคัญที่ทีมตั้งไว้' }[r.work_type_src] || '';
+  out.innerHTML = `<div style="background:#f6f5f2;border-radius:10px;padding:.7rem .8rem;font-size:.82rem">
+    <div>หมวด: <b>${aiH(TR_CAT[r.category]?.label || r.category)}</b> · ความเร่งด่วน: <b>${aiH(TR_PRI[r.priority]?.label || r.priority)}</b></div>
+    <div style="margin-top:.2rem">ประเภทงาน: ${t ? `<span class="ai-chip" style="background:${t.color || '#5b616b'}1f;color:${t.color || '#5b616b'}">${aiH(t.name)}</span> <span class="ai-muted">${src}</span>`
+      : `<span class="ai-muted">${r.has_types ? 'ไม่มั่นใจ — จะแจ้งเตือนตามปกติ' : 'กลุ่มนี้ยังไม่ได้เปิดใช้ประเภทงาน'}</span>`}</div>
+    <div style="margin-top:.2rem">สรุป: ${aiH(r.summary || '—')}</div>
+    ${r.used?.length ? `<div class="ai-muted" style="margin-top:.4rem">ใช้สิ่งที่สอนไว้: ${r.used.map(u => aiH((AI_KIND[u.kind]?.[0] || u.kind) + ' "' + (u.term || u.meaning || '').slice(0, 40) + '"')).join(' · ')}</div>` : ''}
+  </div>`;
 }
 
 // ══════════════════════════════════════════════════════════
@@ -15436,7 +15849,7 @@ function renderLineCasePicker() {
           · ${escHtml(r.customer_name || 'ลูกค้า')}
           · <span style="color:${w.color}">${w.txt}</span> · <span style="color:${p[1]}">${p[0]}</span>${th.rows.length > 1 ? ` · ${th.rows.length} ข้อความ` : ''}${th.claimed ? ` · รับงานโดย ${escHtml(th.claimed.claimed_name || '—')}` : ''}
         </div>
-        <div style="font-size:.86rem;font-weight:600;color:#24272c;margin:.15rem 0">${tags}${escHtml(r.summary || '—')}${th.answered
+        <div style="font-size:.86rem;font-weight:600;color:#24272c;margin:.15rem 0">${aiWorkTypeChip(r)}${tags}${escHtml(r.summary || '—')}${th.answered
           ? ` <span title="ตอบในไลน์แล้ว — ยังต้องลงเคสหรือกด 'ไม่ใช่เคส'" style="font-size:.68rem;font-weight:600;padding:0 .35rem;border-radius:4px;background:#e7f0ea;color:#356b4e;vertical-align:.1em">ตอบในไลน์แล้ว${th.answered.answered_by ? ' · ' + escHtml(th.answered.answered_by) : ''}</span>` : ''}</div>
         ${th.rows.length > 1 ? '' : `<div style="font-size:.76rem;color:#5b616b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escHtml(r.message_text || '')}">${escHtml(r.message_text || '')}</div>`}
         ${more}
@@ -15444,6 +15857,7 @@ function renderLineCasePicker() {
       <div style="display:flex;flex-direction:column;gap:.3rem;align-items:stretch">
         <button class="svc-btn-primary" style="height:32px;white-space:nowrap" onclick="openCaseFromTriage(${r.id})">เปิดเคส</button>
         <button class="svc-btn-ghost" style="height:28px;white-space:nowrap;font-size:.74rem" onclick="lcClose(${r.id})" title="ปิดเรื่องนี้โดยไม่เปิดเคสผ่านระบบ — จะถามเหตุผล">ปิดเคส</button>
+        <button class="svc-btn-ghost" style="height:28px;white-space:nowrap;font-size:.72rem;color:var(--primary)" onclick="openTeachFromRow(${r.id})" title="AI สรุปผิด / ประเภทงานผิด — แก้แล้วสอนให้จำ">สอน AI</button>
       </div>
     </div>`;
   }).join('');

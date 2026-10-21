@@ -7146,6 +7146,7 @@ async function classifyTriageBatchInner(batchSize) {
   if (!GROQ_API_KEY && !process.env.GEMINI_API_KEY) return { classified: 0, scanned: 0, hasKey: false };
   const lb = getLineBotPool();
   if (!lb) return { classified: 0, scanned: 0, hasKey: true, error: 'LineBotMonitor DB ไม่ได้เชื่อมต่อ' };
+  await ensureTeachSchema();   // triageInsert เขียนคอลัมน์ work_type_* ด้วย
 
   batchSize = Math.max(1, Math.min(60, parseInt(batchSize) || 30));
 
@@ -7225,14 +7226,46 @@ async function classifyTriageBatchInner(batchSize) {
     }
   } catch (e) { console.warn('triage context load failed:', e.message); }
 
+  let teach = null;
+  try { teach = await triageLoadTeach(); } catch (e) { console.warn('triage teach load failed:', e.message); }
+
+  let arr, usedModel, used;
+  try {
+    ({ arr, usedModel, used } = await triageAiClassify(todo, ctx, teach));
+  } catch (e) {
+    console.error('triage: AI/parse failed:', e.message);
+    return { classified: 0, scanned: cand.length, hasKey: true, error: 'AI คัดกรองไม่สำเร็จ: ' + e.message };
+  }
+  if (!Array.isArray(arr)) return { classified: 0, scanned: cand.length, hasKey: true, error: 'AI ตอบผิดรูปแบบ' };
+
+  const byIndex = new Map();
+  arr.forEach(o => { if (o && Number.isInteger(o.i)) byIndex.set(o.i, o); });
+
+  let classified = ruled;
+  for (let i = 0; i < todo.length; i++) {
+    const o = { ...(byIndex.get(i) || {}) };
+    if (teach) {
+      const wt = triageResolveWorkType(teach, todo[i].GroupId, todo[i].CustomerMessage, o.work_type, used);
+      o.work_type_id = wt.id; o.work_type_src = wt.src;
+    }
+    if (await triageInsert(todo[i], o, usedModel)) classified++;
+  }
+  await teachMarkUsed(used);
+  return { classified, ruled, scanned: inScope.length, hasKey: true, skippedOutOfScope: cand.length - inScope.length };
+}
+
+// สร้าง prompt + เรียก AI คัดกรองข้อความชุดหนึ่ง (ใช้ทั้งรอบคัดกรองจริงและปุ่ม "ทดสอบ" ในหน้าสอน AI)
+async function triageAiClassify(todo, ctx, teach) {
   const clip = v => String(v || '').replace(/\s+/g, ' ').trim();
+  const tp = teach ? triageTeachPrompt(teach, todo) : { glossary: '', chatBlock: () => '', used: new Set() };
   const blocks = [];
   let curG = null;
   todo.forEach((m, i) => {
     if (m.GroupId !== curG) {
       curG = m.GroupId;
       const prev = (ctx.get(m.GroupId) || []).map(x => `  - [${x.category}] ${clip(x.summary).slice(0, 120)}${x.answered_in_line ? ' (แอดมินตอบแล้ว)' : ''}`);
-      blocks.push(`=== แชท: ${clip(m.GroupName).slice(0, 60) || '-'} ===` + (prev.length ? `\nก่อนหน้า (สรุป):\n${prev.join('\n')}` : ''));
+      const tb = tp.chatBlock(m.GroupId, todo.filter(x => x.GroupId === m.GroupId));
+      blocks.push(`=== แชท: ${clip(m.GroupName).slice(0, 60) || '-'} ===` + (tb ? `\n${tb}` : '') + (prev.length ? `\nก่อนหน้า (สรุป):\n${prev.join('\n')}` : ''));
     }
     blocks.push(`[${i}] ${clip(m.CustomerMessage).slice(0, 300)}`);   // 300 ตัวอักษรพอให้จำแนกได้ — ประหยัด token
   });
@@ -7243,7 +7276,7 @@ async function classifyTriageBatchInner(batchSize) {
 
 ข้อความถูกจัดกลุ่มตามแชท เรียงตามเวลา บางแชทมี "ก่อนหน้า (สรุป)" ให้ดูว่ากำลังคุยเรื่องอะไรอยู่
 ให้ดูบริบทก่อนเสมอ — ข้อความที่ต่อจากเรื่องเดิม ไม่ใช่เคสใหม่
-
+${tp.glossary}
 แต่ละ object ต้องมี field:
 - i        : เลขลำดับข้อความ (ตรงกับ [i] ที่ให้มา)
 - category : เลือก 1 อย่าง
@@ -7261,6 +7294,10 @@ async function classifyTriageBatchInner(batchSize) {
 - needs_action: true เฉพาะ problem/complaint/followup/request/question ที่ต้องมีทีมงานทำหรือตอบจริง
                 ถ้าไม่แน่ใจว่าเป็นเรื่องใหม่หรือเรื่องเดิม ให้ดูบริบท ถ้าต่อจากเรื่องเดิมให้เป็น "context"
 - summary  : สรุปใจความสั้นๆ 1 ประโยคภาษาไทยว่าลูกค้าต้องการอะไร
+             ห้ามเดา: ถ้าเจอคำที่ไม่รู้จัก คำย่อ หรือศัพท์เฉพาะ ให้คงคำเดิมไว้ในสรุป ไม่ต้องแปลงเป็นคำอื่น
+             และห้ามสรุปว่า "มีปัญหา/ติดปัญหา" ถ้าข้อความไม่ได้บอกชัดเจนว่ามีปัญหา
+- work_type: เลขประเภทงาน — เฉพาะแชทที่มี "ประเภทงานของแชทนี้" ให้เลือกจากรายการนั้น
+             ถ้าแชทไม่มีรายการ หรือไม่มั่นใจว่าเป็นประเภทไหน ให้ตอบ 0
 
 ${list}`;
 
@@ -7279,6 +7316,7 @@ ${list}`;
             priority:     { type: SchemaType.STRING },
             needs_action: { type: SchemaType.BOOLEAN },
             summary:      { type: SchemaType.STRING },
+            work_type:    { type: SchemaType.NUMBER },
           },
           required: ['i', 'category', 'sentiment', 'priority', 'needs_action', 'summary'],
         },
@@ -7286,24 +7324,9 @@ ${list}`;
     },
   };
 
-  let arr, usedModel;
-  try {
-    // หน้า Pod & Assign ใช้ Gemini เป็นตัวหลัก (responseSchema บังคับรูปแบบได้) Groq เป็นตัวสำรอง
-    ({ value: arr, usedModel } = await aiGenerate(prompt, { parse: parseJsonArrayReply, geminiConfig, feature: 'triage_classify' }));
-  } catch (e) {
-    console.error('triage: AI/parse failed:', e.message);
-    return { classified: 0, scanned: cand.length, hasKey: true, error: 'AI คัดกรองไม่สำเร็จ: ' + e.message };
-  }
-  if (!Array.isArray(arr)) return { classified: 0, scanned: cand.length, hasKey: true, error: 'AI ตอบผิดรูปแบบ' };
-
-  const byIndex = new Map();
-  arr.forEach(o => { if (o && Number.isInteger(o.i)) byIndex.set(o.i, o); });
-
-  let classified = ruled;
-  for (let i = 0; i < todo.length; i++) {
-    if (await triageInsert(todo[i], byIndex.get(i) || {}, usedModel)) classified++;
-  }
-  return { classified, ruled, scanned: inScope.length, hasKey: true, skippedOutOfScope: cand.length - inScope.length };
+  // หน้า Pod & Assign ใช้ Gemini เป็นตัวหลัก (responseSchema บังคับรูปแบบได้) Groq เป็นตัวสำรอง
+  const { value: arr, usedModel } = await aiGenerate(prompt, { parse: parseJsonArrayReply, geminiConfig, feature: 'triage_classify' });
+  return { arr, usedModel, used: tp.used };
 }
 
 // บันทึกผลคัดกรอง 1 ข้อความ (ข้ามถ้ามีอยู่แล้ว) — คืน true เมื่อสำเร็จ
@@ -7324,12 +7347,14 @@ async function triageInsert(m, o, model) {
         .input('sum',  sql.NVarChar, String(o.summary || '').slice(0, 480))
         .input('na',   sql.Bit, needsAction)
         .input('model', sql.NVarChar, model)
+        .input('wt',   sql.Int, o.work_type_id || null)
+        .input('wts',  sql.NVarChar, o.work_type_id ? (o.work_type_src || 'ai') : null)
         .query(`
           IF NOT EXISTS (SELECT 1 FROM line_msg_triage WHERE source_msg_id=@sid)
           INSERT INTO line_msg_triage
             (source_msg_id, group_id, group_name, customer_name, message_text, message_time,
-             category, sentiment, priority, summary, needs_action, ai_model)
-          VALUES (@sid,@gid,@gname,@cust,@txt,@mtime,@cat,@sen,@pri,@sum,@na,@model)
+             category, sentiment, priority, summary, needs_action, ai_model, work_type_id, work_type_src)
+          VALUES (@sid,@gid,@gname,@cust,@txt,@mtime,@cat,@sen,@pri,@sum,@na,@model,@wt,@wts)
         `);
       return true;
     } catch (e) { console.error('triage insert failed for id', m.Id, e.message); return false; }
@@ -7350,6 +7375,173 @@ function triageRuleClassify(text) {
   if (/^(ok|okay|โอเค|โอเช|รับทราบ|ทราบแล้ว|ได้|ค่ะ|ครับ|คับ|จ้า|ค่า|)$/.test(w))
     return { category: 'other', sentiment: 'neutral', priority: 'low', needs_action: false, summary: 'ลูกค้ารับทราบ' };
   return null;
+}
+
+// ── สอน AI + ประเภทงาน (ทีมกำหนดเอง) ─────────────────────
+// triage_work_types       ประเภทงานที่ทีมสร้างเอง (เช่น Support, IT/Oper) · all_groups = ใช้กับทุกกลุ่ม · notify = แจ้งเตือนไหม
+// triage_group_work_types ตั้งค่ารายกลุ่ม: เปิด/ปิดประเภทนั้น + แจ้งเตือน (notify NULL = ตามค่าของประเภท)
+// triage_teach            สิ่งที่ทีมสอน AI: term (คำเฉพาะ) · example (เคสตัวอย่าง) · keyword (มีคำนี้ = ประเภทนี้) · rule (ประโยคอธิบาย)
+//                         group_id NULL = ใช้กับทุกกลุ่ม
+// line_msg_triage.work_type_id / work_type_src (ai | keyword | staff) — AI ไม่มั่นใจ = NULL (ยังแจ้งเตือนตามปกติ)
+let _teachSchemaP = null;
+function ensureTeachSchema() {
+  return _teachSchemaP ||= (async () => {
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='triage_work_types' AND xtype='U')
+      CREATE TABLE triage_work_types (
+        id          INT IDENTITY(1,1) PRIMARY KEY,
+        name        NVARCHAR(60)  NOT NULL,
+        description NVARCHAR(300) NULL,
+        color       NVARCHAR(20)  NULL,
+        all_groups  BIT NOT NULL DEFAULT 0,
+        notify      BIT NOT NULL DEFAULT 1,
+        archived    BIT NOT NULL DEFAULT 0,
+        created_by  NVARCHAR(100) NULL,
+        created_at  DATETIME DEFAULT GETDATE(),
+        updated_at  DATETIME DEFAULT GETDATE());
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='triage_group_work_types' AND xtype='U')
+      CREATE TABLE triage_group_work_types (
+        group_id     NVARCHAR(100) NOT NULL,
+        work_type_id INT NOT NULL,
+        enabled      BIT NOT NULL DEFAULT 1,
+        notify       BIT NULL,
+        updated_by   NVARCHAR(100) NULL,
+        updated_at   DATETIME DEFAULT GETDATE(),
+        CONSTRAINT pk_triage_gwt PRIMARY KEY (group_id, work_type_id));
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='triage_teach' AND xtype='U')
+      CREATE TABLE triage_teach (
+        id               INT IDENTITY(1,1) PRIMARY KEY,
+        kind             NVARCHAR(10)  NOT NULL,
+        group_id         NVARCHAR(100) NULL,
+        term             NVARCHAR(500) NULL,
+        meaning          NVARCHAR(500) NULL,
+        work_type_id     INT NULL,
+        category         NVARCHAR(20)  NULL,
+        reasons          NVARCHAR(100) NULL,
+        source_triage_id INT NULL,
+        active           BIT NOT NULL DEFAULT 1,
+        use_count        INT NOT NULL DEFAULT 0,
+        last_used_at     DATETIME NULL,
+        created_by       NVARCHAR(100) NULL,
+        created_at       DATETIME DEFAULT GETDATE(),
+        updated_at       DATETIME DEFAULT GETDATE());
+      IF COL_LENGTH('line_msg_triage','work_type_id') IS NULL ALTER TABLE line_msg_triage ADD work_type_id INT NULL;
+      IF COL_LENGTH('line_msg_triage','work_type_src') IS NULL ALTER TABLE line_msg_triage ADD work_type_src NVARCHAR(10) NULL;`);
+    // ตั้งต้นให้ 2 ประเภท (แก้ชื่อ/ปิดได้จากหน้าเว็บ) — ใส่เฉพาะตอนตารางยังว่าง
+    await req().query(`
+      IF NOT EXISTS (SELECT 1 FROM triage_work_types)
+      INSERT INTO triage_work_types (name, description, color, created_by) VALUES
+        (N'Support', N'งานที่บริษัทดูแล: ปัญหาโปรแกรม เครื่อง/อุปกรณ์เสีย error ระบบล่ม', '#1d9e75', 'system'),
+        (N'IT/Oper', N'งานของ IT/Operation หน้าร้าน: สต็อก/inventory แก้ข้อมูลในระบบ ปิด/ยกเลิกบิล เพิ่มเมนู/ราคา', '#d85a30', 'system')`);
+  })().catch(e => { _teachSchemaP = null; throw e; });
+}
+
+const TEACH_KINDS = ['term', 'example', 'keyword', 'rule'];
+
+// ข้อความนี้ "ปิดเสียง" ไหม = มีประเภทงาน และกลุ่มนั้นตั้งไม่แจ้งเตือนประเภทนี้ (ใช้ใน query ที่มี alias t ของ line_msg_triage)
+const TRIAGE_MUTED_SQL = (t = 't') => `EXISTS (
+  SELECT 1 FROM triage_work_types mwt
+  LEFT JOIN triage_group_work_types mgw ON mgw.work_type_id = mwt.id AND mgw.group_id = ${t}.group_id
+  WHERE mwt.id = ${t}.work_type_id AND COALESCE(mgw.notify, mwt.notify) = 0)`;
+
+// โหลดทุกอย่างที่ทีมสอนไว้ (ตารางเล็ก — โหลดทั้งก้อนต่อรอบคัดกรอง)
+async function triageLoadTeach() {
+  await ensureTeachSchema();
+  const r = await req().query(`
+    SELECT id, name, description, color, all_groups, notify FROM triage_work_types WHERE archived = 0 ORDER BY id;
+    SELECT group_id, work_type_id, enabled, notify FROM triage_group_work_types;
+    SELECT TOP 3000 id, kind, group_id, term, meaning, work_type_id, category FROM triage_teach WHERE active = 1 ORDER BY id DESC;`);
+  const [types, gw, items] = r.recordsets;
+  const gwMap = new Map(gw.map(x => [`${x.group_id}:${x.work_type_id}`, x]));
+  return {
+    types, items,
+    typesFor(gid) {
+      return types.filter(t => { const g = gwMap.get(`${gid}:${t.id}`); return g ? !!g.enabled : !!t.all_groups; });
+    },
+    itemsFor(gid, kind) { return items.filter(x => x.kind === kind && (!x.group_id || x.group_id === gid)); },
+  };
+}
+
+// คำสำคัญ "a, b, c" → ตรงคำไหนในข้อความ (ไม่สนตัวพิมพ์) คืน true
+function teachKeywordHit(keywords, text) {
+  const t = String(text || '').toLowerCase();
+  return String(keywords || '').split(/[,\n]/).map(x => x.trim().toLowerCase()).filter(Boolean).some(k => t.includes(k));
+}
+
+// ความคล้ายแบบหยาบ: สัดส่วนคำ/ตัวอักษร 3 ตัวที่ซ้ำกัน — ใช้เลือกเคสตัวอย่างที่ใกล้ข้อความใหม่ที่สุด
+function teachGrams(s) {
+  const t = String(s || '').toLowerCase().replace(/\s+/g, '');
+  const g = new Set();
+  for (let i = 0; i + 3 <= t.length; i++) g.add(t.slice(i, i + 3));
+  return g;
+}
+function teachSimilarity(a, b) {
+  if (!a.size || !b.size) return 0;
+  let n = 0; for (const x of a) if (b.has(x)) n++;
+  return n / Math.min(a.size, b.size);
+}
+
+// ส่วนของ prompt ที่มาจากการสอนของทีม — คืน { glossary, chatBlock(gid, msgs), used:Set(id) }
+function triageTeachPrompt(teach, todo) {
+  const used = new Set();
+  const gids = [...new Set(todo.map(m => m.GroupId))];
+  const allText = todo.map(m => String(m.CustomerMessage || '').toLowerCase()).join('\n');
+  const clip = (v, n) => String(v || '').replace(/\s+/g, ' ').trim().slice(0, n);
+
+  // คำเฉพาะ: ใส่ทุกคำของกลุ่มในรอบนี้ (ไม่เกิน 80) · นับการใช้เมื่อคำนั้นปรากฏในข้อความจริง
+  const terms = teach.items.filter(x => x.kind === 'term' && (!x.group_id || gids.includes(x.group_id))).slice(0, 80);
+  terms.forEach(x => { if (String(x.term || '').split(',').some(w => w.trim() && allText.includes(w.trim().toLowerCase()))) used.add(x.id); });
+  const glossary = terms.length
+    ? `\nคำเฉพาะของทีม (ใช้ตีความข้อความตามนี้ ห้ามแปลเป็นอย่างอื่น):\n` + terms.map(x => `- ${clip(x.term, 80)} = ${clip(x.meaning, 200)}${x.group_id ? ' (เฉพาะแชทที่ระบุ)' : ''}`).join('\n') + '\n'
+    : '';
+
+  const chatBlock = (gid, msgs) => {
+    const types = teach.typesFor(gid);
+    if (!types.length) return '';
+    const ids = new Set(types.map(t => t.id));
+    const lines = [`ประเภทงานของแชทนี้ (ตอบ work_type เป็นเลขในวงเล็บ):`,
+      ...types.map(t => `  (${t.id}) ${clip(t.name, 40)}${t.description ? ' — ' + clip(t.description, 200) : ''}`)];
+    const rules = teach.itemsFor(gid, 'rule').filter(x => !x.work_type_id || ids.has(x.work_type_id)).slice(0, 20);
+    if (rules.length) {
+      lines.push('  กฎของทีม:');
+      rules.forEach(x => { used.add(x.id); lines.push(`  - ${clip(x.meaning || x.term, 200)}${x.work_type_id ? ` → (${x.work_type_id})` : ''}`); });
+    }
+    // เคสตัวอย่าง: เลือก 5 เคสที่คล้ายข้อความในแชทนี้ที่สุด (เคสของกลุ่มนี้ได้แต้มต่อ)
+    const mg = msgs.map(m => teachGrams(m.CustomerMessage));
+    const ex = teach.itemsFor(gid, 'example')
+      .map(x => { const g = teachGrams(x.term); return { x, s: Math.max(0, ...mg.map(a => teachSimilarity(a, g))) + (x.group_id ? 0.15 : 0) }; })
+      .filter(o => o.s >= 0.2).sort((a, b) => b.s - a.s).slice(0, 5);
+    if (ex.length) {
+      lines.push('  เคสตัวอย่างที่ทีมเคยแก้ (ทำตามแนวนี้):');
+      ex.forEach(({ x }) => {
+        used.add(x.id);
+        lines.push(`  - "${clip(x.term, 160)}" → ${x.category ? `category=${x.category}, ` : ''}${x.work_type_id && ids.has(x.work_type_id) ? `work_type=${x.work_type_id}, ` : ''}summary="${clip(x.meaning, 160)}"`);
+      });
+    }
+    return lines.join('\n');
+  };
+  return { glossary, chatBlock, used };
+}
+
+// ประเภทงานสุดท้ายของข้อความ: คำสำคัญของทีมชนะก่อน → ค่อยเป็นที่ AI เลือก (ต้องอยู่ในรายการของกลุ่ม) → ไม่งั้น NULL
+function triageResolveWorkType(teach, gid, text, aiPick, used) {
+  const types = teach.typesFor(gid);
+  if (!types.length) return { id: null, src: null };
+  const ids = new Set(types.map(t => t.id));
+  const kw = teach.itemsFor(gid, 'keyword').filter(x => x.work_type_id && ids.has(x.work_type_id));
+  // กฎของกลุ่มนี้ก่อนกฎของทุกกลุ่ม
+  kw.sort((a, b) => (b.group_id ? 1 : 0) - (a.group_id ? 1 : 0));
+  const hit = kw.find(x => teachKeywordHit(x.term, text));
+  if (hit) { used?.add(hit.id); return { id: hit.work_type_id, src: 'keyword' }; }
+  const n = parseInt(aiPick);
+  return ids.has(n) ? { id: n, src: 'ai' } : { id: null, src: null };
+}
+
+async function teachMarkUsed(used) {
+  const ids = [...used].map(Number).filter(Number.isInteger);
+  if (!ids.length) return;
+  try { await req().query(`UPDATE triage_teach SET use_count = use_count + 1, last_used_at = GETDATE() WHERE id IN (${ids.join(',')})`); }
+  catch (e) { console.warn('teach use_count failed:', e.message); }
 }
 
 // ── ขอบเขตที่คัดกรอง AI ต้องเฝ้า ─────────────────────────
@@ -7387,6 +7579,10 @@ function buildTriageFilter(query, r) {
   if (TRIAGE_STATUSES.includes(query.status)) { where.push('t.status=@st'); r.input('st', sql.NVarChar, query.status); }
   if (query.group) { where.push('t.group_id=@gid'); r.input('gid', sql.NVarChar, query.group); }
   if (query.needsAction === '1') where.push('t.needs_action=1');
+  // ประเภทงาน: เลข id · none = ยังไม่มีประเภท · muted = ตั้งไม่แจ้งเตือน
+  if (query.workType === 'none') where.push('t.work_type_id IS NULL');
+  else if (query.workType === 'muted') where.push(TRIAGE_MUTED_SQL('t'));
+  else if (parseInt(query.workType)) { where.push('t.work_type_id=@wtf'); r.input('wtf', sql.Int, parseInt(query.workType)); }
   // Multi-select Pod filter: comma-separated pod ids, plus optional 'none' (unassigned groups)
   if (query.pods) {
     const parts = String(query.pods).split(',');
@@ -7435,6 +7631,7 @@ app.get('/api/triage/inbox', authRequired, async (request, res) => {
     }
     const page = Math.max(1, parseInt(request.query.page) || 1);
     const per  = Math.min(300, Math.max(5, parseInt(request.query.per) || 30));
+    await ensureTeachSchema();
 
     const r = req();
     const wsql = buildTriageFilter(request.query, r);
@@ -7464,12 +7661,15 @@ app.get('/api/triage/inbox', authRequired, async (request, res) => {
              t.claimed_at, t.done_at, t.note, t.classified_at,
              lgp.pod_id, p.code AS pod_code, p.display_name AS pod_name, p.color AS pod_color,
              ISNULL(ce.nickname, ce.name) AS claimed_name,
-             ISNULL(de.nickname, de.name) AS done_name
+             ISNULL(de.nickname, de.name) AS done_name,
+             t.work_type_id, t.work_type_src, wt.name AS work_type_name, wt.color AS work_type_color,
+             CASE WHEN ${TRIAGE_MUTED_SQL('t')} THEN 1 ELSE 0 END AS muted
       FROM line_msg_triage t
       LEFT JOIN line_group_pods lgp ON lgp.group_id = t.group_id
       LEFT JOIN pods p       ON p.id = lgp.pod_id
       LEFT JOIN employees ce ON ce.id = t.claimed_by
       LEFT JOIN employees de ON de.id = t.done_by
+      LEFT JOIN triage_work_types wt ON wt.id = t.work_type_id
       ${wsql}
       ORDER BY ${orderBy}
       OFFSET @off ROWS FETCH NEXT @per ROWS ONLY
@@ -7824,6 +8024,217 @@ app.post('/api/triage/:id/action', authRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── สอน AI: API ─────────────────────────────────────────
+// ทุกคนในทีมเพิ่ม/แก้ได้ (บันทึกชื่อคนทำไว้) — ไม่มีการลบจริง ใช้ archived / active = 0 แทน
+const teachWho = request => String(request.user?.username || request.user?.name || '—').slice(0, 100);
+const teachStr = (v, n) => { const s = String(v ?? '').replace(/\s+/g, ' ').trim(); return s ? s.slice(0, n) : null; };
+const teachColor = v => /^#[0-9a-f]{6}$/i.test(String(v || '')) ? String(v) : null;
+
+// GET /api/triage/teach — ทุกอย่างสำหรับหน้า "สอน AI"
+app.get('/api/triage/teach', authRequired, async (_, res) => {
+  try {
+    await ensureTeachSchema();
+    const r = await req().query(`
+      SELECT id, name, description, color, all_groups, notify, archived, created_by, created_at FROM triage_work_types ORDER BY archived, id;
+      SELECT group_id, work_type_id, enabled, notify, updated_by, updated_at FROM triage_group_work_types;
+      SELECT TOP 1000 x.id, x.kind, x.group_id, x.term, x.meaning, x.work_type_id, x.category, x.reasons, x.source_triage_id,
+             x.active, x.use_count, x.last_used_at, x.created_by, x.created_at
+      FROM triage_teach x ORDER BY x.active DESC, x.id DESC;
+      SELECT lgp.group_id, lgp.group_name AS name, p.code AS pod_code FROM line_group_pods lgp LEFT JOIN pods p ON p.id = lgp.pod_id;
+      SELECT group_id, MAX(CASE WHEN group_id LIKE 'U%' THEN customer_name ELSE group_name END) AS name, COUNT(*) AS n
+      FROM line_msg_triage WHERE group_id IS NOT NULL GROUP BY group_id;`);
+    const [types, groupTypes, items, lgp, recent] = r.recordsets;
+    // รายชื่อแชท: กลุ่มที่ assign ไว้ + แชทที่มีข้อความในช่วงที่เก็บ · แชทส่วนตัวใช้ชื่อลูกค้า (ชื่อกลุ่มเป็น "แชทส่วนตัว" หมด)
+    const groups = new Map();
+    const good = n => { n = String(n || '').trim(); return n && n !== 'แชทส่วนตัว' ? n : ''; };
+    lgp.forEach(g => groups.set(g.group_id, { group_id: g.group_id, name: good(g.name), pod_code: g.pod_code || null, n: 0 }));
+    recent.forEach(g => {
+      const o = groups.get(g.group_id) || { group_id: g.group_id, name: '', pod_code: null, n: 0 };
+      if (!o.name || g.group_id.startsWith('U')) o.name = good(g.name) || o.name;
+      o.n = g.n; groups.set(g.group_id, o);
+    });
+    res.json({
+      types, groupTypes, items,
+      groups: [...groups.values()].map(g => ({ ...g, name: g.name || g.group_id })).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name, 'th')),
+      categories: TRIAGE_CATEGORIES,
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/triage/work-types — สร้างประเภทงาน
+app.post('/api/triage/work-types', authRequired, async (request, res) => {
+  try {
+    await ensureTeachSchema();
+    const b = request.body || {};
+    const name = teachStr(b.name, 60);
+    if (!name) return res.status(400).json({ error: 'ใส่ชื่อประเภทงานก่อน' });
+    const dup = (await req().input('n', sql.NVarChar, name).query(`SELECT 1 AS x FROM triage_work_types WHERE name=@n AND archived=0`)).recordset.length;
+    if (dup) return res.status(400).json({ error: 'มีประเภทงานชื่อนี้อยู่แล้ว' });
+    const row = (await req().input('n', sql.NVarChar, name).input('d', sql.NVarChar, teachStr(b.description, 300))
+      .input('c', sql.NVarChar, teachColor(b.color)).input('ag', sql.Bit, b.all_groups ? 1 : 0)
+      .input('nt', sql.Bit, b.notify === false ? 0 : 1).input('by', sql.NVarChar, teachWho(request))
+      .query(`INSERT INTO triage_work_types (name, description, color, all_groups, notify, created_by)
+              OUTPUT INSERTED.id VALUES (@n, @d, @c, @ag, @nt, @by)`)).recordset[0];
+    res.json({ ok: true, id: row.id });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT /api/triage/work-types/:id — แก้ชื่อ/คำอธิบาย/สี/ใช้กับทุกกลุ่ม/แจ้งเตือน/เก็บเข้ากรุ (archived)
+app.put('/api/triage/work-types/:id', authRequired, async (request, res) => {
+  try {
+    await ensureTeachSchema();
+    const id = parseInt(request.params.id);
+    const b = request.body || {};
+    if (!id) return res.status(400).json({ error: 'id required' });
+    const sets = [], r = req().input('id', sql.Int, id);
+    if (b.name !== undefined) {
+      const name = teachStr(b.name, 60);
+      if (!name) return res.status(400).json({ error: 'ชื่อห้ามว่าง' });
+      sets.push('name=@n'); r.input('n', sql.NVarChar, name);
+    }
+    if (b.description !== undefined) { sets.push('description=@d'); r.input('d', sql.NVarChar, teachStr(b.description, 300)); }
+    if (b.color !== undefined) { sets.push('color=@c'); r.input('c', sql.NVarChar, teachColor(b.color)); }
+    if (b.all_groups !== undefined) { sets.push('all_groups=@ag'); r.input('ag', sql.Bit, b.all_groups ? 1 : 0); }
+    if (b.notify !== undefined) { sets.push('notify=@nt'); r.input('nt', sql.Bit, b.notify ? 1 : 0); }
+    if (b.archived !== undefined) { sets.push('archived=@ar'); r.input('ar', sql.Bit, b.archived ? 1 : 0); }
+    if (!sets.length) return res.json({ ok: true });
+    await r.query(`UPDATE triage_work_types SET ${sets.join(', ')}, updated_at=GETDATE() WHERE id=@id`);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT /api/triage/group-work-types — ตั้งค่ารายกลุ่ม { group_id, work_type_id, enabled, notify: true|false|null }
+app.put('/api/triage/group-work-types', authRequired, async (request, res) => {
+  try {
+    await ensureTeachSchema();
+    const b = request.body || {};
+    const gid = teachStr(b.group_id, 100), wt = parseInt(b.work_type_id);
+    if (!gid || !wt) return res.status(400).json({ error: 'group_id / work_type_id required' });
+    await req().input('g', sql.NVarChar, gid).input('w', sql.Int, wt)
+      .input('en', sql.Bit, b.enabled === false ? 0 : 1)
+      .input('nt', sql.Bit, b.notify === null || b.notify === undefined ? null : (b.notify ? 1 : 0))
+      .input('by', sql.NVarChar, teachWho(request))
+      .query(`UPDATE triage_group_work_types SET enabled=@en, notify=@nt, updated_by=@by, updated_at=GETDATE() WHERE group_id=@g AND work_type_id=@w;
+              IF @@ROWCOUNT = 0 INSERT INTO triage_group_work_types (group_id, work_type_id, enabled, notify, updated_by) VALUES (@g, @w, @en, @nt, @by)`);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+async function teachInsert(request, o) {
+  return (await req()
+    .input('k', sql.NVarChar, o.kind).input('g', sql.NVarChar, o.group_id || null)
+    .input('t', sql.NVarChar, teachStr(o.term, 500)).input('m', sql.NVarChar, teachStr(o.meaning, 500))
+    .input('w', sql.Int, parseInt(o.work_type_id) || null)
+    .input('c', sql.NVarChar, TRIAGE_CATEGORIES.includes(o.category) ? o.category : null)
+    .input('rs', sql.NVarChar, teachStr(o.reasons, 100)).input('src', sql.Int, parseInt(o.source_triage_id) || null)
+    .input('by', sql.NVarChar, teachWho(request))
+    .query(`INSERT INTO triage_teach (kind, group_id, term, meaning, work_type_id, category, reasons, source_triage_id, created_by)
+            OUTPUT INSERTED.id VALUES (@k, @g, @t, @m, @w, @c, @rs, @src, @by)`)).recordset[0].id;
+}
+function teachValidate(o) {
+  if (!TEACH_KINDS.includes(o.kind)) return 'ชนิดไม่ถูกต้อง';
+  if (o.kind === 'term' && (!teachStr(o.term, 500) || !teachStr(o.meaning, 500))) return 'ใส่ทั้งคำและความหมาย';
+  if (o.kind === 'keyword' && (!teachStr(o.term, 500) || !parseInt(o.work_type_id))) return 'ใส่คำสำคัญและเลือกประเภทงาน';
+  if (o.kind === 'rule' && !teachStr(o.meaning, 500)) return 'ใส่ประโยคอธิบาย';
+  if (o.kind === 'example' && (!teachStr(o.term, 500) || !teachStr(o.meaning, 500))) return 'ใส่ข้อความตัวอย่างและสรุปที่ถูกต้อง';
+  return null;
+}
+
+// POST /api/triage/teach — เพิ่มคำเฉพาะ / คำสำคัญ / กฎ / ตัวอย่าง จากหน้า "สอน AI"
+app.post('/api/triage/teach', authRequired, async (request, res) => {
+  try {
+    await ensureTeachSchema();
+    const o = request.body || {};
+    const err = teachValidate(o);
+    if (err) return res.status(400).json({ error: err });
+    res.json({ ok: true, id: await teachInsert(request, o) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT /api/triage/teach/:id — แก้ หรือปิด/เปิด (active)
+app.put('/api/triage/teach/:id', authRequired, async (request, res) => {
+  try {
+    await ensureTeachSchema();
+    const id = parseInt(request.params.id);
+    const b = request.body || {};
+    if (!id) return res.status(400).json({ error: 'id required' });
+    const sets = [], r = req().input('id', sql.Int, id);
+    if (b.term !== undefined) { sets.push('term=@t'); r.input('t', sql.NVarChar, teachStr(b.term, 500)); }
+    if (b.meaning !== undefined) { sets.push('meaning=@m'); r.input('m', sql.NVarChar, teachStr(b.meaning, 500)); }
+    if (b.work_type_id !== undefined) { sets.push('work_type_id=@w'); r.input('w', sql.Int, parseInt(b.work_type_id) || null); }
+    if (b.group_id !== undefined) { sets.push('group_id=@g'); r.input('g', sql.NVarChar, teachStr(b.group_id, 100)); }
+    if (b.active !== undefined) { sets.push('active=@a'); r.input('a', sql.Bit, b.active ? 1 : 0); }
+    if (!sets.length) return res.json({ ok: true });
+    await r.query(`UPDATE triage_teach SET ${sets.join(', ')}, updated_at=GETDATE() WHERE id=@id`);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/triage/teach/test — ลองให้ AI คัดกรองข้อความเดียว ด้วยสิ่งที่สอนไว้ปัจจุบัน (ไม่บันทึกอะไร)
+app.post('/api/triage/teach/test', authRequired, async (request, res) => {
+  try {
+    if (!GROQ_API_KEY && !process.env.GEMINI_API_KEY) return res.status(503).json({ error: 'ยังไม่ได้ตั้งค่า AI key' });
+    const text = teachStr(request.body?.text, 300);
+    if (!text) return res.status(400).json({ error: 'พิมพ์ข้อความก่อน' });
+    const gid = teachStr(request.body?.group_id, 100) || '__test__';
+    const teach = await triageLoadTeach();
+    const m = { Id: 0, GroupId: gid, GroupName: teachStr(request.body?.group_name, 60) || 'ทดสอบ', CustomerMessage: text };
+    const { arr, used } = await triageAiClassify([m], new Map(), teach);
+    const o = (Array.isArray(arr) && arr.find(x => x && x.i === 0)) || {};
+    const wt = triageResolveWorkType(teach, gid, text, o.work_type, used);
+    const usedItems = teach.items.filter(x => used.has(x.id)).map(x => ({ id: x.id, kind: x.kind, term: x.term, meaning: x.meaning }));
+    res.json({
+      category: triageClean(o.category, TRIAGE_CATEGORIES, 'other'),
+      priority: triageClean(o.priority, TRIAGE_PRIORITIES, 'normal'),
+      summary: String(o.summary || ''),
+      work_type_id: wt.id, work_type_src: wt.src,
+      work_type_name: teach.types.find(t => t.id === wt.id)?.name || null,
+      has_types: teach.typesFor(gid).length > 0,
+      used: usedItems,
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/triage/:id/teach — "AI เข้าใจผิด / สอน AI" จากข้อความใน inbox
+// body: { summary, category, work_type_id, terms:[{term,meaning}], remember:'none'|'example'|'keyword', keywords, scope:'group'|'all', reasons:[] }
+app.post('/api/triage/:id/teach', authRequired, async (request, res) => {
+  try {
+    await ensureTeachSchema();
+    const id = parseInt(request.params.id);
+    const b = request.body || {};
+    const row = (await req().input('id', sql.Int, id).query(
+      `SELECT id, group_id, message_text, summary, category FROM line_msg_triage WHERE id=@id`)).recordset[0];
+    if (!row) return res.status(404).json({ error: 'ไม่พบข้อความ' });
+    const terms = (Array.isArray(b.terms) ? b.terms : []).map(x => ({ term: teachStr(x?.term, 500), meaning: teachStr(x?.meaning, 500) }))
+      .filter(x => x.term || x.meaning);
+    if (terms.some(x => !x.term || !x.meaning)) return res.status(400).json({ error: 'คำเฉพาะต้องมีทั้งคำและความหมาย' });
+    const wt = b.work_type_id === undefined ? undefined : (parseInt(b.work_type_id) || null);
+    const remember = ['none', 'example', 'keyword'].includes(b.remember) ? b.remember : 'example';
+    if (remember === 'keyword' && (!teachStr(b.keywords, 500) || !wt)) return res.status(400).json({ error: 'ตั้งเป็นกฎต้องใส่คำสำคัญและเลือกประเภทงาน' });
+    const cat = TRIAGE_CATEGORIES.includes(b.category) ? b.category : row.category;
+    const summary = teachStr(b.summary, 480) || row.summary;
+    const scopeGid = b.scope === 'all' ? null : row.group_id;
+    const reasons = (Array.isArray(b.reasons) ? b.reasons : []).map(String).join(',').slice(0, 100) || null;
+
+    // 1) แก้ข้อความนี้ทันที — หมวดที่ไม่ใช่เคส = ไม่ต้องดำเนินการ
+    const r = req().input('id', sql.Int, id).input('sum', sql.NVarChar, summary).input('cat', sql.NVarChar, cat)
+      .input('na', sql.Bit, TRIAGE_CASE_CATEGORIES.has(cat) ? 1 : 0);
+    let wtSql = '';
+    if (wt !== undefined) { wtSql = `, work_type_id=@wt, work_type_src=${wt ? `'staff'` : 'NULL'}`; r.input('wt', sql.Int, wt); }
+    await r.query(`UPDATE line_msg_triage SET summary=@sum, category=@cat, needs_action=@na${wtSql}, updated_at=GETDATE() WHERE id=@id`);
+
+    // 2) สิ่งที่ให้ AI จำ
+    const added = [];
+    for (const t of terms) added.push(await teachInsert(request, { kind: 'term', group_id: scopeGid, term: t.term, meaning: t.meaning, reasons, source_triage_id: id }));
+    if (remember === 'example')
+      added.push(await teachInsert(request, { kind: 'example', group_id: scopeGid, term: row.message_text, meaning: summary,
+        category: cat, work_type_id: wt || null, reasons, source_triage_id: id }));
+    if (remember === 'keyword')
+      added.push(await teachInsert(request, { kind: 'keyword', group_id: scopeGid, term: b.keywords, work_type_id: wt, reasons, source_triage_id: id }));
+    res.json({ ok: true, added: added.length, needs_action: TRIAGE_CASE_CATEGORIES.has(cat) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── คัดกรองเคสจาก Line → เปิดเคส ─────────────────────────
 // line_msg_triage.calllog_id = เคสใน Calllog ที่ลงจากข้อความนี้
 let _triageCaseColP = null;
@@ -7860,6 +8271,7 @@ app.get('/api/triage/pod-counts', authRequired, async (request, res) => {
 app.get('/api/triage/new', authRequired, async (request, res) => {
   try {
     const after = parseInt(request.query.after);
+    await ensureTeachSchema();
     const last = (await req().query(`SELECT MAX(id) AS id FROM line_msg_triage`)).recordset[0]?.id || 0;
     if (!Number.isInteger(after) || after >= last) return res.json({ last, rows: [] });
     const rows = (await req().input('after', sql.Int, after).query(`
@@ -7870,6 +8282,7 @@ app.get('/api/triage/new', authRequired, async (request, res) => {
       LEFT JOIN pods p ON p.id = lgp.pod_id
       WHERE t.id > @after AND t.status='open' AND t.needs_action=1 AND ${triageScopeSql()}
         AND ${TRIAGE_THREAD_START_SQL()}   -- เตือนเฉพาะเรื่องใหม่ ข้อความต่อจากเรื่องเดิมไม่เด้งซ้ำ
+        AND NOT ${TRIAGE_MUTED_SQL('t')}   -- ประเภทงานที่กลุ่มนี้ตั้งไม่แจ้งเตือน
       ORDER BY t.id DESC`)).recordset;
     res.json({ last, rows });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -8396,18 +8809,21 @@ async function urgentLineCaseTick() {
   _urgentRunning = true;
   try {
     await ensureUrgentAlertCol();
+    await ensureTeachSchema();
     try { await syncTriageAnswered(); } catch {}   // สถานะ "ตอบในไลน์แล้ว" ล่าสุดก่อนตัดสิน
     // เวลาข้อความมาจากนาฬิกาเครื่อง LineBotMonitor — วัดเวลารอด้วยนาฬิกาเครื่องเดียวกัน (cs_team เดินไม่ตรงกัน)
     const lbNow = (await lb.request().query('SELECT GETDATE() AS now')).recordset[0].now;
     const cut = new Date(lbNow.getTime() - URGENT_ALERT_MIN * 60000);
     const rows = (await req().input('cut', sql.DateTime, cut).query(`
-      SELECT t.id, t.group_id, COALESCE(t.group_name, lgp.group_name) AS group_name, t.customer_name, t.summary,
-             t.message_time, lgp.pod_id, p.code AS pod_code
+      SELECT t.id, t.group_id, COALESCE(NULLIF(t.group_name, ''), NULLIF(lgp.group_name, ''), t.customer_name) AS group_name, t.customer_name, t.summary,
+             t.message_time, lgp.pod_id, p.code AS pod_code, wt.name AS work_type_name
       FROM line_msg_triage t
       LEFT JOIN line_group_pods lgp ON lgp.group_id = t.group_id
       LEFT JOIN pods p ON p.id = lgp.pod_id
+      LEFT JOIN triage_work_types wt ON wt.id = t.work_type_id
       WHERE t.needs_action = 1 AND t.priority = 'urgent' AND t.status IN ('open','claimed')
         AND ISNULL(t.answered_in_line, 0) = 0 AND t.urgent_alerted_at IS NULL
+        AND NOT ${TRIAGE_MUTED_SQL('t')}
         AND t.message_time <= @cut AND t.message_time >= DATEADD(day, -1, @cut)
         AND ${triageScopeSql()}
       ORDER BY t.message_time`)).recordset;
@@ -8422,15 +8838,16 @@ async function urgentLineCaseTick() {
       return m >= 60 ? `${Math.floor(m / 60)} ชม.${m % 60 ? ` ${m % 60} นาที` : ''}` : `${m} นาที`;
     };
     const clip = (v, n) => { v = String(v || '').replace(/\s+/g, ' ').trim(); return v.length > n ? v.slice(0, n - 1) + '…' : v; };
-    const build = list => !list.length ? '' : [
-      `🚨 เคสด่วนจาก LINE ค้างเกิน ${URGENT_ALERT_MIN >= 60 ? URGENT_ALERT_MIN / 60 + ' ชม.' : URGENT_ALERT_MIN + ' นาที'} (${list.length} เรื่อง)`,
-      'ยังไม่มีคนตอบในไลน์ และยังไม่ได้เปิดเคส/ปิดเคส',
-      '',
-      ...list.slice(0, 15).map(c => `• [${c.pod_code || 'ยังไม่ได้ Assign'}] ${clip(c.group_name, 40)} — ${clip(c.summary, 70)} (รอ ${waitTxt(c.message_time)})`),
+    // 1 เรื่อง = 3 บรรทัด: ชื่อแชท (แชทส่วนตัวใช้ชื่อลูกค้า) · Pod + เวลารอ · รายละเอียดปัญหา
+    const build = list => !list.length ? '' : `🚨 LINE ค้างเกิน ${URGENT_ALERT_MIN >= 60 ? URGENT_ALERT_MIN / 60 + ' ชม.' : URGENT_ALERT_MIN + ' นาที'}\n` + [
+      ...list.slice(0, 15).map(c => [
+        // แชทส่วนตัวมี group_name เป็นคำว่า "แชทส่วนตัว" เหมือนกันหมด → ใช้ชื่อ LINE ของลูกค้าแทน
+        clip(String(c.group_id || '').startsWith('U') ? (c.customer_name || c.group_name) : c.group_name, 60) || '(ไม่มีชื่อแชท)',
+        [c.work_type_name, c.pod_code || 'ยังไม่ได้ Assign', `รอ ${waitTxt(c.message_time)}`].filter(Boolean).join(' · '),
+        clip(c.summary, 200),
+      ].join('\n')),
       ...(list.length > 15 ? [`…และอีก ${list.length - 15} เรื่อง`] : []),
-      '',
-      '👉 จัดการได้ที่ หน้าติดตามเคส → เคสจาก Line ค้าง',
-    ].join('\n');
+    ].join('\n\n');
 
     // กลุ่มที่ผูก Pod ไว้ได้เฉพาะเรื่องของ Pod นั้น · ไม่ผูก = ได้ทุกเรื่อง
     const sent = await sendLineNotify(target => {
@@ -8792,6 +9209,7 @@ ${list}`;
 // aiCalls=false → ใช้แต่ผลคัดกรองที่ cache ไว้ (preview ตอบเร็ว ไม่เผา quota)
 async function buildTriageAlert({ aiCalls = true } = {}) {
   await syncTriageAnswered();   // close LINE-answered tickets before building the alert
+  await ensureTeachSchema();
   // หนึ่งแถวต่อหนึ่งกลุ่ม = ข้อความที่ค้างนานที่สุดของกลุ่มนั้น (พร้อมสรุปจาก AI)
   const rows = (await req().query(`
     WITH pending AS (
@@ -8808,6 +9226,7 @@ async function buildTriageAlert({ aiCalls = true } = {}) {
       WHERE t.status='open' AND t.needs_action=1 AND t.message_time IS NOT NULL
         AND ISNULL(t.answered_in_line,0)=0             -- ตอบในไลน์แล้ว ไม่ต้องเตือนว่าค้างตอบ (แต่ยังรอเปิดเคส)
         AND ${triageScopeSql()}                       -- เฉพาะกลุ่มที่ตั้งกระดิ่ง + ที่ยังไม่ได้ assign
+        AND NOT ${TRIAGE_MUTED_SQL('t')}              -- ประเภทงานที่กลุ่มนี้ตั้งไม่แจ้งเตือน
         AND NOT EXISTS (                                 -- exclude likely-resolved
           SELECT 1 FROM line_msg_triage t2
           WHERE t2.group_id = t.group_id AND t2.message_time > t.message_time
@@ -16541,6 +16960,7 @@ init().then(async () => {
   await ensureUatTables();
   await ensureTriageScreenTable();
   await ensureTriageSettingsTable();
+  try { await ensureTeachSchema(); console.log('✅ triage teach tables ready'); } catch (e) { console.error('❌ triage teach tables error:', e.message); }
   await ensureNewsTable();
   await fixGarbledServiceAttachmentNames();
 
