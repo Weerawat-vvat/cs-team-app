@@ -735,6 +735,8 @@ const CALLLOG_SELECT = `
       THEN DATEDIFF(minute, cl.ReceiveDate, cl.CloseDate)
       ELSE NULL
     END                 AS TimeDiff_Minutes,
+    -- age so far, on LicenseDB's own clock (cs_team / browser clocks drift from it)
+    DATEDIFF(minute, cl.ReceiveDate, GETDATE()) AS age_minutes,
     cl.Stars,
     cl.Comment          AS ticket_comment,
     cl.CalllogDesc      AS description,

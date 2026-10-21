@@ -944,6 +944,8 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
 /* table */
 .svc-tbl-card{background:#fff;border:1px solid var(--border);border-radius:16px;overflow:hidden}
 .svc-tbl{table-layout:fixed;min-width:760px}
+.svc-tbl.tk-late-grp{table-layout:auto;min-width:0}
+.svc-tbl.tk-late-grp th,.svc-tbl.tk-late-grp td{padding:.5rem .6rem;white-space:nowrap}
 .svc-tbl thead tr{background:none}
 .svc-tbl th{font-size:.72rem;font-weight:500;color:#6f747c;text-transform:none;letter-spacing:0;padding:.8rem 1rem;border-bottom:1px solid var(--border)}
 .svc-tbl td{padding:.75rem 1rem;border-bottom:1px solid var(--line-2);font-size:.84rem}
@@ -1878,6 +1880,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
       <div class="svc-sub" id="tk-count-label">เคสจาก Calllog ในช่วงที่เลือก</div>
     </div>
     <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+      <button class="svc-btn-ghost" onclick="tkLateOpen()" title="สรุปเคสที่ใช้เวลาเกิน 30 นาที ตามตัวกรองที่เลือก">รายงานค้างเกิน 30 นาที</button>
       <button class="svc-btn-ghost" onclick="tkExportCSV()" title="Export ข้อมูลที่กรองอยู่เป็น CSV"><i class=i-download></i> Export</button>
       <button class="svc-btn-ghost" onclick="openModal('modal-tk-import')" title="Import Case จาก CSV"><i class=i-upload></i> Import</button>
       <button class="svc-btn-primary" onclick="openCreateCaseModal()"><span style="font-size:1.05rem;line-height:1;font-weight:400">+</span> เปิด Case</button>
@@ -1902,6 +1905,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
     <div class="tk-metrics">
       <span>ค้างเกิน 24 ชม. <span class="tk-metric-note">(ทั้งระบบ)</span> <b id="tk-stat-overdue" style="color:#a2562f">—</b></span>
       <span>เฉลี่ยแก้ไข <b id="tk-stat-avg">—</b></span>
+      <span style="cursor:pointer" onclick="tkLateOpen()" title="เคสในช่วงที่เลือกที่ใช้เวลาเกิน 30 นาที (ปิดช้า + ยังเปิดอยู่) — กดเพื่อดูรายงาน">เกิน 30 นาที <b id="tk-stat-late" style="color:#a2562f;text-decoration:underline dotted">—</b></span>
     </div>
   </div>
 
@@ -2272,6 +2276,27 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
 </div>
 
 <!-- ═══════════════════ MODAL: TICKET IMPORT ═══════════════════ -->
+<!-- รายงานเคสค้างเกิน N นาที (ตามตัวกรองบนหน้าติดตามเคส) -->
+<div class="overlay" id="modal-tk-late">
+  <div class="modal" style="max-width:980px;width:96%">
+    <div class="modal-title">
+      <span>รายงานเคสค้างเกิน <span id="tk-late-th-lbl">30 นาที</span></span>
+      <span style="display:flex;align-items:center;gap:.4rem">
+        <select id="tk-late-th" class="svc-select" style="height:32px;padding:0 .5rem;font-size:.8rem" onchange="tkLateRender()" aria-label="เกณฑ์เวลา">
+          <option value="30" selected>เกิน 30 นาที</option>
+          <option value="60">เกิน 1 ชม.</option>
+          <option value="120">เกิน 2 ชม.</option>
+          <option value="1440">เกิน 24 ชม.</option>
+        </select>
+        <button class="svc-btn-ghost" style="height:32px" onclick="tkLateExport()"><i class=i-download></i> Export</button>
+        <button class="modal-close" onclick="closeModal('modal-tk-late')">×</button>
+      </span>
+    </div>
+    <div id="tk-late-scope" style="font-size:.76rem;color:#6f747c;margin:-.5rem 0 .8rem"></div>
+    <div id="tk-late-body"></div>
+  </div>
+</div>
+
 <div class="overlay" id="modal-tk-import">
   <div class="modal" style="max-width:760px;width:95%">
     <div class="modal-title">Import Case จาก CSV
@@ -10307,12 +10332,13 @@ function tkChannelLabel(k) {
   return k === '(none)' ? 'ไม่ระบุช่องทาง' : channelMeta(k).label;
 }
 
-function renderTickets() {
+// Cases matching the page's client-side filters (agent / channel / search) — the tab is applied separately
+function tkFilteredList() {
   const q     = (document.getElementById('tk-search').value||'').toLowerCase().trim();
   const agent = document.getElementById('tk-filter-agent').value;
   const chan  = document.getElementById('tk-filter-channel')?.value || '';
   const qNum  = q.replace(/^#/, ''); // strip leading # for ID match
-  const filtered = allTickets.filter(t => {
+  return (allTickets || []).filter(t => {
     if (agent && t.assigned_name !== agent) return false;
     if (chan && tkChannelKey(t) !== chan) return false;
     if (!q) return true;
@@ -10326,9 +10352,138 @@ function renderTickets() {
       || (t.category||'').toLowerCase().includes(q)
       || (t.problem_type_detail||'').toLowerCase().includes(q);
   });
+}
+
+// ── รายงานเคสค้างเกิน N นาที ──────────────────────────────
+// เวลาที่ใช้: เคสปิดแล้ว = เวลารับแจ้ง→ปิด · เคสยังเปิด = อายุถึงตอนนี้ (นาฬิกา LicenseDB จาก server)
+function tkIsClosed(t) { return (t.status || '').toLowerCase().includes('close'); }
+function tkDurMin(t) {
+  if (tkIsClosed(t)) return t.TimeDiff_Minutes != null && t.TimeDiff_Minutes >= 0 ? t.TimeDiff_Minutes : null;
+  if (t.age_minutes != null) return t.age_minutes;
+  const o = parseDbDate(t.opened_at);
+  return o ? Math.round((Date.now() - o.getTime()) / 60000) : null;
+}
+function tkFmtDur(m) {
+  if (m == null) return '—';
+  if (m >= 1440) { const d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60); return `${d} วัน ${h} ชม.`; }
+  return m >= 60 ? `${Math.floor(m/60)} ชม. ${m%60} น.` : `${m} น.`;
+}
+function tkLateThreshold() { return parseInt(document.getElementById('tk-late-th')?.value, 10) || 30; }
+function tkLateList(list, th) {
+  return list.map(t => ({ t, m: tkDurMin(t) })).filter(x => x.m != null && x.m > th).sort((a, b) => b.m - a.m);
+}
+
+function tkLateOpen() {
+  if (!allTickets) { showToast('ยังโหลดเคสไม่เสร็จ', 'error'); return; }
+  tkLateRender();
+  openModal('modal-tk-late');
+}
+
+function tkLateRender() {
+  const th   = tkLateThreshold();
+  const all  = tkFilteredList();
+  const late = tkLateList(all, th);
+  const lateOpen   = late.filter(x => !tkIsClosed(x.t));
+  const lateClosed = late.length - lateOpen.length;
+  document.getElementById('tk-late-th-lbl').textContent = th >= 60 ? `${th / 60} ชม.` : `${th} นาที`;
+
+  // Scope line — mirrors the page filters so the team knows what the numbers cover
+  const from = document.getElementById('tk-date-from').value, to = document.getElementById('tk-date-to').value;
+  const selTxt = id => { const s = document.getElementById(id); return s && s.value ? s.options[s.selectedIndex].text : ''; };
+  const scope = [from && to ? (from === to ? from : `${from} ถึง ${to}`) : from,
+                 selTxt('tk-filter-team'), selTxt('tk-filter-problem-type'), selTxt('tk-filter-status'),
+                 selTxt('tk-filter-agent'), selTxt('tk-filter-channel')].filter(Boolean);
+  document.getElementById('tk-late-scope').textContent =
+    `ขอบเขต: ${scope.join(' · ') || 'ตามตัวกรองบนหน้า'} · เคสปิดแล้วนับเวลารับแจ้ง→ปิด, เคสที่ยังเปิดนับถึงตอนนี้`;
+
+  const body = document.getElementById('tk-late-body');
+  if (!all.length) { body.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2.5rem 1rem">ไม่มีเคสในช่วงที่เลือก</div>'; return; }
+
+  const pct = (a, b) => b ? Math.round(a * 100 / b) : 0;
+  const avgLate = late.length ? Math.round(late.reduce((s, x) => s + x.m, 0) / late.length) : null;
+  const card = (l, v, sub, color) => `<div class="kpi-m"><div class="l">${l}</div><div class="v"${color ? ` style="color:${color}"` : ''}>${v}</div>${sub ? `<div style="font-size:.72rem;color:#8a8f97;margin-top:.1rem">${sub}</div>` : ''}</div>`;
+
+  // Group helper → rows sorted by late count
+  const group = keyFn => {
+    const g = {};
+    all.forEach(t => { const k = keyFn(t) || '—'; (g[k] ||= { k, total: 0, late: 0, open: 0, sum: 0 }).total++; });
+    late.forEach(({ t, m }) => { const r = g[keyFn(t) || '—']; r.late++; r.sum += m; if (!tkIsClosed(t)) r.open++; });
+    return Object.values(g).filter(r => r.late).sort((a, b) => b.late - a.late || b.sum - a.sum);
+  };
+  const th_ = s => `<th style="text-align:${s ? 'right' : 'left'}">`;
+  const grpTable = (title, rows, labelFn) => `
+    <div style="flex:1 1 300px;min-width:0">
+      <div style="font-size:.85rem;font-weight:600;margin-bottom:.4rem">${title}</div>
+      <div class="svc-tbl-card"><div class="tbl-wrap"><table class="svc-tbl tk-late-grp">
+        <thead><tr>${th_()}${title.replace('แยกตาม ', '')}</th>${th_(1)}เคสทั้งหมด</th>${th_(1)}เกินเกณฑ์</th>${th_(1)}%</th>${th_(1)}ยังเปิด</th>${th_(1)}เฉลี่ย</th></tr></thead>
+        <tbody>${rows.length ? rows.map(r => `<tr style="cursor:default">
+          <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(labelFn(r.k))}">${escHtml(labelFn(r.k))}</td>
+          <td style="text-align:right">${r.total}</td>
+          <td style="text-align:right;font-weight:600;color:#a2562f">${r.late}</td>
+          <td style="text-align:right">${pct(r.late, r.total)}%</td>
+          <td style="text-align:right">${r.open || '—'}</td>
+          <td style="text-align:right;white-space:nowrap">${tkFmtDur(Math.round(r.sum / r.late))}</td>
+        </tr>`).join('') : '<tr style="cursor:default"><td colspan="6" style="text-align:center;color:var(--muted)">—</td></tr>'}</tbody>
+      </table></div></div>
+    </div>`;
+
+  const MAX_ROWS = 300;
+  body.innerHTML = `
+    <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:1rem">
+      ${card('เคสทั้งหมดในช่วง', all.length)}
+      ${card('เกินเกณฑ์', late.length, `${pct(late.length, all.length)}% ของเคสทั้งหมด`, '#a2562f')}
+      ${card('ยังเปิดอยู่ (ค้างจริง)', lateOpen.length, 'ต้องตามต่อ', lateOpen.length ? '#b04a40' : '')}
+      ${card('ปิดแล้วแต่ช้า', lateClosed)}
+      ${card('เวลาเฉลี่ยของเคสที่เกิน', tkFmtDur(avgLate))}
+    </div>
+    ${late.length ? `
+    <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1rem">
+      ${grpTable('แยกตาม Agent', group(t => t.assigned_name), k => k === '—' ? '—' : dn(k))}
+      ${grpTable('แยกตาม ประเภทปัญหา', group(t => t.problem_type_detail), k => k)}
+    </div>
+    <div style="font-size:.85rem;font-weight:600;margin-bottom:.4rem">รายการเคส <span style="font-weight:400;color:#8a8f97;font-size:.76rem">(เรียงจากใช้เวลานานสุด${late.length > MAX_ROWS ? ` · แสดง ${MAX_ROWS} รายการแรก — Export เพื่อดูทั้งหมด` : ''})</span></div>
+    <div class="svc-tbl-card"><div class="tbl-wrap"><table class="svc-tbl">
+      <thead><tr><th>เคส</th><th>ร้านค้า / ปัญหา</th><th>Agent</th><th>สถานะ</th><th style="text-align:right">เวลาที่ใช้</th></tr></thead>
+      <tbody>${late.slice(0, MAX_ROWS).map(({ t, m }) => {
+        const o = parseDbDate(t.opened_at);
+        const prob = (t.description || '').trim() || (t.title || '').trim();
+        return `<tr style="cursor:default">
+          <td style="white-space:nowrap"><div class="tk-case">#${t.id}</div><div class="tk-sub">${o ? o.toLocaleDateString('th-TH',{day:'2-digit',month:'short'}) + ' · ' + o.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}) : ''}</div></td>
+          <td style="max-width:360px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500" title="${escHtml(t.CompanyName||'')}">${escHtml(t.CompanyName||'—')}</div>
+            <div class="tk-sub" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(prob)}">${t.problem_type_detail ? escHtml(t.problem_type_detail) + ' · ' : ''}${escHtml(prob)}</div></td>
+          <td style="font-size:.8rem;white-space:nowrap">${escHtml(dn(t.assigned_name)||'—')}</td>
+          <td>${tkStatusBadge(t.status)}</td>
+          <td style="text-align:right;white-space:nowrap;font-weight:600;color:${tkIsClosed(t) ? '#a2562f' : '#b04a40'}">${tkFmtDur(m)}${tkIsClosed(t) ? '' : '<div class="tk-sub" style="font-weight:400">ยังเปิด</div>'}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div></div>` : `<div style="text-align:center;color:#356b4e;padding:2rem 1rem">ไม่มีเคสที่ใช้เวลาเกินเกณฑ์ในช่วงนี้</div>`}`;
+}
+
+function tkLateExport() {
+  const th = tkLateThreshold();
+  const late = tkLateList(tkFilteredList(), th);
+  if (!late.length) { showToast('ไม่มีเคสที่เกินเกณฑ์', 'error'); return; }
+  const esc = v => { const s = String(v == null ? '' : v).replace(/"/g, '""'); return /[,"\n\r]/.test(s) ? `"${s}"` : s; };
+  const fmtDT = v => { const d = v ? parseDbDate(v) : null; return d && !isNaN(d)
+    ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}` : ''; };
+  const headers = ['#ID','ร้านค้า','วันเวลารับแจ้ง','วันเวลาปิด','สถานะ','ยังเปิดอยู่','Agent','ประเภทปัญหา','รายละเอียด','เวลาที่ใช้ (นาที)','เวลาที่ใช้'];
+  const rows = late.map(({ t, m }) => [
+    t.id, t.CompanyName, fmtDT(t.opened_at), fmtDT(t.CloseDate), t.status, tkIsClosed(t) ? '' : 'ใช่',
+    dn(t.assigned_name), t.problem_type_detail, (t.description || t.title || '').trim(), m, tkFmtDur(m)
+  ].map(esc).join(','));
+  const blob = new Blob(['﻿' + [headers.join(','), ...rows].join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `cases_over_${th}min_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  showToast(`Export ${late.length} รายการ`);
+}
+
+function renderTickets() {
+  const filtered = tkFilteredList();
 
   // Tab counts come from everything that matches the filters; the tab then narrows the list
-  const isClosed  = t => (t.status || '').toLowerCase().includes('close');
+  const isClosed  = tkIsClosed;
   const tkTotal   = filtered.length;
   const tkClosed  = filtered.filter(isClosed).length;
   const tkOpen    = tkTotal - tkClosed;
@@ -10344,6 +10499,8 @@ function renderTickets() {
   _setEl('tk-stat-open',   tkOpen);
   _setEl('tk-stat-closed', tkClosed);
   _setEl('tk-stat-avg',    tkAvg);
+  _setEl('tk-stat-late',   tkLateList(filtered, 30).length);
+  if (document.getElementById('modal-tk-late')?.classList.contains('open')) tkLateRender();
   // tk-stat-overdue is updated by loadTicketOverdue() independently
   document.querySelectorAll('#tk-tabs .svc-tab').forEach(b => b.classList.toggle('on', (b.dataset.st || '') === _tkTab));
 
