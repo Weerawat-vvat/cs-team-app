@@ -14055,7 +14055,7 @@ app.get('/api/dashboard/issues', authRequired, async (request, res) => {
 //  ยืนยันตัวตนด้วย API Key (X-API-Key) แยกตามระบบที่เชื่อม · มี scope · จำกัดจำนวนครั้ง · เก็บ log
 //  เอกสาร: GET /api/v1/docs  (OpenAPI: /api/v1/openapi.json)
 // ══════════════════════════════════════════════════════════
-const API_SCOPES        = ['cases:read', 'cases:write'];   // write = เปิดเคส / ปิดเคส
+const API_SCOPES        = ['cases:read', 'cases:write', 'schedule:read'];   // write = เปิดเคส / ปิดเคส · schedule = ตารางงานรายวัน
 const API_RATE_PER_MIN  = Math.max(1, parseInt(process.env.API_RATE_PER_MIN) || 60);
 const API_MAX_RANGE_DAY = 31;     // ช่วงวันที่ต่อครั้งไม่เกิน — กัน query หนักไปถึง LicenseDB
 const API_MAX_LIMIT     = 500;
@@ -14491,6 +14491,90 @@ app.patch('/api/v1/cases/:id', apiKeyRequired('cases:write'), async (request, re
   } catch (e) { console.error('[api] update case:', e.message); apiErr(res, 500, 'server_error', 'แก้ไขเคสไม่สำเร็จ'); }
 });
 
+// ── ตารางงานรายวัน (scope: schedule:read) ──────────────────
+// ข้อมูลเดียวกับการ์ด "สรุปคนทำงานรายวัน" (Google Calendar → AI แยกคน/ทีม)
+// กรองเหลือคนที่ยังไม่เลิกงาน ณ เวลา `time` — เช่น ถามบ่าย 3 → กะ 08:00-12:00 หายไป, 08:30-17:30 ยังอยู่
+const EMPCAL_API_MAX_AGE_MS = 30 * 60000;   // cache ของวันนี้เก่ากว่านี้ → ดึงปฏิทินใหม่ (แก้ปฏิทินแล้วเห็นภายใน 30 นาที)
+const _empcalApiRefresh = new Map();        // date → promise (หลายคนถามพร้อมกัน เรียก AI ครั้งเดียว)
+const API_HHMM_RE = /^([01]?\d|2[0-3])[:.]([0-5]\d)$/;
+const hhmmMin = s => { const m = API_HHMM_RE.exec(s || '') || /^(24)[:.](00)$/.exec(s || ''); return m ? +m[1] * 60 + +m[2] : null; };
+
+async function empcalForApi(date) {
+  let data = await computeEmpcalSummary(date, false), stale = false;
+  const age = Date.now() - (Date.parse(data.generatedAt) || 0);
+  if (data.cached && date === bangkokToday() && age > EMPCAL_API_MAX_AGE_MS) {
+    if (!_empcalApiRefresh.has(date))
+      _empcalApiRefresh.set(date, computeEmpcalSummary(date, true).finally(() => _empcalApiRefresh.delete(date)));
+    try { data = await _empcalApiRefresh.get(date); }
+    catch (e) { stale = true; console.error('[api] schedule refresh:', e.response?.data?.error?.message || e.message); }
+  }
+  return { data, stale };
+}
+
+// งานที่ยังไม่จบ ณ fromMin — ทั้งวัน/ไม่มีเวลา นับว่ายังอยู่เสมอ · กะข้ามเที่ยงคืน (15:00-00:00) จบ = 24:00
+function empcalItemActive(it, fromMin) {
+  const s = hhmmMin(it.start), e = hhmmMin(it.end);
+  if (it.allDay || s == null) return true;
+  if (e == null) return true;
+  return (e <= s ? e + 1440 : e) > fromMin;
+}
+
+function empcalFilterFrom(data, fromMin, team) {
+  const keep = items => items.filter(it => it.type === 'leave' || empcalItemActive(it, fromMin));
+  const hasWork = items => items.some(it => it.type !== 'leave');
+  const teams = (data.teams || [])
+    .filter(t => !team || String(t.team).toLowerCase() === team)
+    .map(t => ({ team: t.team, people: t.people.map(p => ({ ...p, items: keep(p.items) })).filter(p => p.items.length) }))
+    .filter(t => t.people.length);
+  const unknown = team ? [] : (data.unknown || []).map(u => ({ ...u, items: keep(u.items) })).filter(u => u.items.length);
+  const working = teams.reduce((n, t) => n + t.people.filter(p => hasWork(p.items)).length, 0)
+                + unknown.filter(u => hasWork(u.items)).length;
+  return { date: data.date, teams, unknown, working };
+}
+
+// GET /api/v1/schedule?date=YYYY-MM-DD&time=HH:MM&team=helpdesk_bkk
+app.get('/api/v1/schedule', apiKeyRequired('schedule:read'), async (request, res) => {
+  try {
+    const q = request.query, today = bangkokToday();
+    if (q.date && !API_DAY_RE.test(q.date)) return apiErr(res, 400, 'invalid_date', '`date` ต้องเป็น YYYY-MM-DD');
+    if (q.time && !API_HHMM_RE.test(q.time)) return apiErr(res, 400, 'invalid_time', '`time` ต้องเป็น HH:MM เช่น 15:00');
+    const date = q.date || today;
+    const nowHm = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Bangkok' });
+    // ไม่ส่ง time → วันนี้ใช้เวลาตอนที่ถาม · วันอื่นแสดงทั้งวัน
+    const time = q.time ? q.time.replace('.', ':').padStart(5, '0') : (date === today ? nowHm : '00:00');
+    const team = String(q.team || '').trim().toLowerCase();
+
+    const { data, stale } = await empcalForApi(date);
+    const f = empcalFilterFrom(data, hhmmMin(time), team);
+    const shape = items => items.map(it => {
+      const s = hhmmMin(it.start), e = hhmmMin(it.end), fm = hhmmMin(time);
+      return { start: it.start || null, end: it.end || null, all_day: !!it.allDay, type: it.type, note: it.note || '',
+               working_now: it.type !== 'leave' && (it.allDay || s == null || (s <= fm && (e == null || (e <= s ? e + 1440 : e) > fm))) };
+    });
+
+    const [y, m, d] = date.split('-');
+    let lineText;
+    if (!data.eventCount) lineText = `🗓️ ตารางงาน ${d}/${m}/${y}\nไม่มีข้อมูลในปฏิทินของวันนี้`;
+    else if (!f.teams.length && !f.unknown.length) lineText = `🗓️ ตารางงาน ${d}/${m}/${y} ตั้งแต่ ${time}\nไม่มีคนทำงานหลัง ${time}`;
+    else lineText = formatEmpcalLine(f, { stale }).replace(/^(🗓️ ตารางงาน \S+)/, time === '00:00' ? '$1' : `$1 ตั้งแต่ ${time}`);
+
+    res.locals.apiRows = f.working;
+    res.json({
+      data: {
+        date, time, working_count: f.working,
+        teams: f.teams.map(t => ({ team: t.team, people: t.people.map(p => ({ employee_id: p.emp_id, nickname: p.nickname, items: shape(p.items) })) })),
+        unknown: f.unknown.map(u => ({ name: u.raw, items: shape(u.items) })),
+      },
+      line_text: lineText,
+      meta: { stale, source_generated_at: data.generatedAt || null, generated_at: apiIso(new Date(Date.now() + 7 * 3600000)) },
+    });
+  } catch (e) {
+    const msg = e.response?.data?.error?.message || e.message;
+    console.error('[api] schedule:', msg);
+    apiErr(res, e.status === 503 ? 503 : 500, e.status === 503 ? 'source_unavailable' : 'server_error', e.status === 503 ? msg : 'ดึงตารางงานไม่สำเร็จ');
+  }
+});
+
 // ── เอกสาร OpenAPI + Swagger UI ───────────────────────────
 app.get('/api/v1/openapi.json', (request, res) => res.json(apiOpenApiSpec(`${request.protocol}://${request.get('host')}`)));
 app.get('/api/v1/docs', (request, res) => res.type('html').send(`<!doctype html><html lang="th"><head><meta charset="utf-8">
@@ -14548,7 +14632,7 @@ function apiOpenApiSpec(server) {
   return {
     openapi: '3.0.3',
     info: { title: 'CS Team API', version: 'v1', description:
-      `ดึงข้อมูล "ติดตามเคส" (cases:read) · เปิดเคส / ปิดเคส (cases:write — ลงตาราง Calllog จริง)\n\n- ส่ง API Key ใน header \`X-API-Key\` (ขอ key จากผู้ดูแลระบบ)\n- จำกัด ${API_RATE_PER_MIN} ครั้ง/นาที ต่อ key (เกินจะได้ 429)\n- เวลาเป็นเวลาไทย (+07:00)` },
+      `ดึงข้อมูล "ติดตามเคส" (cases:read) · เปิดเคส / ปิดเคส (cases:write — ลงตาราง Calllog จริง) · ตารางงานรายวัน (schedule:read)\n\n- ส่ง API Key ใน header \`X-API-Key\` (ขอ key จากผู้ดูแลระบบ)\n- จำกัด ${API_RATE_PER_MIN} ครั้ง/นาที ต่อ key (เกินจะได้ 429)\n- เวลาเป็นเวลาไทย (+07:00)` },
     servers: [{ url: server }],
     components: {
       securitySchemes: { ApiKey: { type: 'apiKey', in: 'header', name: 'X-API-Key' } },
@@ -14564,6 +14648,10 @@ function apiOpenApiSpec(server) {
           stars: { type: 'integer', nullable: true }, issue_url: { type: 'string', nullable: true },
           specialist: { type: 'object', nullable: true, properties: { id: { type: 'integer' }, status: { type: 'string' } } },
           monitor_tags: { type: 'array', items: { type: 'object', properties: { id: { type: 'integer' }, title: { type: 'string' }, group: { type: 'string', enum: ['problem', 'service'] }, type: { type: 'string', nullable: true } } } } } },
+        ScheduleItem: { type: 'object', properties: {
+          start: { type: 'string', nullable: true, example: '08:30' }, end: { type: 'string', nullable: true, example: '17:30' },
+          all_day: { type: 'boolean' }, type: { type: 'string', enum: ['shift', 'leave', 'onsite', 'other'] },
+          note: { type: 'string' }, working_now: { type: 'boolean', description: 'อยู่ในช่วงเวลางาน ณ `time` พอดี' } } },
       },
     },
     security: [{ ApiKey: [] }],
@@ -14580,6 +14668,21 @@ function apiOpenApiSpec(server) {
       '/api/v1/cases/{id}': { patch: patchSpec, get: { summary: 'เคสเดียว (scope: cases:read)', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
         responses: { 200: { description: 'ok', content: { 'application/json': { schema: { type: 'object', properties: { data: { $ref: '#/components/schemas/Case' } } } } } }, 404: err, 401: err } } },
       '/api/v1/cases/{id}/close': { post: closeSpec },
+      '/api/v1/schedule': { get: { summary: 'ตารางงานรายวัน — คนที่ยังทำงานอยู่ตั้งแต่เวลาที่ถาม (scope: schedule:read)',
+        description: 'ข้อมูลเดียวกับ "สรุปคนทำงานรายวัน" (จาก Google Calendar) · ตัดคนที่เลิกงานก่อน `time` ออก · คนลาอยู่ใน items type=leave · `line_text` จัดรูปแบบพร้อมส่ง LINE',
+        parameters: [
+          { name: 'date', in: 'query', schema: day, description: 'วันที่ (YYYY-MM-DD) ค่าเริ่มต้นวันนี้' },
+          { name: 'time', in: 'query', schema: { type: 'string', example: '15:00' }, description: 'แสดงคนที่ทำงานตั้งแต่เวลานี้ (HH:MM) — ไม่ส่ง: วันนี้ = เวลาปัจจุบัน, วันอื่น = ทั้งวัน' },
+          { name: 'team', in: 'query', schema: { type: 'string', example: 'helpdesk_bkk' }, description: 'เฉพาะทีม เช่น specialist, helpdesk_bkk, helpdesk_cnx' }],
+        responses: { 200: { description: 'ok', content: { 'application/json': { schema: { type: 'object', properties: {
+          data: { type: 'object', properties: {
+            date: { type: 'string' }, time: { type: 'string' }, working_count: { type: 'integer' },
+            teams: { type: 'array', items: { type: 'object', properties: { team: { type: 'string' }, people: { type: 'array', items: { type: 'object', properties: {
+              employee_id: { type: 'integer' }, nickname: { type: 'string' }, items: { type: 'array', items: { $ref: '#/components/schemas/ScheduleItem' } } } } } } } },
+            unknown: { type: 'array', description: 'ชื่อในปฏิทินที่จับคู่พนักงานไม่ได้', items: { type: 'object', properties: { name: { type: 'string' }, items: { type: 'array', items: { $ref: '#/components/schemas/ScheduleItem' } } } } } } },
+          line_text: { type: 'string', description: 'ข้อความพร้อมส่ง LINE' },
+          meta: { type: 'object', properties: { stale: { type: 'boolean', description: 'true = ดึงปฏิทินใหม่ไม่สำเร็จ ใช้ข้อมูลที่บันทึกไว้' }, source_generated_at: { type: 'string' }, generated_at: { type: 'string' } } },
+        } } } } }, 400: err, 401: err, 403: err, 429: err, 503: err } } },
     },
   };
 }
@@ -14635,6 +14738,11 @@ app.put('/api/api-clients/:id', authRequired, apiAdminRequired, async (request, 
     if ('active' in b) { r.input('a', sql.Bit, b.active ? 1 : 0); sets.push('active=@a'); }
     if ('name' in b && String(b.name).trim()) { r.input('n', sql.NVarChar, String(b.name).trim().slice(0, 120)); sets.push('name=@n'); }
     if ('note' in b) { r.input('nt', sql.NVarChar, String(b.note || '').trim().slice(0, 400) || null); sets.push('note=@nt'); }
+    if ('scopes' in b) {
+      const scopes = (Array.isArray(b.scopes) ? b.scopes : []).filter(x => API_SCOPES.includes(x));
+      if (!scopes.length) return res.status(400).json({ error: 'ต้องเลือกสิทธิ์อย่างน้อย 1 อย่าง' });
+      r.input('sc', sql.NVarChar, scopes.join(',')); sets.push('scopes=@sc');
+    }
     if (!sets.length) return res.status(400).json({ error: 'ไม่มีอะไรให้แก้' });
     await r.query(`UPDATE api_clients SET ${sets.join(', ')} WHERE id=@id`);
     _apiKeyCache.clear();   // ยกเลิก key มีผลทันที

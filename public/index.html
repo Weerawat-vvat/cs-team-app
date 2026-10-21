@@ -2777,11 +2777,12 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
       <div class="row"><label>หมดอายุ</label>
         <select id="api-m-exp"><option value="90">90 วัน</option><option value="180">180 วัน</option><option value="365" selected>1 ปี</option><option value="0">ไม่หมดอายุ</option></select></div>
       <div class="row"><label>สิทธิ์</label><div class="mt-meta" style="display:flex;flex-direction:column;gap:.3rem">
-        <label style="display:flex;gap:.4rem;align-items:center"><input type="checkbox" checked disabled style="width:auto"/> cases:read — อ่านข้อมูลติดตามเคส</label>
-        <label style="display:flex;gap:.4rem;align-items:center;cursor:pointer"><input type="checkbox" id="api-m-write" style="width:auto"/> cases:write — เปิดเคส / ปิดเคส (เขียนลง Calllog จริง)</label></div></div>
+        <label style="display:flex;gap:.4rem;align-items:center;cursor:pointer"><input type="checkbox" id="api-m-read" checked style="width:auto"/> cases:read — อ่านข้อมูลติดตามเคส</label>
+        <label style="display:flex;gap:.4rem;align-items:center;cursor:pointer"><input type="checkbox" id="api-m-write" style="width:auto"/> cases:write — เปิดเคส / ปิดเคส (เขียนลง Calllog จริง)</label>
+        <label style="display:flex;gap:.4rem;align-items:center;cursor:pointer"><input type="checkbox" id="api-m-sched" style="width:auto"/> schedule:read — ตารางงานรายวัน (เช่น ให้ LINE bot ตอบว่าใครทำงานอยู่)</label></div></div>
       <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:.4rem">
         <button class="svc-btn-ghost" onclick="closeModal('modal-api-key')">ยกเลิก</button>
-        <button class="svc-btn-primary" onclick="apiCreate()">สร้าง Key</button>
+        <button class="svc-btn-primary" id="api-m-submit" onclick="apiCreate()">สร้าง Key</button>
       </div>
     </div>
     <div id="api-m-show" style="display:none">
@@ -14444,18 +14445,38 @@ async function loadApiClients() {
     <td class="r num">${c.req_7d}${c.err_7d ? `<span class="sub" style="color:#b04a40">error ${c.err_7d}</span>` : ''}</td>
     <td>${c.active ? '<span class="mt-pill mt-down">ใช้งาน</span>' : '<span class="mt-pill mt-flat">ยกเลิกแล้ว</span>'}</td>
     <td class="r" style="white-space:nowrap">
+      <button class="mt-mini" onclick="apiOpenEdit(${c.id}, '${esc(c.scopes)}')" title="แก้สิทธิ์ของ key นี้ — key เดิมใช้ต่อได้"><i class=i-pencil></i> สิทธิ์</button>
       <button class="mt-mini" onclick="apiRotate(${c.id})" title="ออก key ใหม่ — key เดิมใช้ไม่ได้ทันที"><i class=i-refresh></i> Rotate</button>
       <button class="mt-mini" onclick="apiToggle(${c.id}, ${c.active ? 0 : 1})">${c.active ? '<i class=i-trash></i> ยกเลิก' : '<i class=i-check></i> เปิดใช้'}</button>
     </td></tr>`).join('');
 }
+let _apiEditId = null;   // null = สร้างใหม่ · id = แก้สิทธิ์ key เดิม
+const _apiScopeBoxes = { 'cases:read': 'api-m-read', 'cases:write': 'api-m-write', 'schedule:read': 'api-m-sched' };
+const apiPickedScopes = () => Object.keys(_apiScopeBoxes).filter(s => document.getElementById(_apiScopeBoxes[s])?.checked);
+function apiSetScopes(list) {
+  Object.entries(_apiScopeBoxes).forEach(([s, id]) => { const el = document.getElementById(id); if (el) el.checked = list.includes(s); });
+}
 function apiOpenCreate() {
+  _apiEditId = null;
   document.getElementById('api-m-title').textContent = 'สร้าง API Key';
+  document.getElementById('api-m-submit').textContent = 'สร้าง Key';
   document.getElementById('api-m-form').style.display = '';
   document.getElementById('api-m-show').style.display = 'none';
-  document.getElementById('api-m-name').value = ''; document.getElementById('api-m-note').value = '';
-  const w = document.getElementById('api-m-write'); if (w) w.checked = false;   // สิทธิ์เขียนต้องติ๊กเองทุกครั้ง
+  ['api-m-name', 'api-m-note'].forEach(id => { const el = document.getElementById(id); el.value = ''; el.closest('.row').style.display = ''; });
+  document.getElementById('api-m-exp').closest('.row').style.display = '';
+  apiSetScopes(['cases:read']);   // สิทธิ์เขียนต้องติ๊กเองทุกครั้ง
   openModal('modal-api-key');
   setTimeout(() => document.getElementById('api-m-name').focus(), 50);
+}
+function apiOpenEdit(id, scopes) {
+  _apiEditId = id;
+  document.getElementById('api-m-title').textContent = 'แก้สิทธิ์ API Key';
+  document.getElementById('api-m-submit').textContent = 'บันทึก';
+  document.getElementById('api-m-form').style.display = '';
+  document.getElementById('api-m-show').style.display = 'none';
+  ['api-m-name', 'api-m-note', 'api-m-exp'].forEach(i => { document.getElementById(i).closest('.row').style.display = 'none'; });
+  apiSetScopes(String(scopes || '').split(','));
+  openModal('modal-api-key');
 }
 function apiShowKey(title, key) {
   document.getElementById('api-m-title').textContent = title;
@@ -14469,15 +14490,25 @@ function apiShowKey(title, key) {
     `  "${u}?from=${today}&to=${today}&limit=100"`,
     '',
     '# สรุปตัวเลขของวัน',
-    `curl -H "X-API-Key: ${key}" "${u}/summary?from=${today}&to=${today}"`].join('\n');
+    `curl -H "X-API-Key: ${key}" "${u}/summary?from=${today}&to=${today}"`,
+    '',
+    '# ตารางงาน — คนที่ทำงานตั้งแต่ตอนนี้ (ต้องมีสิทธิ์ schedule:read · ระบุเวลาเองได้ เช่น &time=15:00)',
+    `curl -H "X-API-Key: ${key}" "${location.origin}/api/v1/schedule"`].join('\n');
   openModal('modal-api-key');
 }
 async function apiCreate() {
+  const scopes = apiPickedScopes();
+  if (!scopes.length) { showToast('ต้องเลือกสิทธิ์อย่างน้อย 1 อย่าง', 'error'); return; }
+  if (_apiEditId) {
+    const d = await api(`/api/api-clients/${_apiEditId}`, { method: 'PUT', silent: true, body: { scopes } });
+    if (!d || d.error) { showToast(d?.error || 'บันทึกไม่สำเร็จ', 'error'); return; }
+    closeModal('modal-api-key'); showToast('บันทึกสิทธิ์แล้ว — key เดิมใช้ต่อได้เลย'); loadApiClients();
+    return;
+  }
   const name = document.getElementById('api-m-name').value.trim();
   if (!name) { showToast('กรุณาตั้งชื่อระบบที่จะเชื่อม', 'error'); return; }
   const d = await api('/api/api-clients', { method: 'POST', silent: true, body: {
-    name, note: document.getElementById('api-m-note').value, expires_days: +document.getElementById('api-m-exp').value,
-    scopes: ['cases:read', ...(document.getElementById('api-m-write')?.checked ? ['cases:write'] : [])] } });
+    name, note: document.getElementById('api-m-note').value, expires_days: +document.getElementById('api-m-exp').value, scopes } });
   if (!d || d.error) { showToast(d?.error || 'สร้างไม่สำเร็จ', 'error'); return; }
   apiShowKey(`API Key ของ “${d.name}”`, d.api_key);
   loadApiClients();
