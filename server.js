@@ -8071,7 +8071,7 @@ app.post('/api/triage/work-types', authRequired, async (request, res) => {
     const dup = (await req().input('n', sql.NVarChar, name).query(`SELECT 1 AS x FROM triage_work_types WHERE name=@n AND archived=0`)).recordset.length;
     if (dup) return res.status(400).json({ error: 'มีประเภทงานชื่อนี้อยู่แล้ว' });
     const row = (await req().input('n', sql.NVarChar, name).input('d', sql.NVarChar, teachStr(b.description, 300))
-      .input('c', sql.NVarChar, teachColor(b.color)).input('ag', sql.Bit, b.all_groups ? 1 : 0)
+      .input('c', sql.NVarChar, teachColor(b.color)).input('ag', sql.Bit, 0) // ไม่มีแบบทุกกลุ่มแล้ว — เปิดทีละกลุ่ม
       .input('nt', sql.Bit, b.notify === false ? 0 : 1).input('by', sql.NVarChar, teachWho(request))
       .query(`INSERT INTO triage_work_types (name, description, color, all_groups, notify, created_by)
               OUTPUT INSERTED.id VALUES (@n, @d, @c, @ag, @nt, @by)`)).recordset[0];
@@ -8094,7 +8094,9 @@ app.put('/api/triage/work-types/:id', authRequired, async (request, res) => {
     }
     if (b.description !== undefined) { sets.push('description=@d'); r.input('d', sql.NVarChar, teachStr(b.description, 300)); }
     if (b.color !== undefined) { sets.push('color=@c'); r.input('c', sql.NVarChar, teachColor(b.color)); }
-    if (b.all_groups !== undefined) { sets.push('all_groups=@ag'); r.input('ag', sql.Bit, b.all_groups ? 1 : 0); }
+    // ปิด "ใช้กับทุกกลุ่ม" ได้อย่างเดียว — เปิดใหม่ไม่ได้แล้ว
+    if (b.all_groups) return res.status(400).json({ error: 'ไม่มีตัวเลือกใช้กับทุกกลุ่มแล้ว — เปิดทีละกลุ่มในแท็บตั้งค่ารายกลุ่ม' });
+    if (b.all_groups !== undefined) { sets.push('all_groups=0'); }
     if (b.notify !== undefined) { sets.push('notify=@nt'); r.input('nt', sql.Bit, b.notify ? 1 : 0); }
     if (b.archived !== undefined) { sets.push('archived=@ar'); r.input('ar', sql.Bit, b.archived ? 1 : 0); }
     if (!sets.length) return res.json({ ok: true });

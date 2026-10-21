@@ -7494,7 +7494,7 @@ function renderAiTypes() {
   const types = _aiT.types || [];
   const nGroups = t => (_aiT.groupTypes || []).filter(x => x.work_type_id === t.id && x.enabled).length;
   document.getElementById('ai-body').innerHTML = `
-    <div class="ai-muted" style="margin-bottom:.5rem">ประเภทงานที่ AI เลือกให้แต่ละข้อความ · "ใช้กับทุกกลุ่ม" = ไม่ต้องเปิดทีละกลุ่ม · ปิด "แจ้งเตือน" = ข้อความประเภทนี้ไม่ส่งแจ้งเตือน (ยังอยู่ในรายการ) · ตั้งต่างกันรายกลุ่มได้ในแท็บถัดไป</div>
+    <div class="ai-muted" style="margin-bottom:.5rem">ประเภทงานที่ AI เลือกให้แต่ละข้อความ · เปิดใช้ทีละกลุ่มในแท็บ "ตั้งค่ารายกลุ่ม" · ปิด "แจ้งเตือน" = ข้อความประเภทนี้ไม่ส่งแจ้งเตือน (ยังอยู่ในรายการ)</div>
     <div>${types.map(t => `<div class="ai-row" style="${t.archived ? 'opacity:.5' : ''}">
       <div style="flex:1;min-width:0">
         <span class="ai-chip" style="background:${t.color || '#5b616b'}1f;color:${t.color || '#5b616b'};font-size:.78rem">${aiH(t.name)}</span>
@@ -7503,7 +7503,7 @@ function renderAiTypes() {
         <div class="ai-muted">${t.all_groups ? 'ใช้กับทุกกลุ่ม' : `เปิดไว้ ${nGroups(t)} กลุ่ม`} · สร้างโดย ${aiH(t.created_by || '—')}</div>
       </div>
       <div style="display:flex;flex-direction:column;gap:.25rem;align-items:flex-end;font-size:.76rem">
-        ${t.archived ? '' : `<label style="display:flex;gap:.3rem;align-items:center"><input type="checkbox" ${t.all_groups ? 'checked' : ''} onchange="aiPut('/api/triage/work-types/${t.id}',{all_groups:this.checked})"/> ใช้กับทุกกลุ่ม</label>
+        ${t.archived ? '' : `${t.all_groups ? `<label style="display:flex;gap:.3rem;align-items:center" title="ไม่มีตัวเลือกใช้กับทุกกลุ่มแล้ว — ติ๊กออกแล้วเปิดทีละกลุ่มแทน"><input type="checkbox" checked onchange="aiPut('/api/triage/work-types/${t.id}',{all_groups:false})"/> ใช้กับทุกกลุ่ม (ติ๊กออกได้อย่างเดียว)</label>` : ''}
         <label style="display:flex;gap:.3rem;align-items:center"><input type="checkbox" ${t.notify ? 'checked' : ''} onchange="aiPut('/api/triage/work-types/${t.id}',{notify:this.checked})"/> แจ้งเตือน</label>`}
         <div style="display:flex;gap:.3rem">
           ${t.archived ? '' : `<button class="btn btn-sm btn-ghost" onclick="aiEditType(${t.id})">แก้ไข</button>`}
