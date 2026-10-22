@@ -7369,13 +7369,13 @@ const AI_KIND = { term: ['คำเฉพาะ', '#3c3489', '#eeedfe'], keyword
 const aiH = s => escHtml(String(s ?? ''));
 const aiChat = r => String(r.group_id || '').startsWith('U') ? (String(r.customer_name || '').trim() || r.group_name || '—') : (r.group_name || '—');
 
-// ป้ายประเภทงานบนรายการ — มีจุดบอกว่าใครตัดสิน (AI / คำสำคัญ / ทีมงาน) และ "ไม่แจ้งเตือน" ถ้ากลุ่มตั้งไว้
+// ป้ายประเภทงานบนรายการ — มีจุดบอกว่าใครตัดสิน (AI / คำสำคัญ / ทีมงาน) และ "ปิดอัตโนมัติ" ถ้ากลุ่มตั้งไว้
 function aiWorkTypeChip(r) {
   if (!r.work_type_name) return '';
   const c = r.work_type_color || '#5b616b';
   const by = { ai: 'AI ตัดสิน', keyword: 'ตรงคำสำคัญที่ทีมตั้งไว้', staff: 'ทีมงานระบุ' }[r.work_type_src] || '';
   return `<span class="ai-chip" title="${aiH(by)}" style="background:${c}1f;color:${c};margin-right:.25rem">${aiH(r.work_type_name)}${r.work_type_src === 'staff' ? ' ✓' : ''}</span>`
-    + (r.muted ? `<span class="ai-chip" title="กลุ่มนี้ตั้งไม่แจ้งเตือนงานประเภทนี้" style="background:#f1efe8;color:#5f5e5a;margin-right:.25rem">ไม่แจ้งเตือน</span>` : '');
+    + (r.muted ? `<span class="ai-chip" title="กลุ่มนี้ตั้งให้ปิดงานประเภทนี้อัตโนมัติ" style="background:#f1efe8;color:#5f5e5a;margin-right:.25rem">ปิดอัตโนมัติ</span>` : '');
 }
 
 async function aiLoad() {
@@ -7433,7 +7433,7 @@ function ttRememberChanged() {
   if (!t || !_ttRow) { hint.textContent = ''; return; }
   const on = aiTypeOn(_ttRow.group_id, t);
   hint.textContent = (on ? '' : 'บันทึกแล้วจะเปิดประเภทนี้ให้แชทนี้ด้วย · ')
-    + (aiTypeNotify(_ttRow.group_id, t) ? 'แชทนี้แจ้งเตือนงานประเภทนี้' : 'แชทนี้ไม่แจ้งเตือนงานประเภทนี้');
+    + (aiTypeNotify(_ttRow.group_id, t) ? 'แชทนี้: ทีมดูแลตามปกติ' : 'แชทนี้ตั้งปิดให้อัตโนมัติ — บันทึกแล้วข้อความนี้จะถูกปิดเป็นงานของหน้าร้าน');
 }
 async function ttSave() {
   const r = _ttRow; if (!r) return;
@@ -7495,7 +7495,7 @@ function renderAiTypes() {
   const types = _aiT.types || [];
   const nGroups = t => (_aiT.groupTypes || []).filter(x => x.work_type_id === t.id && x.enabled).length;
   document.getElementById('ai-body').innerHTML = `
-    <div class="ai-muted" style="margin-bottom:.5rem">ประเภทงานที่ AI เลือกให้แต่ละข้อความ · เปิดใช้ทีละกลุ่มในแท็บ "ตั้งค่ารายกลุ่ม" · ปิด "แจ้งเตือน" = ข้อความประเภทนี้ไม่ส่งแจ้งเตือน (ยังอยู่ในรายการ)</div>
+    <div class="ai-muted" style="margin-bottom:.5rem">ประเภทงานที่ AI เลือกให้แต่ละข้อความ · เปิดใช้ทีละกลุ่มในแท็บ "ตั้งค่ารายกลุ่ม" · "ปิดให้อัตโนมัติ" = ระบบปิดเรื่องให้เองพร้อมเหตุผล "งานของหน้าร้าน" ไม่แจ้งเตือน และนับเป็นสถิติแยก (ตั้งต่างกันรายกลุ่มได้)</div>
     <div>${types.map(t => `<div class="ai-row" style="${t.archived ? 'opacity:.5' : ''}">
       <div style="flex:1;min-width:0">
         <span class="ai-chip" style="background:${t.color || '#5b616b'}1f;color:${t.color || '#5b616b'};font-size:.78rem">${aiH(t.name)}</span>
@@ -7505,7 +7505,7 @@ function renderAiTypes() {
       </div>
       <div style="display:flex;flex-direction:column;gap:.25rem;align-items:flex-end;font-size:.76rem">
         ${t.archived ? '' : `${t.all_groups ? `<label style="display:flex;gap:.3rem;align-items:center" title="ไม่มีตัวเลือกใช้กับทุกกลุ่มแล้ว — ติ๊กออกแล้วเปิดทีละกลุ่มแทน"><input type="checkbox" checked onchange="aiPut('/api/triage/work-types/${t.id}',{all_groups:false})"/> ใช้กับทุกกลุ่ม (ติ๊กออกได้อย่างเดียว)</label>` : ''}
-        <label style="display:flex;gap:.3rem;align-items:center"><input type="checkbox" ${t.notify ? 'checked' : ''} onchange="aiPut('/api/triage/work-types/${t.id}',{notify:this.checked})"/> แจ้งเตือน</label>`}
+        <label style="display:flex;gap:.3rem;align-items:center"><input type="checkbox" ${t.notify ? '' : 'checked'} onchange="aiSetTypeAutoClose(${t.id},this)"/> ปิดให้อัตโนมัติ</label>`}
         <div style="display:flex;gap:.3rem">
           ${t.archived ? '' : `<button class="btn btn-sm btn-ghost" onclick="aiEditType(${t.id})">แก้ไข</button>`}
           <button class="btn btn-sm btn-ghost" onclick="aiPut('/api/triage/work-types/${t.id}',{archived:${t.archived ? 'false' : 'true'}})">${t.archived ? 'นำกลับมาใช้' : 'เก็บ'}</button>
@@ -7521,6 +7521,11 @@ function renderAiTypes() {
       </div>
       <div class="ai-err" id="ai-nt-err"></div>
     </div>`;
+}
+// ปิดให้อัตโนมัติ = notify 0 · เปิดแล้วเรื่องที่ยังค้างของประเภทนี้จะถูกปิดทันที จึงต้องยืนยันก่อน
+async function aiSetTypeAutoClose(id, el) {
+  if (el.checked && !confirm('ข้อความประเภทนี้ที่ยังเปิดอยู่ (และยังไม่มีใครรับ) จะถูกปิดทันทีเป็น "งานของหน้าร้าน"\nเฉพาะกลุ่มที่ใช้ค่าของประเภท — กลุ่มที่ตั้งเองไว้ไม่เปลี่ยน\n\nยืนยันหรือไม่?')) { el.checked = false; return; }
+  await aiPut(`/api/triage/work-types/${id}`, { notify: !el.checked });
 }
 async function aiAddType() {
   const name = document.getElementById('ai-nt-name').value.trim();
@@ -7555,7 +7560,7 @@ function renderAiGroups() {
       </div>
       <div>${!sel ? '<div class="ai-muted" style="padding:2rem 0;text-align:center">เลือกกลุ่มทางซ้าย แล้วติ๊กประเภทงานที่กลุ่มนั้นใช้ และเลือกว่าจะแจ้งเตือนไหม</div>' : `
         <div style="font-size:.9rem;font-weight:600;margin-bottom:.15rem">${aiH(aiGroupName(sel))}</div>
-        <div class="ai-muted" style="margin-bottom:.5rem">ติ๊ก = AI จะเลือกประเภทนี้ให้ข้อความของกลุ่มนี้ได้ · "ไม่แจ้งเตือน" = ไม่ส่งแจ้งเตือน LINE / popup แต่ข้อความยังอยู่ในรายการ · AI ไม่มั่นใจ = แจ้งเตือนตามปกติ</div>
+        <div class="ai-muted" style="margin-bottom:.5rem">ติ๊ก = AI จะเลือกประเภทนี้ให้ข้อความของกลุ่มนี้ได้ · "ปิดให้อัตโนมัติ" = ระบบปิดเรื่องให้เองเป็น "งานของหน้าร้าน" (ดู/เปิดใหม่ได้ที่ประวัติปิดเคส) · AI ไม่มั่นใจ = ทีมดูแลตามปกติ</div>
         ${types.map(t => { const g = aiGw(sel, t.id); const on = aiTypeOn(sel, t); const nv = g && g.notify !== null && g.notify !== undefined ? (g.notify ? '1' : '0') : '';
           return `<div class="ai-row" style="align-items:center">
             <label style="flex:1;display:flex;gap:.4rem;align-items:center;font-size:.82rem;cursor:pointer">
@@ -7563,9 +7568,9 @@ function renderAiGroups() {
               <span class="ai-chip" style="background:${t.color || '#5b616b'}1f;color:${t.color || '#5b616b'}">${aiH(t.name)}</span>
               ${!g && t.all_groups ? '<span class="ai-muted">(ใช้กับทุกกลุ่ม)</span>' : ''}</label>
             <select class="ai-in" ${on ? '' : 'disabled'} onchange="aiSetGroupType('${aiH(sel)}',${t.id},undefined,this.value)">
-              <option value=""${nv === '' ? ' selected' : ''}>ตามค่าของประเภท (${t.notify ? 'แจ้งเตือน' : 'ไม่แจ้งเตือน'})</option>
-              <option value="1"${nv === '1' ? ' selected' : ''}>แจ้งเตือน</option>
-              <option value="0"${nv === '0' ? ' selected' : ''}>ไม่แจ้งเตือน</option>
+              <option value=""${nv === '' ? ' selected' : ''}>ตามค่าของประเภท (${t.notify ? 'ทีมดูแล' : 'ปิดให้อัตโนมัติ'})</option>
+              <option value="1"${nv === '1' ? ' selected' : ''}>ทีมดูแล (แจ้งเตือนตามปกติ)</option>
+              <option value="0"${nv === '0' ? ' selected' : ''}>ปิดให้อัตโนมัติ (งานของหน้าร้าน)</option>
             </select></div>`; }).join('') || '<div class="ai-muted">ยังไม่มีประเภทงาน — เพิ่มในแท็บ "ประเภทงาน" ก่อน</div>'}`}
       </div>
     </div>`;
@@ -7576,6 +7581,8 @@ function aiGroupSearch(v) {
 }
 async function aiSetGroupType(gid, tid, enabled, notifyVal) {
   const t = aiActiveTypes().find(x => x.id === tid); const g = aiGw(gid, tid);
+  const willClose = notifyVal !== undefined ? (notifyVal === '0' || (notifyVal === '' && !t.notify)) : (enabled && !aiTypeNotify(gid, t));
+  if (willClose && !confirm(`ข้อความ "${t.name}" ของกลุ่มนี้ที่ยังเปิดอยู่ (และยังไม่มีใครรับ) จะถูกปิดทันทีเป็น "งานของหน้าร้าน"\n\nยืนยันหรือไม่?`)) { renderAiGroups(); return; }
   const body = { group_id: gid, work_type_id: tid,
     enabled: enabled !== undefined ? enabled : aiTypeOn(gid, t),
     notify: notifyVal !== undefined ? (notifyVal === '' ? null : notifyVal === '1') : (g ? g.notify : null) };
@@ -9236,7 +9243,7 @@ async function llbLoad() {
     ${k(`ตอบภายใน ${T} นาที`, tm.cases ? `${tm.within_pct}%` : '—', `เป้า 80% · ${tm.cases} เคส${tm.urgent ? ` · ด่วนทันเป้า ${tm.urgent_within}/${tm.urgent}` : ''}`)}
     ${k('เรื่องที่ปิดแล้ว', num(tot.total), sum ? `ลงเป็นเคส ${pct(tot.case_system + tot.manual, tot.total)}% · เฉลี่ย ${num(Math.round(tot.total / sum.days))}/วัน` : 'โหลดสรุปไม่สำเร็จ')}
     ${k('ค้างอยู่ตอนนี้', num(open), `รอคนตอบ ${lk.waiting} · ตอบแล้วรอปิด ${lk.answered_unclosed}`, open ? 'orange' : 'green')}
-  </div>`;
+  </div>${sum?.store_work?.total ? `<div class="mt-meta" style="margin:-.3rem 0 .8rem">งานของหน้าร้านที่ระบบปิดให้อัตโนมัติ (ไม่นับในผลงานทีม): <b>${num(sum.store_work.total)}</b> เรื่อง · ${sum.store_work.by_type.map(x => `${escHtml(x.name)} ${num(x.n)}`).join(' · ')}</div>` : ''}`;
 
   // ── ความเร็วตอบ (อันดับตามชื่อ LINE@) ──
   // อันดับ = จำนวนเคสที่ตอบทันเป้า (server เรียงมาแล้ว) — ทุกคนติดอันดับ
@@ -15957,8 +15964,17 @@ async function lcLoadHistory(days = 7) {
     + (d.rows.length ? d.rows.map(x => `<div style="padding:.55rem 0;border-bottom:1px solid #f0eee9;font-size:.8rem">
       <div style="color:#6f747c;font-size:.72rem">${when(x.closed_at)} · ${escHtml(x.closed_by_name || '—')} · <b style="color:${COLOR[x.reason] || '#3d424a'}">${escHtml(d.reasons[x.reason] || x.reason)}</b>${x.calllog_id ? ` · เคส #${x.calllog_id}` : ''}${x.msg_count > 1 ? ` · ${x.msg_count} ข้อความ` : ''}</div>
       <div><span style="font-weight:600">${escHtml(x.pod_code || 'ยังไม่ได้ Assign')}</span> · ${escHtml(x.group_name || '—')} — ${escHtml(x.summary || '')}</div>
-      ${x.note ? `<div style="color:#5b616b;font-size:.74rem">หมายเหตุ: ${escHtml(x.note)}</div>` : ''}</div>`).join('')
+      ${x.note ? `<div style="color:#5b616b;font-size:.74rem">${x.reason === 'store_work' ? 'ประเภทงาน' : 'หมายเหตุ'}: ${escHtml(x.note)}</div>` : ''}
+      ${x.reason === 'store_work' && x.triage_id ? `<button class="svc-btn-ghost" style="height:26px;font-size:.72rem;margin-top:.25rem" onclick="lcReopenStore(${x.triage_id})" title="AI ตีประเภทผิด — เปิดเรื่องนี้กลับมาให้ทีมดูแล">ไม่ใช่งานของหน้าร้าน · เปิดใหม่</button>` : ''}</div>`).join('')
       : '<div class="mt-meta" style="text-align:center;padding:2rem">ยังไม่มีประวัติการปิดเคส</div>');
+}
+
+// เรื่องที่ระบบปิดเป็น "งานของหน้าร้าน" แต่จริงๆ ทีมต้องดูแล → เปิดใหม่ (server ล้างประเภทงานให้ ไม่ถูกปิดซ้ำ)
+async function lcReopenStore(triageId) {
+  if (!confirm('เปิดเรื่องนี้กลับมาให้ทีมดูแล?\nระบบจะล้างประเภทงานของข้อความนี้ และลบออกจากสถิติงานของหน้าร้าน\n(ถ้า AI ตีผิดบ่อย กด "สอน AI" ที่ข้อความนี้เพื่อให้จำ)')) return;
+  const r = await api(`/api/triage/${triageId}/action`, { method: 'POST', body: { action: 'reopen' }, silent: true });
+  if (!r || r.error) { alert('❌ ' + (r?.error || 'เปิดใหม่ไม่สำเร็จ')); return; }
+  lcLoadHistory();
 }
 
 function ccSelectShop(id, name, contact, phone) {

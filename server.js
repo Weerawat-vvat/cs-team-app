@@ -7140,6 +7140,7 @@ async function triageMarkStaffReplies() {
 async function classifyTriageBatch(batchSize = 30) {
   const r = await classifyTriageBatchInner(batchSize);
   try { await triageMarkStaffReplies(); } catch (e) { console.error('triage staff-reply mark error:', e.message); }
+  await triageAutoCloseWorkTypes();
   return r;
 }
 async function classifyTriageBatchInner(batchSize) {
@@ -7544,6 +7545,55 @@ async function teachMarkUsed(used) {
   catch (e) { console.warn('teach use_count failed:', e.message); }
 }
 
+// ปิดให้อัตโนมัติ: ข้อความที่ยังเปิดอยู่ (ยังไม่มีใครรับ) ที่ประเภทงานของกลุ่มนั้นตั้ง "ปิดให้อัตโนมัติ" (notify = 0)
+// → ปิดพร้อมเหตุผล store_work + บันทึกประวัติปิดเคส (1 แถวต่อเรื่อง: ข้อความในแชทเดียวกันห่างกันไม่เกิน TRIAGE_THREAD_MIN นาทีนับเป็นเรื่องเดียว)
+// เปิดใหม่ได้จากประวัติ/inbox — ระบบล้างประเภทงานของข้อความนั้นให้ ไม่ถูกปิดซ้ำ
+let _storeCloseRunning = false;
+async function triageAutoCloseWorkTypes() {
+  if (_storeCloseRunning) return 0;
+  _storeCloseRunning = true;
+  try {
+    await ensureTeachSchema();
+    await ensureLcCloseLog();
+    const rows = (await req().query(`
+      SELECT t.id, t.group_id, t.message_time, wt.name AS work_type_name
+      FROM line_msg_triage t JOIN triage_work_types wt ON wt.id = t.work_type_id
+      WHERE t.status = 'open' AND t.needs_action = 1 AND ${TRIAGE_MUTED_SQL('t')}
+      ORDER BY t.group_id, t.message_time`)).recordset;
+    let closed = 0;
+    for (const r of rows) {
+      const note = `ปิดอัตโนมัติ: งานของ ${r.work_type_name}`;
+      const u = await req().input('id', sql.Int, r.id).input('note', sql.NVarChar, note.slice(0, 990)).query(
+        `UPDATE line_msg_triage SET status='done', auto_closed=1, done_by=NULL, done_at=GETDATE(), note=@note, updated_at=GETDATE()
+         WHERE id=@id AND status='open'`);
+      if (!u.rowsAffected?.[0]) continue;
+      closed++;
+      // ข้อความต่อเนื่องของเรื่องเดียวกัน → นับเพิ่มในแถวประวัติเดิม แทนที่จะเพิ่มแถวใหม่
+      await req().input('id', sql.Int, r.id).input('gid', sql.NVarChar, r.group_id).input('mt', sql.DateTime, r.message_time)
+        .input('wt', sql.NVarChar, String(r.work_type_name).slice(0, 60)).query(`
+        DECLARE @prev INT = (SELECT TOP 1 l.id FROM line_case_close_log l
+          WHERE l.reason = 'store_work' AND l.group_id = @gid AND l.note = @wt
+            AND l.message_time <= @mt AND l.message_time >= DATEADD(minute, -${TRIAGE_THREAD_MIN}, @mt)
+          ORDER BY l.message_time DESC);
+        IF @prev IS NOT NULL
+        BEGIN
+          UPDATE line_case_close_log SET msg_count = ISNULL(msg_count, 1) + 1, message_time = @mt WHERE id = @prev
+        END
+        ELSE
+        BEGIN
+          INSERT INTO line_case_close_log (triage_id, source_msg_id, group_id, group_name, pod_id, message_time, category, summary,
+                                           message_text, reason, calllog_id, note, msg_count, closed_by, closed_by_name)
+          SELECT t.id, t.source_msg_id, t.group_id, COALESCE(t.group_name, lgp.group_name), lgp.pod_id, t.message_time, t.category, t.summary,
+                 LEFT(t.message_text, 1000), 'store_work', NULL, @wt, 1, NULL, N'ระบบ (ปิดอัตโนมัติ)'
+          FROM line_msg_triage t LEFT JOIN line_group_pods lgp ON lgp.group_id = t.group_id WHERE t.id = @id
+        END`);
+    }
+    if (closed) console.log(`🏪 triage: ปิดอัตโนมัติ ${closed} ข้อความ (งานของหน้าร้าน)`);
+    return closed;
+  } catch (e) { console.error('triage store-work auto-close error:', e.message); return 0; }
+  finally { _storeCloseRunning = false; }
+}
+
 // ── ขอบเขตที่คัดกรอง AI ต้องเฝ้า ─────────────────────────
 // สองอย่างเท่านั้น: กลุ่มที่ตั้งกระดิ่งแจ้งเตือนไว้ (line_group_pods.notify_target_ids)
 // และกลุ่มที่ยังไม่ได้ assign Pod (กลุ่มใหม่ที่ยังไม่มีใครรับไป — ต้องไม่ตกหล่น)
@@ -7901,6 +7951,7 @@ const LC_CLOSE_REASONS = {
   case_system: 'เปิดเคสผ่านระบบ',
   manual:      'ลงระบบไปแล้ว (Manual)',
   not_case:    'ไม่ใช่เคส',
+  store_work:  'งานของหน้าร้าน (ปิดอัตโนมัติ)',   // ประเภทงานที่กลุ่มตั้ง "ปิดให้อัตโนมัติ" — ระบบปิดเอง ไม่นับเป็นผลงานทีม
 };
 let _lcCloseLogTable = false;
 async function ensureLcCloseLog() {
@@ -7977,15 +8028,27 @@ app.post('/api/triage/:id/action', authRequired, async (request, res) => {
              claimed_by=ISNULL(claimed_by,@by), claimed_at=ISNULL(claimed_at,GETDATE()), updated_at=GETDATE()
          WHERE id=@id`);
     } else if (action === 'reopen') {
+      // เปิดใหม่เรื่องที่ระบบปิดเป็น "งานของหน้าร้าน" = AI ตีประเภทผิด → ล้างประเภทงาน (ไม่งั้นจะถูกปิดซ้ำรอบถัดไป)
+      // + ข้อความอื่นของเรื่องเดียวกันที่ถูกปิดพร้อมกัน (ช่วงเวลาในแถวประวัติ) + ลบแถวประวัติปิดอัตโนมัติ
+      await ensureLcCloseLog();
       await req().input('id', sql.Int, id).query(
-        `UPDATE line_msg_triage SET status='open', claimed_by=NULL, claimed_at=NULL, done_by=NULL, done_at=NULL, updated_at=GETDATE() WHERE id=@id`);
+        `DECLARE @g NVARCHAR(100), @t1 DATETIME, @t2 DATETIME;
+         SELECT @g = group_id, @t1 = message_time FROM line_msg_triage WHERE id = @id;
+         SELECT TOP 1 @t2 = message_time FROM line_case_close_log WHERE triage_id = @id AND reason = 'store_work';
+         UPDATE line_msg_triage
+         SET status='open', work_type_id=NULL, work_type_src='staff', auto_closed=0, note=NULL,
+             claimed_by=NULL, claimed_at=NULL, done_by=NULL, done_at=NULL, updated_at=GETDATE()
+         WHERE note LIKE N'ปิดอัตโนมัติ: งานของ%'
+           AND (id = @id OR (@t2 IS NOT NULL AND group_id = @g AND message_time >= @t1 AND message_time <= @t2));
+         DELETE FROM line_case_close_log WHERE triage_id = @id AND reason = 'store_work';
+         UPDATE line_msg_triage SET status='open', claimed_by=NULL, claimed_at=NULL, done_by=NULL, done_at=NULL, updated_at=GETDATE() WHERE id=@id`);
     } else if (action === 'note') {
       await req().input('id', sql.Int, id).input('note', sql.NVarChar, String(note || '').slice(0, 990)).query(
         `UPDATE line_msg_triage SET note=@note, updated_at=GETDATE() WHERE id=@id`);
     } else if (action === 'close' || action === 'dismiss') {
       // ปิดเคสจาก "คัดกรองเคสจาก Line" พร้อมเหตุผล (dismiss = ชื่อเก่าของ not_case)
       const reason = action === 'dismiss' ? 'not_case' : String(request.body?.reason || '');
-      if (!LC_CLOSE_REASONS[reason] || reason === 'case_system') return res.status(400).json({ error: 'reason ไม่ถูกต้อง' });
+      if (!LC_CLOSE_REASONS[reason] || reason === 'case_system' || reason === 'store_work') return res.status(400).json({ error: 'reason ไม่ถูกต้อง' });
       let cid = null;
       if (reason === 'manual' && request.body?.calllog_id) {
         cid = parseInt(String(request.body.calllog_id).replace(/\D/g, ''));
@@ -8101,7 +8164,7 @@ app.put('/api/triage/work-types/:id', authRequired, async (request, res) => {
     if (b.archived !== undefined) { sets.push('archived=@ar'); r.input('ar', sql.Bit, b.archived ? 1 : 0); }
     if (!sets.length) return res.json({ ok: true });
     await r.query(`UPDATE triage_work_types SET ${sets.join(', ')}, updated_at=GETDATE() WHERE id=@id`);
-    res.json({ ok: true });
+    res.json({ ok: true, auto_closed: await triageAutoCloseWorkTypes() });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -8118,7 +8181,7 @@ app.put('/api/triage/group-work-types', authRequired, async (request, res) => {
       .input('by', sql.NVarChar, teachWho(request))
       .query(`UPDATE triage_group_work_types SET enabled=@en, notify=@nt, updated_by=@by, updated_at=GETDATE() WHERE group_id=@g AND work_type_id=@w;
               IF @@ROWCOUNT = 0 INSERT INTO triage_group_work_types (group_id, work_type_id, enabled, notify, updated_by) VALUES (@g, @w, @en, @nt, @by)`);
-    res.json({ ok: true });
+    res.json({ ok: true, auto_closed: await triageAutoCloseWorkTypes() });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -8236,7 +8299,8 @@ app.post('/api/triage/:id/teach', authRequired, async (request, res) => {
         category: cat, work_type_id: wt || null, reasons, source_triage_id: id }));
     if (remember === 'keyword')
       added.push(await teachInsert(request, { kind: 'keyword', group_id: scopeGid, term: b.keywords, work_type_id: wt, reasons, source_triage_id: id }));
-    res.json({ ok: true, added: added.length, needs_action: TRIAGE_CASE_CATEGORIES.has(cat) });
+    const autoClosed = await triageAutoCloseWorkTypes();
+    res.json({ ok: true, added: added.length, needs_action: TRIAGE_CASE_CATEGORIES.has(cat), auto_closed: autoClosed });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -8478,7 +8542,12 @@ app.get('/api/line-summary', authRequired, async (request, res) => {
     const inRange = col => `${col} >= CAST(@f AS DATE) AND ${col} < DATEADD(day, 1, CAST(@t AS DATE))`;
 
     // ── ผลงานจากประวัติการปิด ──
-    const L = `FROM line_case_close_log l WHERE ${inRange('l.closed_at')} ${podSql('l.pod_id')}`;
+    // งานของหน้าร้านที่ระบบปิดเอง ไม่ใช่ผลงานทีม — แยกนับใน store_work ด้านล่าง
+    const L = `FROM line_case_close_log l WHERE ${inRange('l.closed_at')} ${podSql('l.pod_id')} AND l.reason <> 'store_work'`;
+    const storeWork = (await bind(req()).query(`
+      SELECT ISNULL(l.note, N'-') AS name, COUNT(*) AS n, SUM(ISNULL(l.msg_count, 1)) AS msgs
+      FROM line_case_close_log l WHERE ${inRange('l.closed_at')} ${podSql('l.pod_id')} AND l.reason = 'store_work'
+      GROUP BY ISNULL(l.note, N'-') ORDER BY COUNT(*) DESC`)).recordset;
     const [byReason, daily, hourly, pods, people] = (await bind(req()).query(`
       SELECT reason, COUNT(*) AS n ${L} GROUP BY reason;
       SELECT CONVERT(char(10), l.closed_at, 23) AS day, reason, COUNT(*) AS n ${L} GROUP BY CONVERT(char(10), l.closed_at, 23), reason;
@@ -8547,6 +8616,7 @@ app.get('/api/line-summary', authRequired, async (request, res) => {
       days: Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1,
       retention_days: TRIAGE_CFG.retentionDays,
       reasons: LC_CLOSE_REASONS,
+      store_work: { total: storeWork.reduce((s, r) => s + r.n, 0), by_type: storeWork },
       totals: pivot(byReason, () => 'all').get('all') || { case_system: 0, manual: 0, not_case: 0, total: 0 },
       daily: [...pivot(daily, r => r.day)].map(([day, o]) => ({ day, ...o })).sort((a, b) => a.day.localeCompare(b.day)),
       hourly: hourly.map(r => ({ h: r.h, n: r.n })),
