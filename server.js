@@ -8290,6 +8290,10 @@ app.post('/api/triage/:id/teach', authRequired, async (request, res) => {
     let wtSql = '';
     if (wt !== undefined) { wtSql = `, work_type_id=@wt, work_type_src=${wt ? `'staff'` : 'NULL'}`; r.input('wt', sql.Int, wt); }
     await r.query(`UPDATE line_msg_triage SET summary=@sum, category=@cat, needs_action=@na${wtSql}, updated_at=GETDATE() WHERE id=@id`);
+    if (wt !== undefined)
+      await req().input('id', sql.Int, id).input('wt', sql.Int, wt).query(`
+        IF OBJECT_ID('line_alert_log') IS NOT NULL
+          UPDATE line_alert_log SET work_type_id=@wt, work_type_name=(SELECT name FROM triage_work_types WHERE id=@wt) WHERE triage_id=@id`);
 
     // 2) สิ่งที่ให้ AI จำ
     const added = [];
@@ -8891,7 +8895,8 @@ async function urgentLineCaseTick() {
     const cut = new Date(lbNow.getTime() - URGENT_ALERT_MIN * 60000);
     const rows = (await req().input('cut', sql.DateTime, cut).query(`
       SELECT t.id, t.group_id, COALESCE(NULLIF(t.group_name, ''), NULLIF(lgp.group_name, ''), t.customer_name) AS group_name, t.customer_name, t.summary,
-             t.message_time, lgp.pod_id, p.code AS pod_code, wt.name AS work_type_name
+             t.message_time, lgp.pod_id, p.code AS pod_code, wt.name AS work_type_name,
+             t.work_type_id, LEFT(t.message_text, 300) AS message_text
       FROM line_msg_triage t
       LEFT JOIN line_group_pods lgp ON lgp.group_id = t.group_id
       LEFT JOIN pods p ON p.id = lgp.pod_id
@@ -8933,12 +8938,128 @@ async function urgentLineCaseTick() {
     if (sent) {
       const ids = rows.map(r => +r.id).join(',');
       await req().query(`UPDATE line_msg_triage SET urgent_alerted_at = GETDATE() WHERE id IN (${ids})`);
+      await lineAlertLogInsert(chats, lbNow);
       console.log(`🚨 urgent line case: แจ้งเตือน ${chats.length} เรื่อง → ${sent} กลุ่ม LINE`);
     }
   } catch (e) { console.error('urgent line case alert error:', e.message); }
   finally { _urgentRunning = false; }
 }
 setInterval(urgentLineCaseTick, 5 * 60 * 1000);
+
+// ── ประวัติแจ้งเตือน "LINE ค้างเกิน 30 นาที" (เก็บถาวร — line_msg_triage ถูกล้างทุก 7 วัน) ──
+// 1 แถว = 1 แชทต่อการแจ้งเตือน 1 ครั้ง · เวลาทั้งหมดเป็นนาฬิกาเครื่อง LineBotMonitor (cs_team เดินเร็วกว่า ~60 นาที)
+// ประเภทงานล่าสุดอ่านจาก line_msg_triage ถ้ายังไม่ถูกล้าง (ทีมแก้ประเภททีหลังได้) ไม่งั้นใช้ค่าที่บันทึกตอนแจ้ง
+let _lineAlertLogP = null;
+function ensureLineAlertLog() {
+  return _lineAlertLogP ||= (async () => {
+    await ensureTeachSchema();
+    const created = (await req().query(`
+      IF OBJECT_ID('line_alert_log') IS NULL
+      BEGIN
+        CREATE TABLE line_alert_log (
+          id             INT IDENTITY PRIMARY KEY,
+          triage_id      INT NULL,              -- ข้อความแรกที่รอนานสุดของแชทนั้น
+          group_id       NVARCHAR(100) NULL,
+          chat_name      NVARCHAR(300) NULL,    -- แชทส่วนตัว = ชื่อ LINE ลูกค้า
+          pod_id         INT NULL,
+          message_time   DATETIME NULL,
+          alerted_at     DATETIME NOT NULL,
+          wait_min       INT NULL,              -- รอมาแล้วกี่นาทีตอนแจ้ง
+          msg_count      INT NULL,
+          summary        NVARCHAR(500) NULL,
+          message_text   NVARCHAR(300) NULL,
+          work_type_id   INT NULL,
+          work_type_name NVARCHAR(60) NULL,
+          created_at     DATETIME DEFAULT GETDATE());
+        CREATE INDEX ix_line_alert_log_at ON line_alert_log(alerted_at);
+        SELECT 1 AS created;
+      END
+      ELSE SELECT 0 AS created`)).recordset[0].created;
+    if (!created) return;
+    // ย้อนหลังจากที่ยังเหลือใน line_msg_triage (ไม่เกินอายุที่เก็บ) — urgent_alerted_at เป็นนาฬิกา cs_team จึงหักส่วนต่างนาฬิกาออก
+    const lb = getLineBotPool();
+    let skew = 0;
+    if (lb) {
+      const [a, b] = await Promise.all([req().query('SELECT GETDATE() AS now'), lb.request().query('SELECT GETDATE() AS now')]);
+      skew = Math.round((a.recordset[0].now - b.recordset[0].now) / 60000);
+    }
+    const r = await req().input('skew', sql.Int, skew).query(`
+      INSERT INTO line_alert_log (triage_id, group_id, chat_name, pod_id, message_time, alerted_at, wait_min, msg_count,
+                                  summary, message_text, work_type_id, work_type_name)
+      SELECT x.id, x.group_id,
+             CASE WHEN x.group_id LIKE 'U%' THEN COALESCE(NULLIF(LTRIM(RTRIM(x.customer_name)), ''), x.group_name)
+                  ELSE COALESCE(NULLIF(x.group_name, ''), lgp.group_name) END,
+             lgp.pod_id, x.message_time, DATEADD(minute, -@skew, x.urgent_alerted_at),
+             DATEDIFF(minute, x.message_time, DATEADD(minute, -@skew, x.urgent_alerted_at)), x.cnt,
+             LEFT(x.summary, 500), LEFT(x.message_text, 300), x.work_type_id, wt.name
+      FROM (SELECT t.*, ROW_NUMBER() OVER (PARTITION BY t.group_id, t.urgent_alerted_at ORDER BY t.message_time) AS rn,
+                   COUNT(*) OVER (PARTITION BY t.group_id, t.urgent_alerted_at) AS cnt
+            FROM line_msg_triage t WHERE t.urgent_alerted_at IS NOT NULL) x
+      LEFT JOIN line_group_pods lgp ON lgp.group_id = x.group_id
+      LEFT JOIN triage_work_types wt ON wt.id = x.work_type_id
+      WHERE x.rn = 1`);
+    console.log(`✅ line_alert_log created — ย้อนหลัง ${r.rowsAffected?.[0] || 0} รายการ (นาฬิกาต่างกัน ${skew} นาที)`);
+  })().catch(e => { _lineAlertLogP = null; throw e; });
+}
+
+async function lineAlertLogInsert(chats, lbNow) {
+  try {
+    await ensureLineAlertLog();
+    for (const c of chats) {
+      const dm = String(c.group_id || '').startsWith('U');
+      await req().input('tid', sql.Int, c.id).input('g', sql.NVarChar, c.group_id || null)
+        .input('cn', sql.NVarChar, String((dm ? (String(c.customer_name || '').trim() || c.group_name) : c.group_name) || '').slice(0, 300) || null)
+        .input('pod', sql.Int, c.pod_id || null).input('mt', sql.DateTime, c.message_time || null)
+        .input('at', sql.DateTime, lbNow).input('w', sql.Int, c.message_time ? Math.round((lbNow - new Date(c.message_time)) / 60000) : null)
+        .input('n', sql.Int, c.n || 1).input('sum', sql.NVarChar, String(c.summary || '').slice(0, 500) || null)
+        .input('txt', sql.NVarChar, String(c.message_text || '').slice(0, 300) || null)
+        .input('wt', sql.Int, c.work_type_id || null).input('wtn', sql.NVarChar, c.work_type_name || null)
+        .query(`INSERT INTO line_alert_log (triage_id, group_id, chat_name, pod_id, message_time, alerted_at, wait_min, msg_count,
+                                            summary, message_text, work_type_id, work_type_name)
+                VALUES (@tid, @g, @cn, @pod, @mt, @at, @w, @n, @sum, @txt, @wt, @wtn)`);
+    }
+  } catch (e) { console.error('line alert log insert failed:', e.message); }
+}
+
+// GET /api/line-alerts?from=YYYY-MM-DD&to=YYYY-MM-DD — ประวัติแจ้งเตือน LINE ค้างเกิน 30 นาที + สถานะล่าสุดของเรื่องนั้น
+// รอรวม (total_wait_min) = ตั้งแต่ข้อความเข้า จนมีคนตอบในไลน์ / ปิดเรื่อง / ถึงตอนนี้ (ถ้ายังค้าง)
+app.get('/api/line-alerts', authRequired, async (request, res) => {
+  try {
+    await ensureLineAlertLog();
+    await ensureTriageAnsweredAt();
+    await ensureTriageCaseCol();
+    const day = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : null;
+    let from = day(request.query.from) || bangkokToday(), to = day(request.query.to) || from;
+    if (from > to) [from, to] = [to, from];
+    const lb = getLineBotPool();
+    const [csNow, lbNow] = await Promise.all([
+      req().query('SELECT GETDATE() AS now').then(r => r.recordset[0].now),
+      lb ? lb.request().query('SELECT GETDATE() AS now').then(r => r.recordset[0].now) : null]);
+    const skewMs = lbNow ? csNow - lbNow : 0;
+    const rows = (await req().input('f', sql.NVarChar, from).input('t', sql.NVarChar, to).query(`
+      SELECT l.id, l.triage_id, l.group_id, l.chat_name, l.pod_id, p.code AS pod_code, l.message_time, l.alerted_at, l.wait_min,
+             l.msg_count, l.summary, l.message_text,
+             COALESCE(t.work_type_id, l.work_type_id) AS work_type_id, COALESCE(wt.name, l.work_type_name) AS work_type_name, wt.color AS work_type_color,
+             CASE WHEN t.id IS NULL THEN 1 ELSE 0 END AS purged,
+             t.status, t.answered_in_line, t.answered_by, t.answered_at, t.calllog_id, t.done_at, t.note, t.auto_closed
+      FROM line_alert_log l
+      LEFT JOIN line_msg_triage t ON t.id = l.triage_id
+      LEFT JOIN triage_work_types wt ON wt.id = COALESCE(t.work_type_id, l.work_type_id)
+      LEFT JOIN pods p ON p.id = l.pod_id
+      WHERE l.alerted_at >= CAST(@f AS DATE) AND l.alerted_at < DATEADD(day, 1, CAST(@t AS DATE))
+      ORDER BY l.alerted_at DESC`)).recordset;
+    const now = lbNow || csNow;
+    rows.forEach(r => {
+      // จบเมื่อ: ตอบในไลน์ (นาฬิกา LineBot) → ปิดเรื่อง (นาฬิกา cs_team หักส่วนต่าง) → ยังค้าง = ถึงตอนนี้
+      const end = r.answered_at ? new Date(r.answered_at)
+        : r.status === 'done' && r.done_at ? new Date(new Date(r.done_at) - skewMs)
+        : r.purged ? null : now;
+      r.total_wait_min = end && r.message_time ? Math.max(0, Math.round((end - new Date(r.message_time)) / 60000)) : r.wait_min;
+      r.still_open = !r.purged && r.status !== 'done' && !r.answered_in_line ? 1 : 0;
+    });
+    res.json({ from, to, alert_min: URGENT_ALERT_MIN, rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
 
 // ── ตั้งค่าคัดกรอง / แจ้งเตือน ที่แก้ได้จากหน้าเว็บ ────────
 // เก็บเป็นแถวเดียว (id=1) แทนการแก้ .env แล้วรีสตาร์ท
