@@ -9197,7 +9197,7 @@ async function llbLoad() {
   if (podSel && podSel.options.length <= 1) {
     if (!_lcPods) { const p = await api('/api/pods', { silent: true }); if (Array.isArray(p)) _lcPods = p; }
     podSel.innerHTML = '<option value="">ทุก Pod</option><option value="none">ยังไม่ได้ Assign</option>'
-      + (_lcPods || []).map(p => `<option value="${p.id}">${escHtml(p.code || p.display_name)}</option>`).join('');
+      + (_lcPods || []).map(p => `<option value="${p.id}">${escHtml(p.display_name || p.code)}</option>`).join('');
   }
   const f = document.getElementById('dash-date-from')?.value || '', t = document.getElementById('dash-date-to')?.value || '';
   const pod = podSel?.value || '';
@@ -9365,7 +9365,7 @@ async function llbLoad() {
             return `<tr style="cursor:pointer" onclick="lcOpenPod('${r.pod_id ?? 'none'}')">
               <td><span style="background:${bg};color:${fg};border-radius:20px;padding:.1rem .55rem;font-size:.72rem;font-weight:600;white-space:nowrap">${escHtml(lab)}</span></td>
               <td><b>${escHtml(r.group_name || '—')}</b>${r.priority === 'urgent' ? ' <span style="color:#b04a40;font-size:.72rem">เร่งด่วน</span>' : ''}<span style="display:block;font-size:.74rem;color:#6f747c">${escHtml(r.summary || '')}</span></td>
-              <td class="mt-meta">${escHtml(r.pod_code || '')}</td><td class="r num" style="white-space:nowrap">${ago(r.message_time)}</td></tr>`;
+              <td class="mt-meta">${escHtml(r.pod_code ? lcPodName(r.pod_code) : '')}</td><td class="r num" style="white-space:nowrap">${ago(r.message_time)}</td></tr>`;
           }).join('')}
         </tbody></table></div></div>` : ''}`;
   }
@@ -10876,7 +10876,7 @@ function tkLateRender() {
     ${late.length ? `
     <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1rem">
       ${grpTable('แยกตามประเภทงาน', 'ประเภทงาน', byType, k => chip({ work_type_name: k === 'ไม่ระบุประเภท' ? null : k }))}
-      ${grpTable('แยกตาม Pod', 'Pod', group(r => r.pod_code || 'ยังไม่ได้ Assign'))}
+      ${grpTable('แยกตาม Pod', 'Pod', group(r => lcPodName(r.pod_code)))}
       ${grpTable('แชทที่ถูกแจ้งบ่อย', 'แชท', group(r => r.chat_name).slice(0, 10))}
     </div>
     <div style="font-size:.85rem;font-weight:600;margin-bottom:.4rem">รายการที่แจ้งเตือน <span style="font-weight:400;color:#8a8f97;font-size:.76rem">(เรียงจากรอนานสุด${late.length > MAX_ROWS ? ` · แสดง ${MAX_ROWS} รายการแรก — Export เพื่อดูทั้งหมด` : ''})</span></div>
@@ -10885,7 +10885,7 @@ function tkLateRender() {
       <tbody>${late.slice(0, MAX_ROWS).map(r => { const [st, sc] = tkLateStatus(r);
         return `<tr style="cursor:default">
           <td style="white-space:nowrap"><div>${fdt(r.alerted_at)}</div><div class="tk-sub">ข้อความเข้า ${fdt(r.message_time)}</div></td>
-          <td style="max-width:360px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500" title="${escHtml(r.chat_name || '')}">${escHtml(r.pod_code || 'ยังไม่ได้ Assign')} · ${escHtml(r.chat_name || '—')}</div>
+          <td style="max-width:360px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500" title="${escHtml(r.chat_name || '')}">${escHtml(lcPodName(r.pod_code))} · ${escHtml(r.chat_name || '—')}</div>
             <div class="tk-sub" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(r.message_text || '')}">${escHtml(r.summary || r.message_text || '')}${r.msg_count > 1 ? ` · ${r.msg_count} ข้อความ` : ''}</div></td>
           <td>${chip(r)}</td>
           <td style="font-size:.78rem;color:${sc};max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(st)}">${escHtml(st)}</td>
@@ -10903,7 +10903,7 @@ function tkLateExport() {
     ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}` : ''; };
   const headers = ['แจ้งเตือนเมื่อ','ข้อความเข้า','Pod','แชท','ประเภทงาน','สรุป','ข้อความ','จำนวนข้อความ','สถานะตอนนี้','ยังค้าง','รอตอนแจ้ง (นาที)','รอรวม (นาที)','รอรวม'];
   const rows = late.map(r => [
-    fmtDT(r.alerted_at), fmtDT(r.message_time), r.pod_code || 'ยังไม่ได้ Assign', r.chat_name, tkLateType(r), r.summary, r.message_text,
+    fmtDT(r.alerted_at), fmtDT(r.message_time), lcPodName(r.pod_code), r.chat_name, tkLateType(r), r.summary, r.message_text,
     r.msg_count, tkLateStatus(r)[0], r.still_open ? 'ใช่' : '', r.wait_min, r.total_wait_min, tkFmtDur(r.total_wait_min)
   ].map(esc).join(','));
   const blob = new Blob(['﻿' + [headers.join(','), ...rows].join('\r\n')], { type: 'text/csv;charset=utf-8;' });
@@ -15620,7 +15620,12 @@ function lcStripSel() {
 function lcLabel(key) {
   if (key === 'none') return { label: 'ยังไม่ได้ Assign', color: '#b3b6bb' };
   const p = (_lcPods || []).find(x => String(x.id) === String(key));
-  return p ? { label: p.code || p.display_name, color: p.color } : null;
+  return p ? { label: p.display_name || p.code, color: p.color } : null;
+}
+// ชื่อ Pod ให้ตรงกับหน้า Pod & ลูกค้า (display_name) — ข้อมูลจากเซิร์ฟเวอร์ส่งมาเป็นรหัส Pod
+function lcPodName(code) {
+  if (!code) return 'ยังไม่ได้ Assign';
+  return (_lcPods || []).find(p => p.code === code)?.display_name || code;
 }
 function renderLineCaseStrip() {
   const box = document.getElementById('tk-lc-chips');
@@ -15643,7 +15648,7 @@ function renderLineCaseStripCfg() {
     <input type="checkbox" style="width:auto" ${sel.has(String(key)) ? 'checked' : ''} onchange="lcStripToggle('${key}', this.checked)"> ${escHtml(label)}</label>`;
   cfg.innerHTML = `<div style="font-weight:600;margin-bottom:.3rem">แสดง Pod ที่หน้านี้</div>`
     + row('none', 'ยังไม่ได้ Assign')
-    + (_lcPods || []).map(p => row(p.id, p.code || p.display_name)).join('')
+    + (_lcPods || []).map(p => row(p.id, p.display_name || p.code)).join('')
     + `<button class="svc-btn-ghost" style="height:28px;margin-top:.4rem;font-size:.74rem" onclick="lcStripReset()">ค่าเริ่มต้น</button>`;
 }
 function lcToggleStripCfg(e) {
@@ -15739,7 +15744,7 @@ function lcShowPopup(rows) {
         <button data-act="mute" title="${lcMuted() ? 'เปิดเสียง' : 'ปิดเสียง'}" style="border:none;background:none;cursor:pointer;font-size:.9rem">${lcMuted() ? '🔇' : '🔊'}</button>
         <button data-act="close" title="ปิด" style="border:none;background:none;cursor:pointer;font-size:1rem;color:#8a8f97">×</button>
       </span></div>
-    <div><span style="font-weight:600">${escHtml(r.pod_code || 'ยังไม่ได้ Assign')}</span> · ${escHtml(r.group_name || '—')}</div>
+    <div><span style="font-weight:600">${escHtml(lcPodName(r.pod_code))}</span> · ${escHtml(r.group_name || '—')}</div>
     <div style="margin-top:.2rem;color:#24272c">${escHtml(r.summary || '')}</div>
     ${more > 0 ? `<div style="margin-top:.25rem;color:#6f747c">และอีก ${more} รายการ</div>` : ''}
     <div style="margin-top:.35rem;color:var(--primary);font-weight:600">กดเพื่อเปิดเคส →</div>`;
@@ -15776,7 +15781,7 @@ async function lcAlertTick() {
   lcShowPopup(rows);
   if (document.hidden) lcFlashTitle(rows.length);
   if (document.hidden && window.Notification?.permission === 'granted') {
-    try { new Notification('🔔 เคสใหม่จาก Line', { body: `${rows[0].pod_code || 'ยังไม่ได้ Assign'} · ${rows[0].summary || ''}`, tag: 'lc-new' }); } catch {}
+    try { new Notification('🔔 เคสใหม่จาก Line', { body: `${lcPodName(rows[0].pod_code)} · ${rows[0].summary || ''}`, tag: 'lc-new' }); } catch {}
   }
   lcRefreshCounts();
 }
@@ -15795,7 +15800,7 @@ function renderLineCasePods() {
     ${color ? `<span class="dot" style="background:${escHtml(color)}"></span>` : ''}${escHtml(label)}${badge(cnt)}</button>`;
   box.innerHTML = chip('', 'ทั้งหมด', _lcCounts.total)
     + chip('none', 'ยังไม่ได้ Assign', n('none'), '#b3b6bb')
-    + (_lcPods || []).map(p => chip(p.id, p.code || p.display_name, n(p.id), p.color)).join('');
+    + (_lcPods || []).map(p => chip(p.id, p.display_name || p.code, n(p.id), p.color)).join('');
 }
 
 // เกือบ real time: หน้าต่างเปิดอยู่ → รีเฟรชรายการทุก 30 วิ · อยู่หน้าติดตามเคส → รีเฟรชป้ายจำนวน
@@ -15894,7 +15899,7 @@ function renderLineCasePicker() {
     return `<div style="display:flex;gap:.75rem;align-items:flex-start;padding:.7rem 0;border-bottom:1px solid #f0eee9">
       <div style="flex:1;min-width:0">
         <div style="font-size:.74rem;color:#6f747c">
-          <span style="display:inline-block;padding:0 .4rem;border-radius:4px;background:${escHtml(r.pod_color || '#e6e3dc')}22;color:#3d424a;font-weight:600;margin-right:.25rem">${escHtml(r.pod_code || 'ยังไม่ได้ Assign')}</span>
+          <span style="display:inline-block;padding:0 .4rem;border-radius:4px;background:${escHtml(r.pod_color || '#e6e3dc')}22;color:#3d424a;font-weight:600;margin-right:.25rem">${escHtml(lcPodName(r.pod_code))}</span>
           <b style="color:#24272c">${escHtml(chat)}</b>
           <button title="คัดลอกชื่อไปค้นหาใน LINE / LINE OA" onclick="event.stopPropagation();trCopyName(this,'${encodeURIComponent(chat).replace(/'/g, '%27')}')"
             style="cursor:pointer;border:1px solid #e0ddd6;border-radius:5px;background:#fff;color:#5b616b;padding:0 .35rem;font-size:.68rem;line-height:1.5;margin:0 .15rem"><i class=i-clipboard></i> คัดลอก</button>
@@ -15981,7 +15986,7 @@ async function lcLoadHistory(days = 7) {
       <span class="mt-meta">${d.days} วันล่าสุด · ${total} เรื่อง:</span>${sum}</div>`
     + (d.rows.length ? d.rows.map(x => `<div style="padding:.55rem 0;border-bottom:1px solid #f0eee9;font-size:.8rem">
       <div style="color:#6f747c;font-size:.72rem">${when(x.closed_at)} · ${escHtml(x.closed_by_name || '—')} · <b style="color:${COLOR[x.reason] || '#3d424a'}">${escHtml(d.reasons[x.reason] || x.reason)}</b>${x.calllog_id ? ` · เคส #${x.calllog_id}` : ''}${x.msg_count > 1 ? ` · ${x.msg_count} ข้อความ` : ''}</div>
-      <div><span style="font-weight:600">${escHtml(x.pod_code || 'ยังไม่ได้ Assign')}</span> · ${escHtml(x.group_name || '—')} — ${escHtml(x.summary || '')}</div>
+      <div><span style="font-weight:600">${escHtml(lcPodName(x.pod_code))}</span> · ${escHtml(x.group_name || '—')} — ${escHtml(x.summary || '')}</div>
       ${x.note ? `<div style="color:#5b616b;font-size:.74rem">${x.reason === 'store_work' ? 'ประเภทงาน' : 'หมายเหตุ'}: ${escHtml(x.note)}</div>` : ''}
       ${x.reason === 'store_work' && x.triage_id ? `<button class="svc-btn-ghost" style="height:26px;font-size:.72rem;margin-top:.25rem" onclick="lcReopenStore(${x.triage_id})" title="AI ตีประเภทผิด — เปิดเรื่องนี้กลับมาให้ทีมดูแล">ไม่ใช่งานของหน้าร้าน · เปิดใหม่</button>` : ''}</div>`).join('')
       : '<div class="mt-meta" style="text-align:center;padding:2rem">ยังไม่มีประวัติการปิดเคส</div>');
