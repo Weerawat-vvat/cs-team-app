@@ -8895,7 +8895,7 @@ async function urgentLineCaseTick() {
     const cut = new Date(lbNow.getTime() - URGENT_ALERT_MIN * 60000);
     const rows = (await req().input('cut', sql.DateTime, cut).query(`
       SELECT t.id, t.group_id, COALESCE(NULLIF(t.group_name, ''), NULLIF(lgp.group_name, ''), t.customer_name) AS group_name, t.customer_name, t.summary,
-             t.message_time, lgp.pod_id, p.code AS pod_code, wt.name AS work_type_name,
+             t.message_time, lgp.pod_id, COALESCE(NULLIF(p.display_name, ''), p.code) AS pod_name, wt.name AS work_type_name,
              t.work_type_id, LEFT(t.message_text, 300) AS message_text
       FROM line_msg_triage t
       LEFT JOIN line_group_pods lgp ON lgp.group_id = t.group_id
@@ -8923,7 +8923,7 @@ async function urgentLineCaseTick() {
       ...list.slice(0, 15).map(c => [
         // แชทส่วนตัวมี group_name เป็นคำว่า "แชทส่วนตัว" เหมือนกันหมด → ใช้ชื่อ LINE ของลูกค้าแทน
         clip(String(c.group_id || '').startsWith('U') ? (c.customer_name || c.group_name) : c.group_name, 60) || '(ไม่มีชื่อแชท)',
-        [c.work_type_name, c.pod_code || 'ยังไม่ได้ Assign', `รอ ${waitTxt(c.message_time)}`].filter(Boolean).join(' · '),
+        [c.work_type_name, c.pod_name || 'ยังไม่ได้ Assign', `รอ ${waitTxt(c.message_time)}`].filter(Boolean).join(' · '),
         clip(c.summary, 200),
       ].join('\n')),
       ...(list.length > 15 ? [`…และอีก ${list.length - 15} เรื่อง`] : []),
