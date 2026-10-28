@@ -777,9 +777,23 @@ app.get('/api/employees', authRequired, async (request, res) => {
     const role = request.user?.role;
     const r = req();
     let q = `SELECT e.id, e.name, e.nickname, e.team, e.role, e.phone, e.start_date, e.active, e.created_at,
-                    au.id AS user_id
+                    au.id AS user_id,
+                    pod.pod_id, pod.pod_name, pod.pod_color, pod.role_in_pod
              FROM employees e
-             LEFT JOIN app_users au ON au.employee_id = e.id AND au.active = 1`;
+             LEFT JOIN app_users au ON au.employee_id = e.id AND au.active = 1
+             OUTER APPLY (
+               -- Pod ปัจจุบัน: แถว pod_members ก่อน, ถ้าไม่มีใช้ pods.lead_employee_id
+               SELECT TOP 1 x.pod_id, p.display_name AS pod_name, p.color AS pod_color, x.role_in_pod
+               FROM (
+                 SELECT pm.pod_id, CASE WHEN p2.lead_employee_id = e.id THEN 'lead' ELSE pm.role_in_pod END AS role_in_pod, 0 AS src
+                 FROM pod_members pm JOIN pods p2 ON p2.id = pm.pod_id
+                 WHERE pm.employee_id = e.id AND pm.active = 1
+                 UNION ALL
+                 SELECT p3.id, 'lead', 1 FROM pods p3 WHERE p3.lead_employee_id = e.id
+               ) x
+               JOIN pods p ON p.id = x.pod_id AND p.active = 1
+               ORDER BY x.src, p.sort_order
+             ) pod`;
     const conds = [];
     if (!include_inactive) conds.push('e.active=1');
     if (role === 'team_lead') {
@@ -795,9 +809,23 @@ app.get('/api/employees', authRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ย้ายพนักงานเข้า Pod (podId null = ไม่อยู่ Pod ไหน) — ปิดแถว pod_members อื่น,
+// ถ้าเป็นหัวหน้า Pod เดิมอยู่ก็ปลดออก (หัวหน้าต้องอยู่ใน Pod ตัวเอง)
+async function setEmployeePod(empId, podId) {
+  podId = podId ? parseInt(podId) : null;
+  await req().input('eid', sql.Int, empId).input('pid', sql.Int, podId)
+    .query(`UPDATE pod_members SET active=0
+            WHERE employee_id=@eid AND active=1 AND (@pid IS NULL OR pod_id<>@pid);
+            UPDATE pods SET lead_employee_id=NULL
+            WHERE lead_employee_id=@eid AND (@pid IS NULL OR id<>@pid);
+            IF @pid IS NOT NULL AND NOT EXISTS (
+              SELECT 1 FROM pod_members WHERE employee_id=@eid AND pod_id=@pid AND active=1)
+              INSERT INTO pod_members (pod_id, employee_id, role_in_pod) VALUES (@pid, @eid, 'member');`);
+}
+
 app.post('/api/employees', authRequired, managerRequired, async (request, res) => {
   try {
-    const { name, nickname, team, role, phone, start_date } = request.body;
+    const { name, nickname, team, role, phone, start_date, pod_id } = request.body;
     const result = await req()
       .input('name',       sql.NVarChar, name)
       .input('nickname',   sql.NVarChar, nickname   || null)
@@ -807,13 +835,14 @@ app.post('/api/employees', authRequired, managerRequired, async (request, res) =
       .input('start_date', sql.Date,     start_date ? new Date(start_date) : null)
       .query(`INSERT INTO employees (name,nickname,team,role,phone,start_date)
               OUTPUT INSERTED.id VALUES (@name,@nickname,@team,@role,@phone,@start_date)`);
+    if (pod_id) await setEmployeePod(result.recordset[0].id, pod_id);
     res.json({ id: result.recordset[0].id });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.put('/api/employees/:id', authRequired, managerRequired, async (request, res) => {
   try {
-    const { name, nickname, team, role, phone, start_date, active } = request.body;
+    const { name, nickname, team, role, phone, start_date, active, pod_id } = request.body;
     await req()
       .input('name',       sql.NVarChar, name)
       .input('nickname',   sql.NVarChar, nickname   || null)
@@ -827,6 +856,7 @@ app.put('/api/employees/:id', authRequired, managerRequired, async (request, res
               SET name=@name, nickname=@nickname, team=@team, role=@role,
                   phone=@phone, start_date=@start_date, active=@active
               WHERE id=@id`);
+    if (pod_id !== undefined) await setEmployeePod(request.params.id, pod_id); // ไม่ส่งมา = ไม่แตะ Pod
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

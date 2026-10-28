@@ -2214,6 +2214,10 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
         class="svc-select">
         <option value="">ทุกทีม</option>
       </select>
+      <select id="ppl-filter-pod" onchange="filterPeople()"
+        class="svc-select">
+        <option value="">ทุก POD</option>
+      </select>
       <select id="ppl-filter-status" onchange="filterPeople()"
         class="svc-select">
         <option value="">ทุกสถานะ</option>
@@ -2243,6 +2247,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
             <tr>
               <th>ชื่อ-นามสกุล</th>
               <th>ทีม</th>
+              <th>POD</th>
               <th>Username Login</th>
               <th>บทบาท</th>
               <th>Username LicenseDB</th>
@@ -6198,6 +6203,10 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
     <div class="form-group">
       <label>ทีม *</label>
       <select id="p-team"></select>
+    </div>
+    <div class="form-group">
+      <label>POD</label>
+      <select id="p-pod"></select>
     </div>
     <div class="grid-2">
       <div class="form-group">
@@ -20495,14 +20504,16 @@ function viewComplaintTickets(companyName) {
   }, 200);
 }
 
-let _peopleEmps = [], _peopleUserByEmpId = {};
+let _peopleEmps = [], _peopleUserByEmpId = {}, _peoplePods = [];
 
 async function loadPeople() {
-  // Load employees (incl. inactive) and user accounts in parallel
-  const [emps, users] = await Promise.all([
+  // Load employees (incl. inactive), user accounts and pods in parallel
+  const [emps, users, pods] = await Promise.all([
     api('/api/employees?include_inactive=1'),
-    api('/api/users')
+    api('/api/users'),
+    api('/api/pods', { silent: true }).catch(() => [])
   ]);
+  _peoplePods = Array.isArray(pods) ? pods : [];
   allEmployees = emps.filter(e => e.active); // keep active list for other selects
   fillEmpSelects();
 
@@ -20519,12 +20530,22 @@ async function loadPeople() {
               .map(t => `<option value="${t.name}">${t.display_name || t.name}</option>`).join('');
   }
 
+  // Populate pod filter dropdown (keep current selection)
+  const podSel = document.getElementById('ppl-filter-pod');
+  if (podSel) {
+    const cur = podSel.value;
+    podSel.innerHTML = '<option value="">ทุก POD</option><option value="none">ไม่มี POD</option>' +
+      _peoplePods.map(p => `<option value="${p.id}">${aiEscape(p.display_name)}</option>`).join('');
+    podSel.value = cur;
+  }
+
   filterPeople();
 }
 
 function filterPeople() {
   const q      = (document.getElementById('ppl-search')?.value || '').toLowerCase().trim();
   const team   = document.getElementById('ppl-filter-team')?.value || '';
+  const pod    = document.getElementById('ppl-filter-pod')?.value || '';
   const status = document.getElementById('ppl-filter-status')?.value || '';
   const role   = document.getElementById('ppl-filter-role')?.value || '';
   const showDeleted = document.getElementById('ppl-show-deleted')?.checked || false;
@@ -20533,6 +20554,8 @@ function filterPeople() {
     const u = _peopleUserByEmpId[e.id];
     if (!showDeleted && !e.active) return false; // ซ่อนรายการที่ออกแล้ว เว้นแต่ติ๊ก "แสดงรายการที่ถูกลบ"
     if (team   && e.team !== team) return false;
+    if (pod === 'none' && e.pod_id) return false;
+    if (pod && pod !== 'none' && String(e.pod_id) !== pod) return false;
     if (status === 'active'   && !e.active) return false;
     if (status === 'inactive' &&  e.active) return false;
     if (role   && u?.role !== role) return false;
@@ -20551,7 +20574,7 @@ function renderPeopleTable(emps) {
   const countEl = document.getElementById('ppl-count');
   if (countEl) countEl.textContent = `${emps.length} คน`;
   if (!emps.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty">ไม่พบพนักงานที่ตรงเงื่อนไข</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">ไม่พบพนักงานที่ตรงเงื่อนไข</td></tr>';
     return;
   }
   tbody.innerHTML = emps.map(e => {
@@ -20562,6 +20585,11 @@ function renderPeopleTable(emps) {
         <div style="font-size:.76rem;color:var(--muted)">${e.nickname ? `ชื่อเล่น: ${e.nickname}` : ''}</div>
       </td>
       <td>${teamBadgeHtml(e.team)}</td>
+      <td style="white-space:nowrap">
+        ${e.pod_id
+          ? `<span class="badge" style="background:${e.pod_color || '#1d4ed8'}1a;color:${e.pod_color || '#1d4ed8'};border:1px solid ${e.pod_color || '#1d4ed8'}40">${aiEscape(e.pod_name)}</span>${e.role_in_pod === 'lead' ? ' <span title="หัวหน้า Pod" style="color:#b45309">★</span>' : ''}`
+          : '<span style="color:#8a8f97">—</span>'}
+      </td>
       <td style="font-size:.85rem">
         ${u ? `<b>${u.username}</b>` : `<span style="color:#8a8f97;font-size:.78rem">ยังไม่มีบัญชี</span>`}
       </td>
@@ -20597,6 +20625,13 @@ function _fillPersonTeamSelect(selectedTeam) {
   ).join('');
 }
 
+function _fillPersonPodSelect(selectedPodId) {
+  const sel = document.getElementById('p-pod');
+  sel.innerHTML = '<option value="">— ไม่อยู่ POD —</option>' + _peoplePods.map(p =>
+    `<option value="${p.id}" ${p.id===selectedPodId?'selected':''}>${aiEscape(p.display_name)}</option>`
+  ).join('');
+}
+
 function openAddPerson() {
   editPersonEmpId  = null;
   editPersonUserId = null;
@@ -20616,6 +20651,7 @@ function openAddPerson() {
   document.getElementById('p-password').placeholder = 'กรอกรหัสผ่าน (ถ้าต้องการสร้างบัญชี)';
   document.getElementById('p-emp-status-wrap').style.display = 'none';
   _fillPersonTeamSelect('');
+  _fillPersonPodSelect(null);
   openModal('modal-person');
 }
 
@@ -20639,6 +20675,7 @@ function openEditPerson(e, u) {
   document.getElementById('p-pwd-label').textContent = 'รหัสผ่านใหม่';
   document.getElementById('p-password').placeholder = 'เว้นว่าง = ไม่เปลี่ยน';
   _fillPersonTeamSelect(e.team);
+  _fillPersonPodSelect(e.pod_id || null);
   openModal('modal-person');
 }
 
@@ -20653,7 +20690,8 @@ async function savePerson() {
     role:       sysRoleEarly,   // sync employees.role = app_users.role (single source)
     phone:      document.getElementById('p-phone').value.trim()      || null,
     start_date: document.getElementById('p-start').value             || null,
-    active:     parseInt(document.getElementById('p-emp-status').value || '1')
+    active:     parseInt(document.getElementById('p-emp-status').value || '1'),
+    pod_id:     document.getElementById('p-pod').value ? parseInt(document.getElementById('p-pod').value) : null
   };
   const uname   = document.getElementById('p-username').value.trim();
   const pwd     = document.getElementById('p-password').value;
