@@ -8176,7 +8176,25 @@ async function assignLineGroupPod(sel, groupId, groupName) {
 // กลุ่มไลน์ผูกกับ Pod ไม่ได้ผูกกับคน → ภาระต่อคน = ภาระของ Pod หารเท่ากันทุกคน (หัวหน้านับด้วย)
 const PWL_HEAVY = 1.3, PWL_LIGHT = 0.7;   // เทียบกับค่าเฉลี่ยทีมต่อคน
 let _pwl = null;
-function buildPodWorkload() {
+// สถานะวันนี้จาก "ตารางงานพนักงาน" (Google Calendar ผ่าน /api/empcal/summary) — emp_id → { status, shift }
+async function pwlLoadCalendar() {
+  const d = await api('/api/empcal/summary', { silent: true }).catch(() => null);
+  if (!d || d.error || !Array.isArray(d.teams)) return null;
+  const time = it => it.start ? `${it.start}–${it.end}` : 'ทั้งวัน';
+  const map = {};
+  d.teams.forEach(t => (t.people || []).forEach(p => {
+    const items = p.items || [];
+    const work = items.filter(i => i.type === 'shift' || i.type === 'onsite');
+    const leave = items.find(i => i.type === 'leave');
+    map[p.emp_id] = work.length
+      ? { status: 'work', shift: work.map(i => time(i) + (i.type === 'onsite' ? ' หน้างาน' : '')).join(', ') }
+      : leave ? { status: 'off', shift: leave.note || '' } : { status: 'none', shift: items[0]?.note || '' };
+  }));
+  return { map, date: d.date };
+}
+function buildPodWorkload(cal) {
+  // มีตารางงาน → ใช้ตารางงาน (ไม่อยู่ในตาราง = ไม่มีกะ) · โหลดไม่ได้ → ใช้กะในระบบจาก /api/pods/board
+  const today = m => cal ? (cal.map[m.employee_id] || { status: 'none', shift: '' }) : { status: m.status, shift: m.shift_time || '' };
   const days = lbDaySpan();
   const perDay = g => g.total / days;
   const groups = _lbGroups.filter(g => g.type === 'group');
@@ -8189,8 +8207,8 @@ function buildPodWorkload() {
     const peak = hourly.map((v, h) => [h, v]).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([h]) => h).sort((a, b) => a - b);
     return {
       id: p.id, name: p.display_name, color: p.color, lead: p.lead_nickname || p.lead_name || '',
-      members, head: members.length, working: members.filter(m => m.status === 'work').length,
-      groupsAll: all.length, groupsActive: act.length, actList: act.map(g => ({ name: g.name, perDay: perDay(g) })),
+      members, head: members.length, working: members.filter(m => today(m).status === 'work').length,
+      groupsAll: all.length, groupsActive: act.length,
       load: act.reduce((s, g) => s + perDay(g), 0), loadAll: all.reduce((s, g) => s + perDay(g), 0), peak,
     };
   });
@@ -8205,35 +8223,15 @@ function buildPodWorkload() {
   // คนเดียวอยู่หลาย Pod ได้ → รวมส่วนแบ่งของทุก Pod
   const byEmp = {};
   pods.forEach(p => p.members.forEach(m => {
-    const e = byEmp[m.employee_id] ||= { id: m.employee_id, name: m.nickname || m.name, fullName: m.name, pods: [], roles: [], status: m.status, shift: m.shift_time || '', load: 0, groups: 0 };
+    const e = byEmp[m.employee_id] ||= { id: m.employee_id, name: m.nickname || m.name, fullName: m.name, pods: [], roles: [], ...today(m), load: 0, groups: 0 };
     e.pods.push(p.name); e.roles.push(m.role_in_pod === 'lead' ? 'หัวหน้า' : (m.role_in_pod === 'junior' ? 'Junior' : 'สมาชิก'));
     e.load += p.perPerson || 0; e.groups += p.head ? p.groupsActive / p.head : 0;
   }));
   const people = Object.values(byEmp).map(e => ({ ...e, ratio: teamAvg ? e.load / teamAvg : null })).sort((a, b) => b.load - a.load);
   const unassigned = groups.filter(g => !g.podId && g.activity === 'active');
   const unassignedLoad = unassigned.reduce((s, g) => s + perDay(g), 0);
-
-  // ข้อเสนอแนะ — ตัวเลขเป็นค่าประมาณจากข้อความ/วัน ใช้ประกอบการตัดสินใจ
-  const tips = [];
-  const fmt = lgpAvgFmt;
-  const lightest = [...staffed].sort((a, b) => a.ratio - b.ratio)[0];
-  pods.filter(p => p.ratio >= PWL_HEAVY).sort((a, b) => b.ratio - a.ratio).forEach(p => {
-    const excess = p.load - p.head * teamAvg;
-    const needPeople = Math.ceil(p.load / teamAvg) - p.head;
-    let rest = excess; const pick = [];
-    [...p.actList].sort((a, b) => b.perDay - a.perDay).forEach(g => { if (pick.length < 5 && g.perDay <= rest) { pick.push(g); rest -= g.perDay; } });
-    tips.push(`<b>${esc(p.name)}</b> หนักกว่าค่าเฉลี่ย ${p.ratio.toFixed(1)} เท่า (${fmt(p.perPerson)} ข้อความ/วัน/คน) — เพิ่มคน ${needPeople} คน หรือย้ายกลุ่มออก ~${fmt(excess)} ข้อความ/วัน`
-      + (lightest && lightest.id !== p.id ? ` ไป ${esc(lightest.name)}` : '')
-      + (pick.length ? `<div style="font-size:.74rem;color:var(--muted);margin-top:.15rem">ตัวอย่างกลุ่มที่ย้ายได้ (ไม่เกินส่วนเกิน):${pick.map(g => `${esc(g.name)} (${fmt(g.perDay)})`).join(', ')}</div>` : ''));
-  });
-  pods.filter(p => !p.head && p.groupsActive).forEach(p =>
-    tips.push(`<b>${esc(p.name)}</b> มีกลุ่ม Active ${p.groupsActive} กลุ่ม (${fmt(p.load)} ข้อความ/วัน) แต่ยังไม่มีคนใน Pod — กำหนด POD ให้พนักงานที่หน้า "จัดการ User"`));
-  pods.filter(p => p.ratio != null && p.ratio <= PWL_LIGHT).forEach(p =>
-    tips.push(`<b>${esc(p.name)}</b> ยังรับเพิ่มได้ ~${fmt(p.head * teamAvg - p.load)} ข้อความ/วัน ก่อนถึงค่าเฉลี่ยทีม`));
-  if (unassigned.length) tips.push(`กลุ่ม Active ที่ยังไม่ assign ${unassigned.length} กลุ่ม (${fmt(unassignedLoad)} ข้อความ/วัน) — ยังไม่ถูกนับเป็นภาระของใคร`);
-  if (!tips.length) tips.push('ภาระงานต่อคนของทุก Pod อยู่ในช่วงปกติ (±30% จากค่าเฉลี่ยทีม)');
-
-  return { days, pods, people, teamAvg, teamLoad, teamHead, unassigned, unassignedLoad, tips };
+  // Pod ที่ยังไม่มีคน (เช่น Backend) ไม่ต้องแสดงในรายงาน
+  return { days, pods: staffed, people, teamAvg, teamLoad, teamHead, unassigned, unassignedLoad, calDate: cal?.date || null };
 }
 function pwlLevel(ratio) {
   if (ratio == null) return { t: '—', bg: '#f0eee9', c: '#8a8f97' };
@@ -8242,15 +8240,17 @@ function pwlLevel(ratio) {
   return { t: 'ปกติ', bg: '#e7f0ea', c: '#2f5e45' };
 }
 const pwlHours = hs => hs.length ? hs.map(h => String(h).padStart(2, '0') + ':00').join(', ') : '—';
-function openPodWorkloadReport() {
+async function openPodWorkloadReport() {
   if (!_lbGroups.length || !_pods.length) { showToast('ข้อมูลกลุ่มไลน์ / Pod ยังโหลดไม่เสร็จ ลองใหม่อีกครั้ง', 'error'); return; }
-  _pwl = buildPodWorkload();
+  document.getElementById('pwl-body').innerHTML = '<div class="empty" style="padding:2rem">กำลังโหลดตารางงานพนักงาน...</div>';
+  openModal('modal-pod-workload');
+  _pwl = buildPodWorkload(await pwlLoadCalendar());
   const d = _pwl, fmt = lgpAvgFmt;
   const pill = l => `<span class="badge" style="background:${l.bg};color:${l.c}">${l.t}</span>`;
   const bar = r => r == null ? '' : `<div style="height:5px;background:#f0eee9;border-radius:3px;margin-top:.2rem;width:90px"><div style="height:100%;width:${Math.min(100, r / 2 * 100)}%;background:${pwlLevel(r).c};border-radius:3px"></div></div>`;
   const podRows = d.pods.map(p => `<tr>
       <td><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${p.color || '#2a544d'};margin-right:.35rem"></span><b>${esc(p.name)}</b>${p.lead ? `<div style="font-size:.72rem;color:var(--muted)">หัวหน้า: ${esc(p.lead)}</div>` : ''}</td>
-      <td style="text-align:right">${p.head || '<span style="color:#b04a40">0</span>'}<div style="font-size:.7rem;color:var(--muted)">ทำงานวันนี้ ${p.working}</div></td>
+      <td style="text-align:right;white-space:nowrap">${p.head} คน<div style="font-size:.7rem;color:var(--muted)">ทำงานวันนี้ ${p.working} คน</div></td>
       <td style="text-align:right">${p.groupsActive} <span style="color:var(--muted)">/ ${p.groupsAll}</span></td>
       <td style="text-align:right">${fmt(p.load)}</td>
       <td style="text-align:right"><b>${p.perPerson == null ? '—' : fmt(p.perPerson)}</b>${bar(p.ratio)}</td>
@@ -8258,7 +8258,7 @@ function openPodWorkloadReport() {
       <td>${pill(pwlLevel(p.ratio))}</td>
       <td style="font-size:.74rem">${pwlHours(p.peak)}</td>
     </tr>`).join('');
-  const stat = { work: ['ทำงาน', '#2f5e45'], off: ['หยุด/ลา', '#963d34'], none: ['ยังไม่จัดกะ', '#8a8f97'] };
+  const stat = { work: ['ทำงาน', '#2f5e45'], off: ['ลา', '#963d34'], none: [d.calDate ? 'ไม่มีในตาราง' : 'ยังไม่จัดกะ', '#8a8f97'] };
   const pplRows = d.people.map(e => `<tr>
       <td><b>${esc(e.name)}</b>${e.fullName && e.fullName !== e.name ? `<div style="font-size:.72rem;color:var(--muted)">${esc(e.fullName)}</div>` : ''}</td>
       <td style="font-size:.78rem">${e.pods.map(esc).join(', ')}</td>
@@ -8277,12 +8277,8 @@ function openPodWorkloadReport() {
       <div class="stat-flat"><div class="label">Active ยังไม่ assign</div><div class="value orange">${d.unassigned.length}</div><div class="sub">${fmt(d.unassignedLoad)} ข้อความ/วัน</div></div>
     </div>
     <div class="card" style="margin-bottom:.8rem">
-      <div class="card-title">ข้อเสนอแนะ</div>
-      <ul style="margin:.4rem 0 0;padding-left:1.2rem;font-size:.82rem;display:flex;flex-direction:column;gap:.4rem">${d.tips.map(t => `<li>${t}</li>`).join('')}</ul>
-    </div>
-    <div class="card" style="margin-bottom:.8rem">
       <div class="card-title">ราย Pod</div>
-      <div class="tbl-wrap"><table><thead><tr><th>Pod</th><th style="text-align:right">คน</th><th style="text-align:right">กลุ่ม Active / ทั้งหมด</th><th style="text-align:right">ข้อความ/วัน</th><th style="text-align:right">ต่อคน</th><th style="text-align:right">เทียบเฉลี่ย</th><th>ระดับ</th><th>ชั่วโมงพีค</th></tr></thead><tbody>${podRows}</tbody></table></div>
+      <div class="tbl-wrap"><table><thead><tr><th>Pod</th><th style="text-align:right">จำนวนคน</th><th style="text-align:right">กลุ่ม Active / ทั้งหมด</th><th style="text-align:right">ข้อความ/วัน</th><th style="text-align:right">ต่อคน</th><th style="text-align:right">เทียบเฉลี่ย</th><th>ระดับ</th><th>ชั่วโมงพีค</th></tr></thead><tbody>${podRows}</tbody></table></div>
     </div>
     <div class="card">
       <div class="card-title">รายคน</div>
@@ -8291,9 +8287,9 @@ function openPodWorkloadReport() {
     </div>
     <div style="font-size:.72rem;color:var(--muted);margin-top:.7rem;line-height:1.6">
       วิธีคิด: ข้อความเฉลี่ย/วันของกลุ่มไลน์ Active (มีข้อความ ≤3 วัน) ที่ assign ให้ Pod (ข้อมูล ${d.days} วัน) ÷ จำนวนคนใน Pod (รวมหัวหน้า) ·
-      หนัก ≥ ${PWL_HEAVY}× · เบา ≤ ${PWL_LIGHT}× ของค่าเฉลี่ยทีม · กลุ่มผูกกับ Pod ไม่ได้ผูกกับคน จึงแบ่งเท่ากันทุกคนใน Pod · ยังไม่รวมงานโทร/เคส LicenseDB
+      หนัก ≥ ${PWL_HEAVY}× · เบา ≤ ${PWL_LIGHT}× ของค่าเฉลี่ยทีม · กลุ่มผูกกับ Pod ไม่ได้ผูกกับคน จึงแบ่งเท่ากันทุกคนใน Pod · ยังไม่รวมงานโทร/เคส LicenseDB ·
+      สถานะวันนี้: ${d.calDate ? `จากตารางงานพนักงาน (Google Calendar) วันที่ ${esc(d.calDate)}` : 'โหลดตารางงานพนักงานไม่ได้ — ใช้กะในระบบแทน'}
     </div>`;
-  openModal('modal-pod-workload');
 }
 function exportPodWorkloadCsv() {
   if (!_pwl) return;
@@ -8303,7 +8299,7 @@ function exportPodWorkloadCsv() {
     ['ราย Pod'], ['Pod','หัวหน้า','คน','ทำงานวันนี้','กลุ่ม Active','กลุ่มทั้งหมด','ข้อความ/วัน (Active)','ข้อความ/วัน (ทั้งหมด)','ต่อคน','เทียบเฉลี่ย (เท่า)','ระดับ','ชั่วโมงพีค'],
     ...d.pods.map(p => [p.name, p.lead, p.head, p.working, p.groupsActive, p.groupsAll, n(p.load), n(p.loadAll), n(p.perPerson), n(p.ratio), pwlLevel(p.ratio).t, pwlHours(p.peak)]),
     [], ['รายคน'], ['ชื่อเล่น','ชื่อ-นามสกุล','Pod','บทบาทใน Pod','กลุ่ม Active/คน','ข้อความ/วัน/คน','เทียบเฉลี่ย (เท่า)','ระดับ','สถานะวันนี้','กะวันนี้'],
-    ...d.people.map(e => [e.name, e.fullName, e.pods.join(' / '), e.roles.join(' / '), n(e.groups), n(e.load), n(e.ratio), pwlLevel(e.ratio).t, e.status, e.shift]),
+    ...d.people.map(e => [e.name, e.fullName, e.pods.join(' / '), e.roles.join(' / '), n(e.groups), n(e.load), n(e.ratio), pwlLevel(e.ratio).t, { work: 'ทำงาน', off: 'ลา' }[e.status] || (d.calDate ? 'ไม่มีในตาราง' : 'ยังไม่จัดกะ'), e.shift]),
     [], ['สรุปทีม'], ['ข้อความ/วัน (Active)', n(d.teamLoad)], ['คนใน Pod', d.teamHead], ['เฉลี่ยต่อคน', n(d.teamAvg)],
     ['Active ยังไม่ assign (กลุ่ม)', d.unassigned.length], ['Active ยังไม่ assign (ข้อความ/วัน)', n(d.unassignedLoad)], ['จำนวนวันของข้อมูล', d.days],
   ];
@@ -8316,7 +8312,6 @@ function exportPodWorkloadCsv() {
 function copyPodWorkloadSummary() {
   if (!_pwl) return;
   const d = _pwl, fmt = lgpAvgFmt;
-  const strip = h => { const t = document.createElement('div'); t.innerHTML = h.replace(/<div[^>]*>/g, '\n   '); return t.textContent; };
   const txt = [
     `รายงานภาระงานรายคน (${new Date().toLocaleDateString('th-TH')}) — ข้อมูลกลุ่มไลน์ ${d.days} วัน`,
     `ทีม: ${fmt(d.teamLoad)} ข้อความ/วัน · ${d.teamHead} คน · เฉลี่ย ${fmt(d.teamAvg)} ข้อความ/วัน/คน`,
@@ -8324,7 +8319,6 @@ function copyPodWorkloadSummary() {
     ...d.pods.map(p => `- ${p.name}: ${p.head} คน · Active ${p.groupsActive} กลุ่ม · ${fmt(p.load)}/วัน · ต่อคน ${p.perPerson == null ? '—' : fmt(p.perPerson)} (${p.ratio == null ? '—' : p.ratio.toFixed(2) + '×'} ${pwlLevel(p.ratio).t}) · พีค ${pwlHours(p.peak)}`),
     '', 'รายคน:',
     ...d.people.map(e => `- ${e.name} (${e.pods.join('/')}, ${e.roles.join('/')}): ${fmt(e.load)}/วัน · ${e.ratio == null ? '—' : e.ratio.toFixed(2) + '×'} ${pwlLevel(e.ratio).t}`),
-    '', 'ข้อเสนอแนะ:', ...d.tips.map(t => '- ' + strip(t)),
   ].join('\n');
   navigator.clipboard.writeText(txt).then(() => showToast('คัดลอกสรุปแล้ว'), () => showToast('คัดลอกไม่สำเร็จ', 'error'));
 }
