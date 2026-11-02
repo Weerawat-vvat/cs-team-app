@@ -13587,8 +13587,8 @@ app.get('/api/public/project/:token/jobs/:id', async (request, res) => {
       .input('id',  sql.Int, id)
       .input('pid', sql.Int, proj.id)
       .query(`SELECT id, job_no, request_no, title, serve_type, status,
-                     request_date, requester_name, requester_position, brands, branches,
-                     period_start, period_end, objective, condition
+                     request_date, requester_name, requester_position, requester_phone, requester_line_id,
+                     brands, branches, period_start, period_end, objective, condition, cancel_reason
               FROM service_requests WHERE id=@id AND project_id=@pid`))
       .recordset[0];
     if (!job) return res.status(404).json({ error: 'Job not found' });

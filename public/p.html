@@ -313,6 +313,19 @@ tbody td{padding:.9rem 1rem;font-size:.85rem;color:var(--ink);vertical-align:mid
 .doc-file-size{font-size:.72rem;color:var(--ink-3);flex-shrink:0;font-family:'IBM Plex Mono',monospace}
 .doc-file-dl{font-size:.8rem;color:var(--accent);flex-shrink:0}
 .doc-empty{font-size:.84rem;color:var(--ink-3);text-align:center;padding:1.25rem}
+/* job detail (inside doc viewer) */
+.dt-grid{display:grid;grid-template-columns:1fr 1fr;gap:.55rem 1rem}
+.dt-item{min-width:0}
+.dt-item.full{grid-column:1/-1}
+.dt-lbl{font-size:.72rem;color:var(--ink-3);margin-bottom:.1rem}
+.dt-val{font-size:.85rem;color:var(--ink);overflow-wrap:anywhere}
+.dt-cond{font-size:.85rem;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55;
+  background:var(--soft);border:1px solid var(--line-2);border-radius:10px;padding:.7rem .85rem}
+.dt-cond a{color:var(--accent)}
+tbody tr.clickable{cursor:pointer}
+.btn-detail{background:none;border:none;border-radius:8px;padding:.3rem .55rem;font-size:.78rem;cursor:pointer;white-space:nowrap;color:var(--ink-2);transition:background .15s}
+.btn-detail:hover{background:var(--line-2);color:var(--ink)}
+@media (max-width:640px){ .dt-grid{grid-template-columns:1fr} }
 
 /* confirm dialog */
 .cfm-body{padding:1.6rem 1.75rem 1.2rem}
@@ -801,11 +814,12 @@ function renderTable(){
     const canEdit  = j.status==='received';
     const hasDocs  = ['testing','delivered'].includes(j.status);
     const actionCell = [
-      canEdit  ? `<button class="btn-edit-row" onclick="openEdit(${j.id},'${esc(j.job_no||'')}')">แก้ไข</button>` : '',
-      canEdit  ? `<button class="btn-cancel-row" onclick="openCancel(${j.id},'${esc(j.job_no||'')}')">ยกเลิก</button>` : '',
-      hasDocs  ? `<button class="btn-docs"     onclick="openDocViewer(${j.id},'${esc(j.job_no||'')}','${esc(j.title||'')}')">เอกสาร</button>` : '',
+      canEdit  ? `<button class="btn-edit-row" onclick="event.stopPropagation();openEdit(${j.id},'${esc(j.job_no||'')}')">แก้ไข</button>` : '',
+      canEdit  ? `<button class="btn-cancel-row" onclick="event.stopPropagation();openCancel(${j.id},'${esc(j.job_no||'')}')">ยกเลิก</button>` : '',
+      hasDocs  ? `<button class="btn-docs"     onclick="event.stopPropagation();openDocViewer(${j.id})">เอกสาร</button>`
+               : `<button class="btn-detail"   onclick="event.stopPropagation();openDocViewer(${j.id})">ดูรายละเอียด</button>`,
     ].filter(Boolean).join(' ');
-    return `<tr>
+    return `<tr class="clickable" onclick="openDocViewer(${j.id})" title="คลิกเพื่อดูรายละเอียด">
       <td><span class="td-jobno">${esc(j.job_no||'—')}</span></td>
       <td class="col-hide" style="font-size:.76rem;color:#475569">${esc(j.request_no||'—')}</td>
       <td>
@@ -1115,9 +1129,49 @@ function resetForm(){
 function esc(s){ const d=document.createElement('div');d.textContent=String(s);return d.innerHTML; }
 
 /* ══ DOC VIEWER ══════════════════════════════════════════ */
-async function openDocViewer(jobId, jobNo, title){
-  document.getElementById('doc-hdr-jobno').textContent  = jobNo;
-  document.getElementById('doc-hdr-title').textContent  = title || 'เอกสารประกอบ';
+function linkify(s){
+  return esc(s).replace(/https?:\/\/[^\s<]+/g, u=>`<a href="${u}" target="_blank" rel="noopener">${u}</a>`);
+}
+function renderDetail(d){
+  const stm  = STYPE_META[d.serve_type];
+  const item = (lbl, val, full) =>
+    `<div class="dt-item${full?' full':''}"><div class="dt-lbl">${lbl}</div><div class="dt-val">${val}</div></div>`;
+  const list = s => esc(tryParseArr(s).join(', ') || '—');
+  const fmtLong = v => { if(!v) return '—'; const x=new Date(v); return isNaN(x)?'—':x.toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'numeric'}); };
+  const period = (d.period_start||d.period_end) ? `${fmtLong(d.period_start)} → ${fmtLong(d.period_end)}` : '—';
+  return `
+    <div>
+      <div class="doc-stage-head">ข้อมูลคำขอ</div>
+      <div class="dt-grid">
+        ${item('ประเภท', esc(stm ? stm.label : (d.serve_type||'—')))}
+        ${item('สถานะ', esc((STATUS_META[d.status]||{}).label||d.status||'—'))}
+        ${item('Request No.', esc(d.request_no||'—'))}
+        ${item('วันที่แจ้ง', fmtLong(d.request_date))}
+        ${item('แบรนด์', list(d.brands), true)}
+        ${item('สาขา', list(d.branches), true)}
+        ${item('ช่วงเวลา / Period', period, true)}
+        ${d.cancel_reason ? item('เหตุผลที่ยกเลิก', esc(d.cancel_reason), true) : ''}
+      </div>
+    </div>
+    <div>
+      <div class="doc-stage-head">ผู้ติดต่อ</div>
+      <div class="dt-grid">
+        ${item('ชื่อ-สกุล', esc(d.requester_name||'—'))}
+        ${item('ตำแหน่ง', esc(d.requester_position||'—'))}
+        ${item('เบอร์โทร', esc(d.requester_phone||'—'))}
+        ${item('LINE ID', esc(d.requester_line_id||'—'))}
+      </div>
+    </div>
+    <div>
+      <div class="doc-stage-head">เงื่อนไข / Condition</div>
+      <div class="dt-cond">${d.condition ? linkify(d.condition) : '<span style="color:var(--ink-3)">—</span>'}</div>
+    </div>`;
+}
+
+async function openDocViewer(jobId){
+  const j = _jobs.find(x=>x.id===jobId) || {};
+  document.getElementById('doc-hdr-jobno').textContent  = j.job_no || '';
+  document.getElementById('doc-hdr-title').textContent  = j.title || 'รายละเอียดคำขอ';
   document.getElementById('doc-body').innerHTML = '<div class="doc-empty">กำลังโหลด…</div>';
   document.getElementById('doc-overlay').classList.add('open');
   document.body.style.overflow = 'hidden';
@@ -1150,7 +1204,7 @@ async function openDocViewer(jobId, jobNo, title){
         </a>`).join('');
     };
 
-    let html = '';
+    let html = renderDetail(data);
 
     // Always show testing section when status = testing or delivered
     if(['testing','delivered'].includes(status)){
@@ -1185,7 +1239,6 @@ async function openDocViewer(jobId, jobNo, title){
         </div>`;
     }
 
-    if(!html) html = `<div class="doc-empty">ยังไม่มีเอกสารในขณะนี้</div>`;
     document.getElementById('doc-body').innerHTML = html;
   } catch(e) {
     document.getElementById('doc-body').innerHTML = '<div class="doc-empty">เกิดข้อผิดพลาดในการโหลด</div>';
