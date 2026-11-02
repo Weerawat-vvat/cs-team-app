@@ -15513,10 +15513,34 @@ app.get('/api/monitor-tags/board', authRequired, async (request, res) => {
       if (!st.last_at || c.at > st.last_at) st.last_at = c.at;
       stores.set(k, st);
     }
+    // Bug โปรแกรม vs IT Service แยกตาม Pod — นับแบบเดียวกับการ์ด (เคส×Tag ในช่วง) · เฉพาะตอนยังไม่ได้กรอง Pod / กลุ่มไลน์
+    // ร้านที่อยู่หลาย Pod (กลุ่มไลน์ต่าง Pod) นับให้ทุก Pod
+    let byPod = null;
+    if (!podId && !lgId) {
+      const lgAll = await mtLineGroupStores();
+      const podsOf = new Map();   // rid → Set(pod_id)
+      for (const g of lgAll.values()) if (g.pod) for (const r of g.rids) (podsOf.get(r) || podsOf.set(r, new Set()).get(r)).add(g.pod);
+      const groupOf = new Map(tags.map(t => [t.id, t.tag_group === 'service' ? 'service' : 'problem']));
+      const P = new Map();
+      for (const l of links) {
+        const c = info.get(+l.calllog_id), g = groupOf.get(l.tag_id);
+        if (!c || !g || c.d < from || !idx.has(c.d)) continue;
+        for (const p of podsOf.get(c.rid) || []) {
+          const x = P.get(p) || P.set(p, { problem: 0, service: 0, stores: new Set() }).get(p);
+          x[g]++; x.stores.add(c.rid);
+        }
+      }
+      const names = P.size ? new Map((await req().query(`SELECT id, COALESCE(NULLIF(display_name, ''), code) AS name, color FROM pods
+        WHERE id IN (${[...P.keys()].map(Number).join(',')})`)).recordset.map(p => [p.id, p])) : new Map();
+      byPod = [...P].map(([id, x]) => ({ id, name: names.get(id)?.name || '#' + id, color: names.get(id)?.color || null,
+        problem: x.problem, service: x.service, stores: x.stores.size }))
+        .sort((a, b) => (b.problem + b.service) - (a.problem + a.service));
+    }
     res.json({
       days, from, to: today, labels, all, tagged: tagged.size, prev_ok: prevOk, data_start: dataStart, ai_only: request.query.ai === '1', ai_stores: aiRids?.length ?? null,
       line_group: lg ? { id: lgId, name: lg.name || lgId, brand: lg.brand || null, stores: lg.rids.size } : null,
       pod: podId ? { id: podId, name: pod?.name || '#' + podId, stores: podRids.size } : null,
+      by_pod: byPod,
       tags: [...T.values()].map(t => ({ ...t, stores: t.stores.size })),
       stores: [...stores.values()]
     });

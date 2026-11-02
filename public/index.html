@@ -22828,6 +22828,7 @@ function mtRender() {
       <div class="mt-avg-row" id="mt-avg-row"></div>
       <div style="position:relative;height:230px;margin-top:.5rem"><canvas id="mt-ov-chart"></canvas></div>
     </div>
+    ${_mtKind === 'all' ? mtPodSplitHtml(d) : ''}
     ${tables}
     <div class="mt-ov-card" style="padding:0;overflow:hidden;margin-top:.75rem">
       <div class="mt-st-head">
@@ -22842,6 +22843,34 @@ function mtRender() {
     </div>`;
   mtDrawBoardChart(d, shown);
   mtStoresRender();
+}
+
+// Bug โปรแกรม vs IT Service แยกตาม Pod (% ของเคสที่ติด Tag ของ Pod นั้น) · คลิกแถว = กรองหน้าตาม Pod
+function mtPodSplitHtml(d) {
+  if (!d.by_pod?.length) return '';
+  const P = MT_GROUPS.problem, S = MT_GROUPS.service;
+  const rows = d.by_pod.map(p => {
+    const n = p.problem + p.service || 1, pp = Math.round(p.problem / n * 100), sp = 100 - pp;
+    const lead = pp === sp ? '<span class="mt-meta">เท่ากัน</span>'
+      : `<b style="color:${pp > sp ? P.col : S.col}">${pp > sp ? P.label : S.label}</b>`;
+    return `<tr style="cursor:pointer" onclick="mtSetPod('${p.id}')" title="ดูเฉพาะ Pod นี้">
+      <td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${esc(p.color || '#8a8f97')};margin-right:.4rem"></span>${esc(p.name)}
+        <span class="mt-meta">· ${p.stores} ร้าน</span></td>
+      <td class="r">${p.problem.toLocaleString()}</td>
+      <td class="r">${p.service.toLocaleString()}</td>
+      <td style="min-width:200px"><div style="display:flex;height:16px;border-radius:4px;overflow:hidden;font-size:.66rem;color:#fff;font-weight:600;line-height:16px">
+        <div style="width:${pp}%;background:${P.col};text-align:center">${pp >= 12 ? pp + '%' : ''}</div>
+        <div style="width:${sp}%;background:${S.col};text-align:center">${sp >= 12 ? sp + '%' : ''}</div></div></td>
+      <td>${lead}</td>
+    </tr>`;
+  }).join('');
+  return `<div class="mt-ov-card" style="padding:0;overflow:hidden;margin-bottom:.75rem">
+    <div class="mt-st-head"><div style="flex:1"><div class="mt-ov-title">Bug โปรแกรม vs IT Service แยกตาม POD</div>
+      <div class="mt-ov-sub">% ของเคสที่ติด Tag ของแต่ละ POD (ร้านในกลุ่มไลน์ที่ POD ดูแล) · เรียงตามจำนวนเคส · คลิกแถวเพื่อดูเฉพาะ POD นั้น</div></div></div>
+    <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>POD</th>
+      <th class="r"><span style="color:${P.col}">●</span> ${P.label}</th><th class="r"><span style="color:${S.col}">●</span> ${S.label}</th>
+      <th>สัดส่วน</th><th>ส่วนใหญ่เป็น</th></tr></thead><tbody>${rows}</tbody></table></div>
+  </div>`;
 }
 
 function mtKpisHtml(d, items, shown) {
