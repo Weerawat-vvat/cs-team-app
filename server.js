@@ -15337,13 +15337,52 @@ async function mtDataStart(ids) {
   _mtDataStart = { at: Date.now(), d };
   return d;
 }
+// ── ร้านในแต่ละกลุ่มไลน์ — ไม่มีตารางผูกร้านกับกลุ่มโดยตรง ใช้เคสที่ลงจากข้อความในกลุ่มนั้น (calllog_id) → ร้านของเคส
+//    group_id → { name, rids:Set } · cache 10 นาที
+let _mtLineGroups = { at: 0, map: null };
+async function mtLineGroupStores() {
+  if (_mtLineGroups.map && Date.now() - _mtLineGroups.at < 10 * 60 * 1000) return _mtLineGroups.map;
+  await ensureLineCaseResponse();
+  await ensureTriageCaseCol();
+  const links = (await req().query(`
+    SELECT x.group_id, x.calllog_id, COALESCE(NULLIF(lgp.group_name, ''), x.group_name) AS name FROM (
+      SELECT group_id, calllog_id, group_name FROM line_case_response WHERE calllog_id IS NOT NULL AND group_id IS NOT NULL
+      UNION SELECT group_id, calllog_id, group_name FROM line_msg_triage WHERE calllog_id IS NOT NULL AND group_id IS NOT NULL) x
+    LEFT JOIN line_group_pods lgp ON lgp.group_id = x.group_id`)).recordset;
+  const ids = [...new Set(links.map(l => +l.calllog_id).filter(Number.isInteger))];
+  const ridOf = new Map();
+  for (let i = 0; i < ids.length; i += 2000) (await extReq().query(`SELECT CalllogId AS id, RegistrationId AS rid FROM Calllog
+    WHERE RegistrationId IS NOT NULL AND CalllogId IN (${ids.slice(i, i + 2000).join(',')})`)).recordset.forEach(r => ridOf.set(r.id, r.rid));
+  const map = new Map();
+  for (const l of links) {
+    const rid = ridOf.get(+l.calllog_id);
+    if (!rid) continue;
+    const g = map.get(l.group_id) || map.set(l.group_id, { name: null, rids: new Set() }).get(l.group_id);
+    if (!g.name && l.name) g.name = l.name;
+    g.rids.add(rid);
+  }
+  _mtLineGroups = { at: Date.now(), map };
+  return map;
+}
+// GET /api/monitor-tags/line-groups — กลุ่มไลน์ที่รู้ว่ามีร้านไหนบ้าง (ไว้เลือกกรองหน้า Monitor Tag)
+app.get('/api/monitor-tags/line-groups', authRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
+    const map = await mtLineGroupStores();
+    res.json({ groups: [...map].map(([id, g]) => ({ id, name: g.name || id, stores: g.rids.size }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'th')) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
 app.get('/api/monitor-tags/board', authRequired, async (request, res) => {
   try {
     const days = MT_SERVICE_DAYS.includes(+request.query.days) ? +request.query.days : 30;
     const tags = (await req().query(`SELECT id, tag_group FROM monitor_tags WHERE status='active'`)).recordset;
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
-    // ?ai=1 — เฉพาะร้านที่ติดตั้ง AI (รายชื่อเดียวกับแท็บผลการติดตั้ง AI)
-    const aiRids = request.query.ai === '1' ? [...(await aiInstalledMap()).keys()].map(Number).filter(Number.isInteger) : null;
+    // ?ai=1 — เฉพาะร้านที่ติดตั้ง AI (รายชื่อเดียวกับแท็บผลการติดตั้ง AI) · ?lg=<group_id> — เฉพาะร้านในกลุ่มไลน์นั้น · ใส่ทั้งคู่ = ร้านที่ตรงทั้งสองอย่าง
+    let aiRids = request.query.ai === '1' ? [...(await aiInstalledMap()).keys()].map(Number).filter(Number.isInteger) : null;
+    const lgId = String(request.query.lg || '').slice(0, 100) || null;
+    const lg = lgId ? (await mtLineGroupStores()).get(lgId) || { name: null, rids: new Set() } : null;
+    if (lg) aiRids = aiRids ? aiRids.filter(r => lg.rids.has(r)) : [...lg.rids];
     const aiSet = aiRids ? new Set(aiRids) : null;
     const today = (await extReq().query(`SELECT CONVERT(char(10), GETDATE(), 23) AS d`)).recordset[0].d;
     const dayStr = n => new Date(Date.parse(today + 'T00:00:00Z') - n * 86400000).toISOString().slice(0, 10);
@@ -15395,7 +15434,8 @@ app.get('/api/monitor-tags/board', authRequired, async (request, res) => {
       stores.set(k, st);
     }
     res.json({
-      days, from, to: today, labels, all, tagged: tagged.size, prev_ok: prevOk, data_start: dataStart, ai_only: !!aiSet, ai_stores: aiRids?.length ?? null,
+      days, from, to: today, labels, all, tagged: tagged.size, prev_ok: prevOk, data_start: dataStart, ai_only: request.query.ai === '1', ai_stores: aiRids?.length ?? null,
+      line_group: lg ? { id: lgId, name: lg.name || lgId, stores: lg.rids.size } : null,
       tags: [...T.values()].map(t => ({ ...t, stores: t.stores.size })),
       stores: [...stores.values()]
     });
