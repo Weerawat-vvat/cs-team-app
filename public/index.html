@@ -1725,6 +1725,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
       <div class="svc-seg" id="mt-kind" role="tablist" aria-label="มุมมอง"></div>
       <div class="svc-seg mt-seg-sm" id="mt-days" role="tablist" aria-label="ช่วงเวลา"></div>
       <label class="mt-ai-only" id="mt-ai-only"></label>
+      <select id="mt-pod" class="svc-select" onchange="mtSetPod(this.value)" style="max-width:200px;height:34px" aria-label="Pod"><option value="">ทุก Pod</option></select>
       <select id="mt-lg" class="svc-select" onchange="mtSetLineGroup(this.value)" style="max-width:220px;height:34px" aria-label="กลุ่มไลน์"><option value="">ทุกกลุ่มไลน์</option></select>
       <span style="flex:1"></span>
       <span id="mt-updated" class="mt-updated" style="margin-left:0"></span>
@@ -22701,7 +22702,8 @@ const mtStore = (k, def, ok) => { try { const v = localStorage.getItem(k); retur
 let _mtKind = mtStore('mt-kind', 'all', v => ['all', 'problem', 'service'].includes(v));
 let _mtBoard = { days: +mtStore('mt-days', '30', v => MT_DAYS.includes(+v)), data: null, q: '', tag: null,
   ai: mtStore('mt-ai', '0', v => v === '1' || v === '0') === '1',   // ai = เฉพาะร้านที่ติดตั้ง AI
-  lg: mtStore('mt-lg', '', v => typeof v === 'string'), lgs: null };   // lg = เฉพาะร้านในกลุ่มไลน์นี้ · lgs = รายชื่อกลุ่ม
+  lg: mtStore('mt-lg', '', v => typeof v === 'string'), lgs: null,   // lg = เฉพาะร้านในกลุ่มไลน์นี้ · lgs = รายชื่อกลุ่ม
+  pod: mtStore('mt-pod', '', v => /^\d*$/.test(v)), pods: null };     // pod = เฉพาะร้านในกลุ่มไลน์ของ Pod นี้ · pods = รายชื่อ Pod
 const mtGroupOf = t => mtIsService(t) ? 'service' : 'problem';
 
 function mtSetLineGroup(id) {
@@ -22709,10 +22711,24 @@ function mtSetLineGroup(id) {
   try { localStorage.setItem('mt-lg', _mtBoard.lg); } catch {}
   mtLoad();
 }
+// เปลี่ยน Pod → กลุ่มไลน์ที่เลือกไว้ไม่อยู่ใน Pod นั้น = ล้างกลุ่ม
+function mtSetPod(id) {
+  _mtBoard.pod = id || '';
+  try { localStorage.setItem('mt-pod', _mtBoard.pod); } catch {}
+  if (_mtBoard.pod && _mtBoard.lg && !mtPodGroups().some(g => g.id === _mtBoard.lg)) return mtSetLineGroup('');
+  mtLoad();
+}
+const mtPodGroups = () => (_mtBoard.lgs || []).filter(g => !_mtBoard.pod || String(g.pod) === _mtBoard.pod);
 function mtRenderLineGroups() {
+  const ps = document.getElementById('mt-pod');
+  if (ps && _mtBoard.pods) {
+    ps.innerHTML = `<option value="">ทุก Pod</option>` + _mtBoard.pods.map(p =>
+      `<option value="${p.id}">${esc(p.name)} · ${p.cases.toLocaleString()} เคส (${p.stores} ร้าน)</option>`).join('');
+    ps.value = _mtBoard.pod;
+  }
   const sel = document.getElementById('mt-lg');
   if (!sel || !_mtBoard.lgs) return;
-  sel.innerHTML = `<option value="">ทุกกลุ่มไลน์</option>` + _mtBoard.lgs.map(g =>
+  sel.innerHTML = `<option value="">ทุกกลุ่มไลน์${_mtBoard.pod ? 'ใน Pod นี้' : ''}</option>` + mtPodGroups().map(g =>
     `<option value="${esc(g.id)}">${esc(g.name)}${g.brand ? ' [' + esc(g.brand) + ']' : ''} · ${g.cases.toLocaleString()} เคส (${g.stores} ร้าน)</option>`).join('');
   sel.value = _mtBoard.lg;
 }
@@ -22748,8 +22764,12 @@ function mtRenderKindBar() {
     ? 'งานที่ร้านขอให้ทำ — ดูว่าร้านไหนแจ้งงานบริการอะไร เพื่อเสนอขายบริการ'
     : _mtKind === 'problem' ? 'ระบบทำงานผิดพลาด — ดูว่า Bug ไหนเกิดบ่อย เพิ่มขึ้นหรือลดลง และเกิดที่ร้านไหน'
     : 'AI จัดเคสทุกเที่ยงคืนว่าเป็น Bug โปรแกรม หรือ IT Service')
-    + (d?.line_group ? ` · <b style="color:#2f6b4f">กลุ่มไลน์ ${esc(d.line_group.name)}${d.line_group.brand ? ' (แบรนด์ ' + esc(d.line_group.brand) + ')' : ''}${d.ai_only ? ' + ติดตั้ง AI' : ''} ${d.ai_stores} ร้าน</b>`
-      : d?.ai_only ? ` · <b style="color:#2f6b4f">เฉพาะร้านที่ติดตั้ง AI ${d.ai_stores} ร้าน</b>` : '')
+    + (() => {   // ตัวกรองร้านที่ใช้อยู่: Pod + กลุ่มไลน์ + ติดตั้ง AI
+      const f = [d?.pod && 'Pod ' + esc(d.pod.name),
+        d?.line_group && 'กลุ่มไลน์ ' + esc(d.line_group.name) + (d.line_group.brand ? ' (แบรนด์ ' + esc(d.line_group.brand) + ')' : ''),
+        d?.ai_only && 'ติดตั้ง AI'].filter(Boolean);
+      return f.length ? ` · <b style="color:#2f6b4f">เฉพาะ ${f.join(' + ')} ${d.ai_stores} ร้าน</b>` : '';
+    })()
     + (d ? ` · ช่วง <b>${fmtDateShort(d.from + 'T00:00:00')} – ${fmtDateShort(d.to + 'T00:00:00')}</b>${d.from === d.data_start ? ' (ข้อมูลเริ่ม ' + fmtDateShort(d.data_start + 'T00:00:00') + ')' : ''}` : '');
 }
 
@@ -23346,12 +23366,14 @@ async function mtLoad(opts = {}) {
   const [t, b, g] = await Promise.all([
     api('/api/monitor-tags?status=active&lite=1', { silent: true }),
     api('/api/monitor-tags/board?days=' + _mtBoard.days + (_mtBoard.ai ? '&ai=1' : '')
-      + (_mtBoard.lg ? '&lg=' + encodeURIComponent(_mtBoard.lg) : ''), { silent: true }),
+      + (_mtBoard.lg ? '&lg=' + encodeURIComponent(_mtBoard.lg) : '') + (_mtBoard.pod ? '&pod=' + _mtBoard.pod : ''), { silent: true }),
     _mtBoard.lgs && opts.quiet ? null : api('/api/monitor-tags/line-groups?days=' + _mtBoard.days + (_mtBoard.ai ? '&ai=1' : ''), { silent: true })]);
   if (Array.isArray(g?.groups)) {
     _mtBoard.lgs = g.groups;
-    // กลุ่มที่จำไว้ไม่มีแล้ว → กลับไปทุกกลุ่ม
-    if (_mtBoard.lg && !g.groups.some(x => x.id === _mtBoard.lg)) { _mtLoading = false; return mtSetLineGroup(''); }
+    _mtBoard.pods = g.pods || [];
+    // Pod / กลุ่มที่จำไว้ไม่มีแล้ว → กลับไปทั้งหมด
+    if (_mtBoard.pod && !_mtBoard.pods.some(x => String(x.id) === _mtBoard.pod)) { _mtLoading = false; return mtSetPod(''); }
+    if (_mtBoard.lg && !mtPodGroups().some(x => x.id === _mtBoard.lg)) { _mtLoading = false; return mtSetLineGroup(''); }
     mtRenderLineGroups();
   }
   _mtLoading = false;

@@ -7095,6 +7095,7 @@ app.post('/api/linebot/assign-pod', authRequired, managerRequired, async (reques
         WHEN MATCHED THEN UPDATE SET pod_id = @pid, group_name = @gname, assigned_by = @by, updated_at = GETDATE()
         WHEN NOT MATCHED THEN INSERT (group_id, group_name, pod_id, assigned_by) VALUES (@gid, @gname, @pid, @by);
       `);
+    _mtLineGroups.at = 0;   // ตัวกรอง Pod หน้า Monitor Tag ใช้ค่าใหม่ทันที
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -15375,7 +15376,7 @@ async function mtDataStart(ids) {
   _mtDataStart = { at: Date.now(), d };
   return d;
 }
-// ── ร้านในแต่ละกลุ่มไลน์ — group_id → { name, brand, rids:Set } · cache 10 นาที
+// ── ร้านในแต่ละกลุ่มไลน์ — group_id → { name, brand, pod, rids:Set } · cache 10 นาที · pod = Pod ที่ดูแลกลุ่มนั้น
 //    กลุ่มที่ตั้งแบรนด์ไว้ (หน้า LINE Webhook) = ทุกสาขาของแบรนด์นั้น
 //    ยังไม่ได้ตั้ง = เดาจากเคสที่ลงจากข้อความในกลุ่มนั้น (calllog_id) → ร้านของเคส
 let _mtLineGroups = { at: 0, map: null };
@@ -15393,23 +15394,27 @@ async function mtLineGroupStores() {
   for (let i = 0; i < ids.length; i += 2000) (await extReq().query(`SELECT CalllogId AS id, RegistrationId AS rid FROM Calllog
     WHERE RegistrationId IS NOT NULL AND CalllogId IN (${ids.slice(i, i + 2000).join(',')})`)).recordset.forEach(r => ridOf.set(r.id, r.rid));
   const map = new Map();
-  const branded = (await req().query(`SELECT group_id, group_name, brand_id, brand_name FROM line_group_pods WHERE brand_id IS NOT NULL`)).recordset;
+  const lgp = (await req().query(`SELECT group_id, group_name, pod_id, brand_id, brand_name FROM line_group_pods`)).recordset;
+  const podOf = new Map(lgp.map(x => [x.group_id, x.pod_id || null]));
+  const branded = lgp.filter(x => x.brand_id != null);
   const brandIds = [...new Set(branded.map(b => +b.brand_id).filter(Number.isInteger))];
   const brandStores = new Map();
   if (brandIds.length) (await extReq().query(`SELECT GroupId AS bid, RegistrationId AS rid FROM CustomerRegistration
     WHERE GroupId IN (${brandIds.join(',')})`)).recordset.forEach(r => (brandStores.get(r.bid) || brandStores.set(r.bid, new Set()).get(r.bid)).add(r.rid));
-  for (const b of branded) map.set(b.group_id, { name: b.group_name || null, brand: b.brand_name || null, rids: brandStores.get(b.brand_id) || new Set() });
+  for (const b of branded) map.set(b.group_id, { name: b.group_name || null, brand: b.brand_name || null, pod: b.pod_id || null, rids: brandStores.get(b.brand_id) || new Set() });
   for (const l of links) {
     const rid = ridOf.get(+l.calllog_id);
     if (!rid) continue;
-    const g = map.get(l.group_id) || map.set(l.group_id, { name: null, brand: null, rids: new Set() }).get(l.group_id);
+    const g = map.get(l.group_id) || map.set(l.group_id, { name: null, brand: null, pod: podOf.get(l.group_id) || null, rids: new Set() }).get(l.group_id);
     if (!g.name && l.name) g.name = l.name;
     if (!g.brand) g.rids.add(rid);   // ตั้งแบรนด์แล้ว ใช้ร้านของแบรนด์อย่างเดียว
   }
   _mtLineGroups = { at: Date.now(), map };
   return map;
 }
-// GET /api/monitor-tags/line-groups?days=&ai= — กลุ่มไลน์ที่รู้ว่ามีร้านไหนบ้าง (ไว้เลือกกรองหน้า Monitor Tag)
+// ร้านทั้งหมดของ Pod = ร้านของทุกกลุ่มไลน์ที่ Pod นั้นดูแล
+const mtPodStores = (map, podId) => new Set([...map.values()].filter(g => g.pod === podId).flatMap(g => [...g.rids]));
+// GET /api/monitor-tags/line-groups?days=&ai= — กลุ่มไลน์ / Pod ที่รู้ว่ามีร้านไหนบ้าง (ไว้เลือกกรองหน้า Monitor Tag)
 // cases = เคสทั้งหมดของร้านในกลุ่ม ช่วงเดียวกับ board (ตรงกับการ์ด "เคสทั้งหมด" เมื่อเลือกกลุ่มนั้น) · เรียงมาก → น้อย
 app.get('/api/monitor-tags/line-groups', authRequired, async (request, res) => {
   try {
@@ -15431,10 +15436,15 @@ app.get('/api/monitor-tags/line-groups', authRequired, async (request, res) => {
       SELECT RegistrationId AS rid, COUNT(*) AS n FROM Calllog
       WHERE Active=1 AND ReceiveDate >= CAST(@f AS DATE) AND RegistrationId IN (${all.slice(i, i + 2000).join(',')})
       GROUP BY RegistrationId`)).recordset.forEach(r => perStore.set(r.rid, r.n));
-    res.json({ from, groups: [...map].map(([id, g]) => {
-      const rs = rids(g);
-      return { id, name: g.name || id, brand: g.brand, stores: rs.length, cases: rs.reduce((s, r) => s + (perStore.get(r) || 0), 0) };
-    }).sort((a, b) => b.cases - a.cases || a.name.localeCompare(b.name, 'th')) });
+    const count = rs => ({ stores: rs.length, cases: rs.reduce((s, r) => s + (perStore.get(r) || 0), 0) });
+    const podIds = new Set([...map.values()].map(g => g.pod).filter(Boolean));
+    const pods = podIds.size ? (await req().query(`SELECT id, COALESCE(NULLIF(display_name, ''), code) AS name FROM pods
+      WHERE id IN (${[...podIds].map(Number).join(',')})`)).recordset : [];
+    res.json({ from,
+      groups: [...map].map(([id, g]) => ({ id, name: g.name || id, brand: g.brand, pod: g.pod, ...count(rids(g)) }))
+        .sort((a, b) => b.cases - a.cases || a.name.localeCompare(b.name, 'th')),
+      pods: pods.map(p => ({ id: p.id, name: p.name, ...count(rids({ rids: mtPodStores(map, p.id) })) }))
+        .sort((a, b) => b.cases - a.cases || a.name.localeCompare(b.name, 'th')) });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 app.get('/api/monitor-tags/board', authRequired, async (request, res) => {
@@ -15442,11 +15452,17 @@ app.get('/api/monitor-tags/board', authRequired, async (request, res) => {
     const days = MT_SERVICE_DAYS.includes(+request.query.days) ? +request.query.days : 30;
     const tags = (await req().query(`SELECT id, tag_group FROM monitor_tags WHERE status='active'`)).recordset;
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
-    // ?ai=1 — เฉพาะร้านที่ติดตั้ง AI (รายชื่อเดียวกับแท็บผลการติดตั้ง AI) · ?lg=<group_id> — เฉพาะร้านในกลุ่มไลน์นั้น · ใส่ทั้งคู่ = ร้านที่ตรงทั้งสองอย่าง
+    // ?ai=1 — เฉพาะร้านที่ติดตั้ง AI (รายชื่อเดียวกับแท็บผลการติดตั้ง AI) · ?pod=<id> — เฉพาะร้านในกลุ่มไลน์ของ Pod นั้น
+    // ?lg=<group_id> — เฉพาะร้านในกลุ่มไลน์นั้น · ใส่หลายตัว = ร้านที่ตรงทุกเงื่อนไข
     let aiRids = request.query.ai === '1' ? [...(await aiInstalledMap()).keys()].map(Number).filter(Number.isInteger) : null;
     const lgId = String(request.query.lg || '').slice(0, 100) || null;
-    const lg = lgId ? (await mtLineGroupStores()).get(lgId) || { name: null, rids: new Set() } : null;
-    if (lg) aiRids = aiRids ? aiRids.filter(r => lg.rids.has(r)) : [...lg.rids];
+    const podId = parseInt(request.query.pod, 10) || null;
+    const lgMap = lgId || podId ? await mtLineGroupStores() : null;
+    const lg = lgId ? lgMap.get(lgId) || { name: null, rids: new Set() } : null;
+    const podRids = podId ? mtPodStores(lgMap, podId) : null;
+    for (const s of [lg?.rids, podRids]) if (s) aiRids = aiRids ? aiRids.filter(r => s.has(r)) : [...s];
+    const pod = podId ? (await req().input('id', sql.Int, podId)
+      .query(`SELECT COALESCE(NULLIF(display_name, ''), code) AS name FROM pods WHERE id=@id`)).recordset[0] : null;
     const aiSet = aiRids ? new Set(aiRids) : null;
     const today = (await extReq().query(`SELECT CONVERT(char(10), GETDATE(), 23) AS d`)).recordset[0].d;
     const dayStr = n => new Date(Date.parse(today + 'T00:00:00Z') - n * 86400000).toISOString().slice(0, 10);
@@ -15500,6 +15516,7 @@ app.get('/api/monitor-tags/board', authRequired, async (request, res) => {
     res.json({
       days, from, to: today, labels, all, tagged: tagged.size, prev_ok: prevOk, data_start: dataStart, ai_only: request.query.ai === '1', ai_stores: aiRids?.length ?? null,
       line_group: lg ? { id: lgId, name: lg.name || lgId, brand: lg.brand || null, stores: lg.rids.size } : null,
+      pod: podId ? { id: podId, name: pod?.name || '#' + podId, stores: podRids.size } : null,
       tags: [...T.values()].map(t => ({ ...t, stores: t.stores.size })),
       stores: [...stores.values()]
     });
