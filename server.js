@@ -476,6 +476,10 @@ async function ensureLineNotifyTable() {
     -- ตั้งค่าที่แท็บ "จัดกลุ่มไลน์เข้า Pod"; ว่าง/NULL = ไม่ส่งผ่าน event triage_alert_groups
     IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('line_group_pods') AND name='notify_target_ids')
       ALTER TABLE line_group_pods ADD notify_target_ids NVARCHAR(500) NULL;
+
+    -- แบรนด์ของกลุ่ม LINE (CustomerGroup.GroupId ใน LicenseDB) — ใช้กรองหน้า Monitor Tag ตามกลุ่มไลน์
+    IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('line_group_pods') AND name='brand_id')
+      ALTER TABLE line_group_pods ADD brand_id INT NULL, brand_name NVARCHAR(200) NULL;
   `);
   // ย้ายค่าจาก pod_id (เวอร์ชันเลือกได้ Pod เดียว) มาเป็น pod_ids
   try {
@@ -7024,7 +7028,7 @@ app.get('/api/linebot/summary', authRequired, async (request, res) => {
 
     // Pod assignments — เก็บใน cs_team DB (ไม่ใช่ LineBotMonitor) แยกจาก License customers
     const assignR = await req().query(`
-      SELECT lgp.group_id, lgp.pod_id, lgp.notify_target_ids, p.code AS pod_code, p.display_name AS pod_name
+      SELECT lgp.group_id, lgp.pod_id, lgp.notify_target_ids, lgp.brand_id, lgp.brand_name, p.code AS pod_code, p.display_name AS pod_name
       FROM line_group_pods lgp LEFT JOIN pods p ON p.id = lgp.pod_id
     `);
     const podByGroup = {};
@@ -7060,6 +7064,8 @@ app.get('/api/linebot/summary', authRequired, async (request, res) => {
         podId: assign?.pod_id || null,
         podCode: assign?.pod_code || null,
         notifyTargetIds: parseIdList(assign?.notify_target_ids),
+        brandId: assign?.brand_id || null,
+        brandName: assign?.brand_name || null,
       };
     });
 
@@ -7090,6 +7096,38 @@ app.post('/api/linebot/assign-pod', authRequired, managerRequired, async (reques
         WHEN NOT MATCHED THEN INSERT (group_id, group_name, pod_id, assigned_by) VALUES (@gid, @gname, @pid, @by);
       `);
     res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ตั้งแบรนด์ของกลุ่ม LINE (brandId ว่าง = ล้าง) — ชื่อแบรนด์อ่านจาก LicenseDB ไม่เชื่อค่าจากหน้าเว็บ
+app.post('/api/linebot/group-brand', authRequired, managerRequired, async (request, res) => {
+  const { groupId, groupName } = request.body;
+  if (!groupId) return res.status(400).json({ error: 'groupId required' });
+  const brandId = parseInt(request.body.brandId, 10) || null;
+  try {
+    let brandName = null;
+    if (brandId) {
+      if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
+      const b = (await extReq().input('id', sql.Int, brandId)
+        .query('SELECT GroupName FROM CustomerGroup WHERE GroupId=@id AND GroupId <> 1')).recordset[0];
+      if (!b) return res.status(404).json({ error: 'ไม่พบแบรนด์นี้' });
+      brandName = b.GroupName;
+    }
+    await req()
+      .input('gid', sql.NVarChar, groupId)
+      .input('gname', sql.NVarChar, groupName || null)
+      .input('bid', sql.Int, brandId)
+      .input('bname', sql.NVarChar, brandName)
+      .input('by', sql.Int, request.user?.employee_id || null)
+      .query(`
+        MERGE line_group_pods AS target
+        USING (SELECT @gid AS group_id) AS src ON target.group_id = src.group_id
+        WHEN MATCHED THEN UPDATE SET brand_id = @bid, brand_name = @bname, updated_at = GETDATE()
+        WHEN NOT MATCHED THEN INSERT (group_id, group_name, brand_id, brand_name, assigned_by)
+                                 VALUES (@gid, @gname, @bid, @bname, @by);
+      `);
+    _mtLineGroups.at = 0;   // ตัวกรอง Monitor Tag ใช้ค่าใหม่ทันที
+    res.json({ ok: true, brandId, brandName });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -15337,8 +15375,9 @@ async function mtDataStart(ids) {
   _mtDataStart = { at: Date.now(), d };
   return d;
 }
-// ── ร้านในแต่ละกลุ่มไลน์ — ไม่มีตารางผูกร้านกับกลุ่มโดยตรง ใช้เคสที่ลงจากข้อความในกลุ่มนั้น (calllog_id) → ร้านของเคส
-//    group_id → { name, rids:Set } · cache 10 นาที
+// ── ร้านในแต่ละกลุ่มไลน์ — group_id → { name, brand, rids:Set } · cache 10 นาที
+//    กลุ่มที่ตั้งแบรนด์ไว้ (หน้า LINE Webhook) = ทุกสาขาของแบรนด์นั้น
+//    ยังไม่ได้ตั้ง = เดาจากเคสที่ลงจากข้อความในกลุ่มนั้น (calllog_id) → ร้านของเคส
 let _mtLineGroups = { at: 0, map: null };
 async function mtLineGroupStores() {
   if (_mtLineGroups.map && Date.now() - _mtLineGroups.at < 10 * 60 * 1000) return _mtLineGroups.map;
@@ -15354,12 +15393,18 @@ async function mtLineGroupStores() {
   for (let i = 0; i < ids.length; i += 2000) (await extReq().query(`SELECT CalllogId AS id, RegistrationId AS rid FROM Calllog
     WHERE RegistrationId IS NOT NULL AND CalllogId IN (${ids.slice(i, i + 2000).join(',')})`)).recordset.forEach(r => ridOf.set(r.id, r.rid));
   const map = new Map();
+  const branded = (await req().query(`SELECT group_id, group_name, brand_id, brand_name FROM line_group_pods WHERE brand_id IS NOT NULL`)).recordset;
+  const brandIds = [...new Set(branded.map(b => +b.brand_id).filter(Number.isInteger))];
+  const brandStores = new Map();
+  if (brandIds.length) (await extReq().query(`SELECT GroupId AS bid, RegistrationId AS rid FROM CustomerRegistration
+    WHERE GroupId IN (${brandIds.join(',')})`)).recordset.forEach(r => (brandStores.get(r.bid) || brandStores.set(r.bid, new Set()).get(r.bid)).add(r.rid));
+  for (const b of branded) map.set(b.group_id, { name: b.group_name || null, brand: b.brand_name || null, rids: brandStores.get(b.brand_id) || new Set() });
   for (const l of links) {
     const rid = ridOf.get(+l.calllog_id);
     if (!rid) continue;
-    const g = map.get(l.group_id) || map.set(l.group_id, { name: null, rids: new Set() }).get(l.group_id);
+    const g = map.get(l.group_id) || map.set(l.group_id, { name: null, brand: null, rids: new Set() }).get(l.group_id);
     if (!g.name && l.name) g.name = l.name;
-    g.rids.add(rid);
+    if (!g.brand) g.rids.add(rid);   // ตั้งแบรนด์แล้ว ใช้ร้านของแบรนด์อย่างเดียว
   }
   _mtLineGroups = { at: Date.now(), map };
   return map;
@@ -15388,7 +15433,7 @@ app.get('/api/monitor-tags/line-groups', authRequired, async (request, res) => {
       GROUP BY RegistrationId`)).recordset.forEach(r => perStore.set(r.rid, r.n));
     res.json({ from, groups: [...map].map(([id, g]) => {
       const rs = rids(g);
-      return { id, name: g.name || id, stores: rs.length, cases: rs.reduce((s, r) => s + (perStore.get(r) || 0), 0) };
+      return { id, name: g.name || id, brand: g.brand, stores: rs.length, cases: rs.reduce((s, r) => s + (perStore.get(r) || 0), 0) };
     }).sort((a, b) => b.cases - a.cases || a.name.localeCompare(b.name, 'th')) });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -15454,7 +15499,7 @@ app.get('/api/monitor-tags/board', authRequired, async (request, res) => {
     }
     res.json({
       days, from, to: today, labels, all, tagged: tagged.size, prev_ok: prevOk, data_start: dataStart, ai_only: request.query.ai === '1', ai_stores: aiRids?.length ?? null,
-      line_group: lg ? { id: lgId, name: lg.name || lgId, stores: lg.rids.size } : null,
+      line_group: lg ? { id: lgId, name: lg.name || lgId, brand: lg.brand || null, stores: lg.rids.size } : null,
       tags: [...T.values()].map(t => ({ ...t, stores: t.stores.size })),
       stores: [...stores.values()]
     });

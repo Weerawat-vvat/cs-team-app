@@ -4895,8 +4895,9 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
             <th style="text-align:right;cursor:pointer" onclick="sortLb('msgsPerDay')">เฉลี่ย/วัน</th>
             <th>รูปแบบ 24 ชม.</th>
             <th>Pod</th>
+            <th title="ใช้กรองหน้า Monitor Tag ตามกลุ่มไลน์">แบรนด์</th>
           </tr></thead>
-          <tbody id="lb-tbody"><tr><td colspan="9" class="empty">กำลังโหลด...</td></tr></tbody>
+          <tbody id="lb-tbody"><tr><td colspan="10" class="empty">กำลังโหลด...</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -7908,7 +7909,7 @@ function renderLineBotTable() {
     if (typeof va === 'string') return _lbSortDir * va.localeCompare(vb);
     return _lbSortDir * ((va ?? -1) - (vb ?? -1));
   });
-  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="9" class="empty">ไม่พบรายการ</td></tr>'; return; }
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="10" class="empty">ไม่พบรายการ</td></tr>'; return; }
   const canManage = isManagerRole();
   tbody.innerHTML = rows.map(g => `
     <tr>
@@ -7921,7 +7922,55 @@ function renderLineBotTable() {
       <td style="text-align:right">${g.msgsPerDay}</td>
       <td>${lbSparkline(g)}</td>
       <td>${g.type !== 'group' ? '<span style="color:#d6d2c9">—</span>' : lgpPodBadgeHtml(g, canManage)}</td>
+      <td>${g.type !== 'group' ? '<span style="color:#d6d2c9">—</span>' : lgpBrandHtml(g, canManage)}</td>
     </tr>`).join('');
+}
+// แบรนด์ของกลุ่มไลน์ — คลิกเพื่อค้นหา/เลือกแบรนด์ (ลบข้อความแล้ว Enter = ล้าง)
+function lgpBrandHtml(g, canManage) {
+  if (!canManage) return g.brandName ? esc(g.brandName) : '<span style="color:#d6d2c9">—</span>';
+  const gid = JSON.stringify(g.id).replace(/"/g,'&quot;');
+  return g.brandName
+    ? `<span class="badge" style="background:#35685f;color:#fff;cursor:pointer;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle" title="${esc(g.brandName)} — คลิกเพื่อเปลี่ยน" onclick="lgpEditBrand(this, ${gid})">${esc(g.brandName)}</span>`
+    : `<span class="badge" style="background:#e6e3dc;color:#5b616b;cursor:pointer" onclick="lgpEditBrand(this, ${gid})">— ตั้งแบรนด์ —</span>`;
+}
+function lgpEditBrand(el, groupId) {
+  const g = _lbGroups.find(x => x.id === groupId);
+  const box = document.createElement('input');
+  const list = 'lgp-brand-list-' + Math.random().toString(36).slice(2, 8);
+  box.setAttribute('list', list);
+  box.placeholder = 'พิมพ์ชื่อแบรนด์...';
+  box.value = g?.brandName || '';
+  box.style.cssText = 'width:170px;font-size:.74rem;padding:2px 4px';
+  const dl = document.createElement('datalist');
+  dl.id = list;
+  let found = [], timer = null, done = false;
+  const search = async () => {
+    const r = await api('/api/customer-groups?search=' + encodeURIComponent(box.value.trim()), { silent: true });
+    found = Array.isArray(r) ? r : [];
+    dl.innerHTML = found.map(b => `<option value="${esc(b.group_name)}">${b.branch_count} สาขา</option>`).join('');
+  };
+  const save = async () => {
+    if (done) return;
+    const name = box.value.trim();
+    const b = found.find(x => x.group_name === name);
+    if (name && !b) return;                       // ยังไม่ได้เลือกจากรายการ
+    if ((b?.group_id || null) === (g?.brandId || null)) { done = true; renderLineBotTable(); return; }
+    done = true; box.disabled = true;
+    const r = await api('/api/linebot/group-brand', { method: 'POST', body: { groupId, groupName: g?.name, brandId: b?.group_id || null } });
+    if (r?.ok && g) { g.brandId = r.brandId; g.brandName = r.brandName; _mtBoard.lgs = null; }
+    renderLineBotTable();
+  };
+  // เลือกจาก datalist (ไม่ใช่การพิมพ์) = บันทึกเลย · พิมพ์ = ค้นหาต่อ แล้วกด Enter
+  box.oninput = e => {
+    if ((!e.inputType || e.inputType === 'insertReplacementText') && found.some(x => x.group_name === box.value.trim())) return save();
+    clearTimeout(timer); timer = setTimeout(search, 250);
+  };
+  box.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); save(); } if (e.key === 'Escape') { done = true; renderLineBotTable(); } };
+  box.onblur = () => setTimeout(() => { if (!done) { done = true; renderLineBotTable(); } }, 200);
+  el.replaceWith(box);
+  box.after(dl);
+  box.focus(); box.select();
+  search();
 }
 // Shared Pod <select> cell — used in the LINE Webhook table and the Pod board
 
@@ -22664,7 +22713,7 @@ function mtRenderLineGroups() {
   const sel = document.getElementById('mt-lg');
   if (!sel || !_mtBoard.lgs) return;
   sel.innerHTML = `<option value="">ทุกกลุ่มไลน์</option>` + _mtBoard.lgs.map(g =>
-    `<option value="${esc(g.id)}">${esc(g.name)} · ${g.cases.toLocaleString()} เคส (${g.stores} ร้าน)</option>`).join('');
+    `<option value="${esc(g.id)}">${esc(g.name)}${g.brand ? ' [' + esc(g.brand) + ']' : ''} · ${g.cases.toLocaleString()} เคส (${g.stores} ร้าน)</option>`).join('');
   sel.value = _mtBoard.lg;
 }
 
@@ -22699,7 +22748,7 @@ function mtRenderKindBar() {
     ? 'งานที่ร้านขอให้ทำ — ดูว่าร้านไหนแจ้งงานบริการอะไร เพื่อเสนอขายบริการ'
     : _mtKind === 'problem' ? 'ระบบทำงานผิดพลาด — ดูว่า Bug ไหนเกิดบ่อย เพิ่มขึ้นหรือลดลง และเกิดที่ร้านไหน'
     : 'AI จัดเคสทุกเที่ยงคืนว่าเป็น Bug โปรแกรม หรือ IT Service')
-    + (d?.line_group ? ` · <b style="color:#2f6b4f">กลุ่มไลน์ ${esc(d.line_group.name)}${d.ai_only ? ' + ติดตั้ง AI' : ''} ${d.ai_stores} ร้าน</b>`
+    + (d?.line_group ? ` · <b style="color:#2f6b4f">กลุ่มไลน์ ${esc(d.line_group.name)}${d.line_group.brand ? ' (แบรนด์ ' + esc(d.line_group.brand) + ')' : ''}${d.ai_only ? ' + ติดตั้ง AI' : ''} ${d.ai_stores} ร้าน</b>`
       : d?.ai_only ? ` · <b style="color:#2f6b4f">เฉพาะร้านที่ติดตั้ง AI ${d.ai_stores} ร้าน</b>` : '')
     + (d ? ` · ช่วง <b>${fmtDateShort(d.from + 'T00:00:00')} – ${fmtDateShort(d.to + 'T00:00:00')}</b>${d.from === d.data_start ? ' (ข้อมูลเริ่ม ' + fmtDateShort(d.data_start + 'T00:00:00') + ')' : ''}` : '');
 }
