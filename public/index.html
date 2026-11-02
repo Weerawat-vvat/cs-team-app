@@ -22664,7 +22664,7 @@ function mtRenderLineGroups() {
   const sel = document.getElementById('mt-lg');
   if (!sel || !_mtBoard.lgs) return;
   sel.innerHTML = `<option value="">ทุกกลุ่มไลน์</option>` + _mtBoard.lgs.map(g =>
-    `<option value="${esc(g.id)}">${esc(g.name)} (${g.stores} ร้าน)</option>`).join('');
+    `<option value="${esc(g.id)}">${esc(g.name)} · ${g.cases.toLocaleString()} เคส (${g.stores} ร้าน)</option>`).join('');
   sel.value = _mtBoard.lg;
 }
 
@@ -23298,7 +23298,7 @@ async function mtLoad(opts = {}) {
     api('/api/monitor-tags?status=active&lite=1', { silent: true }),
     api('/api/monitor-tags/board?days=' + _mtBoard.days + (_mtBoard.ai ? '&ai=1' : '')
       + (_mtBoard.lg ? '&lg=' + encodeURIComponent(_mtBoard.lg) : ''), { silent: true }),
-    _mtBoard.lgs && opts.quiet ? null : api('/api/monitor-tags/line-groups', { silent: true })]);
+    _mtBoard.lgs && opts.quiet ? null : api('/api/monitor-tags/line-groups?days=' + _mtBoard.days + (_mtBoard.ai ? '&ai=1' : ''), { silent: true })]);
   if (Array.isArray(g?.groups)) {
     _mtBoard.lgs = g.groups;
     // กลุ่มที่จำไว้ไม่มีแล้ว → กลับไปทุกกลุ่ม

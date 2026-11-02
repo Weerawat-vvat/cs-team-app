@@ -15364,13 +15364,32 @@ async function mtLineGroupStores() {
   _mtLineGroups = { at: Date.now(), map };
   return map;
 }
-// GET /api/monitor-tags/line-groups — กลุ่มไลน์ที่รู้ว่ามีร้านไหนบ้าง (ไว้เลือกกรองหน้า Monitor Tag)
+// GET /api/monitor-tags/line-groups?days=&ai= — กลุ่มไลน์ที่รู้ว่ามีร้านไหนบ้าง (ไว้เลือกกรองหน้า Monitor Tag)
+// cases = เคสทั้งหมดของร้านในกลุ่ม ช่วงเดียวกับ board (ตรงกับการ์ด "เคสทั้งหมด" เมื่อเลือกกลุ่มนั้น) · เรียงมาก → น้อย
 app.get('/api/monitor-tags/line-groups', authRequired, async (request, res) => {
   try {
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
+    const days = MT_SERVICE_DAYS.includes(+request.query.days) ? +request.query.days : 30;
     const map = await mtLineGroupStores();
-    res.json({ groups: [...map].map(([id, g]) => ({ id, name: g.name || id, stores: g.rids.size }))
-      .sort((a, b) => a.name.localeCompare(b.name, 'th')) });
+    const aiSet = request.query.ai === '1' ? new Set([...(await aiInstalledMap()).keys()].map(Number)) : null;
+    const rids = g => aiSet ? [...g.rids].filter(r => aiSet.has(r)) : [...g.rids];
+    // วันเริ่มช่วง — กติกาเดียวกับ /board (N วันล่าสุด แต่ไม่ก่อนวันที่เริ่มมีข้อมูล Tag)
+    const today = (await extReq().query(`SELECT CONVERT(char(10), GETDATE(), 23) AS d`)).recordset[0].d;
+    const ids = (await req().query(`SELECT DISTINCT c.calllog_id FROM monitor_tag_cases c JOIN monitor_tags t ON t.id = c.tag_id
+      WHERE t.status='active'`)).recordset.map(x => +x.calllog_id).filter(Number.isInteger);
+    const dataStart = (await mtDataStart(ids)) || today;
+    const first = new Date(Date.parse(today + 'T00:00:00Z') - (days - 1) * 86400000).toISOString().slice(0, 10);
+    const from = first > dataStart ? first : dataStart < today ? dataStart : today;
+    const all = [...new Set([...map.values()].flatMap(rids))];
+    const perStore = new Map();
+    for (let i = 0; i < all.length; i += 2000) (await extReq().input('f', sql.NVarChar, from).query(`
+      SELECT RegistrationId AS rid, COUNT(*) AS n FROM Calllog
+      WHERE Active=1 AND ReceiveDate >= CAST(@f AS DATE) AND RegistrationId IN (${all.slice(i, i + 2000).join(',')})
+      GROUP BY RegistrationId`)).recordset.forEach(r => perStore.set(r.rid, r.n));
+    res.json({ from, groups: [...map].map(([id, g]) => {
+      const rs = rids(g);
+      return { id, name: g.name || id, stores: rs.length, cases: rs.reduce((s, r) => s + (perStore.get(r) || 0), 0) };
+    }).sort((a, b) => b.cases - a.cases || a.name.localeCompare(b.name, 'th')) });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 app.get('/api/monitor-tags/board', authRequired, async (request, res) => {
