@@ -5366,7 +5366,10 @@ app.get('/api/sw-update', authRequired, async (request, res) => {
     if (status)   { where += ' AND j.status=@st';   r.input('st', sql.NVarChar, status); }
     if (priority) { where += ' AND j.priority=@pr'; r.input('pr', sql.NVarChar, priority); }
     if (q) {
-      where += ` AND (j.company_name LIKE @q OR j.license_group LIKE @q OR j.description LIKE @q OR j.azure_id LIKE @q
+      // ค้นด้วยเลขงานได้ด้วย — "74" หรือ "#74"
+      const idQ = /^#?\d+$/.test(q.trim()) ? parseInt(q.trim().replace('#', ''), 10) : null;
+      if (idQ != null) r.input('qid', sql.Int, idQ);
+      where += ` AND (${idQ != null ? 'j.id = @qid OR ' : ''}j.company_name LIKE @q OR j.license_group LIKE @q OR j.description LIKE @q OR j.azure_id LIKE @q
                   OR EXISTS (SELECT 1 FROM sw_update_issues i WHERE i.job_id = j.id AND (i.description LIKE @q OR i.azure_id LIKE @q))
                   OR EXISTS (SELECT 1 FROM sw_update_branches b WHERE b.job_id = j.id AND b.branch_name LIKE @q))`;
       r.input('q', sql.NVarChar, `%${q}%`);
