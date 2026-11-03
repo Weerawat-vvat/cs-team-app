@@ -15300,11 +15300,15 @@ app.get('/api/monitor-tags/:id/tickets', authRequired, async (request, res) => {
     tag.linked_ids = (await monitorLinkedIds([tag.id]))[tag.id] || [];
     const skew = await monitorClockSkew();
     const days = MT_SERVICE_DAYS.includes(+request.query.days) ? +request.query.days : null;
+    const day = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : null;
+    let pf = day(request.query.from), pt = day(request.query.to);   // ช่วงกำหนดเองจากหน้า Monitor Tag
+    if (!pf || !pt) pf = pt = null; else if (pf > pt) [pf, pt] = [pt, pf];
     const r = extReq()
       .input('c',  sql.DateTime, monitorStartExt(tag, skew))
       .input('en', sql.DateTime, tag.status === 'resolved' ? monitorToExt(tag.resolved_at, skew) : null)
       .input('bd', sql.Int, tag.baseline_days)
-      .input('days', sql.Int, days);
+      .input('days', sql.Int, days)
+      .input('pf', sql.NVarChar, pf).input('pt', sql.NVarChar, pt);
     const m = monitorMatch(r, tag);
     // ?store= — drill-down จากตารางร้านในหน้า Monitor Tag
     const store = String(request.query.store || '').trim();
@@ -15334,9 +15338,9 @@ app.get('/api/monitor-tags/:id/tickets', authRequired, async (request, res) => {
       LEFT JOIN CallStatus cs ON cs.StatusId = cl.StatusId
       LEFT JOIN Users      u  ON u.UserId    = cl.SupportId
       WHERE cl.Active=1 AND ${m.where}${storeCond}
-        AND cl.ReceiveDate >= CASE WHEN @days IS NULL THEN DATEADD(day, -@bd, @c)
+        AND cl.ReceiveDate >= CASE WHEN @pf IS NOT NULL THEN CAST(@pf AS DATE) WHEN @days IS NULL THEN DATEADD(day, -@bd, @c)
                                    ELSE DATEADD(day, 1 - @days, CAST(GETDATE() AS DATE)) END
-        AND cl.ReceiveDate <= @e
+        AND cl.ReceiveDate <= @e AND (@pt IS NULL OR cl.ReceiveDate < DATEADD(day, 1, CAST(@pt AS DATE)))
       ORDER BY cl.ReceiveDate DESC`)).recordset;
     const ls = new Set(tag.linked_ids);
     rows.forEach(x => { x.linked = ls.has(x.id); });
@@ -15345,9 +15349,11 @@ app.get('/api/monitor-tags/:id/tickets', authRequired, async (request, res) => {
       const inst = await aiInstalledMap();
       rows.forEach(x => { x.ssh_day = inst.get(x.rid)?.d || null; });
     }
-    if (request.query.ai === '1') {
-      const inst = await aiInstalledMap();
-      return res.json({ tag, rows: rows.filter(x => inst.has(x.rid)) });
+    // ตัวกรองร้านเดียวกับหน้า Monitor Tag (AI / Pod / กลุ่มไลน์)
+    const { rids } = await mtStoreFilter(request.query);
+    if (rids) {
+      const keep = new Set(rids);
+      return res.json({ tag, rows: rows.filter(x => keep.has(x.rid)) });
     }
     res.json({ tag, rows });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -15414,12 +15420,44 @@ async function mtLineGroupStores() {
 }
 // ร้านทั้งหมดของ Pod = ร้านของทุกกลุ่มไลน์ที่ Pod นั้นดูแล
 const mtPodStores = (map, podId) => new Set([...map.values()].filter(g => g.pod === podId).flatMap(g => [...g.rids]));
-// GET /api/monitor-tags/line-groups?days=&ai= — กลุ่มไลน์ / Pod ที่รู้ว่ามีร้านไหนบ้าง (ไว้เลือกกรองหน้า Monitor Tag)
+// ช่วงของหน้า Monitor Tag: ?days=N (N วันล่าสุด) หรือ ?from=&to= (กำหนดเอง ไม่เกิน 366 วัน · to ไม่เกินวันนี้)
+// ไม่ย้อนก่อนวันที่เริ่มมีข้อมูล Tag · ช่วงก่อนหน้า = ยาวเท่ากัน ต่อจากก่อน from (ไว้เทียบ)
+function mtBoardRange(q, today, dataStart) {
+  const ok = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) && !isNaN(Date.parse(v)) ? String(v) : null;
+  const add = (d, n) => new Date(Date.parse(d + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
+  let from = ok(q.from), to = ok(q.to);
+  const custom = !!(from && to);
+  if (custom) {
+    if (from > to) [from, to] = [to, from];
+    if (to > today) to = today;
+    if (from < add(to, -365)) from = add(to, -365);
+  } else {
+    const days = MT_SERVICE_DAYS.includes(+q.days) ? +q.days : 30;
+    to = today; from = add(today, 1 - days);
+  }
+  if (from < dataStart) from = dataStart;
+  if (from > to) from = to;
+  const labels = []; for (let d = from; d <= to; d = add(d, 1)) labels.push(d);
+  const prevFrom = add(from, -labels.length);
+  return { custom, from, to, labels, prevFrom, prevOk: prevFrom >= dataStart };
+}
+// ร้านที่ตัวกรองหน้า Monitor Tag เลือก: ?ai=1 ติดตั้ง AI · ?pod=<id> ร้านในกลุ่มไลน์ของ Pod · ?lg=<group_id> ร้านในกลุ่มไลน์นั้น
+// ใส่หลายตัว = ร้านที่ตรงทุกเงื่อนไข · rids = null คือไม่กรอง
+async function mtStoreFilter(q) {
+  let rids = q.ai === '1' ? [...(await aiInstalledMap()).keys()].map(Number).filter(Number.isInteger) : null;
+  const lgId = String(q.lg || '').slice(0, 100) || null;
+  const podId = parseInt(q.pod, 10) || null;
+  const lgMap = lgId || podId ? await mtLineGroupStores() : null;
+  const lg = lgId ? lgMap.get(lgId) || { name: null, rids: new Set() } : null;
+  const podRids = podId ? mtPodStores(lgMap, podId) : null;
+  for (const set of [lg?.rids, podRids]) if (set) rids = rids ? rids.filter(r => set.has(r)) : [...set];
+  return { rids, lgId, lg, podId, podRids };
+}
+// GET /api/monitor-tags/line-groups?days=|from=&to=&ai= — กลุ่มไลน์ / Pod ที่รู้ว่ามีร้านไหนบ้าง (ไว้เลือกกรองหน้า Monitor Tag)
 // cases = เคสทั้งหมดของร้านในกลุ่ม ช่วงเดียวกับ board (ตรงกับการ์ด "เคสทั้งหมด" เมื่อเลือกกลุ่มนั้น) · เรียงมาก → น้อย
 app.get('/api/monitor-tags/line-groups', authRequired, async (request, res) => {
   try {
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
-    const days = MT_SERVICE_DAYS.includes(+request.query.days) ? +request.query.days : 30;
     const map = await mtLineGroupStores();
     const aiSet = request.query.ai === '1' ? new Set([...(await aiInstalledMap()).keys()].map(Number)) : null;
     const rids = g => aiSet ? [...g.rids].filter(r => aiSet.has(r)) : [...g.rids];
@@ -15427,20 +15465,19 @@ app.get('/api/monitor-tags/line-groups', authRequired, async (request, res) => {
     const today = (await extReq().query(`SELECT CONVERT(char(10), GETDATE(), 23) AS d`)).recordset[0].d;
     const ids = (await req().query(`SELECT DISTINCT c.calllog_id FROM monitor_tag_cases c JOIN monitor_tags t ON t.id = c.tag_id
       WHERE t.status='active'`)).recordset.map(x => +x.calllog_id).filter(Number.isInteger);
-    const dataStart = (await mtDataStart(ids)) || today;
-    const first = new Date(Date.parse(today + 'T00:00:00Z') - (days - 1) * 86400000).toISOString().slice(0, 10);
-    const from = first > dataStart ? first : dataStart < today ? dataStart : today;
+    const { from, to } = mtBoardRange(request.query, today, (await mtDataStart(ids)) || today);
     const all = [...new Set([...map.values()].flatMap(rids))];
     const perStore = new Map();
-    for (let i = 0; i < all.length; i += 2000) (await extReq().input('f', sql.NVarChar, from).query(`
+    for (let i = 0; i < all.length; i += 2000) (await extReq().input('f', sql.NVarChar, from).input('t', sql.NVarChar, to).query(`
       SELECT RegistrationId AS rid, COUNT(*) AS n FROM Calllog
-      WHERE Active=1 AND ReceiveDate >= CAST(@f AS DATE) AND RegistrationId IN (${all.slice(i, i + 2000).join(',')})
+      WHERE Active=1 AND ReceiveDate >= CAST(@f AS DATE) AND ReceiveDate < DATEADD(day, 1, CAST(@t AS DATE))
+        AND RegistrationId IN (${all.slice(i, i + 2000).join(',')})
       GROUP BY RegistrationId`)).recordset.forEach(r => perStore.set(r.rid, r.n));
     const count = rs => ({ stores: rs.length, cases: rs.reduce((s, r) => s + (perStore.get(r) || 0), 0) });
     const podIds = new Set([...map.values()].map(g => g.pod).filter(Boolean));
     const pods = podIds.size ? (await req().query(`SELECT id, COALESCE(NULLIF(display_name, ''), code) AS name FROM pods
       WHERE id IN (${[...podIds].map(Number).join(',')})`)).recordset : [];
-    res.json({ from,
+    res.json({ from, to,
       groups: [...map].map(([id, g]) => ({ id, name: g.name || id, brand: g.brand, pod: g.pod, ...count(rids(g)) }))
         .sort((a, b) => b.cases - a.cases || a.name.localeCompare(b.name, 'th')),
       pods: pods.map(p => ({ id: p.id, name: p.name, ...count(rids({ rids: mtPodStores(map, p.id) })) }))
@@ -15449,31 +15486,21 @@ app.get('/api/monitor-tags/line-groups', authRequired, async (request, res) => {
 });
 app.get('/api/monitor-tags/board', authRequired, async (request, res) => {
   try {
-    const days = MT_SERVICE_DAYS.includes(+request.query.days) ? +request.query.days : 30;
     const tags = (await req().query(`SELECT id, tag_group FROM monitor_tags WHERE status='active'`)).recordset;
     if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
-    // ?ai=1 — เฉพาะร้านที่ติดตั้ง AI (รายชื่อเดียวกับแท็บผลการติดตั้ง AI) · ?pod=<id> — เฉพาะร้านในกลุ่มไลน์ของ Pod นั้น
-    // ?lg=<group_id> — เฉพาะร้านในกลุ่มไลน์นั้น · ใส่หลายตัว = ร้านที่ตรงทุกเงื่อนไข
-    let aiRids = request.query.ai === '1' ? [...(await aiInstalledMap()).keys()].map(Number).filter(Number.isInteger) : null;
-    const lgId = String(request.query.lg || '').slice(0, 100) || null;
-    const podId = parseInt(request.query.pod, 10) || null;
-    const lgMap = lgId || podId ? await mtLineGroupStores() : null;
-    const lg = lgId ? lgMap.get(lgId) || { name: null, rids: new Set() } : null;
-    const podRids = podId ? mtPodStores(lgMap, podId) : null;
-    for (const s of [lg?.rids, podRids]) if (s) aiRids = aiRids ? aiRids.filter(r => s.has(r)) : [...s];
+    // ร้านตามตัวกรอง (AI / Pod / กลุ่มไลน์) — ดู mtStoreFilter
+    const { rids: aiRids, lgId, lg, podId, podRids } = await mtStoreFilter(request.query);
     const pod = podId ? (await req().input('id', sql.Int, podId)
       .query(`SELECT COALESCE(NULLIF(display_name, ''), code) AS name FROM pods WHERE id=@id`)).recordset[0] : null;
     const aiSet = aiRids ? new Set(aiRids) : null;
     const today = (await extReq().query(`SELECT CONVERT(char(10), GETDATE(), 23) AS d`)).recordset[0].d;
-    const dayStr = n => new Date(Date.parse(today + 'T00:00:00Z') - n * 86400000).toISOString().slice(0, 10);
     const links = tags.length ? (await req().query(`SELECT tag_id, calllog_id FROM monitor_tag_cases
       WHERE tag_id IN (${tags.map(t => +t.id).join(',')})`)).recordset : [];
     const ids = [...new Set(links.map(l => +l.calllog_id).filter(Number.isInteger))];
     const dataStart = (await mtDataStart(ids)) || today;
-    const labels = []; for (let i = days - 1; i >= 0; i--) if (dayStr(i) >= dataStart) labels.push(dayStr(i));
-    if (!labels.length) labels.push(today);
-    const from = labels[0], prevFrom = dayStr(days * 2 - 1);
-    const prevOk = dayStr(days * 2 - 1) >= dataStart;   // ช่วงก่อนหน้ามีข้อมูลครบ — เทียบได้
+    // prevOk = ช่วงก่อนหน้ามีข้อมูลครบ — เทียบได้
+    const { custom, from, to, labels, prevFrom, prevOk } = mtBoardRange(request.query, today, dataStart);
+    const days = labels.length;
     const idx = new Map(labels.map((d, i) => [d, i]));
     const info = new Map();
     for (let i = 0; i < ids.length; i += 2000) {
@@ -15537,7 +15564,7 @@ app.get('/api/monitor-tags/board', authRequired, async (request, res) => {
         .sort((a, b) => (b.problem + b.service) - (a.problem + a.service));
     }
     res.json({
-      days, from, to: today, labels, all, tagged: tagged.size, prev_ok: prevOk, data_start: dataStart, ai_only: request.query.ai === '1', ai_stores: aiRids?.length ?? null,
+      days, custom, from, to, today, labels, all, tagged: tagged.size, prev_ok: prevOk, data_start: dataStart, ai_only: request.query.ai === '1', ai_stores: aiRids?.length ?? null,
       line_group: lg ? { id: lgId, name: lg.name || lgId, brand: lg.brand || null, stores: lg.rids.size } : null,
       pod: podId ? { id: podId, name: pod?.name || '#' + podId, stores: podRids.size } : null,
       by_pod: byPod,

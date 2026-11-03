@@ -1724,6 +1724,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
     <div class="mt-kind-bar">
       <div class="svc-seg" id="mt-kind" role="tablist" aria-label="มุมมอง"></div>
       <div class="svc-seg mt-seg-sm" id="mt-days" role="tablist" aria-label="ช่วงเวลา"></div>
+      <span id="mt-range" style="display:none;align-items:center;gap:.3rem;font-size:.78rem"></span>
       <label class="mt-ai-only" id="mt-ai-only"></label>
       <select id="mt-pod" class="svc-select" onchange="mtSetPod(this.value)" style="max-width:200px;height:34px" aria-label="Pod"><option value="">ทุก Pod</option></select>
       <select id="mt-lg" class="svc-select" onchange="mtSetLineGroup(this.value)" style="max-width:220px;height:34px" aria-label="กลุ่มไลน์"><option value="">ทุกกลุ่มไลน์</option></select>
@@ -22703,7 +22704,15 @@ let _mtKind = mtStore('mt-kind', 'all', v => ['all', 'problem', 'service'].inclu
 let _mtBoard = { days: +mtStore('mt-days', '30', v => MT_DAYS.includes(+v)), data: null, q: '', tag: null,
   ai: mtStore('mt-ai', '0', v => v === '1' || v === '0') === '1',   // ai = เฉพาะร้านที่ติดตั้ง AI
   lg: mtStore('mt-lg', '', v => typeof v === 'string'), lgs: null,   // lg = เฉพาะร้านในกลุ่มไลน์นี้ · lgs = รายชื่อกลุ่ม
-  pod: mtStore('mt-pod', '', v => /^\d*$/.test(v)), pods: null };     // pod = เฉพาะร้านในกลุ่มไลน์ของ Pod นี้ · pods = รายชื่อ Pod
+  pod: mtStore('mt-pod', '', v => /^\d*$/.test(v)), pods: null,     // pod = เฉพาะร้านในกลุ่มไลน์ของ Pod นี้ · pods = รายชื่อ Pod
+  range: (() => { try { const r = JSON.parse(localStorage.getItem('mt-range') || 'null');   // ช่วงกำหนดเอง {from, to} · null = ใช้ days
+    return r && /^\d{4}-\d{2}-\d{2}$/.test(r.from) && /^\d{4}-\d{2}-\d{2}$/.test(r.to) ? r : null; } catch { return null; } })() };
+// query ของช่วงเวลา และของตัวกรองร้าน — ใช้กับ board / รายชื่อกลุ่ม / popup เคส / Export ให้ตรงกันทั้งหน้า
+const mtPeriodQs = () => _mtBoard.range ? `from=${_mtBoard.range.from}&to=${_mtBoard.range.to}` : `days=${_mtBoard.days}`;
+const mtFilterQs = () => (_mtBoard.ai ? '&ai=1' : '') + (_mtBoard.pod ? '&pod=' + _mtBoard.pod : '')
+  + (_mtBoard.lg ? '&lg=' + encodeURIComponent(_mtBoard.lg) : '');
+const mtPeriodText = () => _mtBoard.range
+  ? `${fmtDateShort(_mtBoard.range.from + 'T00:00:00')} – ${fmtDateShort(_mtBoard.range.to + 'T00:00:00')}` : `${_mtBoard.days} วันล่าสุด`;
 const mtGroupOf = t => mtIsService(t) ? 'service' : 'problem';
 
 function mtSetLineGroup(id) {
@@ -22744,8 +22753,22 @@ function mtSetAiOnly(on) {
   mtLoad();
 }
 function mtSetDays(n) {
-  _mtBoard.days = n;
-  try { localStorage.setItem('mt-days', String(n)); } catch {}
+  _mtBoard.days = n; _mtBoard.range = null;
+  try { localStorage.setItem('mt-days', String(n)); localStorage.removeItem('mt-range'); } catch {}
+  mtLoad();
+}
+// กด "กำหนดเอง" — เริ่มจากช่วงที่ดูอยู่ แล้วค่อยแก้วันที่ในช่องด้านข้าง
+function mtOpenRange() {
+  const d = _mtBoard.data;
+  if (!_mtBoard.range && d) _mtBoard.range = { from: d.from, to: d.to };
+  mtRenderKindBar();
+  document.querySelector('#mt-range input')?.focus();
+}
+function mtSetRange(from, to) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) return;
+  if (from > to) [from, to] = [to, from];
+  _mtBoard.range = { from, to };
+  try { localStorage.setItem('mt-range', JSON.stringify(_mtBoard.range)); } catch {}
   mtLoad();
 }
 function mtRenderKindBar() {
@@ -22754,8 +22777,20 @@ function mtRenderKindBar() {
   const n = k => _mtTags.filter(t => k === 'all' || mtGroupOf(t) === k).length;
   el.innerHTML = [['all', 'chart', 'ภาพรวม'], ['problem', 'alert', 'Bug โปรแกรม'], ['service', 'wrench', 'IT Service']].map(([k, ic, l]) =>
     `<button class="${_mtKind === k ? 'on' : ''}" onclick="mtSetKind('${k}')"><i class=i-${ic}></i> ${l} <span class="mt-tab-count">${n(k)}</span></button>`).join('');
+  const rg = _mtBoard.range;
   document.getElementById('mt-days').innerHTML = MT_DAYS.map(n =>
-    `<button class="${_mtBoard.days === n ? 'on' : ''}" onclick="mtSetDays(${n})">${n} วัน</button>`).join('');
+    `<button class="${!rg && _mtBoard.days === n ? 'on' : ''}" onclick="mtSetDays(${n})">${n} วัน</button>`).join('')
+    + `<button class="${rg ? 'on' : ''}" onclick="mtOpenRange()"><i class=i-calendar></i> กำหนดเอง</button>`;
+  const rBox = document.getElementById('mt-range');
+  if (rBox) {
+    rBox.style.display = rg ? 'inline-flex' : 'none';
+    // เลือกได้ตั้งแต่วันที่เริ่มมีข้อมูล Tag ถึงวันนี้
+    const lim = `${_mtBoard.data?.data_start ? `min="${_mtBoard.data.data_start}"` : ''} ${_mtBoard.data?.today ? `max="${_mtBoard.data.today}"` : ''}`;
+    if (rg) rBox.innerHTML = `<input type="date" class="svc-select" style="height:34px;width:auto" value="${rg.from}" ${lim} aria-label="ตั้งแต่วันที่"
+        onchange="mtSetRange(this.value, _mtBoard.range.to)"/><span class="mt-meta">ถึง</span>
+      <input type="date" class="svc-select" style="height:34px;width:auto" value="${rg.to}" ${lim} aria-label="ถึงวันที่"
+        onchange="mtSetRange(_mtBoard.range.from, this.value)"/>`;
+  }
   const aiBox = document.getElementById('mt-ai-only');
   if (aiBox) aiBox.innerHTML = `<input type="checkbox" ${_mtBoard.ai ? 'checked' : ''} onchange="mtSetAiOnly(this.checked)"/>
     <span class="tk-ai"><i class=i-check></i> AI</span> เฉพาะร้านที่ติดตั้ง AI`;
@@ -22786,7 +22821,7 @@ function mtDelta(cur, prev, kind) {
 // ค่าเฉลี่ยต่อวัน: ไม่นับวันนี้ (ยังไม่ครบวัน และ AI ยังไม่ได้จัดเคสของวันนี้) — ยกเว้นช่วงที่มีแค่วันนี้
 function mtAvgDays(d) {
   const n = d.labels.length;
-  return n > 1 && d.labels[n - 1] === d.to ? n - 1 : n;
+  return n > 1 && d.labels[n - 1] === (d.today || d.to) ? n - 1 : n;
 }
 const mtAvgOf = (daily, d) => { const e = mtAvgDays(d); let s = 0; for (let i = 0; i < e; i++) s += daily[i] || 0; return s / e; };
 const mtFmtAvg = v => !v ? '0' : v >= 10 ? v.toFixed(0) : v >= 1 ? v.toFixed(1) : v.toFixed(2);
@@ -22965,7 +23000,7 @@ async function mtTagsExportXlsxRun(g, d) {
   ];
   const sumWrap = [summary[2].length - 3, summary[2].length - 2, summary[2].length - 1];
   // เคสของทุก Tag ที่มีเคส — ข้อความเต็ม (full=1) · ช่วง/ตัวกรองเดียวกับ popup ของ Tag
-  const qs = `?days=${_mtBoard.days}&full=1${_mtBoard.ai ? '&ai=1' : ''}`;
+  const qs = `?${mtPeriodQs()}&full=1${mtFilterQs()}`;
   const got = await Promise.all(list.filter(x => x.s.cur).map(({ t }) => api(`/api/monitor-tags/${t.id}/tickets${qs}`, { silent: true })
     .then(r => { if (!r || r.error) throw new Error(r?.error || `ดึงเคสของ “${t.title}” ไม่ได้`); return r.rows.map(c => ({ ...c, t })); })));
   const dt = v => { if (!v) return ''; const x = parseDbDate(v), p = n => String(n).padStart(2, '0');
@@ -23314,9 +23349,8 @@ function mtOpenBrand(key, tagId) {
 }
 async function mtShowCases(ctx) {
   _mtDetailCtx = ctx;
-  const days = _mtBoard.days;
   document.getElementById('mt-d-title').textContent = ctx.title;
-  document.getElementById('mt-d-sub').textContent = `${ctx.sub} · ${days} วันล่าสุด`;
+  document.getElementById('mt-d-sub').textContent = `${ctx.sub} · ${mtPeriodText()}`;
   document.getElementById('mt-d-store-th').style.display = ctx.store ? 'none' : '';
   const sumBox = document.getElementById('mt-d-summary');
   if (sumBox) {
@@ -23330,7 +23364,7 @@ async function mtShowCases(ctx) {
   const tb = document.getElementById('mt-d-tbody');
   tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:1.5rem;color:var(--muted)">กำลังโหลด...</td></tr>';
   if (!document.getElementById('modal-mt-detail').classList.contains('open')) openModal('modal-mt-detail');
-  const qs = `?days=${days}${ctx.store ? '&store=' + encodeURIComponent(ctx.store) : ''}${ctx.brand ? '&brand=' + encodeURIComponent(ctx.brand) : ''}${_mtBoard.ai ? '&ai=1' : ''}`;
+  const qs = `?${mtPeriodQs()}${ctx.store ? '&store=' + encodeURIComponent(ctx.store) : ''}${ctx.brand ? '&brand=' + encodeURIComponent(ctx.brand) : ''}${mtFilterQs()}`;
   const res = await Promise.all(ctx.tagIds.map(id => api(`/api/monitor-tags/${id}/tickets${qs}`, { silent: true })
     .then(x => (x?.rows || []).map(r => ({ ...r, tag: _mtTags.find(t => t.id === id) })))));
   if (_mtDetailCtx !== ctx) return;
@@ -23394,9 +23428,8 @@ async function mtLoad(opts = {}) {
   mtRenderKindBar();
   const [t, b, g] = await Promise.all([
     api('/api/monitor-tags?status=active&lite=1', { silent: true }),
-    api('/api/monitor-tags/board?days=' + _mtBoard.days + (_mtBoard.ai ? '&ai=1' : '')
-      + (_mtBoard.lg ? '&lg=' + encodeURIComponent(_mtBoard.lg) : '') + (_mtBoard.pod ? '&pod=' + _mtBoard.pod : ''), { silent: true }),
-    _mtBoard.lgs && opts.quiet ? null : api('/api/monitor-tags/line-groups?days=' + _mtBoard.days + (_mtBoard.ai ? '&ai=1' : ''), { silent: true })]);
+    api('/api/monitor-tags/board?' + mtPeriodQs() + mtFilterQs(), { silent: true }),
+    _mtBoard.lgs && opts.quiet ? null : api('/api/monitor-tags/line-groups?' + mtPeriodQs() + (_mtBoard.ai ? '&ai=1' : ''), { silent: true })]);
   if (Array.isArray(g?.groups)) {
     _mtBoard.lgs = g.groups;
     _mtBoard.pods = g.pods || [];
