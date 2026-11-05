@@ -4282,6 +4282,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
       <div class="svc-sub">นัดหมายและติดตามการอัพเดทเวอร์ชั่นให้ร้านค้า</div>
     </div>
     <div style="display:flex;gap:.5rem;align-items:center">
+      <button class="btn btn-ghost" onclick="swuExportXlsx()" title="Export รายการแจ้งตามตัวกรองที่เลือกอยู่เป็นไฟล์ Excel"><i class=i-download></i> Export Excel</button>
       <button class="btn btn-ghost" onclick="openSwuKpi()" title="จำนวนงาน / สาขา / เครื่อง ที่ปิดรายคน">KPI รายคน</button>
       <button class="svc-btn-primary" onclick="openSwUpdateForm()"><span style="font-size:1.05rem;line-height:1;font-weight:400">+</span> แจ้งงานอัพเดท</button>
     </div>
@@ -23034,13 +23035,20 @@ async function mtTagsExportXlsxRun(g, d) {
 }
 
 // เขียน .xlsx เอง (zip แบบ store ไม่บีบอัด + XML) — ไม่ต้องใช้ library เพิ่ม
-// sheets = [{ name, rows: [[cell...]], head: แถวหัวตาราง (ตัวหนา, 1-based) }]
+// sheets = [{ name, rows: [[cell...]], head: แถวหัวตาราง (ตัวหนา, 1-based), wrap: [คอลัมน์ตัดบรรทัด], filter: true = autofilter ที่แถวหัว }]
+// เซลล์ที่เป็น Date → วันที่จริงใน Excel แสดงแบบ dd/mm/yyyy พ.ศ.
 function mtXlsxBlob(sheets) {
   const x = s => String(s).replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const col = n => { let s = ''; for (n++; n; n = (n - 1) / 26 | 0) s = String.fromCharCode(65 + (n - 1) % 26) + s; return s; };
+  const sheetName = s => s.name.replace(/[\\\/?*\[\]:]/g, ' ').slice(0, 31);
+  // ช่วง autofilter: แถวหัว → แถวสุดท้าย, คอลัมน์แรก → คอลัมน์สุดท้าย
+  const filterRange = sh => {
+    const h = sh.head || 1, n = Math.max(1, ...sh.rows.map(r => r.length)), last = Math.max(h, sh.rows.length);
+    return { ref: `A${h}:${col(n - 1)}${last}`, abs: `$A$${h}:$${col(n - 1)}$${last}` };
+  };
   const sheetXml = sh => {
     const w = [];
-    sh.rows.forEach((r, ri) => r.forEach((v, ci) => { const l = String(v ?? '').length; if (ri + 1 >= (sh.head || 1)) w[ci] = Math.max(w[ci] || 8, Math.min(60, l + 2)); }));
+    sh.rows.forEach((r, ri) => r.forEach((v, ci) => { const l = v instanceof Date ? 10 : String(v ?? '').length; if (ri + 1 >= (sh.head || 1)) w[ci] = Math.max(w[ci] || 8, Math.min(60, l + 2)); }));
     (sh.wrap || []).forEach(ci => { w[ci] = 60; });
     return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
       + (sh.head ? `<sheetViews><sheetView workbookViewId="0"><pane ySplit="${sh.head}" topLeftCell="A${sh.head + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>` : '')
@@ -23048,20 +23056,27 @@ function mtXlsxBlob(sheets) {
       + sh.rows.map((r, ri) => `<row r="${ri + 1}">${r.map((v, ci) => {
           if (v === '' || v == null) return '';
           const ref = col(ci) + (ri + 1), st = ri + 1 === sh.head ? ' s="1"' : ri + 1 > (sh.head || 0) && sh.wrap?.includes(ci) ? ' s="2"' : '';
+          if (v instanceof Date) return isNaN(v) ? ''   // เลขวันแบบ Excel (นับจาก 30/12/1899) ตามวันที่ในเครื่อง
+            : `<c r="${ref}" s="3"><v>${Math.round((Date.UTC(v.getFullYear(), v.getMonth(), v.getDate()) - Date.UTC(1899, 11, 30)) / 864e5)}</v></c>`;
           return typeof v === 'number' && isFinite(v) ? `<c r="${ref}"${st}><v>${v}</v></c>` : `<c r="${ref}" t="inlineStr"${st}><is><t xml:space="preserve">${x(String(v).slice(0, 32000))}</t></is></c>`;
         }).join('')}</row>`).join('')
-      + '</sheetData></worksheet>';
+      + '</sheetData>'
+      + (sh.filter ? `<autoFilter ref="${filterRange(sh).ref}"/>` : '')
+      + '</worksheet>';
   };
   const files = [
     ['[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
       + sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('') + '</Types>'],
     ['_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],
     ['xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>'
-      + sheets.map((s, i) => `<sheet name="${x(s.name.replace(/[\\\/?*\[\]:]/g, ' ').slice(0, 31))}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('') + '</sheets></workbook>'],
+      + sheets.map((s, i) => `<sheet name="${x(sheetName(s))}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('') + '</sheets>'
+      + (sheets.some(s => s.filter) ? '<definedNames>' + sheets.map((s, i) => s.filter
+          ? `<definedName name="_xlnm._FilterDatabase" localSheetId="${i}" hidden="1">'${x(sheetName(s).replace(/'/g, "''"))}'!${filterRange(s).abs}</definedName>` : '').join('') + '</definedNames>' : '')
+      + '</workbook>'],
     ['xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
       + sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')
       + `<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
-    ['xl/styles.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Tahoma"/></font><font><b/><sz val="11"/><name val="Tahoma"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF1F0EC"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>'],
+    ['xl/styles.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="dd/mm/bbbb"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Tahoma"/></font><font><b/><sz val="11"/><name val="Tahoma"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF1F0EC"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>'],
     ...sheets.map((s, i) => [`xl/worksheets/sheet${i + 1}.xml`, sheetXml(s)])
   ];
   // zip (store) — CRC32 + local headers + central directory
@@ -26628,21 +26643,14 @@ function renderSwUpdate() {
       names.map(g => `<option value="${escHtml(g)}">${escHtml(g === SWU_NO_GROUP ? 'ร้านเดี่ยว (ไม่มีกลุ่ม)' : g)} (${counts[g]})</option>`).join('');
     grpSel.value = names.includes(grpVal) ? grpVal : '';
   }
-  const grpFilter = grpSel?.value || '';
 
   const tbody = document.getElementById('swu-tbody');
   if (!tbody) return;
-  let list = SWU_TAB_TEST[_swuTab] ? all.filter(SWU_TAB_TEST[_swuTab]) : all;
-  if (grpFilter) list = list.filter(r => (r.license_group || SWU_NO_GROUP) === grpFilter);
+  const list = swuVisibleJobs();
   if (!list.length) {
     tbody.innerHTML = `<tr style="cursor:default"><td colspan="9" style="text-align:center;color:var(--muted);padding:3.5rem 1rem">${all.length ? 'ไม่มีงานในแท็บนี้' : 'ไม่พบข้อมูล'}</td></tr>`;
     return;
   }
-  // กลุ่ม License ก่อน (ตามชื่อ) ร้านเดี่ยวไว้ท้าย; ในกลุ่มเดียวกันงานใหม่ขึ้นก่อน
-  list = [...list].sort((a, b) =>
-    (!a.license_group) - (!b.license_group) ||
-    (a.license_group || a.company_name || '').localeCompare(b.license_group || b.company_name || '', 'th') ||
-    b.id - a.id);
 
   const swuAzureCell = (azure_id) => {
     if (!azure_id) return '<span style="color:#b9bcc2">—</span>';
@@ -26665,7 +26673,7 @@ function renderSwUpdate() {
   // แถวย่อย = รายการแจ้ง: แจ้งอะไร จากสาขาไหน เมื่อไร ใครแจ้ง
   const jobBlock = r => {
     const pri = SWU_PRIORITY[r.priority] || SWU_PRIORITY.normal;
-    const iss = r.issues?.length ? r.issues : [{ description: r.description, azure_id: r.azure_id, branch_name: r.company_name, created_at: r.created_at, reporter_name: r.reporter_name }];
+    const iss = swuIssuesOf(r);
     const s = swuStats(r);
     const aiDay = _aiInst.map[r.registration_id];
     const ver = r.version_installed || r.version_recommend || '';
@@ -26712,6 +26720,61 @@ function renderSwUpdate() {
   };
 
   tbody.innerHTML = list.map(jobBlock).join('');
+}
+
+// รายการแจ้งของงาน (แถวย่อย) — งานเก่าที่ยังไม่มี sw_update_issues ใช้รายละเอียดของงานเป็นรายการเดียว
+function swuIssuesOf(r) {
+  return r.issues?.length ? r.issues
+    : [{ description: r.description, azure_id: r.azure_id, branch_name: r.company_name, created_at: r.created_at, reporter_name: r.reporter_name }];
+}
+
+// งานที่เห็นในตาราง: ผลจาก API (สถานะ/ระดับ/ค้นหา กรองที่ server แล้ว) + แท็บ + กลุ่ม License, เรียงแบบเดียวกับบนจอ
+// ใช้ร่วมกันระหว่างตารางกับ Export เพื่อให้จำนวนแถวตรงกันเสมอ
+function swuVisibleJobs() {
+  const grpFilter = document.getElementById('swu-filter-group')?.value || '';
+  let list = SWU_TAB_TEST[_swuTab] ? (_swuData || []).filter(SWU_TAB_TEST[_swuTab]) : (_swuData || []);
+  if (grpFilter) list = list.filter(r => (r.license_group || SWU_NO_GROUP) === grpFilter);
+  // กลุ่ม License ก่อน (ตามชื่อ) ร้านเดี่ยวไว้ท้าย; ในกลุ่มเดียวกันงานใหม่ขึ้นก่อน
+  return [...list].sort((a, b) =>
+    (!a.license_group) - (!b.license_group) ||
+    (a.license_group || a.company_name || '').localeCompare(b.license_group || b.company_name || '', 'th') ||
+    b.id - a.id);
+}
+
+// Export Excel: 1 แถว = 1 รายการแจ้ง ตามตัวกรองที่เลือกอยู่ (รวมแถวย่อยของกลุ่มที่ย่อไว้ด้วย)
+// ข้อมูลระดับงาน (กลุ่ม, ความสำคัญ, สถานะ, เวอร์ชัน, วันนัด, คนทำ) ใส่ซ้ำทุกแถวย่อย
+function swuExportXlsx() {
+  const jobs = swuVisibleJobs();
+  if (!jobs.length) return showToast('ไม่มีรายการให้ Export', 'error');
+  const day = v => { if (!v) return ''; const d = parseDbDate(v); return isNaN(d) ? '' : new Date(d.getFullYear(), d.getMonth(), d.getDate()); };
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const open = r => !['done', 'cancelled'].includes(r.status);
+  const rows = [['#ID', 'กลุ่ม License', 'ร้าน/สาขา (แจ้งจาก)', 'รายละเอียด', 'เวอร์ชันเป้าหมาย', 'ความสำคัญ', 'สถานะ', 'วันแจ้ง',
+    'วันนัดหมาย', 'ค้าง (วัน)', 'ผู้แจ้ง', 'คนทำ', 'Azure Issue']];
+  jobs.forEach(r => {
+    const workers = (r.assignees || []).map(a => a.name || '').filter(Boolean).join(', ');
+    swuIssuesOf(r).forEach(it => {
+      const reported = day(it.created_at) || day(r.received_date) || day(r.created_at);
+      rows.push([
+        r.id, r.license_group || '', it.branch_name || r.company_name || '',
+        String(it.description || '').replace(/\r\n?/g, '\n').trim(),
+        r.version_recommend || r.version_installed || '',
+        (SWU_PRIORITY[r.priority] || SWU_PRIORITY.normal).label,
+        (SWU_STATUS[r.status] || SWU_STATUS.pending).label,
+        reported, day(r.appointment_date),
+        open(r) && reported ? Math.max(0, Math.round((today - reported) / 864e5)) : '',
+        it.reporter_name || r.reporter_name || '', workers, it.azure_id || '',
+      ]);
+    });
+  });
+  const blob = mtXlsxBlob([{ name: 'งานอัพเดท Software', rows, head: 1, filter: true, wrap: [3] }]);
+  const p = n => String(n).padStart(2, '0'), d = new Date();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `software-update_${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}.xlsx`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  showToast(`Export ${rows.length - 1} รายการ`);
 }
 
 // ย่อ/ขยายรายการแจ้งใต้แถวกลุ่ม
