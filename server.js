@@ -11,7 +11,7 @@ const nodemailer                 = require('nodemailer');
 const axios                      = require('axios');
 const { init, getPool, getExtPool, getInfoPool, getLineBotPool, sql } = require('./database');
 const { GoogleGenerativeAI, SchemaType } = require('@google/generative-ai');
-const { createLineResolution }   = require('./line-resolution');
+const { createLineResolution, buildBoard } = require('./line-resolution');
 
 const app        = express();
 const PORT       = process.env.PORT || 3010;
@@ -8656,6 +8656,54 @@ app.get('/api/line-resolution', authRequired, async (request, res) => {
       one_touch_pct: resolved.length ? Math.round(resolved.filter(x => (x.agent_turns || 0) <= 2).length / resolved.length * 100) : null,
       rows: rows.map(x => ({ ...x, ttr_sec: x.resolved ? ttrSec(x) : null })),
     });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════
+//  GET /api/line-board?from&to&pod — หน้า "ตอบเคสไลน์ไว" แบบใหม่ (เฟส 2)
+//  คิดจากเคสที่ AI ตัดสินแล้ว (line_case_resolution, final=1) · เวลาทั้งหมดนับเฉพาะ 08:00–24:00
+//  เคสเป็นของ "คนตอบคนแรก" (answered_by) — คนที่รับเรื่อง
+//  คะแนนรวม 0–100: Speed 25 · Resolution 35 · Efficiency 20 · (Quality 20 รอเฟส 3 → ตอนนี้หาร 80)
+// ══════════════════════════════════════════════════════════
+const LINE_BOARD = {
+  frtTargetSec: LINE_LB_TARGET_MIN * 60, turnsTarget: 4, oneTouchTurns: 2, minCases: 30,
+  reviewTurns: 8, reviewTtrSec: 4 * 3600,
+  weights: { speed: 25, resolution: 35, efficiency: 20 },
+};
+app.get('/api/line-board', authRequired, async (request, res) => {
+  try {
+    await lineResolution.ensure();
+    const day = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : null;
+    let from = day(request.query.from) || bangkokToday(), to = day(request.query.to) || from;
+    if (from > to) [from, to] = [to, from];
+    if (from < LINE_RESOLVE_START) from = LINE_RESOLVE_START;
+    const pod = request.query.pod;
+    const load = async (f, t) => {
+      if (t < f) return [];
+      const r = req().input('f', sql.NVarChar, f).input('t', sql.NVarChar, t);
+      let podSql = '';
+      if (pod === 'none') podSql = 'AND pod_id IS NULL';
+      else if (parseInt(pod)) { podSql = 'AND pod_id = @pod'; r.input('pod', sql.Int, parseInt(pod)); }
+      return (await r.query(`SELECT case_msg_id, group_name, pod_id, first_msg_time, first_answer_time, answered_by,
+          issue_category, resolved, resolution_signal, resolved_at, resolved_by, agent_turns, customer_msgs,
+          ttr_work_sec, customer_wait_sec, ai_reason, final
+        FROM line_case_resolution
+        WHERE first_msg_time >= CAST(@f AS DATE) AND first_msg_time < DATEADD(day, 1, CAST(@t AS DATE)) ${podSql}`)).recordset;
+    };
+    const curRaw = await load(from, to);
+    const span = Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1;
+    const shift = n => new Date(Date.parse(from) - n * 86400000).toISOString().slice(0, 10);
+    const pf = shift(span) < LINE_RESOLVE_START ? LINE_RESOLVE_START : shift(span);
+    const board = buildBoard(curRaw, await load(pf, shift(1)), LINE_BOARD);
+
+    // ความครอบคลุม: เคสในช่วงนี้ที่ AI ยังไม่ได้ตัดสิน (กำลังไล่อยู่ / ลูกค้ายังคุยอยู่)
+    const cov = (await req().input('f', sql.NVarChar, from).input('t', sql.NVarChar, to).query(`
+      SELECT COUNT(*) AS n FROM line_case_response r
+      LEFT JOIN line_case_resolution_msg m ON m.msg_id = r.source_msg_id
+      WHERE r.answered_time IS NOT NULL AND m.msg_id IS NULL
+        AND r.message_time >= CAST(@f AS DATE) AND r.message_time < DATEADD(day, 1, CAST(@t AS DATE))`)).recordset[0].n;
+
+    res.json({ from, to, start: LINE_RESOLVE_START, config: LINE_BOARD, prev_from: pf, not_judged: cov, ...board });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

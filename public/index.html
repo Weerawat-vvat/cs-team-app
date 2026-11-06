@@ -9431,83 +9431,133 @@ async function llbLoad() {
   const pod = podSel?.value || '';
   const qs = `from=${f}&to=${t}${pod ? `&pod=${pod}` : ''}`;
   box.style.opacity = '.5';
-  const [d, s] = await Promise.all([
-    api(`/api/line-leaderboard?${qs}`, { silent: true }),
+  const [b, s] = await Promise.all([
+    api(`/api/line-board?${qs}`, { silent: true }),
     api(`/api/line-summary?${qs}`, { silent: true }),
   ]);
   if (seq !== _llbSeq) return;
   box.style.opacity = '';
-  if (!d || d.error) { box.innerHTML = `<div class="mt-meta" style="text-align:center;padding:2rem">โหลดไม่สำเร็จ: ${escHtml(d?.error || '')}</div>`; return; }
+  if (!b || b.error) { box.innerHTML = `<div class="mt-meta" style="text-align:center;padding:2rem">โหลดไม่สำเร็จ: ${escHtml(b?.error || '')}</div>`; return; }
   const sum = s && !s.error ? s : null;
 
-  const T = d.target_min;
+  const cfg = b.config, T = Math.round(cfg.frtTargetSec / 60);
   const fd = x => new Date(x + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
   document.getElementById('llb-note').textContent =
-    `${fd(d.from)} – ${fd(d.to)} · นับเฉพาะข้อความที่ AI สรุปว่าเป็นเคส (เริ่มนับ ${fd(d.start)}) · เวลาทำงาน 08:00–24:00 · เป้า ${T} นาที`;
+    `${fd(b.from)} – ${fd(b.to)} · คิดจากเคสที่ AI ตัดสินแล้ว ${b.team.cases} เคส${b.not_judged ? ` (รอตัดสินอีก ${b.not_judged})` : ''} · เวลาทำงาน 08:00–24:00 · เริ่มนับ ${fd(b.start)}`;
   const mins = s => s == null ? '—' : s < 60 ? `${Math.round(s)} วิ` : s < 3600 ? `${(s / 60).toFixed(1)} นาที` : `${(s / 3600).toFixed(1)} ชม.`;
   const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
   const num = n => (n || 0).toLocaleString('th-TH');
-  const tm = d.team;
+  const tm = b.team, pv = b.prev;
   const tot = sum?.totals || { case_system: 0, manual: 0, not_case: 0, total: 0 };
-  const lk = sum?.leaks || { waiting: d.waiting, answered_unclosed: 0, auto_closed: 0, alerted: 0, answered_after_alert: 0, alerted_waiting: 0 };
+  const lk = sum?.leaks || { waiting: 0, answered_unclosed: 0, auto_closed: 0, alerted: 0, answered_after_alert: 0, alerted_waiting: 0 };
   if (!tm.cases && !tot.total) {
-    box.innerHTML = `<div class="mt-meta" style="text-align:center;padding:3rem">ยังไม่มีเคสที่ตอบหรือปิดในช่วงนี้${d.waiting ? ` · มีเคสรอคนตอบ ${d.waiting} เคส` : ''}</div>`;
+    box.innerHTML = `<div class="mt-meta" style="text-align:center;padding:3rem">ยังไม่มีเคสที่ AI ตัดสินแล้วในช่วงนี้${b.not_judged ? ` · รอตัดสิน ${b.not_judged} เคส (ระบบไล่ตัดสินทีละ 15 เคสทุก 5 นาที)` : ''}</div>`;
     return;
   }
-  const k = (lab, val, sub, color) => `<div class="stat-flat"><div class="label">${lab}</div><div class="value${color ? ' ' + color : ''}">${val}</div><div class="sub">${sub}</div></div>`;
   const head = (title, note, right = '') => `<div class="mt-tt-head">${title} <span class="mt-meta" style="font-weight:400">${note ? '· ' + note : ''}</span>${right ? `<span style="margin-left:auto;display:flex;gap:.7rem;flex-wrap:wrap;font-size:.7rem;color:#6f747c;font-weight:400">${right}</span>` : ''}</div>`;
   const section = title => `<div style="font-size:.95rem;font-weight:700;margin:1.4rem 0 .6rem;color:#3a3f46">${title}</div>`;
-
-  // ── ตัวเลขหลัก: ความเร็วตอบ + ผลการปิด + งานค้าง ──
-  let delta = 'ยังไม่มีช่วงก่อนหน้าให้เทียบ';
-  if (d.prev.cases && tm.median_sec != null) {
-    const diff = tm.median_sec - d.prev.median_sec;
-    delta = Math.abs(diff) < 5 ? 'พอๆ กับช่วงก่อนหน้า'
-      : `<span style="color:${diff < 0 ? '#356b4e' : '#b04a40'}">${diff < 0 ? 'เร็วขึ้น' : 'ช้าลง'} ${mins(Math.abs(diff))}</span> จากช่วงก่อนหน้า`;
-  }
-  const open = lk.waiting + lk.answered_unclosed;
-  const kpis = `<div class="mt-kpis">
-    ${k('เวลาตอบกลาง (median) ทีม', mins(tm.median_sec), delta)}
-    ${k(`ตอบภายใน ${T} นาที`, tm.cases ? `${tm.within_pct}%` : '—', `เป้า 80% · ${tm.cases} เคส${tm.urgent ? ` · ด่วนทันเป้า ${tm.urgent_within}/${tm.urgent}` : ''}`)}
-    ${k('เรื่องที่ปิดแล้ว', num(tot.total), sum ? `ลงเป็นเคส ${pct(tot.case_system + tot.manual, tot.total)}% · เฉลี่ย ${num(Math.round(tot.total / sum.days))}/วัน` : 'โหลดสรุปไม่สำเร็จ')}
-    ${k('ค้างอยู่ตอนนี้', num(open), `รอคนตอบ ${lk.waiting} · ตอบแล้วรอปิด ${lk.answered_unclosed}`, open ? 'orange' : 'green')}
-  </div>${sum?.store_work?.total ? `<div class="mt-meta" style="margin:-.3rem 0 .8rem">งานของหน้าร้านที่ระบบปิดให้อัตโนมัติ (ไม่นับในผลงานทีม): <b>${num(sum.store_work.total)}</b> เรื่อง · ${sum.store_work.by_type.map(x => `${escHtml(x.name)} ${num(x.n)}`).join(' · ')}</div>` : ''}`;
-
-  // ── ความเร็วตอบ (อันดับตามชื่อ LINE@) ──
-  // อันดับ = จำนวนเคสที่ตอบทันเป้า (server เรียงมาแล้ว) — ทุกคนติดอันดับ
-  // รางวัลย่อย ⚡ ไวสุด / 🎯 แม่นสุด คิดเฉพาะคนที่ตอบอย่างน้อย min_cases เคส
-  const ranked = d.people, podium = ranked.slice(0, 3);
-  const eligible = ranked.filter(p => p.cases >= d.min_cases);
-  const fastest = [...eligible].sort((a, b) => (a.median_sec ?? 1e12) - (b.median_sec ?? 1e12))[0];
-  const sharpest = [...eligible].sort((a, b) => b.within_pct - a.within_pct || b.cases - a.cases)[0];
-  const award = (ic, lab, p, val) => p ? `<div class="stat-flat" style="display:flex;align-items:center;gap:.6rem;padding:.6rem .8rem">
-      <span style="font-size:1.3rem">${ic}</span><div><div class="label">${lab}</div><div style="font-weight:700">${escHtml(p.name)} <span class="mt-meta" style="font-weight:400">· ${val}</span></div></div></div>` : '';
-  const card = (p, i) => !p ? '<div></div>' : `<div class="stat-flat" style="text-align:center;${i === 0 ? 'border:2px solid var(--primary);' : ''}">
-      <div class="label">${i === 0 ? '🏆 อันดับ 1' : `อันดับ ${i + 1}`}</div>
-      <div style="font-weight:700;font-size:${i === 0 ? '1.05rem' : '.95rem'};margin:.15rem 0">${escHtml(p.name)}</div>
-      <div class="value" style="font-size:${i === 0 ? '1.7rem' : '1.35rem'}">${p.within}<span style="font-size:.8rem;color:var(--muted);font-weight:400"> เคสทันเป้า</span></div>
-      <div class="sub">จาก ${p.cases} เคส (${p.within_pct}%) · median ${mins(p.median_sec)}</div></div>`;
-  const C = ['#356b4e', '#6aa583', '#b9d8c5', '#dcd9d2'], L = ['ไม่ถึง 1 นาที', `1–${T} นาที`, `${T}–15 นาที`, 'เกิน 15 นาที'];
-  const dist = p => `<div style="display:flex;gap:2px;height:12px;min-width:140px">${p.buckets.map((v, i) => v ? `<div title="${L[i]}: ${v} เคส (${Math.round(v / p.cases * 100)}%)"
-      style="flex:${v};background:${C[i]};border-radius:${i === 0 ? '4px 0 0 4px' : ''}${i === 3 ? '0 4px 4px 0' : ''}"></div>` : '').join('')}</div>`;
-  const row = (p, i) => `<tr><td class="num mt-meta">${i ?? '—'}</td><td><b>${escHtml(p.name)}</b>${p === fastest ? ' <span title="ตอบไวที่สุด">⚡</span>' : ''}${p === sharpest ? ' <span title="ตอบทันเป้าสม่ำเสมอที่สุด">🎯</span>' : ''}</td>
-      <td class="r num"><b>${p.within}</b></td><td style="width:30%">${dist(p)}</td>
-      <td class="r num">${mins(p.median_sec)}</td><td class="r num">${p.within_pct}%</td><td class="r num">${p.cases}</td>
-      <td class="r num mt-meta">${p.urgent ? `${p.urgent_within}/${p.urgent}` : '—'}</td>
-      <td class="r num mt-meta">${Math.round(p.logged / p.cases * 100)}%</td></tr>`;
   const podName = id => id == null ? 'ยังไม่ได้ Assign' : ((_lcPods || []).find(p => p.id === id)?.code || '');
 
-  const speed = !tm.cases ? '' : `${section('ความเร็วในการตอบ')}
-    ${podium.length ? `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem;margin:0 0 .9rem;align-items:end">
-      ${card(podium[1], 1)}${card(podium[0], 0)}${card(podium[2], 2)}</div>` : ''}
-    ${fastest || sharpest ? `<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem;margin:0 0 .9rem">
-      ${award('⚡', 'ตอบไวที่สุด (median)', fastest, mins(fastest?.median_sec))}${award('🎯', 'ตอบทันเป้าสม่ำเสมอที่สุด', sharpest, `${sharpest?.within_pct}% จาก ${sharpest?.cases} เคส`)}</div>` : ''}
+  // ── 1. KPI Strip: ค่าเทียบเป้า (สี) + ลูกศรเทียบช่วงก่อน ──
+  const TONE = { green: '#356b4e', yellow: '#86671f', red: '#a2562f' };
+  const tone = (v, target, lower = true, slack = .25) => v == null ? ''
+    : (lower ? v <= target : v >= target) ? 'green'
+    : (lower ? v <= target * (1 + slack) : v >= target * (1 - slack)) ? 'yellow' : 'red';
+  const arrow = (v, p, lower, fmt) => v == null || p == null ? 'ไม่มีช่วงก่อนให้เทียบ'
+    : v === p ? 'เท่ากับช่วงก่อน'
+    : `<span style="color:${(v < p) === lower ? TONE.green : '#b04a40'}">${v < p ? '▼' : '▲'} ${fmt(Math.abs(v - p))}</span> จากช่วงก่อน`;
+  const kcard = (lab, val, cls, target, cmp) => `<div class="stat-flat"><div class="label">${lab}</div><div class="value ${cls}">${val}</div><div class="sub">${target}</div><div class="sub">${cmp}</div></div>`;
+  const abandPct = tm.cases ? Math.round(tm.abandoned / tm.cases * 100) : null;
+  const pAband = pv.cases ? Math.round(pv.abandoned / pv.cases * 100) : null;
+  const kpis = `<div class="mt-kpis" style="grid-template-columns:repeat(auto-fit,minmax(165px,1fr))">
+    ${kcard('ตอบแรก (median)', mins(tm.frt_median), tone(tm.frt_median, cfg.frtTargetSec), `เป้า ≤ ${T} นาที · ทันเป้า ${tm.frt_within_pct ?? '—'}%`, arrow(tm.frt_median, pv.frt_median, true, mins))}
+    ${kcard('แก้จบ (median)', mins(tm.ttr_median), tone(tm.agent_ttr_median, 3600), `เวลาฝั่งเรา ${mins(tm.agent_ttr_median)} · เป้าฝั่งเรา ≤ 1 ชม.`, arrow(tm.ttr_median, pv.ttr_median, true, mins))}
+    ${kcard('รอบคุยเฉลี่ย', tm.turns_avg ?? '—', tone(tm.turns_avg, cfg.turnsTarget), `เป้า ≤ ${cfg.turnsTarget} รอบ · ทีมงานตอบติดกันนับ 1`, arrow(tm.turns_avg, pv.turns_avg, true, v => v.toFixed(1) + ' รอบ'))}
+    ${kcard('จบใน 1–2 รอบ', tm.one_touch_pct == null ? '—' : tm.one_touch_pct + '%', tone(tm.one_touch_pct, 50, false), 'เป้า ≥ 50% ของเคสที่จบ', arrow(tm.one_touch_pct, pv.one_touch_pct, false, v => v + '%'))}
+    ${kcard('ไม่มีสัญญาณจบ', abandPct == null ? '—' : abandPct + '%', tone(abandPct, 10, true, 1), `${num(tm.abandoned)} จาก ${num(tm.cases)} เคส · เป้า < 10%`, arrow(abandPct, pAband, true, v => v + '%'))}
+  </div>`;
+
+  // ── 2. Quadrant พนักงาน: ตอบแรก × รอบคุย ──
+  const Z = { star: ['#356b4e', 'ดาว · ไว + คุยน้อย'], loop: ['#c07a2c', 'ตอบไวแต่วน'], slow: ['#3d6b9a', 'ช้าแต่แม่น'], coach: ['#b04a40', 'ต้องโค้ช'] };
+  const zoneOf = p => p.frt_median <= cfg.frtTargetSec ? (p.turns_avg <= cfg.turnsTarget ? 'star' : 'loop') : (p.turns_avg <= cfg.turnsTarget ? 'slow' : 'coach');
+  const qp = b.people.filter(p => p.frt_median != null && p.turns_avg != null && p.cases >= 5);
+  let quad = '';
+  if (qp.length) {
+    const VW = 720, VH = 360, L = 52, R = 20, TP = 18, BT = 42, pw = VW - L - R, ph = VH - TP - BT;
+    const xMax = Math.min(60, Math.max(T * 3, Math.ceil(Math.max(...qp.map(p => p.frt_median / 60)) / 5) * 5));
+    const yMax = Math.min(12, Math.max(cfg.turnsTarget * 2, Math.ceil(Math.max(...qp.map(p => p.turns_avg)))));
+    const X = v => L + Math.min(v / 60, xMax) / xMax * pw, Y = v => TP + ph - Math.min(v, yMax) / yMax * ph;
+    const cMax = Math.max(...qp.map(p => p.cases));
+    const rad = n => 5 + Math.sqrt(n / cMax) * 13;
+    const tx = X(cfg.frtTargetSec), ty = Y(cfg.turnsTarget);
+    const xt = Array.from({ length: 6 }, (_, i) => Math.round(xMax / 5 * i)), yt = Array.from({ length: yMax + 1 }, (_, i) => i).filter(v => v % (yMax > 8 ? 2 : 1) === 0);
+    const zr = (x0, y0, x1, y1, z) => `<rect x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}" fill="${Z[z][0]}" opacity=".06"/>`;
+    const zl = (x, y, z, anchor) => `<text x="${x}" y="${y}" text-anchor="${anchor}" font-size="11" font-weight="600" fill="${Z[z][0]}">${Z[z][1]}</text>`;
+    quad = `${section('ใครตอบไวแต่วน')}
+    <div class="mt-tbl-wrap" style="padding-bottom:.6rem">
+      ${head('ตอบแรก × รอบคุย', `จุด = คน (ขนาดตามจำนวนเคส) · เส้นแบ่ง = เป้า ${T} นาที / ${cfg.turnsTarget} รอบ · แสดงคนที่มีอย่างน้อย 5 เคส`)}
+      <svg viewBox="0 0 ${VW} ${VH}" style="width:100%;height:auto;display:block;max-width:900px;margin:0 auto" role="img" aria-label="แผนภาพตอบแรกเทียบรอบคุยของแต่ละคน">
+        ${zr(L, ty, tx, TP + ph, 'star')}${zr(L, TP, tx, ty, 'loop')}${zr(tx, ty, L + pw, TP + ph, 'slow')}${zr(tx, TP, L + pw, ty, 'coach')}
+        ${xt.map(v => `<line x1="${X(v * 60)}" x2="${X(v * 60)}" y1="${TP}" y2="${TP + ph}" stroke="#e7e4dd"/><text x="${X(v * 60)}" y="${TP + ph + 16}" text-anchor="middle" font-size="11" fill="#6f747c">${v}</text>`).join('')}
+        ${yt.map(v => `<line x1="${L}" x2="${L + pw}" y1="${Y(v)}" y2="${Y(v)}" stroke="#e7e4dd"/><text x="${L - 8}" y="${Y(v) + 4}" text-anchor="end" font-size="11" fill="#6f747c">${v}</text>`).join('')}
+        <line x1="${tx}" x2="${tx}" y1="${TP}" y2="${TP + ph}" stroke="#8a8f96" stroke-dasharray="4 3"/>
+        <line x1="${L}" x2="${L + pw}" y1="${ty}" y2="${ty}" stroke="#8a8f96" stroke-dasharray="4 3"/>
+        ${zl(L + 8, TP + ph - 8, 'star', 'start')}${zl(L + 8, TP + 14, 'loop', 'start')}${zl(L + pw - 8, TP + ph - 8, 'slow', 'end')}${zl(L + pw - 8, TP + 14, 'coach', 'end')}
+        <text x="${L + pw / 2}" y="${VH - 6}" text-anchor="middle" font-size="11.5" fill="#4d535b">ตอบแรก median (นาที)</text>
+        <text x="14" y="${TP + ph / 2}" text-anchor="middle" font-size="11.5" fill="#4d535b" transform="rotate(-90 14 ${TP + ph / 2})">รอบคุยเฉลี่ย</text>
+        ${[...qp].sort((a, b) => b.cases - a.cases).map(p => {
+          const cx = X(p.frt_median), cy = Y(p.turns_avg), r = rad(p.cases), c = Z[zoneOf(p)][0];
+          return `<g><title>${escHtml(p.name)} · ตอบแรก ${mins(p.frt_median)} · รอบคุย ${p.turns_avg} · ${p.cases} เคส</title>
+            <circle cx="${cx}" cy="${cy}" r="${r}" fill="${c}" fill-opacity=".55" stroke="${c}" stroke-width="1.5"/>
+            <text x="${cx + r + 4}" y="${cy + 4}" font-size="11" fill="#3a3f46">${escHtml(p.name)}</text></g>`;
+        }).join('')}
+      </svg>
+    </div>`;
+  }
+
+  // ── 3. Leaderboard: คะแนนรวม 4 ด้าน (Quality ยังไม่เปิด) ──
+  const BADGE = { fastest: ['⚡', 'ตอบไวสุด'], fixer: ['🔧', 'แก้จบไวสุด'], clearest: ['🎯', 'คุยรู้เรื่องสุด (รอบน้อยสุด)'], improved: ['📈', 'พัฒนาขึ้นมากสุด'] };
+  const badgesOf = n => Object.entries(b.badges).filter(([, v]) => v === n).map(([k]) => `<span title="${BADGE[k][1]}">${BADGE[k][0]}</span>`).join(' ');
+  const cell = (txt, t) => `<span style="${t ? `color:${TONE[t]};font-weight:600` : ''}">${txt}</span>`;
+  const W = cfg.weights;
+  const lrow = (p, i) => {
+    const d = p.prev_total == null ? '' : p.total - p.prev_total;
+    return `<tr${p.ranked ? '' : ' style="opacity:.7"'}><td class="num mt-meta">${i ?? '—'}</td><td><b>${escHtml(p.name)}</b> ${badgesOf(p.name)}</td>
+      <td style="min-width:130px"><div style="display:flex;align-items:center;gap:.45rem"><b class="num" style="min-width:1.6em">${p.total}</b>
+        <div style="flex:1;height:8px;background:#efede7;border-radius:4px;overflow:hidden"><div style="width:${p.total}%;height:100%;background:${p.total >= 70 ? TONE.green : p.total >= 50 ? '#c9a03c' : '#c9785c'}"></div></div></div></td>
+      <td class="r num mt-meta">${d === '' ? '—' : `<span style="color:${d >= 0 ? TONE.green : '#b04a40'}">${d > 0 ? '+' : ''}${d}</span>`}</td>
+      <td class="r num">${cell(mins(p.frt_median), tone(p.frt_median, cfg.frtTargetSec))}<span class="mt-meta" style="display:block;font-size:.7rem">ทัน ${p.frt_within_pct ?? '—'}%</span></td>
+      <td class="r num">${cell(mins(p.agent_ttr_median), tone(p.agent_ttr_median, 3600))}<span class="mt-meta" style="display:block;font-size:.7rem">รวม ${mins(p.ttr_median)}</span></td>
+      <td class="r num">${cell(p.turns_avg ?? '—', tone(p.turns_avg, cfg.turnsTarget))}</td>
+      <td class="r num">${cell(p.one_touch_pct == null ? '—' : p.one_touch_pct + '%', tone(p.one_touch_pct, 50, false))}</td>
+      <td class="r num mt-meta">${p.abandoned || '—'}</td>
+      <td class="r num">${p.cases}</td></tr>`;
+  };
+  const ranked = b.people.filter(p => p.ranked), unranked = b.people.filter(p => !p.ranked);
+  const lhead = `<thead><tr><th>#</th><th>คนตอบ (LINE@)</th><th title="Speed ${W.speed} · Resolution ${W.resolution} · Efficiency ${W.efficiency} (หาร ${W.speed + W.resolution + W.efficiency})">คะแนนรวม</th>
+    <th class="r" title="เทียบช่วงก่อนหน้าความยาวเท่ากัน">เทียบช่วงก่อน</th><th class="r">ตอบแรก</th><th class="r" title="แก้จบ − เวลารอลูกค้าตอบ">แก้จบ (ฝั่งเรา)</th>
+    <th class="r">รอบคุย</th><th class="r">จบ 1–2 รอบ</th><th class="r" title="ไม่มีสัญญาณจบ">ไม่จบ</th><th class="r">เคส</th></tr></thead>`;
+  const board = `${section('ใครเก่งจริง')}
     <div class="mt-tbl-wrap">
-      ${head('อันดับ', `เรียงตามจำนวนเคสที่ตอบทันเป้า ${T} นาที (ต้องทั้งเยอะและทัน) · ⚡/🎯 คิดจากคนที่ตอบอย่างน้อย ${d.min_cases} เคส`,
-        C.map((c, i) => `<span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${c};vertical-align:-.05em"></span> ${L[i]}</span>`).join(''))}
-      <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>#</th><th>คนตอบ (LINE@)</th><th class="r" title="จำนวนเคสที่ตอบภายใน ${T} นาที">ทันเป้า</th><th>การกระจายเวลาตอบ</th><th class="r">median</th>
-        <th class="r">ใน ${T} นาที</th><th class="r">เคส</th><th class="r">ด่วน</th><th class="r">ลงเคส</th></tr></thead>
-        <tbody>${ranked.map((p, i) => row(p, i + 1)).join('')}</tbody></table></div>
+      ${head('Leaderboard', `คะแนน 0–100 = ตอบทันเป้า ${W.speed} · แก้จบเทียบหมวดเดียวกัน ${W.resolution} · จบไว/รอบน้อย ${W.efficiency} · ด้านคุณภาพ (AI + กลับมาซ้ำ) เปิดในเฟสถัดไป · เคสเป็นของคนที่ตอบคนแรก`,
+        Object.values(BADGE).map(([ic, lab]) => `<span>${ic} ${lab}</span>`).join(''))}
+      <div style="overflow-x:auto"><table class="mt-tbl">${lhead}<tbody>
+        ${ranked.length ? ranked.map((p, i) => lrow(p, i + 1)).join('') : `<tr><td colspan="10" class="mt-meta" style="text-align:center;padding:1rem">ยังไม่มีใครครบ ${cfg.minCases} เคสในช่วงนี้</td></tr>`}
+        ${unranked.length ? `<tr><td colspan="10" class="mt-meta" style="background:#f7f6f3;font-size:.74rem;padding:.4rem .9rem">ไม่ติดอันดับ · น้อยกว่า ${cfg.minCases} เคสในช่วงที่เลือก</td></tr>${unranked.map(p => lrow(p, null)).join('')}` : ''}
+      </tbody></table></div>
+    </div>`;
+
+  // ── 4. เคสที่ควรดู (แทนตาราง "ตอบช้าสุด") ──
+  _llbReview = b.review;
+  const RV = [['many_turns', `คุยเกิน ${cfg.reviewTurns} รอบ`], ['slow_fix', `ฝั่งเราแก้เกิน ${cfg.reviewTtrSec / 3600} ชม.`], ['abandoned', 'ไม่มีสัญญาณจบ']];
+  if (!b.review[_llbReviewTab]?.length) _llbReviewTab = RV.find(([k]) => b.review[k].length)?.[0] || 'many_turns';
+  const review = `${section('เคสที่ควรดู')}
+    <div class="mt-tbl-wrap">
+      <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;padding:.8rem 1rem .3rem">
+        <div class="svc-seg" role="tablist" aria-label="ประเภทเคสที่ควรดู">${RV.map(([k, lab]) => `<button role="tab" class="${k === _llbReviewTab ? 'on' : ''}" onclick="llbReviewTab('${k}', this)">${lab} <span class="mt-meta">${b.review[k].length}</span></button>`).join('')}</div>
+        <span class="mt-meta">เหตุผลจาก AI · ไว้ทบทวนว่าติดตรงไหน</span>
+      </div>
+      <div id="llb-review">${llbReviewHtml()}</div>
     </div>`;
 
   // ── ผลการปิดเรื่อง (ตามผู้ใช้ระบบที่กดปิด) ──
@@ -9598,16 +9648,30 @@ async function llbLoad() {
         </tbody></table></div></div>` : ''}`;
   }
 
-  const slowest = d.slowest.length ? `<div class="mt-tbl-wrap" style="margin-top:.75rem">
-      ${head('ตอบช้าสุดในช่วงนี้', 'ไว้ทบทวนว่าติดตรงไหน')}
-      <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th class="r">รอ</th><th>กลุ่ม / เรื่อง</th><th>Pod</th><th>คนตอบ</th></tr></thead><tbody>
-      ${d.slowest.map(s => `<tr><td class="r num" style="color:${s.sec > T * 60 ? '#b04a40' : 'inherit'};white-space:nowrap"><b>${mins(s.sec)}</b></td>
-        <td><b>${escHtml(s.group_name || '—')}</b>${s.urgent ? ' <span style="color:#b04a40;font-size:.72rem">เร่งด่วน</span>' : ''}<span style="display:block;font-size:.74rem;color:#6f747c">${escHtml(s.summary || '')}</span></td>
-        <td class="mt-meta">${escHtml(podName(s.pod_id))}</td><td>${escHtml(s.answered_by || '—')}</td></tr>`).join('')}
-      </tbody></table></div>
-    </div>` : '';
+  box.innerHTML = kpis + quad + board + review + closing + leaks;
+}
 
-  box.innerHTML = kpis + speed + slowest + closing + leaks;
+let _llbReview = null, _llbReviewTab = 'many_turns';
+const LLB_SIGNAL = { customer_confirmed: 'ลูกค้ายืนยัน', agent_fixed: 'ทีมงานแก้แล้ว', escalated: 'ส่งต่อทีมอื่น', abandoned: 'ไม่มีสัญญาณจบ' };
+const LLB_CAT = { printer: 'เครื่องพิมพ์', menu: 'เมนู/ราคา', report: 'รายงาน', order: 'บิล/ออเดอร์', remote: 'รีโมท/ติดตั้ง', other: 'อื่นๆ' };
+function llbReviewTab(k, btn) {
+  _llbReviewTab = k;
+  btn?.parentElement?.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === btn));
+  const el = document.getElementById('llb-review');
+  if (el) el.innerHTML = llbReviewHtml();
+}
+function llbReviewHtml() {
+  const rows = _llbReview?.[_llbReviewTab] || [];
+  if (!rows.length) return '<div class="mt-meta" style="text-align:center;padding:1.2rem">ไม่มีเคสในกลุ่มนี้</div>';
+  const mins = s => s == null ? '—' : s < 3600 ? `${Math.round(s / 60)} นาที` : `${(s / 3600).toFixed(1)} ชม.`;
+  const when = x => parseDbDate(x).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return `<div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>เวลา</th><th>กลุ่ม</th><th>คนรับ</th><th>หมวด</th><th class="r">รอบ</th><th class="r">แก้จบ (ฝั่งเรา)</th><th>ผล / เหตุผลจาก AI</th></tr></thead><tbody>
+    ${rows.map(r => `<tr><td class="mt-meta" style="white-space:nowrap">${when(r.first_msg_time)}</td>
+      <td><b>${escHtml(r.group_name || '—')}</b></td><td>${escHtml(r.answered_by || '—')}</td>
+      <td class="mt-meta">${LLB_CAT[r.issue_category] || escHtml(r.issue_category || '')}</td>
+      <td class="r num">${r.turns}</td><td class="r num">${mins(r.agent_ttr)}</td>
+      <td style="min-width:260px"><span style="font-size:.72rem;font-weight:600">${LLB_SIGNAL[r.resolution_signal] || ''}</span><span style="display:block;font-size:.74rem;color:#6f747c">${escHtml(r.reason || '')}</span></td></tr>`).join('')}
+  </tbody></table></div>`;
 }
 
 async function loadDashboard() {

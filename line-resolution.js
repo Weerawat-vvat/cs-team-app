@@ -16,6 +16,21 @@ const SIGNALS = ['customer_confirmed', 'agent_fixed', 'escalated', 'abandoned'];
 const SILENCE_MIN = 120;      // ลูกค้าเงียบเกินนี้ถึงจะตัดสิน (และเว้นระยะก่อนตัดสินซ้ำ)
 const FINAL_HOURS = 24;       // เคสอายุเกินนี้ = ตัดสินครั้งสุดท้าย ไม่มีสัญญาณจบ → abandoned
 const MAX_LINES = 80;         // บรรทัดแชทสูงสุดที่ส่งให้ AI ต่อเคส
+const WORK_FROM_H = 8;        // เวลาทำงาน 08:00–24:00
+
+// วินาทีทำงานระหว่าง a→b (นับเฉพาะ 08:00–24:00) · DATETIME เก็บเวลาไทยแบบ face value → อ่านด้วย getUTC*
+function workSec(a, b) {
+  a = new Date(a); b = new Date(b);
+  if (!(b > a)) return 0;
+  let sec = 0;
+  const d = new Date(Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate()));
+  for (; d < b; d.setUTCDate(d.getUTCDate() + 1)) {
+    const s = new Date(d.getTime() + WORK_FROM_H * 3600000), e = new Date(d.getTime() + 86400000);
+    const lo = Math.max(+s, +a), hi = Math.min(+e, +b);
+    if (hi > lo) sec += (hi - lo) / 1000;
+  }
+  return Math.round(sec);
+}
 
 function createLineResolution({ req, getLineBotPool, sql, aiGenerate, SchemaType, startDate, log = console }) {
   let _tables = false, _running = false;
@@ -58,6 +73,8 @@ function createLineResolution({ req, getLineBotPool, sql, aiGenerate, SchemaType
       CREATE TABLE line_case_resolution_msg (
         msg_id      INT PRIMARY KEY,                  -- LineWaitingReply.Id ของลูกค้าที่เป็นของเคสนี้
         case_msg_id INT NOT NULL);
+      IF COL_LENGTH('line_case_resolution','ttr_work_sec') IS NULL
+        ALTER TABLE line_case_resolution ADD ttr_work_sec INT NULL, customer_wait_sec INT NULL;
       IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='ix_lcres_time')
         CREATE INDEX ix_lcres_time ON line_case_resolution(first_msg_time);
       IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='ix_lcres_msg_case')
@@ -217,10 +234,23 @@ ${final ? 'นี่คือการตัดสินครั้งสุด
     const lastAns = [...answerTimes].sort((a, b) => a[0] - b[0]).pop();
     const resolvedBy = lastAns ? lastAns[1] : null;
     const cat = CATEGORIES.includes(ai.issue_category) ? ai.issue_category : 'other';
+    // เวลารอลูกค้า = ทีมงานตอบแล้ว → จนเจ้าของเคสพิมพ์กลับเรื่องนี้ (ลูกบอลอยู่ฝั่งลูกค้า) · นับเฉพาะเวลาทำงาน
+    // เวลาฝั่งเรา (Agent-side TTR) = แก้จบ − เวลารอลูกค้า
+    let custWait = 0, waitFrom = null;
+    const events = [
+      ...[...answerTimes.keys()].map(t => ({ t: new Date(t), staff: true })),
+      ...caseCust.map(l => ({ t: l.time, staff: false })),
+    ].sort((a, b) => a.t - b.t || a.staff - b.staff);
+    for (const e of events) {
+      if (e.staff) { if (!waitFrom) waitFrom = e.t; }
+      else if (waitFrom) { custWait += workSec(waitFrom, e.t); waitFrom = null; }
+    }
     return {
       case_msg_ids: [...ids].map(Number), issue_category: cat, resolved, resolution_signal: signal,
       resolved_msg_ref: resolved ? String(ai.resolved_msg_id) : null, resolved_at: resolvedAt,
       resolved_by: resolved ? resolvedBy : null, agent_turns: turns, customer_msgs: caseCust.length,
+      ttr_work_sec: resolved ? workSec(caseStart, resolvedAt) : null,
+      customer_wait_sec: resolved ? custWait : null,
       ai_reason: String(ai.reason || '').slice(0, 500), final,
     };
   }
@@ -252,9 +282,11 @@ ${final ? 'นี่คือการตัดสินครั้งสุด
       .input('ref', sql.NVarChar, r.resolved_msg_ref).input('rat', sql.DateTime, r.resolved_at).input('rby', sql.NVarChar, r.resolved_by)
       .input('turns', sql.Int, r.agent_turns).input('cm', sql.Int, r.customer_msgs).input('cid', sql.Int, c.calllog_id || null)
       .input('why', sql.NVarChar, r.ai_reason).input('model', sql.NVarChar, r.ai_model).input('fin', sql.Bit, r.final ? 1 : 0)
-      .input('next', sql.DateTime, r.next_check_at).query(`
+      .input('next', sql.DateTime, r.next_check_at)
+      .input('ttr', sql.Int, r.ttr_work_sec).input('cw', sql.Int, r.customer_wait_sec).query(`
       IF EXISTS (SELECT 1 FROM line_case_resolution WHERE case_msg_id=@id)
         UPDATE line_case_resolution SET customer_user_id=@cu, issue_category=@cat, resolved=@res, resolution_signal=@sig,
+          ttr_work_sec=@ttr, customer_wait_sec=@cw,
           resolved_msg_ref=@ref, resolved_at=@rat, resolved_by=@rby, agent_turns=@turns, customer_msgs=@cm,
           calllog_id=ISNULL(@cid, calllog_id), ai_reason=@why, ai_model=@model, checks=checks+1, final=@fin,
           next_check_at=@next, updated_at=GETDATE()
@@ -262,8 +294,8 @@ ${final ? 'นี่คือการตัดสินครั้งสุด
       ELSE
         INSERT INTO line_case_resolution (case_msg_id, group_id, group_name, pod_id, customer_user_id, first_msg_time,
           first_answer_time, answered_by, issue_category, resolved, resolution_signal, resolved_msg_ref, resolved_at, resolved_by,
-          agent_turns, customer_msgs, calllog_id, ai_reason, ai_model, checks, final, next_check_at)
-        VALUES (@id, @g, @gn, @pod, @cu, @mt, @fat, @ab, @cat, @res, @sig, @ref, @rat, @rby, @turns, @cm, @cid, @why, @model, 1, @fin, @next)`);
+          agent_turns, customer_msgs, calllog_id, ai_reason, ai_model, checks, final, next_check_at, ttr_work_sec, customer_wait_sec)
+        VALUES (@id, @g, @gn, @pod, @cu, @mt, @fat, @ab, @cat, @res, @sig, @ref, @rat, @rby, @turns, @cm, @cid, @why, @model, 1, @fin, @next, @ttr, @cw)`);
     // ข้อความของเคส: ทำใหม่ทุกรอบ · ข้อความที่เป็นของเคสอื่นอยู่แล้วไม่แย่ง (เคสแรกได้ก่อน)
     const t = req().input('id', sql.Int, c.source_msg_id);
     r.case_msg_ids.forEach((m, k) => t.input('m' + k, sql.Int, m));
@@ -310,4 +342,81 @@ ${final ? 'นี่คือการตัดสินครั้งสุด
   return { ensure, runBatch, evaluateCase, buildTimeline, buildPrompt, judgeToResult, CATEGORIES, SIGNALS };
 }
 
-module.exports = { createLineResolution };
+// คิดตัวเลขหน้า "ตอบเคสไลน์ไว" (เฟส 2) จากแถว line_case_resolution — แยกเป็นฟังก์ชันล้วนไว้ทดสอบกับข้อมูลจริงได้
+function buildBoard(curRaw, prevRaw, B) {
+  const median = xs => { if (!xs.length) return null; const s = [...xs].sort((a, b) => a - b), h = s.length >> 1; return s.length % 2 ? s[h] : (s[h - 1] + s[h]) / 2; };
+  const avg = xs => xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
+  const prep = rows => rows.filter(x => x.final).map(x => {
+    const frt = x.first_answer_time ? workSec(x.first_msg_time, x.first_answer_time) : null;
+    const ttr = x.resolved ? (x.ttr_work_sec ?? workSec(x.first_msg_time, x.resolved_at)) : null;
+    return { ...x, frt, ttr, agent_ttr: ttr == null ? null : Math.max(0, ttr - (x.customer_wait_sec || 0)), turns: x.agent_turns || 0 };
+  });
+  const stats = cs => {
+    const res = cs.filter(c => c.resolved), frts = cs.map(c => c.frt).filter(v => v != null);
+    // รอบคุยคิดเฉพาะเคสที่เห็นทีมงานตอบอย่างน้อย 1 รอบ (0 รอบ = ไม่มีบันทึกการตอบ ไม่ใช่ "คุยน้อย")
+    const tr = res.filter(c => c.turns >= 1);
+    return {
+      cases: cs.length, resolved: res.length, abandoned: cs.length - res.length,
+      frt_median: median(frts), frt_within_pct: frts.length ? Math.round(frts.filter(v => v <= B.frtTargetSec).length / frts.length * 100) : null,
+      ttr_median: median(res.map(c => c.ttr)), agent_ttr_median: median(res.map(c => c.agent_ttr)),
+      turns_avg: tr.length ? +avg(tr.map(c => c.turns)).toFixed(1) : null,
+      one_touch_pct: tr.length ? Math.round(tr.filter(c => c.turns <= B.oneTouchTurns).length / tr.length * 100) : null,
+    };
+  };
+  const cur = prep(curRaw), prevRows = prep(prevRaw);
+
+  // Resolution เทียบ median ของหมวดเดียวกัน (เคส "เมนู" ยากกว่า "ขอรีโมท")
+  const catMed = new Map();
+  for (const cat of new Set(cur.map(c => c.issue_category))) catMed.set(cat, median(cur.filter(c => c.issue_category === cat && c.resolved).map(c => c.agent_ttr)));
+  const resScore = c => {
+    if (!c.resolved) return 0;   // ไม่มีสัญญาณจบ = ไม่ได้คะแนนด้านนี้
+    const m = catMed.get(c.issue_category);
+    return m == null || c.agent_ttr <= m ? 100 : Math.round(100 * Math.max(m, 60) / Math.max(c.agent_ttr, 60));
+  };
+  const W = B.weights, wSum = W.speed + W.resolution + W.efficiency;
+  const byPerson = new Map();
+  cur.forEach(c => { const k = c.answered_by || '(ไม่ทราบ)'; (byPerson.get(k) || byPerson.set(k, []).get(k)).push(c); });
+  const prevBy = new Map();
+  prevRows.forEach(c => { const k = c.answered_by || '(ไม่ทราบ)'; (prevBy.get(k) || prevBy.set(k, []).get(k)).push(c); });
+  const scoreOf = cs => {
+    const s = stats(cs);
+    const speed = s.frt_within_pct ?? 0;
+    const resolution = Math.round(avg(cs.map(resScore)) ?? 0);
+    // Efficiency = ครึ่งหนึ่ง One-touch %, อีกครึ่งรอบคุยเฉลี่ย (≤2 รอบ = 100, ≥8 รอบ = 0)
+    const turnScore = s.turns_avg == null ? 0 : Math.round(Math.max(0, Math.min(100, (8 - s.turns_avg) / 6 * 100)));
+    const efficiency = Math.round(((s.one_touch_pct ?? 0) + turnScore) / 2);
+    return { ...s, speed, resolution_score: resolution, efficiency, total: Math.round((speed * W.speed + resolution * W.resolution + efficiency * W.efficiency) / wSum) };
+  };
+  const people = [...byPerson].map(([name, cs]) => {
+    const p = { name, ...scoreOf(cs) };
+    const pv = prevBy.get(name);
+    p.prev_total = pv && pv.length >= 5 ? scoreOf(pv).total : null;
+    p.ranked = p.cases >= B.minCases;
+    return p;
+  }).sort((a, b) => b.ranked - a.ranked || b.total - a.total || b.cases - a.cases);
+
+  // ป้าย — คิดจากคนที่ติดอันดับ
+  const R = people.filter(p => p.ranked);
+  const best = (fn, dir = 1) => R.filter(p => fn(p) != null).sort((a, b) => dir * (fn(a) - fn(b)))[0]?.name || null;
+  const badges = {
+    fastest: best(p => p.frt_median),
+    fixer: best(p => p.agent_ttr_median),
+    clearest: best(p => p.turns_avg),
+    improved: (() => { const x = R.filter(p => p.prev_total != null).sort((a, b) => (b.total - b.prev_total) - (a.total - a.prev_total))[0]; return x && x.total > x.prev_total ? x.name : null; })(),
+  };
+
+  // เคสที่ควรดู (แทนตาราง "ตอบช้าสุด")
+  const brief = c => ({ case_msg_id: c.case_msg_id, group_name: c.group_name, pod_id: c.pod_id, answered_by: c.answered_by,
+    first_msg_time: c.first_msg_time, issue_category: c.issue_category, resolution_signal: c.resolution_signal,
+    turns: c.turns, ttr: c.ttr, agent_ttr: c.agent_ttr, reason: c.ai_reason });
+  const review = {
+    many_turns: cur.filter(c => c.turns > B.reviewTurns).sort((a, b) => b.turns - a.turns).slice(0, 30).map(brief),
+    slow_fix: cur.filter(c => c.agent_ttr != null && c.agent_ttr > B.reviewTtrSec).sort((a, b) => b.agent_ttr - a.agent_ttr).slice(0, 30).map(brief),
+    abandoned: cur.filter(c => !c.resolved).sort((a, b) => new Date(b.first_msg_time) - new Date(a.first_msg_time)).slice(0, 30).map(brief),
+  };
+
+  return { team: stats(cur), prev: stats(prevRows), people, badges, review,
+    by_signal: cur.reduce((m, c) => (m[c.resolution_signal] = (m[c.resolution_signal] || 0) + 1, m), {}) };
+}
+
+module.exports = { createLineResolution, workSec, buildBoard };
