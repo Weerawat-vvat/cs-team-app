@@ -8442,7 +8442,7 @@ app.get('/api/triage/new', authRequired, async (request, res) => {
 const LINE_LB_START = /^\d{4}-\d{2}-\d{2}$/.test(process.env.LINE_LB_START || '') ? process.env.LINE_LB_START : '2026-10-10';
 const LINE_LB_TARGET_MIN = Math.max(1, parseInt(process.env.LINE_LB_TARGET_MIN) || 5);
 const LINE_LB_WORK_START = 8;   // 08:00 — เวลาทำงาน 08:00-24:00
-let _lcrTable = false, _lcrSyncRunning = false;
+let _lcrTable = false, _lcrSyncRunning = false, _lcrBackfilled = false;
 async function ensureLineCaseResponse() {
   if (_lcrTable) return;
   await req().query(`IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='line_case_response' AND xtype='U')
@@ -8472,14 +8472,18 @@ async function syncLineCaseResponse() {
     await ensureLineCaseResponse();
     await ensureTriageCaseCol();
     await ensureTriageAnsweredAt();
+    // เดิม TOP 1000 เก่าสุดก่อน → ข้อความที่ไม่มีวันถูกตอบสะสมเกิน 1000 แล้วค้างวนอยู่ชุดเดิม ไม่ถึงข้อความใหม่
+    // (Leaderboard ไม่อัปเดตตั้งแต่ 27 ต.ค.) · ตอนนี้: รอบแรกหลังเปิด server ไล่ทั้งหมด ต่อจากนั้นดูแค่ 3 วันล่าสุด
+    const full = !_lcrBackfilled;
     const todo = (await req().input('st', sql.NVarChar, LINE_LB_START).query(`
-      SELECT TOP 1000 t.source_msg_id, t.group_id, COALESCE(t.group_name, lgp.group_name) AS group_name, lgp.pod_id,
+      SELECT ${full ? '' : 'TOP 3000'} t.source_msg_id, t.group_id, COALESCE(t.group_name, lgp.group_name) AS group_name, lgp.pod_id,
              t.message_time, t.summary, t.priority, t.calllog_id, t.answered_by AS staff_by, t.answered_at AS staff_at
       FROM line_msg_triage t
       LEFT JOIN line_group_pods lgp ON lgp.group_id = t.group_id
       LEFT JOIN line_case_response r ON r.source_msg_id = t.source_msg_id
       WHERE t.needs_action = 1 AND t.message_time >= CAST(@st AS DATE) AND t.message_time IS NOT NULL
         AND (r.source_msg_id IS NULL OR r.answered_time IS NULL)
+        ${full ? '' : 'AND t.message_time >= DATEADD(day, -3, GETDATE())'}
       ORDER BY t.message_time`)).recordset;
     let saved = 0;
     for (let i = 0; i < todo.length; i += 200) {
@@ -8511,7 +8515,8 @@ async function syncLineCaseResponse() {
     await req().query(`UPDATE r SET calllog_id = t.calllog_id, updated_at = GETDATE()
       FROM line_case_response r JOIN line_msg_triage t ON t.source_msg_id = r.source_msg_id
       WHERE r.calllog_id IS NULL AND t.calllog_id IS NOT NULL`);
-    if (saved) console.log(`🏁 line leaderboard: บันทึกการตอบ ${saved} เคส`);
+    _lcrBackfilled = true;
+    if (saved || full) console.log(`🏁 line leaderboard: บันทึกการตอบ ${saved} เคส${full ? ` (ไล่ย้อนหลังทั้งหมด ${todo.length} ข้อความ)` : ''}`);
   } catch (e) { console.error('line leaderboard sync error:', e.message); }
   finally { _lcrSyncRunning = false; }
 }
@@ -8610,7 +8615,10 @@ const LINE_RESOLVE_BATCH = Math.max(1, Math.min(50, parseInt(process.env.LINE_RE
 const lineResolution = createLineResolution({ req, getLineBotPool, sql, aiGenerate, SchemaType, startDate: LINE_RESOLVE_START });
 async function lineResolutionTick() {
   if (!LINE_RESOLVE_ON || !getPool()) return;
-  try { await lineResolution.runBatch({ limit: LINE_RESOLVE_BATCH }); }
+  try {
+    const out = await lineResolution.runBatch({ limit: LINE_RESOLVE_BATCH });
+    if (out?.error) console.error('line resolution:', out.error);
+  }
   catch (e) { console.error('line resolution error:', e.message); }
 }
 setInterval(lineResolutionTick, 5 * 60 * 1000);
