@@ -11,6 +11,7 @@ const nodemailer                 = require('nodemailer');
 const axios                      = require('axios');
 const { init, getPool, getExtPool, getInfoPool, getLineBotPool, sql } = require('./database');
 const { GoogleGenerativeAI, SchemaType } = require('@google/generative-ai');
+const { createLineResolution }   = require('./line-resolution');
 
 const app        = express();
 const PORT       = process.env.PORT || 3010;
@@ -8595,6 +8596,68 @@ app.get('/api/line-leaderboard', authRequired, async (request, res) => {
       slowest: [...evs].sort((a, b) => b.sec - a.sec).slice(0, 10)
         .map(e => ({ sec: e.sec, group_name: e.group_name, summary: e.summary, pod_id: e.pod_id, answered_by: e.answered_by, message_time: e.message_time, urgent: e.urgent })),
     });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════
+//  เคสไลน์แก้จบเมื่อไหร่ (AI judge เฟส 1) — รายละเอียดใน line-resolution.js
+//  ทุก 5 นาที: ตัดสินเคสใน line_case_response ที่ลูกค้าเงียบเกิน 2 ชม. → line_case_resolution
+//  ปิดได้ด้วย LINE_RESOLVE=off · เริ่มนับจาก LINE_RESOLVE_START (ค่าเริ่มต้น 2026-11-01)
+// ══════════════════════════════════════════════════════════
+const LINE_RESOLVE_ON = (process.env.LINE_RESOLVE || 'on').toLowerCase() !== 'off';
+const LINE_RESOLVE_START = /^\d{4}-\d{2}-\d{2}$/.test(process.env.LINE_RESOLVE_START || '') ? process.env.LINE_RESOLVE_START : '2026-11-01';
+const LINE_RESOLVE_BATCH = Math.max(1, Math.min(50, parseInt(process.env.LINE_RESOLVE_BATCH) || 15));
+const lineResolution = createLineResolution({ req, getLineBotPool, sql, aiGenerate, SchemaType, startDate: LINE_RESOLVE_START });
+async function lineResolutionTick() {
+  if (!LINE_RESOLVE_ON || !getPool()) return;
+  try { await lineResolution.runBatch({ limit: LINE_RESOLVE_BATCH }); }
+  catch (e) { console.error('line resolution error:', e.message); }
+}
+setInterval(lineResolutionTick, 5 * 60 * 1000);
+
+// GET /api/line-resolution?from=YYYY-MM-DD&to=YYYY-MM-DD&pod=<id|none> — ผลการตัดสิน + ตัวเลขสรุป (ไว้ตรวจก่อนทำหน้า)
+app.get('/api/line-resolution', authRequired, async (request, res) => {
+  try {
+    await lineResolution.ensure();
+    const day = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : null;
+    let from = day(request.query.from) || bangkokToday(), to = day(request.query.to) || from;
+    if (from > to) [from, to] = [to, from];
+    const r = req().input('f', sql.NVarChar, from).input('t', sql.NVarChar, to);
+    let podSql = '';
+    if (request.query.pod === 'none') podSql = 'AND pod_id IS NULL';
+    else if (parseInt(request.query.pod)) { podSql = 'AND pod_id = @pod'; r.input('pod', sql.Int, parseInt(request.query.pod)); }
+    const rows = (await r.query(`SELECT * FROM line_case_resolution
+      WHERE first_msg_time >= CAST(@f AS DATE) AND first_msg_time < DATEADD(day, 1, CAST(@t AS DATE)) ${podSql}
+      ORDER BY first_msg_time DESC`)).recordset;
+    const median = xs => { if (!xs.length) return null; const s = [...xs].sort((a, b) => a - b), h = s.length >> 1; return s.length % 2 ? s[h] : (s[h - 1] + s[h]) / 2; };
+    // แก้จบ (TTR) เริ่มนับ 08:00 เหมือนเวลาตอบ — เวลาเก็บแบบ face value ใช้ getUTC*
+    const ttrSec = x => {
+      const s = new Date(x.first_msg_time);
+      if (s.getUTCHours() < LINE_LB_WORK_START) s.setUTCHours(LINE_LB_WORK_START, 0, 0, 0);
+      return Math.max(0, Math.round((new Date(x.resolved_at) - s) / 1000));
+    };
+    const done = rows.filter(x => x.final);
+    const resolved = done.filter(x => x.resolved);
+    const by = k => done.reduce((m, x) => (m[x[k] || '-'] = (m[x[k] || '-'] || 0) + 1, m), {});
+    res.json({
+      from, to, start: LINE_RESOLVE_START, enabled: LINE_RESOLVE_ON,
+      total: rows.length, pending: rows.length - done.length, final: done.length, resolved: resolved.length,
+      by_signal: by('resolution_signal'), by_category: by('issue_category'),
+      ttr_median_sec: median(resolved.map(ttrSec)),
+      turns_median: median(resolved.map(x => x.agent_turns || 0)),
+      one_touch_pct: resolved.length ? Math.round(resolved.filter(x => (x.agent_turns || 0) <= 2).length / resolved.length * 100) : null,
+      rows: rows.map(x => ({ ...x, ttr_sec: x.resolved ? ttrSec(x) : null })),
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/line-resolution/run { limit } — สั่งตัดสินรอบหนึ่งทันที (ไม่ต้องรอ 5 นาที)
+app.post('/api/line-resolution/run', authRequired, managerRequired, async (request, res) => {
+  try {
+    const limit = Math.max(1, Math.min(50, parseInt(request.body?.limit) || LINE_RESOLVE_BATCH));
+    const out = await lineResolution.runBatch({ limit });
+    res.json({ picked: out.picked ?? 0, judged: (out.results || []).filter(x => !x.error).length,
+      errors: (out.results || []).filter(x => x.error), skipped: out.skipped, error: out.error });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
