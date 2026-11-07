@@ -13,9 +13,18 @@
 
 const CATEGORIES = ['printer', 'menu', 'report', 'order', 'remote', 'other'];
 const SIGNALS = ['customer_confirmed', 'agent_fixed', 'escalated', 'abandoned'];
-const SILENCE_MIN = 120;      // ลูกค้าเงียบเกินนี้ถึงจะตัดสิน (และเว้นระยะก่อนตัดสินซ้ำ)
+// ── ประหยัด token: เรียก AI เฉพาะตอนที่น่าจะจบแล้ว และมีข้อความใหม่ตั้งแต่ AI ดูครั้งก่อน ──
+const SILENCE_MIN = 120;      // ทีมงานตอบล่าสุดแล้วเงียบเกินนี้ = น่าจะแก้จบ (agent_fixed) → ให้ AI ตัดสิน
+const CLOSE_SILENCE_MIN = 10; // ข้อความล่าสุดเป็นคำปิดงาน/ลูกค้าตอบรับ แล้วกลุ่มเงียบเกินนี้ → ให้ AI ตัดสิน
+const RECHECK_MIN = 15;       // ยังไม่เข้าเงื่อนไข / ไม่มีข้อความใหม่ → ดูแชทใหม่อีกครั้ง (อ่าน DB อย่างเดียว ไม่เรียก AI)
+const MAX_AI_PER_DAY = 6;     // เรียก AI ได้ไม่เกินกี่ครั้ง/เคส/วัน
 const FINAL_HOURS = 24;       // เคสอายุเกินนี้ = ตัดสินครั้งสุดท้าย ไม่มีสัญญาณจบ → abandoned
-const MAX_LINES = 80;         // บรรทัดแชทสูงสุดที่ส่งให้ AI ต่อเคส
+const MAX_LINES = 15;         // บรรทัดแชทสูงสุดที่ส่งให้ AI ต่อเคส (ข้อความ >>> ของเคส + ล่าสุด)
+const MAX_OUT_TOKENS = 200;   // JSON ย่อ ~60–120 token · เผื่อไว้กันคำตอบถูกตัดกลางคัน
+// ลูกค้าตอบรับ / ทีมงาน (ชื่อไม่ใช่ INF- ที่มีข้อความ) แจ้งปิดงาน — ข้อความของแอดมิน INF- ไม่ถูกเก็บ ใช้ไม่ได้
+const CUSTOMER_OK = /ได้แล้ว|ใช้ได้|เรียบร้อย|ขอบคุณ|ขอบใจ|โอเค|โอเช|\bok\b|okay|รับทราบ|ได้ค่ะ|ได้ครับ|ได้คับ|ได้ค่า|👍|🙏|🙇/i;
+const CUSTOMER_NOT_OK = /ไม่ได้|ยังไม่|ยังค้าง|ไม่ขึ้น|ไม่ออก|error|ผิดพลาด|ช่วย(?:ดู|เช็ค|แก้)|\?|ไหม|มั้ย/i;
+const STAFF_CLOSE = /เรียบร้อย|แก้ไขแล้ว|แก้แล้ว|ได้แล้ว|ใช้งานได้|ลองใหม่|ลองอีกครั้ง|ปิดเคส|ส่งต่อ|แจ้ง ?dev|เปิดเคส/i;
 const WORK_FROM_H = 8;        // เวลาทำงาน 08:00–24:00
 
 // วินาทีทำงานระหว่าง a→b (นับเฉพาะ 08:00–24:00) · DATETIME เก็บเวลาไทยแบบ face value → อ่านด้วย getUTC*
@@ -75,6 +84,10 @@ function createLineResolution({ req, getLineBotPool, sql, aiGenerate, SchemaType
         case_msg_id INT NOT NULL);
       IF COL_LENGTH('line_case_resolution','ttr_work_sec') IS NULL
         ALTER TABLE line_case_resolution ADD ttr_work_sec INT NULL, customer_wait_sec INT NULL;
+      -- last_checked_* = แชทที่ AI เห็นครั้งล่าสุด (Id ข้อความล่าสุด + เวลาทีมงานตอบล่าสุด) ไม่เปลี่ยน = ไม่เรียก AI ซ้ำ
+      IF COL_LENGTH('line_case_resolution','last_checked_msg_id') IS NULL
+        ALTER TABLE line_case_resolution ADD last_checked_msg_id INT NULL, last_checked_answer_at DATETIME NULL,
+          ai_day DATE NULL, ai_calls_day INT NOT NULL CONSTRAINT df_lcres_ai_calls_day DEFAULT 0;
       IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='ix_lcres_time')
         CREATE INDEX ix_lcres_time ON line_case_resolution(first_msg_time);
       IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='ix_lcres_msg_case')
@@ -82,9 +95,10 @@ function createLineResolution({ req, getLineBotPool, sql, aiGenerate, SchemaType
     _tables = true;
   }
 
-  // เคสที่ถึงเวลาตัดสิน: ยังไม่เคยตัดสิน หรือยังไม่จบและถึงรอบตรวจซ้ำ · ข้อความที่เป็นของเคสอื่นแล้วข้าม
+  // เคสที่ถึงเวลาดู: ยังไม่เคยดู หรือยังไม่จบและถึงรอบตรวจซ้ำ · ข้อความที่เป็นของเคสอื่นแล้วข้าม
+  // (ดู ≠ เรียก AI — evaluateCase ตัดสินว่าต้องเรียก AI ไหม)
   async function pickCases(lbNow, limit, haveTables) {
-    const r = req().input('st', sql.NVarChar, startDate).input('now', sql.DateTime, lbNow).input('sil', sql.Int, SILENCE_MIN);
+    const r = req().input('st', sql.NVarChar, startDate).input('now', sql.DateTime, lbNow).input('sil', sql.Int, CLOSE_SILENCE_MIN);
     const join = haveTables ? `
       LEFT JOIN line_case_resolution c ON c.case_msg_id = r.source_msg_id
       LEFT JOIN line_case_resolution_msg m ON m.msg_id = r.source_msg_id AND m.case_msg_id <> r.source_msg_id` : '';
@@ -93,11 +107,13 @@ function createLineResolution({ req, getLineBotPool, sql, aiGenerate, SchemaType
       : '';
     return (await r.query(`
       SELECT TOP (${limit}) r.source_msg_id, r.group_id, r.group_name, r.pod_id, r.message_time, r.summary,
-             r.answered_by, r.answered_time, r.calllog_id ${haveTables ? ', c.checks' : ', 0 AS checks'}
+             r.answered_by, r.answered_time, r.calllog_id
+             ${haveTables ? `, c.case_msg_id AS has_row, c.checks, c.ai_model, c.last_checked_msg_id, c.last_checked_answer_at,
+                 CONVERT(char(10), c.ai_day, 23) AS ai_day, c.ai_calls_day` : ', NULL AS has_row, 0 AS checks'}
       FROM line_case_response r ${join}
       WHERE r.answered_time IS NOT NULL AND r.message_time >= CAST(@st AS DATE)
         AND r.message_time <= DATEADD(minute, -@sil, @now) ${cond}
-      ORDER BY r.message_time`)).recordset;
+      ORDER BY ${haveTables ? 'ISNULL(c.next_check_at, r.message_time)' : 'r.message_time'}`)).recordset;
   }
 
   // แชทของกลุ่มตั้งแต่ก่อนเคส 10 นาที ถึง 24 ชม. หลังเคส (หรือถึงตอนนี้)
@@ -153,43 +169,61 @@ function createLineResolution({ req, getLineBotPool, sql, aiGenerate, SchemaType
       ...[...staffSeen.values()].sort((a, b) => a.time - b.time)
         .map((s, i) => ({ ref: 'S' + (i + 1), time: s.time, kind: 'staff_reply', who: s.who, text: '' })),
     ].sort((a, b) => a.time - b.time || (a.kind === 'staff_reply') - (b.kind === 'staff_reply'));
-    // ยาวเกิน: ตัดข้อความคนอื่นก่อน แล้วค่อยตัดท้าย
-    if (lines.length > MAX_LINES) {
-      const others = lines.filter(l => l.kind !== 'staff_reply' && !l.mine);
-      const drop = new Set(others.slice(Math.max(0, others.length - (lines.length - MAX_LINES))));
-      lines = lines.filter(l => !drop.has(l)).slice(0, MAX_LINES);
-    }
+    // ไทม์ไลน์เต็มใช้คิดตัวเลข (รอบคุย/เวลารอ) · ที่ส่งให้ AI ตัดเหลือ MAX_LINES ด้วย promptLines()
     return { lines, caseUser };
   }
 
-  function buildPrompt(c, lines, final) {
+  // บรรทัดที่ส่งให้ AI: ข้อความ >>> ของเคส + บรรทัดล่าสุด รวมไม่เกิน MAX_LINES · ตัดข้อความลูกค้าคนอื่นก่อน
+  function promptLines(lines, c) {
+    if (lines.length <= MAX_LINES) return lines;
+    const others = lines.filter(l => l.kind === 'customer' && !l.mine);
+    const drop = new Set(others.slice(0, Math.max(0, lines.length - MAX_LINES)));
+    let keep = lines.filter(l => !drop.has(l));
+    if (keep.length > MAX_LINES) {
+      const caseLine = keep.find(l => l.isCase);
+      const tail = keep.filter(l => l !== caseLine).slice(-(MAX_LINES - (caseLine ? 1 : 0)));
+      keep = caseLine ? [caseLine, ...tail] : tail;
+    }
+    return keep;
+  }
+
+  // ข้อความล่าสุดเป็นสัญญาณจบไหม (กฎล้วน ไม่ใช้ AI)
+  function closingSignal(last) {
+    if (!last) return false;
+    if (last.kind === 'customer' && last.mine) return CUSTOMER_OK.test(last.text) && !CUSTOMER_NOT_OK.test(last.text);
+    if (last.kind === 'staff_text') return STAFF_CLOSE.test(last.text);
+    return false;
+  }
+
+  // จุดสังเกตว่าแชทเปลี่ยนไหม: Id ข้อความล่าสุดในไทม์ไลน์ + เวลาที่ทีมงานตอบเจ้าของเคสล่าสุด
+  // (ทีมงาน INF- ตอบไม่สร้างแถวใหม่ — bot แค่ใส่ AnsweredTime ให้ข้อความที่รออยู่)
+  function threadMark(lines) {
+    let msgId = 0, ansAt = null;
+    for (const l of lines) {
+      if (/^\d+$/.test(l.ref)) msgId = Math.max(msgId, +l.ref);
+      if (l.mine && l.answeredTime && (!ansAt || l.answeredTime > ansAt)) ansAt = l.answeredTime;
+    }
+    return { msgId, ansAt };
+  }
+
+  function buildPrompt(c, allLines, final) {
+    const lines = promptLines(allLines, c);
     const body = lines.map(l => {
       const tag = l.kind === 'staff_reply' ? `ทีมงาน ${l.who} ตอบเจ้าของเคส (ไม่มีข้อความ)`
         : l.kind === 'staff_text' ? `ทีมงาน ${l.who}: ${l.text}`
-        : `${l.mine ? 'ลูกค้าเจ้าของเคส' : 'ลูกค้าคนอื่น'} (${String(l.who).slice(0, 20)}): ${l.text}`;
+        : `${l.mine ? 'ลูกค้าเจ้าของเคส' : 'ลูกค้าคนอื่น'} (${String(l.who).slice(0, 20)}): ${String(l.text).slice(0, 150)}`;
       return `[${l.ref}] ${hhmm(l.time)} ${l.isCase ? '>>> ' : ''}${tag}`;
     }).join('\n');
-    return `คุณคือผู้ตรวจเคสซัพพอร์ตระบบร้านอาหาร (POS) ที่คุยผ่าน LINE กลุ่ม
-เคสที่ต้องตัดสินคือข้อความที่มี >>> (สรุปจากระบบคัดกรอง: "${c.summary || '-'}")${c.calllog_id ? ` · เคสนี้ถูกเปิดในระบบ Calllog แล้ว (#${c.calllog_id})` : ''}
-แชทด้านล่างคัดมาเฉพาะข้อความของเจ้าของเคส + ข้อความคนอื่นที่อยู่ใกล้ๆ (กลุ่มนี้อาจมีหลายเรื่องปนกัน ให้ดูเฉพาะเรื่องของเคสนี้)
-หมายเหตุ: ข้อความของแอดมิน INF- ไม่ถูกบันทึก เห็นเป็น "ทีมงาน ... ตอบเจ้าของเคส (ไม่มีข้อความ)" ณ เวลาที่ตอบเท่านั้น
-ทีมงานส่วนใหญ่แก้ปัญหาแล้วแจ้งในไลน์ ลูกค้ามักไม่ตอบกลับเมื่อใช้ได้แล้ว
-
-แชท ([Id] เดือน-วัน เวลา):
+    return `ตรวจเคสซัพพอร์ต POS ใน LINE กลุ่ม เคสคือข้อความ >>> (สรุป: "${c.summary || '-'}")${c.calllog_id ? ` เปิด Calllog แล้ว #${c.calllog_id}` : ''}
+ดูเฉพาะเรื่องของเคสนี้ · ข้อความแอดมิน INF- ไม่ถูกบันทึก เห็นเป็น "ทีมงาน X ตอบเจ้าของเคส" · ลูกค้ามักไม่ตอบกลับเมื่อใช้ได้แล้ว
+${allLines.length > lines.length ? `(แสดง ${lines.length}/${allLines.length} บรรทัด: ข้อความเคส + ล่าสุด)\n` : ''}
 ${body}
 
-ตอบเป็น JSON object เท่านั้น:
-- case_msg_ids: Id ข้อความลูกค้า (ตัวเลข) ทุกข้อความที่เป็นเรื่องเดียวกับเคสนี้ รวมข้อความ >>> ด้วย
-- issue_category: ${CATEGORIES.join('|')} (printer=เครื่องพิมพ์/ลิ้นชัก, menu=เมนู/ราคา/โปรโมชัน, report=รายงาน/ยอด, order=บิล/ออเดอร์/ยกเลิก/PR/PO, remote=ขอรีโมท/เข้าเครื่อง/ติดตั้ง)
-- resolved: true/false
-- resolution_signal: ${SIGNALS.join('|')}
-    customer_confirmed = ลูกค้าบอกว่าได้แล้ว/ใช้ได้แล้ว/เรียบร้อย/ขอบคุณ หลังทีมงานแก้
-    agent_fixed = มีบรรทัดทีมงานตอบหลังข้อความล่าสุดของเจ้าของเคสเกี่ยวกับเรื่องนี้ แล้วเจ้าของเคสไม่ได้แจ้งว่ายังไม่ได้/ไม่ได้ถามต่อเรื่องเดิม (เงียบไปเกิน 2 ชม. หรือไปคุยเรื่องอื่น)
-    escalated = ส่งต่อทีมอื่น (dev/ซ่อม) หรือเปิดเคสในระบบ แล้ว CS หยุดดำเนินการ
-    abandoned = ไม่มีทีมงานตอบเลยหลังเคส หรือข้อความสุดท้ายของเจ้าของเคสยังบอกว่าไม่ได้/ยังรออยู่ และไม่มีทีมงานตอบต่อ
-- resolved_msg_id: Id ของบรรทัดที่ถือว่าจบ (customer_confirmed = ข้อความลูกค้าที่ยืนยัน, agent_fixed/escalated = บรรทัด S<n> หรือ Id ทีมงานที่ตอบล่าสุด) · abandoned = null
-- reason: เหตุผลสั้นๆ ภาษาไทย ไม่เกิน 120 ตัวอักษร
-${final ? 'นี่คือการตัดสินครั้งสุดท้าย (เคสเกิน 24 ชม.) ถ้าไม่มีสัญญาณจบให้ตอบ abandoned' : 'ถ้าลูกค้ายังคุยอยู่หรือยังไม่ชัดว่าจบ ให้ resolved=false และ abandoned'}`;
+ตอบ JSON บรรทัดเดียวเท่านั้น ห้ามอธิบาย:
+{"ids":[Id ลูกค้าที่เป็นเรื่องเดียวกับเคส รวม >>>],"cat":"${CATEGORIES.join('|')}","res":true/false,"sig":"${SIGNALS.join('|')}","end":"Id หรือ S<n> ของบรรทัดที่จบ หรือ null","conf":0-1,"why":"ไทย ≤60 ตัวอักษร"}
+cat: printer=เครื่องพิมพ์/ลิ้นชัก menu=เมนู/ราคา/โปร report=รายงาน/ยอด order=บิล/ออเดอร์/PR/PO remote=รีโมท/ติดตั้ง
+sig: customer_confirmed=ลูกค้าบอกได้แล้ว/ขอบคุณหลังแก้ · agent_fixed=ทีมงานตอบหลังข้อความล่าสุดของเจ้าของเคสแล้วลูกค้าไม่ได้บอกว่ายังไม่ได้ · escalated=ส่งต่อทีมอื่น/เปิดเคสแล้ว CS หยุด · abandoned=ไม่มีสัญญาณจบ (res=false, end=null)
+${final ? 'ตัดสินครั้งสุดท้าย (เกิน 24 ชม.) ไม่มีสัญญาณจบ = abandoned' : 'ลูกค้ายังคุยอยู่/ไม่ชัด = res:false, abandoned'}`;
   }
 
   const parseObj = txt => {
@@ -200,7 +234,13 @@ ${final ? 'นี่คือการตัดสินครั้งสุด
   };
 
   // ตรวจคำตอบ AI ให้ตรงกับแชทจริง แล้วคิดตัวเลข (เวลา/รอบ) เองจากไทม์ไลน์ — ไม่เชื่อตัวเลขจาก AI
-  function judgeToResult(c, lines, ai, final) {
+  function judgeToResult(c, lines, raw, final) {
+    // คีย์ย่อ (ids/cat/res/sig/end/why) ประหยัด output token · รับคีย์ยาวแบบเดิมด้วย
+    const ai = {
+      case_msg_ids: raw.ids ?? raw.case_msg_ids, issue_category: raw.cat ?? raw.issue_category,
+      resolved: raw.res ?? raw.resolved, resolution_signal: raw.sig ?? raw.resolution_signal,
+      resolved_msg_id: raw.end ?? raw.resolved_msg_id, reason: raw.why ?? raw.reason,
+    };
     const byRef = new Map(lines.map(l => [l.ref, l]));
     const custIds = new Set(lines.filter(l => l.kind === 'customer').map(l => l.ref));
     const ids = new Set([String(c.source_msg_id)]);
@@ -255,26 +295,75 @@ ${final ? 'นี่คือการตัดสินครั้งสุด
     };
   }
 
-  async function evaluateCase(lb, c, lbNow) {
+  // ตัดสินใจว่าเคสนี้รอบนี้ต้องทำอะไร — เรียก AI เฉพาะเมื่อจำเป็น
+  //   wait     = ยังไม่ถึงเวลา / ไม่มีข้อความใหม่ → ตั้งเวลาดูใหม่ (ไม่เสีย token)
+  //   finalize = ครบ 24 ชม. และไม่มีอะไรใหม่ตั้งแต่ AI ดูครั้งก่อน → ใช้ผลเดิมเป็นผลสุดท้าย (ไม่เสีย token)
+  //   ai       = เรียก AI ตัดสิน
+  //   deferred = ต้องเรียก AI แต่รอบนี้ครบโควตาแล้ว → รอบหน้า
+  async function evaluateCase(lb, c, lbNow, { allowAi = true } = {}) {
     const rows = await loadThread(lb, c, lbNow);
     if (!rows.some(r => r.Id === c.source_msg_id)) return null;   // ข้อความต้นทางหาย (ไม่น่าเกิด)
     const { lines, caseUser } = buildTimeline(rows, c);
-    const ageH = (lbNow - new Date(c.message_time)) / 3600000;
-    const final = ageH >= FINAL_HOURS || (c.checks || 0) >= 6;
+    const now = +lbNow;
+    const finalAt = new Date(c.message_time).getTime() + FINAL_HOURS * 3600000;
+    const final = now >= finalAt;
+    const mark = threadMark(lines);
+    const judgedBefore = !!c.ai_model;
+    const isNew = !judgedBefore || mark.msgId !== (c.last_checked_msg_id || 0)
+      || +(mark.ansAt || 0) !== +(c.last_checked_answer_at ? new Date(c.last_checked_answer_at) : 0);
+    const day = new Date(now).toISOString().slice(0, 10);
+    const callsToday = c.ai_day === day ? (c.ai_calls_day || 0) : 0;
+    const capped = callsToday >= MAX_AI_PER_DAY;
+    const wait = (at, why) => ({ action: 'wait', why, customer_user_id: caseUser,
+      next_check_at: new Date(Math.max(now + 60000, Math.min(at, finalAt))) });
+
+    const last = lines[lines.length - 1];
+    const lastAt = Math.max(...lines.map(l => +l.time), new Date(c.message_time).getTime());
+    const silentMin = (now - lastAt) / 60000;
+    const closing = closingSignal(last);
+    const staffLast = last && (last.kind === 'staff_reply' || last.kind === 'staff_text');
+
+    let needAi;
+    if (final) needAi = isNew && !capped;
+    else if (!isNew) return wait(now + RECHECK_MIN * 60000, 'ไม่มีข้อความใหม่');
+    else if (closing && silentMin >= CLOSE_SILENCE_MIN) needAi = true;
+    else if (staffLast && silentMin >= SILENCE_MIN) needAi = true;
+    else if (closing) return wait(lastAt + CLOSE_SILENCE_MIN * 60000, 'รอกลุ่มเงียบ 10 นาที');
+    else if (staffLast) return wait(lastAt + SILENCE_MIN * 60000, 'รอลูกค้าเงียบหลังทีมงานตอบ');
+    else return wait(now + RECHECK_MIN * 60000, 'ลูกค้ายังรอทีมงาน');
+    if (needAi && capped) {
+      const tomorrow = Date.UTC(...day.split('-').map((v, i) => i === 1 ? v - 1 : +v)) + 86400000;
+      return wait(tomorrow, `เรียก AI ครบ ${MAX_AI_PER_DAY} ครั้งวันนี้แล้ว`);
+    }
+
+    if (!needAi) {
+      // final ที่ไม่ต้องเรียก AI: มีผลเดิม → ใช้ผลเดิม · ไม่เคยตัดสิน (ครบโควตา) → abandoned ด้วยกฎ
+      if (judgedBefore) return { action: 'finalize', keepPrevious: true };
+      const out = judgeToResult(c, lines, { why: 'ไม่มีสัญญาณจบ (ตัดสินด้วยกฎ ไม่ใช้ AI)' }, true);
+      return { action: 'finalize', ...out, final: true, next_check_at: null, customer_user_id: caseUser, ai_model: 'rule' };
+    }
+    if (!allowAi) return { action: 'deferred' };
+
     const { value, usedModel } = await aiGenerate(buildPrompt(c, lines, final), {
       parse: parseObj, feature: 'line_resolution',
-      geminiConfig: SchemaType ? { generationConfig: { responseMimeType: 'application/json' } } : null,
+      geminiConfig: SchemaType ? { generationConfig: {
+        responseMimeType: 'application/json', maxOutputTokens: MAX_OUT_TOKENS, temperature: 0,
+        thinkingConfig: { thinkingBudget: 0 },
+      } } : null,
     });
     const out = judgeToResult(c, lines, value, final);
-    // ยังไม่จบ + ยังไม่ครบ 24 ชม. → ตรวจใหม่อีก 2 ชม. · จบแล้วก็ final (ลูกค้ากลับมาใหม่ = เคสใหม่)
+    // จบแล้ว = final ไม่ตรวจซ้ำ (ลูกค้ากลับมาใหม่ = เคสใหม่) · ยังไม่จบ → ดูใหม่เมื่อมีข้อความใหม่
     out.final = out.resolved || final;
-    out.next_check_at = out.final ? null : new Date(lbNow.getTime() + SILENCE_MIN * 60000);
+    out.next_check_at = out.final ? null : new Date(Math.min(now + RECHECK_MIN * 60000, finalAt));
     out.customer_user_id = caseUser;
     out.ai_model = usedModel;
-    return out;
+    out.mark = mark;
+    out.day = day;
+    return { action: 'ai', ...out };
   }
 
   async function save(c, r) {
+    const ai = r.action === 'ai';
     await req().input('id', sql.Int, c.source_msg_id).input('g', sql.NVarChar, c.group_id).input('gn', sql.NVarChar, c.group_name)
       .input('pod', sql.Int, c.pod_id).input('cu', sql.NVarChar, r.customer_user_id).input('mt', sql.DateTime, c.message_time)
       .input('fat', sql.DateTime, c.answered_time).input('ab', sql.NVarChar, c.answered_by)
@@ -283,19 +372,27 @@ ${final ? 'นี่คือการตัดสินครั้งสุด
       .input('turns', sql.Int, r.agent_turns).input('cm', sql.Int, r.customer_msgs).input('cid', sql.Int, c.calllog_id || null)
       .input('why', sql.NVarChar, r.ai_reason).input('model', sql.NVarChar, r.ai_model).input('fin', sql.Bit, r.final ? 1 : 0)
       .input('next', sql.DateTime, r.next_check_at)
-      .input('ttr', sql.Int, r.ttr_work_sec).input('cw', sql.Int, r.customer_wait_sec).query(`
+      .input('ttr', sql.Int, r.ttr_work_sec).input('cw', sql.Int, r.customer_wait_sec)
+      .input('ai', sql.Bit, ai ? 1 : 0).input('lm', sql.Int, ai ? r.mark.msgId : null)
+      .input('la', sql.DateTime, ai ? r.mark.ansAt : null).input('day', sql.NVarChar, ai ? r.day : null).query(`
       IF EXISTS (SELECT 1 FROM line_case_resolution WHERE case_msg_id=@id)
         UPDATE line_case_resolution SET customer_user_id=@cu, issue_category=@cat, resolved=@res, resolution_signal=@sig,
           ttr_work_sec=@ttr, customer_wait_sec=@cw,
           resolved_msg_ref=@ref, resolved_at=@rat, resolved_by=@rby, agent_turns=@turns, customer_msgs=@cm,
-          calllog_id=ISNULL(@cid, calllog_id), ai_reason=@why, ai_model=@model, checks=checks+1, final=@fin,
-          next_check_at=@next, updated_at=GETDATE()
+          calllog_id=ISNULL(@cid, calllog_id), ai_reason=@why, ai_model=@model, checks=checks+@ai, final=@fin,
+          next_check_at=@next, updated_at=GETDATE(),
+          last_checked_msg_id=CASE WHEN @ai=1 THEN @lm ELSE last_checked_msg_id END,
+          last_checked_answer_at=CASE WHEN @ai=1 THEN @la ELSE last_checked_answer_at END,
+          ai_calls_day=CASE WHEN @ai=0 THEN ai_calls_day WHEN ai_day=CAST(@day AS DATE) THEN ai_calls_day+1 ELSE 1 END,
+          ai_day=CASE WHEN @ai=1 THEN CAST(@day AS DATE) ELSE ai_day END
         WHERE case_msg_id=@id
       ELSE
         INSERT INTO line_case_resolution (case_msg_id, group_id, group_name, pod_id, customer_user_id, first_msg_time,
           first_answer_time, answered_by, issue_category, resolved, resolution_signal, resolved_msg_ref, resolved_at, resolved_by,
-          agent_turns, customer_msgs, calllog_id, ai_reason, ai_model, checks, final, next_check_at, ttr_work_sec, customer_wait_sec)
-        VALUES (@id, @g, @gn, @pod, @cu, @mt, @fat, @ab, @cat, @res, @sig, @ref, @rat, @rby, @turns, @cm, @cid, @why, @model, 1, @fin, @next, @ttr, @cw)`);
+          agent_turns, customer_msgs, calllog_id, ai_reason, ai_model, checks, final, next_check_at, ttr_work_sec, customer_wait_sec,
+          last_checked_msg_id, last_checked_answer_at, ai_day, ai_calls_day)
+        VALUES (@id, @g, @gn, @pod, @cu, @mt, @fat, @ab, @cat, @res, @sig, @ref, @rat, @rby, @turns, @cm, @cid, @why, @model, @ai, @fin, @next, @ttr, @cw,
+          @lm, @la, CAST(@day AS DATE), @ai)`);
     // ข้อความของเคส: ทำใหม่ทุกรอบ · ข้อความที่เป็นของเคสอื่นอยู่แล้วไม่แย่ง (เคสแรกได้ก่อน)
     const t = req().input('id', sql.Int, c.source_msg_id);
     r.case_msg_ids.forEach((m, k) => t.input('m' + k, sql.Int, m));
@@ -306,40 +403,68 @@ ${final ? 'นี่คือการตัดสินครั้งสุด
       WHERE NOT EXISTS (SELECT 1 FROM line_case_resolution_msg x WHERE x.msg_id = v.id);`);
   }
 
-  // รอบหนึ่ง: ตัดสินเคสที่ถึงเวลา limit เคส · dryRun = อ่านอย่างเดียว ไม่สร้างตาราง ไม่เขียน
+  // ยังไม่ถึงเวลาเรียก AI: จดเวลาดูใหม่ไว้ (สร้างแถวรอไว้ถ้ายังไม่มี — final=0 หน้า KPI ไม่นับ)
+  async function saveWait(c, r) {
+    await req().input('id', sql.Int, c.source_msg_id).input('g', sql.NVarChar, c.group_id).input('gn', sql.NVarChar, c.group_name)
+      .input('pod', sql.Int, c.pod_id).input('cu', sql.NVarChar, r.customer_user_id).input('mt', sql.DateTime, c.message_time)
+      .input('fat', sql.DateTime, c.answered_time).input('ab', sql.NVarChar, c.answered_by)
+      .input('cid', sql.Int, c.calllog_id || null).input('next', sql.DateTime, r.next_check_at).query(`
+      IF EXISTS (SELECT 1 FROM line_case_resolution WHERE case_msg_id=@id)
+        UPDATE line_case_resolution SET next_check_at=@next, calllog_id=ISNULL(@cid, calllog_id), updated_at=GETDATE() WHERE case_msg_id=@id
+      ELSE
+        INSERT INTO line_case_resolution (case_msg_id, group_id, group_name, pod_id, customer_user_id, first_msg_time,
+          first_answer_time, answered_by, calllog_id, checks, final, next_check_at)
+        VALUES (@id, @g, @gn, @pod, @cu, @mt, @fat, @ab, @cid, 0, 0, @next)`);
+  }
+
+  // ครบ 24 ชม. ไม่มีข้อความใหม่ตั้งแต่ AI ดูครั้งก่อน → ใช้ผลเดิมเป็นผลสุดท้าย
+  async function saveFinalPrevious(c) {
+    await req().input('id', sql.Int, c.source_msg_id)
+      .query(`UPDATE line_case_resolution SET final=1, next_check_at=NULL, updated_at=GETDATE() WHERE case_msg_id=@id`);
+  }
+
+  // รอบหนึ่ง: ดูเคสที่ถึงเวลา เรียก AI ไม่เกิน limit ครั้ง · dryRun = อ่านอย่างเดียว ไม่สร้างตาราง ไม่เขียน
   async function runBatch({ limit = 15, dryRun = false, onlyIds = null } = {}) {
     if (_running && !dryRun) return { skipped: 'running' };
     const lb = getLineBotPool();
     if (!lb) return { error: 'LineBotMonitor DB ไม่ได้เชื่อมต่อ' };
     if (!dryRun) _running = true;
     const results = [];
+    const count = { ai: 0, finalize: 0, wait: 0, deferred: 0 };
     try {
       const haveTables = dryRun ? await tablesExist() : (await ensure(), true);
       const lbNow = (await lb.request().query('SELECT GETDATE() AS now')).recordset[0].now;
-      let cases = await pickCases(lbNow, onlyIds ? 2000 : limit, haveTables);
+      // ดูได้หลายเคส (อ่าน DB อย่างเดียว) แต่เรียก AI ไม่เกิน limit ครั้ง/รอบ
+      let cases = await pickCases(lbNow, onlyIds ? 2000 : Math.min(300, limit * 10), haveTables);
       if (onlyIds) cases = cases.filter(c => onlyIds.includes(c.source_msg_id));
       // ใน dry run ไม่มีตารางกันซ้ำ — ข้ามข้อความที่เคสก่อนหน้าในรอบเดียวกันกินไปแล้ว
       const taken = new Set();
       for (const c of cases) {
         if (taken.has(c.source_msg_id)) continue;
         try {
-          const r = await evaluateCase(lb, c, lbNow);
+          const r = await evaluateCase(lb, c, lbNow, { allowAi: count.ai < limit });
           if (!r) continue;
+          count[r.action]++;
+          if (r.action === 'deferred') continue;
+          if (r.action === 'wait') { if (!dryRun) await saveWait(c, r); continue; }
+          if (r.keepPrevious) { if (!dryRun) await saveFinalPrevious(c); continue; }
           r.case_msg_ids.forEach(id => id !== c.source_msg_id && taken.add(id));
           if (!dryRun) await save(c, r);
-          results.push({ case_msg_id: c.source_msg_id, group_name: c.group_name, summary: c.summary, message_time: c.message_time, ...r });
+          const { mark, day, ...shown } = r;
+          results.push({ case_msg_id: c.source_msg_id, group_name: c.group_name, summary: c.summary, message_time: c.message_time, ...shown });
         } catch (e) {
           log.error(`line resolution case ${c.source_msg_id}:`, e.message);
           results.push({ case_msg_id: c.source_msg_id, error: e.message });
           if (/AI ไม่สำเร็จ/.test(e.message)) break;   // AI ล่มทั้งสองเจ้า — รอบหน้าค่อยลองใหม่
         }
       }
-      if (!dryRun && results.length) log.log(`🧩 line resolution: ตัดสิน ${results.filter(r => !r.error).length}/${cases.length} เคส`);
-      return { lbNow, picked: cases.length, results };
+      if (!dryRun && (count.ai || count.finalize))
+        log.log(`🧩 line resolution: AI ${count.ai} · ปิดโดยไม่ใช้ AI ${count.finalize} · รอ ${count.wait}${count.deferred ? ` · เลื่อนรอบหน้า ${count.deferred}` : ''} (ดู ${cases.length} เคส)`);
+      return { lbNow, picked: cases.length, count, results };
     } finally { if (!dryRun) _running = false; }
   }
 
-  return { ensure, runBatch, evaluateCase, buildTimeline, buildPrompt, judgeToResult, CATEGORIES, SIGNALS };
+  return { ensure, runBatch, evaluateCase, buildTimeline, buildPrompt, promptLines, closingSignal, threadMark, judgeToResult, CATEGORIES, SIGNALS };
 }
 
 // คิดตัวเลขหน้า "ตอบเคสไลน์ไว" (เฟส 2) จากแถว line_case_resolution — แยกเป็นฟังก์ชันล้วนไว้ทดสอบกับข้อมูลจริงได้

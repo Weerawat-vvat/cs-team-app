@@ -8606,7 +8606,8 @@ app.get('/api/line-leaderboard', authRequired, async (request, res) => {
 
 // ══════════════════════════════════════════════════════════
 //  เคสไลน์แก้จบเมื่อไหร่ (AI judge เฟส 1) — รายละเอียดใน line-resolution.js
-//  ทุก 5 นาที: ตัดสินเคสใน line_case_response ที่ลูกค้าเงียบเกิน 2 ชม. → line_case_resolution
+//  ทุก 5 นาที: ดูเคสใน line_case_response → line_case_resolution · เรียก AI เฉพาะเมื่อมีข้อความใหม่
+//  และน่าจะจบแล้ว (คำปิดงาน/ลูกค้าตอบรับ + เงียบ 10 นาที หรือทีมงานตอบแล้วเงียบ 2 ชม.) ไม่เกิน 6 ครั้ง/เคส/วัน
 //  ปิดได้ด้วย LINE_RESOLVE=off · เริ่มนับจาก LINE_RESOLVE_START (ค่าเริ่มต้น 2026-11-01)
 // ══════════════════════════════════════════════════════════
 const LINE_RESOLVE_ON = (process.env.LINE_RESOLVE || 'on').toLowerCase() !== 'off';
@@ -8713,7 +8714,7 @@ app.post('/api/line-resolution/run', authRequired, managerRequired, async (reque
     const limit = Math.max(1, Math.min(50, parseInt(request.body?.limit) || LINE_RESOLVE_BATCH));
     const out = await lineResolution.runBatch({ limit });
     res.json({ picked: out.picked ?? 0, judged: (out.results || []).filter(x => !x.error).length,
-      errors: (out.results || []).filter(x => x.error), skipped: out.skipped, error: out.error });
+      count: out.count, errors: (out.results || []).filter(x => x.error), skipped: out.skipped, error: out.error });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
