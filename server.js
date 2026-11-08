@@ -8740,6 +8740,11 @@ const LINE_BOARD = {
   reviewTurns: 8, reviewTtrSec: 4 * 3600,
   weights: { speed: 25, resolution: 35, efficiency: 20 },
 };
+// ชื่อ LINE@ ที่จับคู่กับพนักงานเองไม่ได้ (ชื่อ LINE@ ไม่ตรงชื่อเล่น) · เพิ่มได้ใน .env: LINE_STAFF_MAP=INF-XXX=ชื่อเล่น,...
+const LINE_STAFF_MAP = {
+  'INF-KHAE': 'kae', 'INF-Sasinat': 'natt',
+  ...Object.fromEntries(String(process.env.LINE_STAFF_MAP || '').split(',').map(x => x.split('=').map(v => v.trim())).filter(([a, b]) => a && b)),
+};
 app.get('/api/line-board', authRequired, async (request, res) => {
   try {
     await lineResolution.ensure();
@@ -8754,7 +8759,7 @@ app.get('/api/line-board', authRequired, async (request, res) => {
       let podSql = '';
       if (pod === 'none') podSql = 'AND pod_id IS NULL';
       else if (parseInt(pod)) { podSql = 'AND pod_id = @pod'; r.input('pod', sql.Int, parseInt(pod)); }
-      return (await r.query(`SELECT case_msg_id, group_name, pod_id, first_msg_time, first_answer_time, answered_by,
+      return (await r.query(`SELECT case_msg_id, group_name, pod_id, first_msg_time, first_answer_time, answered_by, calllog_id,
           issue_category, resolved, resolution_signal, resolved_at, resolved_by, agent_turns, customer_msgs,
           ttr_work_sec, customer_wait_sec, ai_reason, final, talk_confused, talk_chased, talk_thanks
         FROM line_case_resolution
@@ -8764,7 +8769,20 @@ app.get('/api/line-board', authRequired, async (request, res) => {
     const span = Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1;
     const shift = n => new Date(Date.parse(from) - n * 86400000).toISOString().slice(0, 10);
     const pf = shift(span) < LINE_RESOLVE_START ? LINE_RESOLVE_START : shift(span);
-    const board = buildBoard(curRaw, await load(pf, shift(1)), LINE_BOARD);
+    // Leaderboard รายพนักงาน: งานทุกช่องทางจาก Calllog (ติดตามเคส) + ดาวลูกค้า — งานโทรศัพท์ก็นับ
+    let S = null;
+    try {
+      const employees = (await req().query(`SELECT e.id, e.name, e.nickname, e.team, au.ext_username
+        FROM employees e LEFT JOIN app_users au ON au.employee_id = e.id AND au.active = 1 WHERE e.active = 1`)).recordset;
+      const clLoad = async (f, t) => !getExtPool() || t < f ? [] : (await extReq().input('f', sql.DateTime, new Date(f + 'T00:00:00Z'))
+        .input('t', sql.DateTime, new Date(Date.parse(t + 'T00:00:00Z') + 86400000)).query(`
+        SELECT u.UserName AS [user], LTRIM(RTRIM(ISNULL(cl.InformType, ''))) AS channel, cl.ReceiveDate AS opened_at,
+               cl.CloseDate AS closed_at, cl.Stars AS stars
+        FROM Calllog cl JOIN Users u ON u.UserId = cl.SupportId
+        WHERE cl.Active = 1 AND cl.ReceiveDate >= @f AND cl.ReceiveDate < @t`)).recordset;
+      S = { employees, calllog: await clLoad(from, to), prevCalllog: await clLoad(pf, shift(1)), lineMap: LINE_STAFF_MAP };
+    } catch (e) { console.error('line-board staff:', e.message); }
+    const board = buildBoard(curRaw, await load(pf, shift(1)), LINE_BOARD, S);
 
     // ความครอบคลุม: เคสในช่วงนี้ที่ AI ยังไม่ได้ตัดสิน (กำลังไล่อยู่ / ลูกค้ายังคุยอยู่)
     const cov = (await req().input('f', sql.NVarChar, from).input('t', sql.NVarChar, to).query(`

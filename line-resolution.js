@@ -565,7 +565,8 @@ ${final ? 'ตัดสินครั้งสุดท้าย (เกิน 
 }
 
 // คิดตัวเลขหน้า "ตอบเคสไลน์ไว" (เฟส 2) จากแถว line_case_resolution — แยกเป็นฟังก์ชันล้วนไว้ทดสอบกับข้อมูลจริงได้
-function buildBoard(curRaw, prevRaw, B) {
+// S (ไม่บังคับ) = { employees, calllog, prevCalllog, lineMap } → เพิ่ม staff: Leaderboard รายพนักงาน (LINE + Calllog)
+function buildBoard(curRaw, prevRaw, B, S = null) {
   const median = xs => { if (!xs.length) return null; const s = [...xs].sort((a, b) => a - b), h = s.length >> 1; return s.length % 2 ? s[h] : (s[h - 1] + s[h]) / 2; };
   const avg = xs => xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
   const prep = rows => rows.filter(x => x.final).map(x => {
@@ -687,7 +688,95 @@ function buildBoard(curRaw, prevRaw, B) {
       resolved_pct: s.cases ? Math.round(s.resolved / s.cases * 100) : null };
   }).sort((a, b) => b.cases - a.cases);
 
-  return { team: { ...stats(cur), ...teamRaw }, prev: { ...stats(prevRows), ...prevTeamRaw }, people, badges, review, by_day, by_category,
+
+  // ── Leaderboard รายพนักงาน: รวม LINE (คุยงานดี/ตอบไว) + Calllog (ทุกช่องทาง · ดาวลูกค้า) ──
+  // งานโทรศัพท์ / ตอบผ่าน LINE ส่วนตัว ไม่อยู่ในข้อมูล LINE แต่อยู่ใน Calllog → คนที่รับเคสเยอะไม่เสียเปรียบ
+  let staff = null, staffTeam = null;
+  if (S) {
+    const median = xs => { xs = xs.filter(v => v != null).sort((a, b) => a - b); if (!xs.length) return null; const h = xs.length >> 1; return xs.length % 2 ? xs[h] : (xs[h - 1] + xs[h]) / 2; };
+    const norm = v => String(v || '').toLowerCase().replace(/^inf[\s_.\-]*/, '').replace(/[^a-z0-9ก-๙]/g, '');
+    const emps = S.employees.map(e => ({ ...e, keys: [norm(e.nickname), norm(e.ext_username)].filter(Boolean) }));
+    const byExt = new Map(emps.filter(e => e.ext_username).map(e => [String(e.ext_username).toLowerCase(), e]));
+    const over = new Map(Object.entries(S.lineMap || {}).map(([k, v]) => [norm(k), norm(v)]));
+    const lineEmp = new Map();
+    const empOfLine = name => {
+      if (lineEmp.has(name)) return lineEmp.get(name);
+      const k = norm(name), o = over.get(k);
+      const hit = (o && emps.find(e => e.keys.includes(o)))
+        || emps.find(e => e.keys.includes(k))
+        || (k.length >= 3 && emps.find(e => e.keys.some(x => x.length >= 3 && (x.startsWith(k) || k.startsWith(x) || x.includes(k)))))
+        || null;
+      lineEmp.set(name, hit);
+      return hit;
+    };
+    const CH = { line: 'LINE', phone: 'โทร', remote: 'Remote', email: 'Email' };
+    const chOf = v => CH[String(v || '').trim().toLowerCase()] || 'อื่นๆ';
+    const p75 = xs => { xs = xs.filter(v => v > 0).sort((a, b) => a - b); return xs.length ? xs[Math.min(xs.length - 1, Math.floor(xs.length * .75))] : 0; };
+    const tierOf = v => v == null ? null : v >= 90 ? 'diamond' : v >= 80 ? 'gold' : v >= 70 ? 'silver' : v >= 60 ? 'bronze' : 'rookie';
+    const W2 = B.staffWeights || { talk: 30, speed: 20, sat: 30, volume: 20 };
+
+    const buildStaff = (cases, calllog, teamLine) => {
+      const m = new Map();
+      const get = e => m.get(e.id) || m.set(e.id, { id: e.id, name: e.nickname || e.name, full_name: e.name, team: e.team,
+        line_names: new Set(), cases: [], cl: [] }).get(e.id);
+      for (const c of cases) { const e = empOfLine(c.answered_by); if (e) { const s = get(e); s.cases.push(c); s.line_names.add(c.answered_by); } }
+      for (const r of calllog) { const e = byExt.get(String(r.user || '').toLowerCase()); if (e) get(e).cl.push(r); }
+      const list = [...m.values()].map(s => {
+        const st = stats(s.cases), br = boardRaw(s.cases);
+        const channels = {};
+        s.cl.forEach(r => { const k = chOf(r.channel); channels[k] = (channels[k] || 0) + 1; });
+        const closed = s.cl.filter(r => r.closed_at);
+        const rated = s.cl.filter(r => r.stars > 0);
+        const unlogged = s.cases.filter(c => !c.calllog_id).length;   // แชท LINE ที่ไม่ได้เปิดเคสใน Calllog
+        return {
+          id: s.id, name: s.name, full_name: s.full_name, team: s.team, line_names: [...s.line_names],
+          line_cases: s.cases.length, line_unlogged: unlogged, calllog_total: s.cl.length, channels,
+          // งานทั้งหมด = เคสใน Calllog (ทุกช่องทาง) หรือแชท LINE ที่ตอบ แล้วแต่อันไหนมากกว่า — ไม่บวกกันเพราะแชทส่วนใหญ่เปิดเคสใน Calllog ด้วย
+          workload: Math.max(s.cl.length, s.cases.length),
+          closed_pct: s.cl.length ? Math.round(closed.length / s.cl.length * 100) : null,
+          close_median_min: median(closed.map(r => (new Date(r.closed_at) - new Date(r.opened_at)) / 60000).filter(v => v >= 0)),
+          stars_avg: rated.length ? +(rated.reduce((a, r) => a + r.stars, 0) / rated.length).toFixed(2) : null, rated: rated.length,
+          frt_median: st.frt_median, frt_within_pct: st.frt_within_pct, agent_ttr_median: st.agent_ttr_median,
+          turns_avg: st.turns_avg, one_touch_pct: st.one_touch_pct, abandoned: st.abandoned,
+          confused_pct: br.confused_pct, chased_pct: br.chased_pct, confirmed_pct: br.confirmed_pct,
+          talk_raw: br.talk, speed_raw: br.speed, talk_known: br.talk_known,
+        };
+      });
+      // ค่าเฉลี่ยทีม (ไว้ดึงคะแนนของคนที่ข้อมูลน้อย)
+      const rated = list.filter(x => x.rated);
+      const teamStars = rated.length ? rated.reduce((a, x) => a + x.stars_avg * x.rated, 0) / rated.reduce((a, x) => a + x.rated, 0) : null;
+      const satOf = v => v == null ? null : clamp((v - 3) / 2 * 100);   // ดาว 3 = 0 · ดาว 5 = 100
+      const vTop = p75(list.filter(x => x.workload >= B.minCases).map(x => x.workload));
+      list.forEach(x => {
+        const lineOk = x.line_cases >= 10;
+        x.talk = lineOk ? shrink(x.talk_raw, x.talk_known, teamLine.talk) : null;
+        x.speed = lineOk ? shrink(x.speed_raw, x.line_cases, teamLine.speed) : null;
+        x.sat = x.rated ? shrink(satOf(x.stars_avg), x.rated, satOf(teamStars)) : null;
+        x.volume = vTop ? clamp(x.workload / vTop * 100) : null;
+        const parts = [['talk', x.talk], ['speed', x.speed], ['sat', x.sat], ['volume', x.volume]].filter(([, v]) => v != null);
+        const wsum = parts.reduce((a, [k]) => a + W2[k], 0);
+        x.overall = wsum ? Math.round(parts.reduce((a, [k, v]) => a + v * W2[k], 0) / wsum) : null;
+        x.tier = tierOf(x.overall);
+        x.ranked = x.workload >= B.minCases && x.team !== 'management';   // หัวหน้าทีมแสดงไว้ แต่ไม่ติดอันดับ
+      });
+      return { list, teamStars };
+    };
+    const curS = buildStaff(cur, S.calllog, teamRaw), prevS = buildStaff(prevRows, S.prevCalllog || [], prevTeamRaw);
+    const rankOf = (lst, k) => lst.filter(x => x.ranked && x[k] != null).sort((a, z) => z[k] - a[k]).map(x => x.id);
+    const pr = Object.fromEntries(['overall', 'talk', 'speed', 'sat'].map(k => [k, rankOf(prevS.list, k)]));
+    curS.list.forEach(x => {
+      const p = prevS.list.find(y => y.id === x.id && y.ranked);
+      for (const k of ['overall', 'talk', 'speed', 'sat']) {
+        x['prev_' + k] = p ? p[k] : null;
+        const i = pr[k].indexOf(x.id); x['prev_rank_' + k] = i < 0 ? null : i + 1;
+      }
+    });
+    staff = curS.list.filter(x => x.workload || x.line_cases).sort((a, z) => z.ranked - a.ranked || (z.overall ?? -1) - (a.overall ?? -1));
+    staffTeam = { stars_avg: curS.teamStars == null ? null : +curS.teamStars.toFixed(2), weights: W2,
+      unmatched_line: [...lineEmp].filter(([, e]) => !e).map(([n]) => n) };
+  }
+
+  return { team: { ...stats(cur), ...teamRaw }, prev: { ...stats(prevRows), ...prevTeamRaw }, people, badges, review, by_day, by_category, staff, staff_team: staffTeam,
     by_signal: cur.reduce((m, c) => (m[c.resolution_signal] = (m[c.resolution_signal] || 0) + 1, m), {}) };
 }
 
