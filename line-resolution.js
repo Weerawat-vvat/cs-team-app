@@ -396,7 +396,8 @@ ${final ? 'ตัดสินครั้งสุดท้าย (เกิน 
       parse: parseObj, feature: 'line_resolution', model: aiModel || undefined,
       geminiConfig: SchemaType ? { generationConfig: {
         responseMimeType: 'application/json', maxOutputTokens: MAX_OUT_TOKENS, temperature: 0,
-        thinkingConfig: { thinkingBudget: 0 },
+        // รุ่น lite ไม่คิดอยู่แล้ว และไม่รับ thinkingBudget (400) — ส่งเฉพาะรุ่นที่คิด
+        ...(/lite/i.test(aiModel || "") ? {} : { thinkingConfig: { thinkingBudget: 0 } }),
       } } : null,
     });
     const out = judgeToResult(c, lines, value, final);
