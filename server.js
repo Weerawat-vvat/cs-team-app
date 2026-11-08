@@ -80,11 +80,12 @@ const aiTokensToday = feature => _aiDayTok.get(`${bangkokToday()}|${feature}`) |
 const aiTokensTodayAll = () => { const d = bangkokToday() + '|'; let t = 0; for (const [k, v] of _aiDayTok) if (k.startsWith(d)) t += v; return t; };
 // ── เพดาน token ต่อวัน ─────────────────────────────────────
 // แต่ละฟีเจอร์มีเพดานของตัวเอง (ตั้งเผื่อจากการใช้ปกติ ~1.5 เท่า) ครบแล้วฟีเจอร์นั้นหยุดเรียก AI ถึงเที่ยงคืน
-// ฟีเจอร์อื่นยังใช้ได้ · ปรับได้ใน .env: AI_LIMITS=triage_classify=800000,case_draft=150000 (0 = ไม่จำกัด)
+// คัดกรองข้อความไลน์ (triage_*) ไม่จำกัด — เป็นตัวส่งแจ้งเตือน ห้ามหยุด
+// ฟีเจอร์อื่นยังใช้ได้ · ปรับได้ใน .env: AI_LIMITS=line_resolution=200000,case_draft=150000 (0 = ไม่จำกัด)
 // AI_DAILY_TOKENS = เพดานรวมทุกฟีเจอร์ (ค่าเริ่มต้น 0 = ไม่ใช้ เพราะเพดานรายฟีเจอร์คุมอยู่แล้ว)
 const AI_FEATURE_LIMITS = {
-  triage_classify: 800000, line_resolution: 300000, case_draft: 150000, monitor_tag: 150000,
-  triage_screen: 150000, empcal_summary: 60000,
+  triage_classify: 0, triage_screen: 0, line_resolution: 300000,
+  case_draft: 150000, monitor_tag: 150000, empcal_summary: 60000,
   ...Object.fromEntries(String(process.env.AI_LIMITS || '').split(',').map(x => x.split('=').map(v => v.trim()))
     .filter(([f, v]) => f && /^\d+$/.test(v || '')).map(([f, v]) => [f, +v])),
 };
@@ -7388,7 +7389,6 @@ async function classifyTriageBatchInner(batchSize) {
   return { classified, ruled, scanned: inScope.length, hasKey: true, skippedOutOfScope: cand.length - inScope.length };
 }
 
-const TRIAGE_THINKING_BUDGET = Math.max(0, parseInt(process.env.TRIAGE_THINKING_BUDGET ?? '0') || 0);
 // สร้าง prompt + เรียก AI คัดกรองข้อความชุดหนึ่ง (ใช้ทั้งรอบคัดกรองจริงและปุ่ม "ทดสอบ" ในหน้าสอน AI)
 async function triageAiClassify(todo, ctx, teach) {
   const clip = v => String(v || '').replace(/\s+/g, ' ').trim();
@@ -7440,8 +7440,6 @@ ${list}`;
   const geminiConfig = {
     generationConfig: {
       responseMimeType: 'application/json',
-      // โหมดคิดของ Gemini กิน token ขาออกหลายพันต่อครั้ง — งานจำแนกไม่ต้องคิดยาว (ปรับได้ด้วย TRIAGE_THINKING_BUDGET)
-      thinkingConfig: { thinkingBudget: TRIAGE_THINKING_BUDGET },
       responseSchema: {
         type: SchemaType.ARRAY,
         items: {
