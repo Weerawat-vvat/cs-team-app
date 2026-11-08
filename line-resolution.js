@@ -695,14 +695,17 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
   if (S) {
     const median = xs => { xs = xs.filter(v => v != null).sort((a, b) => a - b); if (!xs.length) return null; const h = xs.length >> 1; return xs.length % 2 ? xs[h] : (xs[h - 1] + xs[h]) / 2; };
     const norm = v => String(v || '').toLowerCase().replace(/^inf[\s_.\-]*/, '').replace(/[^a-z0-9ก-๙]/g, '');
-    const emps = S.employees.map(e => ({ ...e, keys: [norm(e.nickname), norm(e.ext_username)].filter(Boolean) }));
+    const emps = S.employees.map(e => ({ ...e, keys: [norm(e.nickname), norm(e.ext_username)].filter(Boolean),
+      lines: String(e.line_names || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean) }));
     const byExt = new Map(emps.filter(e => e.ext_username).map(e => [String(e.ext_username).toLowerCase(), e]));
     const over = new Map(Object.entries(S.lineMap || {}).map(([k, v]) => [norm(k), norm(v)]));
     const lineEmp = new Map();
     const empOfLine = name => {
       if (lineEmp.has(name)) return lineEmp.get(name);
-      const k = norm(name), o = over.get(k);
-      const hit = (o && emps.find(e => e.keys.includes(o)))
+      const k = norm(name), o = over.get(k), exact = String(name || '').trim().toLowerCase();
+      // 1) ผูกไว้ในหน้าจัดการ User (แม่นสุด) → 2) LINE_STAFF_MAP → 3) เดาจากชื่อเล่น/username
+      const hit = emps.find(e => e.lines.includes(exact))
+        || (o && emps.find(e => e.keys.includes(o)))
         || emps.find(e => e.keys.includes(k))
         || (k.length >= 3 && emps.find(e => e.keys.some(x => x.length >= 3 && (x.startsWith(k) || k.startsWith(x) || x.includes(k)))))
         || null;

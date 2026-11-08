@@ -332,6 +332,11 @@ async function init() {
       IF COL_LENGTH('line_msg_triage','auto_closed') IS NULL
         ALTER TABLE line_msg_triage ADD auto_closed BIT NOT NULL DEFAULT 0
     `);
+    // ชื่อ LINE@ ที่พนักงานใช้ตอบ (คั่นด้วย ,) — ผูกข้อมูล LINE เข้ากับพนักงานใน Leaderboard ทีมงาน
+    await pool.request().query(`
+      IF COL_LENGTH('employees','line_names') IS NULL
+        ALTER TABLE employees ADD line_names NVARCHAR(400) NULL
+    `);
     console.log('✅ Migrations done');
   } catch (err) {
     console.error('❌ Migration error:', err.message);

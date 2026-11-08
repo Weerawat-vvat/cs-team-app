@@ -1757,7 +1757,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
     <div id="mt-body"><div class="mt-empty">กำลังโหลด...</div></div>
   </div><!-- /dash-tab-monitor -->
 
-  <!-- ════ TAB 6: Leaderboard ทีมงาน (เดิม ตอบเคสไลน์ไว) — รายงานผู้บริหาร ════ -->
+  <!-- ════ TAB 6: Leaderboard ทีมงาน (เดิม ตอบเคสไลน์ไว) ════ -->
   <div id="dash-tab-lineboard" style="display:none">
     <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.8rem">
       <select id="llb-pod" class="svc-select" onchange="llbLoad()" style="max-width:180px" aria-label="Pod"><option value="">ทุก Pod</option></select>
@@ -6282,6 +6282,11 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
       <label>Call User ID <span style="font-size:.72rem;color:var(--muted);font-weight:400">(Users.UserId จาก LicenseDB — ใช้สำหรับเปิด Case)</span></label>
       <input type="number" id="p-calluserid" placeholder="เช่น 12"/>
     </div>
+    <div class="form-group">
+      <label>ชื่อ LINE@ ที่ใช้ตอบ <span style="font-size:.72rem;color:var(--muted);font-weight:400">(ผูกข้อมูลแชท LINE เข้ากับคนนี้ใน Leaderboard ทีมงาน · หลายชื่อคั่นด้วย ,)</span></label>
+      <input id="p-line-names" placeholder="เช่น INF-BOOM" autocomplete="off"/>
+      <div id="p-line-names-hint" style="margin-top:.4rem;display:flex;flex-wrap:wrap;gap:.3rem;align-items:center"></div>
+    </div>
 
     <div class="btn-group">
       <button class="btn btn-primary" onclick="savePerson()">บันทึก</button>
@@ -9432,7 +9437,7 @@ async function loadDashboardAll() {
 
 // ══════════════════════════════════════════════════════════
 //  ตอบเคสไลน์ไว (แท็บใน Dashboard) — ใช้ช่วงวันที่ของ Dashboard
-//  รายงานผู้บริหาร: สรุป · ตัวชี้วัด · แนวโน้ม · หมวดปัญหา · ผลงานทีม · เคสที่ควรดู (/api/line-board — ตัวเลขล้วน ไม่ใช้ AI)
+//  Leaderboard ทีมงาน: LINE + หน้าติดตามเคส + ดาวลูกค้า → คะแนนรวม + ยศ (/api/line-board — ตัวเลขล้วน ไม่ใช้ AI)
 // ══════════════════════════════════════════════════════════
 let _llbSeq = 0;   // กดเปลี่ยนวันที่รัวๆ — ใช้แค่ผลของครั้งล่าสุด
 async function llbLoad() {
@@ -9453,133 +9458,34 @@ async function llbLoad() {
   box.style.opacity = '';
   if (!b || b.error) { box.innerHTML = `<div class="mt-meta" style="text-align:center;padding:2rem">โหลดไม่สำเร็จ: ${escHtml(b?.error || '')}</div>`; return; }
 
-  const cfg = b.config, T = Math.round(cfg.frtTargetSec / 60);
+  const cfg = b.config;
   const fd = x => new Date(x + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
   const span = Math.round((Date.parse(b.to) - Date.parse(b.from)) / 86400000) + 1;
   document.getElementById('llb-note').textContent =
-    `${fd(b.from)} – ${fd(b.to)} (${span} วัน) · ตัดสินแล้ว ${b.team.cases} เคส${b.not_judged ? ` · รอตัดสินอีก ${b.not_judged} ข้อความ` : ''} · นับเวลาทำงาน 08:00–24:00`;
+    `${fd(b.from)} – ${fd(b.to)} (${span} วัน) · แชท LINE ที่ตัดสินแล้ว ${b.team.cases} เคส${b.not_judged ? ` · รอตัดสินอีก ${b.not_judged} ข้อความ` : ''} · งานจากหน้าติดตามเคสทุกช่องทาง`;
   const mins = s => s == null ? '—' : s < 60 ? `${Math.round(s)} วิ` : s < 3600 ? `${(s / 60).toFixed(1)} นาที` : `${(s / 3600).toFixed(1)} ชม.`;
   const num = n => (n || 0).toLocaleString('th-TH');
-  const tm = b.team, pv = b.prev;
-  if (!tm.cases) {
-    box.innerHTML = `<div class="mt-meta" style="text-align:center;padding:3rem">ยังไม่มีเคสที่ตัดสินแล้วในช่วงนี้${b.not_judged ? ` · รอตัดสิน ${b.not_judged} ข้อความ` : ''}</div>`;
+  if (!b.staff?.length) {
+    box.innerHTML = `<div class="mt-meta" style="text-align:center;padding:3rem">ยังไม่มีข้อมูลทีมงานในช่วงนี้</div>`;
     return;
   }
-  const head = (title, note) => `<div class="mt-tt-head">${title} <span class="mt-meta" style="font-weight:400">${note ? '· ' + note : ''}</span></div>`;
-  const section = title => `<div style="font-size:.95rem;font-weight:700;margin:1.4rem 0 .6rem;color:#3a3f46">${title}</div>`;
-  const TONE = { green: '#356b4e', yellow: '#86671f', red: '#a2562f' };
-  const tone = (v, target, lower = true, slack = .25) => v == null ? ''
-    : (lower ? v <= target : v >= target) ? 'green'
-    : (lower ? v <= target * (1 + slack) : v >= target * (1 - slack)) ? 'yellow' : 'red';
-  const hasPrev = pv.cases >= 20;   // ช่วงก่อนมีข้อมูลน้อยไป = ไม่เทียบ
-  // ยังตัดสินไม่ครบ (ข้อความค้าง ~2.5 ข้อความ/เคส เกิน 10% ของเคส) → จำนวนเคสยังไม่ใช่ตัวเลขสุดท้าย ไม่เทียบจำนวน
-  const pending = Math.round((b.not_judged || 0) / 2.5), incomplete = pending > tm.cases * .1;
-  const cmpCount = hasPrev && !incomplete;
-  const arrow = (v, p, lower, fmt, neutral = false) => !hasPrev || v == null || p == null ? 'ไม่มีช่วงก่อนให้เทียบ'
-    : v === p ? 'เท่ากับช่วงก่อน'
-    : `<span style="color:${neutral ? '#6f747c' : (v < p) === lower ? TONE.green : '#b04a40'}">${v < p ? '▼' : '▲'} ${fmt(Math.abs(v - p))}</span> จากช่วงก่อน`;
-  const abandPct = Math.round(tm.abandoned / tm.cases * 100), pAband = pv.cases ? Math.round(pv.abandoned / pv.cases * 100) : null;
-  const perDay = tm.cases / span, pPerDay = pv.cases / span;
-  const cats = b.by_category || [];
-  const catName = c => LLB_CAT[c] || c;
+  // ยังตัดสินแชทไม่ครบ (ข้อความค้าง ~2.5 ข้อความ/เคส เกิน 10% ของเคส) → คะแนนฝั่ง LINE ยังขยับได้
+  const pending = Math.round((b.not_judged || 0) / 2.5);
+  const warn = pending > b.team.cases * .1 ? `<div style="background:#fdf3e1;color:#86671f;border-radius:10px;padding:.6rem .9rem;margin-bottom:.75rem;font-size:.82rem">
+      ระบบยังตัดสินแชท LINE ในช่วงนี้ไม่ครบ (ค้างราว ${num(pending)} เคส) — คะแนนคุยงานดี / ตอบไว ยังขยับได้ · งานและดาวจากหน้าติดตามเคสครบแล้ว</div>` : '';
+  // ชื่อ LINE@ ที่ยังไม่รู้ว่าเป็นของใคร → ข้อมูลของชื่อนั้นไม่ถูกนับให้ใคร
+  const um = b.staff_team?.unmatched_line || [];
+  const unmatched = um.length ? `<div style="background:#fbeceb;color:#a23b33;border-radius:10px;padding:.6rem .9rem;margin-bottom:.75rem;font-size:.82rem">
+      ชื่อ LINE@ ที่ยังไม่ได้ผูกกับพนักงาน: <b>${um.map(escHtml).join(', ')}</b> — แชทของชื่อเหล่านี้ยังไม่ถูกนับ ·
+      ผูกได้ที่ ตั้งค่า → จัดการ User → แก้ไข → ชื่อ LINE@ ที่ใช้ตอบ</div>` : '';
 
-  // ── 1. สรุปผู้บริหาร (ประโยคสร้างจากตัวเลข ไม่ใช้ AI) ──
-  const chg = (v, p) => !cmpCount || !p ? '' : ` (${v >= p ? '▲' : '▼'} ${Math.abs(Math.round((v - p) / p * 100))}% จากช่วงก่อน)`;
-  const good = [], watch = [];
-  (tm.frt_within_pct >= 80 ? good : watch).push(`ตอบแรกทันเป้า ${T} นาที <b>${tm.frt_within_pct ?? '—'}%</b> ของเคส (median ${mins(tm.frt_median)})`);
-  (tm.one_touch_pct >= 50 ? good : watch).push(`จบใน 1–2 รอบคุย <b>${tm.one_touch_pct ?? '—'}%</b> · คุยเฉลี่ย ${tm.turns_avg ?? '—'} รอบ`);
-  (abandPct < 10 ? good : watch).push(`เคสที่ไม่มีสัญญาณจบ <b>${abandPct}%</b> (${num(tm.abandoned)} เคส)`);
-  if (hasPrev && tm.agent_ttr_median != null && pv.agent_ttr_median != null && Math.abs(tm.agent_ttr_median - pv.agent_ttr_median) >= 300)
-    (tm.agent_ttr_median < pv.agent_ttr_median ? good : watch).push(`เวลาแก้จบฝั่งเรา ${mins(pv.agent_ttr_median)} → <b>${mins(tm.agent_ttr_median)}</b>`);
-  const slowCat = cats.filter(c => c.cases >= 10 && c.agent_ttr_median != null).sort((a, z) => z.agent_ttr_median - a.agent_ttr_median)[0];
-  const ranked = b.people.filter(p => p.ranked), unranked = b.people.filter(p => !p.ranked);
-  const lowP = (b.staff || []).filter(p => p.ranked && p.tier === 'rookie');
-  const decide = [];
-  if (cats[0]) decide.push(`หมวด <b>${catName(cats[0].category)}</b> มากที่สุด ${cats[0].pct}% ของเคส — ลดเรื่องนี้ได้ (คู่มือ / แก้ที่ต้นเหตุ) จะลดงานทีมมากสุด`);
-  if (slowCat) decide.push(`หมวด <b>${catName(slowCat.category)}</b> ใช้เวลาแก้ฝั่งเรานานสุด (median ${mins(slowCat.agent_ttr_median)})`);
-  if (lowP.length) decide.push(`ยศ 🌱 Rookie (คะแนนรวมต่ำกว่า 60): ${lowP.map(p => `<b>${escHtml(p.name)}</b> (ดาว ${p.stars_avg ?? '—'} · ลูกค้างง ${p.confused_pct ?? '—'}%)`).join(', ')} — ควรโค้ช`);
-  const ul = (title, color, items) => items.length ? `<div style="flex:1;min-width:240px"><div style="font-weight:700;color:${color};margin-bottom:.3rem">${title}</div>
-    <ul style="margin:0;padding-left:1.1rem;line-height:1.7;font-size:.86rem">${items.map(x => `<li>${x}</li>`).join('')}</ul></div>` : '';
-  const warn = incomplete ? `<div style="background:#fdf3e1;color:#86671f;border-radius:10px;padding:.6rem .9rem;margin-bottom:.75rem;font-size:.82rem">
-      ระบบยังตัดสินเคสในช่วงนี้ไม่ครบ (ค้างราว ${num(pending)} เคส) — จำนวนเคสยังไม่ใช่ตัวเลขสุดท้าย จึงยังไม่เทียบจำนวนกับช่วงก่อน · ตัวชี้วัดอื่นคิดจากเคสที่ตัดสินแล้ว</div>` : '';
-  const summary = warn + `<div class="mt-tbl-wrap" style="padding:1rem 1.1rem">
-      <div style="font-size:1.05rem;font-weight:700;color:#2f343a">สรุปผู้บริหาร · งานตอบเคสทาง LINE</div>
-      <div class="mt-meta" style="margin:.2rem 0 .8rem">${fd(b.from)} – ${fd(b.to)} · รับ <b style="color:#2f343a">${num(tm.cases)} เคส</b> เฉลี่ย ${perDay.toFixed(0)} เคส/วัน${chg(perDay, pPerDay)} · แก้จบ ${Math.round(tm.resolved / tm.cases * 100)}%</div>
-      <div style="display:flex;gap:1.2rem;flex-wrap:wrap">
-        ${ul('ทำได้ดี', TONE.green, good)}${ul('ต้องจับตา', '#b04a40', watch)}${ul('ข้อเสนอให้ตัดสินใจ', '#3d6b9a', decide)}
-      </div>
-    </div>`;
-
-  // ── 2. ตัวชี้วัดหลัก ──
-  const kcard = (lab, val, cls, target, cmp) => `<div class="stat-flat"><div class="label">${lab}</div><div class="value" style="${cls ? `color:${TONE[cls]}` : ''}">${val}</div><div class="sub">${target}</div><div class="sub">${cmp}</div></div>`;
-  const kpis = `${section('ตัวชี้วัดหลัก')}<div class="mt-kpis" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
-    ${kcard('เคสทั้งหมด', num(tm.cases), '', `เฉลี่ย ${perDay.toFixed(0)} เคส/วัน`, cmpCount ? arrow(Math.round(perDay), Math.round(pPerDay), true, v => v + ' เคส/วัน', true) : incomplete ? 'ยังตัดสินไม่ครบ' : 'ไม่มีช่วงก่อนให้เทียบ')}
-    ${kcard('ตอบแรก (median)', mins(tm.frt_median), tone(tm.frt_median, cfg.frtTargetSec), `เป้า ≤ ${T} นาที · ทันเป้า ${tm.frt_within_pct ?? '—'}%`, arrow(tm.frt_median, pv.frt_median, true, mins))}
-    ${kcard('แก้จบ (median)', mins(tm.ttr_median), tone(tm.agent_ttr_median, 3600), `เวลาฝั่งเรา ${mins(tm.agent_ttr_median)} · เป้า ≤ 1 ชม.`, arrow(tm.ttr_median, pv.ttr_median, true, mins))}
-    ${kcard('จบใน 1–2 รอบ', tm.one_touch_pct == null ? '—' : tm.one_touch_pct + '%', tone(tm.one_touch_pct, 50, false), `เป้า ≥ 50% · คุยเฉลี่ย ${tm.turns_avg ?? '—'} รอบ`, arrow(tm.one_touch_pct, pv.one_touch_pct, false, v => v + '%'))}
-    ${kcard('ไม่มีสัญญาณจบ', abandPct + '%', tone(abandPct, 10, true, 1), `${num(tm.abandoned)} เคส · เป้า < 10%`, arrow(abandPct, pAband, true, v => v + '%'))}
-  </div>`;
-
-  // ── 3. แนวโน้มรายวัน: แท่ง = เคส · เส้น = % ตอบทันเป้า ──
-  let trend = '';
-  const days = b.by_day || [];
-  if (days.length > 1) {
-    const VW = 720, VH = 220, L = 40, R = 40, TP = 16, BT = 30, pw = VW - L - R, ph = VH - TP - BT;
-    const cMax = Math.max(...days.map(d => d.cases), 1), bw = pw / days.length;
-    const X = i => L + bw * i + bw / 2, Yc = v => TP + ph - v / cMax * ph, Yp = v => TP + ph - v / 100 * ph;
-    const pts = days.map((d, i) => d.frt_within_pct == null ? null : `${X(i)},${Yp(d.frt_within_pct)}`).filter(Boolean).join(' ');
-    const every = Math.ceil(days.length / 12);
-    trend = `${section('แนวโน้มรายวัน')}<div class="mt-tbl-wrap" style="padding-bottom:.6rem">
-      ${head('จำนวนเคส และ % ตอบแรกทันเป้า', `แท่ง = เคส (แกนซ้าย) · เส้น = % ทันเป้า ${T} นาที (แกนขวา)`)}
-      <svg viewBox="0 0 ${VW} ${VH}" style="width:100%;height:auto;display:block;max-width:900px;margin:0 auto" role="img" aria-label="กราฟจำนวนเคสและเปอร์เซ็นต์ตอบทันเป้ารายวัน">
-        ${[0, .5, 1].map(r => `<line x1="${L}" x2="${L + pw}" y1="${TP + ph - r * ph}" y2="${TP + ph - r * ph}" stroke="#e7e4dd"/>
-          <text x="${L - 6}" y="${TP + ph - r * ph + 4}" text-anchor="end" font-size="10.5" fill="#6f747c">${Math.round(cMax * r)}</text>
-          <text x="${L + pw + 6}" y="${TP + ph - r * ph + 4}" font-size="10.5" fill="#3d6b9a">${r * 100}%</text>`).join('')}
-        ${days.map((d, i) => `<g><title>${fd(d.day)}: ${d.cases} เคส · ทันเป้า ${d.frt_within_pct ?? '—'}% · ตอบแรก ${mins(d.frt_median)}</title>
-          <rect x="${X(i) - bw * .32}" y="${Yc(d.cases)}" width="${bw * .64}" height="${TP + ph - Yc(d.cases)}" fill="#cfd8c9" rx="2"/></g>
-          ${i % every === 0 ? `<text x="${X(i)}" y="${VH - 10}" text-anchor="middle" font-size="10.5" fill="#6f747c">${fd(d.day)}</text>` : ''}`).join('')}
-        <polyline points="${pts}" fill="none" stroke="#3d6b9a" stroke-width="2"/>
-        ${days.map((d, i) => d.frt_within_pct == null ? '' : `<circle cx="${X(i)}" cy="${Yp(d.frt_within_pct)}" r="3" fill="#3d6b9a"/>`).join('')}
-      </svg></div>`;
-  }
-
-  // ── 4. หมวดปัญหา: ควรลงทุนแก้ตรงไหน ──
-  const cMaxCat = Math.max(...cats.map(c => c.cases), 1);
-  const catTbl = cats.length ? `${section('หมวดปัญหา')}<div class="mt-tbl-wrap">
-      ${head('เรื่องที่ลูกค้าแจ้ง', 'เรียงตามจำนวนเคส · ใช้ดูว่าควรลงทุนแก้ที่ต้นเหตุตรงไหน')}
-      <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>หมวด</th><th class="r">เคส</th><th style="width:24%">สัดส่วน</th>
-        <th class="r">เทียบช่วงก่อน</th><th class="r">ตอบแรก</th><th class="r">แก้จบ (ฝั่งเรา)</th><th class="r">รอบคุย</th><th class="r">จบ</th></tr></thead><tbody>
-        ${cats.map(c => {
-          const d = cmpCount && c.prev_cases ? Math.round((c.cases - c.prev_cases) / c.prev_cases * 100) : null;
-          return `<tr><td><b>${catName(c.category)}</b></td><td class="r num"><b>${num(c.cases)}</b></td>
-          <td><div style="display:flex;align-items:center;gap:.4rem"><div style="flex:1;height:8px;background:#efede7;border-radius:4px;overflow:hidden"><div style="width:${c.cases / cMaxCat * 100}%;height:100%;background:#7c9a86"></div></div><span class="mt-meta num">${c.pct}%</span></div></td>
-          <td class="r num mt-meta">${d == null ? '—' : `${d > 0 ? '▲' : d < 0 ? '▼' : ''} ${Math.abs(d)}%`}</td>
-          <td class="r num">${mins(c.frt_median)}</td><td class="r num">${mins(c.agent_ttr_median)}</td><td class="r num">${c.turns_avg ?? '—'}</td>
-          <td class="r num">${c.resolved_pct ?? '—'}%</td></tr>`;
-        }).join('')}
-      </tbody></table></div>
-      <div class="mt-meta" style="padding:.4rem 1rem .7rem;font-size:.72rem">เคสง่าย (ทีมงานตอบรอบเดียว) จัดหมวดจากคำในข้อความ · เคสที่เหลือ AI จัดให้</div></div>` : '';
-
-  // ── 5. Leaderboard: 💬 คุยงานดี / ⚡ ตอบไว ──
   _llbData = { b, cfg, mins };
-  const board = `${section('Leaderboard ทีมงาน')}<div class="mt-tbl-wrap" style="padding:.9rem 1rem 1rem">
+  box.innerHTML = warn + unmatched + `<div class="mt-tbl-wrap" style="padding:.9rem 1rem 1rem">
       <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.4rem">
+        <div style="font-size:1.05rem;font-weight:700;color:#2f343a;margin-right:auto">Leaderboard ทีมงาน</div>
         <div class="svc-seg" role="tablist" aria-label="บอร์ด">${Object.entries(LLB_BOARDS).map(([k, x]) => `<button role="tab" class="${k === _llbBoard ? 'on' : ''}" onclick="llbBoardTab('${k}', this)">${x.icon} ${x.title}</button>`).join('')}</div>
       </div>
       <div id="llb-board">${llbBoardHtml()}</div></div>`;
-
-  // ── 6. เคสที่ควรดู ──
-  _llbReview = b.review;
-  const RV = [['many_turns', `คุยเกิน ${cfg.reviewTurns} รอบ`], ['slow_fix', `ฝั่งเราแก้เกิน ${cfg.reviewTtrSec / 3600} ชม.`], ['abandoned', 'ไม่มีสัญญาณจบ']];
-  if (!b.review[_llbReviewTab]?.length) _llbReviewTab = RV.find(([k]) => b.review[k].length)?.[0] || 'many_turns';
-  const review = `${section('เคสที่ควรดู')}<div class="mt-tbl-wrap">
-      <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;padding:.8rem 1rem .3rem">
-        <div class="svc-seg" role="tablist" aria-label="ประเภทเคสที่ควรดู">${RV.map(([k, lab]) => `<button role="tab" class="${k === _llbReviewTab ? 'on' : ''}" onclick="llbReviewTab('${k}', this)">${lab} <span class="mt-meta">${b.review[k].length}</span></button>`).join('')}</div>
-        <span class="mt-meta">ตัวอย่างไว้ทบทวนว่าติดตรงไหน</span>
-      </div>
-      <div id="llb-review">${llbReviewHtml()}</div></div>`;
-
-  box.innerHTML = summary + kpis + trend + catTbl + board + review;
 }
 
 // ── Leaderboard ทีมงาน (ข้อมูลจาก /api/line-board · ไม่ใช้ AI) ──
@@ -9700,29 +9606,6 @@ function llbBoardHtml() {
       ${ranked.map((p, i) => row(p, i + 1)).join('')}
       ${small.length ? `<tr><td colspan="${X.cols.length + 4}" class="mt-meta" style="background:#f7f6f3;font-size:.74rem;padding:.4rem .9rem">ยังไม่ติดอันดับ · งานน้อยกว่า ${cfg.minCases} เคส หรือไม่มีข้อมูลของบอร์ดนี้</td></tr>${small.map(p => row(p, null)).join('')}` : ''}
     </tbody></table></div>`;
-}
-
-let _llbReview = null, _llbReviewTab = 'many_turns';
-const LLB_SIGNAL = { customer_confirmed: 'ลูกค้ายืนยัน', agent_fixed: 'ทีมงานแก้แล้ว', escalated: 'ส่งต่อทีมอื่น', abandoned: 'ไม่มีสัญญาณจบ' };
-const LLB_CAT = { printer: 'เครื่องพิมพ์', menu: 'เมนู/ราคา', report: 'รายงาน', order: 'บิล/ออเดอร์', remote: 'รีโมท/ติดตั้ง', other: 'อื่นๆ' };
-function llbReviewTab(k, btn) {
-  _llbReviewTab = k;
-  btn?.parentElement?.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === btn));
-  const el = document.getElementById('llb-review');
-  if (el) el.innerHTML = llbReviewHtml();
-}
-function llbReviewHtml() {
-  const rows = _llbReview?.[_llbReviewTab] || [];
-  if (!rows.length) return '<div class="mt-meta" style="text-align:center;padding:1.2rem">ไม่มีเคสในกลุ่มนี้</div>';
-  const mins = s => s == null ? '—' : s < 3600 ? `${Math.round(s / 60)} นาที` : `${(s / 3600).toFixed(1)} ชม.`;
-  const when = x => parseDbDate(x).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-  return `<div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>เวลา</th><th>กลุ่ม</th><th>คนรับ</th><th>หมวด</th><th class="r">รอบ</th><th class="r">แก้จบ (ฝั่งเรา)</th><th>ผล / เหตุผล</th></tr></thead><tbody>
-    ${rows.map(r => `<tr><td class="mt-meta" style="white-space:nowrap">${when(r.first_msg_time)}</td>
-      <td><b>${escHtml(r.group_name || '—')}</b></td><td>${escHtml(r.answered_by || '—')}</td>
-      <td class="mt-meta">${LLB_CAT[r.issue_category] || escHtml(r.issue_category || '')}</td>
-      <td class="r num">${r.turns}</td><td class="r num">${mins(r.agent_ttr)}</td>
-      <td style="min-width:260px"><span style="font-size:.72rem;font-weight:600">${LLB_SIGNAL[r.resolution_signal] || ''}</span><span style="display:block;font-size:.74rem;color:#6f747c">${escHtml(r.reason || '')}</span></td></tr>`).join('')}
-  </tbody></table></div>`;
 }
 
 async function loadDashboard() {
@@ -20935,6 +20818,7 @@ function renderPeopleTable(emps) {
       <td>
         <div style="font-weight:600">${e.name}</div>
         <div style="font-size:.76rem;color:var(--muted)">${e.nickname ? `ชื่อเล่น: ${e.nickname}` : ''}</div>
+        ${e.line_names ? `<div style="font-size:.7rem;color:#356b4e;margin-top:.1rem" title="ชื่อ LINE@ ที่ผูกไว้ (Leaderboard ทีมงาน)">💬 ${aiEscape(e.line_names)}</div>` : ''}
       </td>
       <td>${teamBadgeHtml(e.team)}</td>
       <td style="white-space:nowrap">
@@ -20999,6 +20883,8 @@ function openAddPerson() {
   document.getElementById('p-sys-role').value  = 'staff';
   document.getElementById('p-ext-username').value = '';
   document.getElementById('p-calluserid').value = '';
+  document.getElementById('p-line-names').value = '';
+  _fillPersonLineNames(null);
   document.getElementById('p-pwd-label').textContent = 'รหัสผ่าน';
   document.getElementById('p-password').placeholder = 'กรอกรหัสผ่าน (ถ้าต้องการสร้างบัญชี)';
   document.getElementById('p-emp-status-wrap').style.display = 'none';
@@ -21024,11 +20910,44 @@ function openEditPerson(e, u) {
   document.getElementById('p-sys-role').value  = u ? u.role : 'staff';
   document.getElementById('p-ext-username').value = u ? (u.ext_username || '') : '';
   document.getElementById('p-calluserid').value = u ? (u.calluserid || '') : '';
+  document.getElementById('p-line-names').value = e.line_names || '';
+  _fillPersonLineNames(e.id);
   document.getElementById('p-pwd-label').textContent = 'รหัสผ่านใหม่';
   document.getElementById('p-password').placeholder = 'เว้นว่าง = ไม่เปลี่ยน';
   _fillPersonTeamSelect(e.team);
   _fillPersonPodSelect(e.pod_id || null);
   openModal('modal-person');
+}
+
+// ชื่อ LINE@ ที่ตอบในกลุ่ม 30 วันล่าสุด — กดเพื่อเพิ่ม · ชื่อที่ผูกกับคนอื่นแล้วจะจาง
+async function _fillPersonLineNames(empId) {
+  const box = document.getElementById('p-line-names-hint');
+  if (!box) return;
+  box.innerHTML = '<span class="mt-meta" style="font-size:.72rem">กำลังโหลดชื่อ LINE@…</span>';
+  const d = await api('/api/line-names?days=30', { silent: true });
+  if (!d || d.error || !d.names?.length) { box.innerHTML = ''; return; }
+  const input = document.getElementById('p-line-names');
+  const has = () => input.value.split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
+  const render = () => {
+    const cur = has();
+    box.innerHTML = '<span class="mt-meta" style="font-size:.72rem">ชื่อที่ตอบใน 30 วันล่าสุด:</span>' + d.names.map(n => {
+      const mine = cur.includes(String(n.name).toLowerCase());
+      const other = n.employee && n.employee.id !== empId && !mine;
+      return `<button type="button" class="lb-ch" data-n="${escHtml(n.name)}" ${other ? 'disabled' : ''}
+        title="${other ? 'ผูกกับ ' + escHtml(n.employee.name) + ' แล้ว' : 'ตอบ ' + n.replies + ' ครั้ง'}"
+        style="cursor:${other ? 'default' : 'pointer'};border:1px solid ${mine ? '#356b4e' : 'transparent'};${mine ? 'background:#e6f0e9;color:#356b4e;' : ''}${other ? 'opacity:.45;' : ''}font-size:.72rem;padding:.1rem .45rem">
+        ${mine ? '✓ ' : ''}${escHtml(n.name)}${other ? ' · ' + escHtml(n.employee.name) : ''}</button>`;
+    }).join('');
+    box.querySelectorAll('button[data-n]:not([disabled])').forEach(b => b.onclick = () => {
+      const n = b.dataset.n, list = input.value.split(',').map(x => x.trim()).filter(Boolean);
+      const i = list.findIndex(x => x.toLowerCase() === n.toLowerCase());
+      if (i >= 0) list.splice(i, 1); else list.push(n);
+      input.value = list.join(', ');
+      render();
+    });
+  };
+  input.oninput = render;
+  render();
 }
 
 async function savePerson() {
@@ -21043,7 +20962,8 @@ async function savePerson() {
     phone:      document.getElementById('p-phone').value.trim()      || null,
     start_date: document.getElementById('p-start').value             || null,
     active:     parseInt(document.getElementById('p-emp-status').value || '1'),
-    pod_id:     document.getElementById('p-pod').value ? parseInt(document.getElementById('p-pod').value) : null
+    pod_id:     document.getElementById('p-pod').value ? parseInt(document.getElementById('p-pod').value) : null,
+    line_names: document.getElementById('p-line-names').value.trim()
   };
   const uname   = document.getElementById('p-username').value.trim();
   const pwd     = document.getElementById('p-password').value;

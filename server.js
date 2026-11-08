@@ -835,7 +835,7 @@ app.get('/api/employees', authRequired, async (request, res) => {
     const { team, include_inactive } = request.query;
     const role = request.user?.role;
     const r = req();
-    let q = `SELECT e.id, e.name, e.nickname, e.team, e.role, e.phone, e.start_date, e.active, e.created_at,
+    let q = `SELECT e.id, e.name, e.nickname, e.team, e.role, e.phone, e.start_date, e.active, e.created_at, e.line_names,
                     au.id AS user_id,
                     pod.pod_id, pod.pod_name, pod.pod_color, pod.role_in_pod
              FROM employees e
@@ -882,18 +882,48 @@ async function setEmployeePod(empId, podId) {
               INSERT INTO pod_members (pod_id, employee_id, role_in_pod) VALUES (@pid, @eid, 'member');`);
 }
 
+// "INF-BOOM, inf-boom2 ," → "INF-BOOM, inf-boom2" (ตัดซ้ำ/ช่องว่าง) · ว่าง = null
+const cleanLineNames = v => {
+  const seen = new Set(), out = [];
+  for (const x of String(v || '').split(',').map(s => s.trim()).filter(Boolean)) {
+    if (!seen.has(x.toLowerCase())) { seen.add(x.toLowerCase()); out.push(x.slice(0, 100)); }
+  }
+  return out.length ? out.join(', ') : null;
+};
+
+// GET /api/line-names?days=30 — ชื่อ LINE@ ที่ตอบในกลุ่มช่วงหลัง + ผูกกับพนักงานคนไหนอยู่ (ไว้เลือกในหน้าจัดการ User)
+app.get('/api/line-names', authRequired, async (request, res) => {
+  try {
+    const lb = getLineBotPool();
+    if (!lb) return res.json({ names: [] });
+    const days = Math.min(180, Math.max(1, parseInt(request.query.days) || 30));
+    const rows = (await lb.request().input('d', sql.Int, days).query(`
+      SELECT AnsweredBy AS name, COUNT(DISTINCT AnsweredTime) AS replies, MAX(AnsweredTime) AS last_at
+      FROM dbo.LineWaitingReply
+      WHERE Answered = 1 AND AnsweredBy IS NOT NULL AND LTRIM(RTRIM(AnsweredBy)) <> '' AND MessageTime >= DATEADD(day, -@d, GETDATE())
+      GROUP BY AnsweredBy ORDER BY replies DESC`)).recordset;
+    const emps = (await req().query(`SELECT id, name, nickname, line_names FROM employees WHERE active = 1 AND line_names IS NOT NULL`)).recordset;
+    const owner = new Map();
+    emps.forEach(e => String(e.line_names).split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+      .forEach(n => owner.set(n, { id: e.id, name: e.nickname || e.name })));
+    res.json({ days, names: rows.map(r => ({ ...r, employee: owner.get(String(r.name).trim().toLowerCase()) || null })) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/employees', authRequired, managerRequired, async (request, res) => {
   try {
     const { name, nickname, team, role, phone, start_date, pod_id } = request.body;
+    const lineNames = cleanLineNames(request.body.line_names);
     const result = await req()
+      .input('ln',         sql.NVarChar, lineNames)
       .input('name',       sql.NVarChar, name)
       .input('nickname',   sql.NVarChar, nickname   || null)
       .input('team',       sql.NVarChar, team)
       .input('role',       sql.NVarChar, role       || 'staff')
       .input('phone',      sql.NVarChar, phone      || null)
       .input('start_date', sql.Date,     start_date ? new Date(start_date) : null)
-      .query(`INSERT INTO employees (name,nickname,team,role,phone,start_date)
-              OUTPUT INSERTED.id VALUES (@name,@nickname,@team,@role,@phone,@start_date)`);
+      .query(`INSERT INTO employees (name,nickname,team,role,phone,start_date,line_names)
+              OUTPUT INSERTED.id VALUES (@name,@nickname,@team,@role,@phone,@start_date,@ln)`);
     if (pod_id) await setEmployeePod(result.recordset[0].id, pod_id);
     res.json({ id: result.recordset[0].id });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -915,6 +945,10 @@ app.put('/api/employees/:id', authRequired, managerRequired, async (request, res
               SET name=@name, nickname=@nickname, team=@team, role=@role,
                   phone=@phone, start_date=@start_date, active=@active
               WHERE id=@id`);
+    // ไม่ส่ง line_names มา = ไม่แตะ (เช่น ปุ่มกู้คืนพนักงาน)
+    if (request.body.line_names !== undefined)
+      await req().input('ln', sql.NVarChar, cleanLineNames(request.body.line_names)).input('id', sql.Int, request.params.id)
+        .query('UPDATE employees SET line_names=@ln WHERE id=@id');
     if (pod_id !== undefined) await setEmployeePod(request.params.id, pod_id); // ไม่ส่งมา = ไม่แตะ Pod
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -8772,7 +8806,7 @@ app.get('/api/line-board', authRequired, async (request, res) => {
     // Leaderboard รายพนักงาน: งานทุกช่องทางจาก Calllog (ติดตามเคส) + ดาวลูกค้า — งานโทรศัพท์ก็นับ
     let S = null;
     try {
-      const employees = (await req().query(`SELECT e.id, e.name, e.nickname, e.team, au.ext_username
+      const employees = (await req().query(`SELECT e.id, e.name, e.nickname, e.team, e.line_names, au.ext_username
         FROM employees e LEFT JOIN app_users au ON au.employee_id = e.id AND au.active = 1 WHERE e.active = 1`)).recordset;
       const clLoad = async (f, t) => !getExtPool() || t < f ? [] : (await extReq().input('f', sql.DateTime, new Date(f + 'T00:00:00Z'))
         .input('t', sql.DateTime, new Date(Date.parse(t + 'T00:00:00Z') + 86400000)).query(`
