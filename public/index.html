@@ -1760,7 +1760,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
   <!-- ════ TAB 6: Leaderboard ทีมงาน (เดิม ตอบเคสไลน์ไว) ════ -->
   <div id="dash-tab-lineboard" style="display:none">
     <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.8rem">
-      <select id="llb-pod" class="svc-select" onchange="llbLoad()" style="max-width:180px" aria-label="Pod"><option value="">ทุก Pod</option></select>
+      <select id="llb-pod" class="svc-select" onchange="llbBoardTab(_llbBoard)" style="max-width:180px" aria-label="Pod ของพนักงาน" title="Pod ของพนักงาน ตามที่ตั้งในหน้าจัดการ User"><option value="">ทุก Pod</option></select>
       <span class="mt-meta" id="llb-note"></span>
     </div>
     <div id="llb-body"><div class="mt-meta" style="text-align:center;padding:2rem">กำลังโหลด…</div></div>
@@ -9447,13 +9447,13 @@ async function llbLoad() {
   const podSel = document.getElementById('llb-pod');
   if (podSel && podSel.options.length <= 1) {
     if (!_lcPods) { const p = await api('/api/pods', { silent: true }); if (Array.isArray(p)) _lcPods = p; }
-    podSel.innerHTML = '<option value="">ทุก Pod</option><option value="none">ยังไม่ได้ Assign</option>'
+    podSel.innerHTML = '<option value="">ทุก Pod</option><option value="none">ไม่อยู่ Pod</option>'
       + (_lcPods || []).map(p => `<option value="${p.id}">${escHtml(p.display_name || p.code)}</option>`).join('');
   }
   const f = document.getElementById('dash-date-from')?.value || '', t = document.getElementById('dash-date-to')?.value || '';
-  const pod = podSel?.value || '';
   box.style.opacity = '.5';
-  const b = await api(`/api/line-board?from=${f}&to=${t}${pod ? `&pod=${pod}` : ''}`, { silent: true });
+  // Pod กรองที่หน้าเว็บตาม Pod ของพนักงาน (จัดการ User) — ข้อมูลชุดเดียวกัน ไม่ต้องโหลดใหม่
+  const b = await api(`/api/line-board?from=${f}&to=${t}`, { silent: true });
   if (seq !== _llbSeq) return;
   box.style.opacity = '';
   if (!b || b.error) { box.innerHTML = `<div class="mt-meta" style="text-align:center;padding:2rem">โหลดไม่สำเร็จ: ${escHtml(b?.error || '')}</div>`; return; }
@@ -9557,18 +9557,23 @@ const LLB_BOARDS = {
 };
 function llbBoardTab(k, btn) {
   _llbBoard = k;
-  btn?.parentElement?.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === btn));
+  if (btn) btn.parentElement?.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === btn));
   const el = document.getElementById('llb-board');
   if (el) el.innerHTML = llbBoardHtml();
 }
 function llbBoardHtml() {
   if (!_llbData) return '';
   const { b, cfg } = _llbData, X = LLB_BOARDS[_llbBoard], K = X.key;
-  const src = (b.staff || []).filter(p => p.workload >= 5 || p.line_cases >= 5);
-  if (!src.length) return '<div class="mt-meta" style="text-align:center;padding:1.2rem">ยังไม่มีข้อมูลพนักงานในช่วงนี้</div>';
+  const podF = document.getElementById('llb-pod')?.value || '';
+  const inPod = p => !podF || (podF === 'none' ? p.pod_id == null : String(p.pod_id) === podF);
+  const src = (b.staff || []).filter(p => (p.workload >= 5 || p.line_cases >= 5) && inPod(p));
+  if (!src.length) return `<div class="mt-meta" style="text-align:center;padding:1.2rem">${podF ? 'ไม่มีพนักงานใน Pod นี้ที่มีงานในช่วงนี้ — ตั้ง Pod ของพนักงานได้ที่ ตั้งค่า → จัดการ User' : 'ยังไม่มีข้อมูลพนักงานในช่วงนี้'}</div>`;
   const ranked = src.filter(p => p.ranked && X.need(p) && p[K] != null).sort((a, z) => z[K] - a[K] || X.count(z) - X.count(a));
   const small = src.filter(p => !ranked.includes(p)).sort((a, z) => (X.count(z) || 0) - (X.count(a) || 0));
-  ranked.forEach((p, i) => { const pr = p['prev_rank_' + K], pv = p['prev_' + K]; p._move = pr == null ? null : pr - (i + 1); p._delta = pv == null ? null : p[K] - pv; });
+  // อันดับช่วงก่อนคิดในกลุ่มที่เห็นอยู่ (เลือก Pod = เทียบกันใน Pod)
+  const prevOrder = src.filter(p => p['prev_' + K] != null).sort((a, z) => z['prev_' + K] - a['prev_' + K]).map(p => p.id);
+  ranked.forEach((p, i) => { const pv = p['prev_' + K], pr = prevOrder.indexOf(p.id); p._move = pr < 0 ? null : pr + 1 - (i + 1); p._delta = pv == null ? null : p[K] - pv; });
+  const podChip = p => p.pod_name ? `<span class="lb-ch" style="background:${p.pod_color || '#1d4ed8'}1a;color:${p.pod_color || '#1d4ed8'}">${escHtml(p.pod_name)}</span>` : '';
   const badge = {};
   const give = (n, ic, lab) => (badge[n] = badge[n] || []).push([ic, lab]);
   X.badges.forEach(([ic, lab, fn]) => { const w = ranked.filter(p => fn(p) != null).sort((a, z) => fn(z) - fn(a))[0]; if (w) give(w.id, ic, lab); });
@@ -9584,6 +9589,7 @@ function llbBoardHtml() {
     return `<div class="lb-pod">
       <div class="lb-av${i === 0 ? ' lb-av1' : ''}">${escHtml(String(p.name).slice(0, 2).toUpperCase())}</div>
       <div style="font-weight:700;margin-top:.35rem;text-align:center">${escHtml(p.name)}</div>
+      ${!podF && p.pod_name ? `<div style="margin-top:.1rem">${podChip(p)}</div>` : ''}
       ${K === 'overall' ? `<div style="margin-top:.15rem">${llbTier(p.tier)}</div>` : ''}
       <div class="mt-meta lb-why">${X.why(p)}</div>
       <div class="lb-badges">${bdg(p.id)}</div>
@@ -9592,13 +9598,13 @@ function llbBoardHtml() {
   const row = (p, i) => `<tr${i == null ? ' class="lb-small"' : ''}>
     <td class="num" style="font-weight:700;color:#6f747c">${i ?? '—'}</td><td style="width:44px">${i == null ? '' : move(p)}</td>
     <td><b>${escHtml(p.name)}</b> ${K === 'overall' && i != null ? llbTier(p.tier) : ''}
-      <div class="mt-meta" style="font-size:.68rem">${escHtml(p.line_names?.join(', ') || 'ไม่มีข้อมูล LINE')}</div>
+      <div class="mt-meta" style="font-size:.68rem">${!podF ? podChip(p) + ' ' : ''}${escHtml(p.line_names?.join(', ') || 'ไม่มีข้อมูล LINE')}</div>
       <div class="lb-badges" style="justify-content:flex-start">${i == null ? '' : bdg(p.id)}</div></td>
     <td style="min-width:150px"><div style="display:flex;align-items:center;gap:.45rem"><b class="num" style="min-width:1.6em">${p[K] ?? '—'}</b>
       <div style="flex:1;height:8px;background:#efede7;border-radius:4px;overflow:hidden"><div style="width:${p[K] || 0}%;height:100%;background:${p[K] >= 80 ? '#356b4e' : p[K] >= 65 ? '#c9a03c' : '#c9785c'}"></div></div>${i == null ? '' : dl(p)}</div></td>
     ${X.cols.map(([, , v, t]) => `<td class="r num" style="color:${C[t(p)]};font-weight:600">${v(p)}</td>`).join('')}</tr>`;
   const tiers = K === 'overall' ? `<div class="lb-tiers">${Object.keys(LLB_TIER).map(t => `${llbTier(t)} <span class="mt-meta">${LLB_TIER[t][4]}</span>`).join('<span style="width:.6rem"></span>')}</div>` : '';
-  return `<div class="mt-meta" style="margin:.1rem 0 .6rem;font-size:.76rem">คะแนน 0–100 · ${sub} · ข้อมูลน้อยคะแนนจะถูกดึงเข้าหาค่าเฉลี่ยทีม · ติดอันดับเมื่อมีงาน ${cfg.minCases} เคสขึ้นไป · ▲▼ เทียบช่วงก่อน · ตัวกรอง Pod ไม่มีผลกับข้อมูลติดตามเคส</div>
+  return `<div class="mt-meta" style="margin:.1rem 0 .6rem;font-size:.76rem">คะแนน 0–100 · ${sub} · ข้อมูลน้อยคะแนนจะถูกดึงเข้าหาค่าเฉลี่ยทีม · ติดอันดับเมื่อมีงาน ${cfg.minCases} เคสขึ้นไป · ▲▼ เทียบช่วงก่อน · Pod ตามที่ตั้งในหน้าจัดการ User${podF ? ' (อันดับเทียบกันภายใน Pod)' : ''}</div>
     ${tiers}
     ${podium}
     <div style="overflow-x:auto;margin-top:.9rem"><table class="mt-tbl"><thead><tr><th>#</th><th></th><th>ทีมงาน</th><th>คะแนน${X.title}</th>

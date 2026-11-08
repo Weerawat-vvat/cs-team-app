@@ -8799,6 +8799,7 @@ app.get('/api/line-board', authRequired, async (request, res) => {
         FROM line_case_resolution
         WHERE first_msg_time >= CAST(@f AS DATE) AND first_msg_time < DATEADD(day, 1, CAST(@t AS DATE)) ${podSql}`)).recordset;
     };
+    // Leaderboard กรอง Pod ตาม Pod ของพนักงาน (ทำที่หน้าเว็บ) — ไม่กรองแชทตาม Pod ของกลุ่มลูกค้า
     const curRaw = await load(from, to);
     const span = Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1;
     const shift = n => new Date(Date.parse(from) - n * 86400000).toISOString().slice(0, 10);
@@ -8806,8 +8807,17 @@ app.get('/api/line-board', authRequired, async (request, res) => {
     // Leaderboard รายพนักงาน: งานทุกช่องทางจาก Calllog (ติดตามเคส) + ดาวลูกค้า — งานโทรศัพท์ก็นับ
     let S = null;
     try {
-      const employees = (await req().query(`SELECT e.id, e.name, e.nickname, e.team, e.line_names, au.ext_username
-        FROM employees e LEFT JOIN app_users au ON au.employee_id = e.id AND au.active = 1 WHERE e.active = 1`)).recordset;
+      // Pod ของพนักงาน (ตามหน้าจัดการ User): แถว pod_members ก่อน ถ้าไม่มีใช้ pods.lead_employee_id
+      const employees = (await req().query(`SELECT e.id, e.name, e.nickname, e.team, e.line_names, au.ext_username,
+               pod.pod_id, pod.pod_name, pod.pod_color
+        FROM employees e LEFT JOIN app_users au ON au.employee_id = e.id AND au.active = 1
+        OUTER APPLY (
+          SELECT TOP 1 x.pod_id, p.display_name AS pod_name, p.color AS pod_color
+          FROM (SELECT pm.pod_id, 0 AS src FROM pod_members pm WHERE pm.employee_id = e.id AND pm.active = 1
+                UNION ALL SELECT p3.id, 1 FROM pods p3 WHERE p3.lead_employee_id = e.id) x
+          JOIN pods p ON p.id = x.pod_id AND p.active = 1
+          ORDER BY x.src, p.sort_order) pod
+        WHERE e.active = 1`)).recordset;
       const clLoad = async (f, t) => !getExtPool() || t < f ? [] : (await extReq().input('f', sql.DateTime, new Date(f + 'T00:00:00Z'))
         .input('t', sql.DateTime, new Date(Date.parse(t + 'T00:00:00Z') + 86400000)).query(`
         SELECT u.UserName AS [user], LTRIM(RTRIM(ISNULL(cl.InformType, ''))) AS channel, cl.ReceiveDate AS opened_at,
