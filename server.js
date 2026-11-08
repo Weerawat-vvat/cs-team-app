@@ -8686,6 +8686,8 @@ async function lineResolutionTick() {
     const aiAllowed = () => !LINE_RESOLVE_DAILY_TOKENS || aiTokensToday('line_resolution') < LINE_RESOLVE_DAILY_TOKENS;
     const out = await lineResolution.runBatch({ limit: LINE_RESOLVE_BATCH, aiAllowed });
     if (out?.error) console.error('line resolution:', out.error);
+    // เติมสัญญาณ "คุยงานดี" ให้เคสเก่า ทีละ 300 เคส (อ่านแชทอย่างเดียว ไม่ใช้ AI) — หมดแล้วจะไม่ทำอะไร
+    await lineResolution.backfillTalk(300);
   }
   catch (e) { console.error('line resolution error:', e.message); }
 }
@@ -8754,7 +8756,7 @@ app.get('/api/line-board', authRequired, async (request, res) => {
       else if (parseInt(pod)) { podSql = 'AND pod_id = @pod'; r.input('pod', sql.Int, parseInt(pod)); }
       return (await r.query(`SELECT case_msg_id, group_name, pod_id, first_msg_time, first_answer_time, answered_by,
           issue_category, resolved, resolution_signal, resolved_at, resolved_by, agent_turns, customer_msgs,
-          ttr_work_sec, customer_wait_sec, ai_reason, final
+          ttr_work_sec, customer_wait_sec, ai_reason, final, talk_confused, talk_chased, talk_thanks
         FROM line_case_resolution
         WHERE first_msg_time >= CAST(@f AS DATE) AND first_msg_time < DATEADD(day, 1, CAST(@t AS DATE)) ${podSql}`)).recordset;
     };

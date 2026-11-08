@@ -1080,6 +1080,20 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
 .svc-status-testing{background:#f7ece4;color:#9a5530}
 .svc-status-delivered{background:#e7f0ea;color:#356b4e}
 .svc-status-cancelled{background:#f0eee9;color:#5b616b}
+
+/* Leaderboard ตอบเคสไลน์ไว */
+.lb-podium{display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem;align-items:end;max-width:760px;margin:0 auto}
+.lb-pod{display:flex;flex-direction:column;align-items:center}
+.lb-av{width:50px;height:50px;border-radius:50%;background:#fff;border:3px solid #d9d5cc;display:flex;align-items:center;justify-content:center;font-weight:800;color:#3a3f46}
+.lb-av1{width:62px;height:62px;font-size:1.25rem;border-color:#c9a03c}
+.lb-why{font-size:.74rem;text-align:center;min-height:2.2em}
+.lb-badges{display:flex;flex-wrap:wrap;gap:.2rem;justify-content:center;margin-top:.15rem}
+.lb-step{width:100%;margin-top:.5rem;background:linear-gradient(#ecebe6,#e2e0d9);border-radius:12px 12px 0 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.1rem}
+.lb-step1{background:linear-gradient(#f4e7bf,#ead79c)}
+.lb-badge{background:#f3efe4;color:#5b4a1f;border-radius:20px;padding:.05rem .45rem;font-size:.68rem;font-weight:600;white-space:nowrap}
+.lb-new{background:#e5edf6;color:#3d6b9a;border-radius:10px;padding:0 .35rem;font-size:.66rem}
+.lb-small{opacity:.6}
+@media (max-width:600px){.lb-podium{gap:.35rem}.lb-why{display:none}}
 </style>
 <script>
 // ── Dark mode engine ─────────────────────────────────────────────────────────
@@ -9475,11 +9489,11 @@ async function llbLoad() {
     (tm.agent_ttr_median < pv.agent_ttr_median ? good : watch).push(`เวลาแก้จบฝั่งเรา ${mins(pv.agent_ttr_median)} → <b>${mins(tm.agent_ttr_median)}</b>`);
   const slowCat = cats.filter(c => c.cases >= 10 && c.agent_ttr_median != null).sort((a, z) => z.agent_ttr_median - a.agent_ttr_median)[0];
   const ranked = b.people.filter(p => p.ranked), unranked = b.people.filter(p => !p.ranked);
-  const lowP = ranked.filter(p => p.total < 50);
+  const lowP = ranked.filter(p => p.talk != null && p.talk < 65);
   const decide = [];
   if (cats[0]) decide.push(`หมวด <b>${catName(cats[0].category)}</b> มากที่สุด ${cats[0].pct}% ของเคส — ลดเรื่องนี้ได้ (คู่มือ / แก้ที่ต้นเหตุ) จะลดงานทีมมากสุด`);
   if (slowCat) decide.push(`หมวด <b>${catName(slowCat.category)}</b> ใช้เวลาแก้ฝั่งเรานานสุด (median ${mins(slowCat.agent_ttr_median)})`);
-  if (lowP.length) decide.push(`ทีมงานคะแนนต่ำกว่า 50: ${lowP.map(p => `<b>${escHtml(p.name)}</b>`).join(', ')} — ควรโค้ช`);
+  if (lowP.length) decide.push(`คะแนนคุยงานต่ำกว่า 65: ${lowP.map(p => `<b>${escHtml(p.name)}</b> (ลูกค้างง ${p.confused_pct ?? '—'}%)`).join(', ')} — ควรโค้ชเรื่องการอธิบายให้จบในรอบเดียว`);
   const ul = (title, color, items) => items.length ? `<div style="flex:1;min-width:240px"><div style="font-weight:700;color:${color};margin-bottom:.3rem">${title}</div>
     <ul style="margin:0;padding-left:1.1rem;line-height:1.7;font-size:.86rem">${items.map(x => `<li>${x}</li>`).join('')}</ul></div>` : '';
   const warn = incomplete ? `<div style="background:#fdf3e1;color:#86671f;border-radius:10px;padding:.6rem .9rem;margin-bottom:.75rem;font-size:.82rem">
@@ -9542,31 +9556,13 @@ async function llbLoad() {
       </tbody></table></div>
       <div class="mt-meta" style="padding:.4rem 1rem .7rem;font-size:.72rem">เคสง่าย (ทีมงานตอบรอบเดียว) จัดหมวดจากคำในข้อความ · เคสที่เหลือ AI จัดให้</div></div>` : '';
 
-  // ── 5. ผลงานทีม ──
-  const BADGE = { fastest: ['⚡', 'ตอบไวสุด'], fixer: ['🔧', 'แก้จบไวสุด'], clearest: ['🎯', 'คุยรู้เรื่องสุด (รอบน้อยสุด)'], improved: ['📈', 'พัฒนาขึ้นมากสุด'] };
-  const badgesOf = n => Object.entries(b.badges).filter(([, v]) => v === n).map(([k]) => `<span title="${BADGE[k][1]}">${BADGE[k][0]}</span>`).join(' ');
-  const cell = (txt, tn) => `<span style="${tn ? `color:${TONE[tn]};font-weight:600` : ''}">${txt}</span>`;
-  const W = cfg.weights;
-  const lrow = (p, i) => {
-    const d = p.prev_total == null ? '' : p.total - p.prev_total;
-    return `<tr${p.ranked ? '' : ' style="opacity:.7"'}><td class="num mt-meta">${i ?? '—'}</td><td><b>${escHtml(p.name)}</b> ${badgesOf(p.name)}</td>
-      <td style="min-width:130px"><div style="display:flex;align-items:center;gap:.45rem"><b class="num" style="min-width:1.6em">${p.total}</b>
-        <div style="flex:1;height:8px;background:#efede7;border-radius:4px;overflow:hidden"><div style="width:${p.total}%;height:100%;background:${p.total >= 70 ? TONE.green : p.total >= 50 ? '#c9a03c' : '#c9785c'}"></div></div></div></td>
-      <td class="r num mt-meta">${d === '' ? '—' : `<span style="color:${d >= 0 ? TONE.green : '#b04a40'}">${d > 0 ? '+' : ''}${d}</span>`}</td>
-      <td class="r num">${cell(mins(p.frt_median), tone(p.frt_median, cfg.frtTargetSec))}<span class="mt-meta" style="display:block;font-size:.7rem">ทัน ${p.frt_within_pct ?? '—'}%</span></td>
-      <td class="r num">${cell(mins(p.agent_ttr_median), tone(p.agent_ttr_median, 3600))}</td>
-      <td class="r num">${cell(p.turns_avg ?? '—', tone(p.turns_avg, cfg.turnsTarget))}</td>
-      <td class="r num">${cell(p.one_touch_pct == null ? '—' : p.one_touch_pct + '%', tone(p.one_touch_pct, 50, false))}</td>
-      <td class="r num mt-meta">${p.abandoned || '—'}</td>
-      <td class="r num">${p.cases}</td></tr>`;
-  };
-  const board = `${section('ผลงานทีม')}<div class="mt-tbl-wrap">
-      ${head('อันดับทีมงาน', `คะแนน 0–100: ตอบทันเป้า ${W.speed} · แก้จบเทียบหมวดเดียวกัน ${W.resolution} · จบไว/รอบน้อย ${W.efficiency} · เคสเป็นของคนที่ตอบคนแรก · ${Object.values(BADGE).map(([ic, lab]) => `${ic} ${lab}`).join(' ')}`)}
-      <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>#</th><th>คนตอบ (LINE@)</th><th>คะแนน</th><th class="r">เทียบช่วงก่อน</th><th class="r">ตอบแรก</th>
-        <th class="r" title="แก้จบ − เวลารอลูกค้าตอบ">แก้จบ (ฝั่งเรา)</th><th class="r">รอบคุย</th><th class="r">จบ 1–2 รอบ</th><th class="r" title="ไม่มีสัญญาณจบ">ไม่จบ</th><th class="r">เคส</th></tr></thead><tbody>
-        ${ranked.length ? ranked.map((p, i) => lrow(p, i + 1)).join('') : `<tr><td colspan="10" class="mt-meta" style="text-align:center;padding:1rem">ยังไม่มีใครครบ ${cfg.minCases} เคสในช่วงนี้</td></tr>`}
-        ${unranked.length ? `<tr><td colspan="10" class="mt-meta" style="background:#f7f6f3;font-size:.74rem;padding:.4rem .9rem">ไม่ติดอันดับ · น้อยกว่า ${cfg.minCases} เคสในช่วงที่เลือก</td></tr>${unranked.map(p => lrow(p, null)).join('')}` : ''}
-      </tbody></table></div></div>`;
+  // ── 5. Leaderboard: 💬 คุยงานดี / ⚡ ตอบไว ──
+  _llbData = { b, cfg, mins };
+  const board = `${section('Leaderboard ทีมงาน')}<div class="mt-tbl-wrap" style="padding:.9rem 1rem 1rem">
+      <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.4rem">
+        <div class="svc-seg" role="tablist" aria-label="บอร์ด">${Object.entries(LLB_BOARDS).map(([k, x]) => `<button role="tab" class="${k === _llbBoard ? 'on' : ''}" onclick="llbBoardTab('${k}', this)">${x.icon} ${x.title}</button>`).join('')}</div>
+      </div>
+      <div id="llb-board">${llbBoardHtml()}</div></div>`;
 
   // ── 6. เคสที่ควรดู ──
   _llbReview = b.review;
@@ -9580,6 +9576,88 @@ async function llbLoad() {
       <div id="llb-review">${llbReviewHtml()}</div></div>`;
 
   box.innerHTML = summary + kpis + trend + catTbl + board + review;
+}
+
+// ── Leaderboard ทีมงาน 2 บอร์ด (ข้อมูลจาก /api/line-board · ไม่ใช้ AI) ──
+let _llbData = null, _llbBoard = 'talk';
+const LLB_BOARDS = {
+  talk: {
+    icon: '💬', title: 'คุยงานดี', key: 'talk', prevKey: 'prev_talk', rankKey: 'prev_rank_talk',
+    sub: 'คุยรู้เรื่อง 40 · กระชับ 30 · ลูกค้าไม่ต้องทวง 15 · ลูกค้ายืนยันจบ 15 — วัดจากสิ่งที่ลูกค้าพิมพ์กลับหลังทีมงานตอบ',
+    why: p => `ลูกค้างง ${p.confused_pct ?? '—'}% · จบใน 1–2 รอบ ${p.one_touch_pct ?? '—'}%`,
+    cols: [
+      ['ลูกค้างง', 'หลังทีมงานตอบ ลูกค้าพิมพ์ยังไม่ได้/ไม่เข้าใจ/ทำยังไงต่อ', p => p.confused_pct == null ? '—' : p.confused_pct + '%', p => p.confused_pct == null ? '' : p.confused_pct <= 3 ? 'g' : p.confused_pct >= 8 ? 'r' : 'y'],
+      ['จบ 1–2 รอบ', '', p => p.one_touch_pct == null ? '—' : p.one_touch_pct + '%', p => p.one_touch_pct >= 85 ? 'g' : p.one_touch_pct < 75 ? 'r' : 'y'],
+      ['รอบเฉลี่ย', '', p => p.turns_avg ?? '—', p => p.turns_avg == null ? '' : p.turns_avg <= 1.7 ? 'g' : p.turns_avg >= 2.3 ? 'r' : 'y'],
+      ['ลูกค้าต้องทวง', 'ลูกค้าพิมพ์ เป็นยังไงบ้าง/ได้หรือยัง/รอนาน', p => p.chased_pct == null ? '—' : p.chased_pct + '%', p => p.chased_pct == null ? '' : p.chased_pct <= 1 ? 'g' : p.chased_pct >= 5 ? 'r' : 'y'],
+      ['ลูกค้ายืนยัน', 'ลูกค้าตอบ ได้แล้ว/ขอบคุณ/เรียบร้อย', p => p.confirmed_pct == null ? '—' : p.confirmed_pct + '%', () => ''],
+    ],
+    badges: [['🎯', 'คุยรู้เรื่องสุด', p => p.confused_pct == null ? null : -p.confused_pct + (p.one_touch_pct || 0) / 1000],
+             ['✂️', 'คุยกระชับสุด', p => p.one_touch_pct == null ? null : p.one_touch_pct - (p.turns_avg || 0)],
+             ['🙏', 'ลูกค้ายืนยันบ่อยสุด', p => p.confirmed_pct]],
+  },
+  speed: {
+    icon: '⚡', title: 'ตอบไว', key: 'speed', prevKey: 'prev_speed', rankKey: 'prev_rank_speed',
+    sub: 'ตอบแรกทันเป้า 70 · แก้จบฝั่งเราเร็ว 30 (≤ 30 นาที เต็ม · ≥ 4 ชม. ศูนย์)',
+    why: p => `ทันเป้า ${p.frt_within_pct ?? '—'}% · ตอบแรก ${_llbData.mins(p.frt_median)}`,
+    cols: [
+      ['ทันเป้า', '', p => p.frt_within_pct == null ? '—' : p.frt_within_pct + '%', p => p.frt_within_pct >= 60 ? 'g' : p.frt_within_pct < 35 ? 'r' : 'y'],
+      ['ตอบแรก', 'median', p => _llbData.mins(p.frt_median), p => p.frt_median <= _llbData.cfg.frtTargetSec ? 'g' : p.frt_median > 1200 ? 'r' : 'y'],
+      ['แก้จบฝั่งเรา', 'median · แก้จบ − เวลารอลูกค้าตอบ', p => _llbData.mins(p.agent_ttr_median), p => p.agent_ttr_median == null ? '' : p.agent_ttr_median <= 1800 ? 'g' : p.agent_ttr_median > 3600 ? 'r' : 'y'],
+      ['ไม่จบ', 'ไม่มีสัญญาณจบ', p => p.abandoned || '—', () => ''],
+    ],
+    badges: [['⚡', 'ตอบไวสุด', p => p.frt_median == null ? null : -p.frt_median],
+             ['🔧', 'แก้จบไวสุด', p => p.agent_ttr_median == null ? null : -p.agent_ttr_median],
+             ['⏱️', 'ทันเป้าบ่อยสุด', p => p.frt_within_pct]],
+  },
+};
+function llbBoardTab(k, btn) {
+  _llbBoard = k;
+  btn?.parentElement?.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === btn));
+  const el = document.getElementById('llb-board');
+  if (el) el.innerHTML = llbBoardHtml();
+}
+function llbBoardHtml() {
+  if (!_llbData) return '';
+  const { b, cfg } = _llbData, X = LLB_BOARDS[_llbBoard], K = X.key;
+  const ranked = b.people.filter(p => p.ranked && p[K] != null).sort((a, z) => z[K] - a[K] || z.cases - a.cases);
+  const small = b.people.filter(p => !p.ranked || p[K] == null).sort((a, z) => z.cases - a.cases);
+  if (!ranked.length && !small.length) return '<div class="mt-meta" style="text-align:center;padding:1.2rem">ยังไม่มีข้อมูล</div>';
+  ranked.forEach((p, i) => { p._move = p[X.rankKey] == null ? null : p[X.rankKey] - (i + 1); p._delta = p[X.prevKey] == null ? null : p[K] - p[X.prevKey]; });
+  // ป้าย: คนที่ติดอันดับเท่านั้น · 💪 รับเคสมากสุด · 📈 คะแนนขึ้นมากสุด
+  const badge = {};
+  const give = (n, ic, lab) => (badge[n] = badge[n] || []).push([ic, lab]);
+  X.badges.forEach(([ic, lab, fn]) => { const w = ranked.filter(p => fn(p) != null).sort((a, z) => fn(z) - fn(a))[0]; if (w) give(w.name, ic, lab); });
+  const big = [...ranked].sort((a, z) => z.cases - a.cases)[0]; if (big) give(big.name, '💪', `รับเคสมากสุด (${big.cases})`);
+  const imp = ranked.filter(p => p._delta != null).sort((a, z) => z._delta - a._delta)[0]; if (imp && imp._delta > 0) give(imp.name, '📈', `พัฒนาขึ้นมากสุด (+${imp._delta})`);
+  const bdg = n => (badge[n] || []).map(([ic, lab]) => `<span class="lb-badge" title="${escHtml(lab)}">${ic} ${escHtml(lab)}</span>`).join('');
+  const C = { g: '#356b4e', y: '#86671f', r: '#a2562f', '': '#3a3f46' };
+  const move = p => p._move == null ? '<span class="lb-new">ใหม่</span>' : p._move > 0 ? `<span style="color:#356b4e">▲${p._move}</span>` : p._move < 0 ? `<span style="color:#b04a40">▼${-p._move}</span>` : '<span class="mt-meta">–</span>';
+  const dl = p => p._delta == null ? '' : `<span style="color:${p._delta >= 0 ? '#356b4e' : '#b04a40'};font-size:.72rem">${p._delta > 0 ? '+' : ''}${p._delta}</span>`;
+  const medal = ['🥇', '🥈', '🥉'], podH = [140, 112, 94];
+  const podium = ranked.length >= 3 ? `<div class="lb-podium">${[1, 0, 2].map(i => { const p = ranked[i];
+    return `<div class="lb-pod">
+      <div class="lb-av${i === 0 ? ' lb-av1' : ''}">${escHtml(p.name.replace(/^INF[-_. ]?/i, '').slice(0, 2).toUpperCase())}</div>
+      <div style="font-weight:700;margin-top:.35rem;text-align:center">${escHtml(p.name)}</div>
+      <div class="mt-meta lb-why">${X.why(p)}</div>
+      <div class="lb-badges">${bdg(p.name)}</div>
+      <div class="lb-step${i === 0 ? ' lb-step1' : ''}" style="height:${podH[i]}px">
+        <div style="font-size:1.5rem">${medal[i]}</div><div class="num" style="font-size:1.6rem;font-weight:800">${p[K]}</div><div style="font-size:.72rem">${dl(p)} ${move(p)}</div></div></div>`; }).join('')}</div>` : '';
+  const cols = X.cols;
+  const row = (p, i) => `<tr${i == null ? ' class="lb-small"' : ''}>
+    <td class="num" style="font-weight:700;color:#6f747c">${i ?? '—'}</td><td style="width:44px">${i == null ? '' : move(p)}</td>
+    <td><b>${escHtml(p.name)}</b><div class="lb-badges" style="justify-content:flex-start">${i == null ? '' : bdg(p.name)}</div></td>
+    <td style="min-width:150px"><div style="display:flex;align-items:center;gap:.45rem"><b class="num" style="min-width:1.6em">${p[K] ?? '—'}</b>
+      <div style="flex:1;height:8px;background:#efede7;border-radius:4px;overflow:hidden"><div style="width:${p[K] || 0}%;height:100%;background:${p[K] >= 80 ? '#356b4e' : p[K] >= 65 ? '#c9a03c' : '#c9785c'}"></div></div>${i == null ? '' : dl(p)}</div></td>
+    ${cols.map(([, , v, t]) => `<td class="r num" style="color:${C[t(p)]};font-weight:600">${v(p)}</td>`).join('')}
+    <td class="r num">${p.cases}</td></tr>`;
+  return `<div class="mt-meta" style="margin:.1rem 0 .9rem;font-size:.76rem">คะแนน 0–100 · ${X.sub} · เคสน้อยคะแนนจะถูกดึงเข้าหาค่าเฉลี่ยทีม (ยิ่งรับเคสมาก คะแนนยิ่งสะท้อนฝีมือจริง) · ติดอันดับเมื่อมี ${cfg.minCases} เคสขึ้นไป · ▲▼ เทียบช่วงก่อน</div>
+    ${podium}
+    <div style="overflow-x:auto;margin-top:.9rem"><table class="mt-tbl"><thead><tr><th>#</th><th></th><th>ทีมงาน</th><th>คะแนน${X.title}</th>
+      ${cols.map(([h, tip]) => `<th class="r"${tip ? ` title="${escHtml(tip)}"` : ''}>${h}</th>`).join('')}<th class="r">เคส</th></tr></thead><tbody>
+      ${ranked.map((p, i) => row(p, i + 1)).join('')}
+      ${small.length ? `<tr><td colspan="${cols.length + 5}" class="mt-meta" style="background:#f7f6f3;font-size:.74rem;padding:.4rem .9rem">ยังไม่ติดอันดับ · น้อยกว่า ${cfg.minCases} เคสในช่วงนี้</td></tr>${small.map(p => row(p, null)).join('')}` : ''}
+    </tbody></table></div>`;
 }
 
 let _llbReview = null, _llbReviewTab = 'many_turns';
