@@ -14575,7 +14575,7 @@ const AIU_FEATURES = {
   triage_classify:   ['คัดกรองข้อความไลน์', 'ทุกข้อความลูกค้าที่เข้ามา (ข้อความง่ายๆ ใช้กฎ ไม่เสีย token)'],
   triage_screen:     ['AI ตรวจก่อนส่งแจ้งเตือน', 'ก่อนส่งแจ้งเตือนเข้ากลุ่ม LINE'],
   case_draft:        ['ร่างเคสจาก Line', 'ทุกครั้งที่กด "เปิดเคส"'],
-  line_resolution:   ['ตัดสินเคสไลน์แก้จบ', 'เฉพาะเคสที่มีข้อความใหม่และน่าจะจบแล้ว (ไม่เกิน 6 ครั้ง/เคส/วัน)'],
+  line_resolution:   ['ตัดสินเคสไลน์แก้จบ', 'เคสง่ายใช้กฎ ไม่เสีย token · ที่เหลือเฉพาะเคสที่มีข้อความใหม่และน่าจะจบแล้ว'],
   monitor_tag:       ['Monitor Tag แนะนำ', 'วันละครั้ง'],
   ai_chat:           ['AI แชท', 'เมื่อมีคนถาม'],
   empcal_summary:    ['สรุปตารางพนักงาน', 'วันละครั้ง'],
@@ -14642,7 +14642,24 @@ async function aiuLoad() {
       <td class="r num">${n(x.calls)}</td>
       <td class="mt-meta">${escHtml(label(x.top?.f))}</td></tr>`).join('');
 
-  box.innerHTML = `
+  // วันนี้ vs เพดานรายวัน — ครบเพดานแล้วฟีเจอร์นั้นหยุดเรียก AI ถึงเที่ยงคืน
+  const td = d.today;
+  const limRows = td ? td.features.filter(f => f.used || f.limit).sort((a, b) => (b.limit ? b.used / b.limit : 0) - (a.limit ? a.used / a.limit : 0)).map(f => {
+    const pct = f.limit ? Math.min(100, f.used / f.limit * 100) : 0;
+    const col = !f.limit ? '#8a8f97' : pct >= 100 ? '#c0392b' : pct >= 80 ? '#d68910' : 'var(--primary)';
+    const st = !f.limit ? 'ไม่จำกัด' : pct >= 100 ? '<b style="color:#c0392b">ครบเพดาน · หยุดถึงเที่ยงคืน</b>' : pct >= 80 ? '<b style="color:#d68910">ใกล้ครบ</b>' : 'ปกติ';
+    return `<tr><td style="min-width:200px"><b>${escHtml(label(f.feature))}</b></td>
+      <td style="width:30%;min-width:100px"><div style="height:8px;background:#efeee9;border-radius:4px;overflow:hidden">
+        <div style="height:100%;width:${Math.max(f.used ? 1 : 0, pct)}%;background:${col};border-radius:4px"></div></div></td>
+      <td class="r num"><b>${n(f.used)}</b></td><td class="r num mt-meta">${f.limit ? n(f.limit) : '—'}</td>
+      <td class="r num">${f.limit ? Math.round(pct) + '%' : ''}</td><td>${st}</td></tr>`;
+  }).join('') : '';
+  const limBox = td ? `<div class="mt-tbl-wrap" style="margin-bottom:.75rem">
+      <div class="mt-tt-head">วันนี้ เทียบเพดานรายวัน <span class="mt-meta" style="font-weight:400">· ครบเพดานแล้วฟีเจอร์นั้นหยุดเรียก AI ถึงเที่ยงคืน (ฟีเจอร์อื่นยังใช้ได้) · ปรับได้ด้วย AI_LIMITS ใน .env</span></div>
+      <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>ฟีเจอร์</th><th></th><th class="r">ใช้วันนี้</th><th class="r">เพดาน/วัน</th><th class="r">%</th><th>สถานะ</th></tr></thead>
+        <tbody>${limRows}</tbody></table></div></div>` : '';
+
+  box.innerHTML = limBox + `
     <div class="mt-kpis">
       ${k('Token ทั้งหมด', short(total), `${_aiuDays === 1 ? 'วันนี้' : _aiuDays + ' วันล่าสุด'} · ${n(total)} token`)}
       ${k('จำนวนครั้งที่เรียก AI', n(calls), `เฉลี่ย ${n(Math.round(total / (calls || 1)))} token/ครั้ง`)}

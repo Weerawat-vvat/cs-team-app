@@ -77,7 +77,33 @@ const AI_USAGE_LOG = (process.env.AI_USAGE_LOG || 'on').toLowerCase() !== 'off';
 const _aiUsageBuf = new Map();   // `${day}|${feature}|${provider}|${model}` → { calls, inTok, outTok }
 const _aiDayTok = new Map();     // `${day}|${feature}` → token วันนี้ (ไว้คุมงบรายวันของงานเบื้องหลัง)
 const aiTokensToday = feature => _aiDayTok.get(`${bangkokToday()}|${feature}`) || 0;
-function aiUsage(feature, provider, model, inTok, outTok) {
+const aiTokensTodayAll = () => { const d = bangkokToday() + '|'; let t = 0; for (const [k, v] of _aiDayTok) if (k.startsWith(d)) t += v; return t; };
+// ── เพดาน token ต่อวัน ─────────────────────────────────────
+// แต่ละฟีเจอร์มีเพดานของตัวเอง (ตั้งเผื่อจากการใช้ปกติ ~1.5 เท่า) ครบแล้วฟีเจอร์นั้นหยุดเรียก AI ถึงเที่ยงคืน
+// ฟีเจอร์อื่นยังใช้ได้ · ปรับได้ใน .env: AI_LIMITS=triage_classify=800000,case_draft=150000 (0 = ไม่จำกัด)
+// AI_DAILY_TOKENS = เพดานรวมทุกฟีเจอร์ (ค่าเริ่มต้น 0 = ไม่ใช้ เพราะเพดานรายฟีเจอร์คุมอยู่แล้ว)
+const AI_FEATURE_LIMITS = {
+  triage_classify: 800000, line_resolution: 300000, case_draft: 150000, monitor_tag: 150000,
+  triage_screen: 150000, empcal_summary: 60000,
+  ...Object.fromEntries(String(process.env.AI_LIMITS || '').split(',').map(x => x.split('=').map(v => v.trim()))
+    .filter(([f, v]) => f && /^\d+$/.test(v || '')).map(([f, v]) => [f, +v])),
+};
+const AI_LIMIT_OTHER = Math.max(0, parseInt(process.env.AI_LIMIT_OTHER ?? '100000') || 0);   // ฟีเจอร์ที่ไม่ได้ระบุ
+const aiFeatureLimit = f => (f in AI_FEATURE_LIMITS ? AI_FEATURE_LIMITS[f] : AI_LIMIT_OTHER);
+const AI_DAILY_TOKENS = Math.max(0, parseInt(process.env.AI_DAILY_TOKENS ?? '0') || 0);
+const _aiCapWarned = new Set();
+let _aiDaySeeded = '';
+async function aiSeedToday() {   // หลังรีสตาร์ท นับต่อจากยอดในตาราง ai_token_usage
+  const day = bangkokToday();
+  if (_aiDaySeeded === day) return;
+  _aiDaySeeded = day;
+  try {
+    const r = await req().input('d', sql.Date, new Date(day + 'T00:00:00Z'))
+      .query(`SELECT feature, SUM(in_tokens + out_tokens) AS t FROM ai_token_usage WHERE day=@d GROUP BY feature`);
+    for (const x of r.recordset) { const k = `${day}|${x.feature}`; _aiDayTok.set(k, (_aiDayTok.get(k) || 0) + Number(x.t || 0)); }
+  } catch { _aiDaySeeded = ''; }
+}
+function aiUsage(feature, provider, model, inTok, outTok, thinkTok = 0) {
   inTok = +inTok || 0; outTok = +outTok || 0;
   const dk = `${bangkokToday()}|${feature || 'other'}`;
   _aiDayTok.set(dk, (_aiDayTok.get(dk) || 0) + inTok + outTok);
@@ -85,11 +111,11 @@ function aiUsage(feature, provider, model, inTok, outTok) {
   const b = _aiUsageBuf.get(key) || { calls: 0, inTok: 0, outTok: 0 };
   b.calls++; b.inTok += inTok; b.outTok += outTok;
   _aiUsageBuf.set(key, b);
-  if (AI_USAGE_LOG) console.log(`🪙 AI ${feature || 'other'}: ${inTok.toLocaleString()} in + ${outTok.toLocaleString()} out = ${(inTok + outTok).toLocaleString()} token (${provider} ${model})`);
+  if (AI_USAGE_LOG) console.log(`🪙 AI ${feature || 'other'}: ${inTok.toLocaleString()} in + ${outTok.toLocaleString()} out${thinkTok ? ` (คิด ${(+thinkTok).toLocaleString()})` : ''} = ${(inTok + outTok).toLocaleString()} token (${provider} ${model})`);
 }
 const geminiUsage = (feature, model, result) => {
   const m = result?.response?.usageMetadata || {};
-  aiUsage(feature, 'gemini', model, m.promptTokenCount, (m.candidatesTokenCount || 0) + (m.thoughtsTokenCount || 0));
+  aiUsage(feature, 'gemini', model, m.promptTokenCount, (m.candidatesTokenCount || 0) + (m.thoughtsTokenCount || 0), m.thoughtsTokenCount || 0);
 };
 let _aiUsageTable = false;
 async function ensureAiUsageTable() {
@@ -133,7 +159,20 @@ setInterval(flushAiUsage, 60 * 1000);
 // prefer เลือกว่าจะให้เจ้าไหนเป็นตัวหลัก อีกเจ้าเป็นตัวสำรองอัตโนมัติ
 // ค่าเริ่มต้น = Gemini (ตั้ง AI_PREFER=groq ใน .env เพื่อสลับ)
 const AI_PREFER = (process.env.AI_PREFER || 'gemini').toLowerCase() === 'groq' ? 'groq' : 'gemini';
+// โยน error ถ้าฟีเจอร์นี้ (หรือรวมทุกฟีเจอร์) ใช้ token วันนี้ครบเพดานแล้ว — เรียกก่อนเรียก AI ทุกครั้ง
+async function aiCheckLimit(feature) {
+  await aiSeedToday();
+  const capHit = (scope, used, limit) => {
+    const k = `${bangkokToday()}|${scope}`;
+    if (!_aiCapWarned.has(k)) { _aiCapWarned.add(k); console.error(`🛑 AI ${scope}: ใช้ token วันนี้ครบเพดาน ${limit.toLocaleString()} แล้ว (${used.toLocaleString()}) — หยุดเรียก AI ถึงเที่ยงคืน`); }
+    throw new Error(`AI ไม่สำเร็จ — ${scope} ใช้ token วันนี้ครบเพดาน ${limit.toLocaleString()} แล้ว`);
+  };
+  const fLimit = aiFeatureLimit(feature), fUsed = aiTokensToday(feature);
+  if (fLimit && fUsed >= fLimit) capHit(feature, fUsed, fLimit);
+  if (AI_DAILY_TOKENS && aiTokensTodayAll() >= AI_DAILY_TOKENS) capHit('ทุกฟีเจอร์', aiTokensTodayAll(), AI_DAILY_TOKENS);
+}
 async function aiGenerate(prompt, { parse = (t) => t, geminiConfig = null, prefer = AI_PREFER, feature = 'other', model: geminiModel = null } = {}) {
+  await aiCheckLimit(feature);
   // นับ token ก่อน parse — คำตอบที่ parse ไม่ผ่านก็เสีย token ไปแล้ว
   const callGroq = async () => {
     const g = await groqGenerate(prompt);
@@ -3396,7 +3435,13 @@ app.get('/api/ai/usage', authRequired, async (request, res) => {
                       SUM(in_tokens + out_tokens) AS total_tokens
                FROM ai_token_usage WHERE ${range} GROUP BY day, feature ORDER BY day DESC, total_tokens DESC`),
     ]);
-    res.json({ days, by_feature: byFeature.recordset, by_day: byDay.recordset });
+    await aiSeedToday();
+    const feats = new Set([...Object.keys(AI_FEATURE_LIMITS), ...[..._aiDayTok.keys()].filter(k => k.startsWith(bangkokToday() + '|')).map(k => k.split('|')[1])]);
+    const today = {
+      total: aiTokensTodayAll(), limit: AI_DAILY_TOKENS, other_limit: AI_LIMIT_OTHER,
+      features: [...feats].map(f => ({ feature: f, used: aiTokensToday(f), limit: aiFeatureLimit(f) })),
+    };
+    res.json({ days, by_feature: byFeature.recordset, by_day: byDay.recordset, today });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -3421,6 +3466,7 @@ app.post('/api/ai/chat', authRequired, async (request, res) => {
 
 ข้อมูลภาพรวมของทีมวันนี้:\n\n${context}`;
 
+    await aiCheckLimit('ai_chat');
     const model = genAI.getGenerativeModel({
       model: AI_MODEL,
       systemInstruction: systemPrompt,
@@ -7342,6 +7388,7 @@ async function classifyTriageBatchInner(batchSize) {
   return { classified, ruled, scanned: inScope.length, hasKey: true, skippedOutOfScope: cand.length - inScope.length };
 }
 
+const TRIAGE_THINKING_BUDGET = Math.max(0, parseInt(process.env.TRIAGE_THINKING_BUDGET ?? '0') || 0);
 // สร้าง prompt + เรียก AI คัดกรองข้อความชุดหนึ่ง (ใช้ทั้งรอบคัดกรองจริงและปุ่ม "ทดสอบ" ในหน้าสอน AI)
 async function triageAiClassify(todo, ctx, teach) {
   const clip = v => String(v || '').replace(/\s+/g, ' ').trim();
@@ -7393,6 +7440,8 @@ ${list}`;
   const geminiConfig = {
     generationConfig: {
       responseMimeType: 'application/json',
+      // โหมดคิดของ Gemini กิน token ขาออกหลายพันต่อครั้ง — งานจำแนกไม่ต้องคิดยาว (ปรับได้ด้วย TRIAGE_THINKING_BUDGET)
+      thinkingConfig: { thinkingBudget: TRIAGE_THINKING_BUDGET },
       responseSchema: {
         type: SchemaType.ARRAY,
         items: {
@@ -8635,13 +8684,7 @@ const lineResolution = createLineResolution({ req, getLineBotPool, sql, aiGenera
 async function lineResolutionTick() {
   if (!LINE_RESOLVE_ON || !getPool()) return;
   try {
-    // นับต่อจากยอดในตารางหลังรีสตาร์ท (ตัวนับในหน่วยความจำเริ่มที่ 0)
-    const dk = `${bangkokToday()}|line_resolution`;
-    if (!_aiDayTok.has(dk)) {
-      const r = await req().input('d', sql.Date, new Date(bangkokToday() + 'T00:00:00Z')).query(
-        `SELECT ISNULL(SUM(in_tokens + out_tokens), 0) AS t FROM ai_token_usage WHERE day=@d AND feature='line_resolution'`).catch(() => null);
-      _aiDayTok.set(dk, (_aiDayTok.get(dk) || 0) + Number(r?.recordset?.[0]?.t || 0));
-    }
+    await aiSeedToday();   // นับต่อจากยอดในตารางหลังรีสตาร์ท
     const aiAllowed = () => !LINE_RESOLVE_DAILY_TOKENS || aiTokensToday('line_resolution') < LINE_RESOLVE_DAILY_TOKENS;
     const out = await lineResolution.runBatch({ limit: LINE_RESOLVE_BATCH, aiAllowed });
     if (out?.error) console.error('line resolution:', out.error);
@@ -16425,6 +16468,7 @@ ${caseList}
 ดูที่อาการ/คำขอจริงเป็นหลัก หัวข้อ (Subject) อาจถูกเลือกผิดได้`;
       let arr;
       try {
+        await aiCheckLimit('monitor_tag');
         const model = genAI.getGenerativeModel({ model: MT_SUGGEST_MODEL, ...geminiConfig });
         const mtRes = await model.generateContent(prompt);
         geminiUsage('monitor_tag', MT_SUGGEST_MODEL, mtRes);
