@@ -41,7 +41,7 @@ function workSec(a, b) {
   return Math.round(sec);
 }
 
-function createLineResolution({ req, getLineBotPool, sql, aiGenerate, SchemaType, startDate, log = console }) {
+function createLineResolution({ req, getLineBotPool, sql, aiGenerate, SchemaType, startDate, aiModel = null, log = console }) {
   let _tables = false, _running = false;
 
   async function tablesExist() {
@@ -113,7 +113,8 @@ function createLineResolution({ req, getLineBotPool, sql, aiGenerate, SchemaType
       FROM line_case_response r ${join}
       WHERE r.answered_time IS NOT NULL AND r.message_time >= CAST(@st AS DATE)
         AND r.message_time <= DATEADD(minute, -@sil, @now) ${cond}
-      ORDER BY ${haveTables ? 'ISNULL(c.next_check_at, r.message_time)' : 'r.message_time'}`)).recordset;
+      ORDER BY CASE WHEN r.message_time >= DATEADD(day, -2, @now) THEN 0 ELSE 1 END,   -- เคสสดก่อน แล้วค่อยไล่ย้อนหลัง
+        ${haveTables ? 'ISNULL(c.next_check_at, r.message_time)' : 'r.message_time'}`)).recordset;
   }
 
   // แชทของกลุ่มตั้งแต่ก่อนเคส 10 นาที ถึง 24 ชม. หลังเคส (หรือถึงตอนนี้)
@@ -295,6 +296,50 @@ ${final ? 'ตัดสินครั้งสุดท้าย (เกิน 
     };
   }
 
+  // ── ทางลัดไม่ใช้ AI ─────────────────────────────────────
+  // เคสส่วนใหญ่ (~2 ใน 3) คือ ลูกค้าถาม → ทีมงานตอบรอบเดียว → ลูกค้าเงียบ หรือแค่ขอบคุณ
+  // ตัดสินด้วยกฎได้เลย ผลตรงกับที่ AI ตัดสิน ไม่ต้องเสีย token · เคสที่ลูกค้าพิมพ์ต่อเรื่องอื่น/ยังไม่ได้ → ส่ง AI
+  const THANKS_RE = /^(ขอบคุณ|ขอบใจ|ขอบพระคุณ|thank|thx|ได้แล้ว|ใช้ได้แล้ว|เรียบร้อย|โอเค|โอเค้|ok|okay|รับทราบ|ทราบ|ครับ|ค่ะ|คะ|คับ|จ้า|จ้ะ|ค่า|👍|🙏|🙏🏻|❤️|😊|\s|[.!~ๆ]|ผม|ครับผม|นะ|นะคะ|นะครับ|มากๆ|มาก|เลย)+$/i;
+  const CAT_RULES = [
+    ['printer', /ปริ้น|ปริ๊น|พิมพ์|printer|ลิ้นชัก|สลิป|กระดาษ|ใบเสร็จไม่ออก|เครื่องครัว|ออกครัว|reprint/i],
+    ['remote', /รีโมท|remote|anydesk|teamviewer|ultraviewer|เข้าเครื่อง|ติดตั้ง|ลงโปรแกรม|ลงเครื่อง|เซ็ต|setup|EDC/i],
+    ['menu', /เมนู|ราคา|โปรโมชั่น|โปรโมชัน|โปร\b|ท็อปปิ้ง|topping|menu|คูปอง|coupon|ส่วนลด/i],
+    ['report', /รายงาน|report|ยอดขาย|สรุปยอด|ยอด|สต็อก|stock|ปิดรอบ|text ?file|shift/i],
+    ['order', /บิล|บีล|ออเดอร์|order|ยกเลิก|void|\bPR\b|\bPO\b|โต๊ะ|ชำระ|ใบกำกับ|ใบเสร็จ|เงินสด|โอน|approve|อนุมัติ|ชื่อบริษัท|ประเภทลูกค้า|lineman|grab|รับผลิต/i],
+  ];
+  const guessCategory = text => (CAT_RULES.find(([, re]) => re.test(text)) || ['other'])[0];
+
+  // คืนผลแบบเดียวกับ judgeToResult หรือ null = ไม่ชัด ให้ AI ตัดสิน
+  function ruleJudge(c, lines, lbNow) {
+    const caseLine = lines.find(l => l.ref === String(c.source_msg_id));
+    const A = caseLine?.answeredTime;
+    if (!A || A < new Date(c.message_time)) return null;
+    if (lbNow - A < SILENCE_MIN * 60000) return null;                 // ตอบแล้วแต่ยังไม่เงียบพอ
+    const mine = lines.filter(l => l.kind === 'customer' && l.mine);
+    const sameAns = mine.filter(l => l.time <= A && l.answeredTime && +l.answeredTime === +A);
+    const after = mine.filter(l => l.time > A);
+    // ลูกค้าพิมพ์ระหว่างรอ แล้วไม่ได้ถูกตอบพร้อมกัน → มีหลายเรื่อง/หลายรอบ ให้ AI ดู
+    if (mine.some(l => l.time >= new Date(c.message_time) && l.time <= A && !sameAns.includes(l))) return null;
+    if (after.some(l => l.text === '[รูป/สติกเกอร์/ไฟล์]' || !THANKS_RE.test(l.text.trim()))) return null;
+    const thanks = after[0] || null;
+    const sLine = lines.find(l => l.kind === 'staff_reply' && +l.time === +A);
+    const resolvedAt = thanks ? thanks.time : A;
+    const caseStart = new Date(c.message_time);
+    const ids = [...new Set([String(c.source_msg_id), ...sameAns.map(l => l.ref), ...(thanks ? [thanks.ref] : [])])];
+    return {
+      case_msg_ids: ids.map(Number),
+      issue_category: guessCategory([c.summary, ...sameAns.map(l => l.text)].join(' ')),
+      resolved: true, resolution_signal: thanks ? 'customer_confirmed' : 'agent_fixed',
+      resolved_msg_ref: thanks ? thanks.ref : (sLine?.ref || null), resolved_at: resolvedAt,
+      resolved_by: sLine?.who || caseLine.answeredBy || null, agent_turns: 1,
+      customer_msgs: sameAns.length + (thanks ? 1 : 0) || 1,
+      ttr_work_sec: workSec(caseStart, resolvedAt),
+      customer_wait_sec: thanks ? workSec(A, thanks.time) : 0,
+      ai_reason: thanks ? 'กฎ: ทีมงานตอบรอบเดียว ลูกค้าขอบคุณ/ยืนยัน' : 'กฎ: ทีมงานตอบรอบเดียว ลูกค้าไม่ถามต่อ',
+      final: true,
+    };
+  }
+
   // ตัดสินใจว่าเคสนี้รอบนี้ต้องทำอะไร — เรียก AI เฉพาะเมื่อจำเป็น
   //   wait     = ยังไม่ถึงเวลา / ไม่มีข้อความใหม่ → ตั้งเวลาดูใหม่ (ไม่เสีย token)
   //   finalize = ครบ 24 ชม. และไม่มีอะไรใหม่ตั้งแต่ AI ดูครั้งก่อน → ใช้ผลเดิมเป็นผลสุดท้าย (ไม่เสีย token)
@@ -304,6 +349,9 @@ ${final ? 'ตัดสินครั้งสุดท้าย (เกิน 
     const rows = await loadThread(lb, c, lbNow);
     if (!rows.some(r => r.Id === c.source_msg_id)) return null;   // ข้อความต้นทางหาย (ไม่น่าเกิด)
     const { lines, caseUser } = buildTimeline(rows, c);
+    // เคสง่าย → ตัดสินด้วยกฎ ไม่เรียก AI
+    const rule = ruleJudge(c, lines, lbNow);
+    if (rule) return { action: 'rule', ...rule, next_check_at: null, customer_user_id: caseUser, ai_model: 'rule' };
     const now = +lbNow;
     const finalAt = new Date(c.message_time).getTime() + FINAL_HOURS * 3600000;
     const final = now >= finalAt;
@@ -345,7 +393,7 @@ ${final ? 'ตัดสินครั้งสุดท้าย (เกิน 
     if (!allowAi) return { action: 'deferred' };
 
     const { value, usedModel } = await aiGenerate(buildPrompt(c, lines, final), {
-      parse: parseObj, feature: 'line_resolution',
+      parse: parseObj, feature: 'line_resolution', model: aiModel || undefined,
       geminiConfig: SchemaType ? { generationConfig: {
         responseMimeType: 'application/json', maxOutputTokens: MAX_OUT_TOKENS, temperature: 0,
         thinkingConfig: { thinkingBudget: 0 },
@@ -424,13 +472,14 @@ ${final ? 'ตัดสินครั้งสุดท้าย (เกิน 
   }
 
   // รอบหนึ่ง: ดูเคสที่ถึงเวลา เรียก AI ไม่เกิน limit ครั้ง · dryRun = อ่านอย่างเดียว ไม่สร้างตาราง ไม่เขียน
-  async function runBatch({ limit = 15, dryRun = false, onlyIds = null } = {}) {
+  // aiAllowed = false/ฟังก์ชันที่คืน false (เกินงบ token รายวัน) → ตัดสินด้วยกฎอย่างเดียว เคสที่ต้องใช้ AI เลื่อนไป
+  async function runBatch({ limit = 15, dryRun = false, onlyIds = null, aiAllowed = true } = {}) {
     if (_running && !dryRun) return { skipped: 'running' };
     const lb = getLineBotPool();
     if (!lb) return { error: 'LineBotMonitor DB ไม่ได้เชื่อมต่อ' };
     if (!dryRun) _running = true;
     const results = [];
-    const count = { ai: 0, finalize: 0, wait: 0, deferred: 0 };
+    const count = { ai: 0, rule: 0, finalize: 0, wait: 0, deferred: 0 };
     try {
       const haveTables = dryRun ? await tablesExist() : (await ensure(), true);
       const lbNow = (await lb.request().query('SELECT GETDATE() AS now')).recordset[0].now;
@@ -439,10 +488,11 @@ ${final ? 'ตัดสินครั้งสุดท้าย (เกิน 
       if (onlyIds) cases = cases.filter(c => onlyIds.includes(c.source_msg_id));
       // ใน dry run ไม่มีตารางกันซ้ำ — ข้ามข้อความที่เคสก่อนหน้าในรอบเดียวกันกินไปแล้ว
       const taken = new Set();
+      let aiDown = false;   // AI ล่ม/เครดิตหมด → เคสที่เหลือในรอบนี้ใช้กฎอย่างเดียว
       for (const c of cases) {
         if (taken.has(c.source_msg_id)) continue;
         try {
-          const r = await evaluateCase(lb, c, lbNow, { allowAi: count.ai < limit });
+          const r = await evaluateCase(lb, c, lbNow, { allowAi: count.ai < limit && !aiDown && (typeof aiAllowed === 'function' ? aiAllowed() : aiAllowed) });
           if (!r) continue;
           count[r.action]++;
           if (r.action === 'deferred') continue;
@@ -455,16 +505,16 @@ ${final ? 'ตัดสินครั้งสุดท้าย (เกิน 
         } catch (e) {
           log.error(`line resolution case ${c.source_msg_id}:`, e.message);
           results.push({ case_msg_id: c.source_msg_id, error: e.message });
-          if (/AI ไม่สำเร็จ/.test(e.message)) break;   // AI ล่มทั้งสองเจ้า — รอบหน้าค่อยลองใหม่
+          if (/AI ไม่สำเร็จ/.test(e.message)) aiDown = true;   // AI ล่มทั้งสองเจ้า — รอบหน้าค่อยลองใหม่
         }
       }
-      if (!dryRun && (count.ai || count.finalize))
-        log.log(`🧩 line resolution: AI ${count.ai} · ปิดโดยไม่ใช้ AI ${count.finalize} · รอ ${count.wait}${count.deferred ? ` · เลื่อนรอบหน้า ${count.deferred}` : ''} (ดู ${cases.length} เคส)`);
+      if (!dryRun && (count.ai || count.finalize || count.rule))
+        log.log(`🧩 line resolution: AI ${count.ai} · กฎ ${count.rule} · ปิดโดยไม่ใช้ AI ${count.finalize} · รอ ${count.wait}${count.deferred ? ` · เลื่อนรอบหน้า ${count.deferred}` : ''} (ดู ${cases.length} เคส)`);
       return { lbNow, picked: cases.length, count, results };
     } finally { if (!dryRun) _running = false; }
   }
 
-  return { ensure, runBatch, evaluateCase, buildTimeline, buildPrompt, promptLines, closingSignal, threadMark, judgeToResult, CATEGORIES, SIGNALS };
+  return { ensure, runBatch, evaluateCase, buildTimeline, buildPrompt, promptLines, closingSignal, threadMark, judgeToResult, ruleJudge, loadThread, pickCases, CATEGORIES, SIGNALS };
 }
 
 // คิดตัวเลขหน้า "ตอบเคสไลน์ไว" (เฟส 2) จากแถว line_case_resolution — แยกเป็นฟังก์ชันล้วนไว้ทดสอบกับข้อมูลจริงได้

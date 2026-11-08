@@ -75,8 +75,12 @@ async function groqGenerate(prompt) {
 // ดูสรุป: GET /api/ai/usage?days=7 · ปิด log รายครั้งได้ด้วย AI_USAGE_LOG=off (ยังนับลงตารางเหมือนเดิม)
 const AI_USAGE_LOG = (process.env.AI_USAGE_LOG || 'on').toLowerCase() !== 'off';
 const _aiUsageBuf = new Map();   // `${day}|${feature}|${provider}|${model}` → { calls, inTok, outTok }
+const _aiDayTok = new Map();     // `${day}|${feature}` → token วันนี้ (ไว้คุมงบรายวันของงานเบื้องหลัง)
+const aiTokensToday = feature => _aiDayTok.get(`${bangkokToday()}|${feature}`) || 0;
 function aiUsage(feature, provider, model, inTok, outTok) {
   inTok = +inTok || 0; outTok = +outTok || 0;
+  const dk = `${bangkokToday()}|${feature || 'other'}`;
+  _aiDayTok.set(dk, (_aiDayTok.get(dk) || 0) + inTok + outTok);
   const key = `${bangkokToday()}|${feature || 'other'}|${provider}|${model}`;
   const b = _aiUsageBuf.get(key) || { calls: 0, inTok: 0, outTok: 0 };
   b.calls++; b.inTok += inTok; b.outTok += outTok;
@@ -129,7 +133,7 @@ setInterval(flushAiUsage, 60 * 1000);
 // prefer เลือกว่าจะให้เจ้าไหนเป็นตัวหลัก อีกเจ้าเป็นตัวสำรองอัตโนมัติ
 // ค่าเริ่มต้น = Gemini (ตั้ง AI_PREFER=groq ใน .env เพื่อสลับ)
 const AI_PREFER = (process.env.AI_PREFER || 'gemini').toLowerCase() === 'groq' ? 'groq' : 'gemini';
-async function aiGenerate(prompt, { parse = (t) => t, geminiConfig = null, prefer = AI_PREFER, feature = 'other' } = {}) {
+async function aiGenerate(prompt, { parse = (t) => t, geminiConfig = null, prefer = AI_PREFER, feature = 'other', model: geminiModel = null } = {}) {
   // นับ token ก่อน parse — คำตอบที่ parse ไม่ผ่านก็เสีย token ไปแล้ว
   const callGroq = async () => {
     const g = await groqGenerate(prompt);
@@ -137,10 +141,20 @@ async function aiGenerate(prompt, { parse = (t) => t, geminiConfig = null, prefe
     return { value: parse(g.text), usedModel: GROQ_MODEL };
   };
   const callGemini = async () => {
-    const model  = genAI.getGenerativeModel({ model: AI_MODEL, ...(geminiConfig || {}) });
-    const result = await model.generateContent(prompt);
-    geminiUsage(feature, AI_MODEL, result);
-    return { value: parse(result.response.text()), usedModel: AI_MODEL };
+    const useModel = geminiModel || AI_MODEL;
+    let cfg = geminiConfig || {}, result;
+    try {
+      result = await genAI.getGenerativeModel({ model: useModel, ...cfg }).generateContent(prompt);
+    } catch (e) {
+      // บางรุ่นไม่รับ thinkingConfig → ลองใหม่แบบไม่ส่ง (ไม่ให้ทั้งฟีเจอร์ล่มเพราะตั้งค่านี้)
+      const gc = cfg.generationConfig;
+      if (!gc?.thinkingConfig || !/400|thinking/i.test(String(e?.message))) throw e;
+      const { thinkingConfig, ...rest } = gc;
+      cfg = { ...cfg, generationConfig: rest };
+      result = await genAI.getGenerativeModel({ model: useModel, ...cfg }).generateContent(prompt);
+    }
+    geminiUsage(feature, useModel, result);
+    return { value: parse(result.response.text()), usedModel: useModel };
   };
   const groq   = { name: 'Groq',   hasKey: () => !!GROQ_API_KEY,               call: callGroq };
   const gemini = { name: 'Gemini', hasKey: () => !!process.env.GEMINI_API_KEY, call: callGemini };
@@ -8613,11 +8627,23 @@ app.get('/api/line-leaderboard', authRequired, async (request, res) => {
 const LINE_RESOLVE_ON = (process.env.LINE_RESOLVE || 'on').toLowerCase() !== 'off';
 const LINE_RESOLVE_START = /^\d{4}-\d{2}-\d{2}$/.test(process.env.LINE_RESOLVE_START || '') ? process.env.LINE_RESOLVE_START : '2026-11-01';
 const LINE_RESOLVE_BATCH = Math.max(1, Math.min(50, parseInt(process.env.LINE_RESOLVE_BATCH) || 15));
-const lineResolution = createLineResolution({ req, getLineBotPool, sql, aiGenerate, SchemaType, startDate: LINE_RESOLVE_START });
+// เคสง่าย (ตอบรอบเดียวแล้วลูกค้าเงียบ/ขอบคุณ) ตัดสินด้วยกฎ ไม่ใช้ AI · ที่เหลือใช้รุ่นเล็ก (LINE_RESOLVE_MODEL)
+// งบ token ต่อวัน LINE_RESOLVE_DAILY_TOKENS (ค่าเริ่มต้น 300,000 · 0 = ไม่จำกัด) เกินแล้วเคสที่ต้องใช้ AI รอวันถัดไป
+const LINE_RESOLVE_MODEL = process.env.LINE_RESOLVE_MODEL || 'gemini-flash-lite-latest';
+const LINE_RESOLVE_DAILY_TOKENS = Math.max(0, parseInt(process.env.LINE_RESOLVE_DAILY_TOKENS ?? '300000') || 0);
+const lineResolution = createLineResolution({ req, getLineBotPool, sql, aiGenerate, SchemaType, startDate: LINE_RESOLVE_START, aiModel: LINE_RESOLVE_MODEL });
 async function lineResolutionTick() {
   if (!LINE_RESOLVE_ON || !getPool()) return;
   try {
-    const out = await lineResolution.runBatch({ limit: LINE_RESOLVE_BATCH });
+    // นับต่อจากยอดในตารางหลังรีสตาร์ท (ตัวนับในหน่วยความจำเริ่มที่ 0)
+    const dk = `${bangkokToday()}|line_resolution`;
+    if (!_aiDayTok.has(dk)) {
+      const r = await req().input('d', sql.Date, new Date(bangkokToday() + 'T00:00:00Z')).query(
+        `SELECT ISNULL(SUM(in_tokens + out_tokens), 0) AS t FROM ai_token_usage WHERE day=@d AND feature='line_resolution'`).catch(() => null);
+      _aiDayTok.set(dk, (_aiDayTok.get(dk) || 0) + Number(r?.recordset?.[0]?.t || 0));
+    }
+    const aiAllowed = () => !LINE_RESOLVE_DAILY_TOKENS || aiTokensToday('line_resolution') < LINE_RESOLVE_DAILY_TOKENS;
+    const out = await lineResolution.runBatch({ limit: LINE_RESOLVE_BATCH, aiAllowed });
     if (out?.error) console.error('line resolution:', out.error);
   }
   catch (e) { console.error('line resolution error:', e.message); }
