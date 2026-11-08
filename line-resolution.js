@@ -591,7 +591,25 @@ function buildBoard(curRaw, prevRaw, B) {
     abandoned: cur.filter(c => !c.resolved).sort((a, b) => new Date(b.first_msg_time) - new Date(a.first_msg_time)).slice(0, 30).map(brief),
   };
 
-  return { team: stats(cur), prev: stats(prevRows), people, badges, review,
+  // รายงานผู้บริหาร: แนวโน้มรายวัน + หมวดปัญหา (ตัวเลขล้วน ไม่ใช้ AI)
+  const dayKey = c => new Date(c.first_msg_time).toISOString().slice(0, 10);
+  const byDay = new Map();
+  cur.forEach(c => { const k = dayKey(c); (byDay.get(k) || byDay.set(k, []).get(k)).push(c); });
+  const by_day = [...byDay].sort((a, b) => a[0].localeCompare(b[0])).map(([day, cs]) => {
+    const s = stats(cs);
+    return { day, cases: s.cases, frt_median: s.frt_median, frt_within_pct: s.frt_within_pct,
+      resolved_pct: s.cases ? Math.round(s.resolved / s.cases * 100) : null, agent_ttr_median: s.agent_ttr_median };
+  });
+  const prevCat = new Map();
+  prevRows.forEach(c => prevCat.set(c.issue_category, (prevCat.get(c.issue_category) || 0) + 1));
+  const by_category = [...new Set(cur.map(c => c.issue_category || 'other'))].map(cat => {
+    const cs = cur.filter(c => (c.issue_category || 'other') === cat), s = stats(cs);
+    return { category: cat, cases: s.cases, pct: Math.round(s.cases / (cur.length || 1) * 100), prev_cases: prevCat.get(cat) || 0,
+      frt_median: s.frt_median, agent_ttr_median: s.agent_ttr_median, turns_avg: s.turns_avg,
+      resolved_pct: s.cases ? Math.round(s.resolved / s.cases * 100) : null };
+  }).sort((a, b) => b.cases - a.cases);
+
+  return { team: stats(cur), prev: stats(prevRows), people, badges, review, by_day, by_category,
     by_signal: cur.reduce((m, c) => (m[c.resolution_signal] = (m[c.resolution_signal] || 0) + 1, m), {}) };
 }
 

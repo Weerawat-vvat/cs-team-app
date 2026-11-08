@@ -1739,7 +1739,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
     <div id="mt-body"><div class="mt-empty">กำลังโหลด...</div></div>
   </div><!-- /dash-tab-monitor -->
 
-  <!-- ════ TAB 6: Leaderboard ตอบเคสไลน์ไว ════ -->
+  <!-- ════ TAB 6: ตอบเคสไลน์ไว — รายงานผู้บริหาร ════ -->
   <div id="dash-tab-lineboard" style="display:none">
     <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.8rem">
       <select id="llb-pod" class="svc-select" onchange="llbLoad()" style="max-width:180px" aria-label="Pod"><option value="">ทุก Pod</option></select>
@@ -9414,7 +9414,7 @@ async function loadDashboardAll() {
 
 // ══════════════════════════════════════════════════════════
 //  ตอบเคสไลน์ไว (แท็บใน Dashboard) — ใช้ช่วงวันที่ของ Dashboard
-//  ความเร็วตอบ (/api/line-leaderboard, ตามชื่อ LINE@) + ผลการปิดเรื่องและเรื่องที่หลุด (/api/line-summary)
+//  รายงานผู้บริหาร: สรุป · ตัวชี้วัด · แนวโน้ม · หมวดปัญหา · ผลงานทีม · เคสที่ควรดู (/api/line-board — ตัวเลขล้วน ไม่ใช้ AI)
 // ══════════════════════════════════════════════════════════
 let _llbSeq = 0;   // กดเปลี่ยนวันที่รัวๆ — ใช้แค่ผลของครั้งล่าสุด
 async function llbLoad() {
@@ -9429,96 +9429,123 @@ async function llbLoad() {
   }
   const f = document.getElementById('dash-date-from')?.value || '', t = document.getElementById('dash-date-to')?.value || '';
   const pod = podSel?.value || '';
-  const qs = `from=${f}&to=${t}${pod ? `&pod=${pod}` : ''}`;
   box.style.opacity = '.5';
-  const [b, s] = await Promise.all([
-    api(`/api/line-board?${qs}`, { silent: true }),
-    api(`/api/line-summary?${qs}`, { silent: true }),
-  ]);
+  const b = await api(`/api/line-board?from=${f}&to=${t}${pod ? `&pod=${pod}` : ''}`, { silent: true });
   if (seq !== _llbSeq) return;
   box.style.opacity = '';
   if (!b || b.error) { box.innerHTML = `<div class="mt-meta" style="text-align:center;padding:2rem">โหลดไม่สำเร็จ: ${escHtml(b?.error || '')}</div>`; return; }
-  const sum = s && !s.error ? s : null;
 
   const cfg = b.config, T = Math.round(cfg.frtTargetSec / 60);
   const fd = x => new Date(x + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+  const span = Math.round((Date.parse(b.to) - Date.parse(b.from)) / 86400000) + 1;
   document.getElementById('llb-note').textContent =
-    `${fd(b.from)} – ${fd(b.to)} · คิดจากเคสที่ AI ตัดสินแล้ว ${b.team.cases} เคส${b.not_judged ? ` (รอตัดสินอีก ${b.not_judged})` : ''} · เวลาทำงาน 08:00–24:00 · เริ่มนับ ${fd(b.start)}`;
+    `${fd(b.from)} – ${fd(b.to)} (${span} วัน) · ตัดสินแล้ว ${b.team.cases} เคส${b.not_judged ? ` · รอตัดสินอีก ${b.not_judged} ข้อความ` : ''} · นับเวลาทำงาน 08:00–24:00`;
   const mins = s => s == null ? '—' : s < 60 ? `${Math.round(s)} วิ` : s < 3600 ? `${(s / 60).toFixed(1)} นาที` : `${(s / 3600).toFixed(1)} ชม.`;
-  const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
   const num = n => (n || 0).toLocaleString('th-TH');
   const tm = b.team, pv = b.prev;
-  const tot = sum?.totals || { case_system: 0, manual: 0, not_case: 0, total: 0 };
-  const lk = sum?.leaks || { waiting: 0, answered_unclosed: 0, auto_closed: 0, alerted: 0, answered_after_alert: 0, alerted_waiting: 0 };
-  if (!tm.cases && !tot.total) {
-    box.innerHTML = `<div class="mt-meta" style="text-align:center;padding:3rem">ยังไม่มีเคสที่ AI ตัดสินแล้วในช่วงนี้${b.not_judged ? ` · รอตัดสิน ${b.not_judged} เคส (ระบบไล่ตัดสินทีละ 15 เคสทุก 5 นาที)` : ''}</div>`;
+  if (!tm.cases) {
+    box.innerHTML = `<div class="mt-meta" style="text-align:center;padding:3rem">ยังไม่มีเคสที่ตัดสินแล้วในช่วงนี้${b.not_judged ? ` · รอตัดสิน ${b.not_judged} ข้อความ` : ''}</div>`;
     return;
   }
-  const head = (title, note, right = '') => `<div class="mt-tt-head">${title} <span class="mt-meta" style="font-weight:400">${note ? '· ' + note : ''}</span>${right ? `<span style="margin-left:auto;display:flex;gap:.7rem;flex-wrap:wrap;font-size:.7rem;color:#6f747c;font-weight:400">${right}</span>` : ''}</div>`;
+  const head = (title, note) => `<div class="mt-tt-head">${title} <span class="mt-meta" style="font-weight:400">${note ? '· ' + note : ''}</span></div>`;
   const section = title => `<div style="font-size:.95rem;font-weight:700;margin:1.4rem 0 .6rem;color:#3a3f46">${title}</div>`;
-  const podName = id => id == null ? 'ยังไม่ได้ Assign' : ((_lcPods || []).find(p => p.id === id)?.code || '');
-
-  // ── 1. KPI Strip: ค่าเทียบเป้า (สี) + ลูกศรเทียบช่วงก่อน ──
   const TONE = { green: '#356b4e', yellow: '#86671f', red: '#a2562f' };
   const tone = (v, target, lower = true, slack = .25) => v == null ? ''
     : (lower ? v <= target : v >= target) ? 'green'
     : (lower ? v <= target * (1 + slack) : v >= target * (1 - slack)) ? 'yellow' : 'red';
-  const arrow = (v, p, lower, fmt) => v == null || p == null ? 'ไม่มีช่วงก่อนให้เทียบ'
+  const hasPrev = pv.cases >= 20;   // ช่วงก่อนมีข้อมูลน้อยไป = ไม่เทียบ
+  // ยังตัดสินไม่ครบ (ข้อความค้าง ~2.5 ข้อความ/เคส เกิน 10% ของเคส) → จำนวนเคสยังไม่ใช่ตัวเลขสุดท้าย ไม่เทียบจำนวน
+  const pending = Math.round((b.not_judged || 0) / 2.5), incomplete = pending > tm.cases * .1;
+  const cmpCount = hasPrev && !incomplete;
+  const arrow = (v, p, lower, fmt, neutral = false) => !hasPrev || v == null || p == null ? 'ไม่มีช่วงก่อนให้เทียบ'
     : v === p ? 'เท่ากับช่วงก่อน'
-    : `<span style="color:${(v < p) === lower ? TONE.green : '#b04a40'}">${v < p ? '▼' : '▲'} ${fmt(Math.abs(v - p))}</span> จากช่วงก่อน`;
-  const kcard = (lab, val, cls, target, cmp) => `<div class="stat-flat"><div class="label">${lab}</div><div class="value ${cls}">${val}</div><div class="sub">${target}</div><div class="sub">${cmp}</div></div>`;
-  const abandPct = tm.cases ? Math.round(tm.abandoned / tm.cases * 100) : null;
-  const pAband = pv.cases ? Math.round(pv.abandoned / pv.cases * 100) : null;
-  const kpis = `<div class="mt-kpis" style="grid-template-columns:repeat(auto-fit,minmax(165px,1fr))">
+    : `<span style="color:${neutral ? '#6f747c' : (v < p) === lower ? TONE.green : '#b04a40'}">${v < p ? '▼' : '▲'} ${fmt(Math.abs(v - p))}</span> จากช่วงก่อน`;
+  const abandPct = Math.round(tm.abandoned / tm.cases * 100), pAband = pv.cases ? Math.round(pv.abandoned / pv.cases * 100) : null;
+  const perDay = tm.cases / span, pPerDay = pv.cases / span;
+  const cats = b.by_category || [];
+  const catName = c => LLB_CAT[c] || c;
+
+  // ── 1. สรุปผู้บริหาร (ประโยคสร้างจากตัวเลข ไม่ใช้ AI) ──
+  const chg = (v, p) => !cmpCount || !p ? '' : ` (${v >= p ? '▲' : '▼'} ${Math.abs(Math.round((v - p) / p * 100))}% จากช่วงก่อน)`;
+  const good = [], watch = [];
+  (tm.frt_within_pct >= 80 ? good : watch).push(`ตอบแรกทันเป้า ${T} นาที <b>${tm.frt_within_pct ?? '—'}%</b> ของเคส (median ${mins(tm.frt_median)})`);
+  (tm.one_touch_pct >= 50 ? good : watch).push(`จบใน 1–2 รอบคุย <b>${tm.one_touch_pct ?? '—'}%</b> · คุยเฉลี่ย ${tm.turns_avg ?? '—'} รอบ`);
+  (abandPct < 10 ? good : watch).push(`เคสที่ไม่มีสัญญาณจบ <b>${abandPct}%</b> (${num(tm.abandoned)} เคส)`);
+  if (hasPrev && tm.agent_ttr_median != null && pv.agent_ttr_median != null && Math.abs(tm.agent_ttr_median - pv.agent_ttr_median) >= 300)
+    (tm.agent_ttr_median < pv.agent_ttr_median ? good : watch).push(`เวลาแก้จบฝั่งเรา ${mins(pv.agent_ttr_median)} → <b>${mins(tm.agent_ttr_median)}</b>`);
+  const slowCat = cats.filter(c => c.cases >= 10 && c.agent_ttr_median != null).sort((a, z) => z.agent_ttr_median - a.agent_ttr_median)[0];
+  const ranked = b.people.filter(p => p.ranked), unranked = b.people.filter(p => !p.ranked);
+  const lowP = ranked.filter(p => p.total < 50);
+  const decide = [];
+  if (cats[0]) decide.push(`หมวด <b>${catName(cats[0].category)}</b> มากที่สุด ${cats[0].pct}% ของเคส — ลดเรื่องนี้ได้ (คู่มือ / แก้ที่ต้นเหตุ) จะลดงานทีมมากสุด`);
+  if (slowCat) decide.push(`หมวด <b>${catName(slowCat.category)}</b> ใช้เวลาแก้ฝั่งเรานานสุด (median ${mins(slowCat.agent_ttr_median)})`);
+  if (lowP.length) decide.push(`ทีมงานคะแนนต่ำกว่า 50: ${lowP.map(p => `<b>${escHtml(p.name)}</b>`).join(', ')} — ควรโค้ช`);
+  const ul = (title, color, items) => items.length ? `<div style="flex:1;min-width:240px"><div style="font-weight:700;color:${color};margin-bottom:.3rem">${title}</div>
+    <ul style="margin:0;padding-left:1.1rem;line-height:1.7;font-size:.86rem">${items.map(x => `<li>${x}</li>`).join('')}</ul></div>` : '';
+  const warn = incomplete ? `<div style="background:#fdf3e1;color:#86671f;border-radius:10px;padding:.6rem .9rem;margin-bottom:.75rem;font-size:.82rem">
+      ระบบยังตัดสินเคสในช่วงนี้ไม่ครบ (ค้างราว ${num(pending)} เคส) — จำนวนเคสยังไม่ใช่ตัวเลขสุดท้าย จึงยังไม่เทียบจำนวนกับช่วงก่อน · ตัวชี้วัดอื่นคิดจากเคสที่ตัดสินแล้ว</div>` : '';
+  const summary = warn + `<div class="mt-tbl-wrap" style="padding:1rem 1.1rem">
+      <div style="font-size:1.05rem;font-weight:700;color:#2f343a">สรุปผู้บริหาร · งานตอบเคสทาง LINE</div>
+      <div class="mt-meta" style="margin:.2rem 0 .8rem">${fd(b.from)} – ${fd(b.to)} · รับ <b style="color:#2f343a">${num(tm.cases)} เคส</b> เฉลี่ย ${perDay.toFixed(0)} เคส/วัน${chg(perDay, pPerDay)} · แก้จบ ${Math.round(tm.resolved / tm.cases * 100)}%</div>
+      <div style="display:flex;gap:1.2rem;flex-wrap:wrap">
+        ${ul('ทำได้ดี', TONE.green, good)}${ul('ต้องจับตา', '#b04a40', watch)}${ul('ข้อเสนอให้ตัดสินใจ', '#3d6b9a', decide)}
+      </div>
+    </div>`;
+
+  // ── 2. ตัวชี้วัดหลัก ──
+  const kcard = (lab, val, cls, target, cmp) => `<div class="stat-flat"><div class="label">${lab}</div><div class="value" style="${cls ? `color:${TONE[cls]}` : ''}">${val}</div><div class="sub">${target}</div><div class="sub">${cmp}</div></div>`;
+  const kpis = `${section('ตัวชี้วัดหลัก')}<div class="mt-kpis" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
+    ${kcard('เคสทั้งหมด', num(tm.cases), '', `เฉลี่ย ${perDay.toFixed(0)} เคส/วัน`, cmpCount ? arrow(Math.round(perDay), Math.round(pPerDay), true, v => v + ' เคส/วัน', true) : incomplete ? 'ยังตัดสินไม่ครบ' : 'ไม่มีช่วงก่อนให้เทียบ')}
     ${kcard('ตอบแรก (median)', mins(tm.frt_median), tone(tm.frt_median, cfg.frtTargetSec), `เป้า ≤ ${T} นาที · ทันเป้า ${tm.frt_within_pct ?? '—'}%`, arrow(tm.frt_median, pv.frt_median, true, mins))}
-    ${kcard('แก้จบ (median)', mins(tm.ttr_median), tone(tm.agent_ttr_median, 3600), `เวลาฝั่งเรา ${mins(tm.agent_ttr_median)} · เป้าฝั่งเรา ≤ 1 ชม.`, arrow(tm.ttr_median, pv.ttr_median, true, mins))}
-    ${kcard('รอบคุยเฉลี่ย', tm.turns_avg ?? '—', tone(tm.turns_avg, cfg.turnsTarget), `เป้า ≤ ${cfg.turnsTarget} รอบ · ทีมงานตอบติดกันนับ 1`, arrow(tm.turns_avg, pv.turns_avg, true, v => v.toFixed(1) + ' รอบ'))}
-    ${kcard('จบใน 1–2 รอบ', tm.one_touch_pct == null ? '—' : tm.one_touch_pct + '%', tone(tm.one_touch_pct, 50, false), 'เป้า ≥ 50% ของเคสที่จบ', arrow(tm.one_touch_pct, pv.one_touch_pct, false, v => v + '%'))}
-    ${kcard('ไม่มีสัญญาณจบ', abandPct == null ? '—' : abandPct + '%', tone(abandPct, 10, true, 1), `${num(tm.abandoned)} จาก ${num(tm.cases)} เคส · เป้า < 10%`, arrow(abandPct, pAband, true, v => v + '%'))}
+    ${kcard('แก้จบ (median)', mins(tm.ttr_median), tone(tm.agent_ttr_median, 3600), `เวลาฝั่งเรา ${mins(tm.agent_ttr_median)} · เป้า ≤ 1 ชม.`, arrow(tm.ttr_median, pv.ttr_median, true, mins))}
+    ${kcard('จบใน 1–2 รอบ', tm.one_touch_pct == null ? '—' : tm.one_touch_pct + '%', tone(tm.one_touch_pct, 50, false), `เป้า ≥ 50% · คุยเฉลี่ย ${tm.turns_avg ?? '—'} รอบ`, arrow(tm.one_touch_pct, pv.one_touch_pct, false, v => v + '%'))}
+    ${kcard('ไม่มีสัญญาณจบ', abandPct + '%', tone(abandPct, 10, true, 1), `${num(tm.abandoned)} เคส · เป้า < 10%`, arrow(abandPct, pAband, true, v => v + '%'))}
   </div>`;
 
-  // ── 2. Quadrant พนักงาน: ตอบแรก × รอบคุย ──
-  const Z = { star: ['#356b4e', 'ดาว · ไว + คุยน้อย'], loop: ['#c07a2c', 'ตอบไวแต่วน'], slow: ['#3d6b9a', 'ช้าแต่แม่น'], coach: ['#b04a40', 'ต้องโค้ช'] };
-  const zoneOf = p => p.frt_median <= cfg.frtTargetSec ? (p.turns_avg <= cfg.turnsTarget ? 'star' : 'loop') : (p.turns_avg <= cfg.turnsTarget ? 'slow' : 'coach');
-  const qp = b.people.filter(p => p.frt_median != null && p.turns_avg != null && p.cases >= 5);
-  let quad = '';
-  if (qp.length) {
-    const VW = 720, VH = 360, L = 52, R = 20, TP = 18, BT = 42, pw = VW - L - R, ph = VH - TP - BT;
-    const xMax = Math.min(60, Math.max(T * 3, Math.ceil(Math.max(...qp.map(p => p.frt_median / 60)) / 5) * 5));
-    const yMax = Math.min(12, Math.max(cfg.turnsTarget * 2, Math.ceil(Math.max(...qp.map(p => p.turns_avg)))));
-    const X = v => L + Math.min(v / 60, xMax) / xMax * pw, Y = v => TP + ph - Math.min(v, yMax) / yMax * ph;
-    const cMax = Math.max(...qp.map(p => p.cases));
-    const rad = n => 5 + Math.sqrt(n / cMax) * 13;
-    const tx = X(cfg.frtTargetSec), ty = Y(cfg.turnsTarget);
-    const xt = Array.from({ length: 6 }, (_, i) => Math.round(xMax / 5 * i)), yt = Array.from({ length: yMax + 1 }, (_, i) => i).filter(v => v % (yMax > 8 ? 2 : 1) === 0);
-    const zr = (x0, y0, x1, y1, z) => `<rect x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}" fill="${Z[z][0]}" opacity=".06"/>`;
-    const zl = (x, y, z, anchor) => `<text x="${x}" y="${y}" text-anchor="${anchor}" font-size="11" font-weight="600" fill="${Z[z][0]}">${Z[z][1]}</text>`;
-    quad = `${section('ใครตอบไวแต่วน')}
-    <div class="mt-tbl-wrap" style="padding-bottom:.6rem">
-      ${head('ตอบแรก × รอบคุย', `จุด = คน (ขนาดตามจำนวนเคส) · เส้นแบ่ง = เป้า ${T} นาที / ${cfg.turnsTarget} รอบ · แสดงคนที่มีอย่างน้อย 5 เคส`)}
-      <svg viewBox="0 0 ${VW} ${VH}" style="width:100%;height:auto;display:block;max-width:900px;margin:0 auto" role="img" aria-label="แผนภาพตอบแรกเทียบรอบคุยของแต่ละคน">
-        ${zr(L, ty, tx, TP + ph, 'star')}${zr(L, TP, tx, ty, 'loop')}${zr(tx, ty, L + pw, TP + ph, 'slow')}${zr(tx, TP, L + pw, ty, 'coach')}
-        ${xt.map(v => `<line x1="${X(v * 60)}" x2="${X(v * 60)}" y1="${TP}" y2="${TP + ph}" stroke="#e7e4dd"/><text x="${X(v * 60)}" y="${TP + ph + 16}" text-anchor="middle" font-size="11" fill="#6f747c">${v}</text>`).join('')}
-        ${yt.map(v => `<line x1="${L}" x2="${L + pw}" y1="${Y(v)}" y2="${Y(v)}" stroke="#e7e4dd"/><text x="${L - 8}" y="${Y(v) + 4}" text-anchor="end" font-size="11" fill="#6f747c">${v}</text>`).join('')}
-        <line x1="${tx}" x2="${tx}" y1="${TP}" y2="${TP + ph}" stroke="#8a8f96" stroke-dasharray="4 3"/>
-        <line x1="${L}" x2="${L + pw}" y1="${ty}" y2="${ty}" stroke="#8a8f96" stroke-dasharray="4 3"/>
-        ${zl(L + 8, TP + ph - 8, 'star', 'start')}${zl(L + 8, TP + 14, 'loop', 'start')}${zl(L + pw - 8, TP + ph - 8, 'slow', 'end')}${zl(L + pw - 8, TP + 14, 'coach', 'end')}
-        <text x="${L + pw / 2}" y="${VH - 6}" text-anchor="middle" font-size="11.5" fill="#4d535b">ตอบแรก median (นาที)</text>
-        <text x="14" y="${TP + ph / 2}" text-anchor="middle" font-size="11.5" fill="#4d535b" transform="rotate(-90 14 ${TP + ph / 2})">รอบคุยเฉลี่ย</text>
-        ${[...qp].sort((a, b) => b.cases - a.cases).map(p => {
-          const cx = X(p.frt_median), cy = Y(p.turns_avg), r = rad(p.cases), c = Z[zoneOf(p)][0];
-          return `<g><title>${escHtml(p.name)} · ตอบแรก ${mins(p.frt_median)} · รอบคุย ${p.turns_avg} · ${p.cases} เคส</title>
-            <circle cx="${cx}" cy="${cy}" r="${r}" fill="${c}" fill-opacity=".55" stroke="${c}" stroke-width="1.5"/>
-            <text x="${cx + r + 4}" y="${cy + 4}" font-size="11" fill="#3a3f46">${escHtml(p.name)}</text></g>`;
-        }).join('')}
-      </svg>
-    </div>`;
+  // ── 3. แนวโน้มรายวัน: แท่ง = เคส · เส้น = % ตอบทันเป้า ──
+  let trend = '';
+  const days = b.by_day || [];
+  if (days.length > 1) {
+    const VW = 720, VH = 220, L = 40, R = 40, TP = 16, BT = 30, pw = VW - L - R, ph = VH - TP - BT;
+    const cMax = Math.max(...days.map(d => d.cases), 1), bw = pw / days.length;
+    const X = i => L + bw * i + bw / 2, Yc = v => TP + ph - v / cMax * ph, Yp = v => TP + ph - v / 100 * ph;
+    const pts = days.map((d, i) => d.frt_within_pct == null ? null : `${X(i)},${Yp(d.frt_within_pct)}`).filter(Boolean).join(' ');
+    const every = Math.ceil(days.length / 12);
+    trend = `${section('แนวโน้มรายวัน')}<div class="mt-tbl-wrap" style="padding-bottom:.6rem">
+      ${head('จำนวนเคส และ % ตอบแรกทันเป้า', `แท่ง = เคส (แกนซ้าย) · เส้น = % ทันเป้า ${T} นาที (แกนขวา)`)}
+      <svg viewBox="0 0 ${VW} ${VH}" style="width:100%;height:auto;display:block;max-width:900px;margin:0 auto" role="img" aria-label="กราฟจำนวนเคสและเปอร์เซ็นต์ตอบทันเป้ารายวัน">
+        ${[0, .5, 1].map(r => `<line x1="${L}" x2="${L + pw}" y1="${TP + ph - r * ph}" y2="${TP + ph - r * ph}" stroke="#e7e4dd"/>
+          <text x="${L - 6}" y="${TP + ph - r * ph + 4}" text-anchor="end" font-size="10.5" fill="#6f747c">${Math.round(cMax * r)}</text>
+          <text x="${L + pw + 6}" y="${TP + ph - r * ph + 4}" font-size="10.5" fill="#3d6b9a">${r * 100}%</text>`).join('')}
+        ${days.map((d, i) => `<g><title>${fd(d.day)}: ${d.cases} เคส · ทันเป้า ${d.frt_within_pct ?? '—'}% · ตอบแรก ${mins(d.frt_median)}</title>
+          <rect x="${X(i) - bw * .32}" y="${Yc(d.cases)}" width="${bw * .64}" height="${TP + ph - Yc(d.cases)}" fill="#cfd8c9" rx="2"/></g>
+          ${i % every === 0 ? `<text x="${X(i)}" y="${VH - 10}" text-anchor="middle" font-size="10.5" fill="#6f747c">${fd(d.day)}</text>` : ''}`).join('')}
+        <polyline points="${pts}" fill="none" stroke="#3d6b9a" stroke-width="2"/>
+        ${days.map((d, i) => d.frt_within_pct == null ? '' : `<circle cx="${X(i)}" cy="${Yp(d.frt_within_pct)}" r="3" fill="#3d6b9a"/>`).join('')}
+      </svg></div>`;
   }
 
-  // ── 3. Leaderboard: คะแนนรวม 4 ด้าน (Quality ยังไม่เปิด) ──
+  // ── 4. หมวดปัญหา: ควรลงทุนแก้ตรงไหน ──
+  const cMaxCat = Math.max(...cats.map(c => c.cases), 1);
+  const catTbl = cats.length ? `${section('หมวดปัญหา')}<div class="mt-tbl-wrap">
+      ${head('เรื่องที่ลูกค้าแจ้ง', 'เรียงตามจำนวนเคส · ใช้ดูว่าควรลงทุนแก้ที่ต้นเหตุตรงไหน')}
+      <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>หมวด</th><th class="r">เคส</th><th style="width:24%">สัดส่วน</th>
+        <th class="r">เทียบช่วงก่อน</th><th class="r">ตอบแรก</th><th class="r">แก้จบ (ฝั่งเรา)</th><th class="r">รอบคุย</th><th class="r">จบ</th></tr></thead><tbody>
+        ${cats.map(c => {
+          const d = cmpCount && c.prev_cases ? Math.round((c.cases - c.prev_cases) / c.prev_cases * 100) : null;
+          return `<tr><td><b>${catName(c.category)}</b></td><td class="r num"><b>${num(c.cases)}</b></td>
+          <td><div style="display:flex;align-items:center;gap:.4rem"><div style="flex:1;height:8px;background:#efede7;border-radius:4px;overflow:hidden"><div style="width:${c.cases / cMaxCat * 100}%;height:100%;background:#7c9a86"></div></div><span class="mt-meta num">${c.pct}%</span></div></td>
+          <td class="r num mt-meta">${d == null ? '—' : `${d > 0 ? '▲' : d < 0 ? '▼' : ''} ${Math.abs(d)}%`}</td>
+          <td class="r num">${mins(c.frt_median)}</td><td class="r num">${mins(c.agent_ttr_median)}</td><td class="r num">${c.turns_avg ?? '—'}</td>
+          <td class="r num">${c.resolved_pct ?? '—'}%</td></tr>`;
+        }).join('')}
+      </tbody></table></div>
+      <div class="mt-meta" style="padding:.4rem 1rem .7rem;font-size:.72rem">เคสง่าย (ทีมงานตอบรอบเดียว) จัดหมวดจากคำในข้อความ · เคสที่เหลือ AI จัดให้</div></div>` : '';
+
+  // ── 5. ผลงานทีม ──
   const BADGE = { fastest: ['⚡', 'ตอบไวสุด'], fixer: ['🔧', 'แก้จบไวสุด'], clearest: ['🎯', 'คุยรู้เรื่องสุด (รอบน้อยสุด)'], improved: ['📈', 'พัฒนาขึ้นมากสุด'] };
   const badgesOf = n => Object.entries(b.badges).filter(([, v]) => v === n).map(([k]) => `<span title="${BADGE[k][1]}">${BADGE[k][0]}</span>`).join(' ');
-  const cell = (txt, t) => `<span style="${t ? `color:${TONE[t]};font-weight:600` : ''}">${txt}</span>`;
+  const cell = (txt, tn) => `<span style="${tn ? `color:${TONE[tn]};font-weight:600` : ''}">${txt}</span>`;
   const W = cfg.weights;
   const lrow = (p, i) => {
     const d = p.prev_total == null ? '' : p.total - p.prev_total;
@@ -9527,128 +9554,32 @@ async function llbLoad() {
         <div style="flex:1;height:8px;background:#efede7;border-radius:4px;overflow:hidden"><div style="width:${p.total}%;height:100%;background:${p.total >= 70 ? TONE.green : p.total >= 50 ? '#c9a03c' : '#c9785c'}"></div></div></div></td>
       <td class="r num mt-meta">${d === '' ? '—' : `<span style="color:${d >= 0 ? TONE.green : '#b04a40'}">${d > 0 ? '+' : ''}${d}</span>`}</td>
       <td class="r num">${cell(mins(p.frt_median), tone(p.frt_median, cfg.frtTargetSec))}<span class="mt-meta" style="display:block;font-size:.7rem">ทัน ${p.frt_within_pct ?? '—'}%</span></td>
-      <td class="r num">${cell(mins(p.agent_ttr_median), tone(p.agent_ttr_median, 3600))}<span class="mt-meta" style="display:block;font-size:.7rem">รวม ${mins(p.ttr_median)}</span></td>
+      <td class="r num">${cell(mins(p.agent_ttr_median), tone(p.agent_ttr_median, 3600))}</td>
       <td class="r num">${cell(p.turns_avg ?? '—', tone(p.turns_avg, cfg.turnsTarget))}</td>
       <td class="r num">${cell(p.one_touch_pct == null ? '—' : p.one_touch_pct + '%', tone(p.one_touch_pct, 50, false))}</td>
       <td class="r num mt-meta">${p.abandoned || '—'}</td>
       <td class="r num">${p.cases}</td></tr>`;
   };
-  const ranked = b.people.filter(p => p.ranked), unranked = b.people.filter(p => !p.ranked);
-  const lhead = `<thead><tr><th>#</th><th>คนตอบ (LINE@)</th><th title="Speed ${W.speed} · Resolution ${W.resolution} · Efficiency ${W.efficiency} (หาร ${W.speed + W.resolution + W.efficiency})">คะแนนรวม</th>
-    <th class="r" title="เทียบช่วงก่อนหน้าความยาวเท่ากัน">เทียบช่วงก่อน</th><th class="r">ตอบแรก</th><th class="r" title="แก้จบ − เวลารอลูกค้าตอบ">แก้จบ (ฝั่งเรา)</th>
-    <th class="r">รอบคุย</th><th class="r">จบ 1–2 รอบ</th><th class="r" title="ไม่มีสัญญาณจบ">ไม่จบ</th><th class="r">เคส</th></tr></thead>`;
-  const board = `${section('ใครเก่งจริง')}
-    <div class="mt-tbl-wrap">
-      ${head('Leaderboard', `คะแนน 0–100 = ตอบทันเป้า ${W.speed} · แก้จบเทียบหมวดเดียวกัน ${W.resolution} · จบไว/รอบน้อย ${W.efficiency} · ด้านคุณภาพ (AI + กลับมาซ้ำ) เปิดในเฟสถัดไป · เคสเป็นของคนที่ตอบคนแรก`,
-        Object.values(BADGE).map(([ic, lab]) => `<span>${ic} ${lab}</span>`).join(''))}
-      <div style="overflow-x:auto"><table class="mt-tbl">${lhead}<tbody>
+  const board = `${section('ผลงานทีม')}<div class="mt-tbl-wrap">
+      ${head('อันดับทีมงาน', `คะแนน 0–100: ตอบทันเป้า ${W.speed} · แก้จบเทียบหมวดเดียวกัน ${W.resolution} · จบไว/รอบน้อย ${W.efficiency} · เคสเป็นของคนที่ตอบคนแรก · ${Object.values(BADGE).map(([ic, lab]) => `${ic} ${lab}`).join(' ')}`)}
+      <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>#</th><th>คนตอบ (LINE@)</th><th>คะแนน</th><th class="r">เทียบช่วงก่อน</th><th class="r">ตอบแรก</th>
+        <th class="r" title="แก้จบ − เวลารอลูกค้าตอบ">แก้จบ (ฝั่งเรา)</th><th class="r">รอบคุย</th><th class="r">จบ 1–2 รอบ</th><th class="r" title="ไม่มีสัญญาณจบ">ไม่จบ</th><th class="r">เคส</th></tr></thead><tbody>
         ${ranked.length ? ranked.map((p, i) => lrow(p, i + 1)).join('') : `<tr><td colspan="10" class="mt-meta" style="text-align:center;padding:1rem">ยังไม่มีใครครบ ${cfg.minCases} เคสในช่วงนี้</td></tr>`}
         ${unranked.length ? `<tr><td colspan="10" class="mt-meta" style="background:#f7f6f3;font-size:.74rem;padding:.4rem .9rem">ไม่ติดอันดับ · น้อยกว่า ${cfg.minCases} เคสในช่วงที่เลือก</td></tr>${unranked.map(p => lrow(p, null)).join('')}` : ''}
-      </tbody></table></div>
-    </div>`;
+      </tbody></table></div></div>`;
 
-  // ── 4. เคสที่ควรดู (แทนตาราง "ตอบช้าสุด") ──
+  // ── 6. เคสที่ควรดู ──
   _llbReview = b.review;
   const RV = [['many_turns', `คุยเกิน ${cfg.reviewTurns} รอบ`], ['slow_fix', `ฝั่งเราแก้เกิน ${cfg.reviewTtrSec / 3600} ชม.`], ['abandoned', 'ไม่มีสัญญาณจบ']];
   if (!b.review[_llbReviewTab]?.length) _llbReviewTab = RV.find(([k]) => b.review[k].length)?.[0] || 'many_turns';
-  const review = `${section('เคสที่ควรดู')}
-    <div class="mt-tbl-wrap">
+  const review = `${section('เคสที่ควรดู')}<div class="mt-tbl-wrap">
       <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;padding:.8rem 1rem .3rem">
         <div class="svc-seg" role="tablist" aria-label="ประเภทเคสที่ควรดู">${RV.map(([k, lab]) => `<button role="tab" class="${k === _llbReviewTab ? 'on' : ''}" onclick="llbReviewTab('${k}', this)">${lab} <span class="mt-meta">${b.review[k].length}</span></button>`).join('')}</div>
-        <span class="mt-meta">เหตุผลจาก AI · ไว้ทบทวนว่าติดตรงไหน</span>
+        <span class="mt-meta">ตัวอย่างไว้ทบทวนว่าติดตรงไหน</span>
       </div>
-      <div id="llb-review">${llbReviewHtml()}</div>
-    </div>`;
+      <div id="llb-review">${llbReviewHtml()}</div></div>`;
 
-  // ── ผลการปิดเรื่อง (ตามผู้ใช้ระบบที่กดปิด) ──
-  let closing = '';
-  if (sum && tot.total) {
-    const R = [['case_system', '#3d6b9a'], ['manual', '#6aa583'], ['not_case', '#cfcbc2']];
-    const legend = R.map(([key, c]) => `<span style="white-space:nowrap"><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${c};vertical-align:-.05em"></span> ${escHtml(sum.reasons[key])}</span>`).join('');
-    const bar = (o, h = 12) => `<div style="display:flex;gap:2px;height:${h}px">${R.map(([key, c]) => o[key] ? `<div title="${escHtml(sum.reasons[key])}: ${o[key]} (${pct(o[key], o.total)}%)" style="flex:${o[key]};background:${c}"></div>` : '').join('')}</div>`;
-    const dayMax = Math.max(1, ...sum.daily.map(x => x.total));
-    const daily = sum.daily.length > 1 ? `
-      <div style="display:flex;align-items:flex-end;gap:.8rem;height:150px;margin:.9rem .9rem 0">
-        ${sum.daily.map(x => `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;height:100%;justify-content:flex-end" title="${fd(x.day)}: ${x.total} เรื่อง">
-          <span style="font-size:.7rem;color:#6f747c">${x.total}</span>
-          <div style="width:100%;max-width:56px;display:flex;flex-direction:column-reverse;gap:2px;height:${Math.round(x.total / dayMax * 120)}px;border-radius:4px 4px 0 0;overflow:hidden">
-            ${R.map(([key, c]) => x[key] ? `<div style="flex:${x[key]};background:${c}"></div>` : '').join('')}
-          </div></div>`).join('')}
-      </div>
-      <div style="display:flex;gap:.8rem;margin:.3rem .9rem 0;font-size:.7rem;color:#6f747c">${sum.daily.map(x => `<div style="flex:1;text-align:center">${fd(x.day)}</div>`).join('')}</div>` : '';
-    const pMax = Math.max(1, ...sum.people.map(p => p.total));
-    closing = `${section('ผลการปิดเรื่อง')}
-      <div class="mt-tbl-wrap" style="padding-bottom:.8rem">
-        ${head('ผลการคัดกรอง', `${num(tot.total)} เรื่อง${sum.daily.length > 1 ? ' · รายวัน' : ''}`, legend)}
-        <div style="margin:.2rem .9rem 0;border-radius:4px;overflow:hidden">${bar(tot, 20)}</div>
-        <div style="display:flex;gap:1.2rem;flex-wrap:wrap;margin:.45rem .9rem 0;font-size:.78rem;color:#4d535b">
-          ${R.map(([key]) => `<span>${escHtml(sum.reasons[key])} <b>${num(tot[key])}</b> (${pct(tot[key], tot.total)}%)</span>`).join('')}
-        </div>${daily}
-      </div>
-      <div class="mt-tbl-wrap" style="margin-top:.75rem">
-        ${head('คนปิดเรื่อง', 'เรียงตามจำนวนเรื่องที่ปิด · ชื่อผู้ใช้ระบบที่กดปิดในกล่องคัดกรอง', legend)}
-        <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>#</th><th>พนักงาน</th><th class="r">ปิดแล้ว</th><th style="width:26%">สัดส่วนผล</th>
-          <th class="r">เปิดเคส</th><th class="r">Manual</th><th class="r">ไม่ใช่เคส</th><th class="r" title="สัดส่วนที่ลงเป็นเคส (ระบบ + Manual)">ลงเคส</th>
-          <th class="r" title="จำนวนวันที่มีการปิดเรื่อง">วันทำงาน</th><th class="r">เฉลี่ย/วัน</th></tr></thead><tbody>
-          ${sum.people.map((p, i) => `<tr><td class="num mt-meta">${i + 1}</td><td><b>${escHtml(p.name)}</b></td><td class="r num"><b>${num(p.total)}</b></td>
-            <td><div style="width:${Math.max(8, Math.round(p.total / pMax * 100))}%;min-width:24px">${bar(p)}</div></td>
-            <td class="r num">${p.case_system || '—'}</td><td class="r num">${p.manual || '—'}</td><td class="r num mt-meta">${p.not_case || '—'}</td>
-            <td class="r num">${pct(p.case_system + p.manual, p.total)}%</td><td class="r num mt-meta">${p.active_days}</td>
-            <td class="r num">${Math.round(p.total / Math.max(1, p.active_days))}</td></tr>`).join('')}
-        </tbody></table></div>
-      </div>`;
-  }
-
-  // ── เรื่องที่หลุด / ไม่มีเจ้าของ ──
-  let leaks = '';
-  if (sum) {
-    const noReply = Math.max(0, lk.alerted - lk.answered_after_alert);
-    const tile = (bg, fg, lab, val, sub) => `<div class="stat-flat" style="background:${bg};border-color:transparent">
-      <div class="label" style="color:${fg}">${lab}</div><div class="value" style="color:${fg}">${num(val)}</div><div class="sub">${sub}</div></div>`;
-    const oldest = new Date(Date.now() - (sum.retention_days || 7) * 86400000).toISOString().slice(0, 10);
-    const podRows = sum.pods.filter(p => p.total || p.waiting || p.answered_unclosed || p.auto_closed);
-    const hours = Array.from({ length: 24 }, (_, h) => sum.hourly.find(x => x.h === h)?.n || 0);
-    const hMax = Math.max(1, ...hours), peak = hours.indexOf(hMax);
-    const ago = x => { const m = Math.round((Date.now() - parseDbDate(x)) / 60000); return m >= 60 ? `${Math.floor(m / 60)} ชม. ${m % 60} นาที` : `${Math.max(0, m)} นาที`; };
-    leaks = `${section(`เรื่องที่หลุด / ไม่มีเจ้าของ <span class="mt-meta" style="font-weight:400">· ข้อมูลคัดกรองเก็บ ${sum.retention_days || 7} วัน${sum.from < oldest ? ' — ช่วงที่เลือกเก่ากว่านั้น ตัวเลขส่วนนี้จะไม่ครบ' : ''}</span>`)}
-      <div class="mt-kpis">
-        ${tile('#fbeceb', '#a23b33', 'แจ้งเตือนแล้ว ไม่มีการตอบในไลน์', noReply, `จากที่แจ้งเตือน ${lk.alerted} เรื่อง · ยังค้างอยู่ ${lk.alerted_waiting}`)}
-        ${tile('#fdf3e1', '#86671f', 'ยังไม่มีคนตอบ', lk.waiting, 'เรื่องที่ยังเปิดอยู่ ไม่มีใครตอบในไลน์')}
-        ${tile('#fdf3e1', '#86671f', 'ตอบในไลน์แล้ว แต่ยังไม่ปิด', lk.answered_unclosed, 'ยังไม่ได้เลือกผล (เปิดเคส / Manual / ไม่ใช่เคส)')}
-        ${tile('#f3f2ef', '#4d535b', 'ระบบปิดให้', lk.auto_closed, 'ข้อความที่ปิดอัตโนมัติ ไม่มีคนรับผิดชอบ')}
-      </div>
-      ${podRows.length ? `<div class="mt-tbl-wrap" style="margin-top:.75rem">
-        ${head('แยกตาม Pod', 'ใช้หาจุดที่ต้องเพิ่มคนเฝ้า')}
-        <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>Pod</th><th class="r">ปิดแล้ว</th><th class="r">ลงเคส</th><th class="r">ไม่ใช่เคส</th>
-          <th class="r">ยังไม่มีคนตอบ</th><th class="r">ตอบแต่ยังไม่ปิด</th><th class="r">ระบบปิดให้</th></tr></thead><tbody>
-          ${podRows.map(p => `<tr><td><b>${escHtml(p.code)}</b></td><td class="r num">${num(p.total)}</td><td class="r num">${num(p.case_system + p.manual)}</td>
-            <td class="r num mt-meta">${num(p.not_case)}</td>
-            <td class="r num" style="${p.waiting ? 'color:#a23b33;font-weight:700' : ''}">${p.waiting || '—'}</td>
-            <td class="r num" style="${p.answered_unclosed ? 'color:#86671f;font-weight:700' : ''}">${p.answered_unclosed || '—'}</td>
-            <td class="r num mt-meta">${p.auto_closed || '—'}</td></tr>`).join('')}
-        </tbody></table></div></div>` : ''}
-      ${tot.total ? `<div class="mt-tbl-wrap" style="margin-top:.75rem;padding-bottom:.8rem">
-        ${head('ช่วงเวลาที่เรื่องเข้า', `พีค ${String(peak).padStart(2, '0')}:00–${String(peak + 1).padStart(2, '0')}:00 (${hMax} เรื่อง)`)}
-        <div style="display:flex;align-items:flex-end;gap:3px;height:90px;margin:.4rem .9rem 0">
-          ${hours.map((v, h) => `<div title="${String(h).padStart(2, '0')}:00 — ${v} เรื่อง" style="flex:1;height:${Math.max(v ? 2 : 0, Math.round(v / hMax * 86))}px;background:${v >= hMax * .8 ? '#3d6b9a' : '#9db4cf'};border-radius:3px 3px 0 0"></div>`).join('')}
-        </div>
-        <div style="display:flex;justify-content:space-between;margin:.3rem .9rem 0;font-size:.7rem;color:#6f747c"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>23:00</span></div>
-      </div>` : ''}
-      ${sum.leak_items.length ? `<div class="mt-tbl-wrap" style="margin-top:.75rem">
-        ${head('รายการที่ยังค้าง', 'คลิกเพื่อเปิดกล่องคัดกรองของ Pod นั้น')}
-        <div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>สถานะ</th><th>กลุ่ม / เรื่อง</th><th>Pod</th><th class="r">รอมาแล้ว</th></tr></thead><tbody>
-          ${sum.leak_items.map(r => {
-            const [bg, fg, lab] = r.answered_in_line ? ['#fdf3e1', '#86671f', `ตอบแล้วรอปิด${r.answered_by ? ' · ' + r.answered_by : ''}`]
-              : r.urgent_alerted_at ? ['#fbeceb', '#a23b33', 'แจ้งเตือนแล้ว ไม่มีคนตอบ'] : ['#f3f2ef', '#4d535b', 'ยังไม่มีคนตอบ'];
-            return `<tr style="cursor:pointer" onclick="lcOpenPod('${r.pod_id ?? 'none'}')">
-              <td><span style="background:${bg};color:${fg};border-radius:20px;padding:.1rem .55rem;font-size:.72rem;font-weight:600;white-space:nowrap">${escHtml(lab)}</span></td>
-              <td><b>${escHtml(r.group_name || '—')}</b>${r.priority === 'urgent' ? ' <span style="color:#b04a40;font-size:.72rem">เร่งด่วน</span>' : ''}<span style="display:block;font-size:.74rem;color:#6f747c">${escHtml(r.summary || '')}</span></td>
-              <td class="mt-meta">${escHtml(r.pod_code ? lcPodName(r.pod_code) : '')}</td><td class="r num" style="white-space:nowrap">${ago(r.message_time)}</td></tr>`;
-          }).join('')}
-        </tbody></table></div></div>` : ''}`;
-  }
-
-  box.innerHTML = kpis + quad + board + review + closing + leaks;
+  box.innerHTML = summary + kpis + trend + catTbl + board + review;
 }
 
 let _llbReview = null, _llbReviewTab = 'many_turns';
@@ -9665,7 +9596,7 @@ function llbReviewHtml() {
   if (!rows.length) return '<div class="mt-meta" style="text-align:center;padding:1.2rem">ไม่มีเคสในกลุ่มนี้</div>';
   const mins = s => s == null ? '—' : s < 3600 ? `${Math.round(s / 60)} นาที` : `${(s / 3600).toFixed(1)} ชม.`;
   const when = x => parseDbDate(x).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-  return `<div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>เวลา</th><th>กลุ่ม</th><th>คนรับ</th><th>หมวด</th><th class="r">รอบ</th><th class="r">แก้จบ (ฝั่งเรา)</th><th>ผล / เหตุผลจาก AI</th></tr></thead><tbody>
+  return `<div style="overflow-x:auto"><table class="mt-tbl"><thead><tr><th>เวลา</th><th>กลุ่ม</th><th>คนรับ</th><th>หมวด</th><th class="r">รอบ</th><th class="r">แก้จบ (ฝั่งเรา)</th><th>ผล / เหตุผล</th></tr></thead><tbody>
     ${rows.map(r => `<tr><td class="mt-meta" style="white-space:nowrap">${when(r.first_msg_time)}</td>
       <td><b>${escHtml(r.group_name || '—')}</b></td><td>${escHtml(r.answered_by || '—')}</td>
       <td class="mt-meta">${LLB_CAT[r.issue_category] || escHtml(r.issue_category || '')}</td>
