@@ -2082,6 +2082,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
           </button>
         </div>
       </div>
+      <div id="kpi-stars-auto" class="mt-meta" style="font-size:.66rem;margin:-.15rem 0 .25rem"></div>
       <div style="position:relative;height:130px"><canvas id="chart-score"></canvas></div>
     </div>
     <div class="card">
@@ -12000,6 +12001,7 @@ let _kpiActivitiesMap = {}; // ext_username → activity record
 let _kpiPunctMap     = {}; // ext_username → punctuality score
 
 async function loadKpi() {
+  kpiStarsAutoInfo();
   const team    = document.getElementById('kpi-filter-team').value;
   const dfrom   = document.getElementById('kpi-date-from')?.value || _kpiDateFrom;
   const dto     = document.getElementById('kpi-date-to')?.value   || _kpiDateTo;
@@ -12311,6 +12313,18 @@ function calcEstimatedStars(k) {
   if ((k.complaints || 0) > 0) score = Math.max(1.0, score - 1.5);
 
   return Math.round(score * 10) / 10;
+}
+
+// สถานะรอบคำนวณดาวอัตโนมัติ (วันละครั้งหลัง 00:30 · เฉพาะเคสที่ปิดแล้ว)
+async function kpiStarsAutoInfo() {
+  const el = document.getElementById('kpi-stars-auto');
+  if (!el) return;
+  const a = await api('/api/kpi/estimate-stars/auto', { silent: true });
+  if (!a || a.error) { el.textContent = ''; return; }
+  if (!a.enabled) { el.textContent = 'คำนวณดาวอัตโนมัติ: ปิดอยู่ (STARS_AUTO=off)'; return; }
+  const when = a.last_at ? new Date(a.last_at).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : null;
+  el.textContent = `คำนวณดาวอัตโนมัติทุกวัน ${a.run_after} น. (เคสที่ปิดแล้ว ${a.days} วันล่าสุด)`
+    + (a.error ? ` · รอบล่าสุดไม่สำเร็จ: ${a.error}` : when ? ` · ล่าสุด ${when} บันทึก ${a.updated} เคส` : ' · ยังไม่ได้รันหลังเปิดระบบ');
 }
 
 async function kpiSaveEstStars(btn) {

@@ -2131,13 +2131,10 @@ app.get('/api/kpi/estimate-stars/preview', authRequired, managerRequired, async 
 
 // ── Estimate Stars: save to Calllog ──────────────────────
 // Formula: Stars = f(resolve time, close status) — only updates Stars IS NULL
-app.post('/api/kpi/estimate-stars', authRequired, managerRequired, async (request, res) => {
-  try {
-    if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
-    const { dateFrom, dateTo } = request.body;
-    const s = dateFrom ? new Date(dateFrom) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-    const e = dateTo   ? new Date(new Date(dateTo).getTime() + 86400000) : new Date();
-    const r = await extReq()
+// ── Estimate Stars: เขียนดาวประมาณลง Calllog.Stars (เฉพาะที่ยังไม่มีดาว) ──
+// closedOnly = เฉพาะเคสที่ปิดแล้ว (รอบอัตโนมัติ — ไม่ประทับ 2★ ให้เคสที่ยังทำอยู่)
+async function estimateCalllogStars(s, e, { closedOnly = false } = {}) {
+  const r = await extReq()
       .input('s', sql.DateTime, s).input('e', sql.DateTime, e)
       .query(`
         UPDATE cl
@@ -2176,8 +2173,44 @@ app.post('/api/kpi/estimate-stars', authRequired, managerRequired, async (reques
         LEFT JOIN Subject s ON s.SubjectName = cl.Subject   -- join หัวข้อเพื่อได้ TimeToResolve
         WHERE cl.Active=1 AND cl.Stars IS NULL
           AND cl.ReceiveDate >= @s AND cl.ReceiveDate < @e
+          ${closedOnly ? `AND cl.CloseDate IS NOT NULL AND (cs.StatusName LIKE '%close%' OR cs.StatusName LIKE '%complete%')` : ''}
       `);
-    res.json({ ok: true, updated: r.rowsAffected?.[0] ?? 0 });
+  return r.rowsAffected?.[0] ?? 0;
+}
+
+// รอบอัตโนมัติวันละครั้ง (หลัง 00:30 เวลาไทย): เคสที่ปิดแล้วใน 7 วันล่าสุดที่ยังไม่มีดาว
+// ปิดได้ด้วย STARS_AUTO=off · เปลี่ยนจำนวนวันย้อนหลังด้วย STARS_AUTO_DAYS
+const STARS_AUTO_ON = (process.env.STARS_AUTO || 'on').toLowerCase() !== 'off';
+const STARS_AUTO_DAYS = Math.min(31, Math.max(1, parseInt(process.env.STARS_AUTO_DAYS) || 7));
+const starsAuto = { last_day: null, last_at: null, updated: null, error: null };
+async function starsAutoTick() {
+  if (!STARS_AUTO_ON || !getExtPool()) return;
+  const now = new Date(), day = bangkokToday();
+  const bkk = new Date(now.getTime() + 7 * 3600000);
+  if (starsAuto.last_day === day || bkk.getUTCHours() * 60 + bkk.getUTCMinutes() < 30) return;
+  starsAuto.last_day = day;
+  try {
+    const e = new Date(day + 'T00:00:00Z');                       // ถึงสิ้นเมื่อวาน (face value เวลาไทย)
+    const s = new Date(e.getTime() - STARS_AUTO_DAYS * 86400000);
+    starsAuto.updated = await estimateCalllogStars(s, e, { closedOnly: true });
+    starsAuto.error = null;
+    console.log(`⭐ ดาวประมาณอัตโนมัติ: บันทึก ${starsAuto.updated} เคส (ปิดแล้ว ${STARS_AUTO_DAYS} วันล่าสุด)`);
+  } catch (err) { starsAuto.error = err.message; console.error('stars auto:', err.message); }
+  starsAuto.last_at = new Date().toISOString();
+}
+setInterval(starsAutoTick, 10 * 60 * 1000);
+setTimeout(starsAutoTick, 60 * 1000);
+app.get('/api/kpi/estimate-stars/auto', authRequired, (_, res) =>
+  res.json({ enabled: STARS_AUTO_ON, days: STARS_AUTO_DAYS, run_after: '00:30', ...starsAuto }));
+
+app.post('/api/kpi/estimate-stars', authRequired, managerRequired, async (request, res) => {
+  try {
+    if (!getExtPool()) return res.status(503).json({ error: 'External DB not connected' });
+    const { dateFrom, dateTo } = request.body;
+    const s = dateFrom ? new Date(dateFrom) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const e = dateTo   ? new Date(new Date(dateTo).getTime() + 86400000) : new Date();
+    const updated = await estimateCalllogStars(s, e);
+    res.json({ ok: true, updated });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
