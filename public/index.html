@@ -9453,7 +9453,7 @@ async function loadDashboardAll() {
 
 // ══════════════════════════════════════════════════════════
 //  ตอบเคสไลน์ไว (แท็บใน Dashboard) — ใช้ช่วงวันที่ของ Dashboard
-//  Leaderboard ทีมงาน: LINE + หน้าติดตามเคส + ดาวลูกค้า → คะแนนรวม + ยศ (/api/line-board — ตัวเลขล้วน ไม่ใช้ AI)
+//  Leaderboard ทีมงาน: LINE + หน้าติดตามเคส + ดาวทันเวลา → คะแนนรวม + ยศ (/api/line-board — ตัวเลขล้วน ไม่ใช้ AI)
 // ══════════════════════════════════════════════════════════
 let _llbSeq = 0;   // กดเปลี่ยนวันที่รัวๆ — ใช้แค่ผลของครั้งล่าสุด
 async function llbLoad() {
@@ -9507,7 +9507,7 @@ async function llbLoad() {
 }
 
 // ── Leaderboard ทีมงาน (ข้อมูลจาก /api/line-board · ไม่ใช้ AI) ──
-//  รายพนักงาน: LINE (คุยงานดี/ตอบไว) + Calllog ทุกช่องทาง (งานโทรศัพท์ก็นับ) + ดาวลูกค้า → คะแนนรวม + ยศ
+//  รายพนักงาน: LINE (คุยงานดี/ตอบไว) + Calllog ทุกช่องทาง (งานโทรศัพท์ก็นับ) + ดาวทันเวลา → คะแนนรวม + ยศ
 let _llbData = null, _llbBoard = 'overall';
 const LLB_TIER = {
   diamond: ['💎', 'Diamond', '#3d6b9a', '#e5edf6', '90 ขึ้นไป'], gold: ['🟡', 'Gold', '#86671f', '#fbf1d6', '80–89'],
@@ -9525,7 +9525,7 @@ const LLB_BOARDS = {
   overall: {
     icon: '🏅', title: 'ภาพรวม', key: 'overall', count: p => p.workload, need: () => true,
     sub: w => { const g = _llbData?.b?.staff_team?.grade_weights || {};
-      return `งานเยอะ ${w.volume} · คุยงานดี ${w.talk} · ตอบไว ${w.speed} · ดาวลูกค้า ${w.sat} — งานเยอะนับจากเคสที่ลงในหน้าติดตามเคส ทุกช่องทาง ถ่วงตามเกรดหัวข้อ (A = ${g.A ?? 3} แต้ม · B = ${g.B ?? 2} · C = ${g.C ?? 1} · ไม่มีเกรด = ${g.other ?? 1}) · ส่วนไหนไม่มีข้อมูลใช้ค่าเฉลี่ยทีมแทน (ตัวเลขสีเทา)`; },
+      return `งานเยอะ ${w.volume} · คุยงานดี ${w.talk} · ตอบไว ${w.speed} · ดาวทันเวลา ${w.sat} — งานเยอะนับจากเคสที่ลงในหน้าติดตามเคส ทุกช่องทาง ถ่วงตามเกรดหัวข้อ (A = ${g.A ?? 3} แต้ม · B = ${g.B ?? 2} · C = ${g.C ?? 1} · ไม่มีเกรด = ${g.other ?? 1}) · ส่วนไหนไม่มีข้อมูลใช้ค่าเฉลี่ยทีมแทน (ตัวเลขสีเทา)`; },
     why: p => `งาน ${p.work_pts ?? p.workload} แต้ม (${p.workload} เคส) · ดาว ${p.stars_avg ?? '—'}`,
     cols: [
       ['งานทั้งหมด', 'แต้มงาน = เคสในหน้าติดตามเคส ทุกช่องทาง × น้ำหนักเกรดหัวข้อ (A ยาก · B กลาง · C ง่าย) · คะแนนงานเยอะ = เทียบกับกลุ่มคนที่แต้มงานสูงของทีม', p => `<b>${p.work_pts ?? p.workload}</b> <span class="mt-meta" style="font-size:.68rem;font-weight:400">แต้ม · ${p.volume ?? 0} คะแนน</span>
@@ -9533,13 +9533,13 @@ const LLB_BOARDS = {
         <div class="lb-chs">${llbChannels(p.channels)}</div><div class="mt-meta" style="font-size:.66rem;font-weight:400">ตอบแชท LINE ${p.line_cases}</div>`, () => ''],
       ['คุยงานดี', '', p => llbImp(p, 'talk', p.talk), p => p.talk == null ? '' : p.talk >= 80 ? 'g' : p.talk < 65 ? 'r' : 'y'],
       ['ตอบไว', '', p => llbImp(p, 'speed', p.speed), p => p.speed == null ? '' : p.speed >= 60 ? 'g' : p.speed < 40 ? 'r' : 'y'],
-      ['ดาวลูกค้า', 'ดาวเฉลี่ยในหน้าติดตามเคส (จำนวนที่มีดาว)', p => p.stars_avg == null ? llbImp(p, 'sat', null) : `★ ${p.stars_avg}<span class="mt-meta" style="display:block;font-size:.68rem;font-weight:400">${p.rated} ครั้ง · ${p.sat} คะแนน</span>`, p => p.stars_avg == null ? '' : p.stars_avg >= 4.5 ? 'g' : p.stars_avg < 4 ? 'r' : 'y'],
+      ['ดาวทันเวลา', 'ดาวเฉลี่ยในหน้าติดตามเคส — ระบบให้ดาวจากเวลาที่ใช้แก้เทียบกับเวลามาตรฐานของหัวข้อ (ไม่ใช่ลูกค้าให้) · ในวงเล็บ = จำนวนเคสที่มีดาว', p => p.stars_avg == null ? llbImp(p, 'sat', null) : `★ ${p.stars_avg}<span class="mt-meta" style="display:block;font-size:.68rem;font-weight:400">${p.rated} ครั้ง · ${p.sat} คะแนน</span>`, p => p.stars_avg == null ? '' : p.stars_avg >= 4.5 ? 'g' : p.stars_avg < 4 ? 'r' : 'y'],
       ['ลงเคสจากแชท', 'เคสช่องทาง LINE ในหน้าติดตามเคส ÷ แชท LINE ที่ตอบ — ต่ำกว่า 70% = ตอบแชทแล้วไม่ได้ลงเคส (งานส่วนนั้นไม่ถูกนับเป็นงานเยอะ)',
         p => p.line_logged_pct == null ? '—' : `${Math.min(p.line_logged_pct, 100)}%<span class="mt-meta" style="display:block;font-size:.66rem;font-weight:400">${p.line_logged}/${p.line_cases} แชท</span>`,
         p => p.line_logged_pct == null ? '' : p.line_logged_pct < 70 ? 'r' : p.line_logged_pct < 90 ? 'y' : 'g'],
       ['ปิดเคส', 'เคสใน Calllog ที่ปิดแล้ว', p => llbPct(p.closed_pct), () => ''],
     ],
-    badges: [['⭐', 'ลูกค้าให้ดาวสูงสุด', p => p.rated >= 20 ? p.stars_avg : null]],
+    badges: [['⭐', 'ดาวทันเวลาสูงสุด', p => p.rated >= 20 ? p.stars_avg : null]],
   },
   talk: {
     icon: '💬', title: 'คุยงานดี', key: 'talk', count: p => p.line_cases, need: p => p.talk != null,
@@ -9572,15 +9572,15 @@ const LLB_BOARDS = {
              ['⏱️', 'ทันเป้าบ่อยสุด', p => p.frt_within_pct]],
   },
   sat: {
-    icon: '⭐', title: 'ลูกค้าพอใจ', key: 'sat', count: p => p.rated, need: p => p.sat != null,
-    sub: () => 'จากดาวที่ลูกค้าให้ในหน้าติดตามเคส ทุกช่องทาง (ดาว 3 = 0 · ดาว 5 = 100) · ให้ดาวน้อยครั้ง คะแนนถูกดึงเข้าหาค่าเฉลี่ยทีม',
+    icon: '⭐', title: 'ดาวทันเวลา', key: 'sat', count: p => p.rated, need: p => p.sat != null,
+    sub: () => 'ดาวในหน้าติดตามเคส ทุกช่องทาง — ระบบให้ดาวจากเวลาที่ลงไว้ (รับเคส → ปิดเคส) เทียบกับเวลามาตรฐานของหัวข้อ: ทันเวลา 5★ · ไม่เกิน 1.5 เท่า 3★ · ไม่เกิน 2 เท่า 2★ · เกินกว่านั้น 1★ (ไม่ใช่ลูกค้าให้) · คะแนน: ดาว 3 = 0 · ดาว 5 = 100 · เคสน้อย คะแนนถูกดึงเข้าหาค่าเฉลี่ยทีม',
     why: p => `★ ${p.stars_avg ?? '—'} จาก ${p.rated} ครั้ง`,
     cols: [
       ['ดาวเฉลี่ย', '', p => p.stars_avg == null ? '—' : '★ ' + p.stars_avg, p => p.stars_avg == null ? '' : p.stars_avg >= 4.5 ? 'g' : p.stars_avg < 4 ? 'r' : 'y'],
-      ['ให้ดาว', 'จำนวนเคสที่ลูกค้าให้ดาว', p => p.rated, () => ''],
+      ['เคสที่มีดาว', 'จำนวนเคสที่ระบบให้ดาวแล้ว (ปิดเคสแล้ว)', p => p.rated, () => ''],
       ['ช่องทาง', '', p => `<div class="lb-chs" style="justify-content:flex-end">${llbChannels(p.channels)}</div>`, () => ''],
     ],
-    badges: [['⭐', 'ดาวสูงสุด', p => p.rated >= 20 ? p.stars_avg : null]],
+    badges: [['⭐', 'ทันเวลาบ่อยสุด', p => p.rated >= 20 ? p.stars_avg : null]],
   },
 };
 // ตั้งน้ำหนักงานตามเกรดหัวข้อ (หัวหน้า/ผู้จัดการ) — บันทึกแล้วโหลด Leaderboard ใหม่

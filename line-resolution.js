@@ -730,7 +730,7 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
     const chOf = v => CH[String(v || '').trim().toLowerCase()] || 'อื่นๆ';
     const p75 = xs => { xs = xs.filter(v => v > 0).sort((a, b) => a - b); return xs.length ? xs[Math.min(xs.length - 1, Math.floor(xs.length * .75))] : 0; };
     const tierOf = v => v == null ? null : v >= 90 ? 'diamond' : v >= 80 ? 'gold' : v >= 70 ? 'silver' : v >= 60 ? 'bronze' : 'rookie';
-    // งานเยอะ 40 · คุยงานดี 30 · ตอบไว 20 · ดาวลูกค้า 10
+    // งานเยอะ 40 · คุยงานดี 30 · ตอบไว 20 · ดาวทันเวลา 10 (ดาวคิดจากเวลาแก้เทียบเวลามาตรฐานหัวข้อ ไม่ใช่ลูกค้าให้)
     const W2 = B.staffWeights || { volume: 40, talk: 30, speed: 20, sat: 10 };
     // งานเยอะถ่วงตามเกรดหัวข้อ: A ยาก · B กลาง · C ง่าย · อื่นๆ = หัวข้อไม่มีเกรด
     const GW = { A: 3, B: 2, C: 1, other: 1, ...(B.gradeWeights || {}) };
