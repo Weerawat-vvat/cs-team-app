@@ -9500,7 +9500,9 @@ async function llbLoad() {
       <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.4rem">
         <div style="font-size:1.05rem;font-weight:700;color:#2f343a;margin-right:auto">Leaderboard ทีมงาน</div>
         <div class="svc-seg" role="tablist" aria-label="บอร์ด">${Object.entries(LLB_BOARDS).map(([k, x]) => `<button role="tab" class="${k === _llbBoard ? 'on' : ''}" onclick="llbBoardTab('${k}', this)">${x.icon} ${x.title}</button>`).join('')}</div>
+        ${['manager', 'team_lead', 'admin'].includes(currentUser?.role) ? `<button class="btn btn-ghost btn-sm" onclick="llbGradeEdit()" title="ตั้งน้ำหนักงานตามเกรดหัวข้อ">⚙ น้ำหนักเกรด</button>` : ''}
       </div>
+      <div id="llb-grade-edit" style="display:none"></div>
       <div id="llb-board">${llbBoardHtml()}</div></div>`;
 }
 
@@ -9522,10 +9524,13 @@ const llbImp = (p, k, v) => v != null ? v : p.imputed?.[k] != null
 const LLB_BOARDS = {
   overall: {
     icon: '🏅', title: 'ภาพรวม', key: 'overall', count: p => p.workload, need: () => true,
-    sub: w => `งานเยอะ ${w.volume} · คุยงานดี ${w.talk} · ตอบไว ${w.speed} · ดาวลูกค้า ${w.sat} — งานเยอะนับจากเคสที่ลงในหน้าติดตามเคส ทุกช่องทาง (โทรศัพท์ / LINE / Remote / Email) · ส่วนไหนไม่มีข้อมูลใช้ค่าเฉลี่ยทีมแทน (ตัวเลขสีเทา)`,
-    why: p => `งาน ${p.workload} เคส · ดาว ${p.stars_avg ?? '—'}`,
+    sub: w => { const g = _llbData?.b?.staff_team?.grade_weights || {};
+      return `งานเยอะ ${w.volume} · คุยงานดี ${w.talk} · ตอบไว ${w.speed} · ดาวลูกค้า ${w.sat} — งานเยอะนับจากเคสที่ลงในหน้าติดตามเคส ทุกช่องทาง ถ่วงตามเกรดหัวข้อ (A = ${g.A ?? 3} แต้ม · B = ${g.B ?? 2} · C = ${g.C ?? 1} · ไม่มีเกรด = ${g.other ?? 1}) · ส่วนไหนไม่มีข้อมูลใช้ค่าเฉลี่ยทีมแทน (ตัวเลขสีเทา)`; },
+    why: p => `งาน ${p.work_pts ?? p.workload} แต้ม (${p.workload} เคส) · ดาว ${p.stars_avg ?? '—'}`,
     cols: [
-      ['งานทั้งหมด', 'เคสที่ลงในหน้าติดตามเคส ทุกช่องทาง · คะแนนงานเยอะ = เทียบกับกลุ่มคนที่งานเยอะสุดของทีม', p => `<b>${p.workload}</b> <span class="mt-meta" style="font-size:.68rem;font-weight:400">· ${p.volume ?? 0} คะแนน</span><div class="lb-chs">${llbChannels(p.channels)}</div><div class="mt-meta" style="font-size:.66rem;font-weight:400">ตอบแชท LINE ${p.line_cases}</div>`, () => ''],
+      ['งานทั้งหมด', 'แต้มงาน = เคสในหน้าติดตามเคส ทุกช่องทาง × น้ำหนักเกรดหัวข้อ (A ยาก · B กลาง · C ง่าย) · คะแนนงานเยอะ = เทียบกับกลุ่มคนที่แต้มงานสูงของทีม', p => `<b>${p.work_pts ?? p.workload}</b> <span class="mt-meta" style="font-size:.68rem;font-weight:400">แต้ม · ${p.volume ?? 0} คะแนน</span>
+        <div class="mt-meta" style="font-size:.66rem;font-weight:400">${p.workload} เคส${p.grades ? ` · <span title="เกรด A (ยาก)">A ${p.grades.A}</span> · <span title="เกรด B">B ${p.grades.B}</span> · <span title="เกรด C (ง่าย)">C ${p.grades.C}</span>${p.grades.other ? ` · <span title="หัวข้อไม่มีเกรด">อื่น ${p.grades.other}</span>` : ''}` : ''}</div>
+        <div class="lb-chs">${llbChannels(p.channels)}</div><div class="mt-meta" style="font-size:.66rem;font-weight:400">ตอบแชท LINE ${p.line_cases}</div>`, () => ''],
       ['คุยงานดี', '', p => llbImp(p, 'talk', p.talk), p => p.talk == null ? '' : p.talk >= 80 ? 'g' : p.talk < 65 ? 'r' : 'y'],
       ['ตอบไว', '', p => llbImp(p, 'speed', p.speed), p => p.speed == null ? '' : p.speed >= 60 ? 'g' : p.speed < 40 ? 'r' : 'y'],
       ['ดาวลูกค้า', 'ดาวเฉลี่ยในหน้าติดตามเคส (จำนวนที่มีดาว)', p => p.stars_avg == null ? llbImp(p, 'sat', null) : `★ ${p.stars_avg}<span class="mt-meta" style="display:block;font-size:.68rem;font-weight:400">${p.rated} ครั้ง · ${p.sat} คะแนน</span>`, p => p.stars_avg == null ? '' : p.stars_avg >= 4.5 ? 'g' : p.stars_avg < 4 ? 'r' : 'y'],
@@ -9578,6 +9583,36 @@ const LLB_BOARDS = {
     badges: [['⭐', 'ดาวสูงสุด', p => p.rated >= 20 ? p.stars_avg : null]],
   },
 };
+// ตั้งน้ำหนักงานตามเกรดหัวข้อ (หัวหน้า/ผู้จัดการ) — บันทึกแล้วโหลด Leaderboard ใหม่
+function llbGradeEdit() {
+  const el = document.getElementById('llb-grade-edit');
+  if (!el) return;
+  if (el.style.display !== 'none') { el.style.display = 'none'; return; }
+  const g = _llbData?.b?.staff_team?.grade_weights || { A: 3, B: 2, C: 1, other: 1 };
+  const f = (k, lab) => `<label style="display:flex;flex-direction:column;gap:.2rem;font-size:.74rem;color:#5b6068">${lab}
+    <input type="number" id="llb-gw-${k}" min="0" max="20" step="0.25" value="${g[k]}" style="width:90px;padding:.3rem .5rem;border:1px solid #d9d6ce;border-radius:8px"></label>`;
+  el.innerHTML = `<div style="background:#f7f6f3;border-radius:10px;padding:.75rem .9rem;margin:.3rem 0 .6rem">
+    <div style="font-size:.82rem;font-weight:700;margin-bottom:.2rem">น้ำหนักงานตามเกรดหัวข้อ</div>
+    <div class="mt-meta" style="font-size:.74rem;margin-bottom:.55rem">แต้มงาน = จำนวนเคส × น้ำหนักของเกรด · ตัวอย่าง A = 3, C = 1 → งานยาก 1 เคสเท่ากับงานง่าย 3 เคส · เกรดตั้งที่หัวข้อปัญหา (Subject)</div>
+    <div style="display:flex;gap:.8rem;align-items:flex-end;flex-wrap:wrap">
+      ${f('A', 'เกรด A (ยาก)')}${f('B', 'เกรด B (กลาง)')}${f('C', 'เกรด C (ง่าย)')}${f('other', 'ไม่มีเกรด')}
+      <button class="btn btn-primary btn-sm" onclick="llbGradeSave()">บันทึก</button>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('llb-grade-edit').style.display='none'">ยกเลิก</button>
+    </div></div>`;
+  el.style.display = '';
+}
+async function llbGradeSave() {
+  const w = {};
+  for (const k of ['A', 'B', 'C', 'other']) {
+    const v = parseFloat(document.getElementById('llb-gw-' + k)?.value);
+    if (!(v >= 0 && v <= 20)) { showToast('น้ำหนักต้องอยู่ระหว่าง 0–20', 'warning'); return; }
+    w[k] = v;
+  }
+  const r = await api('/api/line-board/grade-weights', { method: 'PUT', body: { weights: w } });
+  if (!r || r.error) return;
+  showToast('บันทึกน้ำหนักเกรดแล้ว', 'success');
+  llbLoad();
+}
 function llbBoardTab(k, btn) {
   _llbBoard = k;
   if (btn) btn.parentElement?.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === btn));
@@ -9600,7 +9635,7 @@ function llbBoardHtml() {
   const badge = {};
   const give = (n, ic, lab) => (badge[n] = badge[n] || []).push([ic, lab]);
   X.badges.forEach(([ic, lab, fn]) => { const w = ranked.filter(p => fn(p) != null).sort((a, z) => fn(z) - fn(a))[0]; if (w) give(w.id, ic, lab); });
-  const big = [...ranked].sort((a, z) => z.workload - a.workload)[0]; if (big) give(big.id, '💪', `รับงานมากสุด (${big.workload})`);
+  const big = [...ranked].sort((a, z) => (z.work_pts ?? z.workload) - (a.work_pts ?? a.workload))[0]; if (big) give(big.id, '💪', `งานเยอะสุด (${big.work_pts ?? big.workload} แต้ม)`);
   const imp = ranked.filter(p => p._delta != null).sort((a, z) => z._delta - a._delta)[0]; if (imp && imp._delta > 0) give(imp.id, '📈', `พัฒนาขึ้นมากสุด (+${imp._delta})`);
   const bdg = id => (badge[id] || []).map(([ic, lab]) => `<span class="lb-badge" title="${escHtml(lab)}">${ic} ${escHtml(lab)}</span>`).join('');
   const C = { g: '#356b4e', y: '#86671f', r: '#a2562f', '': '#3a3f46' };

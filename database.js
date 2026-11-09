@@ -342,6 +342,16 @@ async function init() {
       IF COL_LENGTH('employees','avatar_url') IS NULL
         ALTER TABLE employees ADD avatar_url NVARCHAR(300) NULL
     `);
+    // ตั้งค่าทั่วไปของแอป (key → JSON) เช่น น้ำหนักเกรดงานใน Leaderboard ทีมงาน
+    await pool.request().query(`
+      IF OBJECT_ID('app_settings','U') IS NULL
+        CREATE TABLE app_settings (
+          k NVARCHAR(80) NOT NULL PRIMARY KEY,
+          v NVARCHAR(MAX) NULL,
+          updated_by NVARCHAR(100) NULL,
+          updated_at DATETIME NOT NULL DEFAULT GETDATE()
+        )
+    `);
     console.log('✅ Migrations done');
   } catch (err) {
     console.error('❌ Migration error:', err.message);

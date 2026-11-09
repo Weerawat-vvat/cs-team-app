@@ -8853,6 +8853,32 @@ const LINE_STAFF_MAP = {
   'INF-KHAE': 'kae', 'INF-Sasinat': 'natt',
   ...Object.fromEntries(String(process.env.LINE_STAFF_MAP || '').split(',').map(x => x.split('=').map(v => v.trim())).filter(([a, b]) => a && b)),
 };
+// น้ำหนักงานตามเกรดหัวข้อ (Subject.Grade) — งานยาก 1 เคส = งานง่ายหลายเคส · ตั้งได้ในหน้า Leaderboard ทีมงาน
+const GRADE_WEIGHTS_DEFAULT = { A: 3, B: 2, C: 1, other: 1 };
+const cleanGradeWeights = w => Object.fromEntries(Object.entries(GRADE_WEIGHTS_DEFAULT).map(([k, d]) => {
+  const v = Number(w?.[k]);
+  return [k, Number.isFinite(v) && v >= 0 && v <= 20 ? Math.round(v * 100) / 100 : d];
+}));
+async function getGradeWeights() {
+  try {
+    const r = (await req().query(`SELECT v FROM app_settings WHERE k = 'lb_grade_weights'`)).recordset[0];
+    return cleanGradeWeights(r ? JSON.parse(r.v) : null);
+  } catch { return { ...GRADE_WEIGHTS_DEFAULT }; }
+}
+app.get('/api/line-board/grade-weights', authRequired, async (request, res) => {
+  res.json({ weights: await getGradeWeights(), defaults: GRADE_WEIGHTS_DEFAULT });
+});
+app.put('/api/line-board/grade-weights', authRequired, managerRequired, async (request, res) => {
+  try {
+    const w = cleanGradeWeights(request.body?.weights || request.body);
+    await req().input('v', sql.NVarChar, JSON.stringify(w)).input('by', sql.NVarChar, request.user?.username || null).query(`
+      MERGE app_settings AS t USING (SELECT 'lb_grade_weights' AS k) AS s ON t.k = s.k
+      WHEN MATCHED THEN UPDATE SET v = @v, updated_by = @by, updated_at = GETDATE()
+      WHEN NOT MATCHED THEN INSERT (k, v, updated_by) VALUES ('lb_grade_weights', @v, @by);`);
+    res.json({ ok: true, weights: w });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/line-board', authRequired, async (request, res) => {
   try {
     await lineResolution.ensure();
@@ -8895,14 +8921,15 @@ app.get('/api/line-board', authRequired, async (request, res) => {
       const clLoad = async (f, t) => !getExtPool() || t < f ? [] : (await extReq().input('f', sql.DateTime, new Date(f + 'T00:00:00Z'))
         .input('t', sql.DateTime, new Date(Date.parse(t + 'T00:00:00Z') + 86400000)).query(`
         SELECT u.UserName AS [user], LTRIM(RTRIM(ISNULL(cl.InformType, ''))) AS channel, cl.ReceiveDate AS opened_at,
-               cl.CloseDate AS closed_at, cl.Stars AS stars
+               cl.CloseDate AS closed_at, cl.Stars AS stars, sg.Grade AS grade
         FROM Calllog cl JOIN Users u ON u.UserId = cl.SupportId
+        OUTER APPLY (SELECT TOP 1 s.Grade FROM Subject s WHERE s.SubjectName = cl.Subject ORDER BY s.Active DESC) sg
         WHERE cl.Active = 1 AND cl.ReceiveDate >= @f AND cl.ReceiveDate < @t`)).recordset;
       S = { employees, calllog: await clLoad(from, to), prevCalllog: await clLoad(pf, shift(1)), lineMap: LINE_STAFF_MAP };
     } catch (e) { console.error('line-board staff:', e.message); }
     // เกณฑ์ขั้นต่ำปรับตามจำนวนวันที่เลือก (ตั้งไว้สำหรับ 14 วัน) — ดูรายวันก็ยังมีคนติดอันดับ
     const scaleMin = (n, floor) => Math.max(floor, Math.min(n, Math.round(n * span / 14)));
-    const cfg = { ...LINE_BOARD, minCases: scaleMin(LINE_BOARD.minCases, 5), lineMinCases: scaleMin(10, 3) };
+    const cfg = { ...LINE_BOARD, minCases: scaleMin(LINE_BOARD.minCases, 5), lineMinCases: scaleMin(10, 3), gradeWeights: await getGradeWeights() };
     const board = buildBoard(curRaw, await load(pf, shift(1)), cfg, S);
 
     // ความครอบคลุม: เคสในช่วงนี้ที่ AI ยังไม่ได้ตัดสิน (กำลังไล่อยู่ / ลูกค้ายังคุยอยู่)

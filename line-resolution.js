@@ -732,6 +732,9 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
     const tierOf = v => v == null ? null : v >= 90 ? 'diamond' : v >= 80 ? 'gold' : v >= 70 ? 'silver' : v >= 60 ? 'bronze' : 'rookie';
     // งานเยอะ 40 · คุยงานดี 30 · ตอบไว 20 · ดาวลูกค้า 10
     const W2 = B.staffWeights || { volume: 40, talk: 30, speed: 20, sat: 10 };
+    // งานเยอะถ่วงตามเกรดหัวข้อ: A ยาก · B กลาง · C ง่าย · อื่นๆ = หัวข้อไม่มีเกรด
+    const GW = { A: 3, B: 2, C: 1, other: 1, ...(B.gradeWeights || {}) };
+    const gradeOf = g => { g = String(g || '').trim().toUpperCase(); return g === 'A' || g === 'B' || g === 'C' ? g : 'other'; };
 
     const buildStaff = (cases, calllog, teamLine) => {
       const m = new Map();
@@ -743,7 +746,9 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
       const list = [...m.values()].map(s => {
         const st = stats(s.cases), br = boardRaw(s.cases);
         const channels = {};
-        s.cl.forEach(r => { const k = chOf(r.channel); channels[k] = (channels[k] || 0) + 1; });
+        const grades = { A: 0, B: 0, C: 0, other: 0 };
+        s.cl.forEach(r => { const k = chOf(r.channel); channels[k] = (channels[k] || 0) + 1; grades[gradeOf(r.grade)]++; });
+        const work_pts = Math.round(Object.entries(grades).reduce((a, [g, n]) => a + n * (GW[g] ?? 1), 0) * 10) / 10;
         const closed = s.cl.filter(r => r.closed_at);
         const rated = s.cl.filter(r => r.stars > 0);
         const unlogged = s.cases.filter(c => !c.calllog_id).length;   // แชท LINE ที่ไม่ได้เปิดเคสใน Calllog
@@ -751,8 +756,8 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
           id: s.id, name: s.name, full_name: s.full_name, team: s.team, line_names: [...s.line_names],
           pod_id: s.pod_id, pod_name: s.pod_name, pod_color: s.pod_color, avatar_url: s.avatar_url,
           line_cases: s.cases.length, line_unlogged: unlogged, calllog_total: s.cl.length, channels,
-          // งานทั้งหมด = เคสที่ลงในหน้าติดตามเคส (Calllog) ทุกช่องทางเท่านั้น
-          workload: s.cl.length,
+          // งานทั้งหมด = เคสที่ลงในหน้าติดตามเคส (Calllog) ทุกช่องทางเท่านั้น · work_pts = ถ่วงตามเกรดหัวข้อ
+          workload: s.cl.length, grades, work_pts,
           closed_pct: s.cl.length ? Math.round(closed.length / s.cl.length * 100) : null,
           close_median_min: median(closed.map(r => (new Date(r.closed_at) - new Date(r.opened_at)) / 60000).filter(v => v >= 0)),
           stars_avg: rated.length ? +(rated.reduce((a, r) => a + r.stars, 0) / rated.length).toFixed(2) : null, rated: rated.length,
@@ -767,7 +772,7 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
       const rated = list.filter(x => x.rated);
       const teamStars = rated.length ? rated.reduce((a, x) => a + x.stars_avg * x.rated, 0) / rated.reduce((a, x) => a + x.rated, 0) : null;
       const satOf = v => v == null ? null : clamp((v - 3) / 2 * 100);   // ดาว 3 = 0 · ดาว 5 = 100
-      const vTop = p75(list.filter(x => x.workload >= B.minCases).map(x => x.workload));
+      const vTop = p75(list.filter(x => x.workload >= B.minCases).map(x => x.work_pts));
       list.forEach(x => {
         const lineOk = x.line_cases >= (B.lineMinCases ?? 10);
         // ลงเคสจากแชท: เคสช่องทาง LINE ในหน้าติดตามเคส เทียบกับแชท LINE ที่ตอบ — ต่ำ = ตอบแชทแล้วไม่ได้ลงเคส
@@ -777,7 +782,7 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
         x.talk = lineOk ? shrink(x.talk_raw, x.talk_known, teamLine.talk) : null;
         x.speed = lineOk ? shrink(x.speed_raw, x.line_cases, teamLine.speed) : null;
         x.sat = x.rated ? shrink(satOf(x.stars_avg), x.rated, satOf(teamStars)) : null;
-        x.volume = vTop ? clamp(x.workload / vTop * 100) : 0;
+        x.volume = vTop ? clamp(x.work_pts / vTop * 100) : 0;
         // ส่วนที่ไม่มีข้อมูล → ใช้ค่าเฉลี่ยทีม (เป็นกลาง ไม่ช่วยไม่ซ้ำเติม) ทุกคนจึงคิดครบทุกส่วนตามสัดส่วนเดียวกัน
         const avgOf = { talk: teamLine.talk, speed: teamLine.speed, sat: satOf(teamStars) };
         x.imputed = {};
@@ -804,7 +809,7 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
       }
     });
     staff = curS.list.filter(x => x.workload || x.line_cases).sort((a, z) => z.ranked - a.ranked || (z.overall ?? -1) - (a.overall ?? -1));
-    staffTeam = { stars_avg: curS.teamStars == null ? null : +curS.teamStars.toFixed(2), weights: W2,
+    staffTeam = { stars_avg: curS.teamStars == null ? null : +curS.teamStars.toFixed(2), weights: W2, grade_weights: GW,
       unmatched_line: [...lineEmp].filter(([, e]) => !e).map(([n]) => n) };
   }
 
