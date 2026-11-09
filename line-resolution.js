@@ -736,7 +736,7 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
     const buildStaff = (cases, calllog, teamLine) => {
       const m = new Map();
       const get = e => m.get(e.id) || m.set(e.id, { id: e.id, name: e.nickname || e.name, full_name: e.name, team: e.team,
-        pod_id: e.pod_id ?? null, pod_name: e.pod_name || null, pod_color: e.pod_color || null,
+        pod_id: e.pod_id ?? null, pod_name: e.pod_name || null, pod_color: e.pod_color || null, avatar_url: e.avatar_url || null,
         line_names: new Set(), cases: [], cl: [] }).get(e.id);
       for (const c of cases) { const e = empOfLine(c.answered_by); if (e) { const s = get(e); s.cases.push(c); s.line_names.add(c.answered_by); } }
       for (const r of calllog) { const e = byExt.get(String(r.user || '').toLowerCase()); if (e) get(e).cl.push(r); }
@@ -749,7 +749,7 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
         const unlogged = s.cases.filter(c => !c.calllog_id).length;   // แชท LINE ที่ไม่ได้เปิดเคสใน Calllog
         return {
           id: s.id, name: s.name, full_name: s.full_name, team: s.team, line_names: [...s.line_names],
-          pod_id: s.pod_id, pod_name: s.pod_name, pod_color: s.pod_color,
+          pod_id: s.pod_id, pod_name: s.pod_name, pod_color: s.pod_color, avatar_url: s.avatar_url,
           line_cases: s.cases.length, line_unlogged: unlogged, calllog_total: s.cl.length, channels,
           // งานทั้งหมด = เคสที่ลงในหน้าติดตามเคส (Calllog) ทุกช่องทางเท่านั้น
           workload: s.cl.length,

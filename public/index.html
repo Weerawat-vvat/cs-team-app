@@ -1093,6 +1093,8 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
 .lb-badge{background:#f3efe4;color:#5b4a1f;border-radius:20px;padding:.05rem .45rem;font-size:.68rem;font-weight:600;white-space:nowrap}
 .lb-new{background:#e5edf6;color:#3d6b9a;border-radius:10px;padding:0 .35rem;font-size:.66rem}
 .lb-small{opacity:.6}
+.lb-av{overflow:hidden}
+.emp-av{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;border-radius:50%;object-fit:cover;background:#ecebe6;color:#4d535b;font-weight:700;border:2px solid #fff;box-shadow:0 0 0 1px #e2e0d9}
 .lb-tier{border-radius:20px;padding:.06rem .5rem;font-size:.7rem;font-weight:700;white-space:nowrap}
 .lb-tiers{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem;margin:0 0 .9rem;font-size:.72rem}
 .lb-chs{display:flex;flex-wrap:wrap;gap:.2rem;justify-content:flex-end;margin-top:.15rem}
@@ -6213,6 +6215,19 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
     <input type="hidden" id="p-emp-id"/>
     <input type="hidden" id="p-user-id"/>
 
+    <!-- ── รูปโปรไฟล์ (แสดงใน Leaderboard ทีมงาน) ── -->
+    <div style="display:flex;align-items:center;gap:.9rem;margin-bottom:.9rem">
+      <div id="p-avatar-preview" class="emp-av" style="width:64px;height:64px;font-size:1.2rem"></div>
+      <div style="display:flex;flex-direction:column;gap:.35rem">
+        <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+          <label class="btn btn-ghost btn-sm" style="cursor:pointer;margin:0">เลือกรูป
+            <input type="file" id="p-avatar-file" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="personAvatarPick(this)"></label>
+          <button type="button" class="btn btn-ghost btn-sm" id="p-avatar-remove" onclick="personAvatarRemove()">ลบรูป</button>
+        </div>
+        <span style="font-size:.72rem;color:var(--muted)">รูปโปรไฟล์ แสดงใน Leaderboard ทีมงาน · ระบบครอปเป็นสี่เหลี่ยมจัตุรัสให้</span>
+      </div>
+    </div>
+
     <!-- ── ข้อมูลพนักงาน ── -->
     <div style="font-size:.78rem;font-weight:700;color:var(--muted);letter-spacing:0;margin-bottom:.6rem">ข้อมูลพนักงาน</div>
     <div class="grid-2">
@@ -9595,7 +9610,7 @@ function llbBoardHtml() {
   const sub = typeof X.sub === 'function' ? X.sub(b.staff_team?.weights || {}) : X.sub;
   const podium = ranked.length >= 3 ? `<div class="lb-podium">${[1, 0, 2].map(i => { const p = ranked[i];
     return `<div class="lb-pod">
-      <div class="lb-av${i === 0 ? ' lb-av1' : ''}">${escHtml(String(p.name).slice(0, 2).toUpperCase())}</div>
+      <div class="lb-av${i === 0 ? ' lb-av1' : ''}">${p.avatar_url ? `<img src="${escHtml(p.avatar_url)}" alt="" style="width:100%;height:100%;border-radius:50%;object-fit:cover">` : escHtml(String(p.name).slice(0, 2).toUpperCase())}</div>
       <div style="font-weight:700;margin-top:.35rem;text-align:center">${escHtml(p.name)}</div>
       ${!podF && p.pod_name ? `<div style="margin-top:.1rem">${podChip(p)}</div>` : ''}
       ${K === 'overall' ? `<div style="margin-top:.15rem">${llbTier(p.tier)}</div>` : ''}
@@ -9605,9 +9620,9 @@ function llbBoardHtml() {
         <div style="font-size:1.5rem">${medal[i]}</div><div class="num" style="font-size:1.6rem;font-weight:800">${p[K]}</div><div style="font-size:.72rem">${dl(p)} ${move(p)}</div></div></div>`; }).join('')}</div>` : '';
   const row = (p, i) => `<tr${i == null ? ' class="lb-small"' : ''}>
     <td class="num" style="font-weight:700;color:#6f747c">${i ?? '—'}</td><td style="width:44px">${i == null ? '' : move(p)}</td>
-    <td><b>${escHtml(p.name)}</b> ${K === 'overall' && i != null ? llbTier(p.tier) : ''}
+    <td><div style="display:flex;gap:.55rem;align-items:flex-start">${empAvatarHtml(p.avatar_url, p.name, 32)}<div><b>${escHtml(p.name)}</b> ${K === 'overall' && i != null ? llbTier(p.tier) : ''}
       <div class="mt-meta" style="font-size:.68rem">${!podF ? podChip(p) + ' ' : ''}${escHtml(p.line_names?.join(', ') || 'ไม่มีข้อมูล LINE')}</div>
-      <div class="lb-badges" style="justify-content:flex-start">${i == null ? '' : bdg(p.id)}</div></td>
+      <div class="lb-badges" style="justify-content:flex-start">${i == null ? '' : bdg(p.id)}</div></div></div></td>
     <td style="min-width:150px"><div style="display:flex;align-items:center;gap:.45rem"><b class="num" style="min-width:1.6em">${p[K] ?? '—'}</b>
       <div style="flex:1;height:8px;background:#efede7;border-radius:4px;overflow:hidden"><div style="width:${p[K] || 0}%;height:100%;background:${p[K] >= 80 ? '#356b4e' : p[K] >= 65 ? '#c9a03c' : '#c9785c'}"></div></div>${i == null ? '' : dl(p)}</div></td>
     ${X.cols.map(([, , v, t]) => `<td class="r num" style="color:${C[t(p)]};font-weight:600">${v(p)}</td>`).join('')}</tr>`;
@@ -20842,11 +20857,11 @@ function renderPeopleTable(emps) {
   tbody.innerHTML = emps.map(e => {
     const u = _peopleUserByEmpId[e.id];
     return `<tr style="${!e.active ? 'opacity:.55;background:#fafafa' : ''}">
-      <td>
+      <td><div style="display:flex;gap:.6rem;align-items:center">${empAvatarHtml(e.avatar_url, e.nickname || e.name, 34)}<div>
         <div style="font-weight:600">${e.name}</div>
         <div style="font-size:.76rem;color:var(--muted)">${e.nickname ? `ชื่อเล่น: ${e.nickname}` : ''}</div>
         ${e.line_names ? `<div style="font-size:.7rem;color:#356b4e;margin-top:.1rem" title="ชื่อ LINE@ ที่ผูกไว้ (Leaderboard ทีมงาน)">💬 ${aiEscape(e.line_names)}</div>` : ''}
-      </td>
+      </div></div></td>
       <td>${teamBadgeHtml(e.team)}</td>
       <td style="white-space:nowrap">
         ${e.pod_id
@@ -20895,6 +20910,65 @@ function _fillPersonPodSelect(selectedPodId) {
   ).join('');
 }
 
+// ── รูปโปรไฟล์ในหน้าต่างพนักงาน ──
+let _personAvatar = { url: null, blob: null, remove: false, preview: null };
+const empAvatarHtml = (url, name, size = 32) => url
+  ? `<img class="emp-av" src="${escHtml(url)}" alt="" style="width:${size}px;height:${size}px">`
+  : `<span class="emp-av" style="width:${size}px;height:${size}px;font-size:${Math.round(size * .38)}px">${escHtml(String(name || '?').replace(/^INF[-_. ]?/i, '').slice(0, 2).toUpperCase())}</span>`;
+function _renderPersonAvatar() {
+  const el = document.getElementById('p-avatar-preview');
+  if (!el) return;
+  const src = _personAvatar.preview || (!_personAvatar.remove && _personAvatar.url) || null;
+  const nick = document.getElementById('p-nickname')?.value || document.getElementById('p-name')?.value || '?';
+  el.innerHTML = src ? `<img src="${escHtml(src)}" alt="" style="width:100%;height:100%;border-radius:50%;object-fit:cover">` : escHtml(nick.slice(0, 2).toUpperCase());
+  const rm = document.getElementById('p-avatar-remove');
+  if (rm) rm.style.display = src ? '' : 'none';
+}
+function _resetPersonAvatar(url) {
+  if (_personAvatar.preview) URL.revokeObjectURL(_personAvatar.preview);
+  _personAvatar = { url: url || null, blob: null, remove: false, preview: null };
+  const f = document.getElementById('p-avatar-file'); if (f) f.value = '';
+  _renderPersonAvatar();
+}
+// ย่อ + ครอปกลางเป็น 256×256 JPEG ก่อนส่ง (ไฟล์เล็ก โหลด Leaderboard ไว)
+function personAvatarPick(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { showToast('ใช้ได้เฉพาะรูป JPG / PNG / WEBP', 'warning'); input.value = ''; return; }
+  const img = new Image(), u = URL.createObjectURL(file);
+  img.onload = () => {
+    const S = 256, c = document.createElement('canvas'); c.width = c.height = S;
+    const m = Math.min(img.width, img.height);
+    c.getContext('2d').drawImage(img, (img.width - m) / 2, (img.height - m) / 2, m, m, 0, 0, S, S);
+    URL.revokeObjectURL(u);
+    c.toBlob(b => {
+      if (!b) return;
+      if (_personAvatar.preview) URL.revokeObjectURL(_personAvatar.preview);
+      _personAvatar.blob = b; _personAvatar.remove = false; _personAvatar.preview = URL.createObjectURL(b);
+      _renderPersonAvatar();
+    }, 'image/jpeg', .88);
+  };
+  img.onerror = () => { URL.revokeObjectURL(u); showToast('เปิดรูปนี้ไม่ได้', 'error'); };
+  img.src = u;
+}
+function personAvatarRemove() {
+  if (_personAvatar.preview) URL.revokeObjectURL(_personAvatar.preview);
+  _personAvatar.blob = null; _personAvatar.preview = null; _personAvatar.remove = true;
+  const f = document.getElementById('p-avatar-file'); if (f) f.value = '';
+  _renderPersonAvatar();
+}
+async function _savePersonAvatar(empId) {
+  if (!empId) return;
+  if (_personAvatar.blob) {
+    const fd = new FormData();
+    fd.append('file', _personAvatar.blob, 'avatar.jpg');
+    const r = await fetch(`/api/employees/${empId}/avatar`, { method: 'POST', headers: { Authorization: 'Bearer ' + authToken }, body: fd });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); showToast('บันทึกรูปไม่สำเร็จ: ' + (d.error || r.status), 'error'); }
+  } else if (_personAvatar.remove && _personAvatar.url) {
+    await api(`/api/employees/${empId}/avatar`, { method: 'DELETE', silent: true });
+  }
+}
+
 function openAddPerson() {
   editPersonEmpId  = null;
   editPersonUserId = null;
@@ -20912,6 +20986,7 @@ function openAddPerson() {
   document.getElementById('p-calluserid').value = '';
   document.getElementById('p-line-names').value = '';
   _fillPersonLineNames(null);
+  _resetPersonAvatar(null);
   document.getElementById('p-pwd-label').textContent = 'รหัสผ่าน';
   document.getElementById('p-password').placeholder = 'กรอกรหัสผ่าน (ถ้าต้องการสร้างบัญชี)';
   document.getElementById('p-emp-status-wrap').style.display = 'none';
@@ -20939,6 +21014,7 @@ function openEditPerson(e, u) {
   document.getElementById('p-calluserid').value = u ? (u.calluserid || '') : '';
   document.getElementById('p-line-names').value = e.line_names || '';
   _fillPersonLineNames(e.id);
+  _resetPersonAvatar(e.avatar_url);
   document.getElementById('p-pwd-label').textContent = 'รหัสผ่านใหม่';
   document.getElementById('p-password').placeholder = 'เว้นว่าง = ไม่เปลี่ยน';
   _fillPersonTeamSelect(e.team);
@@ -21008,6 +21084,7 @@ async function savePerson() {
       const res = await api('/api/employees', { method:'POST', body: empBody });
       empId = res.id;
     }
+    await _savePersonAvatar(empId);
 
     // 2. Save / update user account
     if (editPersonUserId) {

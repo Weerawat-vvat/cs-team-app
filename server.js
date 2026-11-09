@@ -835,7 +835,7 @@ app.get('/api/employees', authRequired, async (request, res) => {
     const { team, include_inactive } = request.query;
     const role = request.user?.role;
     const r = req();
-    let q = `SELECT e.id, e.name, e.nickname, e.team, e.role, e.phone, e.start_date, e.active, e.created_at, e.line_names,
+    let q = `SELECT e.id, e.name, e.nickname, e.team, e.role, e.phone, e.start_date, e.active, e.created_at, e.line_names, e.avatar_url,
                     au.id AS user_id,
                     pod.pod_id, pod.pod_name, pod.pod_color, pod.role_in_pod
              FROM employees e
@@ -907,6 +907,47 @@ app.get('/api/line-names', authRequired, async (request, res) => {
     emps.forEach(e => String(e.line_names).split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
       .forEach(n => owner.set(n, { id: e.id, name: e.nickname || e.name })));
     res.json({ days, names: rows.map(r => ({ ...r, employee: owner.get(String(r.name).trim().toLowerCase()) || null })) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── รูปโปรไฟล์พนักงาน ─────────────────────────────────────
+// หน้าเว็บย่อรูปเป็นสี่เหลี่ยมจัตุรัส 256px ก่อนส่ง · เก็บที่ uploads/avatars/emp-<id>-<เวลา>.<ext>
+const AVATAR_DIR = path.join(UPLOAD_DIR, 'avatars');
+const avatarUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => { if (!fs.existsSync(AVATAR_DIR)) fs.mkdirSync(AVATAR_DIR, { recursive: true }); cb(null, AVATAR_DIR); },
+    filename: (req, file, cb) => {
+      const ext = (path.extname(file.originalname || '').toLowerCase().match(/^\.(jpe?g|png|webp)$/) || ['.jpg'])[0];
+      cb(null, `emp-${parseInt(req.params.id) || 0}-${Date.now()}${ext}`);
+    },
+  }),
+  limits: { fileSize: 3 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => cb(null, /^image\/(jpeg|png|webp)$/.test(file.mimetype)),
+});
+// ลบไฟล์รูปเดิม (เฉพาะไฟล์ใน uploads/avatars เท่านั้น)
+const removeAvatarFile = url => {
+  const m = /^\/uploads\/avatars\/(emp-\d+-\d+\.(?:jpe?g|png|webp))$/.exec(String(url || ''));
+  if (m) fs.promises.unlink(path.join(AVATAR_DIR, m[1])).catch(() => {});
+};
+app.post('/api/employees/:id/avatar', authRequired, managerRequired, avatarUpload.single('file'), async (request, res) => {
+  try {
+    if (!request.file) return res.status(400).json({ error: 'ต้องเป็นรูป JPG / PNG / WEBP ขนาดไม่เกิน 3 MB' });
+    const id = parseInt(request.params.id);
+    const old = (await req().input('id', sql.Int, id).query('SELECT avatar_url FROM employees WHERE id=@id')).recordset[0];
+    if (!old) { fs.promises.unlink(request.file.path).catch(() => {}); return res.status(404).json({ error: 'ไม่พบพนักงาน' }); }
+    const url = `/uploads/avatars/${request.file.filename}`;
+    await req().input('id', sql.Int, id).input('u', sql.NVarChar, url).query('UPDATE employees SET avatar_url=@u WHERE id=@id');
+    removeAvatarFile(old.avatar_url);
+    res.json({ ok: true, avatar_url: url });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.delete('/api/employees/:id/avatar', authRequired, managerRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const old = (await req().input('id', sql.Int, id).query('SELECT avatar_url FROM employees WHERE id=@id')).recordset[0];
+    await req().input('id', sql.Int, id).query('UPDATE employees SET avatar_url=NULL WHERE id=@id');
+    removeAvatarFile(old?.avatar_url);
+    res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -8841,7 +8882,7 @@ app.get('/api/line-board', authRequired, async (request, res) => {
     let S = null;
     try {
       // Pod ของพนักงาน (ตามหน้าจัดการ User): แถว pod_members ก่อน ถ้าไม่มีใช้ pods.lead_employee_id
-      const employees = (await req().query(`SELECT e.id, e.name, e.nickname, e.team, e.line_names, au.ext_username,
+      const employees = (await req().query(`SELECT e.id, e.name, e.nickname, e.team, e.line_names, e.avatar_url, au.ext_username,
                pod.pod_id, pod.pod_name, pod.pod_color
         FROM employees e LEFT JOIN app_users au ON au.employee_id = e.id AND au.active = 1
         OUTER APPLY (

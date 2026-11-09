@@ -337,6 +337,11 @@ async function init() {
       IF COL_LENGTH('employees','line_names') IS NULL
         ALTER TABLE employees ADD line_names NVARCHAR(400) NULL
     `);
+    // รูปโปรไฟล์พนักงาน (แสดงใน Leaderboard ทีมงาน) — path ใต้ /uploads/avatars
+    await pool.request().query(`
+      IF COL_LENGTH('employees','avatar_url') IS NULL
+        ALTER TABLE employees ADD avatar_url NVARCHAR(300) NULL
+    `);
     console.log('✅ Migrations done');
   } catch (err) {
     console.error('❌ Migration error:', err.message);
