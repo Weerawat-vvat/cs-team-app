@@ -8828,7 +8828,7 @@ app.get('/api/line-board', authRequired, async (request, res) => {
       else if (parseInt(pod)) { podSql = 'AND pod_id = @pod'; r.input('pod', sql.Int, parseInt(pod)); }
       return (await r.query(`SELECT case_msg_id, group_name, pod_id, first_msg_time, first_answer_time, answered_by, calllog_id,
           issue_category, resolved, resolution_signal, resolved_at, resolved_by, agent_turns, customer_msgs,
-          ttr_work_sec, customer_wait_sec, ai_reason, final, talk_confused, talk_chased, talk_thanks
+          ttr_work_sec, customer_wait_sec, ai_reason, final, talk_confused, talk_chased, talk_thanks, talk_followups
         FROM line_case_resolution
         WHERE first_msg_time >= CAST(@f AS DATE) AND first_msg_time < DATEADD(day, 1, CAST(@t AS DATE)) ${podSql}`)).recordset;
     };

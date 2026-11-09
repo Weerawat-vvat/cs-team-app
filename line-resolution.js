@@ -53,12 +53,18 @@ function talkSignals(c, lines, resolvedAt) {
   if (!A) return { talk_confused: false, talk_chased: false, talk_thanks: false };
   const end = resolvedAt ? new Date(resolvedAt) : new Date(new Date(c.message_time).getTime() + 6 * 3600000);
   const after = lines.filter(l => l.kind === 'customer' && l.mine && l.time > A && l.time <= end);
+  // กรองให้แม่น: นับเฉพาะข้อความตอบกลับสั้นๆ (≤ 80 ตัวอักษร) — ข้อความยาวมักเป็นเรื่องใหม่/ส่งข้อมูล ไม่ใช่ งง/ทวง/ขอบคุณ
+  //   เช่น "รบกวนยกเลิกบิล ... ขอบคุณค่ะ" ไม่นับเป็นลูกค้ายืนยัน · "ยังไม่ได้ค่ะ" นับเป็นลูกค้างง
+  const short = after.filter(l => l.text !== '[รูป/สติกเกอร์/ไฟล์]' && l.text.trim().length <= 80);
   return {
-    talk_confused: after.some(l => TALK_CONFUSED.test(l.text)),
-    talk_chased: after.some(l => TALK_CHASE.test(l.text)),
-    talk_thanks: after.some(l => TALK_THANKS.test(l.text) && !TALK_CONFUSED.test(l.text)),
+    talk_confused: short.some(l => TALK_CONFUSED.test(l.text)),
+    talk_chased: short.some(l => TALK_CHASE.test(l.text)),
+    talk_thanks: short.some(l => TALK_THANKS.test(l.text) && !TALK_CONFUSED.test(l.text)),
+    // คุยไปมา: ข้อความลูกค้าหลังทีมงานตอบครั้งแรกจนจบเคส — เยอะ = อธิบายไม่จบในรอบเดียว
+    talk_followups: after.length,
   };
 }
+const TALK_VER = 2;   // เปลี่ยนกติกาเมื่อไร เพิ่มเลข → เคสเก่าถูกคิดใหม่อัตโนมัติ
 
 function createLineResolution({ req, getLineBotPool, sql, aiGenerate, SchemaType, startDate, aiModel = null, log = console }) {
   let _tables = false, _running = false;
@@ -109,6 +115,8 @@ function createLineResolution({ req, getLineBotPool, sql, aiGenerate, SchemaType
           ai_day DATE NULL, ai_calls_day INT NOT NULL CONSTRAINT df_lcres_ai_calls_day DEFAULT 0;
       IF COL_LENGTH('line_case_resolution','talk_confused') IS NULL
         ALTER TABLE line_case_resolution ADD talk_confused BIT NULL, talk_chased BIT NULL, talk_thanks BIT NULL;
+      IF COL_LENGTH('line_case_resolution','talk_ver') IS NULL
+        ALTER TABLE line_case_resolution ADD talk_ver TINYINT NULL, talk_followups INT NULL;
       IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='ix_lcres_time')
         CREATE INDEX ix_lcres_time ON line_case_resolution(first_msg_time);
       IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='ix_lcres_msg_case')
@@ -446,13 +454,14 @@ ${final ? 'ตัดสินครั้งสุดท้าย (เกิน 
       .input('ttr', sql.Int, r.ttr_work_sec).input('cw', sql.Int, r.customer_wait_sec)
       .input('ai', sql.Bit, ai ? 1 : 0).input('lm', sql.Int, ai ? r.mark.msgId : null)
       .input('la', sql.DateTime, ai ? r.mark.ansAt : null).input('day', sql.NVarChar, ai ? r.day : null)
-      .input('tcf', sql.Bit, r.talk_confused ?? null).input('tch', sql.Bit, r.talk_chased ?? null).input('tth', sql.Bit, r.talk_thanks ?? null).query(`
+      .input('tcf', sql.Bit, r.talk_confused ?? null).input('tch', sql.Bit, r.talk_chased ?? null).input('tth', sql.Bit, r.talk_thanks ?? null)
+      .input('tfu', sql.Int, r.talk_followups ?? null).input('tv', sql.TinyInt, r.talk_confused == null ? null : TALK_VER).query(`
       IF EXISTS (SELECT 1 FROM line_case_resolution WHERE case_msg_id=@id)
         UPDATE line_case_resolution SET customer_user_id=@cu, issue_category=@cat, resolved=@res, resolution_signal=@sig,
           ttr_work_sec=@ttr, customer_wait_sec=@cw,
           resolved_msg_ref=@ref, resolved_at=@rat, resolved_by=@rby, agent_turns=@turns, customer_msgs=@cm,
           calllog_id=ISNULL(@cid, calllog_id), ai_reason=@why, ai_model=@model, checks=checks+@ai, final=@fin,
-          next_check_at=@next, updated_at=GETDATE(), talk_confused=@tcf, talk_chased=@tch, talk_thanks=@tth,
+          next_check_at=@next, updated_at=GETDATE(), talk_confused=@tcf, talk_chased=@tch, talk_thanks=@tth, talk_followups=@tfu, talk_ver=@tv,
           last_checked_msg_id=CASE WHEN @ai=1 THEN @lm ELSE last_checked_msg_id END,
           last_checked_answer_at=CASE WHEN @ai=1 THEN @la ELSE last_checked_answer_at END,
           ai_calls_day=CASE WHEN @ai=0 THEN ai_calls_day WHEN ai_day=CAST(@day AS DATE) THEN ai_calls_day+1 ELSE 1 END,
@@ -462,9 +471,9 @@ ${final ? 'ตัดสินครั้งสุดท้าย (เกิน 
         INSERT INTO line_case_resolution (case_msg_id, group_id, group_name, pod_id, customer_user_id, first_msg_time,
           first_answer_time, answered_by, issue_category, resolved, resolution_signal, resolved_msg_ref, resolved_at, resolved_by,
           agent_turns, customer_msgs, calllog_id, ai_reason, ai_model, checks, final, next_check_at, ttr_work_sec, customer_wait_sec,
-          last_checked_msg_id, last_checked_answer_at, ai_day, ai_calls_day, talk_confused, talk_chased, talk_thanks)
+          last_checked_msg_id, last_checked_answer_at, ai_day, ai_calls_day, talk_confused, talk_chased, talk_thanks, talk_followups, talk_ver)
         VALUES (@id, @g, @gn, @pod, @cu, @mt, @fat, @ab, @cat, @res, @sig, @ref, @rat, @rby, @turns, @cm, @cid, @why, @model, @ai, @fin, @next, @ttr, @cw,
-          @lm, @la, CAST(@day AS DATE), @ai, @tcf, @tch, @tth)`);
+          @lm, @la, CAST(@day AS DATE), @ai, @tcf, @tch, @tth, @tfu, @tv)`);
     // ข้อความของเคส: ทำใหม่ทุกรอบ · ข้อความที่เป็นของเคสอื่นอยู่แล้วไม่แย่ง (เคสแรกได้ก่อน)
     const t = req().input('id', sql.Int, c.source_msg_id);
     r.case_msg_ids.forEach((m, k) => t.input('m' + k, sql.Int, m));
@@ -502,16 +511,17 @@ ${final ? 'ตัดสินครั้งสุดท้าย (เกิน 
     await ensure();
     const lbNow = (await lb.request().query('SELECT GETDATE() AS now')).recordset[0].now;
     const rows = (await req().query(`SELECT TOP (${limit}) case_msg_id, case_msg_id AS source_msg_id, group_id, first_msg_time AS message_time, resolved_at
-      FROM line_case_resolution WHERE final = 1 AND talk_confused IS NULL ORDER BY first_msg_time DESC`)).recordset;
+      FROM line_case_resolution WHERE final = 1 AND (talk_ver IS NULL OR talk_ver < ${TALK_VER}) ORDER BY first_msg_time DESC`)).recordset;
     let n = 0;
     for (const c of rows) {
-      let sig = { talk_confused: false, talk_chased: false, talk_thanks: false };
+      let sig = { talk_confused: false, talk_chased: false, talk_thanks: false, talk_followups: 0 };
       try {
         const t = await loadThread(lb, c, lbNow);
         if (t.some(x => x.Id === c.case_msg_id)) sig = talkSignals(c, buildTimeline(t, c).lines, c.resolved_at);
       } catch (e) { log.error(`talk backfill ${c.case_msg_id}:`, e.message); continue; }
       await req().input('id', sql.Int, c.case_msg_id).input('a', sql.Bit, sig.talk_confused).input('b', sql.Bit, sig.talk_chased).input('c', sql.Bit, sig.talk_thanks)
-        .query('UPDATE line_case_resolution SET talk_confused=@a, talk_chased=@b, talk_thanks=@c WHERE case_msg_id=@id');
+        .input('f', sql.Int, sig.talk_followups).input('v', sql.TinyInt, TALK_VER)
+        .query('UPDATE line_case_resolution SET talk_confused=@a, talk_chased=@b, talk_thanks=@c, talk_followups=@f, talk_ver=@v WHERE case_msg_id=@id');
       n++;
     }
     if (n) log.log(`💬 line talk backfill: ${n} เคส`);
@@ -618,13 +628,17 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
     const confused = pct(tk.filter(c => c.talk_confused).length, tk.length);
     const chased = pct(tk.filter(c => c.talk_chased).length, tk.length);
     const confirmed = pct(tk.filter(c => c.resolution_signal === 'customer_confirmed' || c.talk_thanks).length, tk.length);
-    // คุยงานดี: รู้เรื่อง 40 (ลูกค้างง 0% = 100, 20% = 0) · กระชับ 30 · ไม่ต้องทวง 15 (10% = 0) · ลูกค้ายืนยัน 15 (50% = 100)
-    const concise = clamp(((s.one_touch_pct ?? 0) + clamp((4 - (s.turns_avg ?? 4)) / 3 * 100)) / 2);
-    const talk = confused == null ? null : Math.round(clamp(100 - confused * 5) * .4 + concise * .3 + clamp(100 - chased * 10) * .15 + clamp(confirmed / 50 * 100) * .15);
+    // คุยงานดี = เน้นกระชับ: กระชับ 50 · รู้เรื่อง 30 · ไม่ต้องทวง 10 · ลูกค้ายืนยัน 10
+    //   กระชับ = จบใน 1–2 รอบ (40%) + รอบเฉลี่ย (30%: 1 รอบ = 100, 3.5 รอบ = 0) + คุยไปมา (30%: ลูกค้าพิมพ์กลับ ≤ 0.5 ข้อความ/เคส = 100, ≥ 3 = 0)
+    const fu = tk.filter(c => c.talk_followups != null);
+    const followups = fu.length ? +(fu.reduce((a, c) => a + c.talk_followups, 0) / fu.length).toFixed(1) : null;
+    const concise = clamp((s.one_touch_pct ?? 0) * .4 + clamp((3.5 - (s.turns_avg ?? 3.5)) / 2.5 * 100) * .3
+      + (followups == null ? 50 : clamp((3 - Math.max(.5, followups)) / 2.5 * 100)) * .3);
+    const talk = confused == null ? null : Math.round(concise * .5 + clamp(100 - confused * 5) * .3 + clamp(100 - chased * 10) * .1 + clamp(confirmed / 50 * 100) * .1);
     // ตอบไว: ทันเป้าตอบแรก 70 · แก้จบฝั่งเรา 30 (≤ 30 นาที = 100, ≥ 4 ชม. = 0)
     const fix = s.agent_ttr_median;
     const speed = Math.round((s.frt_within_pct ?? 0) * .7 + (fix == null ? 0 : clamp((14400 - Math.max(1800, fix)) / (14400 - 1800) * 100)) * .3);
-    return { talk, speed, confused_pct: confused, chased_pct: chased, confirmed_pct: confirmed, talk_known: tk.length };
+    return { talk, speed, confused_pct: confused, chased_pct: chased, confirmed_pct: confirmed, talk_known: tk.length, followups_avg: followups, concise };
   };
   // จำนวนเคสมีผล: คะแนนถูกดึงเข้าหาค่าเฉลี่ยทีมตามจำนวนเคส (เคสน้อย = ยังไม่น่าเชื่อ) — ต้องมีเคสมากถึงจะได้คะแนนสุดขั้ว
   const K = B.shrinkCases ?? 20;
@@ -737,14 +751,15 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
           id: s.id, name: s.name, full_name: s.full_name, team: s.team, line_names: [...s.line_names],
           pod_id: s.pod_id, pod_name: s.pod_name, pod_color: s.pod_color,
           line_cases: s.cases.length, line_unlogged: unlogged, calllog_total: s.cl.length, channels,
-          // งานทั้งหมด = เคสใน Calllog (ทุกช่องทาง) หรือแชท LINE ที่ตอบ แล้วแต่อันไหนมากกว่า — ไม่บวกกันเพราะแชทส่วนใหญ่เปิดเคสใน Calllog ด้วย
-          workload: Math.max(s.cl.length, s.cases.length),
+          // งานทั้งหมด = เคสที่ลงในหน้าติดตามเคส (Calllog) ทุกช่องทางเท่านั้น
+          workload: s.cl.length,
           closed_pct: s.cl.length ? Math.round(closed.length / s.cl.length * 100) : null,
           close_median_min: median(closed.map(r => (new Date(r.closed_at) - new Date(r.opened_at)) / 60000).filter(v => v >= 0)),
           stars_avg: rated.length ? +(rated.reduce((a, r) => a + r.stars, 0) / rated.length).toFixed(2) : null, rated: rated.length,
           frt_median: st.frt_median, frt_within_pct: st.frt_within_pct, agent_ttr_median: st.agent_ttr_median,
           turns_avg: st.turns_avg, one_touch_pct: st.one_touch_pct, abandoned: st.abandoned,
           confused_pct: br.confused_pct, chased_pct: br.chased_pct, confirmed_pct: br.confirmed_pct,
+          followups_avg: br.followups_avg, concise: br.concise,
           talk_raw: br.talk, speed_raw: br.speed, talk_known: br.talk_known,
         };
       });
@@ -755,6 +770,10 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
       const vTop = p75(list.filter(x => x.workload >= B.minCases).map(x => x.workload));
       list.forEach(x => {
         const lineOk = x.line_cases >= (B.lineMinCases ?? 10);
+        // ลงเคสจากแชท: เคสช่องทาง LINE ในหน้าติดตามเคส เทียบกับแชท LINE ที่ตอบ — ต่ำ = ตอบแชทแล้วไม่ได้ลงเคส
+        // (ช่วงที่ยังตัดสินแชทไม่ครบ ตัวเลขนี้จะสูงเกินจริง จึงใช้เตือนเฉพาะตอนที่ต่ำ)
+        x.line_logged = x.channels.LINE || 0;
+        x.line_logged_pct = lineOk ? Math.round(x.line_logged / x.line_cases * 100) : null;
         x.talk = lineOk ? shrink(x.talk_raw, x.talk_known, teamLine.talk) : null;
         x.speed = lineOk ? shrink(x.speed_raw, x.line_cases, teamLine.speed) : null;
         x.sat = x.rated ? shrink(satOf(x.stars_avg), x.rated, satOf(teamStars)) : null;
@@ -793,4 +812,4 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
     by_signal: cur.reduce((m, c) => (m[c.resolution_signal] = (m[c.resolution_signal] || 0) + 1, m), {}) };
 }
 
-module.exports = { createLineResolution, workSec, buildBoard, talkSignals };
+module.exports = { createLineResolution, workSec, buildBoard, talkSignals, TALK_VER };

@@ -9507,25 +9507,29 @@ const llbImp = (p, k, v) => v != null ? v : p.imputed?.[k] != null
 const LLB_BOARDS = {
   overall: {
     icon: '🏅', title: 'ภาพรวม', key: 'overall', count: p => p.workload, need: () => true,
-    sub: w => `งานเยอะ ${w.volume} · คุยงานดี ${w.talk} · ตอบไว ${w.speed} · ดาวลูกค้า ${w.sat} — งานนับทุกช่องทางจากหน้าติดตามเคส (โทรศัพท์ / LINE / Remote / Email) · ส่วนไหนไม่มีข้อมูลใช้ค่าเฉลี่ยทีมแทน (ตัวเลขสีเทา)`,
+    sub: w => `งานเยอะ ${w.volume} · คุยงานดี ${w.talk} · ตอบไว ${w.speed} · ดาวลูกค้า ${w.sat} — งานเยอะนับจากเคสที่ลงในหน้าติดตามเคส ทุกช่องทาง (โทรศัพท์ / LINE / Remote / Email) · ส่วนไหนไม่มีข้อมูลใช้ค่าเฉลี่ยทีมแทน (ตัวเลขสีเทา)`,
     why: p => `งาน ${p.workload} เคส · ดาว ${p.stars_avg ?? '—'}`,
     cols: [
-      ['งานทั้งหมด', 'เคสในหน้าติดตามเคสทุกช่องทาง (หรือแชท LINE ที่ตอบ ถ้ามากกว่า) · คะแนนงานเยอะ = เทียบกับกลุ่มคนที่งานเยอะสุดของทีม', p => `<b>${p.workload}</b> <span class="mt-meta" style="font-size:.68rem;font-weight:400">· ${p.volume ?? 0} คะแนน</span><div class="lb-chs">${llbChannels(p.channels)}</div><div class="mt-meta" style="font-size:.66rem;font-weight:400">ตอบแชท LINE ${p.line_cases}</div>`, () => ''],
+      ['งานทั้งหมด', 'เคสที่ลงในหน้าติดตามเคส ทุกช่องทาง · คะแนนงานเยอะ = เทียบกับกลุ่มคนที่งานเยอะสุดของทีม', p => `<b>${p.workload}</b> <span class="mt-meta" style="font-size:.68rem;font-weight:400">· ${p.volume ?? 0} คะแนน</span><div class="lb-chs">${llbChannels(p.channels)}</div><div class="mt-meta" style="font-size:.66rem;font-weight:400">ตอบแชท LINE ${p.line_cases}</div>`, () => ''],
       ['คุยงานดี', '', p => llbImp(p, 'talk', p.talk), p => p.talk == null ? '' : p.talk >= 80 ? 'g' : p.talk < 65 ? 'r' : 'y'],
       ['ตอบไว', '', p => llbImp(p, 'speed', p.speed), p => p.speed == null ? '' : p.speed >= 60 ? 'g' : p.speed < 40 ? 'r' : 'y'],
       ['ดาวลูกค้า', 'ดาวเฉลี่ยในหน้าติดตามเคส (จำนวนที่มีดาว)', p => p.stars_avg == null ? llbImp(p, 'sat', null) : `★ ${p.stars_avg}<span class="mt-meta" style="display:block;font-size:.68rem;font-weight:400">${p.rated} ครั้ง · ${p.sat} คะแนน</span>`, p => p.stars_avg == null ? '' : p.stars_avg >= 4.5 ? 'g' : p.stars_avg < 4 ? 'r' : 'y'],
+      ['ลงเคสจากแชท', 'เคสช่องทาง LINE ในหน้าติดตามเคส ÷ แชท LINE ที่ตอบ — ต่ำกว่า 70% = ตอบแชทแล้วไม่ได้ลงเคส (งานส่วนนั้นไม่ถูกนับเป็นงานเยอะ)',
+        p => p.line_logged_pct == null ? '—' : `${Math.min(p.line_logged_pct, 100)}%<span class="mt-meta" style="display:block;font-size:.66rem;font-weight:400">${p.line_logged}/${p.line_cases} แชท</span>`,
+        p => p.line_logged_pct == null ? '' : p.line_logged_pct < 70 ? 'r' : p.line_logged_pct < 90 ? 'y' : 'g'],
       ['ปิดเคส', 'เคสใน Calllog ที่ปิดแล้ว', p => llbPct(p.closed_pct), () => ''],
     ],
     badges: [['⭐', 'ลูกค้าให้ดาวสูงสุด', p => p.rated >= 20 ? p.stars_avg : null]],
   },
   talk: {
     icon: '💬', title: 'คุยงานดี', key: 'talk', count: p => p.line_cases, need: p => p.talk != null,
-    sub: () => 'คุยรู้เรื่อง 40 · กระชับ 30 · ลูกค้าไม่ต้องทวง 15 · ลูกค้ายืนยันจบ 15 — วัดจากสิ่งที่ลูกค้าพิมพ์กลับหลังทีมงานตอบใน LINE',
+    sub: () => 'เน้นกระชับ: กระชับ 50 (จบใน 1–2 รอบ · รอบน้อย · ไม่คุยไปมา) · คุยรู้เรื่อง 30 · ลูกค้าไม่ต้องทวง 10 · ลูกค้ายืนยันจบ 10 — วัดจากแชท LINE (ระบบไม่มีข้อความของแอดมิน จึงดูจากจำนวนรอบและสิ่งที่ลูกค้าพิมพ์กลับสั้นๆ)',
     why: p => `ลูกค้างง ${llbPct(p.confused_pct)} · จบใน 1–2 รอบ ${llbPct(p.one_touch_pct)}`,
     cols: [
       ['ลูกค้างง', 'หลังทีมงานตอบ ลูกค้าพิมพ์ยังไม่ได้/ไม่เข้าใจ/ทำยังไงต่อ', p => llbPct(p.confused_pct), p => p.confused_pct == null ? '' : p.confused_pct <= 3 ? 'g' : p.confused_pct >= 8 ? 'r' : 'y'],
       ['จบ 1–2 รอบ', '', p => llbPct(p.one_touch_pct), p => p.one_touch_pct >= 85 ? 'g' : p.one_touch_pct < 75 ? 'r' : 'y'],
-      ['รอบเฉลี่ย', '', p => p.turns_avg ?? '—', p => p.turns_avg == null ? '' : p.turns_avg <= 1.7 ? 'g' : p.turns_avg >= 2.3 ? 'r' : 'y'],
+      ['รอบเฉลี่ย', 'ทีมงานตอบกี่รอบต่อเคส (ตอบติดกันนับ 1)', p => p.turns_avg ?? '—', p => p.turns_avg == null ? '' : p.turns_avg <= 1.7 ? 'g' : p.turns_avg >= 2.3 ? 'r' : 'y'],
+      ['คุยไปมา', 'ลูกค้าพิมพ์กลับกี่ข้อความต่อเคส หลังทีมงานตอบครั้งแรก — เยอะ = อธิบายไม่จบในรอบเดียว', p => p.followups_avg ?? '—', p => p.followups_avg == null ? '' : p.followups_avg <= 1 ? 'g' : p.followups_avg >= 2.5 ? 'r' : 'y'],
       ['ลูกค้าต้องทวง', 'ลูกค้าพิมพ์ เป็นยังไงบ้าง/ได้หรือยัง/รอนาน', p => llbPct(p.chased_pct), p => p.chased_pct == null ? '' : p.chased_pct <= 1 ? 'g' : p.chased_pct >= 5 ? 'r' : 'y'],
       ['ลูกค้ายืนยัน', 'ลูกค้าตอบ ได้แล้ว/ขอบคุณ/เรียบร้อย', p => llbPct(p.confirmed_pct), () => ''],
     ],
