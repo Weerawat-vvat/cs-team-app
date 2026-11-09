@@ -835,7 +835,7 @@ app.get('/api/employees', authRequired, async (request, res) => {
     const { team, include_inactive } = request.query;
     const role = request.user?.role;
     const r = req();
-    let q = `SELECT e.id, e.name, e.nickname, e.team, e.role, e.phone, e.start_date, e.active, e.created_at, e.line_names, e.avatar_url,
+    let q = `SELECT e.id, e.name, e.nickname, e.team, e.role, e.phone, e.start_date, e.active, e.created_at, e.line_names, e.avatar_url, e.level,
                     au.id AS user_id,
                     pod.pod_id, pod.pod_name, pod.pod_color, pod.role_in_pod
              FROM employees e
@@ -951,20 +951,23 @@ app.delete('/api/employees/:id/avatar', authRequired, managerRequired, async (re
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ระดับพนักงาน: SR / JR เท่านั้น อย่างอื่น = ยังไม่ตั้ง
+const cleanLevel = v => { v = String(v || '').trim().toUpperCase(); return v === 'SR' || v === 'JR' ? v : null; };
 app.post('/api/employees', authRequired, managerRequired, async (request, res) => {
   try {
     const { name, nickname, team, role, phone, start_date, pod_id } = request.body;
     const lineNames = cleanLineNames(request.body.line_names);
     const result = await req()
       .input('ln',         sql.NVarChar, lineNames)
+      .input('lv',         sql.NVarChar, cleanLevel(request.body.level))
       .input('name',       sql.NVarChar, name)
       .input('nickname',   sql.NVarChar, nickname   || null)
       .input('team',       sql.NVarChar, team)
       .input('role',       sql.NVarChar, role       || 'staff')
       .input('phone',      sql.NVarChar, phone      || null)
       .input('start_date', sql.Date,     start_date ? new Date(start_date) : null)
-      .query(`INSERT INTO employees (name,nickname,team,role,phone,start_date,line_names)
-              OUTPUT INSERTED.id VALUES (@name,@nickname,@team,@role,@phone,@start_date,@ln)`);
+      .query(`INSERT INTO employees (name,nickname,team,role,phone,start_date,line_names,level)
+              OUTPUT INSERTED.id VALUES (@name,@nickname,@team,@role,@phone,@start_date,@ln,@lv)`);
     if (pod_id) await setEmployeePod(result.recordset[0].id, pod_id);
     res.json({ id: result.recordset[0].id });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -990,6 +993,9 @@ app.put('/api/employees/:id', authRequired, managerRequired, async (request, res
     if (request.body.line_names !== undefined)
       await req().input('ln', sql.NVarChar, cleanLineNames(request.body.line_names)).input('id', sql.Int, request.params.id)
         .query('UPDATE employees SET line_names=@ln WHERE id=@id');
+    if (request.body.level !== undefined)   // ไม่ส่งมา = ไม่แตะ
+      await req().input('lv', sql.NVarChar, cleanLevel(request.body.level)).input('id', sql.Int, request.params.id)
+        .query('UPDATE employees SET level=@lv WHERE id=@id');
     if (pod_id !== undefined) await setEmployeePod(request.params.id, pod_id); // ไม่ส่งมา = ไม่แตะ Pod
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -8865,6 +8871,34 @@ async function getGradeWeights() {
     return cleanGradeWeights(r ? JSON.parse(r.v) : null);
   } catch { return { ...GRADE_WEIGHTS_DEFAULT }; }
 }
+// สัดส่วนคะแนนรวมแยกระดับ: SR เน้นคุณภาพ (บางคนเป็นพี่เลี้ยง งานน้อยกว่าน้อง) · JR / ยังไม่ตั้งระดับ ใช้ชุด JR
+const LEVEL_WEIGHTS_DEFAULT = {
+  SR: { volume: 20, talk: 35, speed: 25, sat: 20 },
+  JR: { volume: 40, talk: 30, speed: 20, sat: 10 },
+};
+const cleanLevelWeights = w => Object.fromEntries(Object.entries(LEVEL_WEIGHTS_DEFAULT).map(([lv, d]) => {
+  const o = Object.fromEntries(Object.entries(d).map(([k, dv]) => {
+    const v = Number(w?.[lv]?.[k]);
+    return [k, Number.isFinite(v) && v >= 0 && v <= 100 ? Math.round(v) : dv];
+  }));
+  return [lv, Object.values(o).some(v => v > 0) ? o : { ...d }];
+}));
+async function getLevelWeights() {
+  try {
+    const r = (await req().query(`SELECT v FROM app_settings WHERE k = 'lb_level_weights'`)).recordset[0];
+    return cleanLevelWeights(r ? JSON.parse(r.v) : null);
+  } catch { return cleanLevelWeights(null); }
+}
+app.put('/api/line-board/level-weights', authRequired, managerRequired, async (request, res) => {
+  try {
+    const w = cleanLevelWeights(request.body?.weights || request.body);
+    await req().input('v', sql.NVarChar, JSON.stringify(w)).input('by', sql.NVarChar, request.user?.username || null).query(`
+      MERGE app_settings AS t USING (SELECT 'lb_level_weights' AS k) AS s ON t.k = s.k
+      WHEN MATCHED THEN UPDATE SET v = @v, updated_by = @by, updated_at = GETDATE()
+      WHEN NOT MATCHED THEN INSERT (k, v, updated_by) VALUES ('lb_level_weights', @v, @by);`);
+    res.json({ ok: true, weights: w });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
 app.get('/api/line-board/grade-weights', authRequired, async (request, res) => {
   res.json({ weights: await getGradeWeights(), defaults: GRADE_WEIGHTS_DEFAULT });
 });
@@ -8908,7 +8942,7 @@ app.get('/api/line-board', authRequired, async (request, res) => {
     let S = null;
     try {
       // Pod ของพนักงาน (ตามหน้าจัดการ User): แถว pod_members ก่อน ถ้าไม่มีใช้ pods.lead_employee_id
-      const employees = (await req().query(`SELECT e.id, e.name, e.nickname, e.team, e.line_names, e.avatar_url, au.ext_username,
+      const employees = (await req().query(`SELECT e.id, e.name, e.nickname, e.team, e.line_names, e.avatar_url, e.level, au.ext_username,
                pod.pod_id, pod.pod_name, pod.pod_color
         FROM employees e LEFT JOIN app_users au ON au.employee_id = e.id AND au.active = 1
         OUTER APPLY (
@@ -8929,7 +8963,7 @@ app.get('/api/line-board', authRequired, async (request, res) => {
     } catch (e) { console.error('line-board staff:', e.message); }
     // เกณฑ์ขั้นต่ำปรับตามจำนวนวันที่เลือก (ตั้งไว้สำหรับ 14 วัน) — ดูรายวันก็ยังมีคนติดอันดับ
     const scaleMin = (n, floor) => Math.max(floor, Math.min(n, Math.round(n * span / 14)));
-    const cfg = { ...LINE_BOARD, minCases: scaleMin(LINE_BOARD.minCases, 5), lineMinCases: scaleMin(10, 3), gradeWeights: await getGradeWeights() };
+    const cfg = { ...LINE_BOARD, minCases: scaleMin(LINE_BOARD.minCases, 5), lineMinCases: scaleMin(10, 3), gradeWeights: await getGradeWeights(), levelWeights: await getLevelWeights() };
     const board = buildBoard(curRaw, await load(pf, shift(1)), cfg, S);
 
     // ความครอบคลุม: เคสในช่วงนี้ที่ AI ยังไม่ได้ตัดสิน (กำลังไล่อยู่ / ลูกค้ายังคุยอยู่)

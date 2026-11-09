@@ -1763,6 +1763,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
   <div id="dash-tab-lineboard" style="display:none">
     <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.8rem">
       <select id="llb-pod" class="svc-select" onchange="llbBoardTab(_llbBoard)" style="max-width:180px" aria-label="Pod ของพนักงาน" title="Pod ของพนักงาน ตามที่ตั้งในหน้าจัดการ User"><option value="">ทุก Pod</option></select>
+      <select id="llb-level" class="svc-select" onchange="llbBoardTab(_llbBoard)" style="max-width:150px" aria-label="ระดับ" title="ระดับ SR / JR ตามที่ตั้งในหน้าจัดการ User"><option value="">ทุกระดับ</option><option value="SR">SR</option><option value="JR">JR</option><option value="none">ยังไม่ตั้งระดับ</option></select>
       <span class="mt-meta" id="llb-note"></span>
     </div>
     <div id="llb-body"><div class="mt-meta" style="text-align:center;padding:2rem">กำลังโหลด…</div></div>
@@ -6299,6 +6300,10 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
       <input type="number" id="p-calluserid" placeholder="เช่น 12"/>
     </div>
     <div class="form-group">
+      <label>ระดับ <span style="font-size:.72rem;color:var(--muted);font-weight:400">(Leaderboard ทีมงาน จัดอันดับแยก SR / JR)</span></label>
+      <select id="p-level"><option value="">— ยังไม่ตั้ง —</option><option value="SR">SR (Senior)</option><option value="JR">JR (Junior)</option></select>
+    </div>
+    <div class="form-group">
       <label>ชื่อ LINE@ ที่ใช้ตอบ <span style="font-size:.72rem;color:var(--muted);font-weight:400">(ผูกข้อมูลแชท LINE เข้ากับคนนี้ใน Leaderboard ทีมงาน · หลายชื่อคั่นด้วย ,)</span></label>
       <input id="p-line-names" placeholder="เช่น INF-BOOM" autocomplete="off"/>
       <div id="p-line-names-hint" style="margin-top:.4rem;display:flex;flex-wrap:wrap;gap:.3rem;align-items:center"></div>
@@ -9500,7 +9505,7 @@ async function llbLoad() {
       <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.4rem">
         <div style="font-size:1.05rem;font-weight:700;color:#2f343a;margin-right:auto">Leaderboard ทีมงาน</div>
         <div class="svc-seg" role="tablist" aria-label="บอร์ด">${Object.entries(LLB_BOARDS).map(([k, x]) => `<button role="tab" class="${k === _llbBoard ? 'on' : ''}" onclick="llbBoardTab('${k}', this)">${x.icon} ${x.title}</button>`).join('')}</div>
-        ${['manager', 'team_lead', 'admin'].includes(currentUser?.role) ? `<button class="btn btn-ghost btn-sm" onclick="llbGradeEdit()" title="ตั้งน้ำหนักงานตามเกรดหัวข้อ">⚙ น้ำหนักเกรด</button>` : ''}
+        ${['manager', 'team_lead', 'admin'].includes(currentUser?.role) ? `<button class="btn btn-ghost btn-sm" onclick="llbGradeEdit()" title="ตั้งน้ำหนักเกรดหัวข้อ และสัดส่วนคะแนน SR / JR">⚙ ตั้งค่าคะแนน</button>` : ''}
       </div>
       <div id="llb-grade-edit" style="display:none"></div>
       <div id="llb-board">${llbBoardHtml()}</div></div>`;
@@ -9518,17 +9523,20 @@ const llbTier = t => t && LLB_TIER[t] ? `<span class="lb-tier" style="color:${LL
 const LLB_CH_ICON = { LINE: '💬', 'โทร': '📞', Remote: '🖥️', Email: '✉️', 'อื่นๆ': '•' };
 const llbChannels = ch => Object.entries(ch || {}).sort((a, z) => z[1] - a[1]).map(([k, v]) => `<span class="lb-ch" title="${escHtml(k)} ${v} เคส">${LLB_CH_ICON[k] || '•'} ${v}</span>`).join('');
 const llbPct = v => v == null ? '—' : v + '%';
+const llbLevelChip = lv => lv === 'SR' ? '<span class="lb-ch" style="background:#ede7f6;color:#5b3f8f;font-weight:700" title="Senior">SR</span>'
+  : lv === 'JR' ? '<span class="lb-ch" style="background:#e3f1ec;color:#2f6b55;font-weight:700" title="Junior">JR</span>' : '';
 // ส่วนที่ไม่มีข้อมูล: แสดงค่าเฉลี่ยทีมที่ใช้คิดคะแนนรวมเป็นสีเทา
 const llbImp = (p, k, v) => v != null ? v : p.imputed?.[k] != null
   ? `<span style="color:#9aa0a6;font-weight:400" title="ไม่มีข้อมูลส่วนนี้ในช่วงที่เลือก — ใช้ค่าเฉลี่ยทีม ${p.imputed[k]} คิดคะแนนรวม">${p.imputed[k]}<span style="display:block;font-size:.62rem">เฉลี่ยทีม</span></span>` : '—';
 const LLB_BOARDS = {
   overall: {
     icon: '🏅', title: 'ภาพรวม', key: 'overall', count: p => p.workload, need: () => true,
-    sub: w => { const g = _llbData?.b?.staff_team?.grade_weights || {};
-      return `งานเยอะ ${w.volume} · คุยงานดี ${w.talk} · ตอบไว ${w.speed} · ดาวทันเวลา ${w.sat} — งานเยอะนับจากเคสที่ลงในหน้าติดตามเคส ทุกช่องทาง ถ่วงตามเกรดหัวข้อ (A = ${g.A ?? 3} แต้ม · B = ${g.B ?? 2} · C = ${g.C ?? 1} · ไม่มีเกรด = ${g.other ?? 1}) · ส่วนไหนไม่มีข้อมูลใช้ค่าเฉลี่ยทีมแทน (ตัวเลขสีเทา)`; },
+    sub: w => { const g = _llbData?.b?.staff_team?.grade_weights || {}, L = _llbData?.b?.staff_team?.level_weights || {};
+      const ws = x => x ? `งานเยอะ ${x.volume} · คุยงานดี ${x.talk} · ตอบไว ${x.speed} · ดาวทันเวลา ${x.sat}` : '';
+      return `${L.SR ? `<b>SR</b> ${ws(L.SR)} | <b>JR</b> ${ws(L.JR || w)}` : ws(w)} — งานเยอะนับจากเคสที่ลงในหน้าติดตามเคส ทุกช่องทาง ถ่วงตามเกรดหัวข้อ (A = ${g.A ?? 3} แต้ม · B = ${g.B ?? 2} · C = ${g.C ?? 1} · ไม่มีเกรด = ${g.other ?? 1}) · ส่วนไหนไม่มีข้อมูลใช้ค่าเฉลี่ยทีมแทน (ตัวเลขสีเทา)`; },
     why: p => `งาน ${p.work_pts ?? p.workload} แต้ม (${p.workload} เคส) · ดาว ${p.stars_avg ?? '—'}`,
     cols: [
-      ['งานทั้งหมด', 'แต้มงาน = เคสในหน้าติดตามเคส ทุกช่องทาง × น้ำหนักเกรดหัวข้อ (A ยาก · B กลาง · C ง่าย) · คะแนนงานเยอะ = เทียบกับกลุ่มคนที่แต้มงานสูงของทีม', p => `<b>${p.work_pts ?? p.workload}</b> <span class="mt-meta" style="font-size:.68rem;font-weight:400">แต้ม · ${p.volume ?? 0} คะแนน</span>
+      ['งานทั้งหมด', 'แต้มงาน = เคสในหน้าติดตามเคส ทุกช่องทาง × น้ำหนักเกรดหัวข้อ (A ยาก · B กลาง · C ง่าย) · คะแนนงานเยอะ = เทียบกับกลุ่มคนที่แต้มงานสูงของทีม', p => `<b>${p.work_pts ?? p.workload}</b> <span class="mt-meta" style="font-size:.68rem;font-weight:400" title="${p.vol_ceiling ? `เส้นเต็ม 100 = ${p.vol_ceiling} แต้ม${p.level ? ` (เทียบกลุ่ม ${p.level})` : ' (ทั้งทีม)'}` : ''}">แต้ม · ${p.volume ?? 0} คะแนน</span>
         <div class="mt-meta" style="font-size:.66rem;font-weight:400">${p.workload} เคส${p.grades ? ` · <span title="เกรด A (ยาก)">A ${p.grades.A}</span> · <span title="เกรด B">B ${p.grades.B}</span> · <span title="เกรด C (ง่าย)">C ${p.grades.C}</span>${p.grades.other ? ` · <span title="หัวข้อไม่มีเกรด">อื่น ${p.grades.other}</span>` : ''}` : ''}</div>
         <div class="lb-chs">${llbChannels(p.channels)}</div><div class="mt-meta" style="font-size:.66rem;font-weight:400">ตอบแชท LINE ${p.line_cases}</div>`, () => ''],
       ['คุยงานดี', '', p => llbImp(p, 'talk', p.talk), p => p.talk == null ? '' : p.talk >= 80 ? 'g' : p.talk < 65 ? 'r' : 'y'],
@@ -9589,6 +9597,7 @@ function llbGradeEdit() {
   if (!el) return;
   if (el.style.display !== 'none') { el.style.display = 'none'; return; }
   const g = _llbData?.b?.staff_team?.grade_weights || { A: 3, B: 2, C: 1, other: 1 };
+  const L = _llbData?.b?.staff_team?.level_weights || { SR: { volume: 20, talk: 35, speed: 25, sat: 20 }, JR: { volume: 40, talk: 30, speed: 20, sat: 10 } };
   const f = (k, lab) => `<label style="display:flex;flex-direction:column;gap:.2rem;font-size:.74rem;color:#5b6068">${lab}
     <input type="number" id="llb-gw-${k}" min="0" max="20" step="0.25" value="${g[k]}" style="width:90px;padding:.3rem .5rem;border:1px solid #d9d6ce;border-radius:8px"></label>`;
   el.innerHTML = `<div style="background:#f7f6f3;border-radius:10px;padding:.75rem .9rem;margin:.3rem 0 .6rem">
@@ -9596,9 +9605,19 @@ function llbGradeEdit() {
     <div class="mt-meta" style="font-size:.74rem;margin-bottom:.55rem">แต้มงาน = จำนวนเคส × น้ำหนักของเกรด · ตัวอย่าง A = 3, C = 1 → งานยาก 1 เคสเท่ากับงานง่าย 3 เคส · เกรดตั้งที่หัวข้อปัญหา (Subject)</div>
     <div style="display:flex;gap:.8rem;align-items:flex-end;flex-wrap:wrap">
       ${f('A', 'เกรด A (ยาก)')}${f('B', 'เกรด B (กลาง)')}${f('C', 'เกรด C (ง่าย)')}${f('other', 'ไม่มีเกรด')}
+    </div>
+    <div style="font-size:.82rem;font-weight:700;margin:.9rem 0 .2rem">สัดส่วนคะแนนรวม แยกระดับ</div>
+    <div class="mt-meta" style="font-size:.74rem;margin-bottom:.55rem">SR บางคนเป็นพี่เลี้ยง งานน้อยกว่าน้อง จึงลดสัดส่วนงานเยอะลงแล้วเน้นคุณภาพ · คนที่ยังไม่ตั้งระดับใช้ชุด JR · ไม่จำเป็นต้องรวมได้ 100 (ระบบเทียบเป็นสัดส่วนให้)</div>
+    ${['SR', 'JR'].map(lv => `<div style="display:flex;gap:.8rem;align-items:flex-end;flex-wrap:wrap;margin-bottom:.45rem">
+      <div style="width:42px;font-weight:700;padding-bottom:.4rem">${lv}</div>
+      ${[['volume', 'งานเยอะ'], ['talk', 'คุยงานดี'], ['speed', 'ตอบไว'], ['sat', 'ดาวทันเวลา']].map(([k, lab]) => `<label style="display:flex;flex-direction:column;gap:.2rem;font-size:.74rem;color:#5b6068">${lab}
+        <input type="number" id="llb-lw-${lv}-${k}" min="0" max="100" step="5" value="${L[lv]?.[k] ?? ''}" oninput="llbLwSum()" style="width:80px;padding:.3rem .5rem;border:1px solid #d9d6ce;border-radius:8px"></label>`).join('')}
+      <span class="mt-meta" id="llb-lw-sum-${lv}" style="padding-bottom:.4rem;font-size:.74rem"></span></div>`).join('')}
+    <div style="display:flex;gap:.5rem;margin-top:.5rem">
       <button class="btn btn-primary btn-sm" onclick="llbGradeSave()">บันทึก</button>
       <button class="btn btn-ghost btn-sm" onclick="document.getElementById('llb-grade-edit').style.display='none'">ยกเลิก</button>
     </div></div>`;
+  llbLwSum();
   el.style.display = '';
 }
 async function llbGradeSave() {
@@ -9608,10 +9627,30 @@ async function llbGradeSave() {
     if (!(v >= 0 && v <= 20)) { showToast('น้ำหนักต้องอยู่ระหว่าง 0–20', 'warning'); return; }
     w[k] = v;
   }
+  const lw = {};
+  for (const lv of ['SR', 'JR']) {
+    lw[lv] = {};
+    for (const k of ['volume', 'talk', 'speed', 'sat']) {
+      const v = parseFloat(document.getElementById(`llb-lw-${lv}-${k}`)?.value);
+      if (!(v >= 0 && v <= 100)) { showToast('สัดส่วนต้องอยู่ระหว่าง 0–100', 'warning'); return; }
+      lw[lv][k] = v;
+    }
+    if (!Object.values(lw[lv]).some(v => v > 0)) { showToast(`สัดส่วนของ ${lv} ต้องมีอย่างน้อย 1 ช่องที่มากกว่า 0`, 'warning'); return; }
+  }
   const r = await api('/api/line-board/grade-weights', { method: 'PUT', body: { weights: w } });
   if (!r || r.error) return;
-  showToast('บันทึกน้ำหนักเกรดแล้ว', 'success');
+  const r2 = await api('/api/line-board/level-weights', { method: 'PUT', body: { weights: lw } });
+  if (!r2 || r2.error) return;
+  showToast('บันทึกการตั้งค่าคะแนนแล้ว', 'success');
   llbLoad();
+}
+function llbLwSum() {
+  for (const lv of ['SR', 'JR']) {
+    const el = document.getElementById('llb-lw-sum-' + lv);
+    if (!el) continue;
+    const s = ['volume', 'talk', 'speed', 'sat'].reduce((a, k) => a + (parseFloat(document.getElementById(`llb-lw-${lv}-${k}`)?.value) || 0), 0);
+    el.textContent = `รวม ${s}`;
+  }
 }
 function llbBoardTab(k, btn) {
   _llbBoard = k;
@@ -9623,9 +9662,11 @@ function llbBoardHtml() {
   if (!_llbData) return '';
   const { b, cfg } = _llbData, X = LLB_BOARDS[_llbBoard], K = X.key;
   const podF = document.getElementById('llb-pod')?.value || '';
-  const inPod = p => !podF || (podF === 'none' ? p.pod_id == null : String(p.pod_id) === podF);
+  const lvF = document.getElementById('llb-level')?.value || '';
+  const inPod = p => (!podF || (podF === 'none' ? p.pod_id == null : String(p.pod_id) === podF))
+    && (!lvF || (lvF === 'none' ? !p.level : p.level === lvF));
   const src = (b.staff || []).filter(p => (p.workload >= 5 || p.line_cases >= 5) && inPod(p));
-  if (!src.length) return `<div class="mt-meta" style="text-align:center;padding:1.2rem">${podF ? 'ไม่มีพนักงานใน Pod นี้ที่มีงานในช่วงนี้ — ตั้ง Pod ของพนักงานได้ที่ ตั้งค่า → จัดการ User' : 'ยังไม่มีข้อมูลพนักงานในช่วงนี้'}</div>`;
+  if (!src.length) return `<div class="mt-meta" style="text-align:center;padding:1.2rem">${podF || lvF ? 'ไม่มีพนักงานใน Pod / ระดับนี้ที่มีงานในช่วงนี้ — ตั้ง Pod และระดับ SR / JR ได้ที่ ตั้งค่า → จัดการ User' : 'ยังไม่มีข้อมูลพนักงานในช่วงนี้'}</div>`;
   const ranked = src.filter(p => p.ranked && X.need(p) && p[K] != null).sort((a, z) => z[K] - a[K] || X.count(z) - X.count(a));
   const small = src.filter(p => !ranked.includes(p)).sort((a, z) => (X.count(z) || 0) - (X.count(a) || 0));
   // อันดับช่วงก่อนคิดในกลุ่มที่เห็นอยู่ (เลือก Pod = เทียบกันใน Pod)
@@ -9646,7 +9687,7 @@ function llbBoardHtml() {
   const podium = ranked.length >= 3 ? `<div class="lb-podium">${[1, 0, 2].map(i => { const p = ranked[i];
     return `<div class="lb-pod">
       <div class="lb-av${i === 0 ? ' lb-av1' : ''}">${p.avatar_url ? `<img src="${escHtml(p.avatar_url)}" alt="" style="width:100%;height:100%;border-radius:50%;object-fit:cover">` : escHtml(String(p.name).slice(0, 2).toUpperCase())}</div>
-      <div style="font-weight:700;margin-top:.35rem;text-align:center">${escHtml(p.name)}</div>
+      <div style="font-weight:700;margin-top:.35rem;text-align:center">${escHtml(p.name)} ${llbLevelChip(p.level)}</div>
       ${!podF && p.pod_name ? `<div style="margin-top:.1rem">${podChip(p)}</div>` : ''}
       ${K === 'overall' ? `<div style="margin-top:.15rem">${llbTier(p.tier)}</div>` : ''}
       <div class="mt-meta lb-why">${X.why(p)}</div>
@@ -9655,14 +9696,14 @@ function llbBoardHtml() {
         <div style="font-size:1.5rem">${medal[i]}</div><div class="num" style="font-size:1.6rem;font-weight:800">${p[K]}</div><div style="font-size:.72rem">${dl(p)} ${move(p)}</div></div></div>`; }).join('')}</div>` : '';
   const row = (p, i) => `<tr${i == null ? ' class="lb-small"' : ''}>
     <td class="num" style="font-weight:700;color:#6f747c">${i ?? '—'}</td><td style="width:44px">${i == null ? '' : move(p)}</td>
-    <td><div style="display:flex;gap:.55rem;align-items:flex-start">${empAvatarHtml(p.avatar_url, p.name, 32)}<div><b>${escHtml(p.name)}</b> ${K === 'overall' && i != null ? llbTier(p.tier) : ''}
+    <td><div style="display:flex;gap:.55rem;align-items:flex-start">${empAvatarHtml(p.avatar_url, p.name, 32)}<div><b>${escHtml(p.name)}</b> ${llbLevelChip(p.level)} ${K === 'overall' && i != null ? llbTier(p.tier) : ''}
       <div class="mt-meta" style="font-size:.68rem">${!podF ? podChip(p) + ' ' : ''}${escHtml(p.line_names?.join(', ') || 'ไม่มีข้อมูล LINE')}</div>
       <div class="lb-badges" style="justify-content:flex-start">${i == null ? '' : bdg(p.id)}</div></div></div></td>
     <td style="min-width:150px"><div style="display:flex;align-items:center;gap:.45rem"><b class="num" style="min-width:1.6em">${p[K] ?? '—'}</b>
       <div style="flex:1;height:8px;background:#efede7;border-radius:4px;overflow:hidden"><div style="width:${p[K] || 0}%;height:100%;background:${p[K] >= 80 ? '#356b4e' : p[K] >= 65 ? '#c9a03c' : '#c9785c'}"></div></div>${i == null ? '' : dl(p)}</div></td>
     ${X.cols.map(([, , v, t]) => `<td class="r num" style="color:${C[t(p)]};font-weight:600">${v(p)}</td>`).join('')}</tr>`;
   const tiers = K === 'overall' ? `<div class="lb-tiers">${Object.keys(LLB_TIER).map(t => `${llbTier(t)} <span class="mt-meta">${LLB_TIER[t][4]}</span>`).join('<span style="width:.6rem"></span>')}</div>` : '';
-  return `<div class="mt-meta" style="margin:.1rem 0 .6rem;font-size:.76rem">คะแนน 0–100 · ${sub} · ข้อมูลน้อยคะแนนจะถูกดึงเข้าหาค่าเฉลี่ยทีม · ติดอันดับเมื่อมีงาน ${cfg.minCases} เคสขึ้นไป · ▲▼ เทียบช่วงก่อน · Pod ตามที่ตั้งในหน้าจัดการ User${podF ? ' (อันดับเทียบกันภายใน Pod)' : ''}</div>
+  return `<div class="mt-meta" style="margin:.1rem 0 .6rem;font-size:.76rem">คะแนน 0–100 · ${sub} · ข้อมูลน้อยคะแนนจะถูกดึงเข้าหาค่าเฉลี่ยทีม · ติดอันดับเมื่อมีงาน ${cfg.minCases} เคสขึ้นไป · ▲▼ เทียบช่วงก่อน · Pod และระดับ SR / JR ตามที่ตั้งในหน้าจัดการ User${podF || lvF ? ' (อันดับเทียบกันภายในกลุ่มที่เลือก)' : ''} · เส้นเต็ม 100 ของงานเยอะคิดแยก SR / JR</div>
     ${tiers}
     ${podium}
     <div style="overflow-x:auto;margin-top:.9rem"><table class="mt-tbl"><thead><tr><th>#</th><th></th><th>ทีมงาน</th><th>คะแนน${X.title}</th>
@@ -20893,7 +20934,7 @@ function renderPeopleTable(emps) {
     const u = _peopleUserByEmpId[e.id];
     return `<tr style="${!e.active ? 'opacity:.55;background:#fafafa' : ''}">
       <td><div style="display:flex;gap:.6rem;align-items:center">${empAvatarHtml(e.avatar_url, e.nickname || e.name, 34)}<div>
-        <div style="font-weight:600">${e.name}</div>
+        <div style="font-weight:600">${e.name} ${llbLevelChip(e.level)}</div>
         <div style="font-size:.76rem;color:var(--muted)">${e.nickname ? `ชื่อเล่น: ${e.nickname}` : ''}</div>
         ${e.line_names ? `<div style="font-size:.7rem;color:#356b4e;margin-top:.1rem" title="ชื่อ LINE@ ที่ผูกไว้ (Leaderboard ทีมงาน)">💬 ${aiEscape(e.line_names)}</div>` : ''}
       </div></div></td>
@@ -21020,6 +21061,7 @@ function openAddPerson() {
   document.getElementById('p-ext-username').value = '';
   document.getElementById('p-calluserid').value = '';
   document.getElementById('p-line-names').value = '';
+  document.getElementById('p-level').value = '';
   _fillPersonLineNames(null);
   _resetPersonAvatar(null);
   document.getElementById('p-pwd-label').textContent = 'รหัสผ่าน';
@@ -21048,6 +21090,7 @@ function openEditPerson(e, u) {
   document.getElementById('p-ext-username').value = u ? (u.ext_username || '') : '';
   document.getElementById('p-calluserid').value = u ? (u.calluserid || '') : '';
   document.getElementById('p-line-names').value = e.line_names || '';
+  document.getElementById('p-level').value = e.level || '';
   _fillPersonLineNames(e.id);
   _resetPersonAvatar(e.avatar_url);
   document.getElementById('p-pwd-label').textContent = 'รหัสผ่านใหม่';
@@ -21101,7 +21144,8 @@ async function savePerson() {
     start_date: document.getElementById('p-start').value             || null,
     active:     parseInt(document.getElementById('p-emp-status').value || '1'),
     pod_id:     document.getElementById('p-pod').value ? parseInt(document.getElementById('p-pod').value) : null,
-    line_names: document.getElementById('p-line-names').value.trim()
+    line_names: document.getElementById('p-line-names').value.trim(),
+    level:      document.getElementById('p-level').value || null
   };
   const uname   = document.getElementById('p-username').value.trim();
   const pwd     = document.getElementById('p-password').value;

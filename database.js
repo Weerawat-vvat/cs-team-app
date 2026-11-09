@@ -352,6 +352,11 @@ async function init() {
           updated_at DATETIME NOT NULL DEFAULT GETDATE()
         )
     `);
+    // ระดับพนักงาน SR / JR (Leaderboard ทีมงาน จัดอันดับแยกระดับ)
+    await pool.request().query(`
+      IF COL_LENGTH('employees','level') IS NULL
+        ALTER TABLE employees ADD level NVARCHAR(10) NULL
+    `);
     console.log('✅ Migrations done');
   } catch (err) {
     console.error('❌ Migration error:', err.message);

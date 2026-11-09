@@ -732,6 +732,9 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
     const tierOf = v => v == null ? null : v >= 90 ? 'diamond' : v >= 80 ? 'gold' : v >= 70 ? 'silver' : v >= 60 ? 'bronze' : 'rookie';
     // งานเยอะ 40 · คุยงานดี 30 · ตอบไว 20 · ดาวทันเวลา 10 (ดาวคิดจากเวลาแก้เทียบเวลามาตรฐานหัวข้อ ไม่ใช่ลูกค้าให้)
     const W2 = B.staffWeights || { volume: 40, talk: 30, speed: 20, sat: 10 };
+    // สัดส่วนแยกระดับ: SR ใช้ชุด SR · JR และคนที่ยังไม่ตั้งระดับใช้ชุด JR
+    const LW = { SR: { volume: 20, talk: 35, speed: 25, sat: 20 }, JR: W2, ...(B.levelWeights || {}) };
+    const wOf = x => LW[x.level === 'SR' ? 'SR' : 'JR'] || W2;
     // งานเยอะถ่วงตามเกรดหัวข้อ: A ยาก · B กลาง · C ง่าย · อื่นๆ = หัวข้อไม่มีเกรด
     const GW = { A: 3, B: 2, C: 1, other: 1, ...(B.gradeWeights || {}) };
     const gradeOf = g => { g = String(g || '').trim().toUpperCase(); return g === 'A' || g === 'B' || g === 'C' ? g : 'other'; };
@@ -739,7 +742,7 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
     const buildStaff = (cases, calllog, teamLine) => {
       const m = new Map();
       const get = e => m.get(e.id) || m.set(e.id, { id: e.id, name: e.nickname || e.name, full_name: e.name, team: e.team,
-        pod_id: e.pod_id ?? null, pod_name: e.pod_name || null, pod_color: e.pod_color || null, avatar_url: e.avatar_url || null,
+        pod_id: e.pod_id ?? null, pod_name: e.pod_name || null, pod_color: e.pod_color || null, avatar_url: e.avatar_url || null, level: e.level || null,
         line_names: new Set(), cases: [], cl: [] }).get(e.id);
       for (const c of cases) { const e = empOfLine(c.answered_by); if (e) { const s = get(e); s.cases.push(c); s.line_names.add(c.answered_by); } }
       for (const r of calllog) { const e = byExt.get(String(r.user || '').toLowerCase()); if (e) get(e).cl.push(r); }
@@ -754,7 +757,7 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
         const unlogged = s.cases.filter(c => !c.calllog_id).length;   // แชท LINE ที่ไม่ได้เปิดเคสใน Calllog
         return {
           id: s.id, name: s.name, full_name: s.full_name, team: s.team, line_names: [...s.line_names],
-          pod_id: s.pod_id, pod_name: s.pod_name, pod_color: s.pod_color, avatar_url: s.avatar_url,
+          pod_id: s.pod_id, pod_name: s.pod_name, pod_color: s.pod_color, avatar_url: s.avatar_url, level: s.level,
           line_cases: s.cases.length, line_unlogged: unlogged, calllog_total: s.cl.length, channels,
           // งานทั้งหมด = เคสที่ลงในหน้าติดตามเคส (Calllog) ทุกช่องทางเท่านั้น · work_pts = ถ่วงตามเกรดหัวข้อ
           workload: s.cl.length, grades, work_pts,
@@ -772,7 +775,13 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
       const rated = list.filter(x => x.rated);
       const teamStars = rated.length ? rated.reduce((a, x) => a + x.stars_avg * x.rated, 0) / rated.reduce((a, x) => a + x.rated, 0) : null;
       const satOf = v => v == null ? null : clamp((v - 3) / 2 * 100);   // ดาว 3 = 0 · ดาว 5 = 100
-      const vTop = p75(list.filter(x => x.workload >= B.minCases).map(x => x.work_pts));
+      // เส้นเต็ม 100 ของงานเยอะ: คิดแยกตามระดับ SR / JR (JR ไม่ต้องเทียบแต้มกับ SR ที่รับงานยาก)
+      //   ระดับไหนคนติดอันดับไม่ถึง 3 คน หรือคนที่ยังไม่ตั้งระดับ → ใช้เส้นของทั้งทีม
+      const eligible = list.filter(x => x.workload >= B.minCases && x.team !== 'management');
+      const vTopAll = p75(eligible.map(x => x.work_pts));
+      const vTopBy = {};
+      for (const lv of ['SR', 'JR']) { const g = eligible.filter(x => x.level === lv); if (g.length >= 3) vTopBy[lv] = p75(g.map(x => x.work_pts)); }
+      const vTop = x => vTopBy[x.level] || vTopAll;
       list.forEach(x => {
         const lineOk = x.line_cases >= (B.lineMinCases ?? 10);
         // ลงเคสจากแชท: เคสช่องทาง LINE ในหน้าติดตามเคส เทียบกับแชท LINE ที่ตอบ — ต่ำ = ตอบแชทแล้วไม่ได้ลงเคส
@@ -782,7 +791,8 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
         x.talk = lineOk ? shrink(x.talk_raw, x.talk_known, teamLine.talk) : null;
         x.speed = lineOk ? shrink(x.speed_raw, x.line_cases, teamLine.speed) : null;
         x.sat = x.rated ? shrink(satOf(x.stars_avg), x.rated, satOf(teamStars)) : null;
-        x.volume = vTop ? clamp(x.work_pts / vTop * 100) : 0;
+        x.vol_ceiling = vTop(x);
+        x.volume = x.vol_ceiling ? clamp(x.work_pts / x.vol_ceiling * 100) : 0;
         // ส่วนที่ไม่มีข้อมูล → ใช้ค่าเฉลี่ยทีม (เป็นกลาง ไม่ช่วยไม่ซ้ำเติม) ทุกคนจึงคิดครบทุกส่วนตามสัดส่วนเดียวกัน
         const avgOf = { talk: teamLine.talk, speed: teamLine.speed, sat: satOf(teamStars) };
         x.imputed = {};
@@ -791,8 +801,10 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
           if (v == null && avgOf[k] != null) { v = Math.round(avgOf[k]); x.imputed[k] = v; }
           return [k, v];
         }).filter(([, v]) => v != null);
-        const wsum = parts.reduce((a, [k]) => a + W2[k], 0);
-        x.overall = wsum ? Math.round(parts.reduce((a, [k, v]) => a + v * W2[k], 0) / wsum) : null;
+        const Wx = wOf(x);
+        x.weights = Wx;
+        const wsum = parts.reduce((a, [k]) => a + Wx[k], 0);
+        x.overall = wsum ? Math.round(parts.reduce((a, [k, v]) => a + v * Wx[k], 0) / wsum) : null;
         x.tier = tierOf(x.overall);
         x.ranked = x.workload >= B.minCases && x.team !== 'management';   // หัวหน้าทีมแสดงไว้ แต่ไม่ติดอันดับ
       });
@@ -809,7 +821,7 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
       }
     });
     staff = curS.list.filter(x => x.workload || x.line_cases).sort((a, z) => z.ranked - a.ranked || (z.overall ?? -1) - (a.overall ?? -1));
-    staffTeam = { stars_avg: curS.teamStars == null ? null : +curS.teamStars.toFixed(2), weights: W2, grade_weights: GW,
+    staffTeam = { stars_avg: curS.teamStars == null ? null : +curS.teamStars.toFixed(2), weights: LW.JR, level_weights: LW, grade_weights: GW,
       unmatched_line: [...lineEmp].filter(([, e]) => !e).map(([n]) => n) };
   }
 
