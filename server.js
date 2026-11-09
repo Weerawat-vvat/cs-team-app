@@ -8859,7 +8859,10 @@ app.get('/api/line-board', authRequired, async (request, res) => {
         WHERE cl.Active = 1 AND cl.ReceiveDate >= @f AND cl.ReceiveDate < @t`)).recordset;
       S = { employees, calllog: await clLoad(from, to), prevCalllog: await clLoad(pf, shift(1)), lineMap: LINE_STAFF_MAP };
     } catch (e) { console.error('line-board staff:', e.message); }
-    const board = buildBoard(curRaw, await load(pf, shift(1)), LINE_BOARD, S);
+    // เกณฑ์ขั้นต่ำปรับตามจำนวนวันที่เลือก (ตั้งไว้สำหรับ 14 วัน) — ดูรายวันก็ยังมีคนติดอันดับ
+    const scaleMin = (n, floor) => Math.max(floor, Math.min(n, Math.round(n * span / 14)));
+    const cfg = { ...LINE_BOARD, minCases: scaleMin(LINE_BOARD.minCases, 5), lineMinCases: scaleMin(10, 3) };
+    const board = buildBoard(curRaw, await load(pf, shift(1)), cfg, S);
 
     // ความครอบคลุม: เคสในช่วงนี้ที่ AI ยังไม่ได้ตัดสิน (กำลังไล่อยู่ / ลูกค้ายังคุยอยู่)
     const cov = (await req().input('f', sql.NVarChar, from).input('t', sql.NVarChar, to).query(`
@@ -8868,7 +8871,7 @@ app.get('/api/line-board', authRequired, async (request, res) => {
       WHERE r.answered_time IS NOT NULL AND m.msg_id IS NULL
         AND r.message_time >= CAST(@f AS DATE) AND r.message_time < DATEADD(day, 1, CAST(@t AS DATE))`)).recordset[0].n;
 
-    res.json({ from, to, start: LINE_RESOLVE_START, config: LINE_BOARD, prev_from: pf, not_judged: cov, ...board });
+    res.json({ from, to, start: LINE_RESOLVE_START, config: cfg, prev_from: pf, not_judged: cov, ...board });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

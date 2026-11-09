@@ -9501,16 +9501,19 @@ const llbTier = t => t && LLB_TIER[t] ? `<span class="lb-tier" style="color:${LL
 const LLB_CH_ICON = { LINE: '💬', 'โทร': '📞', Remote: '🖥️', Email: '✉️', 'อื่นๆ': '•' };
 const llbChannels = ch => Object.entries(ch || {}).sort((a, z) => z[1] - a[1]).map(([k, v]) => `<span class="lb-ch" title="${escHtml(k)} ${v} เคส">${LLB_CH_ICON[k] || '•'} ${v}</span>`).join('');
 const llbPct = v => v == null ? '—' : v + '%';
+// ส่วนที่ไม่มีข้อมูล: แสดงค่าเฉลี่ยทีมที่ใช้คิดคะแนนรวมเป็นสีเทา
+const llbImp = (p, k, v) => v != null ? v : p.imputed?.[k] != null
+  ? `<span style="color:#9aa0a6;font-weight:400" title="ไม่มีข้อมูลส่วนนี้ในช่วงที่เลือก — ใช้ค่าเฉลี่ยทีม ${p.imputed[k]} คิดคะแนนรวม">${p.imputed[k]}<span style="display:block;font-size:.62rem">เฉลี่ยทีม</span></span>` : '—';
 const LLB_BOARDS = {
   overall: {
     icon: '🏅', title: 'ภาพรวม', key: 'overall', count: p => p.workload, need: () => true,
-    sub: p => `คุยงานดี ${p.talk} · ตอบไว ${p.speed} · ลูกค้าพอใจ (ดาว) ${p.sat} · ปริมาณงาน ${p.volume} — นับงานทุกช่องทางจากหน้าติดตามเคส (โทรศัพท์ / LINE / Remote / Email) คนที่ไม่มีข้อมูล LINE คิดจากส่วนที่มี`,
+    sub: w => `งานเยอะ ${w.volume} · คุยงานดี ${w.talk} · ตอบไว ${w.speed} · ดาวลูกค้า ${w.sat} — งานนับทุกช่องทางจากหน้าติดตามเคส (โทรศัพท์ / LINE / Remote / Email) · ส่วนไหนไม่มีข้อมูลใช้ค่าเฉลี่ยทีมแทน (ตัวเลขสีเทา)`,
     why: p => `งาน ${p.workload} เคส · ดาว ${p.stars_avg ?? '—'}`,
     cols: [
-      ['งานทั้งหมด', 'เคสในหน้าติดตามเคสทุกช่องทาง (หรือแชท LINE ที่ตอบ ถ้ามากกว่า)', p => `<b>${p.workload}</b><div class="lb-chs">${llbChannels(p.channels)}</div><div class="mt-meta" style="font-size:.66rem;font-weight:400">ตอบแชท LINE ${p.line_cases}</div>`, () => ''],
-      ['คุยงานดี', '', p => p.talk ?? '—', p => p.talk == null ? '' : p.talk >= 80 ? 'g' : p.talk < 65 ? 'r' : 'y'],
-      ['ตอบไว', '', p => p.speed ?? '—', p => p.speed == null ? '' : p.speed >= 60 ? 'g' : p.speed < 40 ? 'r' : 'y'],
-      ['ดาวลูกค้า', 'ดาวเฉลี่ยที่ลูกค้าให้ในหน้าติดตามเคส (จำนวนที่ให้ดาว)', p => p.stars_avg == null ? '—' : `★ ${p.stars_avg}<span class="mt-meta" style="display:block;font-size:.68rem;font-weight:400">${p.rated} ครั้ง</span>`, p => p.stars_avg == null ? '' : p.stars_avg >= 4.5 ? 'g' : p.stars_avg < 4 ? 'r' : 'y'],
+      ['งานทั้งหมด', 'เคสในหน้าติดตามเคสทุกช่องทาง (หรือแชท LINE ที่ตอบ ถ้ามากกว่า) · คะแนนงานเยอะ = เทียบกับกลุ่มคนที่งานเยอะสุดของทีม', p => `<b>${p.workload}</b> <span class="mt-meta" style="font-size:.68rem;font-weight:400">· ${p.volume ?? 0} คะแนน</span><div class="lb-chs">${llbChannels(p.channels)}</div><div class="mt-meta" style="font-size:.66rem;font-weight:400">ตอบแชท LINE ${p.line_cases}</div>`, () => ''],
+      ['คุยงานดี', '', p => llbImp(p, 'talk', p.talk), p => p.talk == null ? '' : p.talk >= 80 ? 'g' : p.talk < 65 ? 'r' : 'y'],
+      ['ตอบไว', '', p => llbImp(p, 'speed', p.speed), p => p.speed == null ? '' : p.speed >= 60 ? 'g' : p.speed < 40 ? 'r' : 'y'],
+      ['ดาวลูกค้า', 'ดาวเฉลี่ยในหน้าติดตามเคส (จำนวนที่มีดาว)', p => p.stars_avg == null ? llbImp(p, 'sat', null) : `★ ${p.stars_avg}<span class="mt-meta" style="display:block;font-size:.68rem;font-weight:400">${p.rated} ครั้ง · ${p.sat} คะแนน</span>`, p => p.stars_avg == null ? '' : p.stars_avg >= 4.5 ? 'g' : p.stars_avg < 4 ? 'r' : 'y'],
       ['ปิดเคส', 'เคสใน Calllog ที่ปิดแล้ว', p => llbPct(p.closed_pct), () => ''],
     ],
     badges: [['⭐', 'ลูกค้าให้ดาวสูงสุด', p => p.rated >= 20 ? p.stars_avg : null]],

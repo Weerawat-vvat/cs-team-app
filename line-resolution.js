@@ -716,7 +716,8 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
     const chOf = v => CH[String(v || '').trim().toLowerCase()] || 'อื่นๆ';
     const p75 = xs => { xs = xs.filter(v => v > 0).sort((a, b) => a - b); return xs.length ? xs[Math.min(xs.length - 1, Math.floor(xs.length * .75))] : 0; };
     const tierOf = v => v == null ? null : v >= 90 ? 'diamond' : v >= 80 ? 'gold' : v >= 70 ? 'silver' : v >= 60 ? 'bronze' : 'rookie';
-    const W2 = B.staffWeights || { talk: 30, speed: 20, sat: 30, volume: 20 };
+    // งานเยอะ 40 · คุยงานดี 30 · ตอบไว 20 · ดาวลูกค้า 10
+    const W2 = B.staffWeights || { volume: 40, talk: 30, speed: 20, sat: 10 };
 
     const buildStaff = (cases, calllog, teamLine) => {
       const m = new Map();
@@ -753,12 +754,19 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
       const satOf = v => v == null ? null : clamp((v - 3) / 2 * 100);   // ดาว 3 = 0 · ดาว 5 = 100
       const vTop = p75(list.filter(x => x.workload >= B.minCases).map(x => x.workload));
       list.forEach(x => {
-        const lineOk = x.line_cases >= 10;
+        const lineOk = x.line_cases >= (B.lineMinCases ?? 10);
         x.talk = lineOk ? shrink(x.talk_raw, x.talk_known, teamLine.talk) : null;
         x.speed = lineOk ? shrink(x.speed_raw, x.line_cases, teamLine.speed) : null;
         x.sat = x.rated ? shrink(satOf(x.stars_avg), x.rated, satOf(teamStars)) : null;
-        x.volume = vTop ? clamp(x.workload / vTop * 100) : null;
-        const parts = [['talk', x.talk], ['speed', x.speed], ['sat', x.sat], ['volume', x.volume]].filter(([, v]) => v != null);
+        x.volume = vTop ? clamp(x.workload / vTop * 100) : 0;
+        // ส่วนที่ไม่มีข้อมูล → ใช้ค่าเฉลี่ยทีม (เป็นกลาง ไม่ช่วยไม่ซ้ำเติม) ทุกคนจึงคิดครบทุกส่วนตามสัดส่วนเดียวกัน
+        const avgOf = { talk: teamLine.talk, speed: teamLine.speed, sat: satOf(teamStars) };
+        x.imputed = {};
+        const parts = ['volume', 'talk', 'speed', 'sat'].map(k => {
+          let v = x[k];
+          if (v == null && avgOf[k] != null) { v = Math.round(avgOf[k]); x.imputed[k] = v; }
+          return [k, v];
+        }).filter(([, v]) => v != null);
         const wsum = parts.reduce((a, [k]) => a + W2[k], 0);
         x.overall = wsum ? Math.round(parts.reduce((a, [k, v]) => a + v * W2[k], 0) / wsum) : null;
         x.tier = tierOf(x.overall);
