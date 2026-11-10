@@ -1013,6 +1013,20 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
 .swu-tbl tr.swu-rep .svc-title{font-size:.82rem;font-weight:400;color:#3d4248;padding-left:.9rem}
 .swu-tbl tr.swu-rep .svc-meta{padding-left:1.9rem}
 .swu-tg{display:inline-block;width:1.1em;color:#6f747c;font-size:.68rem;cursor:pointer}
+.swu-bc{background:#fff;border:1px solid var(--border);border-radius:12px;margin-bottom:.7rem;overflow:hidden}
+.swu-bc.done{background:#fafaf8}
+.swu-bh{display:flex;align-items:center;gap:.6rem;padding:.7rem 1rem;cursor:pointer;flex-wrap:wrap}
+.swu-bh:hover{background:#fafaf8}
+.swu-bname{font-weight:700;font-size:.95rem;color:#1f2a3a}
+.swu-bmeta{font-size:.75rem;color:#6f747c}
+.swu-chip{font-size:.7rem;font-weight:600;padding:.12rem .5rem;border-radius:20px;white-space:nowrap}
+.swu-ir{display:grid;grid-template-columns:150px minmax(0,1fr) 92px 70px 118px 70px;gap:.7rem;align-items:center;padding:.5rem 1rem;border-top:1px solid #f0eee9;cursor:pointer;font-size:.82rem}
+.swu-ir:hover{background:#fafaf8}
+.swu-ir .br{color:#4d535b;font-size:.78rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.swu-ir .ds{color:#2f343a;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.swu-ir .mt{font-size:.72rem;color:#8a8f97}
+.swu-ihead{display:grid;grid-template-columns:150px minmax(0,1fr) 92px 70px 118px 70px;gap:.7rem;padding:.35rem 1rem;font-size:.7rem;color:#8a8f97;border-top:1px solid #f0eee9;background:#fafaf8}
+@media (max-width:900px){.swu-ir,.swu-ihead{grid-template-columns:1fr 1fr}.swu-ihead{display:none}}
 .swu-st-sel{border:0;border-radius:20px;padding:.12rem .4rem;font-size:.74rem;font-weight:600;font-family:inherit;cursor:pointer;max-width:100%}
 .svc-meta .mono{font-family:'IBM Plex Mono',monospace}
 .svc-type{display:inline-block;font-size:.72rem;padding:.16rem .55rem;border-radius:6px;background:#f0eee9;color:#4d535b;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
@@ -4346,28 +4360,8 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
     <button class="svc-icon-btn" onclick="loadSwUpdate()" title="โหลดใหม่" aria-label="โหลดใหม่"><i class=i-refresh></i></button>
   </div>
 
-  <!-- Table (grouped by shop) -->
-  <div class="svc-tbl-card">
-    <div class="tbl-wrap">
-      <table class="svc-tbl swu-tbl">
-        <colgroup>
-          <col style="width:62px"><col><col style="width:78px"><col style="width:112px"><col style="width:88px"><col style="width:88px"><col style="width:132px"><col style="width:76px"><col style="width:68px">
-        </colgroup>
-        <thead><tr>
-          <th>#ID</th>
-          <th>กลุ่ม License / ร้าน · รายการแจ้ง</th>
-          <th>ความสำคัญ</th>
-          <th>สถานะ</th>
-          <th>วันแจ้ง</th>
-          <th>วันนัดหมาย</th>
-          <th>ผู้แจ้ง / คนทำ</th>
-          <th>Azure</th>
-          <th></th>
-        </tr></thead>
-        <tbody id="swu-tbody"></tbody>
-      </table>
-    </div>
-  </div>
+  <!-- จัดกลุ่มตามแบรนด์: แต่ละแบรนด์มีเคสอะไรบ้าง (1 แถว = 1 ปัญหาที่แจ้ง) -->
+  <div id="swu-groups"></div>
 </div>
 
 <!-- ═══════════════════ PAGE: IMPLEMENT REQUESTS ═══════════════════ -->
@@ -26880,83 +26874,92 @@ function renderSwUpdate() {
     grpSel.value = names.includes(grpVal) ? grpVal : '';
   }
 
-  const tbody = document.getElementById('swu-tbody');
-  if (!tbody) return;
+  const box = document.getElementById('swu-groups');
+  if (!box) return;
   const list = swuVisibleJobs();
   if (!list.length) {
-    tbody.innerHTML = `<tr style="cursor:default"><td colspan="9" style="text-align:center;color:var(--muted);padding:3.5rem 1rem">${all.length ? 'ไม่มีงานในแท็บนี้' : 'ไม่พบข้อมูล'}</td></tr>`;
+    box.innerHTML = `<div class="svc-tbl-card" style="text-align:center;color:var(--muted);padding:3.5rem 1rem">${all.length ? 'ไม่มีงานในแท็บนี้' : 'ไม่พบข้อมูล'}</div>`;
     return;
   }
-
-  const swuAzureCell = (azure_id) => {
-    if (!azure_id) return '<span style="color:#b9bcc2">—</span>';
-    const m = azure_id.match(/\/(\d+)\/?$/);
-    const label = m ? m[1] : azure_id;
-    const isUrl = azure_id.startsWith('http');
-    return isUrl
-      ? `<a href="${escHtml(azure_id)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--primary);font-family:'IBM Plex Mono',monospace;font-size:.76rem;text-decoration:none">#${escHtml(label)}</a>`
+  const azure = id => {
+    if (!id) return '<span style="color:#b9bcc2">—</span>';
+    const m = String(id).match(/\/(\d+)\/?$/), label = m ? m[1] : id;
+    return String(id).startsWith('http')
+      ? `<a href="${escHtml(id)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--primary);font-family:'IBM Plex Mono',monospace;font-size:.76rem;text-decoration:none">#${escHtml(label)}</a>`
       : `<span style="color:#4d535b;font-family:'IBM Plex Mono',monospace;font-size:.76rem">${escHtml(label)}</span>`;
   };
-  const fmtD = v => v ? new Date(v).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}) : '<span style="color:#b9bcc2">—</span>';
+  const fmtD = v => v ? new Date(v).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : '—';
+  // นับเป็นวันตามปฏิทิน (แจ้งเมื่อวานตอนเย็น = 1 วันก่อน ไม่ใช่วันนี้)
+  const ageD = v => { if (!v) return ''; const day = x => { const t = new Date(x); return Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()); };
+    const d = Math.round((day(Date.now()) - day(v)) / 864e5); return d <= 0 ? 'วันนี้' : d === 1 ? 'เมื่อวาน' : `${d} วันก่อน`; };
   const statusSel = r => {
     const st = SWU_STATUS[r.status] || SWU_STATUS.pending;
-    return `<select class="swu-st-sel" style="background:${st.bg};color:${st.color}" title="ปรับสถานะ"
+    return `<select class="swu-st-sel" style="background:${st.bg};color:${st.color}" title="ปรับสถานะของงาน #${r.id}"
       onclick="event.stopPropagation()" onchange="swuQuickStatus(${r.id}, this)">
       ${Object.entries(SWU_STATUS).map(([k, v]) => `<option value="${k}" ${k === r.status ? 'selected' : ''}>${v.label}</option>`).join('')}</select>`;
   };
+  const PR = { urgent: 3, high: 2, normal: 1, low: 0 };
+  const open = r => !SWU_CLOSED_ST.includes(r.status);
 
-  // แถวหลัก = กลุ่ม License (หรือร้านเดี่ยว): สถานะ / วันนัด / ความคืบหน้า ปรับที่แถวนี้
-  // แถวย่อย = รายการแจ้ง: แจ้งอะไร จากสาขาไหน เมื่อไร ใครแจ้ง
-  const jobBlock = r => {
-    const pri = SWU_PRIORITY[r.priority] || SWU_PRIORITY.normal;
-    const iss = swuIssuesOf(r);
-    const s = swuStats(r);
-    const aiDay = _aiInst.map[r.registration_id];
-    const ver = r.version_installed || r.version_recommend || '';
-    const isGroup = !!r.license_group;
-    const single = !isGroup && iss.length === 1;   // ร้านเดี่ยวแจ้งครั้งเดียว → แถวเดียวจบ
-    const collapsed = _swuCollapsed.has(r.id);
-    const prog = s.n
-      ? `${s.done}/${s.n} สาขา · ${s.ok}/${s.total}${s.unknown ? '+?' : ''} เครื่อง${s.blocked ? ` · <span style="color:#a2562f">อัพเดทไม่ได้ ${s.blocked}</span>` : ''}`
-      : '';
-    const toggle = single ? '' : `<span class="swu-tg" onclick="event.stopPropagation();swuToggleGroup(${r.id})">${collapsed ? '▶' : '▼'}</span>`;
-    const head = `<tr class="swu-job" onclick="openSwUpdateDetail(${r.id})">
-      <td><span class="svc-jobno">#${r.id}</span></td>
-      <td style="min-width:0">
-        <div class="swu-job-name">${toggle}${isGroup ? '<span class="swu-pill hq" style="margin-right:.35rem">กลุ่ม</span>' : ''}${aiDay ? `<span class="tk-ai" style="margin-right:.35rem" title="ติดตั้ง AI (SSH) แล้ว"><i class=i-check></i> AI</span>` : ''}${escHtml(r.license_group || r.company_name || '—')}</div>
-        ${single ? `<div class="svc-title" title="${escHtml(iss[0].description || '')}">${escHtml(iss[0].description || '—')}</div>` : ''}
-        <div class="svc-meta">${ver ? `<span class="mono">${escHtml(ver)}</span>` : ''}${ver && prog ? ' · ' : ''}${prog}${single ? '' : ` · แจ้ง ${iss.length} ครั้ง`}</div>
-      </td>
-      <td><div class="uat-pri" style="color:${pri.color};margin:0">${pri.label}</div></td>
-      <td>${statusSel(r)}</td>
-      <td style="font-size:.8rem;white-space:nowrap">${fmtD(r.received_date)}</td>
-      <td style="font-size:.8rem;white-space:nowrap">${fmtD(r.appointment_date)}</td>
-      <td style="font-size:.8rem">
-        ${single ? `<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(r.reporter_name||'—')}</div>` : ''}
-        ${r.assignees && r.assignees.length ? `<div class="tk-sub" title="คนทำ">🔧 ${r.assignees.map(a=>escHtml(a.name||'')).join(', ')}</div>` : (single ? '' : '<span style="color:#b9bcc2">—</span>')}
-      </td>
-      <td>${single ? swuAzureCell(iss[0].azure_id) : ''}</td>
-      <td onclick="event.stopPropagation()" style="white-space:nowrap;vertical-align:middle">
-        <button class="uat-act" onclick="openSwUpdateDetail(${r.id})" title="เปิด checklist" aria-label="เปิด checklist"><i class=i-pencil></i></button>
-        <button class="uat-act danger" onclick="deleteSwUpdate(${r.id})" title="ลบ" aria-label="ลบ"><i class=i-trash></i></button>
-      </td>
-    </tr>`;
-    if (single || collapsed) return head;
-    return head + iss.map(it => `<tr class="swu-rep" onclick="openSwUpdateDetail(${r.id})">
-      <td></td>
-      <td style="min-width:0"><div class="svc-title" title="${escHtml(it.description || '')}">↳ ${escHtml(it.description || '—')}</div>
-        ${it.branch_name ? `<div class="svc-meta">แจ้งจาก ${escHtml(it.branch_name)}</div>` : ''}</td>
-      <td></td><td></td>
-      <td style="font-size:.78rem;white-space:nowrap">${fmtD(it.created_at)}</td>
-      <td></td>
-      <td style="font-size:.78rem">${escHtml(it.reporter_name || '—')}</td>
-      <td>${swuAzureCell(it.azure_id)}</td>
-      <td></td>
-    </tr>`).join('');
-  };
+  // แบรนด์ = กลุ่ม License (ร้านเดี่ยว = ชื่อร้าน) · เคส = ทุกปัญหาที่แจ้งของทุกงานในแบรนด์
+  const groups = new Map();
+  list.forEach(r => {
+    const k = r.license_group || r.company_name || '—';
+    const g = groups.get(k) || groups.set(k, { key: k, isGroup: !!r.license_group, jobs: [], items: [] }).get(k);
+    g.jobs.push(r);
+    swuIssuesOf(r).forEach(it => g.items.push({ it, r }));
+  });
+  const G = [...groups.values()].map(g => {
+    const openJobs = g.jobs.filter(open);
+    g.open = openJobs.length > 0;
+    g.pr = Math.max(...(openJobs.length ? openJobs : g.jobs).map(r => PR[r.priority] ?? 1));
+    g.items.sort((x, y) => open(y.r) - open(x.r) || new Date(y.it.created_at || y.r.created_at) - new Date(x.it.created_at || x.r.created_at));
+    g.oldest = Math.min(...g.items.filter(x => open(x.r)).map(x => +new Date(x.it.created_at || x.r.created_at)), Infinity);
+    g.branches = new Set(g.items.map(x => x.it.branch_name || x.r.company_name).filter(Boolean)).size;
+    const st = g.jobs.map(swuStats);
+    g.bDone = st.reduce((a, x) => a + x.done, 0); g.bAll = st.reduce((a, x) => a + x.n, 0);
+    g.ai = g.jobs.some(r => _aiInst.map[r.registration_id]);
+    return g;
+  }).sort((a, b) => b.open - a.open || b.pr - a.pr || a.oldest - b.oldest || a.key.localeCompare(b.key, 'th'));
 
-  tbody.innerHTML = list.map(jobBlock).join('');
+  box.innerHTML = G.map(g => {
+    // แบรนด์ที่เสร็จหมดแล้ว ย่อไว้ก่อน · กดเปิดได้
+    const collapsed = g.open ? _swuCollapsed.has('b:' + g.key) : !_swuCollapsed.has('d:' + g.key);
+    const toggleKey = g.open ? 'b:' + g.key : 'd:' + g.key;
+    const pri = SWU_PRIORITY[Object.keys(PR).find(k => PR[k] === g.pr)] || SWU_PRIORITY.normal;
+    const nOpen = g.items.filter(x => open(x.r)).length;
+    const head = `<div class="swu-bh" onclick="swuToggleBrand(${escHtml(JSON.stringify(toggleKey))})">
+      <span class="swu-tg">${collapsed ? '▶' : '▼'}</span>
+      <div style="flex:1;min-width:200px">
+        <div class="swu-bname">${g.ai ? `<span class="tk-ai" style="margin-right:.35rem" title="ติดตั้ง AI (SSH) แล้ว"><i class=i-check></i> AI</span>` : ''}${escHtml(g.key)}${g.isGroup ? '' : ' <span class="swu-bmeta" style="font-weight:400">· ร้านเดี่ยว</span>'}</div>
+        <div class="swu-bmeta">${g.items.length} เคส · ${g.branches} สาขา${g.jobs.length > 1 ? ` · ${g.jobs.length} งาน` : ''}${g.bAll ? ` · อัปเดตแล้ว ${g.bDone}/${g.bAll} สาขา` : ''}${g.open && g.oldest < Infinity ? ` · ค้างนานสุด ${ageD(g.oldest)}` : ''}</div>
+      </div>
+      ${g.open && g.pr >= 2 ? `<span class="swu-chip" style="background:${g.pr === 3 ? '#fbeceb' : '#fbf0e6'};color:${pri.color}">มีเคส${pri.label}</span>` : ''}
+      ${g.open ? `<span class="swu-chip" style="background:#f6f0e2;color:#8f6d1f">ค้าง ${nOpen} เคส</span>` : `<span class="swu-chip" style="background:#e7f0ea;color:#356b4e">เสร็จสิ้น</span>`}
+    </div>`;
+    if (collapsed) return `<div class="swu-bc${g.open ? '' : ' done'}">${head}</div>`;
+    const rows = g.items.map(({ it, r }) => {
+      const p = SWU_PRIORITY[r.priority] || SWU_PRIORITY.normal;
+      const when = it.created_at || r.received_date || r.created_at;
+      return `<div class="swu-ir" onclick="openSwUpdateDetail(${r.id})" title="เปิดงาน #${r.id}">
+        <div class="br" title="${escHtml(it.branch_name || r.company_name || '')}">${escHtml(it.branch_name || r.company_name || '—')}</div>
+        <div style="min-width:0"><div class="ds" title="${escHtml(it.description || '')}">${escHtml(it.description || '—')}</div>
+          <div class="mt">${escHtml(it.reporter_name || r.reporter_name || '—')} · งาน #${r.id}${r.version_recommend ? ` · <span class="mono">${escHtml(r.version_recommend)}</span>` : ''}${r.appointment_date ? ` · นัด ${fmtD(r.appointment_date)}` : ''}</div></div>
+        <div style="font-size:.78rem;white-space:nowrap" title="วันที่แจ้งปัญหา">${fmtD(when)}<div class="mt">${open(r) ? ageD(when) : ''}</div></div>
+        <div class="uat-pri" style="color:${p.color};margin:0;font-size:.76rem">${p.label}</div>
+        <div>${statusSel(r)}</div>
+        <div>${azure(it.azure_id)}</div>
+      </div>`;
+    }).join('');
+    return `<div class="swu-bc${g.open ? '' : ' done'}">${head}
+      <div class="swu-ihead"><span>สาขาที่แจ้ง</span><span>ปัญหา</span><span>วันที่แจ้ง</span><span>ความสำคัญ</span><span>สถานะ</span><span>Azure</span></div>${rows}</div>`;
+  }).join('');
 }
+function swuToggleBrand(k) {
+  _swuCollapsed.has(k) ? _swuCollapsed.delete(k) : _swuCollapsed.add(k);
+  renderSwUpdate();
+}
+const SWU_CLOSED_ST = ['done', 'cancelled'];
 
 // รายการแจ้งของงาน (แถวย่อย) — งานเก่าที่ยังไม่มี sw_update_issues ใช้รายละเอียดของงานเป็นรายการเดียว
 function swuIssuesOf(r) {
@@ -27097,7 +27100,7 @@ function swuRenderPick() {
   if (info) info.innerHTML =
     (_swuPickGroup && _swuPick.length > 1 ? `กลุ่ม License: <b>${escHtml(_swuPickGroup.name)}</b> · ต้องอัพเดท ${on} แห่ง` : 'ลูกค้าทั่วไป (ร้านเดี่ยว)') +
     ` <span style="color:#8a8f97">· จำนวนเครื่องกรอกตอนอัพเดทจริง</span>` +
-    (_swuPickOpenJob ? `<div style="color:#86671f;margin-top:.2rem">⚠ กลุ่มนี้มีงาน #${_swuPickOpenJob} เปิดอยู่ — กดบันทึกแล้วระบบจะถามว่าจะเพิ่มปัญหานี้เข้างานเดิมไหม</div>` : '');
+    (_swuPickOpenJob ? `<div style="color:#3f5f8f;margin-top:.2rem">แบรนด์นี้มีงาน #${_swuPickOpenJob} เปิดอยู่ — บันทึกแล้วปัญหานี้จะเข้างานเดิมของแบรนด์</div>` : '');
 }
 
 // เลือกร้าน → ดึงสาขาอื่นในกลุ่ม License เดียวกันมาให้เลือก (ไม่ติ๊กไว้ก่อน); ร้าน INF ได้แห่งเดียว
@@ -27146,25 +27149,33 @@ async function saveSwUpdateForm() {
   };
   let r = await api('/api/sw-update', { method:'POST', body, silent:true });
   if (r?.existing_id) {
-    if (confirm(`กลุ่มนี้มีงานอัพเดท #${r.existing_id} เปิดอยู่แล้ว\n\nเพิ่มปัญหานี้เข้างาน #${r.existing_id} เลยไหม? (ทุกสาขาจะลง patch เดียวกัน)\n\nกด "ยกเลิก" เพื่อเลือกเปิดงานใหม่แยก`)) {
-      const x = await api(`/api/sw-update/${r.existing_id}/issues`, { method:'POST', silent:true,
-        body: { description, azure_id: body.azure_id, registration_id: rid, branch_name: company, reported_by: body.reported_by } });
-      if (x?.error) { showToast('❌ ' + x.error, 'error'); return; }
-      showToast(`เพิ่มปัญหาเข้างาน #${r.existing_id} แล้ว`, 'success');
-      closeModal('modal-sw-update-form');
-      await loadSwUpdate();
-      openSwUpdateDetail(r.existing_id);
-      return;
+    // แบรนด์นี้มีงานเปิดอยู่ → เพิ่มปัญหาเข้างานเดิมเลย (สาขาที่แจ้งถูกเพิ่มเข้า checklist ให้อัตโนมัติ)
+    const jid = r.existing_id;
+    const x = await api(`/api/sw-update/${jid}/issues`, { method:'POST', silent:true,
+      body: { description, azure_id: body.azure_id, registration_id: rid, branch_name: company, reported_by: body.reported_by } });
+    if (x?.error) { showToast('❌ ' + x.error, 'error'); return; }
+    // สาขาอื่นที่ติ๊กเพิ่ม + ความสำคัญ/เวอร์ชันที่สูงกว่าของเดิม
+    const job = (_swuData || []).find(j => j.id === jid);
+    const has = new Set((job?.branches || []).map(b => b.registration_id || b.branch_name));
+    for (const br of branches) {
+      if (br.registration_id === rid || has.has(br.registration_id || br.branch_name)) continue;
+      await api(`/api/sw-update/${jid}/branches`, { method:'POST', silent:true, body: br });
     }
-    if (!confirm('เปิดงานใหม่แยกจากงานเดิม?')) return;
-    r = await api('/api/sw-update', { method:'POST', body: { ...body, force_new: true }, silent:true });
+    const PR = { urgent: 3, high: 2, normal: 1, low: 0 }, upd = {};
+    if (job && (PR[body.priority] ?? 1) > (PR[job.priority] ?? 1)) upd.priority = body.priority;
+    if (job && body.version_recommend && !job.version_recommend) upd.version_recommend = body.version_recommend;
+    if (Object.keys(upd).length) await api(`/api/sw-update/${jid}`, { method:'PUT', silent:true, body: upd });
+    showToast(`เพิ่มปัญหาเข้าแบรนด์ ${job?.license_group || company} (งาน #${jid}) แล้ว`, 'success');
+    closeModal('modal-sw-update-form');
+    await loadSwUpdate();
+    swuUpdateBadge();
+    return;
   }
   if (!r || r.error) { showToast('❌ ' + (r?.error || 'บันทึกไม่สำเร็จ'), 'error'); return; }
   showToast('แจ้งงานอัพเดท SW แล้ว', 'success');
   closeModal('modal-sw-update-form');
   await loadSwUpdate();
   swuUpdateBadge();
-  openSwUpdateDetail(r.id);
 }
 
 async function deleteSwUpdate(id) {
@@ -29445,8 +29456,8 @@ async function generateFromPattern() {
 
     <!-- ร้านที่แจ้ง -->
     <div style="position:relative;margin-bottom:.6rem">
-      <label style="font-size:.75rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.25rem">ร้านที่แจ้งปัญหา <span style="color:#b04a40">*</span></label>
-      <input id="swu-company" type="text" placeholder="พิมพ์ชื่อร้านเพื่อค้นหา..." oninput="swuShopSearch()" autocomplete="off"
+      <label style="font-size:.75rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.25rem">สาขาที่แจ้งปัญหา <span style="color:#b04a40">*</span> <span style="font-weight:400;color:#6f747c">— ระบบจัดเข้าแบรนด์ให้เอง</span></label>
+      <input id="swu-company" type="text" placeholder="พิมพ์ชื่อสาขา / ร้านเพื่อค้นหา..." oninput="swuShopSearch()" autocomplete="off"
         style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.38rem .65rem;font-size:.83rem;outline:none"/>
       <div id="swu-shop-results" style="position:absolute;z-index:200;background:#fff;border:1px solid var(--border);border-radius:8px;max-height:180px;overflow-y:auto;width:100%;display:none;box-shadow:0 4px 12px #0002"></div>
       <input type="hidden" id="swu-registration-id"/>
@@ -29481,7 +29492,7 @@ async function generateFromPattern() {
 
     <!-- สาขาที่ต้องอัพเดท (ดึงจากกลุ่ม License) -->
     <div style="margin-bottom:.6rem">
-      <label style="font-size:.72rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.2rem">ต้องอัพเดทที่ <span style="font-weight:400;color:#6f747c">— ร้านในกลุ่ม License เดียวกัน ติ๊กสาขาอื่นที่ต้องทำด้วยได้</span></label>
+      <label style="font-size:.72rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.2rem">ต้องอัพเดทที่ <span style="font-weight:400;color:#6f747c">— สาขาที่แจ้งติ๊กให้แล้ว · ติ๊กสาขาอื่นในแบรนด์เพิ่มได้ (ไม่บังคับ)</span></label>
       <div id="swu-pick" class="swu-pick"></div>
       <div id="swu-pick-info" style="font-size:.72rem;color:#6f747c;margin-top:.3rem"></div>
     </div>
