@@ -6091,6 +6091,7 @@ app.post('/api/sw-update/credits', authRequired, async (request, res) => {
     const jobIds = [...new Set((request.body?.job_ids || []).map(x => parseInt(x)).filter(x => x > 0))].slice(0, 200);
     const empIds = [...new Set((request.body?.employee_ids || []).map(x => parseInt(x)).filter(x => x > 0))].slice(0, 50);
     if (!jobIds.length) return res.status(400).json({ error: 'ไม่ระบุงาน' });
+    if (!empIds.length) return res.status(400).json({ error: 'ต้องระบุคนที่อัปเดตอย่างน้อย 1 คน' });
     const jobs = (await req().query(`SELECT id, status, done_at FROM sw_update_jobs WHERE id IN (${jobIds.join(',')})`)).recordset;
     if (jobs.length !== jobIds.length) return res.status(404).json({ error: 'ไม่พบงานบางรายการ' });
     if (jobs.some(j => j.status !== 'done')) return res.status(400).json({ error: 'ให้แต้มได้เฉพาะงานที่เสร็จสิ้นแล้ว' });

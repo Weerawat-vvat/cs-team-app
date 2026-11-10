@@ -27126,7 +27126,7 @@ async function swuDoneAsk(gi, edit) {
   const pts = _llbData?.b?.staff_team?.grade_weights?.swu ?? 7;
   const nCase = T.reduce((a, r) => a + swuIssuesOf(r).length, 0);
   document.getElementById('swu-done-title').textContent = edit ? `คนที่อัปเดต — ${g.key}` : `ปิดงานอัปเดต — ${g.key}`;
-  document.getElementById('swu-done-sub').textContent = (edit ? '' : `${T.length > 1 ? `ปิดทั้ง ${T.length} งาน · ` : ''}${nCase} เคส · `) + `ใครไปอัปเดตบ้าง? แต่ละคนได้ +${pts} แต้มใน Leaderboard ทีมงาน`;
+  document.getElementById('swu-done-sub').textContent = (edit ? '' : `${T.length > 1 ? `ปิดทั้ง ${T.length} งาน · ` : ''}${nCase} เคส · `) + `ใครไปอัปเดตบ้าง? (ต้องเลือกอย่างน้อย 1 คน) แต่ละคนได้ +${pts} แต้มใน Leaderboard ทีมงาน`;
   document.getElementById('swu-done-q').value = '';
   document.getElementById('swu-done-list').innerHTML = emps.map(e => `<label class="swu-done-emp" data-n="${escHtml(((e.nickname || '') + ' ' + (e.name || '') + ' ' + (e.team || '')).toLowerCase())}">
       <input type="checkbox" value="${e.id}"${picked.has(e.id) ? ' checked' : ''} onchange="swuDoneCount()">
@@ -27144,13 +27144,20 @@ function swuDoneFilter(q) {
 }
 function swuDoneCount() {
   const n = document.querySelectorAll('#swu-done-list input:checked').length;
-  document.getElementById('swu-done-n').textContent = n ? `เลือก ${n} คน` : 'ยังไม่ได้เลือก';
+  const el = document.getElementById('swu-done-n');
+  el.textContent = n ? `เลือก ${n} คน` : 'ยังไม่ได้เลือก (ต้องเลือกอย่างน้อย 1 คน)';
+  el.style.color = '';
 }
 async function swuDoneSave() {
   const d = _swuDone;
   if (!d) return;
   const ids = [...document.querySelectorAll('#swu-done-list input:checked')].map(i => parseInt(i.value));
-  if (!ids.length && !confirm('ไม่ได้เลือกใครเลย — ไม่มีใครได้แต้มจากงานนี้ ยืนยัน?')) return;
+  if (!ids.length) {   // บังคับเลือกอย่างน้อย 1 คน
+    const n = document.getElementById('swu-done-n');
+    n.textContent = 'ต้องเลือกคนที่อัปเดตอย่างน้อย 1 คน'; n.style.color = '#b04a40';
+    document.getElementById('swu-done-q')?.focus();
+    return;
+  }
   const btn = document.getElementById('swu-done-ok');
   btn.disabled = true;
   try {
