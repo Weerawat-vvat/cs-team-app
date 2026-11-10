@@ -6048,8 +6048,12 @@ app.put('/api/sw-update/:id', authRequired, async (request, res) => {
     f('version_recommend', 'version_recommend', sql.NVarChar, b.version_recommend || null);
     f('reported_by', 'reported_by', sql.Int, b.reported_by || null);
     f('pod_id', 'pod_id', sql.Int, parseInt(b.pod_id) || null);
-    if (closing) { sets.push('version_installed=@vi'); r.input('vi', sql.NVarChar, b.version_recommend ?? cur.version_recommend ?? null); }
+    if (closing) { sets.push('version_installed=@vi', 'done_at=GETDATE()'); r.input('vi', sql.NVarChar, b.version_recommend ?? cur.version_recommend ?? null); }
+    const reopening = b.status !== undefined && b.status !== 'done' && cur.status === 'done';
+    if (reopening) sets.push('done_at=NULL');
     if (sets.length) await r.query(`UPDATE sw_update_jobs SET ${sets.join(', ')}, updated_at=GETDATE(), updated_by=@ub WHERE id=@id`);
+    // เปิดงานกลับ → ลบแต้มของรอบที่ปิดไป (ปิดใหม่จะถามคนอัปเดตอีกครั้ง)
+    if (reopening) await req().input('id', sql.Int, id).query('DELETE FROM sw_update_credits WHERE job_id=@id');
 
     if (closing) {
       try {
@@ -6069,6 +6073,45 @@ app.put('/api/sw-update/:id', authRequired, async (request, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── คนที่อัปเดต (แต้มพิเศษ Leaderboard) ──
+// GET  /api/sw-update/credits?job_ids=1,2  → [{ job_id, employee_id, name, batch_id, done_at }]
+// POST /api/sw-update/credits { job_ids:[...], employee_ids:[...] } → แทนที่รายชื่อของงานเหล่านี้ทั้งหมด (1 batch)
+app.get('/api/sw-update/credits', authRequired, async (request, res) => {
+  try {
+    const ids = String(request.query.job_ids || '').split(',').map(x => parseInt(x)).filter(x => x > 0).slice(0, 500);
+    if (!ids.length) return res.json([]);
+    const rows = (await req().query(`SELECT c.job_id, c.employee_id, c.batch_id, c.done_at, ISNULL(e.nickname, e.name) AS name
+      FROM sw_update_credits c LEFT JOIN employees e ON e.id = c.employee_id
+      WHERE c.job_id IN (${ids.join(',')}) ORDER BY c.job_id, name`)).recordset;
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/sw-update/credits', authRequired, async (request, res) => {
+  try {
+    const jobIds = [...new Set((request.body?.job_ids || []).map(x => parseInt(x)).filter(x => x > 0))].slice(0, 200);
+    const empIds = [...new Set((request.body?.employee_ids || []).map(x => parseInt(x)).filter(x => x > 0))].slice(0, 50);
+    if (!jobIds.length) return res.status(400).json({ error: 'ไม่ระบุงาน' });
+    const jobs = (await req().query(`SELECT id, status, done_at FROM sw_update_jobs WHERE id IN (${jobIds.join(',')})`)).recordset;
+    if (jobs.length !== jobIds.length) return res.status(404).json({ error: 'ไม่พบงานบางรายการ' });
+    if (jobs.some(j => j.status !== 'done')) return res.status(400).json({ error: 'ให้แต้มได้เฉพาะงานที่เสร็จสิ้นแล้ว' });
+    // วันที่นับแต้ม = วันที่ปิดงาน (ไม่ใช่วันที่มาแก้รายชื่อ)
+    const doneAt = jobs.map(j => j.done_at).filter(Boolean).sort((a, b) => a - b)[0] || new Date();
+    const batch = `${Date.now()}-${jobIds[0]}`;
+    const t = new sql.Transaction(getPool());
+    await t.begin();
+    try {
+      await new sql.Request(t).query(`DELETE FROM sw_update_credits WHERE job_id IN (${jobIds.join(',')})`);
+      for (const j of jobIds) for (const e of empIds) {
+        await new sql.Request(t).input('b', sql.NVarChar, batch).input('j', sql.Int, j).input('e', sql.Int, e)
+          .input('d', sql.DateTime, doneAt).input('u', sql.Int, request.user.id)
+          .query(`INSERT INTO sw_update_credits (batch_id, job_id, employee_id, done_at, created_by) VALUES (@b,@j,@e,@d,@u)`);
+      }
+      await t.commit();
+    } catch (e) { await t.rollback(); throw e; }
+    res.json({ ok: true, people: empIds.length });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // DELETE /api/sw-update/:id
 app.delete('/api/sw-update/:id', authRequired, managerRequired, async (request, res) => {
   try {
@@ -6077,6 +6120,7 @@ app.delete('/api/sw-update/:id', authRequired, managerRequired, async (request, 
       DELETE FROM sw_update_branches WHERE job_id=@id;
       DELETE FROM sw_update_issues WHERE job_id=@id;
       DELETE FROM sw_update_assignees WHERE job_id=@id;
+      DELETE FROM sw_update_credits WHERE job_id=@id;
       DELETE FROM sw_update_jobs WHERE id=@id`);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -9301,7 +9345,7 @@ async function lbSettingsPw(request, res, next) {
 app.post('/api/line-board/settings/unlock', authRequired, managerRequired, lbSettingsPw, (request, res) => res.json({ ok: true }));
 
 // E = งานพิเศษ (Extra) เช่น หัวข้อ Update Software
-const GRADE_WEIGHTS_DEFAULT = { A: 3, B: 2, C: 1, E: 3, other: 1 };
+const GRADE_WEIGHTS_DEFAULT = { A: 3, B: 2, C: 1, E: 3, other: 1, swu: 7 };   // swu = แต้มต่อคน ต่อการปิดงานอัปเดต SW 1 ครั้ง
 const cleanGradeWeights = w => Object.fromEntries(Object.entries(GRADE_WEIGHTS_DEFAULT).map(([k, d]) => {
   const v = Number(w?.[k]);
   return [k, Number.isFinite(v) && v >= 0 && v <= 20 ? Math.round(v * 100) / 100 : d];
@@ -9399,7 +9443,13 @@ async function computeLineBoard(qFrom, qTo, pod) {
         FROM Calllog cl JOIN Users u ON u.UserId = cl.SupportId
         OUTER APPLY (SELECT TOP 1 s.Grade FROM Subject s WHERE s.SubjectName = cl.Subject ORDER BY s.Active DESC) sg
         WHERE cl.Active = 1 AND cl.ReceiveDate >= @f AND cl.ReceiveDate < @t`)).recordset;
-      S = { employees, calllog: await clLoad(from, to), prevCalllog: await clLoad(pf, shift(1)), lineMap: LINE_STAFF_MAP };
+      // แต้มพิเศษงานอัปเดต SW: นับครั้งที่ปิดงาน (batch) ต่อคน ตามวันที่ปิดงาน
+      const swuLoad = async (f, t) => t < f ? [] : (await req().input('f', sql.NVarChar, f).input('t', sql.NVarChar, t).query(`
+        SELECT employee_id, COUNT(DISTINCT batch_id) AS n FROM sw_update_credits
+        WHERE done_at >= CAST(@f AS DATE) AND done_at < DATEADD(day, 1, CAST(@t AS DATE)) GROUP BY employee_id`)).recordset;
+      let swu = [], prevSwu = [];
+      try { swu = await swuLoad(from, to); prevSwu = await swuLoad(pf, shift(1)); } catch (e) { console.warn('line-board swu credits:', e.message); }
+      S = { employees, calllog: await clLoad(from, to), prevCalllog: await clLoad(pf, shift(1)), lineMap: LINE_STAFF_MAP, swu, prevSwu };
     } catch (e) { console.error('line-board staff:', e.message); }
     // เกณฑ์ขั้นต่ำปรับตามจำนวนวันที่เลือก (ตั้งไว้สำหรับ 14 วัน) — ดูรายวันก็ยังมีคนติดอันดับ
     const scaleMin = (n, floor) => Math.max(floor, Math.min(n, Math.round(n * span / 14)));
@@ -13840,6 +13890,23 @@ async function ensureSwUpdateTable() {
         ALTER TABLE sw_update_assignees ADD CONSTRAINT UQ_sw_assignees_job_user UNIQUE (job_id, user_id)
     `);
     // KPI งานอัพเดท: เวอร์ชันที่ลงจริงตอนปิดงาน + รายสาขา/จำนวนเครื่อง (1 งานอาจมีหลายสาขา)
+    // คนที่ไปอัปเดตจริง (ถามตอนกดเสร็จสิ้น) → แต้มพิเศษใน Leaderboard ทีมงาน
+    //   1 แถว = 1 คน × 1 งาน · batch_id = การปิดงานครั้งเดียวกันของแบรนด์ (หลายงานในแบรนด์เดียวกันได้แต้มครั้งเดียว)
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='sw_update_credits' AND xtype='U')
+      CREATE TABLE sw_update_credits (
+        id          INT PRIMARY KEY IDENTITY,
+        batch_id    NVARCHAR(40) NOT NULL,
+        job_id      INT NOT NULL,
+        employee_id INT NOT NULL,
+        done_at     DATETIME NOT NULL,
+        created_by  INT NULL,
+        created_at  DATETIME DEFAULT GETDATE()
+      )`);
+    await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('sw_update_credits') AND name='IX_swu_credit_job')
+      CREATE INDEX IX_swu_credit_job ON sw_update_credits (job_id)`);
+    await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('sw_update_jobs') AND name='done_at')
+      ALTER TABLE sw_update_jobs ADD done_at DATETIME NULL`);
     await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('sw_update_jobs') AND name='version_installed')
       ALTER TABLE sw_update_jobs ADD version_installed NVARCHAR(200) NULL`);
     await req().query(`

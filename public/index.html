@@ -814,6 +814,9 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
 /* uat */
 .uat-tbl td{vertical-align:top}
 .uat-chips{display:flex;gap:.35rem;flex-wrap:wrap}
+.swu-done-emp{display:flex;align-items:center;gap:.55rem;padding:.4rem .5rem;border-radius:7px;cursor:pointer;font-size:.84rem}
+.swu-done-emp:hover{background:#f5f4f0}
+.swu-done-emp span:nth-child(3){margin-left:auto}
 .uat-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.6rem}
 .uat-kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:.65rem .8rem;min-width:0;cursor:help}
 .uat-kpi .l{font-size:.74rem;color:#6f747c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -9546,7 +9549,7 @@ const LLB_BOARDS = {
     why: p => `งาน ${p.work_pts ?? p.workload} แต้ม (${p.workload} เคส) · ดาว ${p.stars_avg ?? '—'}`,
     cols: [
       ['งานทั้งหมด', 'แต้มงาน = เคสในหน้าติดตามเคส ทุกช่องทาง × น้ำหนักเกรดหัวข้อ (A ยาก · B กลาง · C ง่าย) · คะแนนงานเยอะ: ถึงระดับคนงานเยอะของทีม = 100 · เกินได้โบนัสลดหลั่นสูงสุด 110 (ที่ 2 เท่า) · คะแนนรวมเต็ม 100', p => `<b>${p.work_pts ?? p.workload}</b> <span class="mt-meta" style="font-size:.68rem;font-weight:400" title="${p.vol_ceiling ? `เส้นเต็ม 100 = ${p.vol_ceiling} แต้ม${p.level ? ` (เทียบกลุ่ม ${p.level})` : ' (ทั้งทีม)'}` : ''}">แต้ม · ${p.volume ?? 0} คะแนน</span>
-        <div class="mt-meta" style="font-size:.66rem;font-weight:400">${p.workload} เคส${p.grades ? ` · <span title="เกรด A (ยาก)">A ${p.grades.A}</span> · <span title="เกรด B">B ${p.grades.B}</span> · <span title="เกรด C (ง่าย)">C ${p.grades.C}</span>${p.grades.E ? ` · <span title="เกรด E งานพิเศษ (Extra)">E ${p.grades.E}</span>` : ''}${p.grades.other ? ` · <span title="หัวข้อไม่มีเกรด">อื่น ${p.grades.other}</span>` : ''}` : ''}</div>
+        <div class="mt-meta" style="font-size:.66rem;font-weight:400">${p.workload} เคส${p.grades ? ` · <span title="เกรด A (ยาก)">A ${p.grades.A}</span> · <span title="เกรด B">B ${p.grades.B}</span> · <span title="เกรด C (ง่าย)">C ${p.grades.C}</span>${p.grades.E ? ` · <span title="เกรด E งานพิเศษ (Extra)">E ${p.grades.E}</span>` : ''}${p.grades.other ? ` · <span title="หัวข้อไม่มีเกรด">อื่น ${p.grades.other}</span>` : ''}` : ''}${p.swu_jobs ? ` · <span title="ปิดงานอัปเดต SW ${p.swu_jobs} ครั้ง (+${p.swu_pts} แต้ม)">อัปเดต SW ${p.swu_jobs}</span>` : ''}</div>
         <div class="lb-chs">${llbChannels(p.channels)}</div><div class="mt-meta" style="font-size:.66rem;font-weight:400">ตอบแชท LINE ${p.line_cases}</div>`, () => ''],
       ['คุยงานดี', '', p => llbImp(p, 'talk', p.talk), p => p.talk == null ? '' : p.talk >= 80 ? 'g' : p.talk < 65 ? 'r' : 'y'],
       ['ตอบไว', '', p => llbImp(p, 'speed', p.speed), p => p.speed == null ? '' : p.speed >= 60 ? 'g' : p.speed < 40 ? 'r' : 'y'],
@@ -9653,12 +9656,12 @@ function llbGradeEdit(force) {
   const g = _llbData?.b?.staff_team?.grade_weights || { A: 3, B: 2, C: 1, E: 3, other: 1 };
   const L = _llbData?.b?.staff_team?.level_weights || { SR: { volume: 20, talk: 35, speed: 25, sat: 20 }, JR: { volume: 40, talk: 30, speed: 20, sat: 10 } };
   const f = (k, lab) => `<label style="display:flex;flex-direction:column;gap:.2rem;font-size:.74rem;color:#5b6068">${lab}
-    <input type="number" id="llb-gw-${k}" min="0" max="20" step="0.25" value="${g[k] ?? { A: 3, B: 2, C: 1, E: 3, other: 1 }[k]}" style="width:90px;padding:.3rem .5rem;border:1px solid #d9d6ce;border-radius:8px"></label>`;
+    <input type="number" id="llb-gw-${k}" min="0" max="20" step="0.25" value="${g[k] ?? { A: 3, B: 2, C: 1, E: 3, other: 1, swu: 7 }[k]}" style="width:90px;padding:.3rem .5rem;border:1px solid #d9d6ce;border-radius:8px"></label>`;
   el.innerHTML = `<div style="background:#f7f6f3;border-radius:10px;padding:.75rem .9rem;margin:.3rem 0 .6rem">
     <div style="font-size:.82rem;font-weight:700;margin-bottom:.2rem">น้ำหนักงานตามเกรดหัวข้อ</div>
     <div class="mt-meta" style="font-size:.74rem;margin-bottom:.55rem">แต้มงาน = จำนวนเคส × น้ำหนักของเกรด · ตัวอย่าง A = 3, C = 1 → งานยาก 1 เคสเท่ากับงานง่าย 3 เคส · เกรดตั้งที่หัวข้อปัญหา (Subject)</div>
     <div style="display:flex;gap:.8rem;align-items:flex-end;flex-wrap:wrap">
-      ${f('A', 'เกรด A (ยาก)')}${f('B', 'เกรด B (กลาง)')}${f('C', 'เกรด C (ง่าย)')}${f('E', 'เกรด E (งานพิเศษ)')}${f('other', 'ไม่มีเกรด')}
+      ${f('A', 'เกรด A (ยาก)')}${f('B', 'เกรด B (กลาง)')}${f('C', 'เกรด C (ง่าย)')}${f('E', 'เกรด E (งานพิเศษ)')}${f('other', 'ไม่มีเกรด')}${f('swu', 'อัปเดต SW (ต่อคน/ครั้ง)')}
     </div>
     <div style="font-size:.82rem;font-weight:700;margin:.9rem 0 .2rem">สัดส่วนคะแนนรวม แยกระดับ</div>
     <div class="mt-meta" style="font-size:.74rem;margin-bottom:.55rem">SR บางคนเป็นพี่เลี้ยง งานน้อยกว่าน้อง จึงลดสัดส่วนงานเยอะลงแล้วเน้นคุณภาพ · คนที่ยังไม่ตั้งระดับใช้ชุด JR · ไม่จำเป็นต้องรวมได้ 100 (ระบบเทียบเป็นสัดส่วนให้)</div>
@@ -9676,7 +9679,7 @@ function llbGradeEdit(force) {
 }
 async function llbGradeSave() {
   const w = {};
-  for (const k of ['A', 'B', 'C', 'E', 'other']) {
+  for (const k of ['A', 'B', 'C', 'E', 'other', 'swu']) {
     const v = parseFloat(document.getElementById('llb-gw-' + k)?.value);
     if (!(v >= 0 && v <= 20)) { showToast('น้ำหนักต้องอยู่ระหว่าง 0–20', 'warning'); return; }
     w[k] = v;
@@ -27081,14 +27084,15 @@ function swuBrandCtl(g, gi) {
     <select class="swu-st-sel" style="background:${S.bg};color:${S.color}" title="สถานะ${many}" onchange="swuBrandSet(${gi}, 'status', this.value, this)">
       ${st === undefined ? '<option value="" selected disabled>หลายสถานะ</option>' : ''}
       ${Object.entries(SWU_STATUS).map(([k, v]) => `<option value="${k}" ${k === st ? 'selected' : ''}>${v.label}</option>`).join('')}</select>
+    ${st === 'done' ? `<button class="swu-st-sel" style="background:#e7f0ea;color:#2f7a52;cursor:pointer;border:none" title="แก้รายชื่อคนที่ไปอัปเดต (แต้มพิเศษ Leaderboard)" onclick="swuDoneAsk(${gi}, true)">👥 คนอัปเดต</button>` : ''}
   </span>`;
 }
 async function swuBrandSet(gi, field, value, el) {
   const g = _swuG[gi];
   if (!g) return;
   const T = swuBrandJobs(g);
-  const nCase = T.reduce((a, r) => a + swuIssuesOf(r).length, 0);
-  if (field === 'status' && value === 'done' && !confirm(`ปิดงานของ ${g.key}${T.length > 1 ? ` ทั้ง ${T.length} งาน` : ''} (${nCase} เคส)?`)) { renderSwUpdate(); return; }
+  // ปิดงาน → ถามก่อนว่าใครไปอัปเดต (ได้แต้มพิเศษใน Leaderboard ทีมงาน)
+  if (field === 'status' && value === 'done' && T.some(r => r.status !== 'done')) { swuDoneAsk(gi); return; }
   if (el) el.disabled = true;
   for (const r of T) {
     const x = await api(`/api/sw-update/${r.id}`, { method: 'PUT', silent: true, body: { [field]: value || null } });
@@ -27098,6 +27102,74 @@ async function swuBrandSet(gi, field, value, el) {
   await loadSwUpdate();
   swuUpdateBadge();
 }
+// ── ปิดงาน: ใครไปอัปเดตบ้าง → แต้มพิเศษใน Leaderboard (แก้รายชื่อทีหลังได้ที่หัวแบรนด์) ──
+let _swuDone = null;   // { gi, jobIds, edit }
+let _swuEmps = null;
+async function swuLoadEmps() {
+  if (_swuEmps) return _swuEmps;
+  const rows = await api('/api/employees', { silent: true });
+  _swuEmps = (Array.isArray(rows) ? rows : []).filter(e => e.active !== false && e.active !== 0)
+    .sort((a, b) => (a.nickname || a.name || '').localeCompare(b.nickname || b.name || '', 'th'));
+  return _swuEmps;
+}
+async function swuDoneAsk(gi, edit) {
+  const g = _swuG[gi];
+  if (!g) return;
+  const T = edit ? g.jobs.filter(r => r.status === 'done') : swuBrandJobs(g);
+  const emps = await swuLoadEmps();
+  let picked = new Set();
+  if (edit) {
+    const cr = await api('/api/sw-update/credits?job_ids=' + T.map(r => r.id).join(','), { silent: true });
+    (Array.isArray(cr) ? cr : []).forEach(c => picked.add(c.employee_id));
+  } else if (currentUser?.employee_id) picked.add(currentUser.employee_id);
+  _swuDone = { gi, jobIds: T.map(r => r.id), edit: !!edit };
+  const pts = _llbData?.b?.staff_team?.grade_weights?.swu ?? 7;
+  const nCase = T.reduce((a, r) => a + swuIssuesOf(r).length, 0);
+  document.getElementById('swu-done-title').textContent = edit ? `คนที่อัปเดต — ${g.key}` : `ปิดงานอัปเดต — ${g.key}`;
+  document.getElementById('swu-done-sub').textContent = (edit ? '' : `${T.length > 1 ? `ปิดทั้ง ${T.length} งาน · ` : ''}${nCase} เคส · `) + `ใครไปอัปเดตบ้าง? แต่ละคนได้ +${pts} แต้มใน Leaderboard ทีมงาน`;
+  document.getElementById('swu-done-q').value = '';
+  document.getElementById('swu-done-list').innerHTML = emps.map(e => `<label class="swu-done-emp" data-n="${escHtml(((e.nickname || '') + ' ' + (e.name || '') + ' ' + (e.team || '')).toLowerCase())}">
+      <input type="checkbox" value="${e.id}"${picked.has(e.id) ? ' checked' : ''} onchange="swuDoneCount()">
+      <span>${escHtml(e.nickname || e.name)}</span><span class="mt-meta" style="font-size:.7rem">${escHtml(e.team || '')}</span></label>`).join('');
+  document.getElementById('swu-done-ok').textContent = edit ? 'บันทึก' : 'ปิดงาน';
+  swuDoneCount();
+  openModal('modal-swu-done');
+  setTimeout(() => document.getElementById('swu-done-q')?.focus(), 60);
+}
+function swuDoneFilter(q) {
+  q = q.trim().toLowerCase();
+  document.querySelectorAll('#swu-done-list .swu-done-emp').forEach(l => {
+    l.style.display = !q || l.dataset.n.includes(q) || l.querySelector('input').checked ? '' : 'none';
+  });
+}
+function swuDoneCount() {
+  const n = document.querySelectorAll('#swu-done-list input:checked').length;
+  document.getElementById('swu-done-n').textContent = n ? `เลือก ${n} คน` : 'ยังไม่ได้เลือก';
+}
+async function swuDoneSave() {
+  const d = _swuDone;
+  if (!d) return;
+  const ids = [...document.querySelectorAll('#swu-done-list input:checked')].map(i => parseInt(i.value));
+  if (!ids.length && !confirm('ไม่ได้เลือกใครเลย — ไม่มีใครได้แต้มจากงานนี้ ยืนยัน?')) return;
+  const btn = document.getElementById('swu-done-ok');
+  btn.disabled = true;
+  try {
+    if (!d.edit) {
+      for (const id of d.jobIds) {
+        const x = await api(`/api/sw-update/${id}`, { method: 'PUT', silent: true, body: { status: 'done' } });
+        if (x?.error) { showToast('❌ งาน #' + id + ': ' + x.error, 'error'); return; }
+      }
+    }
+    const r = await api('/api/sw-update/credits', { method: 'POST', silent: true, body: { job_ids: d.jobIds, employee_ids: ids } });
+    if (!r || r.error) { showToast('❌ บันทึกคนอัปเดตไม่สำเร็จ: ' + (r?.error || ''), 'error'); return; }
+    closeModal('modal-swu-done');
+    showToast(d.edit ? 'บันทึกคนที่อัปเดตแล้ว' : `ปิดงานแล้ว${ids.length ? ` — ${ids.length} คนได้แต้มพิเศษ` : ''}`, 'success');
+    _swuDone = null;
+    await loadSwUpdate();
+    swuUpdateBadge();
+  } finally { btn.disabled = false; }
+}
+
 // ── มุมมองบอร์ด: คอลัมน์ตามสถานะ · การ์ด = แบรนด์ (สถานะระดับแบรนด์) · ลากการ์ดไปคอลัมน์อื่นเพื่อเปลี่ยนสถานะ ──
 let _swuView = (() => { try { return localStorage.getItem('swu-view') === 'board' ? 'board' : 'list'; } catch { return 'list'; } })();
 const SWU_BOARD_COLS = ['pending', 'scheduling', 'scheduled', 'updating', 'done'];
@@ -29824,6 +29896,25 @@ async function generateFromPattern() {
     <div class="btn-group">
       <button class="btn btn-primary" onclick="saveUatForm()">บันทึก</button>
       <button class="btn btn-ghost" onclick="closeModal('modal-uat-form')">ยกเลิก</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ SW UPDATE: ใครไปอัปเดต (ตอนปิดงาน) ══════════ -->
+<div class="overlay" id="modal-swu-done">
+  <div class="modal" style="max-width:520px;width:100%;max-height:92vh;overflow-y:auto;padding:1.1rem 1.25rem">
+    <div class="modal-head">
+      <div id="swu-done-title" style="font-size:1.05rem;font-weight:600">ปิดงานอัปเดต</div>
+      <button class="modal-close" onclick="closeModal('modal-swu-done');renderSwUpdate()">×</button>
+    </div>
+    <div id="swu-done-sub" style="font-size:.8rem;color:#5b616b;margin-bottom:.6rem"></div>
+    <input id="swu-done-q" type="text" placeholder="ค้นหาชื่อ" oninput="swuDoneFilter(this.value)"
+      style="width:100%;border:1px solid var(--border);border-radius:8px;padding:.38rem .65rem;font-size:.83rem;margin-bottom:.5rem">
+    <div id="swu-done-list" style="max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;padding:.25rem"></div>
+    <div style="display:flex;align-items:center;gap:.5rem;margin-top:.8rem">
+      <span id="swu-done-n" class="mt-meta" style="font-size:.78rem"></span>
+      <button class="btn btn-ghost" style="margin-left:auto" onclick="closeModal('modal-swu-done');renderSwUpdate()">ยกเลิก</button>
+      <button class="btn btn-primary" id="swu-done-ok" onclick="swuDoneSave()">ปิดงาน</button>
     </div>
   </div>
 </div>

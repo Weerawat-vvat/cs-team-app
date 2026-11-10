@@ -736,22 +736,26 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
     const LW = { SR: { volume: 20, talk: 35, speed: 25, sat: 20 }, JR: W2, ...(B.levelWeights || {}) };
     const wOf = x => LW[x.level === 'SR' ? 'SR' : 'JR'] || W2;
     // งานเยอะถ่วงตามเกรดหัวข้อ: A ยาก · B กลาง · C ง่าย · อื่นๆ = หัวข้อไม่มีเกรด
-    const GW = { A: 3, B: 2, C: 1, E: 3, other: 1, ...(B.gradeWeights || {}) };   // E = งานพิเศษ (Extra)
+    const GW = { A: 3, B: 2, C: 1, E: 3, other: 1, swu: 7, ...(B.gradeWeights || {}) };   // E = งานพิเศษ (Extra)
     const gradeOf = g => { g = String(g || '').trim().toUpperCase(); return ['A', 'B', 'C', 'E'].includes(g) ? g : 'other'; };
 
-    const buildStaff = (cases, calllog, teamLine) => {
+    const buildStaff = (cases, calllog, teamLine, swuRows = []) => {
+      const swuBy = new Map(swuRows.map(r => [r.employee_id, r.n]));
       const m = new Map();
       const get = e => m.get(e.id) || m.set(e.id, { id: e.id, name: e.nickname || e.name, full_name: e.name, team: e.team,
         pod_id: e.pod_id ?? null, pod_name: e.pod_name || null, pod_color: e.pod_color || null, avatar_url: e.avatar_url || null, level: e.level || null,
         line_names: new Set(), cases: [], cl: [] }).get(e.id);
       for (const c of cases) { const e = empOfLine(c.answered_by); if (e) { const s = get(e); s.cases.push(c); s.line_names.add(c.answered_by); } }
       for (const r of calllog) { const e = byExt.get(String(r.user || '').toLowerCase()); if (e) get(e).cl.push(r); }
+      for (const e of emps) if (swuBy.get(e.id)) get(e);   // คนที่มีแต่งานอัปเดต SW ก็ขึ้นบอร์ด
       const list = [...m.values()].map(s => {
         const st = stats(s.cases), br = boardRaw(s.cases);
         const channels = {};
         const grades = { A: 0, B: 0, C: 0, E: 0, other: 0 };
         s.cl.forEach(r => { const k = chOf(r.channel); channels[k] = (channels[k] || 0) + 1; grades[gradeOf(r.grade)]++; });
-        const work_pts = Math.round(Object.entries(grades).reduce((a, [g, n]) => a + n * (GW[g] ?? 1), 0) * 10) / 10;
+        // แต้มพิเศษ: ปิดงานอัปเดต SW (คนที่ไปอัปเดต ได้คนละ GW.swu ต่อการปิดงาน 1 ครั้ง)
+        const swu_jobs = swuBy.get(s.id) || 0, swu_pts = swu_jobs * (GW.swu ?? 7);
+        const work_pts = Math.round((Object.entries(grades).reduce((a, [g, n]) => a + n * (GW[g] ?? 1), 0) + swu_pts) * 10) / 10;
         const closed = s.cl.filter(r => r.closed_at);
         const rated = s.cl.filter(r => r.stars > 0);
         const unlogged = s.cases.filter(c => !c.calllog_id).length;   // แชท LINE ที่ไม่ได้เปิดเคสใน Calllog
@@ -760,7 +764,7 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
           pod_id: s.pod_id, pod_name: s.pod_name, pod_color: s.pod_color, avatar_url: s.avatar_url, level: s.level,
           line_cases: s.cases.length, line_unlogged: unlogged, calllog_total: s.cl.length, channels,
           // งานทั้งหมด = เคสที่ลงในหน้าติดตามเคส (Calllog) ทุกช่องทางเท่านั้น · work_pts = ถ่วงตามเกรดหัวข้อ
-          workload: s.cl.length, grades, work_pts,
+          workload: s.cl.length, grades, work_pts, swu_jobs, swu_pts,
           closed_pct: s.cl.length ? Math.round(closed.length / s.cl.length * 100) : null,
           close_median_min: median(closed.map(r => (new Date(r.closed_at) - new Date(r.opened_at)) / 60000).filter(v => v >= 0)),
           stars_avg: rated.length ? +(rated.reduce((a, r) => a + r.stars, 0) / rated.length).toFixed(2) : null, rated: rated.length,
@@ -814,7 +818,7 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
       });
       return { list, teamStars };
     };
-    const curS = buildStaff(cur, S.calllog, teamRaw), prevS = buildStaff(prevRows, S.prevCalllog || [], prevTeamRaw);
+    const curS = buildStaff(cur, S.calllog, teamRaw, S.swu || []), prevS = buildStaff(prevRows, S.prevCalllog || [], prevTeamRaw, S.prevSwu || []);
     const rankOf = (lst, k) => lst.filter(x => x.ranked && x[k] != null).sort((a, z) => z[k] - a[k]).map(x => x.id);
     const pr = Object.fromEntries(['overall', 'talk', 'speed', 'sat'].map(k => [k, rankOf(prevS.list, k)]));
     curS.list.forEach(x => {
