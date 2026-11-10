@@ -15762,7 +15762,8 @@ let _mtDataStart = { at: 0, d: null };
 const MT_DATA_MIN_PER_DAY = 10;
 async function mtDataStart(ids) {
   if (MT_DATA_START_ENV) return MT_DATA_START_ENV;
-  if (_mtDataStart.d && Date.now() - _mtDataStart.at < 10 * 60 * 1000) return _mtDataStart.d;
+  // วันเริ่มมีข้อมูล Tag แทบไม่เปลี่ยน (เปลี่ยนเฉพาะตอนติด Tag ย้อนหลัง) แต่คิดใหม่ช้า ~1 วิ → จำไว้ 6 ชม.
+  if (_mtDataStart.d && Date.now() - _mtDataStart.at < 6 * 3600 * 1000) return _mtDataStart.d;
   const perDay = new Map();
   for (let i = 0; i < ids.length; i += 2000) {
     (await extReq().query(`SELECT CONVERT(char(10), ReceiveDate, 23) AS d, COUNT(*) AS n FROM Calllog
@@ -15894,18 +15895,18 @@ app.get('/api/monitor-tags/board', authRequired, async (request, res) => {
     const { custom, from, to, labels, prevFrom, prevOk } = mtBoardRange(request.query, today, dataStart);
     const days = labels.length;
     const idx = new Map(labels.map((d, i) => [d, i]));
-    const info = new Map();
-    for (let i = 0; i < ids.length; i += 2000) {
-      (await extReq().input('pf', sql.NVarChar, prevFrom).query(`
+    // เคสในช่วง (รวมช่วงก่อนหน้า) ดึงตามวันที่แล้วกรองเฉพาะเคสที่ติด Tag ในหน่วยความจำ
+    //   เดิมส่ง CalllogId ทีละ 2,000 ตัว (IN list) ~7 รอบ ใช้ ~3 วิ และช้าลงทุกวันตามจำนวนเคสที่ติด Tag · ดึงตามวันที่ใช้ ~0.2 วิ
+    const info = new Map(), idSet = new Set(ids);
+    if (idSet.size) (await extReq().input('pf', sql.NVarChar, prevFrom).input('t', sql.NVarChar, to).query(`
         SELECT cl.CalllogId AS id, CONVERT(char(10), cl.ReceiveDate, 23) AS d, cl.ReceiveDate AS at,
                cl.RegistrationId AS rid, xr.CompanyName AS company,
                CASE WHEN xr.GroupId IS NOT NULL AND xr.GroupId <> 1 THEN xg.GroupName END AS grp
         FROM Calllog cl
         LEFT JOIN CustomerRegistration xr ON xr.RegistrationId = cl.RegistrationId
         LEFT JOIN CustomerGroup        xg ON xg.GroupId        = xr.GroupId
-        WHERE cl.Active=1 AND cl.CalllogId IN (${ids.slice(i, i + 2000).join(',')}) AND cl.ReceiveDate >= CAST(@pf AS DATE)`))
-        .recordset.forEach(r => { if (!aiSet || aiSet.has(r.rid)) info.set(r.id, r); });
-    }
+        WHERE cl.Active=1 AND cl.ReceiveDate >= CAST(@pf AS DATE) AND cl.ReceiveDate < DATEADD(day, 1, CAST(@t AS DATE))`))
+        .recordset.forEach(r => { if (idSet.has(r.id) && (!aiSet || aiSet.has(r.rid))) info.set(r.id, r); });
     // เคสทั้งหมดต่อวัน (ไว้ดูสัดส่วนที่ติด Tag)
     const all = new Array(labels.length).fill(0);
     if (!aiSet || aiRids.length) (await extReq().input('f', sql.NVarChar, from).query(`
