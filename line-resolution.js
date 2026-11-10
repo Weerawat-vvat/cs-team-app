@@ -788,11 +788,15 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
         // (ช่วงที่ยังตัดสินแชทไม่ครบ ตัวเลขนี้จะสูงเกินจริง จึงใช้เตือนเฉพาะตอนที่ต่ำ)
         x.line_logged = x.channels.LINE || 0;
         x.line_logged_pct = lineOk ? Math.round(x.line_logged / x.line_cases * 100) : null;
+        // ธงเตือน: ตอบแชท LINE แล้วลงเคสในหน้าติดตามเคสน้อย (ยังไม่หักคะแนน — ดูตัวเลขให้แน่ใจก่อน)
+        x.log_flag = x.line_logged_pct != null && x.line_logged_pct < (B.loggedFlagPct ?? 70);
         x.talk = lineOk ? shrink(x.talk_raw, x.talk_known, teamLine.talk) : null;
         x.speed = lineOk ? shrink(x.speed_raw, x.line_cases, teamLine.speed) : null;
         x.sat = x.rated ? shrink(satOf(x.stars_avg), x.rated, satOf(teamStars)) : null;
         x.vol_ceiling = vTop(x);
-        x.volume = x.vol_ceiling ? clamp(x.work_pts / x.vol_ceiling * 100) : 0;
+        // ถึงเส้น = 100 · เกินเส้นได้โบนัสแบบลดหลั่น (log) สูงสุด 110 ที่ 2 เท่าของเส้น — คนงานหนักมากได้เปรียบเล็กน้อย ไม่จูงใจให้แตกเคส
+        const vr = x.vol_ceiling ? x.work_pts / x.vol_ceiling : 0;
+        x.volume = vr <= 1 ? clamp(vr * 100) : Math.round(100 + Math.min(10, 10 * Math.log(vr) / Math.LN2));
         // ส่วนที่ไม่มีข้อมูล → ใช้ค่าเฉลี่ยทีม (เป็นกลาง ไม่ช่วยไม่ซ้ำเติม) ทุกคนจึงคิดครบทุกส่วนตามสัดส่วนเดียวกัน
         const avgOf = { talk: teamLine.talk, speed: teamLine.speed, sat: satOf(teamStars) };
         x.imputed = {};
@@ -804,7 +808,7 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
         const Wx = wOf(x);
         x.weights = Wx;
         const wsum = parts.reduce((a, [k]) => a + Wx[k], 0);
-        x.overall = wsum ? Math.round(parts.reduce((a, [k, v]) => a + v * Wx[k], 0) / wsum) : null;
+        x.overall = wsum ? Math.min(100, Math.round(parts.reduce((a, [k, v]) => a + v * Wx[k], 0) / wsum)) : null;   // คะแนนรวมเต็ม 100 เสมอ
         x.tier = tierOf(x.overall);
         x.ranked = x.workload >= B.minCases && x.team !== 'management';   // หัวหน้าทีมแสดงไว้ แต่ไม่ติดอันดับ
       });
