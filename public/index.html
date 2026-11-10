@@ -26965,7 +26965,7 @@ function renderSwUpdate() {
       <span class="swu-tg">${collapsed ? '▶' : '▼'}</span>
       <div style="flex:1;min-width:200px">
         <div class="swu-bname">${g.ai ? `<span class="tk-ai" style="margin-right:.35rem" title="ติดตั้ง AI (SSH) แล้ว"><i class=i-check></i> AI</span>` : ''}${escHtml(g.key)}${g.isGroup ? '' : ' <span class="swu-bmeta" style="font-weight:400">· ร้านเดี่ยว</span>'}</div>
-        <div class="swu-bmeta">${g.items.length} เคส · ${g.branches} สาขา${g.jobs.length > 1 ? ` · ${g.jobs.length} งาน` : ''}${g.bAll ? ` · อัปเดตแล้ว ${g.bDone}/${g.bAll} สาขา` : ''}${g.open && g.oldest < Infinity ? ` · ค้างนานสุด ${ageD(g.oldest)}` : ''}</div>
+        <div class="swu-bmeta">${g.items.length} เคส · ${g.branches} สาขา${g.jobs.length > 1 ? ` · ${g.jobs.length} งาน` : ''}${g.open && g.oldest < Infinity ? ` · ค้างนานสุด ${ageD(g.oldest)}` : ''}</div>
       </div>
       ${g.open && g.pr >= 2 ? `<span class="swu-chip" style="background:${g.pr === 3 ? '#fbeceb' : '#fbf0e6'};color:${pri.color}">มีเคส${pri.label}</span>` : ''}
       ${g.jobs.some(r => open(r) && r.remote_n === 0 && r.files_n === 0) ? `<span class="swu-chip" style="background:#fbeceb;color:#a23b33" title="งานที่ยังไม่มีเลข Remote / ไฟล์ Remote">ยังไม่มี Remote</span>` : ''}
@@ -27362,7 +27362,7 @@ function swuRmDetailHtml(j, closed) {
   const kb = n => n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
   const me = currentUser?.id, mgr = swuIsManager();
   const n = D ? D.remotes.length + D.files.length : 0;
-  const head = `<div class="swu-sec-t"><span>Remote (AnyDesk)${D ? ` (${D.remotes.length ? `${D.remotes.length} เครื่อง` : ''}${D.remotes.length && D.files.length ? ' · ' : ''}${D.files.length ? `${D.files.length} ไฟล์` : ''})` : ''}</span>
+  const head = `<div class="swu-sec-t"><span>Remote (AnyDesk)${D && (D.remotes.length || D.files.length) ? ` (${D.remotes.length ? `${D.remotes.length} เครื่อง` : ''}${D.remotes.length && D.files.length ? ' · ' : ''}${D.files.length ? `${D.files.length} ไฟล์` : ''})` : ''}</span>
     <button class="btn btn-ghost swu-btn-s" onclick="_swuRmD.form=!_swuRmD.form;swuRenderDetail()">${_swuRmD.form ? 'ปิด' : '+ เพิ่ม Remote / แนบไฟล์'}</button></div>`;
   if (!D) return head + '<div class="swu-note" style="padding:.4rem .2rem">กำลังโหลด…</div>';
   const rows = D.remotes.map(r => {
@@ -27567,14 +27567,6 @@ function swuRenderDetail() {
         ${Object.entries(SWU_PRIORITY).map(([k, v]) => `<option value="${k}" ${k === j.priority ? 'selected' : ''}>${v.label}</option>`).join('')}</select></div>
     </div>
 
-    <div class="swu-tiles">
-      <div class="swu-tile"><div class="v">${s.done}/${s.n}</div><div class="k">สาขาครบ${s.blocked ? ` · ไม่ได้ ${s.blocked}` : ''}</div></div>
-      <div class="swu-tile"><div class="v">${s.total}${s.unknown ? '<small>+?</small>' : ''}</div><div class="k">เครื่องทั้งหมด</div></div>
-      <div class="swu-tile"><div class="v" style="color:#3f7a5a">${s.ok}</div><div class="k">สำเร็จ</div></div>
-      <div class="swu-tile"><div class="v" style="color:#b04a40">${s.remain}${s.unknown ? '<small>+?</small>' : ''}</div><div class="k">ค้าง${s.blockedLeft ? ` · อัพเดทไม่ได้ ${s.blockedLeft}` : ''}</div></div>
-    </div>
-    <div class="swu-prog"><i style="width:${s.total ? s.ok / s.total * 100 : 0}%"></i></div>
-
     <div class="swu-sec-t"><span>ปัญหาที่แก้ในรอบนี้ (${(j.issues || []).length})</span>
       ${closed ? '' : `<button class="btn btn-ghost swu-btn-s" onclick="document.getElementById('swu-iss-form').style.display='flex'">+ เพิ่มปัญหา</button>`}</div>
     <div class="swu-iss">${issues}</div>
@@ -27587,27 +27579,8 @@ function swuRenderDetail() {
 
     ${swuRmDetailHtml(j, closed)}
 
-    <div class="swu-sec-t"><span>Checklist สาขา</span>
-      ${closed ? '' : _swuDetailOpts.length > 1
-        ? `<button class="btn btn-ghost swu-btn-s" onclick="${_swuPickerSel ? '_swuPickerSel=null;swuRenderDetail()' : 'swuOpenPicker()'}">${_swuPickerSel ? 'ปิดตัวเลือก' : `เลือกสาขาในกลุ่ม (${_swuDetailOpts.filter(o => swuBranchOf(j, o)).length}/${_swuDetailOpts.length})`}</button>`
-        : `<span style="display:flex;gap:.3rem"><input class="swu-in" id="swu-add-branch" list="swu-d-branch-opts" placeholder="ชื่อสาขา" style="width:170px"><button class="btn btn-ghost swu-btn-s" onclick="swuAddBranch()">+ เพิ่มสาขา</button></span>`}</div>
     <datalist id="swu-d-branch-opts">${_swuDetailOpts.map(o => `<option value="${escHtml(o.CompanyName)}"></option>`).join('')}</datalist>
-    ${_swuPickerSel && !closed ? `<div class="swu-pick" style="margin-bottom:.6rem;max-height:300px">
-      <label class="swu-pick-row all"><input type="checkbox" ${_swuPickerSel.size === _swuDetailOpts.length ? 'checked' : ''} onchange="swuPickerSet(null, this.checked)">
-        ทุก License ในกลุ่ม ${escHtml(j.license_group || '')} — เลือกทั้งหมด <span style="font-weight:400;color:#6f747c">(${_swuPickerSel.size}/${_swuDetailOpts.length})</span></label>
-      ${_swuDetailOpts.map((o, i) => { const lk = swuBranchLocked(swuBranchOf(j, o)); return `<label class="swu-pick-row" ${lk ? 'title="มีคนบันทึกผลแล้ว เอาออกไม่ได้" style="cursor:default"' : ''}>
-        <input type="checkbox" ${_swuPickerSel.has(i) ? 'checked' : ''} ${lk ? 'disabled' : ''} onchange="swuPickerSet(${i}, this.checked)">
-        ${escHtml(o.CompanyName)}${swuIsHQ(o.CompanyName) ? ' <span class="swu-pill hq">HQ</span>' : ''}${lk ? ' <span style="font-size:.7rem;color:#8a8f97">🔒 บันทึกผลแล้ว</span>' : ''}</label>`; }).join('')}
-      <div style="display:flex;gap:.4rem;padding:.45rem 0 .3rem;position:sticky;bottom:0;background:#fff">
-        <button class="btn btn-primary swu-btn-s" onclick="swuSavePicker()">บันทึกสาขา</button>
-        <button class="btn btn-ghost swu-btn-s" onclick="_swuPickerSel=null;swuRenderDetail()">ยกเลิก</button></div>
-    </div>` : ''}
-    <div class="tbl-wrap"><table class="swu-cl">
-      <thead><tr><th>สาขา</th><th class="r">ทั้งหมด</th><th class="r">สำเร็จ</th><th class="r">ค้าง</th><th>คนทำ</th><th class="r">ทำเพิ่ม</th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="6" class="swu-note" style="text-align:center;padding:1rem">ยังไม่มีสาขา</td></tr>'}</tbody>
-    </table></div>
-    <div class="swu-note" style="margin-top:.35rem">ใส่จำนวนเครื่องแล้วกด ✓ — ชื่อคนทำคือคนที่กด (ล็อก) · ทำไม่หมดก็แก้ตัวเลข แล้วค่อยบันทึกเพิ่มทีหลังได้ · "ไม่ได้" = อัพเดทสาขานี้ไม่ได้ (ระบุเหตุผล + หมายเหตุ)</div>
-    ${!closed && s.ready ? `<div class="swu-banner"><span>✓ ครบทุกสาขาแล้ว — สำเร็จ ${s.ok}/${s.total} เครื่อง${s.blocked ? ` · อัพเดทไม่ได้ ${s.blocked} สาขา` : ''}</span><button class="btn btn-primary" onclick="swuSetField('status','done')">ปิดงาน</button></div>` : ''}
+    ${!closed ? `<div class="swu-banner" style="background:#f7f6f3;color:#4d535b"><span>อัปเดตเสร็จแล้ว ปิดงานได้เลย</span><button class="btn btn-primary" onclick="swuSetField('status','done')">ปิดงาน</button></div>` : ''}
     ${j.status === 'done' ? `<div class="swu-banner">✓ ปิดงานแล้ว${j.version_installed ? ` · ลงเวอร์ชัน <span class="mono">${escHtml(j.version_installed)}</span>` : ''}</div>` : ''}`;
 }
 

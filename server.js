@@ -6030,8 +6030,7 @@ app.put('/api/sw-update/:id', authRequired, async (request, res) => {
     let brs = [];
     if (closing) {
       brs = (await req().input('id', sql.Int, id).query('SELECT * FROM sw_update_branches WHERE job_id=@id')).recordset;
-      const left = brs.filter(x => !['done', 'blocked'].includes(x.status));
-      if (brs.length && left.length) return res.status(400).json({ error: `ยังเหลือ ${left.length} สาขาที่ยังไม่ครบ: ${left.map(x => x.branch_name).join(', ')}` });
+      // ไม่ใช้ checklist สาขาแล้ว — ปิดงานได้เลย ไม่ต้องรอทุกสาขาครบ
     }
     const sets = [], r = req().input('id', sql.Int, id).input('ub', sql.Int, request.user.id);
     const f = (key, col, type, val) => { if (b[key] !== undefined) { sets.push(`${col}=@${key}`); r.input(key, type, val); } };
@@ -6053,8 +6052,7 @@ app.put('/api/sw-update/:id', authRequired, async (request, res) => {
         await sendLineNotify(
           `\n✅[อัพเดท SW เสร็จแล้ว] #${id}` +
           (cur.license_group ? `\nกลุ่ม: ${cur.license_group}` : (cur.company_name ? `\nร้าน: ${cur.company_name}` : '')) +
-          (brs.length ? `\nสำเร็จ: ${done.length}/${brs.length} สาขา · ${devs}/${all} เครื่อง` : '') +
-          (blocked.length ? `\nอัพเดทไม่ได้: ${blocked.map(x => `${x.branch_name} (${x.block_reason})`).join(', ').slice(0, 300)}` : '') +
+
           (ver ? `\nเวอร์ชัน: ${ver}` : '') +
           `\nปิดงานโดย: ${swuUname(request.user)}`, 'sw_update');
       } catch (e) { console.warn('sw_update done notify failed:', e.message); }
