@@ -966,7 +966,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
 .swu-kick{font-size:.66rem;letter-spacing:.06em;text-transform:uppercase;color:#6f747c;font-weight:400}
 .swu-note{font-size:.72rem;color:#6f747c}
 .swu-in{border:1px solid var(--border);border-radius:7px;padding:.3rem .5rem;font-size:.8rem;font-family:inherit;background:#fff;width:100%;min-width:0}
-.swu-hdr-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem}
+.swu-hdr-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:.5rem}
 .swu-hdr-grid label{font-size:.7rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.15rem}
 .swu-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:.55rem;margin:.85rem 0 .4rem}
 .swu-tile{border:1px solid #ebe9e3;border-radius:10px;padding:.5rem .7rem}
@@ -4352,6 +4352,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
       <option value="normal">ปกติ</option>
       <option value="low">ต่ำ</option>
     </select>
+    <select id="swu-filter-pod" class="svc-select" onchange="renderSwUpdate()" aria-label="Pod" style="max-width:170px"><option value="">ทุก Pod</option></select>
     <select id="swu-filter-group" class="svc-select" onchange="renderSwUpdate()" aria-label="กลุ่ม License">
       <option value="">ทุกกลุ่ม License</option>
     </select>
@@ -26796,6 +26797,7 @@ const SWU_PRIORITY = {
 };
 
 let _swuData = [];
+let _swuPods = null;   // Pod ทั้งหมด (เลือกว่างานเป็นของ Pod ไหน)
 let _swuSearchTimer = null;
 let _swuTab = '';   // '' | pending | scheduled | done — client-side, mirrors the tab counts
 const SWU_TAB_TEST = {
@@ -26874,7 +26876,8 @@ async function loadSwUpdate() {
   if (status)   url += `status=${encodeURIComponent(status)}&`;
   if (priority) url += `priority=${encodeURIComponent(priority)}&`;
   if (q)        url += `q=${encodeURIComponent(q)}&`;
-  const [rows] = await Promise.all([api(url), aiInstLoad()]);   // aiInstLoad: ป้าย AI หน้าชื่อร้าน
+  const [rows] = await Promise.all([api(url), aiInstLoad(),
+    _swuPods ? null : api('/api/pods', { silent: true }).then(p => { _swuPods = Array.isArray(p) ? p : []; })]);   // aiInstLoad: ป้าย AI หน้าชื่อร้าน
   _swuData = Array.isArray(rows) ? rows : [];
   renderSwUpdate();
   if (_swuDetailId && document.getElementById('modal-swu-detail')?.classList.contains('open')) swuRenderDetail();
@@ -26894,6 +26897,15 @@ function renderSwUpdate() {
   set('swu-stat-done',      all.filter(SWU_TAB_TEST.done).length);
   document.querySelectorAll('#swu-tabs .svc-tab').forEach(t => t.classList.toggle('on', (t.dataset.tab || '') === _swuTab));
   swuStatusLabel();
+  const podSel = document.getElementById('swu-filter-pod');
+  if (podSel && _swuPods) {
+    const v = podSel.value;
+    const cnt = id => all.filter(r => id === 'none' ? !r.pod_id : r.pod_id === id).length;
+    podSel.innerHTML = '<option value="">ทุก Pod</option>' +
+      _swuPods.map(p => `<option value="${p.id}">${escHtml(p.display_name || p.code)} (${cnt(p.id)})</option>`).join('') +
+      `<option value="none">ยังไม่ระบุ Pod (${cnt('none')})</option>`;
+    podSel.value = [...podSel.options].some(o => o.value === v) ? v : '';
+  }
 
   // ตัวเลือกกลุ่ม License — สร้างจากข้อมูลที่โหลดมา, คงค่าที่เลือกไว้
   const grpSel = document.getElementById('swu-filter-group');
@@ -26968,6 +26980,8 @@ function renderSwUpdate() {
         <div class="swu-bname">${g.ai ? `<span class="tk-ai" style="margin-right:.35rem" title="ติดตั้ง AI (SSH) แล้ว"><i class=i-check></i> AI</span>` : ''}${escHtml(g.key)}${g.isGroup ? '' : ' <span class="swu-bmeta" style="font-weight:400">· ร้านเดี่ยว</span>'}</div>
         <div class="swu-bmeta">${g.items.length} เคส · ${g.branches} สาขา${g.jobs.length > 1 ? ` · ${g.jobs.length} งาน` : ''}${g.open && g.oldest < Infinity ? ` · ค้างนานสุด ${ageD(g.oldest)}` : ''}</div>
       </div>
+      ${[...new Map(g.jobs.filter(r => r.pod_id).map(r => [r.pod_id, r])).values()].map(r =>
+        `<span class="swu-chip" style="background:${r.pod_color || '#1d4ed8'}1a;color:${r.pod_color || '#1d4ed8'}">${escHtml(r.pod_name || 'Pod')}</span>`).join('')}
       ${g.open && g.pr >= 2 ? `<span class="swu-chip" style="background:${g.pr === 3 ? '#fbeceb' : '#fbf0e6'};color:${pri.color}">มีเคส${pri.label}</span>` : ''}
       ${g.jobs.some(r => open(r) && r.remote_n === 0 && r.files_n === 0) ? `<span class="swu-chip" style="background:#fbeceb;color:#a23b33" title="งานที่ยังไม่มีเลข Remote / ไฟล์ Remote">ยังไม่มี Remote</span>` : ''}
       ${g.open ? `<span class="swu-chip" style="background:#f6f0e2;color:#8f6d1f">ค้าง ${nOpen} เคส</span>` : `<span class="swu-chip" style="background:#e7f0ea;color:#356b4e">เสร็จสิ้น</span>`}
@@ -27009,6 +27023,8 @@ function swuVisibleJobs() {
   let list = SWU_TAB_TEST[_swuTab] ? (_swuData || []).filter(SWU_TAB_TEST[_swuTab]) : (_swuData || []);
   if (grpFilter) list = list.filter(r => (r.license_group || SWU_NO_GROUP) === grpFilter);
   if (_swuStatusSel.size) list = list.filter(r => _swuStatusSel.has(r.status || 'pending'));
+  const podF = document.getElementById('swu-filter-pod')?.value || '';
+  if (podF) list = list.filter(r => podF === 'none' ? !r.pod_id : String(r.pod_id) === podF);
   // กลุ่ม License ก่อน (ตามชื่อ) ร้านเดี่ยวไว้ท้าย; ในกลุ่มเดียวกันงานใหม่ขึ้นก่อน
   return [...list].sort((a, b) =>
     (!a.license_group) - (!b.license_group) ||
@@ -27566,6 +27582,9 @@ function swuRenderDetail() {
         <input class="swu-in mono" style="${verOpt === 'custom' ? '' : 'display:none'}" value="${verOpt === 'custom' ? escHtml(ver) : ''}" placeholder="v3.2.1" ${closed ? 'disabled' : ''} onchange="swuSetField('version_recommend', this.value.trim())"></div></div>
       <div><label>ความสำคัญ</label><select class="swu-in" ${closed ? 'disabled' : ''} onchange="swuSetField('priority', this.value)">
         ${Object.entries(SWU_PRIORITY).map(([k, v]) => `<option value="${k}" ${k === j.priority ? 'selected' : ''}>${v.label}</option>`).join('')}</select></div>
+      <div><label>Pod ที่รับผิดชอบ</label><select class="swu-in" onchange="swuSetField('pod_id', this.value)">
+        <option value="">— ยังไม่ระบุ —</option>
+        ${(_swuPods || []).map(p => `<option value="${p.id}" ${p.id === j.pod_id ? 'selected' : ''}>${escHtml(p.display_name || p.code)}</option>`).join('')}</select></div>
     </div>
 
     <div class="swu-sec-t"><span>ปัญหาที่แก้ในรอบนี้ (${(j.issues || []).length})</span>

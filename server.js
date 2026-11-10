@@ -5551,10 +5551,12 @@ app.get('/api/sw-update', authRequired, async (request, res) => {
       r.input('q', sql.NVarChar, `%${q}%`);
     }
     const rows = (await r.query(`
-      SELECT j.*, ISNULL(e.nickname, e.name) AS reporter_name
+      SELECT j.*, ISNULL(e.nickname, e.name) AS reporter_name,
+             COALESCE(NULLIF(pd.display_name, ''), pd.code) AS pod_name, pd.color AS pod_color
       FROM sw_update_jobs j
       LEFT JOIN app_users au ON au.id = j.reported_by
       LEFT JOIN employees e  ON e.id  = au.employee_id
+      LEFT JOIN pods pd      ON pd.id = j.pod_id
       ${where}
       ORDER BY j.created_at DESC
     `)).recordset;
@@ -6040,6 +6042,7 @@ app.put('/api/sw-update/:id', authRequired, async (request, res) => {
     f('received_date', 'received_date', sql.Date, b.received_date ? new Date(b.received_date) : null);
     f('version_recommend', 'version_recommend', sql.NVarChar, b.version_recommend || null);
     f('reported_by', 'reported_by', sql.Int, b.reported_by || null);
+    f('pod_id', 'pod_id', sql.Int, parseInt(b.pod_id) || null);
     if (closing) { sets.push('version_installed=@vi'); r.input('vi', sql.NVarChar, b.version_recommend ?? cur.version_recommend ?? null); }
     if (sets.length) await r.query(`UPDATE sw_update_jobs SET ${sets.join(', ')}, updated_at=GETDATE(), updated_by=@ub WHERE id=@id`);
 
@@ -13482,6 +13485,7 @@ async function ensureSwUpdateTable() {
       ALTER TABLE ${t} ADD ${c} ${def}`);
     await addCol('sw_update_jobs', 'group_id', 'INT NULL');
     await addCol('sw_update_jobs', 'license_group', 'NVARCHAR(255) NULL');
+    await addCol('sw_update_jobs', 'pod_id', 'INT NULL');   // Pod ที่รับผิดชอบงานนี้ (เลือกในหน้างาน)
     await addCol('sw_update_branches', 'status', "NVARCHAR(20) NOT NULL CONSTRAINT DF_sw_branches_status DEFAULT 'pending'");
     await addCol('sw_update_branches', 'block_reason', 'NVARCHAR(100) NULL');
     await addCol('sw_update_branches', 'block_note', 'NVARCHAR(500) NULL');
