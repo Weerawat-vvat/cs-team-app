@@ -5587,6 +5587,15 @@ app.get('/api/sw-update', authRequired, async (request, res) => {
           WHERE l.job_id IN (${ids}) ORDER BY l.id`),
       ]);
       const by = (list, key) => list.recordset.reduce((m, x) => ((m[x[key]] = m[x[key]] || []).push(x), m), {});
+      try {
+        await swuRmEnsure();
+        const rc = (await req().query(`
+          SELECT j.id, (SELECT COUNT(*) FROM sw_update_remotes r WHERE r.job_id = j.id) AS remote_n,
+                 (SELECT COUNT(*) FROM sw_update_files f WHERE f.job_id = j.id) AS files_n
+          FROM sw_update_jobs j WHERE j.id IN (${ids})`)).recordset;
+        const rcM = new Map(rc.map(x => [x.id, x]));
+        rows.forEach(j => { j.remote_n = rcM.get(j.id)?.remote_n || 0; j.files_n = rcM.get(j.id)?.files_n || 0; });
+      } catch (e) { console.warn('[sw-update] remote counts:', e.message); }
       const aM = by(asg, 'job_id'), iM = by(iss, 'job_id'), bM = by(brs, 'job_id'), lM = by(logs, 'branch_id');
       rows.forEach(j => {
         j.assignees = (aM[j.id] || []).map(a => ({ user_id: a.user_id, name: a.name }));
@@ -5694,6 +5703,146 @@ app.post('/api/sw-update', authRequired, async (request, res) => {
 
     res.json({ id: newId });
   } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Remote (AnyDesk) ของงานอัพเดท — กรอกเอง (ร้านเครื่องน้อย) หรือแนบไฟล์ Excel (chain หลายสาขา) ──
+// มีรหัสผ่านเครื่องลูกค้า → ไฟล์เก็บนอกโฟลเดอร์ uploads (ไม่ถูกเสิร์ฟแบบ public) โหลดได้ผ่าน API ที่ต้อง login เท่านั้น
+const SWU_PRIVATE_DIR = path.join(process.env.PRIVATE_DIR || path.join(__dirname, 'private'), 'sw-update');
+const SWU_RM_EXT = new Set(['.xlsx', '.xls', '.csv', '.pdf', '.png', '.jpg', '.jpeg', '.txt']);
+const swuRmUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const dir = path.join(SWU_PRIVATE_DIR, String(parseInt(req.params.id) || 'tmp'));
+      fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    },
+    filename: (req, file, cb) => cb(null, `${Date.now()}_${Math.random().toString(36).slice(2, 8)}${path.extname(file.originalname).toLowerCase()}`),
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => cb(null, SWU_RM_EXT.has(path.extname(file.originalname).toLowerCase())),
+});
+let _swuRmReady = false;
+async function swuRmEnsure() {
+  if (_swuRmReady) return;
+  await req().query(`
+    IF OBJECT_ID('sw_update_remotes','U') IS NULL
+      CREATE TABLE sw_update_remotes (
+        id          INT IDENTITY(1,1) PRIMARY KEY,
+        job_id      INT NOT NULL,
+        branch_name NVARCHAR(255) NULL,
+        device      NVARCHAR(60)  NULL,   -- Cashier / เครื่องแม่ / Order / ...
+        remote_id   NVARCHAR(60)  NOT NULL,
+        password    NVARCHAR(120) NULL,
+        created_by  INT NULL,
+        created_at  DATETIME NOT NULL DEFAULT GETDATE()
+      );
+    IF OBJECT_ID('sw_update_files','U') IS NULL
+      CREATE TABLE sw_update_files (
+        id            INT IDENTITY(1,1) PRIMARY KEY,
+        job_id        INT NOT NULL,
+        kind          NVARCHAR(20)  NOT NULL DEFAULT 'remote',
+        filename      NVARCHAR(200) NOT NULL,
+        original_name NVARCHAR(300) NOT NULL,
+        file_size     INT NULL,
+        created_by    INT NULL,
+        created_at    DATETIME NOT NULL DEFAULT GETDATE()
+      );
+    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_sw_remotes_job') CREATE INDEX IX_sw_remotes_job ON sw_update_remotes (job_id);
+    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_sw_files_job') CREATE INDEX IX_sw_files_job ON sw_update_files (job_id);`);
+  _swuRmReady = true;
+}
+const swuCanEdit = (request, createdBy) => createdBy === request.user.id || ['manager', 'team_lead', 'admin'].includes(request.user?.role);
+
+// GET /api/sw-update/:id/remotes — เลข Remote + รหัสผ่าน และไฟล์ที่แนบ (โหลดตอนเปิดรายละเอียดงานเท่านั้น)
+app.get('/api/sw-update/:id/remotes', authRequired, async (request, res) => {
+  try {
+    await swuRmEnsure();
+    const id = parseInt(request.params.id);
+    const remotes = (await req().input('id', sql.Int, id).query(`
+      SELECT r.id, r.branch_name, r.device, r.remote_id, r.password, r.created_by, r.created_at, ISNULL(e.nickname, e.name) AS created_by_name
+      FROM sw_update_remotes r LEFT JOIN app_users au ON au.id = r.created_by LEFT JOIN employees e ON e.id = au.employee_id
+      WHERE r.job_id = @id ORDER BY r.branch_name, r.id`)).recordset;
+    const files = (await req().input('id', sql.Int, id).query(`
+      SELECT f.id, f.original_name, f.file_size, f.created_by, f.created_at, ISNULL(e.nickname, e.name) AS created_by_name
+      FROM sw_update_files f LEFT JOIN app_users au ON au.id = f.created_by LEFT JOIN employees e ON e.id = au.employee_id
+      WHERE f.job_id = @id ORDER BY f.id`)).recordset;
+    res.json({ remotes, files });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/sw-update/:id/remotes { rows: [{ branch_name, device, remote_id, password }] } — กรอกเอง
+app.post('/api/sw-update/:id/remotes', authRequired, async (request, res) => {
+  try {
+    await swuRmEnsure();
+    const id = parseInt(request.params.id);
+    const job = (await req().input('id', sql.Int, id).query('SELECT id FROM sw_update_jobs WHERE id=@id')).recordset[0];
+    if (!job) return res.status(404).json({ error: 'ไม่พบงาน' });
+    const cut = (v, n) => String(v ?? '').trim().slice(0, n);
+    const rows = (Array.isArray(request.body?.rows) ? request.body.rows : []).slice(0, 300)
+      .map(x => ({ b: cut(x.branch_name, 255) || null, d: cut(x.device, 60) || null, r: cut(x.remote_id, 60), p: cut(x.password, 120) || null }))
+      .filter(x => x.r);
+    if (!rows.length) return res.status(400).json({ error: 'กรุณาระบุเลข Remote อย่างน้อย 1 เครื่อง' });
+    for (const x of rows) await req().input('jid', sql.Int, id).input('b', sql.NVarChar, x.b).input('d', sql.NVarChar, x.d)
+      .input('r', sql.NVarChar, x.r).input('p', sql.NVarChar, x.p).input('by', sql.Int, request.user.id)
+      .query(`INSERT INTO sw_update_remotes (job_id, branch_name, device, remote_id, password, created_by) VALUES (@jid, @b, @d, @r, @p, @by)`);
+    res.json({ ok: true, added: rows.length });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE /api/sw-update/remotes/:rid — คนกรอกหรือหัวหน้า
+app.delete('/api/sw-update/remotes/:rid', authRequired, async (request, res) => {
+  try {
+    await swuRmEnsure();
+    const r = (await req().input('id', sql.Int, parseInt(request.params.rid)).query('SELECT id, created_by FROM sw_update_remotes WHERE id=@id')).recordset[0];
+    if (!r) return res.status(404).json({ error: 'ไม่พบรายการ' });
+    if (!swuCanEdit(request, r.created_by)) return res.status(403).json({ error: 'ลบได้เฉพาะคนที่กรอกหรือหัวหน้า' });
+    await req().input('id', sql.Int, r.id).query('DELETE FROM sw_update_remotes WHERE id=@id');
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/sw-update/:id/files — แนบไฟล์ Remote (Excel ฯลฯ)
+app.post('/api/sw-update/:id/files', authRequired, swuRmUpload.single('file'), async (request, res) => {
+  const f = request.file;
+  try {
+    await swuRmEnsure();
+    const id = parseInt(request.params.id);
+    const job = (await req().input('id', sql.Int, id).query('SELECT id FROM sw_update_jobs WHERE id=@id')).recordset[0];
+    if (!job) { if (f) fs.unlink(f.path, () => {}); return res.status(404).json({ error: 'ไม่พบงาน' }); }
+    if (!f) return res.status(400).json({ error: `ไม่พบไฟล์ หรือชนิดไฟล์ไม่รองรับ (${[...SWU_RM_EXT].join(' ')}) · ไม่เกิน 10 MB` });
+    await req().input('jid', sql.Int, id).input('fn', sql.NVarChar, f.filename).input('on', sql.NVarChar, fixUploadName(f.originalname))
+      .input('fz', sql.Int, f.size).input('by', sql.Int, request.user.id)
+      .query(`INSERT INTO sw_update_files (job_id, filename, original_name, file_size, created_by) VALUES (@jid, @fn, @on, @fz, @by)`);
+    res.json({ ok: true });
+  } catch (e) { if (f) fs.unlink(f.path, () => {}); res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/sw-update/files/:fid — ดาวน์โหลด (ต้อง login)
+app.get('/api/sw-update/files/:fid', authRequired, async (request, res) => {
+  try {
+    await swuRmEnsure();
+    const f = (await req().input('id', sql.Int, parseInt(request.params.fid)).query('SELECT * FROM sw_update_files WHERE id=@id')).recordset[0];
+    if (!f) return res.status(404).json({ error: 'ไม่พบไฟล์' });
+    const fp = path.join(SWU_PRIVATE_DIR, String(f.job_id), path.basename(f.filename));
+    if (!fs.existsSync(fp)) return res.status(404).json({ error: 'ไฟล์หายจาก server' });
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(f.original_name)}`);
+    res.setHeader('Cache-Control', 'no-store');
+    fs.createReadStream(fp).pipe(res);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE /api/sw-update/files/:fid — คนแนบหรือหัวหน้า
+app.delete('/api/sw-update/files/:fid', authRequired, async (request, res) => {
+  try {
+    await swuRmEnsure();
+    const f = (await req().input('id', sql.Int, parseInt(request.params.fid)).query('SELECT * FROM sw_update_files WHERE id=@id')).recordset[0];
+    if (!f) return res.status(404).json({ error: 'ไม่พบไฟล์' });
+    if (!swuCanEdit(request, f.created_by)) return res.status(403).json({ error: 'ลบได้เฉพาะคนที่แนบหรือหัวหน้า' });
+    fs.unlink(path.join(SWU_PRIVATE_DIR, String(f.job_id), path.basename(f.filename)), () => {});
+    await req().input('id', sql.Int, f.id).query('DELETE FROM sw_update_files WHERE id=@id');
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // POST /api/sw-update/:id/issues — เพิ่มปัญหาเข้างานเดิม (สาขาที่แจ้งยังไม่อยู่ใน checklist → เพิ่มให้)

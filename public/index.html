@@ -4338,15 +4338,12 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
       <i class=i-search style="color:#8a8f97"></i>
       <input id="swu-search" type="text" placeholder="ค้นหา #ID, ร้าน หรือรายละเอียด" oninput="swuSearchDebounce()"/>
     </label>
-    <select id="swu-filter-status" class="svc-select" onchange="loadSwUpdate()" aria-label="สถานะ">
-      <option value="">ทุกสถานะ</option>
-      <option value="pending">รอดำเนินการ</option>
-      <option value="scheduling">กำลังนัดหมาย</option>
-      <option value="scheduled">นัดหมายแล้ว</option>
-      <option value="updating">กำลังอัพเดท</option>
-      <option value="done">เสร็จสิ้น</option>
-      <option value="cancelled">ยกเลิก</option>
-    </select>
+    <!-- สถานะ: เลือกได้หลายอย่าง (ไม่เลือก = ทุกสถานะ) · Export ตามที่เลือก -->
+    <div id="swu-status-wrap" style="position:relative">
+      <button type="button" id="swu-status-btn" class="svc-select" onclick="swuStatusMenu()" aria-haspopup="true" aria-expanded="false"
+        style="display:flex;align-items:center;gap:.4rem;cursor:pointer;text-align:left;white-space:nowrap">ทุกสถานะ</button>
+      <div id="swu-status-menu" role="menu" style="display:none;position:absolute;top:calc(100% + 4px);left:0;min-width:190px;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.1);z-index:500;padding:.3rem 0"></div>
+    </div>
     <select id="swu-filter-priority" class="svc-select" onchange="loadSwUpdate()" aria-label="ความสำคัญ">
       <option value="">ทุกระดับ</option>
       <option value="urgent">เร่งด่วน</option>
@@ -26806,6 +26803,41 @@ const SWU_TAB_TEST = {
   done:      r => r.status === 'done',
 };
 function swuSetTab(tab) { _swuTab = tab; renderSwUpdate(); }
+// ตัวกรองสถานะแบบเลือกหลายอย่าง — ว่าง = ทุกสถานะ · จำไว้ในเครื่อง
+const _swuStatusSel = new Set((() => { try { return JSON.parse(localStorage.getItem('swu-status') || '[]'); } catch { return []; } })()
+  .filter(k => typeof k === 'string'));
+function swuStatusMenu(force) {
+  const m = document.getElementById('swu-status-menu'), btn = document.getElementById('swu-status-btn');
+  if (!m) return;
+  const show = force ?? m.style.display === 'none';
+  if (show) {
+    const row = (k, lab, color, on) => `<label style="display:flex;align-items:center;gap:.5rem;padding:.35rem .8rem;font-size:.8rem;cursor:pointer;color:${color}">
+      <input type="checkbox" ${on ? 'checked' : ''} onchange="swuStatusPick('${k}', this.checked)" style="width:15px;height:15px;cursor:pointer"> ${lab}</label>`;
+    m.innerHTML = row('', '<b>ทุกสถานะ</b>', '#3a3f46', !_swuStatusSel.size) + '<div style="border-top:1px solid #f0eee9;margin:.25rem 0"></div>' +
+      Object.entries(SWU_STATUS).map(([k, v]) => row(k, v.label, v.color, _swuStatusSel.has(k))).join('');
+  }
+  m.style.display = show ? '' : 'none';
+  btn?.setAttribute('aria-expanded', show ? 'true' : 'false');
+}
+function swuStatusPick(k, on) {
+  if (!k) _swuStatusSel.clear(); else on ? _swuStatusSel.add(k) : _swuStatusSel.delete(k);
+  if (_swuStatusSel.size === Object.keys(SWU_STATUS).length) _swuStatusSel.clear();   // เลือกครบ = ทุกสถานะ
+  try { localStorage.setItem('swu-status', JSON.stringify([..._swuStatusSel])); } catch {}
+  swuStatusMenu(true);
+  renderSwUpdate();
+}
+function swuStatusLabel() {
+  const btn = document.getElementById('swu-status-btn');
+  if (!btn) return;
+  const ks = [..._swuStatusSel].filter(k => SWU_STATUS[k]);
+  btn.textContent = !ks.length ? 'ทุกสถานะ' : ks.length === 1 ? SWU_STATUS[ks[0]].label : `สถานะ (${ks.length})`;
+  btn.title = ks.length ? ks.map(k => SWU_STATUS[k].label).join(', ') : '';
+  btn.style.color = ks.length ? '#1d4ed8' : '';
+}
+document.addEventListener('click', e => {
+  const w = document.getElementById('swu-status-wrap');
+  if (w && !w.contains(e.target)) swuStatusMenu(false);
+});
 const SWU_NO_GROUP = '__none__';   // key ของร้านที่ไม่มีกลุ่ม License
 const _swuCollapsed = new Set();     // งาน (id) ที่ย่อรายการแจ้งไว้
 let _swuUsers = [];
@@ -26834,7 +26866,7 @@ async function loadSwUpdate() {
     const u = await api('/api/users');
     _swuUsers = u || [];
   }
-  const status   = document.getElementById('swu-filter-status')?.value || '';
+  const status   = '';   // สถานะกรองที่หน้าเว็บ (เลือกได้หลายอย่าง) — ดู swuVisibleJobs
   const priority = document.getElementById('swu-filter-priority')?.value || '';
   const q        = document.getElementById('swu-search')?.value?.trim() || '';
   let url = '/api/sw-update?';
@@ -26860,6 +26892,7 @@ function renderSwUpdate() {
   set('swu-stat-scheduled', all.filter(SWU_TAB_TEST.scheduled).length);
   set('swu-stat-done',      all.filter(SWU_TAB_TEST.done).length);
   document.querySelectorAll('#swu-tabs .svc-tab').forEach(t => t.classList.toggle('on', (t.dataset.tab || '') === _swuTab));
+  swuStatusLabel();
 
   // ตัวเลือกกลุ่ม License — สร้างจากข้อมูลที่โหลดมา, คงค่าที่เลือกไว้
   const grpSel = document.getElementById('swu-filter-group');
@@ -26935,6 +26968,7 @@ function renderSwUpdate() {
         <div class="swu-bmeta">${g.items.length} เคส · ${g.branches} สาขา${g.jobs.length > 1 ? ` · ${g.jobs.length} งาน` : ''}${g.bAll ? ` · อัปเดตแล้ว ${g.bDone}/${g.bAll} สาขา` : ''}${g.open && g.oldest < Infinity ? ` · ค้างนานสุด ${ageD(g.oldest)}` : ''}</div>
       </div>
       ${g.open && g.pr >= 2 ? `<span class="swu-chip" style="background:${g.pr === 3 ? '#fbeceb' : '#fbf0e6'};color:${pri.color}">มีเคส${pri.label}</span>` : ''}
+      ${g.jobs.some(r => open(r) && r.remote_n === 0 && r.files_n === 0) ? `<span class="swu-chip" style="background:#fbeceb;color:#a23b33" title="งานที่ยังไม่มีเลข Remote / ไฟล์ Remote">ยังไม่มี Remote</span>` : ''}
       ${g.open ? `<span class="swu-chip" style="background:#f6f0e2;color:#8f6d1f">ค้าง ${nOpen} เคส</span>` : `<span class="swu-chip" style="background:#e7f0ea;color:#356b4e">เสร็จสิ้น</span>`}
     </div>`;
     if (collapsed) return `<div class="swu-bc${g.open ? '' : ' done'}">${head}</div>`;
@@ -26973,6 +27007,7 @@ function swuVisibleJobs() {
   const grpFilter = document.getElementById('swu-filter-group')?.value || '';
   let list = SWU_TAB_TEST[_swuTab] ? (_swuData || []).filter(SWU_TAB_TEST[_swuTab]) : (_swuData || []);
   if (grpFilter) list = list.filter(r => (r.license_group || SWU_NO_GROUP) === grpFilter);
+  if (_swuStatusSel.size) list = list.filter(r => _swuStatusSel.has(r.status || 'pending'));
   // กลุ่ม License ก่อน (ตามชื่อ) ร้านเดี่ยวไว้ท้าย; ในกลุ่มเดียวกันงานใหม่ขึ้นก่อน
   return [...list].sort((a, b) =>
     (!a.license_group) - (!b.license_group) ||
@@ -27013,7 +27048,7 @@ function swuExportXlsx() {
   a.download = `software-update_${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}.xlsx`;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-  showToast(`Export ${rows.length - 1} รายการ`);
+  showToast(`Export ${rows.length - 1} รายการ${_swuStatusSel.size ? ` · สถานะ: ${[..._swuStatusSel].map(k => SWU_STATUS[k]?.label || k).join(', ')}` : ''}`);
 }
 
 // ย่อ/ขยายรายการแจ้งใต้แถวกลุ่ม
@@ -27063,7 +27098,64 @@ function openSwUpdateForm() {
   }
   _swuPick = []; _swuPickGroup = null; _swuPickOpenJob = null; _swuRepRid = null;
   swuRenderPick();
+  _swuRm = [swuRmBlank()];
+  const rf = document.getElementById('swu-rm-file-in'); if (rf) rf.value = '';
+  swuRmMode('type'); swuRmNote();
   openModal('modal-sw-update-form');
+}
+
+// ── Remote (AnyDesk) ในฟอร์มแจ้ง: กรอกเอง (_swuRm) หรือแนบไฟล์ ──
+let _swuRm = [], _swuRmM = 'type';
+const swuRmBlank = b => ({ branch: b || '', device: '', remote: '', pass: '' });
+function swuRmMode(m) {
+  _swuRmM = m;
+  document.getElementById('swu-rm-type').style.display = m === 'type' ? '' : 'none';
+  document.getElementById('swu-rm-file').style.display = m === 'file' ? '' : 'none';
+  for (const k of ['type', 'file']) {
+    const b = document.getElementById('swu-rm-m-' + k);
+    if (b) { b.style.background = k === m ? 'var(--primary)' : '#fff'; b.style.color = k === m ? '#fff' : '#4d535b'; }
+  }
+  swuRmRender();
+}
+function swuRmRender() {
+  const box = document.getElementById('swu-rm-type');
+  if (!box) return;
+  const inp = 'border:1px solid var(--border);border-radius:7px;padding:.3rem .5rem;font-size:.8rem;min-width:0';
+  box.innerHTML = `<div style="display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr 24px;gap:.3rem;font-size:.68rem;color:#8a8f97;margin-bottom:.15rem">
+      <span>สาขา</span><span>เครื่อง</span><span>เลข Remote</span><span>Password</span><span></span></div>` +
+    _swuRm.map((r, i) => `<div style="display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr 24px;gap:.3rem;margin-bottom:.3rem">
+      <input style="${inp}" value="${escHtml(r.branch)}" placeholder="สาขา" oninput="_swuRm[${i}].branch=this.value">
+      <input style="${inp}" list="swu-rm-devices" value="${escHtml(r.device)}" placeholder="Cashier" oninput="_swuRm[${i}].device=this.value">
+      <input style="${inp};font-family:'IBM Plex Mono',monospace" value="${escHtml(r.remote)}" placeholder="123 456 789" oninput="_swuRm[${i}].remote=this.value">
+      <input style="${inp};font-family:'IBM Plex Mono',monospace" value="${escHtml(r.pass)}" placeholder="รหัสผ่าน" autocomplete="off" oninput="_swuRm[${i}].pass=this.value">
+      <button type="button" class="swu-x" title="ลบแถว" onclick="_swuRm.splice(${i},1);if(!_swuRm.length)_swuRm.push(swuRmBlank());swuRmRender()">×</button></div>`).join('') +
+    `<button type="button" class="btn btn-ghost swu-btn-s" onclick="_swuRm.push(swuRmBlank(_swuRm[_swuRm.length-1]?.branch));swuRmRender()">+ เพิ่มเครื่อง</button>`;
+}
+// แบรนด์มีงานเปิดอยู่และมีข้อมูล Remote แล้ว → ไม่บังคับกรอกซ้ำ
+function swuRmHasExisting() {
+  const j = _swuPickOpenJob && (_swuData || []).find(x => x.id === _swuPickOpenJob);
+  return j && ((j.remote_n || 0) + (j.files_n || 0)) > 0 ? j : null;
+}
+function swuRmNote() {
+  const j = swuRmHasExisting(), el = document.getElementById('swu-rm-note'), req = document.getElementById('swu-rm-req');
+  if (el) el.textContent = j ? `งาน #${j.id} ของแบรนด์นี้มีข้อมูล Remote แล้ว (${j.remote_n ? `${j.remote_n} เครื่อง` : ''}${j.remote_n && j.files_n ? ' · ' : ''}${j.files_n ? `${j.files_n} ไฟล์` : ''}) — ไม่ต้องกรอกซ้ำ เพิ่มเฉพาะเครื่องใหม่ได้` : '';
+  if (req) req.style.display = j ? 'none' : '';
+}
+// บันทึก Remote เข้างาน (หลังได้เลขงานแล้ว) — คืน false ถ้าบันทึกไม่สำเร็จ
+async function swuRmSave(jid) {
+  if (_swuRmM === 'file') {
+    const f = document.getElementById('swu-rm-file-in')?.files?.[0];
+    if (!f) return true;
+    const fd = new FormData(); fd.append('file', f);
+    const r = await fetch(`/api/sw-update/${jid}/files`, { method: 'POST', headers: { Authorization: 'Bearer ' + authToken }, body: fd });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); showToast('แนบไฟล์ Remote ไม่สำเร็จ: ' + (d.error || r.status), 'error'); return false; }
+    return true;
+  }
+  const rows = _swuRm.filter(r => r.remote.trim()).map(r => ({ branch_name: r.branch, device: r.device, remote_id: r.remote, password: r.pass }));
+  if (!rows.length) return true;
+  const r = await api(`/api/sw-update/${jid}/remotes`, { method: 'POST', silent: true, body: { rows } });
+  if (r?.error) { showToast('บันทึกเลข Remote ไม่สำเร็จ: ' + r.error, 'error'); return false; }
+  return true;
 }
 
 function swuRenderPick() {
@@ -27108,6 +27200,7 @@ async function swuLoadPick(rid, name) {
   _swuPick = [{ RegistrationId: rid, CompanyName: name, on: true }];
   _swuPickGroup = null; _swuPickOpenJob = null; _swuRepRid = rid;
   swuRenderPick();
+  _swuRm.forEach(r => { if (!r.branch) r.branch = name || ''; }); swuRmRender(); swuRmNote();
   if (!rid) return;
   const r = await api(`/api/sw-update/branch-options?rid=${rid}`, { silent: true });
   if (!r || r.error || !Array.isArray(r.branches) || !r.branches.length) return;
@@ -27116,7 +27209,7 @@ async function swuLoadPick(rid, name) {
   _swuPick = r.branches.map(b => ({ ...b, on: b.RegistrationId === rid }))
     .sort((a, b) => swuIsHQ(b.CompanyName) - swuIsHQ(a.CompanyName) || a.CompanyName.localeCompare(b.CompanyName, 'th', { numeric: true }));
   if (!_swuPick.some(p => p.RegistrationId === rid)) _swuPick.unshift({ RegistrationId: rid, CompanyName: name, on: true });
-  swuRenderPick();
+  swuRenderPick(); swuRmNote();
 }
 
 async function saveSwUpdateForm() {
@@ -27124,6 +27217,10 @@ async function saveSwUpdateForm() {
   const description = document.getElementById('swu-description').value.trim();
   if (!typed) { showToast('กรุณาระบุร้านที่แจ้งปัญหา', 'error'); return; }
   if (!description) { showToast('กรุณาระบุรายละเอียดปัญหา', 'error'); return; }
+  // Remote: กรอกเลขอย่างน้อย 1 เครื่อง หรือแนบไฟล์ (ไม่บังคับถ้างานเดิมของแบรนด์มีข้อมูลแล้ว)
+  const rmGiven = _swuRmM === 'file' ? !!document.getElementById('swu-rm-file-in')?.files?.length : _swuRm.some(r => r.remote.trim());
+  if (!rmGiven && !swuRmHasExisting()) { showToast('กรุณากรอกเลข Remote (AnyDesk) หรือแนบไฟล์ Remote ก่อนเปิดงาน', 'error'); return; }
+  if (_swuRmM === 'type' && _swuRm.some(r => !r.remote.trim() && (r.pass.trim() || r.device.trim()))) { showToast('มีแถว Remote ที่ยังไม่ได้ใส่เลข Remote', 'error'); return; }
   // พิมพ์ชื่อร้านเองโดยไม่เลือกจากรายการ → ถือเป็นร้านเดียว
   if (!_swuPick.length) _swuPick = [{ RegistrationId: null, CompanyName: typed, on: true }];
   const branches = _swuPick.filter(p => p.on).map(p => ({ registration_id: p.RegistrationId, branch_name: p.CompanyName }));
@@ -27165,6 +27262,7 @@ async function saveSwUpdateForm() {
     if (job && (PR[body.priority] ?? 1) > (PR[job.priority] ?? 1)) upd.priority = body.priority;
     if (job && body.version_recommend && !job.version_recommend) upd.version_recommend = body.version_recommend;
     if (Object.keys(upd).length) await api(`/api/sw-update/${jid}`, { method:'PUT', silent:true, body: upd });
+    await swuRmSave(jid);
     showToast(`เพิ่มปัญหาเข้าแบรนด์ ${job?.license_group || company} (งาน #${jid}) แล้ว`, 'success');
     closeModal('modal-sw-update-form');
     await loadSwUpdate();
@@ -27172,7 +27270,8 @@ async function saveSwUpdateForm() {
     return;
   }
   if (!r || r.error) { showToast('❌ ' + (r?.error || 'บันทึกไม่สำเร็จ'), 'error'); return; }
-  showToast('แจ้งงานอัพเดท SW แล้ว', 'success');
+  if (!await swuRmSave(r.id)) showToast(`เปิดงาน #${r.id} แล้ว แต่ข้อมูล Remote ยังไม่เข้า — เพิ่มได้ในหน้างาน`, 'warning');
+  else showToast('แจ้งงานอัพเดท SW แล้ว', 'success');
   closeModal('modal-sw-update-form');
   await loadSwUpdate();
   swuUpdateBadge();
@@ -27235,6 +27334,7 @@ let _swuPickerSel = null;   // Set ของ index ใน _swuDetailOpts ที�
 function openSwUpdateDetail(id) {
   if (!_swuData.find(x => x.id === id)) return;
   _swuDetailId = id; _swuBlockOpen = null; _swuDetailOpts = []; _swuPickerSel = null;
+  _swuRmD = { id, data: null, show: new Set(), form: false }; swuRmLoad(id);
   swuRenderDetail();
   openModal('modal-swu-detail');
   const j = _swuData.find(x => x.id === id);
@@ -27246,6 +27346,82 @@ function openSwUpdateDetail(id) {
         swuIsHQ(b.CompanyName) - swuIsHQ(a.CompanyName) || a.CompanyName.localeCompare(b.CompanyName, 'th', { numeric: true }));
       swuRenderDetail();
     });
+}
+
+// ── Remote (AnyDesk) ในหน้ารายละเอียดงาน — รหัสผ่านซ่อนไว้ กดดู/คัดลอก ──
+let _swuRmD = { id: null, data: null, show: new Set(), form: false };
+async function swuRmLoad(id) {
+  const d = await api(`/api/sw-update/${id}/remotes`, { silent: true });
+  if (_swuRmD.id !== id) return;
+  _swuRmD.data = d && !d.error ? d : { remotes: [], files: [], error: d?.error || 'โหลดไม่สำเร็จ' };
+  swuRenderDetail();
+}
+function swuRmDetailHtml(j, closed) {
+  const D = _swuRmD.id === j.id ? _swuRmD.data : null;
+  const fmt = v => v ? new Date(v).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }) : '';
+  const kb = n => n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+  const me = currentUser?.id, mgr = swuIsManager();
+  const n = D ? D.remotes.length + D.files.length : 0;
+  const head = `<div class="swu-sec-t"><span>Remote (AnyDesk)${D ? ` (${D.remotes.length ? `${D.remotes.length} เครื่อง` : ''}${D.remotes.length && D.files.length ? ' · ' : ''}${D.files.length ? `${D.files.length} ไฟล์` : ''})` : ''}</span>
+    <button class="btn btn-ghost swu-btn-s" onclick="_swuRmD.form=!_swuRmD.form;swuRenderDetail()">${_swuRmD.form ? 'ปิด' : '+ เพิ่ม Remote / แนบไฟล์'}</button></div>`;
+  if (!D) return head + '<div class="swu-note" style="padding:.4rem .2rem">กำลังโหลด…</div>';
+  const rows = D.remotes.map(r => {
+    const shown = _swuRmD.show.has(r.id);
+    return `<tr><td>${escHtml(r.branch_name || '—')}</td><td>${escHtml(r.device || '—')}</td>
+      <td class="mono">${escHtml(r.remote_id)} <button class="swu-x" title="คัดลอกเลข Remote" onclick="swuCopy(${escHtml(JSON.stringify(r.remote_id))})">⧉</button></td>
+      <td class="mono">${r.password ? `${shown ? escHtml(r.password) : '••••••'} <button class="swu-x" title="${shown ? 'ซ่อน' : 'ดูรหัสผ่าน'}" onclick="swuRmShow(${r.id})">${shown ? '◡' : '👁'}</button>
+        <button class="swu-x" title="คัดลอกรหัสผ่าน" onclick="swuRmCopyPass(${r.id})">⧉</button>` : '<span class="swu-note">—</span>'}</td>
+      <td class="r">${r.created_by === me || mgr ? `<button class="swu-x" title="ลบ" onclick="swuRmDel(${r.id})">×</button>` : ''}</td></tr>`;
+  }).join('');
+  const files = D.files.map(f => `<div style="display:flex;align-items:center;gap:.5rem;padding:.35rem .6rem;border:1px solid var(--border);border-radius:8px;margin-top:.3rem;font-size:.8rem">
+      <span>📎</span><a href="#" onclick="event.preventDefault();swuRmDownload(${f.id}, ${escHtml(JSON.stringify(f.original_name))})" style="color:var(--primary);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(f.original_name)}</a>
+      <span class="swu-note">${kb(f.file_size || 0)} · ${escHtml(f.created_by_name || '—')} · ${fmt(f.created_at)}</span>
+      ${f.created_by === me || mgr ? `<button class="swu-x" title="ลบไฟล์" onclick="swuRmDelFile(${f.id})">×</button>` : ''}</div>`).join('');
+  const inp = 'border:1px solid var(--border);border-radius:7px;padding:.28rem .45rem;font-size:.78rem;min-width:0';
+  const form = _swuRmD.form ? `<div class="swu-block-form" style="flex-direction:column;align-items:stretch;gap:.35rem;margin-top:.4rem">
+      <div style="display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr auto;gap:.3rem">
+        <input id="swu-rmd-b" style="${inp}" placeholder="สาขา" list="swu-d-branch-opts" value="${escHtml(j.company_name || '')}">
+        <input id="swu-rmd-d" style="${inp}" placeholder="เครื่อง เช่น Cashier" list="swu-rm-devices">
+        <input id="swu-rmd-r" style="${inp};font-family:'IBM Plex Mono',monospace" placeholder="เลข Remote">
+        <input id="swu-rmd-p" style="${inp};font-family:'IBM Plex Mono',monospace" placeholder="Password" autocomplete="off">
+        <button class="btn btn-primary swu-btn-s" onclick="swuRmAddRow()">เพิ่ม</button></div>
+      <div style="display:flex;gap:.4rem;align-items:center;font-size:.78rem"><span class="swu-note">หรือแนบไฟล์</span>
+        <input type="file" id="swu-rmd-f" accept=".xlsx,.xls,.csv,.pdf,.png,.jpg,.jpeg,.txt" style="font-size:.76rem">
+        <button class="btn btn-ghost swu-btn-s" onclick="swuRmAddFile()">แนบ</button></div></div>` : '';
+  return head +
+    (D.error ? `<div class="swu-note" style="color:#b04a40">${escHtml(D.error)}</div>` : '') +
+    (!n && !D.error ? `<div class="swu-note" style="padding:.4rem .6rem;background:#fdf3e1;color:#86671f;border-radius:8px">ยังไม่มีข้อมูล Remote — กรอกเลข Remote หรือแนบไฟล์ก่อนเริ่มงาน</div>` : '') +
+    (rows ? `<div class="tbl-wrap"><table class="swu-cl"><thead><tr><th>สาขา</th><th>เครื่อง</th><th>เลข Remote</th><th>Password</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '') +
+    files + form;
+}
+function swuCopy(t) { navigator.clipboard?.writeText(String(t)).then(() => showToast('คัดลอกแล้ว'), () => showToast('คัดลอกไม่ได้', 'error')); }
+function swuRmShow(id) { _swuRmD.show.has(id) ? _swuRmD.show.delete(id) : _swuRmD.show.add(id); swuRenderDetail(); }
+function swuRmCopyPass(id) { const r = _swuRmD.data?.remotes.find(x => x.id === id); if (r?.password) swuCopy(r.password); }
+async function swuRmAfter(r, msg) {
+  if (r?.error) { showToast('❌ ' + r.error, 'error'); return; }
+  if (msg) showToast(msg, 'success');
+  await loadSwUpdate(); swuRmLoad(_swuDetailId);
+}
+async function swuRmAddRow() {
+  const v = id => document.getElementById(id)?.value.trim() || '';
+  if (!v('swu-rmd-r')) { showToast('ใส่เลข Remote ก่อน', 'error'); return; }
+  swuRmAfter(await api(`/api/sw-update/${_swuDetailId}/remotes`, { method: 'POST', silent: true,
+    body: { rows: [{ branch_name: v('swu-rmd-b'), device: v('swu-rmd-d'), remote_id: v('swu-rmd-r'), password: v('swu-rmd-p') }] } }), 'เพิ่มเลข Remote แล้ว');
+}
+async function swuRmAddFile() {
+  const f = document.getElementById('swu-rmd-f')?.files?.[0];
+  if (!f) { showToast('เลือกไฟล์ก่อน', 'error'); return; }
+  const fd = new FormData(); fd.append('file', f);
+  const r = await fetch(`/api/sw-update/${_swuDetailId}/files`, { method: 'POST', headers: { Authorization: 'Bearer ' + authToken }, body: fd });
+  swuRmAfter(r.ok ? {} : { error: (await r.json().catch(() => ({}))).error || r.status }, 'แนบไฟล์แล้ว');
+}
+async function swuRmDel(id) { if (confirm('ลบเลข Remote นี้?')) swuRmAfter(await api(`/api/sw-update/remotes/${id}`, { method: 'DELETE', silent: true }), 'ลบแล้ว'); }
+async function swuRmDelFile(id) { if (confirm('ลบไฟล์นี้?')) swuRmAfter(await api(`/api/sw-update/files/${id}`, { method: 'DELETE', silent: true }), 'ลบไฟล์แล้ว'); }
+async function swuRmDownload(id, name) {
+  const r = await fetch(`/api/sw-update/files/${id}`, { headers: { Authorization: 'Bearer ' + authToken } });
+  if (!r.ok) { showToast('ดาวน์โหลดไม่ได้: ' + ((await r.json().catch(() => ({}))).error || r.status), 'error'); return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(await r.blob()); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 
 // สาขาในงานที่ตรงกับ License นี้ (จับด้วย RegistrationId ก่อน ไม่มีค่อยใช้ชื่อ)
@@ -27408,6 +27584,8 @@ function swuRenderDetail() {
       <input class="swu-in mono" id="swu-iss-az" placeholder="Azure (ถ้ามี)" style="width:120px">
       <button class="btn btn-primary swu-btn-s" onclick="swuAddIssue()">เพิ่ม</button>
     </div>
+
+    ${swuRmDetailHtml(j, closed)}
 
     <div class="swu-sec-t"><span>Checklist สาขา</span>
       ${closed ? '' : _swuDetailOpts.length > 1
@@ -29469,6 +29647,23 @@ async function generateFromPattern() {
       <label style="font-size:.72rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.2rem">รายละเอียดปัญหา <span style="color:#b04a40">*</span></label>
       <textarea id="swu-description" rows="3" placeholder="อธิบายปัญหา / เหตุผลที่ต้องอัพเดท..."
         style="width:100%;border:1px solid var(--border);border-radius:7px;padding:.35rem .6rem;font-size:.82rem;resize:vertical;font-family:inherit"></textarea>
+    </div>
+
+    <!-- Remote (AnyDesk): กรอกเอง หรือแนบไฟล์ อย่างใดอย่างหนึ่ง -->
+    <div style="margin-bottom:.6rem">
+      <label style="font-size:.72rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.25rem">Remote (AnyDesk) <span id="swu-rm-req" style="color:#b04a40">*</span>
+        <span style="font-weight:400;color:#6f747c">— ร้านเครื่องน้อยกรอกเอง · chain หลายสาขาแนบไฟล์ Excel</span></label>
+      <div style="display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:.4rem;font-size:.78rem">
+        <button type="button" id="swu-rm-m-type" onclick="swuRmMode('type')" style="border:0;padding:.3rem .8rem;cursor:pointer;font-family:inherit">กรอกเอง</button>
+        <button type="button" id="swu-rm-m-file" onclick="swuRmMode('file')" style="border:0;border-left:1px solid var(--border);padding:.3rem .8rem;cursor:pointer;font-family:inherit">แนบไฟล์</button>
+      </div>
+      <div id="swu-rm-type"></div>
+      <div id="swu-rm-file" style="display:none">
+        <input type="file" id="swu-rm-file-in" accept=".xlsx,.xls,.csv,.pdf,.png,.jpg,.jpeg,.txt" style="font-size:.8rem">
+        <div style="font-size:.72rem;color:#6f747c;margin-top:.25rem">ในไฟล์ระบุ สาขา · เครื่อง (Cashier / เครื่องแม่ / Order …) · เลข Remote · Password · Excel / CSV / PDF / รูป ไม่เกิน 10 MB</div>
+      </div>
+      <div id="swu-rm-note" style="font-size:.72rem;color:#3f5f8f;margin-top:.25rem"></div>
+      <datalist id="swu-rm-devices"><option value="Cashier"></option><option value="เครื่องแม่ (Server)"></option><option value="Order"></option><option value="Kiosk"></option><option value="KDS (จอครัว)"></option><option value="HQ / Back office"></option></datalist>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.5rem">
