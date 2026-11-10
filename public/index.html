@@ -4287,6 +4287,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
     <div class="svc-seg" role="tablist" aria-label="มุมมอง">
       <button id="uat-view-list" onclick="uatSetView('list')">☰ รายการ</button>
       <button id="uat-view-board" onclick="uatSetView('board')">▦ บอร์ด</button>
+      <button id="uat-view-cal" onclick="uatSetView('cal')">📅 ปฏิทิน</button>
     </div>
   </div>
 
@@ -27917,7 +27918,7 @@ const UAT_DONE_ST = ['closed', 'cancelled'];
 let _uatData = [], _uatUsers = [], _uatSearchTimer = null, _uatRoster = null, _uatLeave = [];
 let _uatTab  = null;   // mine | all | load
 let _uatType = '';     // '' = ทุกประเภท
-let _uatView = (() => { try { return localStorage.getItem('uat-view') === 'board' ? 'board' : 'list'; } catch { return 'list'; } })();
+let _uatView = (() => { try { const v = localStorage.getItem('uat-view'); return ['board', 'cal'].includes(v) ? v : 'list'; } catch { return 'list'; } })();
 let _uatDetail = null;
 
 function uatDate(d) {
@@ -28023,13 +28024,14 @@ function renderUat() {
   const chips = document.getElementById('uat-type-chips');
   if (chips) chips.innerHTML = [['', 'ทุกประเภท'], ...['pre_install', 'customize', 'version_cr'].map(k => [k, UAT_TYPE[k]])]
     .map(([k, l]) => `<button class="uat-chip${_uatType === k ? ' on' : ''}" onclick="uatSetType('${k}')">${l}</button>`).join('');
-  for (const v of ['list', 'board']) document.getElementById('uat-view-' + v)?.classList.toggle('on', _uatView === v);
+  for (const v of ['list', 'board', 'cal']) document.getElementById('uat-view-' + v)?.classList.toggle('on', _uatView === v);
   const filters = document.getElementById('uat-filters');
   if (filters) filters.style.display = _uatTab === 'load' ? 'none' : '';
   const box = document.getElementById('uat-body');
   if (!box) return;
   if (_uatTab === 'load') { box.innerHTML = uatLoadHtml(); return; }
   const rows = uatVisible();
+  if (_uatView === 'cal') { box.innerHTML = uatCalHtml(rows); return; }
   if (!rows.length) {
     box.innerHTML = `<div class="uat-list" style="padding:3rem 1rem;text-align:center;color:var(--muted)">${
       _uatTab === 'mine' ? 'ไม่มีงานค้างที่คุณรับผิดชอบ — ดูทั้งหมดได้ที่แท็บ “ทั้งหมด”'
@@ -28073,6 +28075,77 @@ function uatBoardHtml(rows) {
       }).join('') || '<div style="font-size:.74rem;color:#a3a7ad;text-align:center;padding:.8rem 0">—</div>'}
     </div>`;
   }).join('')}</div>`;
+}
+
+// ── มุมมองปฏิทิน: วางงานตามช่วงวันทดสอบ (ยืนยันกับลูกค้าแล้ว = ทึบ · รอยืนยัน = เส้นประ) ──
+const UAT_TH_MONTHS = ['','มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
+                       'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+let _uatCalY = new Date().getFullYear();
+let _uatCalM = new Date().getMonth() + 1;   // 1–12
+let _uatCalTent = (() => { try { return localStorage.getItem('uat-cal-tent') === '1'; } catch { return false; } })();
+function uatCalMove(dir) {
+  _uatCalM += dir;
+  if (_uatCalM > 12) { _uatCalM = 1;  _uatCalY++; }
+  if (_uatCalM < 1)  { _uatCalM = 12; _uatCalY--; }
+  renderUat();
+}
+function uatCalToday() { const n = new Date(); _uatCalY = n.getFullYear(); _uatCalM = n.getMonth() + 1; renderUat(); }
+function uatCalTent(v) { _uatCalTent = !!v; try { localStorage.setItem('uat-cal-tent', v ? '1' : '0'); } catch {} renderUat(); }
+const uatIso = (y, m, d) => `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+function uatCalHtml(rows) {
+  const isConfirmed = j => !!j.confirmed_at || !['requested', 'slot_proposed'].includes(j.status);
+  const jobs = rows.filter(j => j.test_date_from && j.status !== 'cancelled' && (isConfirmed(j) || _uatCalTent));
+  const byDay = {};
+  for (const j of jobs) {
+    const from = String(j.test_date_from).slice(0, 10), to = String(j.test_date_to || j.test_date_from).slice(0, 10);
+    let n = 0;
+    for (let d = new Date(from + 'T12:00:00'); n < 62; d.setDate(d.getDate() + 1), n++) {
+      const iso = d.toLocaleDateString('en-CA');
+      (byDay[iso] = byDay[iso] || []).push(j);
+      if (iso >= to) break;
+    }
+  }
+  const lastDay  = new Date(_uatCalY, _uatCalM, 0).getDate();
+  const firstDow = new Date(uatIso(_uatCalY, _uatCalM, 1) + 'T12:00:00').getDay();
+  const todayIso = new Date().toLocaleDateString('en-CA');
+  const cell = (inner, bg = '#fff') => `<div style="border:1px solid var(--border);border-radius:10px;min-height:96px;padding:.4rem .45rem;background:${bg};overflow:hidden;min-width:0">${inner}</div>`;
+  let html = `<div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:.3rem;margin-bottom:.3rem">` +
+    ['อา','จ','อ','พ','พฤ','ศ','ส'].map((d, i) => `<div style="text-align:center;font-size:.72rem;font-weight:500;color:${i === 0 || i === 6 ? '#a3463c' : '#6f747c'}">${d}</div>`).join('') +
+    `</div><div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:.3rem">`;
+  for (let i = 0; i < firstDow; i++) html += cell('', '#faf9f6');
+  let monthCount = 0;
+  for (let d = 1; d <= lastDay; d++) {
+    const iso = uatIso(_uatCalY, _uatCalM, d), dow = new Date(iso + 'T12:00:00').getDay(), isToday = iso === todayIso;
+    const list = byDay[iso] || [];
+    monthCount += list.length;
+    const head = `<div style="font-size:.74rem;font-weight:500;color:${isToday ? 'var(--primary)' : (dow === 0 || dow === 6 ? '#a3463c' : '#3a3f46')};margin-bottom:.25rem">
+      ${isToday ? `<span style="background:var(--primary);color:#fff;border-radius:50%;padding:.05rem .38rem">${d}</span>` : d}</div>`;
+    const items = list.slice(0, 3).map(j => {
+      const c = UAT_TYPE_COLOR[j.job_type] || '#888780', ok = isConfirmed(j);
+      return `<div onclick="openUatDetail(${j.id})" title="${escHtml(j.job_no + ' · ' + (j.title || '') + (j.assignee_name ? ' · ' + j.assignee_name : '') + (ok ? '' : ' · รอยืนยันลูกค้า'))}"
+        style="cursor:pointer;font-size:.66rem;line-height:1.35;margin-bottom:.18rem;padding:.14rem .35rem;border-radius:5px;
+               background:${ok ? c + '1f' : '#fff'};color:${c};border:1px ${ok ? 'solid transparent' : 'dashed ' + c};
+               white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${j.assignee_name ? `<b style="font-weight:600">${escHtml(j.assignee_name)}</b> · ` : ''}${escHtml(j.title || j.job_no)}</div>`;
+    }).join('');
+    const more = list.length > 3 ? `<div style="font-size:.62rem;color:var(--muted)">+ อีก ${list.length - 3}</div>` : '';
+    html += cell(head + items + more, isToday ? '#f4f8f6' : '#fff');
+  }
+  const tail = (7 - ((firstDow + lastDay) % 7)) % 7;
+  for (let i = 0; i < tail; i++) html += cell('', '#faf9f6');
+  html += `</div>`;
+  const ctl = `<div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.8rem">
+      <button class="svc-icon-btn" onclick="uatCalMove(-1)" aria-label="เดือนก่อน">‹</button>
+      <div style="font-size:.95rem;font-weight:600;min-width:140px;text-align:center">${UAT_TH_MONTHS[_uatCalM]} ${_uatCalY + 543}</div>
+      <button class="svc-icon-btn" onclick="uatCalMove(1)" aria-label="เดือนถัดไป">›</button>
+      <button class="svc-btn-ghost" style="height:36px" onclick="uatCalToday()">วันนี้</button>
+      <label style="display:flex;align-items:center;gap:.35rem;font-size:.78rem;color:#4d535b;cursor:pointer;margin-left:.4rem">
+        <input type="checkbox" ${_uatCalTent ? 'checked' : ''} onchange="uatCalTent(this.checked)"> แสดงที่ยังรอยืนยันด้วย</label>
+      <span style="margin-left:auto;display:flex;gap:.8rem;flex-wrap:wrap;font-size:.72rem;color:#6f747c">
+        ${['pre_install', 'customize', 'version_cr'].map(t => `<span><i style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${UAT_TYPE_COLOR[t]};vertical-align:-.05em"></i> ${UAT_TYPE[t]}</span>`).join('')}
+        <span><i style="display:inline-block;width:9px;height:9px;border-radius:2px;border:1px dashed #888;vertical-align:-.05em"></i> รอยืนยัน</span>
+      </span></div>`;
+  const empty = monthCount ? '' : `<div style="text-align:center;color:var(--muted);font-size:.78rem;padding:.7rem">ไม่มีงาน UAT ที่ยืนยันวันแล้วในเดือนนี้${_uatCalTent ? '' : ' — ติ๊ก “แสดงที่ยังรอยืนยันด้วย” เพื่อดูวันที่ยังรอลูกค้ายืนยัน'}</div>`;
+  return `<div class="uat-list" style="padding:.9rem 1rem 1rem">${ctl}${html}${empty}</div>`;
 }
 
 // ── แท็บภาระงานทีม ──
