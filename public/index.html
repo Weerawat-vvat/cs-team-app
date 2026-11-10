@@ -862,6 +862,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
 .uat-menu.open>div{display:block}
 .uat-menu>div button{display:block;width:100%;text-align:left;border:none;background:none;font-family:inherit;font-size:.8rem;padding:.45rem .6rem;border-radius:7px;cursor:pointer;color:var(--text)}
 .uat-menu>div button:hover{background:#f3f2ee}
+@media (max-width:1100px){.uat-row{grid-template-columns:minmax(0,1fr) 120px 160px}.uat-row>:nth-child(3){display:none}}
 @media (max-width:760px){.uat-row{grid-template-columns:minmax(0,1fr) 110px}.uat-row>:nth-child(3),.uat-row>:nth-child(4){display:none}.uat-load{grid-template-columns:110px minmax(0,1fr)}.uat-load>:nth-child(n+3){display:none}}
 .uat-st{display:inline-block;font-size:.72rem;font-weight:500;padding:.2rem .55rem;border-radius:8px;line-height:1.35;max-width:100%}
 .uat-pri{display:flex;align-items:center;gap:.35rem;font-size:.72rem;margin-top:.35rem}
@@ -4282,7 +4283,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
       <i class=i-search style="color:#8a8f97"></i>
       <input id="uat-search" type="text" placeholder="ค้นหาเลขงาน ชื่อเรื่อง หรือคนรับผิดชอบ" oninput="uatSearchDebounce()"/>
     </label>
-    <label class="uat-closed" title="แสดงงานที่ปิด / ยกเลิกแล้วด้วย"><input type="checkbox" id="uat-show-closed" onchange="renderUat()"> งานที่ปิดแล้ว</label>
+    <label class="uat-closed" title="แสดงงานที่ปิด / ยกเลิกแล้วด้วย (อยู่ท้ายรายการ)"><input type="checkbox" id="uat-show-closed" onchange="uatSetClosed(this.checked)"> แสดงงานที่ปิดแล้ว <span id="uat-closed-n" style="color:#8a8f97"></span></label>
     <div class="svc-seg" role="tablist" aria-label="มุมมอง">
       <button id="uat-view-list" onclick="uatSetView('list')">☰ รายการ</button>
       <button id="uat-view-board" onclick="uatSetView('board')">▦ บอร์ด</button>
@@ -27996,12 +27997,21 @@ function uatSetView(v) {
   try { localStorage.setItem('uat-view', v); } catch {}
   renderUat();
 }
+let _uatShowClosed = (() => { try { return localStorage.getItem('uat-show-closed') !== '0'; } catch { return true; } })();
+function uatSetClosed(v) {
+  _uatShowClosed = !!v;
+  try { localStorage.setItem('uat-show-closed', v ? '1' : '0'); } catch {}
+  renderUat();
+}
 function uatVisible() {
-  const closed = document.getElementById('uat-show-closed')?.checked;
-  return (_uatData || []).filter(r =>
+  const base = (_uatData || []).filter(r =>
     (_uatTab !== 'mine' || r.assignee_id === currentUser?.id) &&
-    (!_uatType || r.job_type === _uatType) &&
-    (closed || !UAT_DONE_ST.includes(r.status)));
+    (!_uatType || r.job_type === _uatType));
+  const n = base.filter(r => UAT_DONE_ST.includes(r.status)).length;
+  const lbl = document.getElementById('uat-closed-n'); if (lbl) lbl.textContent = n ? `(${n})` : '';
+  const cb = document.getElementById('uat-show-closed'); if (cb) cb.checked = _uatShowClosed;
+  const open = base.filter(r => !UAT_DONE_ST.includes(r.status));
+  return _uatShowClosed ? [...open, ...base.filter(r => UAT_DONE_ST.includes(r.status))] : open;
 }
 
 function renderUat() {
@@ -28022,7 +28032,7 @@ function renderUat() {
   const rows = uatVisible();
   if (!rows.length) {
     box.innerHTML = `<div class="uat-list" style="padding:3rem 1rem;text-align:center;color:var(--muted)">${
-      _uatTab === 'mine' ? 'ไม่มีงานที่คุณรับผิดชอบ — ดูทั้งหมดได้ที่แท็บ “ทั้งหมด”'
+      _uatTab === 'mine' ? 'ไม่มีงานค้างที่คุณรับผิดชอบ — ดูทั้งหมดได้ที่แท็บ “ทั้งหมด”'
       : (_uatData || []).length ? 'ไม่มีงานตามตัวกรองนี้' : 'ยังไม่มีงาน UAT — กด “+ เปิดงาน UAT” เพื่อเริ่ม'}</div>`;
     return;
   }
@@ -28035,7 +28045,7 @@ function uatListHtml(rows) {
     ${rows.map(r => {
       const nx = uatNext(r);
       const pri = ['urgent', 'high'].includes(r.priority) ? `<span class="uat-pill" style="background:#fbeceb;color:${UAT_PRIORITY[r.priority].color};margin-right:.35rem">${UAT_PRIORITY[r.priority].label}</span>` : '';
-      return `<div class="uat-row" onclick="openUatDetail(${r.id})">
+      return `<div class="uat-row" onclick="openUatDetail(${r.id})"${UAT_DONE_ST.includes(r.status) ? ' style="opacity:.62"' : ''}>
         <div style="min-width:0"><div class="t">${pri}${escHtml(r.title || '—')}</div>
           <div class="s">${escHtml(r.job_no || '')} · <span style="color:${UAT_TYPE_COLOR[r.job_type] || '#888'}">${escHtml(UAT_TYPE[r.job_type] || UAT_TYPE.other)}</span>${r.version_to ? ` · → ${escHtml(r.version_to)}` : ''}</div></div>
         <div class="uat-who">${r.assignee_name ? `${uatAv(r.assignee_name)}<span>${escHtml(r.assignee_name)}</span>` : '<span style="color:#9a6a12">ยังไม่มีคนรับ</span>'}</div>
