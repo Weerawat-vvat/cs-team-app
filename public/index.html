@@ -9540,11 +9540,11 @@ const LLB_BOARDS = {
     icon: '🏅', title: 'ภาพรวม', key: 'overall', count: p => p.workload, need: () => true,
     sub: w => { const g = _llbData?.b?.staff_team?.grade_weights || {}, L = _llbData?.b?.staff_team?.level_weights || {};
       const ws = x => x ? `งานเยอะ ${x.volume} · คุยงานดี ${x.talk} · ตอบไว ${x.speed} · ดาวทันเวลา ${x.sat}` : '';
-      return `${L.SR ? `<b>SR</b> ${ws(L.SR)} | <b>JR</b> ${ws(L.JR || w)}` : ws(w)} — งานเยอะนับจากเคสที่ลงในหน้าติดตามเคส ทุกช่องทาง ถ่วงตามเกรดหัวข้อ (A = ${g.A ?? 3} แต้ม · B = ${g.B ?? 2} · C = ${g.C ?? 1} · ไม่มีเกรด = ${g.other ?? 1}) · ส่วนไหนไม่มีข้อมูลใช้ค่าเฉลี่ยทีมแทน (ตัวเลขสีเทา)`; },
+      return `${L.SR ? `<b>SR</b> ${ws(L.SR)} | <b>JR</b> ${ws(L.JR || w)}` : ws(w)} — งานเยอะนับจากเคสที่ลงในหน้าติดตามเคส ทุกช่องทาง ถ่วงตามเกรดหัวข้อ (A = ${g.A ?? 3} แต้ม · B = ${g.B ?? 2} · C = ${g.C ?? 1} · E งานพิเศษ = ${g.E ?? 3} · ไม่มีเกรด = ${g.other ?? 1}) · ส่วนไหนไม่มีข้อมูลใช้ค่าเฉลี่ยทีมแทน (ตัวเลขสีเทา)`; },
     why: p => `งาน ${p.work_pts ?? p.workload} แต้ม (${p.workload} เคส) · ดาว ${p.stars_avg ?? '—'}`,
     cols: [
       ['งานทั้งหมด', 'แต้มงาน = เคสในหน้าติดตามเคส ทุกช่องทาง × น้ำหนักเกรดหัวข้อ (A ยาก · B กลาง · C ง่าย) · คะแนนงานเยอะ = เทียบกับกลุ่มคนที่แต้มงานสูงของทีม', p => `<b>${p.work_pts ?? p.workload}</b> <span class="mt-meta" style="font-size:.68rem;font-weight:400" title="${p.vol_ceiling ? `เส้นเต็ม 100 = ${p.vol_ceiling} แต้ม${p.level ? ` (เทียบกลุ่ม ${p.level})` : ' (ทั้งทีม)'}` : ''}">แต้ม · ${p.volume ?? 0} คะแนน</span>
-        <div class="mt-meta" style="font-size:.66rem;font-weight:400">${p.workload} เคส${p.grades ? ` · <span title="เกรด A (ยาก)">A ${p.grades.A}</span> · <span title="เกรด B">B ${p.grades.B}</span> · <span title="เกรด C (ง่าย)">C ${p.grades.C}</span>${p.grades.other ? ` · <span title="หัวข้อไม่มีเกรด">อื่น ${p.grades.other}</span>` : ''}` : ''}</div>
+        <div class="mt-meta" style="font-size:.66rem;font-weight:400">${p.workload} เคส${p.grades ? ` · <span title="เกรด A (ยาก)">A ${p.grades.A}</span> · <span title="เกรด B">B ${p.grades.B}</span> · <span title="เกรด C (ง่าย)">C ${p.grades.C}</span>${p.grades.E ? ` · <span title="เกรด E งานพิเศษ (Extra)">E ${p.grades.E}</span>` : ''}${p.grades.other ? ` · <span title="หัวข้อไม่มีเกรด">อื่น ${p.grades.other}</span>` : ''}` : ''}</div>
         <div class="lb-chs">${llbChannels(p.channels)}</div><div class="mt-meta" style="font-size:.66rem;font-weight:400">ตอบแชท LINE ${p.line_cases}</div>`, () => ''],
       ['คุยงานดี', '', p => llbImp(p, 'talk', p.talk), p => p.talk == null ? '' : p.talk >= 80 ? 'g' : p.talk < 65 ? 'r' : 'y'],
       ['ตอบไว', '', p => llbImp(p, 'speed', p.speed), p => p.speed == null ? '' : p.speed >= 60 ? 'g' : p.speed < 40 ? 'r' : 'y'],
@@ -9603,7 +9603,7 @@ function llbGradeEdit() {
   const el = document.getElementById('llb-grade-edit');
   if (!el) return;
   if (el.style.display !== 'none') { el.style.display = 'none'; return; }
-  const g = _llbData?.b?.staff_team?.grade_weights || { A: 3, B: 2, C: 1, other: 1 };
+  const g = _llbData?.b?.staff_team?.grade_weights || { A: 3, B: 2, C: 1, E: 3, other: 1 };
   const L = _llbData?.b?.staff_team?.level_weights || { SR: { volume: 20, talk: 35, speed: 25, sat: 20 }, JR: { volume: 40, talk: 30, speed: 20, sat: 10 } };
   const f = (k, lab) => `<label style="display:flex;flex-direction:column;gap:.2rem;font-size:.74rem;color:#5b6068">${lab}
     <input type="number" id="llb-gw-${k}" min="0" max="20" step="0.25" value="${g[k]}" style="width:90px;padding:.3rem .5rem;border:1px solid #d9d6ce;border-radius:8px"></label>`;
@@ -9611,7 +9611,7 @@ function llbGradeEdit() {
     <div style="font-size:.82rem;font-weight:700;margin-bottom:.2rem">น้ำหนักงานตามเกรดหัวข้อ</div>
     <div class="mt-meta" style="font-size:.74rem;margin-bottom:.55rem">แต้มงาน = จำนวนเคส × น้ำหนักของเกรด · ตัวอย่าง A = 3, C = 1 → งานยาก 1 เคสเท่ากับงานง่าย 3 เคส · เกรดตั้งที่หัวข้อปัญหา (Subject)</div>
     <div style="display:flex;gap:.8rem;align-items:flex-end;flex-wrap:wrap">
-      ${f('A', 'เกรด A (ยาก)')}${f('B', 'เกรด B (กลาง)')}${f('C', 'เกรด C (ง่าย)')}${f('other', 'ไม่มีเกรด')}
+      ${f('A', 'เกรด A (ยาก)')}${f('B', 'เกรด B (กลาง)')}${f('C', 'เกรด C (ง่าย)')}${f('E', 'เกรด E (งานพิเศษ)')}${f('other', 'ไม่มีเกรด')}
     </div>
     <div style="font-size:.82rem;font-weight:700;margin:.9rem 0 .2rem">สัดส่วนคะแนนรวม แยกระดับ</div>
     <div class="mt-meta" style="font-size:.74rem;margin-bottom:.55rem">SR บางคนเป็นพี่เลี้ยง งานน้อยกว่าน้อง จึงลดสัดส่วนงานเยอะลงแล้วเน้นคุณภาพ · คนที่ยังไม่ตั้งระดับใช้ชุด JR · ไม่จำเป็นต้องรวมได้ 100 (ระบบเทียบเป็นสัดส่วนให้)</div>
@@ -9629,7 +9629,7 @@ function llbGradeEdit() {
 }
 async function llbGradeSave() {
   const w = {};
-  for (const k of ['A', 'B', 'C', 'other']) {
+  for (const k of ['A', 'B', 'C', 'E', 'other']) {
     const v = parseFloat(document.getElementById('llb-gw-' + k)?.value);
     if (!(v >= 0 && v <= 20)) { showToast('น้ำหนักต้องอยู่ระหว่าง 0–20', 'warning'); return; }
     w[k] = v;

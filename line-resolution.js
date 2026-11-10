@@ -736,8 +736,8 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
     const LW = { SR: { volume: 20, talk: 35, speed: 25, sat: 20 }, JR: W2, ...(B.levelWeights || {}) };
     const wOf = x => LW[x.level === 'SR' ? 'SR' : 'JR'] || W2;
     // งานเยอะถ่วงตามเกรดหัวข้อ: A ยาก · B กลาง · C ง่าย · อื่นๆ = หัวข้อไม่มีเกรด
-    const GW = { A: 3, B: 2, C: 1, other: 1, ...(B.gradeWeights || {}) };
-    const gradeOf = g => { g = String(g || '').trim().toUpperCase(); return g === 'A' || g === 'B' || g === 'C' ? g : 'other'; };
+    const GW = { A: 3, B: 2, C: 1, E: 3, other: 1, ...(B.gradeWeights || {}) };   // E = งานพิเศษ (Extra)
+    const gradeOf = g => { g = String(g || '').trim().toUpperCase(); return ['A', 'B', 'C', 'E'].includes(g) ? g : 'other'; };
 
     const buildStaff = (cases, calllog, teamLine) => {
       const m = new Map();
@@ -749,7 +749,7 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
       const list = [...m.values()].map(s => {
         const st = stats(s.cases), br = boardRaw(s.cases);
         const channels = {};
-        const grades = { A: 0, B: 0, C: 0, other: 0 };
+        const grades = { A: 0, B: 0, C: 0, E: 0, other: 0 };
         s.cl.forEach(r => { const k = chOf(r.channel); channels[k] = (channels[k] || 0) + 1; grades[gradeOf(r.grade)]++; });
         const work_pts = Math.round(Object.entries(grades).reduce((a, [g, n]) => a + n * (GW[g] ?? 1), 0) * 10) / 10;
         const closed = s.cl.filter(r => r.closed_at);

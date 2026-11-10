@@ -9010,7 +9010,8 @@ const LINE_STAFF_MAP = {
   ...Object.fromEntries(String(process.env.LINE_STAFF_MAP || '').split(',').map(x => x.split('=').map(v => v.trim())).filter(([a, b]) => a && b)),
 };
 // น้ำหนักงานตามเกรดหัวข้อ (Subject.Grade) — งานยาก 1 เคส = งานง่ายหลายเคส · ตั้งได้ในหน้า Leaderboard ทีมงาน
-const GRADE_WEIGHTS_DEFAULT = { A: 3, B: 2, C: 1, other: 1 };
+// E = งานพิเศษ (Extra) เช่น หัวข้อ Update Software
+const GRADE_WEIGHTS_DEFAULT = { A: 3, B: 2, C: 1, E: 3, other: 1 };
 const cleanGradeWeights = w => Object.fromEntries(Object.entries(GRADE_WEIGHTS_DEFAULT).map(([k, d]) => {
   const v = Number(w?.[k]);
   return [k, Number.isFinite(v) && v >= 0 && v <= 20 ? Math.round(v * 100) / 100 : d];
