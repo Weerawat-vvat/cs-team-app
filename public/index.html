@@ -27084,7 +27084,7 @@ function swuBrandCtl(g, gi) {
     <select class="swu-st-sel" style="background:${S.bg};color:${S.color}" title="สถานะ${many}" onchange="swuBrandSet(${gi}, 'status', this.value, this)">
       ${st === undefined ? '<option value="" selected disabled>หลายสถานะ</option>' : ''}
       ${Object.entries(SWU_STATUS).map(([k, v]) => `<option value="${k}" ${k === st ? 'selected' : ''}>${v.label}</option>`).join('')}</select>
-    ${st === 'done' ? `<button class="swu-st-sel" style="background:#e7f0ea;color:#2f7a52;cursor:pointer;border:none" title="แก้รายชื่อคนที่ไปอัปเดต (แต้มพิเศษ Leaderboard)" onclick="swuDoneAsk(${gi}, true)">👥 คนอัปเดต</button>` : ''}
+    ${g.jobs.some(r => r.status === 'done') ? `<button class="swu-st-sel" style="background:#e7f0ea;color:#2f7a52;cursor:pointer;border:none" title="แก้รายชื่อคนที่ไปอัปเดต (แต้มพิเศษ Leaderboard)" onclick="swuDoneAsk(${gi}, true)">👥 คนอัปเดต</button>` : ''}
   </span>`;
 }
 async function swuBrandSet(gi, field, value, el) {
@@ -27220,6 +27220,7 @@ function swuBoardHtml(G) {
         ${g.open && pr >= 2 ? `<span class="swu-chip" style="background:${pr === 3 ? '#fbeceb' : '#fbf0e6'};color:${pri.color}">${pri.label}</span>` : ''}
         ${noRemote ? '<span class="swu-chip" style="background:#fbeceb;color:#a23b33">ยังไม่มี Remote</span>' : ''}
         ${mixed ? '<span class="swu-chip" style="background:#f0eee9;color:#6f747c">หลายสถานะ</span>' : ''}
+        ${T.some(r => r.status === 'done') ? `<span class="swu-chip" style="background:#e7f0ea;color:#2f7a52;cursor:pointer" title="แก้รายชื่อคนที่ไปอัปเดต (แต้มพิเศษ Leaderboard)" onclick="event.stopPropagation();swuDoneAsk(${gi}, true)">👥 คนอัปเดต</span>` : ''}
       </div>
     </div>`;
   };
