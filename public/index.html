@@ -1013,6 +1013,16 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
 .swu-tbl tr.swu-rep .svc-title{font-size:.82rem;font-weight:400;color:#3d4248;padding-left:.9rem}
 .swu-tbl tr.swu-rep .svc-meta{padding-left:1.9rem}
 .swu-tg{display:inline-block;width:1.1em;color:#6f747c;font-size:.68rem;cursor:pointer}
+.swu-board{display:grid;grid-template-columns:repeat(5,minmax(220px,1fr));gap:.7rem;overflow-x:auto;padding-bottom:.4rem;align-items:start}
+.swu-col{background:#f3f2ee;border-radius:12px;padding:.55rem;min-height:120px}
+.swu-col.over{outline:2px dashed #8a8f97;outline-offset:-4px}
+.swu-col-h{display:flex;align-items:center;gap:.4rem;font-size:.8rem;font-weight:700;color:#3a3f46;padding:.15rem .25rem .5rem}
+.swu-card{background:#fff;border:1px solid var(--border);border-radius:10px;padding:.55rem .65rem;margin-bottom:.45rem;cursor:grab;font-size:.8rem}
+.swu-card:hover{border-color:#b9bcc2}
+.swu-card.dragging{opacity:.45}
+.swu-card .t{font-weight:700;color:#1f2a3a;font-size:.86rem;margin-bottom:.15rem}
+.swu-card .m{font-size:.72rem;color:#6f747c}
+.swu-card .iss{font-size:.76rem;color:#3d4248;margin:.3rem 0;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .swu-bc{background:#fff;border:1px solid var(--border);border-radius:12px;margin-bottom:.7rem;overflow:hidden}
 .swu-bc.done{background:#fafaf8}
 .swu-bh{display:flex;align-items:center;gap:.6rem;padding:.7rem 1rem;cursor:pointer;flex-wrap:wrap}
@@ -4331,6 +4341,10 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
     <button class="svc-tab" data-tab="pending" onclick="swuSetTab('pending')"><span class="svc-dot" style="background:#c29a3c"></span>รอดำเนินการ <span class="c" id="swu-stat-pending">—</span></button>
     <button class="svc-tab" data-tab="scheduled" onclick="swuSetTab('scheduled')"><span class="svc-dot" style="background:#5b7fb3"></span>นัดหมายแล้ว <span class="c" id="swu-stat-scheduled">—</span></button>
     <button class="svc-tab" data-tab="done" onclick="swuSetTab('done')"><span class="svc-dot" style="background:#4d8c6a"></span>เสร็จสิ้น <span class="c" id="swu-stat-done">—</span></button>
+    <div class="svc-seg" role="tablist" aria-label="มุมมอง" style="margin-left:auto;align-self:center">
+      <button role="tab" id="swu-view-list" onclick="swuSetView('list')">☰ รายการ</button>
+      <button role="tab" id="swu-view-board" onclick="swuSetView('board')">▦ บอร์ด</button>
+    </div>
   </div>
 
   <!-- Filters -->
@@ -26897,6 +26911,7 @@ function renderSwUpdate() {
   set('swu-stat-done',      all.filter(SWU_TAB_TEST.done).length);
   document.querySelectorAll('#swu-tabs .svc-tab').forEach(t => t.classList.toggle('on', (t.dataset.tab || '') === _swuTab));
   swuStatusLabel();
+  for (const v of ['list', 'board']) document.getElementById('swu-view-' + v)?.classList.toggle('on', _swuView === v);
   const podSel = document.getElementById('swu-filter-pod');
   if (podSel && _swuPods) {
     const v = podSel.value;
@@ -26969,6 +26984,7 @@ function renderSwUpdate() {
   }).sort((a, b) => b.open - a.open || b.pr - a.pr || a.oldest - b.oldest || a.key.localeCompare(b.key, 'th'));
 
   _swuG = G;
+  if (_swuView === 'board') { box.innerHTML = swuBoardHtml(G); return; }
   box.innerHTML = G.map((g, gi) => {
     // แบรนด์ที่เสร็จหมดแล้ว ย่อไว้ก่อน · กดเปิดได้
     const collapsed = g.open ? _swuCollapsed.has('b:' + g.key) : !_swuCollapsed.has('d:' + g.key);
@@ -27037,6 +27053,85 @@ async function swuBrandSet(gi, field, value, el) {
   await loadSwUpdate();
   swuUpdateBadge();
 }
+// ── มุมมองบอร์ด: คอลัมน์ตามสถานะ · การ์ด = แบรนด์ (สถานะระดับแบรนด์) · ลากการ์ดไปคอลัมน์อื่นเพื่อเปลี่ยนสถานะ ──
+let _swuView = (() => { try { return localStorage.getItem('swu-view') === 'board' ? 'board' : 'list'; } catch { return 'list'; } })();
+const SWU_BOARD_COLS = ['pending', 'scheduling', 'scheduled', 'updating', 'done'];
+function swuSetView(v) {
+  _swuView = v;
+  try { localStorage.setItem('swu-view', v); } catch {}
+  renderSwUpdate();
+}
+function swuBoardHtml(G) {
+  const PRK = { urgent: 3, high: 2, normal: 1, low: 0 };
+  const fmtD = v => v ? new Date(v).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }) : '';
+  const age = v => { const t = new Date(v); const d = Math.round((Date.UTC(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()) - Date.UTC(t.getFullYear(), t.getMonth(), t.getDate())) / 864e5); return d <= 0 ? 'วันนี้' : d === 1 ? 'เมื่อวาน' : `${d} วัน`; };
+  const cols = Object.fromEntries(SWU_BOARD_COLS.map(k => [k, []]));
+  let cancelled = 0;
+  G.forEach((g, gi) => {
+    const T = swuBrandJobs(g);
+    // หลายสถานะในแบรนด์เดียว → อยู่คอลัมน์ที่ช้าที่สุด
+    const sts = T.map(r => r.status || 'pending');
+    const st = SWU_BOARD_COLS.find(k => sts.includes(k)) || (sts.includes('cancelled') ? 'cancelled' : 'pending');
+    if (st === 'cancelled') { cancelled++; return; }
+    cols[st].push({ g, gi, T, mixed: new Set(sts).size > 1 });
+  });
+  // เสร็จสิ้น: แสดง 30 วันล่าสุด
+  const cut = Date.now() - 30 * 864e5;
+  const doneAll = cols.done.length;
+  cols.done = cols.done.filter(x => Math.max(...x.T.map(r => +new Date(r.updated_at || r.created_at))) >= cut)
+    .sort((a, b) => Math.max(...b.T.map(r => +new Date(r.updated_at || r.created_at))) - Math.max(...a.T.map(r => +new Date(r.updated_at || r.created_at))));
+  const card = ({ g, gi, T, mixed }) => {
+    const items = T.flatMap(r => swuIssuesOf(r).map(it => ({ it, r })));
+    const first = items.sort((a, b) => new Date(b.it.created_at || b.r.created_at) - new Date(a.it.created_at || a.r.created_at))[0];
+    const oldest = Math.min(...items.map(x => +new Date(x.it.created_at || x.r.created_at)));
+    const pr = Math.max(...T.map(r => PRK[r.priority] ?? 1));
+    const pri = SWU_PRIORITY[Object.keys(PRK).find(k => PRK[k] === pr)] || SWU_PRIORITY.normal;
+    const pods = [...new Map(T.filter(r => r.pod_id).map(r => [r.pod_id, r])).values()];
+    const appt = T.map(r => r.appointment_date).filter(Boolean).sort()[0];
+    const noRemote = T.some(r => !SWU_CLOSED_ST.includes(r.status) && r.remote_n === 0 && r.files_n === 0);
+    return `<div class="swu-card" draggable="true" data-gi="${gi}" ondragstart="swuDragStart(event, ${gi})" ondragend="this.classList.remove('dragging')"
+        onclick="openSwUpdateDetail(${first?.r.id ?? T[0].id})" title="คลิกเพื่อเปิดงาน · ลากไปคอลัมน์อื่นเพื่อเปลี่ยนสถานะ">
+      <div style="display:flex;align-items:flex-start;gap:.4rem">
+        <div class="t" style="flex:1;min-width:0">${g.ai ? '<span class="tk-ai" style="margin-right:.3rem"><i class=i-check></i> AI</span>' : ''}${escHtml(g.key)}</div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.15rem;flex-shrink:0">${pods.length
+          ? pods.map(r => `<span class="swu-chip" style="background:${r.pod_color || '#1d4ed8'}1a;color:${r.pod_color || '#1d4ed8'}">${escHtml(r.pod_name || 'Pod')}</span>`).join('')
+          : '<span class="swu-chip" style="background:#f0eee9;color:#8a8f97" title="ยังไม่ระบุ Pod — ตั้งได้ที่หัวการ์ดในมุมมองรายการ">ไม่ระบุ Pod</span>'}</div>
+      </div>
+      <div class="m">${items.length} เคส${T.length > 1 ? ` · ${T.length} งาน` : ''} · ${g.open ? `ค้าง ${age(oldest)}` : `ปิด ${fmtD(Math.max(...T.map(r => +new Date(r.updated_at || r.created_at))))}`}${appt ? ` · นัด ${fmtD(appt)}` : ''}</div>
+      ${first ? `<div class="iss">${escHtml(first.it.description || '—')}</div>` : ''}
+      <div style="display:flex;flex-wrap:wrap;gap:.25rem">
+        ${g.open && pr >= 2 ? `<span class="swu-chip" style="background:${pr === 3 ? '#fbeceb' : '#fbf0e6'};color:${pri.color}">${pri.label}</span>` : ''}
+        ${noRemote ? '<span class="swu-chip" style="background:#fbeceb;color:#a23b33">ยังไม่มี Remote</span>' : ''}
+        ${mixed ? '<span class="swu-chip" style="background:#f0eee9;color:#6f747c">หลายสถานะ</span>' : ''}
+      </div>
+    </div>`;
+  };
+  return `<div class="swu-board">${SWU_BOARD_COLS.map(k => {
+      const S = SWU_STATUS[k], list = cols[k];
+      return `<div class="swu-col" data-st="${k}" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="swuDrop(event, '${k}')">
+        <div class="swu-col-h"><span class="svc-dot" style="background:${S.color}"></span>${S.label}<span class="mt-meta" style="margin-left:auto;font-weight:400">${list.length}${k === 'done' && doneAll > list.length ? ` / ${doneAll}` : ''}</span></div>
+        ${list.map(card).join('') || '<div class="mt-meta" style="font-size:.74rem;text-align:center;padding:.8rem 0">—</div>'}
+        ${k === 'done' && doneAll > list.length ? `<div class="mt-meta" style="font-size:.7rem;text-align:center">แสดงที่ปิดใน 30 วันล่าสุด · ดูทั้งหมดในมุมมองรายการ</div>` : ''}
+      </div>`; }).join('')}</div>
+    ${cancelled ? `<div class="mt-meta" style="font-size:.74rem;margin-top:.3rem">ยกเลิก ${cancelled} แบรนด์ (ไม่แสดงในบอร์ด)</div>` : ''}`;
+}
+let _swuDragGi = null;
+function swuDragStart(e, gi) {
+  _swuDragGi = gi;
+  e.dataTransfer.effectAllowed = 'move';
+  try { e.dataTransfer.setData('text/plain', String(gi)); } catch {}
+  e.currentTarget.classList.add('dragging');
+}
+function swuDrop(e, st) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('over');
+  const gi = _swuDragGi; _swuDragGi = null;
+  if (gi == null) return;
+  const g = _swuG[gi];
+  if (!g || swuBrandJobs(g).every(r => r.status === st)) return;
+  swuBrandSet(gi, 'status', st);
+}
+
 function swuToggleBrand(k) {
   _swuCollapsed.has(k) ? _swuCollapsed.delete(k) : _swuCollapsed.add(k);
   renderSwUpdate();
