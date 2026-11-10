@@ -1787,6 +1787,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
   <div id="dash-tab-lineboard" style="display:none">
     <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.8rem">
       <select id="llb-pod" class="svc-select" onchange="llbBoardTab(_llbBoard)" style="max-width:180px" aria-label="Pod ของพนักงาน" title="Pod ของพนักงาน ตามที่ตั้งในหน้าจัดการ User"><option value="">ทุก Pod</option></select>
+      <select id="llb-snap" class="svc-select" onchange="llbLoad()" style="max-width:220px" aria-label="ช่วงคะแนน" title="ดูคะแนนที่บันทึกไว้รายเดือน (ไม่เปลี่ยนตามการตั้งค่าคะแนน)"><option value="">คะแนนสด (ตามช่วงวันที่)</option></select>
       <select id="llb-level" class="svc-select" onchange="llbBoardTab(_llbBoard)" style="max-width:150px" aria-label="ระดับ" title="ระดับ SR / JR ตามที่ตั้งในหน้าจัดการ User"><option value="">ทุกระดับ</option><option value="SR">SR</option><option value="JR">JR</option><option value="none">ยังไม่ตั้งระดับ</option></select>
       <span class="mt-meta" id="llb-note"></span>
     </div>
@@ -9477,8 +9478,18 @@ async function llbLoad() {
   }
   const f = document.getElementById('dash-date-from')?.value || '', t = document.getElementById('dash-date-to')?.value || '';
   box.style.opacity = '.5';
+  // เดือนที่บันทึกคะแนนไว้ (snapshot) — เลือกแล้วแสดงคะแนนตามที่บันทึก ไม่คิดใหม่
+  const snapSel = document.getElementById('llb-snap');
+  const snaps = await api('/api/line-board/snapshots', { silent: true });
+  if (snapSel && Array.isArray(snaps)) {
+    const v = snapSel.value;
+    const mName = p => new Date(p + '-01T00:00:00').toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
+    snapSel.innerHTML = '<option value="">คะแนนสด (ตามช่วงวันที่)</option>' + snaps.map(x => `<option value="${x.period}">📸 ${mName(x.period)} (บันทึกไว้)</option>`).join('');
+    snapSel.value = snaps.some(x => x.period === v) ? v : '';
+  }
+  const snapP = snapSel?.value || '';
   // Pod กรองที่หน้าเว็บตาม Pod ของพนักงาน (จัดการ User) — ข้อมูลชุดเดียวกัน ไม่ต้องโหลดใหม่
-  const b = await api(`/api/line-board?from=${f}&to=${t}`, { silent: true });
+  const b = await api(snapP ? `/api/line-board/snapshots/${snapP}` : `/api/line-board?from=${f}&to=${t}`, { silent: true });
   if (seq !== _llbSeq) return;
   box.style.opacity = '';
   if (!b || b.error) { box.innerHTML = `<div class="mt-meta" style="text-align:center;padding:2rem">โหลดไม่สำเร็จ: ${escHtml(b?.error || '')}</div>`; return; }
@@ -9486,7 +9497,7 @@ async function llbLoad() {
   const cfg = b.config;
   const fd = x => new Date(x + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
   const span = Math.round((Date.parse(b.to) - Date.parse(b.from)) / 86400000) + 1;
-  document.getElementById('llb-note').textContent =
+  document.getElementById('llb-note').textContent = (b.snapshot ? '📸 ' : '') +
     `${fd(b.from)} – ${fd(b.to)} (${span} วัน) · แชท LINE ที่ตัดสินแล้ว ${b.team.cases} เคส${b.not_judged ? ` · รอตัดสินอีก ${b.not_judged} ข้อความ` : ''} · งานจากหน้าติดตามเคสทุกช่องทาง`;
   const mins = s => s == null ? '—' : s < 60 ? `${Math.round(s)} วิ` : s < 3600 ? `${(s / 60).toFixed(1)} นาที` : `${(s / 3600).toFixed(1)} ชม.`;
   const num = n => (n || 0).toLocaleString('th-TH');
@@ -9505,7 +9516,11 @@ async function llbLoad() {
       ผูกได้ที่ ตั้งค่า → จัดการ User → แก้ไข → ชื่อ LINE@ ที่ใช้ตอบ</div>` : '';
 
   _llbData = { b, cfg, mins };
-  box.innerHTML = warn + unmatched + `<div class="mt-tbl-wrap" style="padding:.9rem 1rem 1rem">
+  const snapNote = b.snapshot ? `<div style="background:#eaf0f7;color:#3f5f8f;border-radius:10px;padding:.6rem .9rem;margin-bottom:.75rem;font-size:.82rem;display:flex;gap:.6rem;align-items:center;flex-wrap:wrap">
+      <span style="flex:1;min-width:220px">📸 คะแนนที่บันทึกไว้ของเดือนนี้ (บันทึกเมื่อ ${new Date(b.snapshot.created_at).toLocaleString('th-TH', { day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })}${b.snapshot.created_by && b.snapshot.created_by !== 'auto' ? ` โดย ${escHtml(b.snapshot.created_by)}` : ' อัตโนมัติ'})
+        — ไม่เปลี่ยนตามการตั้งค่าคะแนน · ช่วงวันที่ด้านบนไม่มีผล</span>
+      ${['manager', 'team_lead', 'admin'].includes(currentUser?.role) ? `<button class="btn btn-ghost btn-sm" onclick="llbSnapResave('${b.snapshot.period}')" title="คิดคะแนนเดือนนี้ใหม่ด้วยการตั้งค่าปัจจุบัน แล้วบันทึกทับ">บันทึกใหม่</button>` : ''}</div>` : '';
+  box.innerHTML = snapNote + (b.snapshot ? '' : warn) + unmatched + `<div class="mt-tbl-wrap" style="padding:.9rem 1rem 1rem">
       <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.4rem">
         <div style="font-size:1.05rem;font-weight:700;color:#2f343a;margin-right:auto">Leaderboard ทีมงาน</div>
         <div class="svc-seg" role="tablist" aria-label="บอร์ด">${Object.entries(LLB_BOARDS).map(([k, x]) => `<button role="tab" class="${k === _llbBoard ? 'on' : ''}" onclick="llbBoardTab('${k}', this)">${x.icon} ${x.title}</button>`).join('')}</div>
@@ -9595,6 +9610,16 @@ const LLB_BOARDS = {
     badges: [['⭐', 'ทันเวลาบ่อยสุด', p => p.rated >= 20 ? p.stars_avg : null]],
   },
 };
+// บันทึก snapshot ของเดือนใหม่ (คิดด้วยการตั้งค่าปัจจุบัน) — ต้องรหัสผ่านตั้งค่าคะแนน
+async function llbSnapResave(period) {
+  if (!_llbPw) { showToast('ปลดล็อก ⚙ ตั้งค่าคะแนนด้วยรหัสผ่านก่อน', 'warning'); llbGradeEdit(); return; }
+  if (!confirm(`คิดคะแนนของเดือน ${period} ใหม่ด้วยการตั้งค่าปัจจุบัน แล้วบันทึกทับของเดิม?`)) return;
+  const r = await llbPwApi(`/api/line-board/snapshots/${period}`, { method: 'POST' });
+  if (r?.need_password) { showToast('รหัสผ่านไม่ถูกต้อง — ปลดล็อกใหม่', 'error'); llbGradeEdit(); return; }
+  if (!r?.ok) { showToast('บันทึกไม่สำเร็จ: ' + (r?.error || ''), 'error'); return; }
+  showToast(`บันทึกคะแนนเดือน ${period} ใหม่แล้ว`, 'success');
+  llbLoad();
+}
 // รหัสผ่าน "⚙ ตั้งค่าคะแนน" — server เป็นคนตรวจ · จำไว้เฉพาะแท็บนี้ (ปิดเบราว์เซอร์ = ต้องใส่ใหม่)
 let _llbPw = (() => { try { return sessionStorage.getItem('llb-set-pw') || ''; } catch { return ''; } })();
 function llbPwApi(path, opts = {}) {

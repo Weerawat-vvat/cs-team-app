@@ -9077,14 +9077,13 @@ app.put('/api/line-board/grade-weights', authRequired, managerRequired, lbSettin
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.get('/api/line-board', authRequired, async (request, res) => {
-  try {
+// คิด Leaderboard ของช่วงวันที่ (ใช้ทั้งหน้าเว็บสด และตอนบันทึก snapshot รายเดือน)
+async function computeLineBoard(qFrom, qTo, pod) {
     await lineResolution.ensure();
     const day = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : null;
-    let from = day(request.query.from) || bangkokToday(), to = day(request.query.to) || from;
+    let from = day(qFrom) || bangkokToday(), to = day(qTo) || from;
     if (from > to) [from, to] = [to, from];
     if (from < LINE_RESOLVE_START) from = LINE_RESOLVE_START;
-    const pod = request.query.pod;
     const load = async (f, t) => {
       if (t < f) return [];
       const r = req().input('f', sql.NVarChar, f).input('t', sql.NVarChar, t);
@@ -9137,7 +9136,96 @@ app.get('/api/line-board', authRequired, async (request, res) => {
       WHERE r.answered_time IS NOT NULL AND m.msg_id IS NULL
         AND r.message_time >= CAST(@f AS DATE) AND r.message_time < DATEADD(day, 1, CAST(@t AS DATE))`)).recordset[0].n;
 
-    res.json({ from, to, start: LINE_RESOLVE_START, config: cfg, prev_from: pf, not_judged: cov, ...board });
+    return { from, to, start: LINE_RESOLVE_START, config: cfg, prev_from: pf, not_judged: cov, ...board };
+}
+app.get('/api/line-board', authRequired, async (request, res) => {
+  try { res.json(await computeLineBoard(request.query.from, request.query.to, request.query.pod)); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Snapshot คะแนนรายเดือน: เก็บคะแนนของเดือนที่จบแล้วไว้ — เปลี่ยนน้ำหนัก/เกรดทีหลัง เดือนที่บันทึกไว้ไม่เปลี่ยน ──
+// บันทึกอัตโนมัติวันที่ 3 ของเดือนถัดไป หลัง 01:00 (รอให้ตัดสินแชท LINE / ดาวของสิ้นเดือนครบก่อน) · เดือนที่ยังไม่มีจะถูกเติมให้
+let _lbSnapReady = false;
+async function lbSnapEnsure() {
+  if (_lbSnapReady) return;
+  await req().query(`
+    IF OBJECT_ID('lb_snapshots','U') IS NULL
+      CREATE TABLE lb_snapshots (
+        period     CHAR(7)       NOT NULL PRIMARY KEY,   -- YYYY-MM
+        from_d     DATE          NOT NULL,
+        to_d       DATE          NOT NULL,
+        data       NVARCHAR(MAX) NOT NULL,               -- Leaderboard ทั้งชุด (JSON) ณ ตอนบันทึก
+        created_by NVARCHAR(100) NULL,
+        created_at DATETIME      NOT NULL DEFAULT GETDATE()
+      )`);
+  _lbSnapReady = true;
+}
+const lbMonthRange = period => {
+  const [y, m] = period.split('-').map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return { from: `${period}-01`, to: `${period}-${String(last).padStart(2, '0')}` };
+};
+// เดือนที่จบแล้ว (ตั้งแต่เดือนแรกที่มีข้อมูล) — วันนี้เป็นวันที่ 3 ขึ้นไป เดือนก่อนหน้าถึงนับว่าจบ
+function lbClosedMonths() {
+  const today = bangkokToday(), out = [];
+  let [y, m] = LINE_RESOLVE_START.slice(0, 7).split('-').map(Number);
+  const [ty, tm, td] = today.split('-').map(Number);
+  const lastY = td >= 3 ? ty : (tm === 1 ? ty - 1 : ty), lastM = td >= 3 ? tm : (tm === 1 ? 12 : tm - 1);
+  while (y < lastY || (y === lastY && m < lastM)) { out.push(`${y}-${String(m).padStart(2, '0')}`); m++; if (m > 12) { m = 1; y++; } }
+  return out;
+}
+async function lbSnapSave(period, by) {
+  await lbSnapEnsure();
+  const { from, to } = lbMonthRange(period);
+  const b = await computeLineBoard(from, to);
+  const data = { from: b.from, to: b.to, start: b.start, config: b.config, prev_from: b.prev_from, not_judged: b.not_judged,
+    team: b.team, staff: b.staff, staff_team: b.staff_team };
+  await req().input('p', sql.Char, period).input('f', sql.Date, new Date(from)).input('t', sql.Date, new Date(to))
+    .input('d', sql.NVarChar, JSON.stringify(data)).input('by', sql.NVarChar, by || 'auto').query(`
+      MERGE lb_snapshots AS t USING (SELECT @p AS period) AS s ON t.period = s.period
+      WHEN MATCHED THEN UPDATE SET from_d = @f, to_d = @t, data = @d, created_by = @by, created_at = GETDATE()
+      WHEN NOT MATCHED THEN INSERT (period, from_d, to_d, data, created_by) VALUES (@p, @f, @t, @d, @by);`);
+  return { period, staff: data.staff?.length || 0 };
+}
+let _lbSnapLastDay = null;
+async function lbSnapTick() {
+  const day = bangkokToday(), bkk = new Date(Date.now() + 7 * 3600000);
+  if (_lbSnapLastDay === day || bkk.getUTCHours() < 1 || !getExtPool()) return;
+  _lbSnapLastDay = day;
+  try {
+    await lbSnapEnsure();
+    const have = new Set((await req().query('SELECT period FROM lb_snapshots')).recordset.map(r => r.period.trim()));
+    for (const p of lbClosedMonths().filter(p => !have.has(p))) {
+      const r = await lbSnapSave(p, 'auto');
+      console.log(`📸 Leaderboard snapshot ${p}: ${r.staff} คน`);
+    }
+  } catch (e) { console.error('lb snapshot:', e.message); }
+}
+setInterval(lbSnapTick, 30 * 60 * 1000);
+setTimeout(lbSnapTick, 3 * 60 * 1000);
+
+app.get('/api/line-board/snapshots', authRequired, async (request, res) => {
+  try {
+    await lbSnapEnsure();
+    res.json((await req().query(`SELECT period, CONVERT(char(10), from_d, 23) AS [from], CONVERT(char(10), to_d, 23) AS [to], created_by, created_at
+      FROM lb_snapshots ORDER BY period DESC`)).recordset.map(r => ({ ...r, period: r.period.trim() })));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/line-board/snapshots/:period', authRequired, async (request, res) => {
+  try {
+    await lbSnapEnsure();
+    const r = (await req().input('p', sql.Char, String(request.params.period).slice(0, 7))
+      .query('SELECT period, data, created_by, created_at FROM lb_snapshots WHERE period = @p')).recordset[0];
+    if (!r) return res.status(404).json({ error: 'ไม่พบคะแนนที่บันทึกไว้ของเดือนนี้' });
+    res.json({ ...JSON.parse(r.data), snapshot: { period: r.period.trim(), created_by: r.created_by, created_at: r.created_at } });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+// บันทึก (ใหม่) ของเดือนที่จบแล้ว — ใช้น้ำหนักที่ตั้งอยู่ตอนนี้ · ต้องรหัสผ่านตั้งค่าคะแนน
+app.post('/api/line-board/snapshots/:period', authRequired, managerRequired, lbSettingsPw, async (request, res) => {
+  try {
+    const period = String(request.params.period);
+    if (!lbClosedMonths().includes(period)) return res.status(400).json({ error: 'บันทึกได้เฉพาะเดือนที่จบแล้ว (ตั้งแต่วันที่ 3 ของเดือนถัดไป)' });
+    res.json({ ok: true, ...(await lbSnapSave(period, request.user?.username)) });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
