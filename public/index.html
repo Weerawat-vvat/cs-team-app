@@ -28126,6 +28126,21 @@ function uatUserOptions(sel, emptyLabel = '— ไม่มี —') {
   return `<option value="">${emptyLabel}</option>` + users.map(u =>
     `<option value="${u.id}"${u.id === sel ? ' selected' : ''}>${escHtml(u.nickname || u.name || u.username)}${u.team ? ' · ' + escHtml(u.team) : ''}</option>`).join('');
 }
+// รายชื่อสำหรับเลือก "ผู้รับผิดชอบ" — เฉพาะคนในทีม UAT (จาก ⚙ ตั้งค่าทีม) + คนที่เคยรับงาน UAT
+// ยังไม่มีใครเลย = แสดงทุกคน
+function uatTeamIds() {
+  const T = _uatRoster?.types || {};
+  return [...new Set([...Object.values(T).flatMap(x => [x?.primary, x?.b1, x?.b2]),
+                      ...(_uatData || []).map(r => r.assignee_id)].filter(Boolean))];
+}
+function uatTeamOptions(sel, emptyLabel) {
+  const ids = uatTeamIds();
+  if (!ids.length) return uatUserOptions(sel, emptyLabel);
+  if (sel && !ids.includes(sel)) ids.push(sel);   // คนเดิมที่ไม่ได้อยู่ในทีมแล้ว ยังเห็นชื่อ
+  const name = id => uatUserName(id);
+  return `<option value="">${emptyLabel}</option>` + ids.sort((a, b) => name(a).localeCompare(name(b), 'th')).map(id =>
+    `<option value="${id}"${id === sel ? ' selected' : ''}>${escHtml(name(id))}</option>`).join('');
+}
 async function openUatRoster() {
   if (!_uatUsers.length) _uatUsers = await api('/api/users', { silent: true }) || [];
   const R = _uatRoster || await api('/api/uat/roster', { silent: true }) || { types: {}, max_open: 3 };
@@ -28184,7 +28199,7 @@ function openUatForm() {
     if (_uatUsers.some(u => u.id === currentUser?.id)) sel.value = currentUser.id;
   }
   const as = document.getElementById('uat-assignee');
-  if (as) as.innerHTML = uatUserOptions(null, 'ให้ระบบเลือกอัตโนมัติ');
+  if (as) as.innerHTML = uatTeamOptions(null, 'ให้ระบบเลือกอัตโนมัติ');
   document.getElementById('uat-assignee-wrap').style.display = '';
   uatFormAssigneeHint();
   document.getElementById('modal-uat-form-title').textContent = 'เปิดงาน UAT';
@@ -28428,7 +28443,7 @@ function uatRenderDetail(keepOpen) {
     ${row('ความสำคัญ', `<span style="color:${(UAT_PRIORITY[j.priority] || UAT_PRIORITY.normal).color}">${(UAT_PRIORITY[j.priority] || UAT_PRIORITY.normal).label}</span>`)}
     ${row('รายละเอียด', uatMultiline(j.note))}`;
 
-  const assignOpts = uatUserOptions(j.assignee_id || null, '— ยังไม่มี —');
+  const assignOpts = uatTeamOptions(j.assignee_id || null, '— ยังไม่มี —');
   document.getElementById('uat-detail-body').innerHTML = `
     <div style="display:flex;justify-content:space-between;gap:.6rem;align-items:flex-start;margin:-.3rem 0 .3rem">
       <div style="font-size:.78rem;color:#6f747c;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
