@@ -6467,13 +6467,22 @@ app.get('/api/uat/badge', authRequired, async (request, res) => {
 // ── ทีม UAT: คนหลัก + Backup 1/2 ต่อประเภทงาน (app_settings 'uat_roster') ──
 const UAT_TYPES = ['pre_install', 'customize', 'version_cr'];
 const UAT_ACTIVE = `('requested','slot_proposed','confirmed','testing','issues_found','retesting')`;  // งานที่ยังกินแรงคน UAT
-const UAT_ROSTER_DEFAULT = { types: Object.fromEntries(UAT_TYPES.map(t => [t, { primary: null, b1: null, b2: null }])), max_open: 3 };
+// เป้า KPI (JD ทีม UAT) — ตัวเลขกำหนดร่วมกับทีมบริหาร · null = ยังไม่ตั้ง
+// ontime / coverage / norollback / firstpass = % ขั้นต่ำ · escape = จำนวน Issue หลุดสูงสุดต่อช่วงที่ดู
+const UAT_KPI_KEYS = ['ontime', 'escape', 'coverage', 'norollback', 'firstpass'];
+const UAT_ROSTER_DEFAULT = { types: Object.fromEntries(UAT_TYPES.map(t => [t, { primary: null, b1: null, b2: null }])), max_open: 3,
+  kpi_targets: { ontime: null, escape: null, coverage: null, norollback: null, firstpass: null } };
 function cleanUatRoster(v) {
   const o = JSON.parse(JSON.stringify(UAT_ROSTER_DEFAULT));
   const id = x => (Number.isInteger(+x) && +x > 0) ? +x : null;
   for (const t of UAT_TYPES) for (const k of ['primary', 'b1', 'b2']) o.types[t][k] = id(v?.types?.[t]?.[k]);
   const m = parseInt(v?.max_open);
   o.max_open = m >= 1 && m <= 50 ? m : UAT_ROSTER_DEFAULT.max_open;
+  for (const k of UAT_KPI_KEYS) {
+    const x = v?.kpi_targets?.[k];
+    const n = x === '' || x == null ? NaN : Number(x);
+    o.kpi_targets[k] = Number.isFinite(n) && n >= 0 && n <= (k === 'escape' ? 9999 : 100) ? Math.round(n * 10) / 10 : null;
+  }
   return o;
 }
 async function getUatRoster() {
@@ -6708,6 +6717,14 @@ app.get('/api/uat', authRequired, async (request, res) => {
         (SELECT COUNT(*) FROM uat_test_cases t WHERE t.job_id = j.id) AS tc_total,
         (SELECT COUNT(*) FROM uat_test_cases t WHERE t.job_id = j.id AND t.result IS NOT NULL) AS tc_done,
         (SELECT COUNT(*) FROM uat_test_cases t WHERE t.job_id = j.id AND t.result = 'fail') AS tc_fail,
+        (SELECT COUNT(*) FROM uat_test_cases t WHERE t.job_id = j.id AND t.result IN ('pass','fail')) AS tc_tested,
+        (SELECT COUNT(*) FROM uat_test_cases t WHERE t.job_id = j.id AND t.result = 'na') AS tc_na,
+        -- KPI: Bug ก่อนปิดผล UAT (= ต้องแก้ซ้ำก่อน Sign-off) / Bug ที่แจ้งหลังส่งมอบภายใน 30 วัน (= ปัญหาหลุด)
+        (SELECT COUNT(*) FROM uat_issues i WHERE i.job_id = j.id AND (j.uat_passed_at IS NULL OR i.found_at <= j.uat_passed_at)) AS issue_pre,
+        (SELECT COUNT(*) FROM uat_issues i WHERE i.job_id = j.id AND j.uat_passed_at IS NOT NULL AND i.found_at > j.uat_passed_at
+            AND i.found_at < DATEADD(day, 31, CAST(ISNULL(j.handed_at, j.uat_passed_at) AS DATE))) AS issue_post30,
+        CASE WHEN EXISTS (SELECT 1 FROM uat_job_log l WHERE l.job_id = j.id AND l.action = 'status' AND l.new_val IN ('issues_found','retesting'))
+             THEN 1 ELSE 0 END AS had_rework,
         (SELECT COUNT(*) FROM uat_issues i WHERE i.job_id = j.id) AS issue_total,
         (SELECT COUNT(*) FROM uat_issues i WHERE i.job_id = j.id AND i.status IN ${UAT_ISSUE_OPEN}) AS issue_open,
         (SELECT COUNT(*) FROM uat_attachments a WHERE a.job_id = j.id AND a.doc_type='result') AS result_docs,
@@ -6885,6 +6902,23 @@ app.put('/api/uat/:id/signoff', authRequired, async (request, res) => {
         signoff_at = CASE WHEN @n IS NULL THEN NULL ELSE GETDATE() END,
         updated_at=GETDATE(), updated_by=@ub WHERE id=@id`);
     if ((cur.signoff_name || null) !== name) await uatLog(id, 'signoff', cur.signoff_name, name, request.user.id, null);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── POST /api/uat/:id/rollback — บันทึกว่ารอบอัปเดตนี้ต้อง Rollback (KPI) { rolled_back, note } ──
+app.post('/api/uat/:id/rollback', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const on = !!request.body?.rolled_back;
+    const note = String(request.body?.note || '').trim().slice(0, 300) || null;
+    const cur = (await req().input('id', sql.Int, id).query('SELECT rolled_back FROM uat_jobs WHERE id=@id')).recordset[0];
+    if (!cur) return res.status(404).json({ error: 'ไม่พบงาน UAT' });
+    await req().input('id', sql.Int, id).input('r', sql.Bit, on ? 1 : 0).input('n', sql.NVarChar, on ? note : null).input('ub', sql.Int, request.user.id)
+      .query(`UPDATE uat_jobs SET rolled_back=@r, rollback_note=@n,
+        rolled_back_at = CASE WHEN @r=1 THEN ISNULL(rolled_back_at, GETDATE()) ELSE NULL END,
+        updated_at=GETDATE(), updated_by=@ub WHERE id=@id`);
+    if (!!cur.rolled_back !== on) await uatLog(id, 'rollback', null, on ? 'ต้อง Rollback' : 'ยกเลิก Rollback', request.user.id, note);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -13986,6 +14020,9 @@ async function ensureUatTables() {
       ['signoff_date', 'DATE NULL'],
       ['signoff_by',   'INT NULL'],
       ['signoff_at',   'DATETIME NULL'],
+      ['rolled_back',    'BIT NULL'],            // KPI: รอบอัปเดตที่ต้อง Rollback
+      ['rolled_back_at', 'DATETIME NULL'],
+      ['rollback_note',  'NVARCHAR(300) NULL'],
     ]) {
       await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('uat_jobs') AND name='${col}')
         ALTER TABLE uat_jobs ADD ${col} ${ddl}`);

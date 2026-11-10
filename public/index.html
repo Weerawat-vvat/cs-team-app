@@ -814,6 +814,14 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
 /* uat */
 .uat-tbl td{vertical-align:top}
 .uat-chips{display:flex;gap:.35rem;flex-wrap:wrap}
+.uat-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.6rem}
+.uat-kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:.65rem .8rem;min-width:0;cursor:help}
+.uat-kpi .l{font-size:.74rem;color:#6f747c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.uat-kpi .v{font-size:1.45rem;font-weight:600;color:var(--text);line-height:1.25;margin-top:.15rem}
+.uat-kpi .v.good{color:#2f7a52}.uat-kpi .v.bad{color:#b04a40}
+.uat-kpi .s{font-size:.7rem;color:#8a8f97;margin-top:.1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:1100px){.uat-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:640px){.uat-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .uat-chip{border:none;font-family:inherit;font-size:.78rem;padding:.3rem .75rem;border-radius:999px;background:#efede7;color:#5b616b;cursor:pointer}
 .uat-chip.on{background:#e3ecf7;color:#1d4ed8;font-weight:500}
 .uat-closed{display:flex;align-items:center;gap:.3rem;font-size:.78rem;color:#5b616b;cursor:pointer;white-space:nowrap}
@@ -4276,6 +4284,8 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
     <button class="svc-tab" data-tab="all" onclick="uatSetTab('all')">ทั้งหมด <span class="c" id="uat-stat-all">—</span></button>
     <button class="svc-tab" data-tab="load" onclick="uatSetTab('load')">ภาระงานทีม</button>
   </div>
+
+  <div id="uat-kpi" style="margin:.2rem 0 .9rem"></div>
 
   <div class="svc-filters" id="uat-filters">
     <div class="uat-chips" id="uat-type-chips"></div>
@@ -28027,6 +28037,8 @@ function renderUat() {
   for (const v of ['list', 'board', 'cal']) document.getElementById('uat-view-' + v)?.classList.toggle('on', _uatView === v);
   const filters = document.getElementById('uat-filters');
   if (filters) filters.style.display = _uatTab === 'load' ? 'none' : '';
+  const kpi = document.getElementById('uat-kpi');
+  if (kpi) kpi.innerHTML = uatKpiHtml();
   const box = document.getElementById('uat-body');
   if (!box) return;
   if (_uatTab === 'load') { box.innerHTML = uatLoadHtml(); return; }
@@ -28075,6 +28087,75 @@ function uatBoardHtml(rows) {
       }).join('') || '<div style="font-size:.74rem;color:#a3a7ad;text-align:center;padding:.8rem 0">—</div>'}
     </div>`;
   }).join('')}</div>`;
+}
+
+// ── KPI ทีม UAT (ตาม Job Description) ──
+// นับจากงานที่ "ปิดผล UAT ผ่าน" ในช่วงที่เลือก · ตามแท็บ (งานของฉัน = ของตัวเอง) และประเภทงานที่เลือก
+let _uatKpiPeriod = (() => { try { return localStorage.getItem('uat-kpi-period') || '3m'; } catch { return '3m'; } })();
+function uatKpiSetPeriod(v) { _uatKpiPeriod = v; try { localStorage.setItem('uat-kpi-period', v); } catch {} renderUat(); }
+function uatKpiRange() {
+  const n = new Date(), y = n.getFullYear(), m = n.getMonth();
+  switch (_uatKpiPeriod) {
+    case 'month': return [new Date(y, m, 1), null];
+    case 'prev':  return [new Date(y, m - 1, 1), new Date(y, m, 1)];
+    case '3m':    return [new Date(y, m - 2, 1), null];
+    case 'year':  return [new Date(y, 0, 1), null];
+  }
+  return [null, null];
+}
+const uatDay = d => d ? new Date(d).toLocaleDateString('en-CA') : '';
+function uatKpiCalc(rows) {
+  const [from, to] = uatKpiRange();
+  const passed = rows.filter(r => r.uat_passed_at && (!from || new Date(r.uat_passed_at) >= from) && (!to || new Date(r.uat_passed_at) < to));
+  const pct = (a, b) => b ? Math.round(a / b * 100) : null;
+  const due = passed.filter(r => r.test_date_to);
+  const onTime = due.filter(r => uatDay(r.uat_passed_at) <= String(r.test_date_to).slice(0, 10)).length;
+  const planned = passed.reduce((a, r) => a + Math.max(0, (r.tc_total || 0) - (r.tc_na || 0)), 0);
+  const tested  = passed.reduce((a, r) => a + (r.tc_tested || 0), 0);
+  const upd = passed.filter(r => r.job_type === 'version_cr');
+  const first = passed.filter(r => !(r.issue_pre > 0) && !r.had_rework).length;
+  return {
+    n: passed.length,
+    ontime:     { v: pct(onTime, due.length), a: onTime, b: due.length },
+    escape:     { v: passed.length ? passed.reduce((a, r) => a + (r.issue_post30 || 0), 0) : null, b: passed.length },
+    coverage:   { v: pct(tested, planned), a: tested, b: planned },
+    norollback: { v: pct(upd.filter(r => !r.rolled_back).length, upd.length), a: upd.filter(r => !r.rolled_back).length, b: upd.length },
+    firstpass:  { v: pct(first, passed.length), a: first, b: passed.length },
+  };
+}
+const UAT_KPI_DEF = [
+  ['ontime',     'ส่งงานตรงกำหนด',          '%', 'งานที่ปิดผล UAT ได้ภายในวันทดสอบวันสุดท้ายที่นัดไว้ ÷ งานที่ปิดผลทั้งหมด (เฉพาะงานที่มีวันนัด)'],
+  ['escape',     'ปัญหาหลุดหลังส่งมอบ',     '',  'จำนวน Bug ที่แจ้งเข้างานหลังปิดผล UAT แล้ว ภายใน 30 วันหลังส่งมอบ / ส่งต่อทีม Update — ยิ่งน้อยยิ่งดี'],
+  ['coverage',   'ความครอบคลุมการทดสอบ',   '%', 'Test Case ที่ทดสอบจริง (ผ่าน / ไม่ผ่าน) ÷ Test Case ที่วางแผน (ไม่นับข้อ “ไม่เกี่ยว”) · ข้อ “ติดขัด” นับว่ายังไม่ได้ทดสอบ'],
+  ['norollback', 'อัปเดตไม่ต้อง Rollback', '%', 'งาน Version / CR ที่ไม่ได้ถูกบันทึกว่าต้อง Rollback ÷ งาน Version / CR ที่ปิดผลแล้ว'],
+  ['firstpass',  'Sign-off ผ่านรอบแรก',     '%', 'งานที่ปิดผลโดยไม่มี Bug ก่อน Sign-off และไม่ต้องเข้ารอบ Re-test ÷ งานที่ปิดผลทั้งหมด'],
+];
+function uatKpiHtml() {
+  const rows = (_uatData || []).filter(r => (_uatTab !== 'mine' || r.assignee_id === currentUser?.id) && (_uatTab === 'load' || !_uatType || r.job_type === _uatType));
+  const K = uatKpiCalc(rows), T = _uatRoster?.kpi_targets || {};
+  const who = _uatTab === 'mine' ? 'ของฉัน' : 'ทั้งทีม';
+  const per = { month: 'เดือนนี้', prev: 'เดือนที่แล้ว', '3m': '3 เดือนล่าสุด', year: 'ปีนี้', all: 'ทั้งหมด' };
+  const cards = UAT_KPI_DEF.map(([k, label, unit, how]) => {
+    const x = K[k], t = T[k];
+    const lowerBetter = k === 'escape';
+    const cls = x.v == null || t == null ? '' : (lowerBetter ? x.v <= t : x.v >= t) ? 'good' : 'bad';
+    const sub = x.v == null ? 'ยังไม่มีข้อมูล'
+      : k === 'escape' ? `จาก ${x.b} งาน`
+      : `${x.a}/${x.b} ${k === 'coverage' ? 'ข้อ' : 'งาน'}`;
+    const tgt = t == null ? '' : ` · เป้า ${lowerBetter ? '≤ ' : '≥ '}${t}${unit}`;
+    return `<div class="uat-kpi" title="${escHtml(how)}">
+      <div class="l">${label}</div>
+      <div class="v ${cls}">${x.v == null ? '—' : x.v + unit}</div>
+      <div class="s">${sub}${tgt}</div></div>`;
+  }).join('');
+  return `<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.45rem;flex-wrap:wrap">
+      <span style="font-size:.8rem;font-weight:600;color:#3a3f46">KPI ${who}</span>
+      <span style="font-size:.72rem;color:#8a8f97">${K.n} งานที่ปิดผล UAT · ${per[_uatKpiPeriod] || ''}${_uatType && _uatTab !== 'load' ? ' · ' + escHtml(UAT_TYPE[_uatType]) : ''}</span>
+      <select class="uat-in" style="margin-left:auto;padding:.2rem .45rem;font-size:.76rem" onchange="uatKpiSetPeriod(this.value)" aria-label="ช่วงเวลา KPI">
+        ${Object.entries(per).map(([v, l]) => `<option value="${v}"${v === _uatKpiPeriod ? ' selected' : ''}>${l}</option>`).join('')}
+      </select>
+    </div>
+    <div class="uat-kpis">${cards}</div>`;
 }
 
 // ── มุมมองปฏิทิน: วางงานตามช่วงวันทดสอบ (ยืนยันกับลูกค้าแล้ว = ทึบ · รอยืนยัน = เส้นประ) ──
@@ -28229,13 +28310,19 @@ async function openUatRoster() {
     <div style="display:flex;align-items:center;gap:.5rem;padding:.7rem 0 .2rem;border-top:1px solid #f0eee9;font-size:.82rem">
       ถือว่างานเต็มเมื่อค้างถึง <input type="number" id="uat-ro-max" class="uat-in" min="1" max="50" value="${R.max_open || 3}" style="width:64px" ${canEdit ? '' : 'disabled'}> งาน
     </div>
+    <div style="font-size:.82rem;font-weight:600;margin:.9rem 0 .35rem;padding-top:.7rem;border-top:1px solid #f0eee9">เป้า KPI <span style="font-weight:400;font-size:.74rem;color:#8a8f97">เว้นว่าง = ยังไม่ตั้ง · ตัวเลขเขียว / แดงตามเป้า</span></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:.4rem .8rem;margin-bottom:.6rem">
+      ${UAT_KPI_DEF.map(([k, label, unit]) => `<label style="display:flex;align-items:center;gap:.4rem;font-size:.8rem;justify-content:space-between">
+        <span>${label}</span><span style="white-space:nowrap">${k === 'escape' ? '≤' : '≥'} <input type="number" id="uat-kt-${k}" class="uat-in" min="0" max="${k === 'escape' ? 9999 : 100}" step="1" value="${R.kpi_targets?.[k] ?? ''}" style="width:64px" ${canEdit ? '' : 'disabled'}> ${unit || 'ครั้ง'}</span></label>`).join('')}
+    </div>
     <div style="font-size:.74rem;color:#8a8f97;line-height:1.6">งานใหม่ → คนหลัก · ถ้าคนหลักลาในวันที่ต้องการ หรืองานค้างถึงเกณฑ์ → Backup 1 → Backup 2 · ไม่ว่างทุกคน → คนที่งานน้อยสุด<br>เปลี่ยนคนรับผิดชอบเองได้ทุกเมื่อในหน้างาน</div>
     ${canEdit ? '' : '<div style="font-size:.76rem;color:#9a6a12;margin-top:.4rem">เฉพาะหัวหน้า / ผู้จัดการ ที่แก้ทีม UAT ได้</div>'}`;
   document.getElementById('uat-roster-save').style.display = canEdit ? '' : 'none';
   openModal('modal-uat-roster');
 }
 async function saveUatRoster() {
-  const v = { types: {}, max_open: parseInt(document.getElementById('uat-ro-max').value) || 3 };
+  const v = { types: {}, max_open: parseInt(document.getElementById('uat-ro-max').value) || 3, kpi_targets: {} };
+  for (const [k] of UAT_KPI_DEF) { const x = document.getElementById('uat-kt-' + k).value; v.kpi_targets[k] = x === '' ? null : Number(x); }
   for (const t of ['pre_install', 'customize', 'version_cr']) {
     v.types[t] = {};
     for (const k of ['primary', 'b1', 'b2']) v.types[t][k] = parseInt(document.getElementById(`uat-ro-${t}-${k}`).value) || null;
@@ -28467,7 +28554,8 @@ function uatRenderDetail(keepOpen) {
       <span class="uat-pill" style="background:${ist.bg};color:${ist.color}">${ist.label}</span>
     </div>`;
   }).join('') || '<div style="font-size:.78rem;color:#8a8f97;padding:.2rem 0 .5rem">ยังไม่มี Bug</div>'}
-    <button class="btn btn-ghost btn-sm" style="margin-top:.4rem" onclick="openUatIssueForm(${j.id})">+ แจ้ง Bug</button>`;
+    <button class="btn btn-ghost btn-sm" style="margin-top:.4rem" onclick="openUatIssueForm(${j.id})">+ แจ้ง Bug</button>
+    ${j.uat_passed_at ? '<div style="font-size:.72rem;color:#8a8f97;margin-top:.35rem">งานนี้ปิดผล UAT แล้ว — Bug ที่แจ้งเพิ่มภายใน 30 วันหลังส่งมอบ นับเป็น KPI “ปัญหาหลุดหลังส่งมอบ”</div>' : ''}`;
 
   // เอกสาร + Sign-off
   const files = j.attachments || [];
@@ -28502,6 +28590,7 @@ function uatRenderDetail(keepOpen) {
     const what = l.action === 'status' ? `${l.old_val ? st(l.old_val) + ' → ' : ''}<b style="font-weight:600;color:var(--text)">${st(l.new_val)}</b>`
       : l.action === 'assign' ? `มอบหมาย ${l.old_val ? escHtml(l.old_val) + ' → ' : ''}<b style="font-weight:600;color:var(--text)">${escHtml(l.new_val || '—')}</b>`
       : l.action === 'signoff' ? `Sign-off ${l.new_val ? '<b style="font-weight:600;color:var(--text)">' + escHtml(l.new_val) + '</b>' : 'ล้างชื่อ'}`
+      : l.action === 'rollback' ? `<b style="font-weight:600;color:var(--text)">${escHtml(l.new_val || '')}</b>`
       : 'เปิดงาน';
     return `<div>${uatDateTime(l.at)} · ${who} · ${what}${l.note ? ` <span style="color:#a3a7ad">(${escHtml(l.note)})</span>` : ''}</div>`;
   };
@@ -28525,6 +28614,7 @@ function uatRenderDetail(keepOpen) {
           <select class="uat-in" style="padding:.15rem .4rem;font-size:.78rem" onchange="uatAssign(${j.id}, this.value)">${assignOpts}</select></span>
         ${j.assign_note && j.assign_note !== 'มอบหมายเอง' && j.assign_note !== 'คนหลัก' ? `<span style="color:#a3a7ad">(${escHtml(j.assign_note)})</span>` : ''}
         ${j.test_date_from ? `· <span>นัด ${uatRange(j.test_date_from, j.test_date_to)}</span>` : ''}
+        ${j.rolled_back ? `<span class="uat-pill" style="background:#f7ebe8;color:#b04a40" title="${escHtml(j.rollback_note || '')}">ต้อง Rollback</span>` : ''}
       </div>
       <div class="uat-menu">
         <button class="uat-act" onclick="uatToggleMenu(event)" title="เมนูเพิ่มเติม" aria-label="เมนูเพิ่มเติม">⋯</button>
@@ -28533,6 +28623,7 @@ function uatRenderDetail(keepOpen) {
           <button onclick="uatAssign(${j.id}, 'auto')">ให้ระบบเลือกคนรับผิดชอบใหม่</button>
           ${['confirmed','testing','issues_found','retesting'].includes(j.status) ? `<button onclick="uatSetStatus(${j.id},'slot_proposed')">ย้อนกลับไปแก้วันนัด</button>` : ''}
           ${['testing','issues_found'].includes(j.status) ? `<button onclick="uatSetStatus(${j.id},'retesting')">เข้ารอบ Re-test</button>` : ''}
+          ${j.job_type === 'version_cr' && j.uat_passed_at ? `<button onclick="uatRollback(${j.id}, ${j.rolled_back ? 'false' : 'true'})">${j.rolled_back ? 'ยกเลิกบันทึก Rollback' : 'บันทึกว่าอัปเดตนี้ต้อง Rollback'}</button>` : ''}
           ${!UAT_DONE_ST.includes(j.status) ? `<button onclick="uatSetStatus(${j.id},'cancelled')">ยกเลิกงาน</button>` : ''}
           ${['manager','team_lead','admin'].includes(currentUser?.role) ? `<button style="color:#b04a40" onclick="deleteUat(${j.id})">ลบงาน</button>` : ''}
         </div>
@@ -28604,6 +28695,15 @@ async function uatSaveSignoff() {
   if (!r || r.error) { showToast('❌ ' + (r?.error || 'บันทึกไม่สำเร็จ'), 'error'); return; }
   showToast(body.signoff_name ? 'บันทึก Sign-off แล้ว' : 'ล้างชื่อ Sign-off แล้ว', 'success');
   await openUatDetail(_uatDetail.id);
+  loadUat();
+}
+async function uatRollback(id, on) {
+  let note = null;
+  if (on) { note = prompt('อัปเดตนี้ต้อง Rollback — สาเหตุ (ไม่บังคับ)', ''); if (note === null) return; }
+  const r = await api(`/api/uat/${id}/rollback`, { method: 'POST', body: { rolled_back: on, note }, silent: true });
+  if (!r || r.error) { showToast('❌ ' + (r?.error || 'บันทึกไม่สำเร็จ'), 'error'); return; }
+  showToast(on ? 'บันทึก Rollback แล้ว' : 'ยกเลิกบันทึก Rollback แล้ว', 'success');
+  await openUatDetail(id);
   loadUat();
 }
 async function uatAssign(id, v) {
