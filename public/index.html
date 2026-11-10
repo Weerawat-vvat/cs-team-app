@@ -4660,9 +4660,9 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
         <table>
           <thead><tr>
             <th>ID</th><th>ประเภทปัญหา</th><th>ชื่อหัวข้อ</th><th>Grade</th>
-            <th>น้ำหนัก</th><th>เวลาแก้ไข (นาที)</th><th>สถานะ</th><th></th>
+            <th>เวลาแก้ไข (นาที)</th><th>สถานะ</th><th></th>
           </tr></thead>
-          <tbody id="subjects-tbody"><tr><td colspan="8" class="empty">กำลังโหลด...</td></tr></tbody>
+          <tbody id="subjects-tbody"><tr><td colspan="7" class="empty">กำลังโหลด...</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -4774,10 +4774,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
       </select>
     </div>
     <div class="form-group"><label>ชื่อหัวข้อ *</label><input id="subject-name" placeholder="เช่น Known Error - POS Print"/></div>
-    <div class="grid-2">
-      <div class="form-group"><label>Grade</label><input id="subject-grade" placeholder="เช่น A, B, C"/></div>
-      <div class="form-group"><label>น้ำหนัก (WeightScore)</label><input type="number" step="0.1" id="subject-weight" placeholder="1.0"/></div>
-    </div>
+    <div class="form-group"><label>Grade</label><input id="subject-grade" placeholder="เช่น A, B, C, D, E"/></div>
     <div class="grid-2">
       <div class="form-group"><label>เวลาแก้ไข (นาที)</label><input type="number" id="subject-time" placeholder="60"/></div>
       <div class="form-group"><label>สถานะ</label>
@@ -9598,15 +9595,50 @@ const LLB_BOARDS = {
     badges: [['⭐', 'ทันเวลาบ่อยสุด', p => p.rated >= 20 ? p.stars_avg : null]],
   },
 };
+// รหัสผ่าน "⚙ ตั้งค่าคะแนน" — server เป็นคนตรวจ · จำไว้เฉพาะแท็บนี้ (ปิดเบราว์เซอร์ = ต้องใส่ใหม่)
+let _llbPw = (() => { try { return sessionStorage.getItem('llb-set-pw') || ''; } catch { return ''; } })();
+function llbPwApi(path, opts = {}) {
+  const headers = { 'Content-Type': 'application/json', 'X-Settings-Password': _llbPw };
+  if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
+  return api(path, { ...opts, headers, silent: true }).then(d => {
+    if (d?.need_password) { _llbPw = ''; try { sessionStorage.removeItem('llb-set-pw'); } catch {} }
+    return d;
+  });
+}
+function llbPwPrompt(el, msg) {
+  el.innerHTML = `<div style="background:#f7f6f3;border-radius:10px;padding:.75rem .9rem;margin:.3rem 0 .6rem">
+    <div style="font-size:.82rem;font-weight:700;margin-bottom:.4rem">ใส่รหัสผ่านเพื่อแก้การตั้งค่าคะแนน</div>
+    <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+      <input type="password" id="llb-pw-in" autocomplete="off" placeholder="รหัสผ่าน" onkeydown="if(event.key==='Enter')llbPwUnlock()"
+        style="width:220px;padding:.35rem .6rem;border:1px solid #d9d6ce;border-radius:8px">
+      <button class="btn btn-primary btn-sm" id="llb-pw-ok" onclick="llbPwUnlock()">ปลดล็อก</button>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('llb-grade-edit').style.display='none'">ยกเลิก</button>
+      <span id="llb-pw-msg" style="font-size:.76rem;color:#a23b33">${escHtml(msg || '')}</span>
+    </div></div>`;
+  el.style.display = '';
+  setTimeout(() => document.getElementById('llb-pw-in')?.focus(), 40);
+}
+async function llbPwUnlock() {
+  const inp = document.getElementById('llb-pw-in'), btn = document.getElementById('llb-pw-ok');
+  if (!inp?.value) { inp?.focus(); return; }
+  btn.disabled = true;
+  _llbPw = inp.value;
+  const d = await llbPwApi('/api/line-board/settings/unlock', { method: 'POST' });
+  btn.disabled = false;
+  if (!d?.ok) { document.getElementById('llb-pw-msg').textContent = d?.error || 'ตรวจรหัสผ่านไม่สำเร็จ'; inp.select(); return; }
+  try { sessionStorage.setItem('llb-set-pw', _llbPw); } catch {}
+  llbGradeEdit(true);
+}
 // ตั้งน้ำหนักงานตามเกรดหัวข้อ (หัวหน้า/ผู้จัดการ) — บันทึกแล้วโหลด Leaderboard ใหม่
-function llbGradeEdit() {
+function llbGradeEdit(force) {
   const el = document.getElementById('llb-grade-edit');
   if (!el) return;
-  if (el.style.display !== 'none') { el.style.display = 'none'; return; }
+  if (!force && el.style.display !== 'none') { el.style.display = 'none'; return; }
+  if (!_llbPw) { llbPwPrompt(el); return; }
   const g = _llbData?.b?.staff_team?.grade_weights || { A: 3, B: 2, C: 1, E: 3, other: 1 };
   const L = _llbData?.b?.staff_team?.level_weights || { SR: { volume: 20, talk: 35, speed: 25, sat: 20 }, JR: { volume: 40, talk: 30, speed: 20, sat: 10 } };
   const f = (k, lab) => `<label style="display:flex;flex-direction:column;gap:.2rem;font-size:.74rem;color:#5b6068">${lab}
-    <input type="number" id="llb-gw-${k}" min="0" max="20" step="0.25" value="${g[k]}" style="width:90px;padding:.3rem .5rem;border:1px solid #d9d6ce;border-radius:8px"></label>`;
+    <input type="number" id="llb-gw-${k}" min="0" max="20" step="0.25" value="${g[k] ?? { A: 3, B: 2, C: 1, E: 3, other: 1 }[k]}" style="width:90px;padding:.3rem .5rem;border:1px solid #d9d6ce;border-radius:8px"></label>`;
   el.innerHTML = `<div style="background:#f7f6f3;border-radius:10px;padding:.75rem .9rem;margin:.3rem 0 .6rem">
     <div style="font-size:.82rem;font-weight:700;margin-bottom:.2rem">น้ำหนักงานตามเกรดหัวข้อ</div>
     <div class="mt-meta" style="font-size:.74rem;margin-bottom:.55rem">แต้มงาน = จำนวนเคส × น้ำหนักของเกรด · ตัวอย่าง A = 3, C = 1 → งานยาก 1 เคสเท่ากับงานง่าย 3 เคส · เกรดตั้งที่หัวข้อปัญหา (Subject)</div>
@@ -9644,10 +9676,11 @@ async function llbGradeSave() {
     }
     if (!Object.values(lw[lv]).some(v => v > 0)) { showToast(`สัดส่วนของ ${lv} ต้องมีอย่างน้อย 1 ช่องที่มากกว่า 0`, 'warning'); return; }
   }
-  const r = await api('/api/line-board/grade-weights', { method: 'PUT', body: { weights: w } });
-  if (!r || r.error) return;
-  const r2 = await api('/api/line-board/level-weights', { method: 'PUT', body: { weights: lw } });
-  if (!r2 || r2.error) return;
+  const r = await llbPwApi('/api/line-board/grade-weights', { method: 'PUT', body: { weights: w } });
+  if (r?.need_password) { llbPwPrompt(document.getElementById('llb-grade-edit'), 'รหัสผ่านไม่ถูกต้อง หรือถูกเปลี่ยน — ใส่ใหม่'); return; }
+  if (!r || r.error) { showToast('บันทึกไม่สำเร็จ: ' + (r?.error || ''), 'error'); return; }
+  const r2 = await llbPwApi('/api/line-board/level-weights', { method: 'PUT', body: { weights: lw } });
+  if (!r2 || r2.error) { showToast('บันทึกไม่สำเร็จ: ' + (r2?.error || ''), 'error'); return; }
   showToast('บันทึกการตั้งค่าคะแนนแล้ว', 'success');
   llbLoad();
 }
@@ -15543,7 +15576,7 @@ let _allSubjects = [];
 async function loadSubjects() {
   const tbody = document.getElementById('subjects-tbody');
   if (!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="8" class="empty">กำลังโหลด...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="7" class="empty">กำลังโหลด...</td></tr>';
   _allSubjects = await api('/api/settings/subjects');
 
   // Populate filter dropdowns
@@ -15583,7 +15616,7 @@ function filterSubjects() {
   const cnt = document.getElementById('subject-count');
   if (cnt) cnt.textContent = `(${data.length} รายการ)`;
 
-  if (!data.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty">ไม่พบข้อมูล</td></tr>'; return; }
+  if (!data.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">ไม่พบข้อมูล</td></tr>'; return; }
   tbody.innerHTML = data.map(s => `
     <tr>
       <td style="font-size:.78rem;color:var(--muted)">${s.id}</td>
@@ -15594,7 +15627,6 @@ function filterSubjects() {
       </td>
       <td><b>${escHtml(s.name)}</b></td>
       <td style="font-size:.8rem">${escHtml(s.grade||'—')}</td>
-      <td style="font-size:.8rem">${s.weight_score != null ? s.weight_score : '—'}</td>
       <td style="font-size:.8rem">${s.time_to_resolve != null ? s.time_to_resolve + ' น.' : '—'}</td>
       <td><span class="badge ${s.active?'badge-closed':'badge-open'}">${s.active?'ใช้งาน':'ปิดใช้'}</span></td>
       <td>
@@ -15611,7 +15643,6 @@ async function openSubjectModal(s) {
   document.getElementById('subject-edit-id').value    = s?.id || '';
   document.getElementById('subject-name').value       = s?.name || '';
   document.getElementById('subject-grade').value      = s?.grade || '';
-  document.getElementById('subject-weight').value     = s?.weight_score ?? '';
   document.getElementById('subject-time').value       = s?.time_to_resolve ?? '';
   document.getElementById('subject-active').value     = s != null ? (s.active ? '1' : '0') : '1';
   // Load problem types into dropdown
@@ -15631,7 +15662,6 @@ async function saveSubject() {
   const body = {
     name,
     grade:           document.getElementById('subject-grade').value.trim() || null,
-    weight_score:    document.getElementById('subject-weight').value || null,
     time_to_resolve: document.getElementById('subject-time').value || null,
     active:          document.getElementById('subject-active').value === '1',
     problem_type_id: document.getElementById('subject-problem-type').value || null,

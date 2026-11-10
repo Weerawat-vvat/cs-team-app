@@ -1867,7 +1867,8 @@ app.put('/api/settings/subjects/:id', authRequired, managerRequired, async (requ
       .input('t',   sql.Int,      time_to_resolve != null ? parseInt(time_to_resolve) : null)
       .input('ac',  sql.Bit,      active != null ? (active ? 1 : 0) : 1)
       .input('pid', sql.Int,      problem_type_id ? parseInt(problem_type_id) : null)
-      .query(`UPDATE Subject SET SubjectName=@n, Grade=@g, WeightScore=@ws,
+      // ไม่ใช้น้ำหนัก (WeightScore) แล้ว — ใช้เกรดแทน · ไม่ส่งมา = คงค่าเดิมในฐานข้อมูล
+      .query(`UPDATE Subject SET SubjectName=@n, Grade=@g, ${weight_score !== undefined ? 'WeightScore=@ws,' : ''}
               Active=@ac, TimeToResolve=@t, ProblemTypeId=@pid WHERE SubjectId=@id`);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -9010,6 +9011,18 @@ const LINE_STAFF_MAP = {
   ...Object.fromEntries(String(process.env.LINE_STAFF_MAP || '').split(',').map(x => x.split('=').map(v => v.trim())).filter(([a, b]) => a && b)),
 };
 // น้ำหนักงานตามเกรดหัวข้อ (Subject.Grade) — งานยาก 1 เคส = งานง่ายหลายเคส · ตั้งได้ในหน้า Leaderboard ทีมงาน
+// รหัสผ่านของ "⚙ ตั้งค่าคะแนน" ใน Leaderboard (LB_SETTINGS_PASSWORD ใน .env) — ไม่ตั้ง = ไม่ต้องใส่รหัส
+// หน้าเว็บส่งมาใน header X-Settings-Password · ผิด = 403 (หน่วงเวลากันเดารหัส)
+const LB_SETTINGS_PASSWORD = process.env.LB_SETTINGS_PASSWORD || '';
+async function lbSettingsPw(request, res, next) {
+  if (!LB_SETTINGS_PASSWORD) return next();
+  const h = v => crypto.createHash('sha256').update(String(v)).digest();
+  if (crypto.timingSafeEqual(h(request.get('X-Settings-Password') || ''), h(LB_SETTINGS_PASSWORD))) return next();
+  await new Promise(ok => setTimeout(ok, 800));
+  res.status(403).json({ error: 'รหัสผ่านไม่ถูกต้อง', need_password: true });
+}
+app.post('/api/line-board/settings/unlock', authRequired, managerRequired, lbSettingsPw, (request, res) => res.json({ ok: true }));
+
 // E = งานพิเศษ (Extra) เช่น หัวข้อ Update Software
 const GRADE_WEIGHTS_DEFAULT = { A: 3, B: 2, C: 1, E: 3, other: 1 };
 const cleanGradeWeights = w => Object.fromEntries(Object.entries(GRADE_WEIGHTS_DEFAULT).map(([k, d]) => {
@@ -9040,7 +9053,7 @@ async function getLevelWeights() {
     return cleanLevelWeights(r ? JSON.parse(r.v) : null);
   } catch { return cleanLevelWeights(null); }
 }
-app.put('/api/line-board/level-weights', authRequired, managerRequired, async (request, res) => {
+app.put('/api/line-board/level-weights', authRequired, managerRequired, lbSettingsPw, async (request, res) => {
   try {
     const w = cleanLevelWeights(request.body?.weights || request.body);
     await req().input('v', sql.NVarChar, JSON.stringify(w)).input('by', sql.NVarChar, request.user?.username || null).query(`
@@ -9053,7 +9066,7 @@ app.put('/api/line-board/level-weights', authRequired, managerRequired, async (r
 app.get('/api/line-board/grade-weights', authRequired, async (request, res) => {
   res.json({ weights: await getGradeWeights(), defaults: GRADE_WEIGHTS_DEFAULT });
 });
-app.put('/api/line-board/grade-weights', authRequired, managerRequired, async (request, res) => {
+app.put('/api/line-board/grade-weights', authRequired, managerRequired, lbSettingsPw, async (request, res) => {
   try {
     const w = cleanGradeWeights(request.body?.weights || request.body);
     await req().input('v', sql.NVarChar, JSON.stringify(w)).input('by', sql.NVarChar, request.user?.username || null).query(`
