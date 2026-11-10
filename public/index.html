@@ -4319,7 +4319,8 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
     </div>
     <div style="display:flex;gap:.5rem;align-items:center">
       <button class="btn btn-ghost" onclick="swuExportXlsx()" title="Export รายการแจ้งตามตัวกรองที่เลือกอยู่เป็นไฟล์ Excel"><i class=i-download></i> Export Excel</button>
-      <button class="btn btn-ghost" onclick="openSwuKpi()" title="จำนวนงาน / สาขา / เครื่อง ที่ปิดรายคน">KPI รายคน</button>
+      <!-- KPI รายคน ซ่อนไว้ — นับจาก Checklist สาขาที่เลิกใช้แล้ว (openSwuKpi ยังอยู่ เผื่อเปิดกลับ) -->
+      <button class="btn btn-ghost" onclick="openSwuKpi()" title="จำนวนงาน / สาขา / เครื่อง ที่ปิดรายคน" style="display:none">KPI รายคน</button>
       <button class="svc-btn-primary" onclick="openSwUpdateForm()"><span style="font-size:1.05rem;line-height:1;font-weight:400">+</span> แจ้งงานอัพเดท</button>
     </div>
   </div>
@@ -26981,7 +26982,7 @@ function renderSwUpdate() {
           <div class="mt">${escHtml(it.reporter_name || r.reporter_name || '—')} · งาน #${r.id}${r.version_recommend ? ` · <span class="mono">${escHtml(r.version_recommend)}</span>` : ''}${r.appointment_date ? ` · นัด ${fmtD(r.appointment_date)}` : ''}</div></div>
         <div style="font-size:.78rem;white-space:nowrap" title="วันที่แจ้งปัญหา">${fmtD(when)}<div class="mt">${open(r) ? ageD(when) : ''}</div></div>
         <div class="uat-pri" style="color:${p.color};margin:0;font-size:.76rem">${p.label}</div>
-        <div>${statusSel(r)}</div>
+        <div>${(st => `<span class="swu-chip" style="background:${st.bg};color:${st.color}" title="สถานะของงาน #${r.id} — เปลี่ยนได้ในหน้างาน (คลิกแถว)">${st.label}</span>`)(SWU_STATUS[r.status] || SWU_STATUS.pending)}</div>
         <div>${azure(it.azure_id)}</div>
       </div>`;
     }).join('');
