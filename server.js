@@ -6464,6 +6464,128 @@ app.get('/api/uat/badge', authRequired, async (request, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── ทีม UAT: คนหลัก + Backup 1/2 ต่อประเภทงาน (app_settings 'uat_roster') ──
+const UAT_TYPES = ['pre_install', 'customize', 'version_cr'];
+const UAT_ACTIVE = `('requested','slot_proposed','confirmed','testing','issues_found','retesting')`;  // งานที่ยังกินแรงคน UAT
+const UAT_ROSTER_DEFAULT = { types: Object.fromEntries(UAT_TYPES.map(t => [t, { primary: null, b1: null, b2: null }])), max_open: 3 };
+function cleanUatRoster(v) {
+  const o = JSON.parse(JSON.stringify(UAT_ROSTER_DEFAULT));
+  const id = x => (Number.isInteger(+x) && +x > 0) ? +x : null;
+  for (const t of UAT_TYPES) for (const k of ['primary', 'b1', 'b2']) o.types[t][k] = id(v?.types?.[t]?.[k]);
+  const m = parseInt(v?.max_open);
+  o.max_open = m >= 1 && m <= 50 ? m : UAT_ROSTER_DEFAULT.max_open;
+  return o;
+}
+async function getUatRoster() {
+  try {
+    const r = (await req().query(`SELECT v FROM app_settings WHERE k = 'uat_roster'`)).recordset[0];
+    return cleanUatRoster(r ? JSON.parse(r.v) : null);
+  } catch { return cleanUatRoster(null); }
+}
+async function uatLog(jobId, action, oldVal, newVal, by, note) {
+  try {
+    await req().input('j', sql.Int, jobId).input('a', sql.NVarChar, action)
+      .input('o', sql.NVarChar, oldVal == null ? null : String(oldVal).slice(0, 200))
+      .input('n', sql.NVarChar, newVal == null ? null : String(newVal).slice(0, 200))
+      .input('t', sql.NVarChar, note ? String(note).slice(0, 300) : null)
+      .input('b', sql.Int, by || null)
+      .query(`INSERT INTO uat_job_log (job_id, action, old_val, new_val, note, by_user) VALUES (@j,@a,@o,@n,@t,@b)`);
+  } catch (e) { console.error('uatLog:', e.message); }
+}
+async function uatUserLabel(uid) {
+  if (!uid) return '—';
+  const r = (await req().input('u', sql.Int, uid).query(`SELECT ISNULL(e.nickname, ISNULL(e.name, au.username)) AS n
+    FROM app_users au LEFT JOIN employees e ON e.id = au.employee_id WHERE au.id=@u`)).recordset[0];
+  return r?.n || '—';
+}
+// เลือกผู้รับผิดชอบอัตโนมัติ: คนหลัก → Backup 1 → Backup 2 (ข้ามคนที่ลาในวันนั้น หรืองานค้างถึงเกณฑ์)
+// ทุกคนไม่ว่าง → คนที่ไม่ลาและงานน้อยสุด → ถ้าลาหมด ให้คนหลัก
+async function uatPickAssignee(jobType, onDate, excludeJobId) {
+  const R = await getUatRoster();
+  const slot = R.types[jobType];
+  if (!slot) return null;
+  const chain = [['primary', 'คนหลัก'], ['b1', 'Backup 1'], ['b2', 'Backup 2']]
+    .map(([k, lb]) => ({ uid: slot[k], lb })).filter(x => x.uid);
+  if (!chain.length) return null;
+  const ids = [...new Set(chain.map(x => x.uid))];
+  const d = onDate ? new Date(onDate) : new Date();
+  const rows = (await req().input('d', sql.Date, d).input('x', sql.Int, excludeJobId || 0).query(`
+    SELECT au.id,
+      ISNULL(e.nickname, ISNULL(e.name, au.username)) AS n,
+      (SELECT COUNT(*) FROM uat_jobs j WHERE j.assignee_id = au.id AND j.status IN ${UAT_ACTIVE} AND j.id <> @x) AS open_n,
+      (SELECT COUNT(*) FROM leave_requests lr WHERE lr.employee_id = au.employee_id AND lr.leave_date = @d AND lr.status <> 'rejected') AS leave_n
+    FROM app_users au LEFT JOIN employees e ON e.id = au.employee_id
+    WHERE au.id IN (${ids.join(',')})`)).recordset;
+  const info = Object.fromEntries(rows.map(r => [r.id, r]));
+  const why = x => { const i = info[x.uid]; return !i ? 'ไม่พบผู้ใช้' : i.leave_n ? `${i.n} ลา` : `${i.n} งานเต็ม (${i.open_n})`; };
+  const skipped = [];
+  for (const x of chain) {
+    const i = info[x.uid];
+    if (i && !i.leave_n && i.open_n < R.max_open) {
+      return { uid: x.uid, note: x.lb === 'คนหลัก' ? 'คนหลัก' : `${x.lb} · ${skipped.join(', ')}` };
+    }
+    skipped.push(why(x));
+  }
+  const free = chain.filter(x => info[x.uid] && !info[x.uid].leave_n).sort((a, b) => info[a.uid].open_n - info[b.uid].open_n);
+  if (free.length) return { uid: free[0].uid, note: `งานน้อยสุด · ${skipped.join(', ')}` };
+  return { uid: chain[0].uid, note: `คนหลัก · ทุกคนลา` };
+}
+
+app.get('/api/uat/roster', authRequired, async (request, res) => {
+  try { res.json(await getUatRoster()); } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.put('/api/uat/roster', authRequired, managerRequired, async (request, res) => {
+  try {
+    const v = cleanUatRoster(request.body);
+    await req().input('v', sql.NVarChar, JSON.stringify(v)).input('u', sql.Int, request.user.id).query(`
+      MERGE app_settings AS t USING (SELECT 'uat_roster' AS k) AS s ON t.k = s.k
+      WHEN MATCHED THEN UPDATE SET v=@v, updated_by=@u, updated_at=GETDATE()
+      WHEN NOT MATCHED THEN INSERT (k, v, updated_by) VALUES ('uat_roster', @v, @u);`);
+    res.json(v);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+// คนในทีม UAT ที่ลาวันนี้ (ใช้ในแท็บภาระงาน)
+app.get('/api/uat/leave-today', authRequired, async (request, res) => {
+  try {
+    const rows = (await req().query(`SELECT au.id FROM app_users au JOIN leave_requests lr ON lr.employee_id = au.employee_id
+      WHERE lr.leave_date = CAST(GETDATE() AS DATE) AND lr.status <> 'rejected'`)).recordset;
+    res.json(rows.map(r => r.id));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Test Case ──
+const UAT_TC_RESULTS = ['pass', 'fail', 'blocked', 'na'];
+app.put('/api/uat/test-cases/:id', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id), b = request.body || {};
+    const cur = (await req().input('id', sql.Int, id).query('SELECT * FROM uat_test_cases WHERE id=@id')).recordset[0];
+    if (!cur) return res.status(404).json({ error: 'ไม่พบ Test Case' });
+    const title = b.title !== undefined ? String(b.title || '').trim() : cur.title;
+    if (!title) return res.status(400).json({ error: 'กรุณาระบุชื่อ Test Case' });
+    const result = b.result !== undefined ? (UAT_TC_RESULTS.includes(b.result) ? b.result : null) : cur.result;
+    const resChanged = b.result !== undefined && result !== cur.result;
+    await req().input('id', sql.Int, id)
+      .input('ti', sql.NVarChar, title)
+      .input('st', sql.NVarChar, b.steps    !== undefined ? (b.steps    || null) : cur.steps)
+      .input('ex', sql.NVarChar, b.expected !== undefined ? (b.expected || null) : cur.expected)
+      .input('nt', sql.NVarChar, b.note     !== undefined ? (b.note     || null) : cur.note)
+      .input('rs', sql.NVarChar, result)
+      .input('ch', sql.Bit, resChanged ? 1 : 0)
+      .input('ub', sql.Int, request.user.id)
+      .query(`UPDATE uat_test_cases SET title=@ti, steps=@st, expected=@ex, note=@nt, result=@rs,
+        tested_by = CASE WHEN @ch=1 THEN (CASE WHEN @rs IS NULL THEN NULL ELSE @ub END) ELSE tested_by END,
+        tested_at = CASE WHEN @ch=1 THEN (CASE WHEN @rs IS NULL THEN NULL ELSE GETDATE() END) ELSE tested_at END
+        WHERE id=@id`);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.delete('/api/uat/test-cases/:id', authRequired, async (request, res) => {
+  try {
+    await req().input('id', sql.Int, parseInt(request.params.id)).query('DELETE FROM uat_test_cases WHERE id=@id');
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── Issue-scoped routes (ต้องมาก่อน /api/uat/:id เพื่อไม่ให้ชน) ──
 
 // GET แนบไฟล์ของ Issue
@@ -6543,6 +6665,7 @@ app.delete('/api/uat/issues/:id', authRequired, async (request, res) => {
     const dir = path.join(UPLOAD_DIR, 'uat', 'issue', String(id));
     if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
     await req().input('id', sql.Int, id).query('DELETE FROM uat_attachments WHERE issue_id=@id');
+    await req().input('id', sql.Int, id).query('UPDATE uat_test_cases SET issue_id=NULL WHERE issue_id=@id');
     await req().input('id', sql.Int, id).query('DELETE FROM uat_issues WHERE id=@id');
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -6581,6 +6704,10 @@ app.get('/api/uat', authRequired, async (request, res) => {
         ISNULL(e.nickname, e.name)   AS reporter_name,
         ISNULL(es.nickname, es.name) AS slot_by_name,      -- ผู้ UAT ที่รับงาน (คนแจ้ง slot)
         ISNULL(ep.nickname, ep.name) AS uat_passed_by_name,
+        ISNULL(ea.nickname, ISNULL(ea.name, aa.username)) AS assignee_name,
+        (SELECT COUNT(*) FROM uat_test_cases t WHERE t.job_id = j.id) AS tc_total,
+        (SELECT COUNT(*) FROM uat_test_cases t WHERE t.job_id = j.id AND t.result IS NOT NULL) AS tc_done,
+        (SELECT COUNT(*) FROM uat_test_cases t WHERE t.job_id = j.id AND t.result = 'fail') AS tc_fail,
         (SELECT COUNT(*) FROM uat_issues i WHERE i.job_id = j.id) AS issue_total,
         (SELECT COUNT(*) FROM uat_issues i WHERE i.job_id = j.id AND i.status IN ${UAT_ISSUE_OPEN}) AS issue_open,
         (SELECT COUNT(*) FROM uat_attachments a WHERE a.job_id = j.id AND a.doc_type='result') AS result_docs,
@@ -6589,6 +6716,7 @@ app.get('/api/uat', authRequired, async (request, res) => {
       LEFT JOIN app_users au  ON au.id  = j.reported_by    LEFT JOIN employees e  ON e.id  = au.employee_id
       LEFT JOIN app_users asl ON asl.id = j.slot_by        LEFT JOIN employees es ON es.id = asl.employee_id
       LEFT JOIN app_users ap  ON ap.id  = j.uat_passed_by  LEFT JOIN employees ep ON ep.id = ap.employee_id
+      LEFT JOIN app_users aa  ON aa.id  = j.assignee_id    LEFT JOIN employees ea ON ea.id = aa.employee_id
       ${where}
       ORDER BY j.created_at DESC
     `)).recordset;
@@ -6605,7 +6733,7 @@ app.post('/api/uat', authRequired, async (request, res) => {
     const result = await req()
       .input('jn',  sql.NVarChar, jobNo)
       .input('ti',  sql.NVarChar, String(b.title).trim())
-      .input('jt',  sql.NVarChar, b.job_type     || 'version_update')
+      .input('jt',  sql.NVarChar, UAT_TYPES.includes(b.job_type) ? b.job_type : 'version_cr')
       .input('vf',  sql.NVarChar, b.version_from || null)
       .input('vt',  sql.NVarChar, b.version_to   || null)
       .input('rq',  sql.Date,     b.requested_date ? new Date(b.requested_date) : null)
@@ -6619,15 +6747,28 @@ app.post('/api/uat', authRequired, async (request, res) => {
         OUTPUT INSERTED.id, INSERTED.job_no
         VALUES (@jn,@ti,@jt,@vf,@vt,@rq,@pr,N'requested',@nt,@rb,@cb)`);
     const newId = result.recordset[0].id;
+    await uatLog(newId, 'create', null, 'requested', request.user.id, null);
+    // มอบหมาย: เลือกเองในฟอร์ม หรือให้ระบบเลือกจากทีม UAT
+    let pick = null;
+    if (parseInt(b.assignee_id) > 0) pick = { uid: parseInt(b.assignee_id), note: 'มอบหมายเอง' };
+    else pick = await uatPickAssignee(b.job_type, b.requested_date, newId);
+    let assigneeName = null;
+    if (pick) {
+      await req().input('id', sql.Int, newId).input('a', sql.Int, pick.uid).input('n', sql.NVarChar, pick.note)
+        .query('UPDATE uat_jobs SET assignee_id=@a, assign_note=@n WHERE id=@id');
+      assigneeName = await uatUserLabel(pick.uid);
+      await uatLog(newId, 'assign', null, assigneeName, pick.note === 'มอบหมายเอง' ? request.user.id : null, pick.note);
+    }
     await sendLineNotify(
       `\n🧪 Request UAT ใหม่ [${jobNo}]\n` +
       `${String(b.title).trim()}\n` +
       (b.version_to ? `📦 Version: ${b.version_from || '—'} → ${b.version_to}\n` : '') +
       `📅 วันที่ต้องการ: ${b.requested_date || 'ยังไม่ระบุ'}\n` +
       `👤 ผู้แจ้ง: ${uatUserName(request.user)}\n` +
+      (assigneeName ? `🧑‍🔬 ผู้รับผิดชอบ: ${assigneeName}${pick.note !== 'คนหลัก' && pick.note !== 'มอบหมายเอง' ? ` (${pick.note})` : ''}\n` : '') +
       `⏳ รอทีม UAT แจ้ง slot`,
       'uat_job');
-    res.json({ id: newId, job_no: result.recordset[0].job_no });
+    res.json({ id: newId, job_no: result.recordset[0].job_no, assignee_name: assigneeName });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -6641,15 +6782,28 @@ app.get('/api/uat/:id', authRequired, async (request, res) => {
         ISNULL(es.nickname, es.name) AS slot_by_name,
         ISNULL(ec.nickname, ec.name) AS confirmed_by_name,
         ISNULL(ep.nickname, ep.name) AS uat_passed_by_name,
-        ISNULL(eh.nickname, eh.name) AS handed_by_name
+        ISNULL(eh.nickname, eh.name) AS handed_by_name,
+        ISNULL(ea.nickname, ISNULL(ea.name, aa.username)) AS assignee_name
       FROM uat_jobs j
       LEFT JOIN app_users ar ON ar.id = j.reported_by   LEFT JOIN employees er ON er.id = ar.employee_id
       LEFT JOIN app_users asl ON asl.id = j.slot_by     LEFT JOIN employees es ON es.id = asl.employee_id
       LEFT JOIN app_users ac ON ac.id = j.confirmed_by  LEFT JOIN employees ec ON ec.id = ac.employee_id
       LEFT JOIN app_users ap ON ap.id = j.uat_passed_by LEFT JOIN employees ep ON ep.id = ap.employee_id
       LEFT JOIN app_users ah ON ah.id = j.handed_by     LEFT JOIN employees eh ON eh.id = ah.employee_id
+      LEFT JOIN app_users aa ON aa.id = j.assignee_id   LEFT JOIN employees ea ON ea.id = aa.employee_id
       WHERE j.id=@id`)).recordset[0];
     if (!job) return res.status(404).json({ error: 'ไม่พบงาน UAT' });
+    job.test_cases = (await req().input('id', sql.Int, id).query(`
+      SELECT t.*, ISNULL(e.nickname, e.name) AS tested_by_name, i.issue_no, i.status AS issue_status
+      FROM uat_test_cases t
+      LEFT JOIN app_users au ON au.id = t.tested_by LEFT JOIN employees e ON e.id = au.employee_id
+      LEFT JOIN uat_issues i ON i.id = t.issue_id
+      WHERE t.job_id=@id ORDER BY t.case_no, t.id`)).recordset;
+    job.log = (await req().input('id', sql.Int, id).query(`
+      SELECT l.*, ISNULL(e.nickname, ISNULL(e.name, au.username)) AS by_name
+      FROM uat_job_log l
+      LEFT JOIN app_users au ON au.id = l.by_user LEFT JOIN employees e ON e.id = au.employee_id
+      WHERE l.job_id=@id ORDER BY l.at DESC, l.id DESC`)).recordset;
     job.issues = (await req().input('id', sql.Int, id).query(`
       SELECT i.*, ISNULL(e.nickname, e.name) AS found_by_name,
         (SELECT COUNT(*) FROM uat_attachments a WHERE a.issue_id = i.id) AS attach_count
@@ -6665,6 +6819,74 @@ app.get('/api/uat/:id', authRequired, async (request, res) => {
               WHERE a.job_id=@id AND a.scope=N'job' ORDER BY a.created_at`)).recordset;
     res.json(job);
   } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── POST /api/uat/:id/test-cases — เพิ่มทีละข้อ { title, steps, expected } หรือหลายข้อ { rows:[...] } (วางจาก Excel) ──
+app.post('/api/uat/:id/test-cases', authRequired, async (request, res) => {
+  try {
+    const jobId = parseInt(request.params.id);
+    const b = request.body || {};
+    const rows = (Array.isArray(b.rows) ? b.rows : [b])
+      .map(r => ({ title: String(r?.title || '').trim().slice(0, 500), steps: r?.steps || null, expected: r?.expected || null }))
+      .filter(r => r.title).slice(0, 300);
+    if (!rows.length) return res.status(400).json({ error: 'กรุณาระบุชื่อ Test Case' });
+    const ok = (await req().input('id', sql.Int, jobId).query('SELECT id FROM uat_jobs WHERE id=@id')).recordset[0];
+    if (!ok) return res.status(404).json({ error: 'ไม่พบงาน UAT' });
+    let n = (await req().input('id', sql.Int, jobId)
+      .query('SELECT ISNULL(MAX(case_no),0) AS n FROM uat_test_cases WHERE job_id=@id')).recordset[0].n;
+    for (const r of rows) {
+      await req().input('j', sql.Int, jobId).input('no', sql.Int, ++n)
+        .input('ti', sql.NVarChar, r.title).input('st', sql.NVarChar, r.steps).input('ex', sql.NVarChar, r.expected)
+        .input('cb', sql.Int, request.user.id)
+        .query(`INSERT INTO uat_test_cases (job_id, case_no, title, steps, expected, created_by) VALUES (@j,@no,@ti,@st,@ex,@cb)`);
+    }
+    res.json({ ok: true, added: rows.length });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── POST /api/uat/:id/assign — เปลี่ยนผู้รับผิดชอบ { assignee_id } หรือ { auto:true } ให้ระบบเลือกใหม่ ──
+app.post('/api/uat/:id/assign', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const job = (await req().input('id', sql.Int, id)
+      .query('SELECT job_no, title, job_type, assignee_id, requested_date, test_date_from FROM uat_jobs WHERE id=@id')).recordset[0];
+    if (!job) return res.status(404).json({ error: 'ไม่พบงาน UAT' });
+    let pick;
+    if (request.body?.auto) {
+      pick = await uatPickAssignee(job.job_type, job.test_date_from || job.requested_date, id);
+      if (!pick) return res.status(400).json({ error: 'ยังไม่ได้ตั้งทีม UAT ของประเภทงานนี้' });
+    } else {
+      const uid = parseInt(request.body?.assignee_id);
+      if (!(uid > 0)) return res.status(400).json({ error: 'กรุณาเลือกผู้รับผิดชอบ' });
+      pick = { uid, note: 'มอบหมายเอง' };
+    }
+    if (pick.uid === job.assignee_id) return res.json({ ok: true, unchanged: true });
+    await req().input('id', sql.Int, id).input('a', sql.Int, pick.uid).input('n', sql.NVarChar, pick.note).input('ub', sql.Int, request.user.id)
+      .query('UPDATE uat_jobs SET assignee_id=@a, assign_note=@n, updated_at=GETDATE(), updated_by=@ub WHERE id=@id');
+    const oldN = await uatUserLabel(job.assignee_id), newN = await uatUserLabel(pick.uid);
+    await uatLog(id, 'assign', job.assignee_id ? oldN : null, newN, request.user.id, pick.note);
+    await sendLineNotify(`\n🔁 เปลี่ยนผู้รับผิดชอบ UAT [${job.job_no}]\n${job.title}\n${job.assignee_id ? oldN : '—'} → ${newN}\n👤 โดย: ${uatUserName(request.user)}`, 'uat_job');
+    res.json({ ok: true, assignee_name: newN });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── PUT /api/uat/:id/signoff — ลูกค้าเซ็นรับ { signoff_name, signoff_date } (ไฟล์ = เอกสารผล UAT) ──
+app.put('/api/uat/:id/signoff', authRequired, async (request, res) => {
+  try {
+    const id = parseInt(request.params.id);
+    const name = String(request.body?.signoff_name || '').trim().slice(0, 200) || null;
+    const d = request.body?.signoff_date ? new Date(request.body.signoff_date) : null;
+    const cur = (await req().input('id', sql.Int, id).query('SELECT signoff_name FROM uat_jobs WHERE id=@id')).recordset[0];
+    if (!cur) return res.status(404).json({ error: 'ไม่พบงาน UAT' });
+    await req().input('id', sql.Int, id).input('n', sql.NVarChar, name).input('d', sql.Date, name ? (d || new Date()) : null)
+      .input('ub', sql.Int, request.user.id)
+      .query(`UPDATE uat_jobs SET signoff_name=@n, signoff_date=@d,
+        signoff_by = CASE WHEN @n IS NULL THEN NULL ELSE @ub END,
+        signoff_at = CASE WHEN @n IS NULL THEN NULL ELSE GETDATE() END,
+        updated_at=GETDATE(), updated_by=@ub WHERE id=@id`);
+    if ((cur.signoff_name || null) !== name) await uatLog(id, 'signoff', cur.signoff_name, name, request.user.id, null);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── GET /api/uat/:id/issues ──
@@ -6709,10 +6931,16 @@ app.post('/api/uat/:id/issues', authRequired, async (request, res) => {
       .query(`INSERT INTO uat_issues
         (job_id,issue_no,topic,description,expected,actual,resolution,severity,status,azure_id,assigned_dev,found_by,created_by)
         OUTPUT INSERTED.id VALUES (@jid,@no,@tp,@de,@ex,@ac,@rs,@sv,@st,@az,@dv,@fb,@cb)`);
-    // กำลังทดสอบอยู่แล้วเจอปัญหา → เลื่อนสถานะเป็น "พบปัญหา" อัตโนมัติ
-    if (job.status === 'testing') {
+    // เปิดจาก Test Case ที่ไม่ผ่าน → ผูก Bug กับข้อนั้น
+    if (parseInt(b.test_case_id) > 0) {
+      await req().input('t', sql.Int, parseInt(b.test_case_id)).input('i', sql.Int, result.recordset[0].id).input('j', sql.Int, jobId)
+        .query(`UPDATE uat_test_cases SET issue_id=@i WHERE id=@t AND job_id=@j`);
+    }
+    // กำลังทดสอบ / Re-test อยู่แล้วเจอปัญหา → เลื่อนสถานะเป็น "พบปัญหา" อัตโนมัติ
+    if (['testing', 'retesting'].includes(job.status)) {
       await req().input('id', sql.Int, jobId)
         .query(`UPDATE uat_jobs SET status='issues_found', updated_at=GETDATE() WHERE id=@id`);
+      await uatLog(jobId, 'status', job.status, 'issues_found', null, `พบ Bug #${nextNo}`);
     }
     const sevLabel = { critical: '🔴 Critical', high: '🟠 High', medium: '🟡 Medium', low: '⚪ Low' }[b.severity || 'medium'];
     await sendLineNotify(
@@ -6775,8 +7003,10 @@ app.post('/api/uat/:id/schedule', authRequired, async (request, res) => {
     const { test_date_from, test_date_to } = request.body;
     if (!test_date_from) return res.status(400).json({ error: 'กรุณาระบุวันเริ่มทดสอบ' });
     const job = (await req().input('id', sql.Int, id)
-      .query('SELECT job_no, title FROM uat_jobs WHERE id=@id')).recordset[0];
+      .query('SELECT job_no, title, status FROM uat_jobs WHERE id=@id')).recordset[0];
     if (!job) return res.status(404).json({ error: 'ไม่พบงาน UAT' });
+    await uatLog(id, 'status', job.status, 'slot_proposed', request.user.id,
+      `นัด ${test_date_from}${test_date_to && test_date_to !== test_date_from ? ` – ${test_date_to}` : ''}`);
     await req()
       .input('id', sql.Int,  id)
       .input('df', sql.Date, new Date(test_date_from))
@@ -6802,9 +7032,10 @@ app.post('/api/uat/:id/confirm', authRequired, async (request, res) => {
   try {
     const id = parseInt(request.params.id);
     const job = (await req().input('id', sql.Int, id)
-      .query('SELECT job_no, title, test_date_from, test_date_to FROM uat_jobs WHERE id=@id')).recordset[0];
+      .query('SELECT job_no, title, status, test_date_from, test_date_to FROM uat_jobs WHERE id=@id')).recordset[0];
     if (!job) return res.status(404).json({ error: 'ไม่พบงาน UAT' });
     if (!job.test_date_from) return res.status(400).json({ error: 'ทีม UAT ยังไม่ได้แจ้ง slot — ยืนยันกับลูกค้าไม่ได้' });
+    await uatLog(id, 'status', job.status, 'confirmed', request.user.id, null);
     await req().input('id', sql.Int, id).input('ub', sql.Int, request.user.id)
       .query(`UPDATE uat_jobs SET status='confirmed', confirmed_at=GETDATE(), confirmed_by=@ub,
               updated_at=GETDATE(), updated_by=@ub WHERE id=@id`);
@@ -6826,11 +7057,16 @@ app.post('/api/uat/:id/status', authRequired, async (request, res) => {
     const st = String(request.body?.status || '');
     if (!UAT_STATUSES.includes(st)) return res.status(400).json({ error: 'สถานะไม่ถูกต้อง' });
     const job = (await req().input('id', sql.Int, id)
-      .query('SELECT job_no, title, version_to, status FROM uat_jobs WHERE id=@id')).recordset[0];
+      .query('SELECT job_no, title, version_to, status, signoff_name FROM uat_jobs WHERE id=@id')).recordset[0];
     if (!job) return res.status(404).json({ error: 'ไม่พบงาน UAT' });
+    if (st === job.status) return res.json({ ok: true, unchanged: true });
 
-    // กติกา: จะกด "UAT ผ่าน" ได้ต้องแนบเอกสารผลการทดสอบก่อน
+    // กติกา: จะกด "UAT ผ่าน" ได้ต้อง ลงผล Test Case ครบ · ไม่มี Bug ค้าง · มี Sign-off (ชื่อ + เอกสาร)
     if (st === 'passed') {
+      const tc = (await req().input('id', sql.Int, id)
+        .query(`SELECT COUNT(*) AS c FROM uat_test_cases WHERE job_id=@id AND result IS NULL`)).recordset[0].c;
+      if (tc) return res.status(400).json({ error: `ยังไม่ได้ลงผล Test Case ${tc} ข้อ` });
+      if (!job.signoff_name) return res.status(400).json({ error: 'ยังไม่ได้บันทึกชื่อลูกค้าที่ Sign-off' });
       const n = (await req().input('id', sql.Int, id)
         .query(`SELECT COUNT(*) AS c FROM uat_attachments WHERE job_id=@id AND doc_type='result'`)).recordset[0].c;
       if (!n) return res.status(400).json({
@@ -6850,6 +7086,7 @@ app.post('/api/uat/:id/status', authRequired, async (request, res) => {
                 : '';
     await req().input('id', sql.Int, id).input('st', sql.NVarChar, st).input('ub', sql.Int, request.user.id)
       .query(`UPDATE uat_jobs SET status=@st${extra}, updated_at=GETDATE(), updated_by=@ub WHERE id=@id`);
+    await uatLog(id, 'status', job.status, st, request.user.id, null);
 
     const who = uatUserName(request.user);
     if (st === 'passed') {
@@ -6887,8 +7124,8 @@ app.get('/api/uat/:id/draft-doc', authRequired, async (request, res) => {
     const period = job.test_date_from
       ? `${day(job.test_date_from)}${job.test_date_to && day(job.test_date_to) !== day(job.test_date_from) ? ` ถึง ${day(job.test_date_to)}` : ''}`
       : (job.requested_date ? `${day(job.requested_date)} (วันที่ผู้แจ้งต้องการ — รอทีม UAT แจ้ง slot)` : null);
-    const TYPE_TH = { version_update:'อัพเดท Version', sync_test:'ทดสอบ Sync ข้าม Version',
-                      feature:'ฟีเจอร์ใหม่', hotfix:'Hotfix', other:'อื่น ๆ' };
+    const TYPE_TH = { pre_install:'UAT ก่อนติดตั้ง', customize:'Interface / Customize',
+                      version_cr:'อัปเดตเวอร์ชัน / Change Request', other:'อื่น ๆ' };
     const kv = (k, v) => `<tr><td class="k">${k}</td><td class="v">${v}</td></tr>`;
     const fill = (lines = 4) => '<p class="fill">' + Array(lines).fill('&nbsp;').join('</p><p class="fill">') + '</p>';
 
@@ -6996,7 +7233,7 @@ app.put('/api/uat/:id', authRequired, async (request, res) => {
     await req()
       .input('id',  sql.Int,      id)
       .input('ti',  sql.NVarChar, b.title        || null)
-      .input('jt',  sql.NVarChar, b.job_type     || 'version_update')
+      .input('jt',  sql.NVarChar, b.job_type     || 'version_cr')
       .input('vf',  sql.NVarChar, b.version_from || null)
       .input('vt',  sql.NVarChar, b.version_to   || null)
       .input('rq',  sql.Date,     b.requested_date ? new Date(b.requested_date) : null)
@@ -7027,6 +7264,8 @@ app.delete('/api/uat/:id', authRequired, managerRequired, async (request, res) =
     if (fs.existsSync(jobDir)) fs.rmSync(jobDir, { recursive: true, force: true });
     await req().input('id', sql.Int, id).query('DELETE FROM uat_attachments WHERE job_id=@id');
     await req().input('id', sql.Int, id).query('DELETE FROM uat_issues WHERE job_id=@id');
+    await req().input('id', sql.Int, id).query('DELETE FROM uat_test_cases WHERE job_id=@id');
+    await req().input('id', sql.Int, id).query('DELETE FROM uat_job_log WHERE job_id=@id');
     await req().input('id', sql.Int, id).query('DELETE FROM uat_jobs WHERE id=@id');
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -13739,6 +13978,57 @@ async function ensureUatTables() {
     `);
     await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('uat_attachments') AND name='doc_type')
       ALTER TABLE uat_attachments ADD doc_type NVARCHAR(20) NULL`);
+    // ── ทีม UAT: ผู้รับผิดชอบ (app_users.id) · Sign-off ──
+    for (const [col, ddl] of [
+      ['assignee_id',  'INT NULL'],
+      ['assign_note',  'NVARCHAR(200) NULL'],   // เหตุผลที่ได้งาน เช่น "คนหลัก" / "Backup 1 · Beam งานเต็ม" / "มอบหมายเอง"
+      ['signoff_name', 'NVARCHAR(200) NULL'],   // ลูกค้าที่เซ็นรับ
+      ['signoff_date', 'DATE NULL'],
+      ['signoff_by',   'INT NULL'],
+      ['signoff_at',   'DATETIME NULL'],
+    ]) {
+      await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID('uat_jobs') AND name='${col}')
+        ALTER TABLE uat_jobs ADD ${col} ${ddl}`);
+    }
+    // งานเก่า: คนที่แจ้ง slot = ผู้รับผิดชอบ
+    await req().query(`UPDATE uat_jobs SET assignee_id = slot_by, assign_note = N'ข้อมูลเดิม'
+      WHERE assignee_id IS NULL AND slot_by IS NOT NULL`);
+    // ประเภทงานเหลือ 3 แบบ: pre_install | customize | version_cr (other = งานเก่า)
+    await req().query(`UPDATE uat_jobs SET job_type = 'version_cr' WHERE job_type IN ('version_update','sync_test','hotfix')`);
+    await req().query(`UPDATE uat_jobs SET job_type = 'customize'  WHERE job_type = 'feature'`);
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='uat_test_cases' AND xtype='U')
+      CREATE TABLE uat_test_cases (
+        id         INT PRIMARY KEY IDENTITY,
+        job_id     INT NOT NULL,
+        case_no    INT NOT NULL,
+        title      NVARCHAR(500) NOT NULL,
+        steps      NVARCHAR(MAX) NULL,
+        expected   NVARCHAR(MAX) NULL,
+        result     NVARCHAR(20)  NULL,          -- NULL = ยังไม่ลงผล | pass | fail | blocked | na
+        note       NVARCHAR(MAX) NULL,
+        issue_id   INT NULL,                    -- Bug ที่เปิดจากข้อนี้
+        tested_by  INT NULL,
+        tested_at  DATETIME NULL,
+        created_by INT NULL,
+        created_at DATETIME DEFAULT GETDATE()
+      )`);
+    await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('uat_test_cases') AND name='IX_uat_tc_job')
+      CREATE INDEX IX_uat_tc_job ON uat_test_cases (job_id)`);
+    await req().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='uat_job_log' AND xtype='U')
+      CREATE TABLE uat_job_log (
+        id      INT PRIMARY KEY IDENTITY,
+        job_id  INT NOT NULL,
+        action  NVARCHAR(20) NOT NULL,          -- create | status | assign | signoff
+        old_val NVARCHAR(200) NULL,
+        new_val NVARCHAR(200) NULL,
+        note    NVARCHAR(300) NULL,
+        by_user INT NULL,                       -- NULL = ระบบ
+        at      DATETIME DEFAULT GETDATE()
+      )`);
+    await req().query(`IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('uat_job_log') AND name='IX_uat_log_job')
+      CREATE INDEX IX_uat_log_job ON uat_job_log (job_id)`);
     console.log('✅ uat_jobs / uat_issues tables ready');
   } catch(e) { console.error('❌ uat tables error:', e.message); }
 }
