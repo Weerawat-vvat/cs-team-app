@@ -687,6 +687,14 @@ tbody tr.clickable{cursor:pointer}
 </div>
 
 <script>
+// path ไฟล์แนบที่เก็บใน DB เป็นชื่อดิบ (มีเว้นวรรค / % / # / ไทย) → ต้อง encode ทีละส่วนก่อนใส่ใน href
+// ไม่ encode = ชื่อที่มี "%" (เช่น "ลด 15%") ทำให้ URL เสีย ดาวน์โหลดไม่ได้
+function fileUrl(p) {
+  if (!p) return '';
+  if (/^(https?:|data:|blob:)/i.test(p)) return p;
+  return String(p).split('/').map(x => encodeURIComponent(x)).join('/');
+}
+
 const params = new URLSearchParams(location.search);
 const TOKEN  = params.get('t') || '';
 let PROJECT  = null;
@@ -1051,7 +1059,7 @@ function renderExistingFiles(){
   const vis=_existingFiles.filter(f=>!_deletedFileIds.includes(f.id));
   if(!vis.length){ wrap.style.display='none'; return; }
   wrap.style.display='';
-  list.innerHTML=vis.map(f=>`<div class="file-item exist"><span>${fileIcon(f.file_name)}</span><a class="file-item-name" href="${esc(f.file_path)}" target="_blank" style="color:#0369a1;text-decoration:none">${esc(f.file_name)}</a><button class="file-item-del" onclick="delExisting(${f.id})">✕</button></div>`).join('');
+  list.innerHTML=vis.map(f=>`<div class="file-item exist"><span>${fileIcon(f.file_name)}</span><a class="file-item-name" href="${esc(fileUrl(f.file_path))}" target="_blank" style="color:#0369a1;text-decoration:none">${esc(f.file_name)}</a><button class="file-item-del" onclick="delExisting(${f.id})">✕</button></div>`).join('');
 }
 function delExisting(id){ _deletedFileIds.push(id); renderExistingFiles(); }
 function handleDrop(e){
@@ -1196,7 +1204,7 @@ async function openDocViewer(jobId){
           ${emptyMsg||'ยังไม่มีไฟล์'}
         </div>`;
       return files.map(f=>`
-        <a class="doc-file" href="${esc(f.file_path)}" target="_blank" download>
+        <a class="doc-file" href="${esc(fileUrl(f.file_path))}" target="_blank" download>
           <span class="doc-file-icon">${fIcon(f.file_name)}</span>
           <span class="doc-file-name">${esc(f.file_name)}</span>
           <span class="doc-file-size">${fmtSz(f.file_size)}</span>

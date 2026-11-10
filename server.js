@@ -702,7 +702,11 @@ app.use('/uploads/monitor', (req, res) => res.status(404).end());
 app.use('/uploads', (req, res, next) => {
   const ext = path.extname(req.path).toLowerCase();
   if (['.xlsx', '.xls', '.csv', '.doc', '.docx', '.zip', '.xml'].includes(ext)) {
-    const filename = path.basename(req.path);
+    let filename = path.basename(req.path);
+    try { filename = decodeURIComponent(filename); } catch {}   // req.path ยังเป็นแบบ encode อยู่
+    filename = filename.replace(/^\d{10,}_/, '');
+    // ชื่อที่ multer เก็บเป็น latin1 (ภาษาไทยเพี้ยน) → แปลงกลับเป็น UTF-8 ถ้าแปลงแล้วได้ภาษาไทยจริง
+    if (/^[\x00-\xFF]*$/.test(filename)) try { const fx = Buffer.from(filename, 'latin1').toString('utf8'); if (/[\u0E00-\u0E7F]/.test(fx)) filename = fx.replace(/\uFFFD+/g, ''); } catch {}
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
     res.setHeader('Content-Type', 'application/octet-stream');
   } else if (ext === '.pdf') {
