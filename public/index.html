@@ -966,7 +966,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
 .swu-kick{font-size:.66rem;letter-spacing:.06em;text-transform:uppercase;color:#6f747c;font-weight:400}
 .swu-note{font-size:.72rem;color:#6f747c}
 .swu-in{border:1px solid var(--border);border-radius:7px;padding:.3rem .5rem;font-size:.8rem;font-family:inherit;background:#fff;width:100%;min-width:0}
-.swu-hdr-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:.5rem}
+.swu-hdr-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem}
 .swu-hdr-grid label{font-size:.7rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.15rem}
 .swu-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:.55rem;margin:.85rem 0 .4rem}
 .swu-tile{border:1px solid #ebe9e3;border-radius:10px;padding:.5rem .7rem}
@@ -1020,12 +1020,12 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
 .swu-bname{font-weight:700;font-size:.95rem;color:#1f2a3a}
 .swu-bmeta{font-size:.75rem;color:#6f747c}
 .swu-chip{font-size:.7rem;font-weight:600;padding:.12rem .5rem;border-radius:20px;white-space:nowrap}
-.swu-ir{display:grid;grid-template-columns:150px minmax(0,1fr) 92px 70px 118px 70px;gap:.7rem;align-items:center;padding:.5rem 1rem;border-top:1px solid #f0eee9;cursor:pointer;font-size:.82rem}
+.swu-ir{display:grid;grid-template-columns:150px minmax(0,1fr) 92px 70px 70px;gap:.7rem;align-items:center;padding:.5rem 1rem;border-top:1px solid #f0eee9;cursor:pointer;font-size:.82rem}
 .swu-ir:hover{background:#fafaf8}
 .swu-ir .br{color:#4d535b;font-size:.78rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .swu-ir .ds{color:#2f343a;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .swu-ir .mt{font-size:.72rem;color:#8a8f97}
-.swu-ihead{display:grid;grid-template-columns:150px minmax(0,1fr) 92px 70px 118px 70px;gap:.7rem;padding:.35rem 1rem;font-size:.7rem;color:#8a8f97;border-top:1px solid #f0eee9;background:#fafaf8}
+.swu-ihead{display:grid;grid-template-columns:150px minmax(0,1fr) 92px 70px 70px;gap:.7rem;padding:.35rem 1rem;font-size:.7rem;color:#8a8f97;border-top:1px solid #f0eee9;background:#fafaf8}
 @media (max-width:900px){.swu-ir,.swu-ihead{grid-template-columns:1fr 1fr}.swu-ihead{display:none}}
 .swu-st-sel{border:0;border-radius:20px;padding:.12rem .4rem;font-size:.74rem;font-weight:600;font-family:inherit;cursor:pointer;max-width:100%}
 .svc-meta .mono{font-family:'IBM Plex Mono',monospace}
@@ -26968,7 +26968,8 @@ function renderSwUpdate() {
     return g;
   }).sort((a, b) => b.open - a.open || b.pr - a.pr || a.oldest - b.oldest || a.key.localeCompare(b.key, 'th'));
 
-  box.innerHTML = G.map(g => {
+  _swuG = G;
+  box.innerHTML = G.map((g, gi) => {
     // แบรนด์ที่เสร็จหมดแล้ว ย่อไว้ก่อน · กดเปิดได้
     const collapsed = g.open ? _swuCollapsed.has('b:' + g.key) : !_swuCollapsed.has('d:' + g.key);
     const toggleKey = g.open ? 'b:' + g.key : 'd:' + g.key;
@@ -26980,11 +26981,10 @@ function renderSwUpdate() {
         <div class="swu-bname">${g.ai ? `<span class="tk-ai" style="margin-right:.35rem" title="ติดตั้ง AI (SSH) แล้ว"><i class=i-check></i> AI</span>` : ''}${escHtml(g.key)}${g.isGroup ? '' : ' <span class="swu-bmeta" style="font-weight:400">· ร้านเดี่ยว</span>'}</div>
         <div class="swu-bmeta">${g.items.length} เคส · ${g.branches} สาขา${g.jobs.length > 1 ? ` · ${g.jobs.length} งาน` : ''}${g.open && g.oldest < Infinity ? ` · ค้างนานสุด ${ageD(g.oldest)}` : ''}</div>
       </div>
-      ${[...new Map(g.jobs.filter(r => r.pod_id).map(r => [r.pod_id, r])).values()].map(r =>
-        `<span class="swu-chip" style="background:${r.pod_color || '#1d4ed8'}1a;color:${r.pod_color || '#1d4ed8'}">${escHtml(r.pod_name || 'Pod')}</span>`).join('')}
       ${g.open && g.pr >= 2 ? `<span class="swu-chip" style="background:${g.pr === 3 ? '#fbeceb' : '#fbf0e6'};color:${pri.color}">มีเคส${pri.label}</span>` : ''}
       ${g.jobs.some(r => open(r) && r.remote_n === 0 && r.files_n === 0) ? `<span class="swu-chip" style="background:#fbeceb;color:#a23b33" title="งานที่ยังไม่มีเลข Remote / ไฟล์ Remote">ยังไม่มี Remote</span>` : ''}
-      ${g.open ? `<span class="swu-chip" style="background:#f6f0e2;color:#8f6d1f">ค้าง ${nOpen} เคส</span>` : `<span class="swu-chip" style="background:#e7f0ea;color:#356b4e">เสร็จสิ้น</span>`}
+      ${g.open ? `<span class="swu-chip" style="background:#f6f0e2;color:#8f6d1f">ค้าง ${nOpen} เคส</span>` : ''}
+      ${swuBrandCtl(g, gi)}
     </div>`;
     if (collapsed) return `<div class="swu-bc${g.open ? '' : ' done'}">${head}</div>`;
     const rows = g.items.map(({ it, r }) => {
@@ -26996,13 +26996,46 @@ function renderSwUpdate() {
           <div class="mt">${escHtml(it.reporter_name || r.reporter_name || '—')} · งาน #${r.id}${r.version_recommend ? ` · <span class="mono">${escHtml(r.version_recommend)}</span>` : ''}${r.appointment_date ? ` · นัด ${fmtD(r.appointment_date)}` : ''}</div></div>
         <div style="font-size:.78rem;white-space:nowrap" title="วันที่แจ้งปัญหา">${fmtD(when)}<div class="mt">${open(r) ? ageD(when) : ''}</div></div>
         <div class="uat-pri" style="color:${p.color};margin:0;font-size:.76rem">${p.label}</div>
-        <div>${(st => `<span class="swu-chip" style="background:${st.bg};color:${st.color}" title="สถานะของงาน #${r.id} — เปลี่ยนได้ในหน้างาน (คลิกแถว)">${st.label}</span>`)(SWU_STATUS[r.status] || SWU_STATUS.pending)}</div>
         <div>${azure(it.azure_id)}</div>
       </div>`;
     }).join('');
     return `<div class="swu-bc${g.open ? '' : ' done'}">${head}
-      <div class="swu-ihead"><span>สาขาที่แจ้ง</span><span>ปัญหา</span><span>วันที่แจ้ง</span><span>ความสำคัญ</span><span>สถานะ</span><span>Azure</span></div>${rows}</div>`;
+      <div class="swu-ihead"><span>สาขาที่แจ้ง</span><span>ปัญหา</span><span>วันที่แจ้ง</span><span>ความสำคัญ</span><span>Azure</span></div>${rows}</div>`;
   }).join('');
+}
+// ── สถานะ / Pod ระดับแบรนด์ (หัวการ์ด) — มีผลกับทุกงานที่ยังเปิดของแบรนด์ (ถ้าไม่มีงานเปิด = ทุกงาน) ──
+let _swuG = [];
+const swuBrandJobs = g => { const o = g.jobs.filter(r => !SWU_CLOSED_ST.includes(r.status)); return o.length ? o : g.jobs; };
+function swuBrandCtl(g, gi) {
+  const T = swuBrandJobs(g);
+  const one = (vals) => vals.every(v => v === vals[0]) ? vals[0] : undefined;
+  const st = one(T.map(r => r.status || 'pending')), pod = one(T.map(r => r.pod_id || null));
+  const S = SWU_STATUS[st] || { bg: '#f0eee9', color: '#4d535b' };
+  const many = T.length > 1 ? ` (ทั้ง ${T.length} งาน)` : '';
+  return `<span style="display:inline-flex;gap:.35rem;align-items:center" onclick="event.stopPropagation()">
+    <select class="swu-st-sel" style="background:#f7f6f3;color:#3a3f46;max-width:150px" title="Pod ที่รับผิดชอบ${many}" onchange="swuBrandSet(${gi}, 'pod_id', this.value, this)">
+      ${pod === undefined ? '<option value="" selected disabled>หลาย Pod</option>' : ''}
+      <option value="" ${pod === null ? 'selected' : ''}>— ยังไม่ระบุ Pod —</option>
+      ${(_swuPods || []).map(p => `<option value="${p.id}" ${p.id === pod ? 'selected' : ''}>${escHtml(p.display_name || p.code)}</option>`).join('')}</select>
+    <select class="swu-st-sel" style="background:${S.bg};color:${S.color}" title="สถานะ${many}" onchange="swuBrandSet(${gi}, 'status', this.value, this)">
+      ${st === undefined ? '<option value="" selected disabled>หลายสถานะ</option>' : ''}
+      ${Object.entries(SWU_STATUS).map(([k, v]) => `<option value="${k}" ${k === st ? 'selected' : ''}>${v.label}</option>`).join('')}</select>
+  </span>`;
+}
+async function swuBrandSet(gi, field, value, el) {
+  const g = _swuG[gi];
+  if (!g) return;
+  const T = swuBrandJobs(g);
+  const nCase = T.reduce((a, r) => a + swuIssuesOf(r).length, 0);
+  if (field === 'status' && value === 'done' && !confirm(`ปิดงานของ ${g.key}${T.length > 1 ? ` ทั้ง ${T.length} งาน` : ''} (${nCase} เคส)?`)) { renderSwUpdate(); return; }
+  if (el) el.disabled = true;
+  for (const r of T) {
+    const x = await api(`/api/sw-update/${r.id}`, { method: 'PUT', silent: true, body: { [field]: value || null } });
+    if (x?.error) { showToast('❌ งาน #' + r.id + ': ' + x.error, 'error'); break; }
+  }
+  showToast(field === 'status' && value === 'done' ? `ปิดงานของ ${g.key} แล้ว` : 'บันทึกแล้ว', 'success');
+  await loadSwUpdate();
+  swuUpdateBadge();
 }
 function swuToggleBrand(k) {
   _swuCollapsed.has(k) ? _swuCollapsed.delete(k) : _swuCollapsed.add(k);
@@ -27572,8 +27605,6 @@ function swuRenderDetail() {
   el.innerHTML = `
     <div class="swu-note" style="margin:-.35rem 0 .6rem">ร้านที่แจ้ง ${escHtml(j.company_name || '—')} · เปิดโดย ${escHtml(j.reporter_name || '—')} ${fmt(j.created_at)}</div>
     <div class="swu-hdr-grid">
-      <div><label>สถานะ</label><select class="swu-in" ${j.status === 'done' && !mgr ? 'disabled' : ''} onchange="swuSetField('status', this.value)">
-        ${Object.entries(SWU_STATUS).map(([k, v]) => `<option value="${k}" ${k === j.status ? 'selected' : ''}>${v.label}</option>`).join('')}</select></div>
       <div><label>วันนัด</label><input type="date" class="swu-in" value="${j.appointment_date ? j.appointment_date.slice(0, 10) : ''}" ${closed ? 'disabled' : ''} onchange="swuSetField('appointment_date', this.value)"></div>
       <div><label>เวอร์ชัน (patch)</label><div style="display:flex;gap:.3rem">
         <select class="swu-in" ${closed ? 'disabled' : ''} onchange="this.value==='custom' ? (this.nextElementSibling.style.display='', this.nextElementSibling.focus()) : swuSetField('version_recommend', this.value)">
@@ -27582,9 +27613,6 @@ function swuRenderDetail() {
         <input class="swu-in mono" style="${verOpt === 'custom' ? '' : 'display:none'}" value="${verOpt === 'custom' ? escHtml(ver) : ''}" placeholder="v3.2.1" ${closed ? 'disabled' : ''} onchange="swuSetField('version_recommend', this.value.trim())"></div></div>
       <div><label>ความสำคัญ</label><select class="swu-in" ${closed ? 'disabled' : ''} onchange="swuSetField('priority', this.value)">
         ${Object.entries(SWU_PRIORITY).map(([k, v]) => `<option value="${k}" ${k === j.priority ? 'selected' : ''}>${v.label}</option>`).join('')}</select></div>
-      <div><label>Pod ที่รับผิดชอบ</label><select class="swu-in" onchange="swuSetField('pod_id', this.value)">
-        <option value="">— ยังไม่ระบุ —</option>
-        ${(_swuPods || []).map(p => `<option value="${p.id}" ${p.id === j.pod_id ? 'selected' : ''}>${escHtml(p.display_name || p.code)}</option>`).join('')}</select></div>
     </div>
 
     <div class="swu-sec-t"><span>ปัญหาที่แก้ในรอบนี้ (${(j.issues || []).length})</span>
@@ -27600,7 +27628,7 @@ function swuRenderDetail() {
     ${swuRmDetailHtml(j, closed)}
 
     <datalist id="swu-d-branch-opts">${_swuDetailOpts.map(o => `<option value="${escHtml(o.CompanyName)}"></option>`).join('')}</datalist>
-    ${!closed ? `<div class="swu-banner" style="background:#f7f6f3;color:#4d535b"><span>อัปเดตเสร็จแล้ว ปิดงานได้เลย</span><button class="btn btn-primary" onclick="swuSetField('status','done')">ปิดงาน</button></div>` : ''}
+    <div class="swu-note" style="margin-top:.6rem">สถานะและ Pod ปรับที่หัวการ์ดแบรนด์ในหน้ารวม</div>
     ${j.status === 'done' ? `<div class="swu-banner">✓ ปิดงานแล้ว${j.version_installed ? ` · ลงเวอร์ชัน <span class="mono">${escHtml(j.version_installed)}</span>` : ''}</div>` : ''}`;
 }
 
