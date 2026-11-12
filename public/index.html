@@ -6295,6 +6295,10 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
       <select id="p-level"><option value="">— ยังไม่ตั้ง —</option><option value="SR">SR (Senior)</option><option value="JR">JR (Junior)</option></select>
     </div>
     <div class="form-group">
+      <label>เบอร์ภายใน <span style="font-size:.72rem;color:var(--muted);font-weight:400">(Extension โทรศัพท์ เช่น 2133 — ให้ AI ตรวจสายผูกกับคนนี้)</span></label>
+      <input type="text" id="p-phone-ext" inputmode="numeric" maxlength="6" placeholder="เช่น 2133"/>
+    </div>
+    <div class="form-group">
       <label>ชื่อ LINE@ ที่ใช้ตอบ <span style="font-size:.72rem;color:var(--muted);font-weight:400">(ผูกข้อมูลแชท LINE เข้ากับคนนี้ใน Leaderboard ทีมงาน · หลายชื่อคั่นด้วย ,)</span></label>
       <input id="p-line-names" placeholder="เช่น INF-BOOM" autocomplete="off"/>
       <div id="p-line-names-hint" style="margin-top:.4rem;display:flex;flex-wrap:wrap;gap:.3rem;align-items:center"></div>
@@ -9544,7 +9548,7 @@ const LLB_BOARDS = {
   overall: {
     icon: '🏅', title: 'ภาพรวม', key: 'overall', count: p => p.workload, need: () => true,
     sub: w => { const g = _llbData?.b?.staff_team?.grade_weights || {}, L = _llbData?.b?.staff_team?.level_weights || {};
-      const ws = x => x ? `งานเยอะ ${x.volume} · คุยงานดี ${x.talk} · ตอบไว ${x.speed} · ดาวทันเวลา ${x.sat}` : '';
+      const ws = x => x ? `งานเยอะ ${x.volume} · คุยงานดี ${x.talk} · ตอบไว ${x.speed} · ดาวทันเวลา ${x.sat}${x.phone ? ` · คุยโทรศัพท์ ${x.phone}` : ''}` : '';
       return `${L.SR ? `<b>SR</b> ${ws(L.SR)} | <b>JR</b> ${ws(L.JR || w)}` : ws(w)} — งานเยอะนับจากเคสที่ลงในหน้าติดตามเคส ทุกช่องทาง ถ่วงตามเกรดหัวข้อ (A = ${g.A ?? 3} แต้ม · B = ${g.B ?? 2} · C = ${g.C ?? 1} · E งานพิเศษ = ${g.E ?? 3} · ไม่มีเกรด = ${g.other ?? 1}) · ส่วนไหนไม่มีข้อมูลใช้ค่าเฉลี่ยทีมแทน (ตัวเลขสีเทา)`; },
     why: p => `งาน ${p.work_pts ?? p.workload} แต้ม (${p.workload} เคส) · ดาว ${p.stars_avg ?? '—'}`,
     cols: [
@@ -9554,6 +9558,7 @@ const LLB_BOARDS = {
       ['คุยงานดี', '', p => llbImp(p, 'talk', p.talk), p => p.talk == null ? '' : p.talk >= 80 ? 'g' : p.talk < 65 ? 'r' : 'y'],
       ['ตอบไว', '', p => llbImp(p, 'speed', p.speed), p => p.speed == null ? '' : p.speed >= 60 ? 'g' : p.speed < 40 ? 'r' : 'y'],
       ['ดาวทันเวลา', 'ดาวเฉลี่ยในหน้าติดตามเคส — ระบบให้ดาวจากเวลาที่ใช้แก้เทียบกับเวลามาตรฐานของหัวข้อ (ไม่ใช่ลูกค้าให้) · ในวงเล็บ = จำนวนเคสที่มีดาว', p => p.stars_avg == null ? llbImp(p, 'sat', null) : `★ ${p.stars_avg}<span class="mt-meta" style="display:block;font-size:.68rem;font-weight:400">${p.rated} ครั้ง · ${p.sat} คะแนน</span>`, p => p.stars_avg == null ? '' : p.stars_avg >= 4.5 ? 'g' : p.stars_avg < 4 ? 'r' : 'y'],
+      ['คุยโทรศัพท์', 'คะแนนเฉลี่ยสายโทรศัพท์ที่ AI ตรวจตามสคริปต์รับสาย (ต้องมีอย่างน้อย 3 สาย) — ดูรายละเอียดที่แท็บ 📞', p => p.phone == null ? (p.phone_n ? `<span class="mt-meta" title="สายที่ตรวจยังไม่ถึง 3 สาย">${p.phone_n} สาย</span>` : '—') : `${p.phone}<span class="mt-meta" style="display:block;font-size:.66rem;font-weight:400">${p.phone_n} สาย</span>`, p => p.phone == null ? '' : p.phone >= 75 ? 'g' : p.phone < 55 ? 'r' : 'y'],
       ['ลงเคสจากแชท', 'เคสช่องทาง LINE ในหน้าติดตามเคส ÷ แชท LINE ที่ตอบ — ต่ำกว่า 70% = ตอบแชทแล้วไม่ได้ลงเคส (งานส่วนนั้นไม่ถูกนับเป็นงานเยอะ)',
         p => p.line_logged_pct == null ? '—' : `${Math.min(p.line_logged_pct, 100)}%<span class="mt-meta" style="display:block;font-size:.66rem;font-weight:400">${p.line_logged}/${p.line_cases} แชท</span>`,
         p => p.line_logged_pct == null ? '' : p.line_logged_pct < 70 ? 'r' : p.line_logged_pct < 90 ? 'y' : 'g'],
@@ -9591,6 +9596,18 @@ const LLB_BOARDS = {
              ['🔧', 'แก้จบไวสุด', p => p.agent_ttr_median == null ? null : -p.agent_ttr_median],
              ['⏱️', 'ทันเป้าบ่อยสุด', p => p.frt_within_pct]],
   },
+  phone: {
+    icon: '📞', title: 'คุยโทรศัพท์', key: 'phone', count: p => p.phone_n, need: p => p.phone_n > 0,
+    sub: () => 'AI ฟังสายแล้วตรวจตาม Script รับสายลูกค้า: ทำตามสคริปต์ 60% + สุภาพ/ชัดเจน/แก้ปัญหา 40% − ทำข้อห้ามสายละ 10 · สุ่มตรวจคนละ 5 สาย/วัน · ต้องตั้ง "เบอร์ภายใน" ในหน้าจัดการ User · คลิกชื่อเพื่อดูรายสายและฟังเสียง',
+    why: p => `${p.phone_n} สาย · ตามสคริปต์ ${p.phone_script ?? '—'}%`,
+    cols: [
+      ['คะแนนเฉลี่ย', 'ก่อนดึงเข้าหาค่าเฉลี่ยทีม', p => p.phone_avg ?? '—', p => p.phone_avg == null ? '' : p.phone_avg >= 75 ? 'g' : p.phone_avg < 55 ? 'r' : 'y'],
+      ['ตามสคริปต์', '% ข้อในสคริปต์ที่ทำ (เฉพาะข้อที่เกี่ยวกับสายนั้น)', p => p.phone_script == null ? '—' : p.phone_script + '%', p => p.phone_script == null ? '' : p.phone_script >= 70 ? 'g' : p.phone_script < 40 ? 'r' : 'y'],
+      ['ทำข้อห้าม', 'จำนวนสายที่พูด "ไม่รู้" / รับปากเวลาไม่แน่ใจ / แก้ยอดโดยไม่ยืนยัน / บอก Password', p => p.phone_bad || '—', p => p.phone_bad ? 'r' : ''],
+      ['สายที่ตรวจ', '', p => `<a href="#" onclick="event.preventDefault();event.stopPropagation();llbPhoneCalls(${p.id})">${p.phone_n} สาย ›</a>`, () => ''],
+    ],
+    badges: [['📞', 'คุยโทรศัพท์ดีสุด', p => p.phone_n >= 3 ? p.phone : null], ['📋', 'ตามสคริปต์สุด', p => p.phone_n >= 3 ? p.phone_script : null]],
+  },
   sat: {
     icon: '⭐', title: 'ดาวทันเวลา', key: 'sat', count: p => p.rated, need: p => p.sat != null,
     sub: () => 'ดาวในหน้าติดตามเคส ทุกช่องทาง — ระบบให้ดาวจากเวลาที่ลงไว้ (รับเคส → ปิดเคส) เทียบกับเวลามาตรฐานของหัวข้อ: ทันเวลา 5★ · ไม่เกิน 1.5 เท่า 3★ · ไม่เกิน 2 เท่า 2★ · เกินกว่านั้น 1★ (ไม่ใช่ลูกค้าให้) · คะแนน: ดาว 3 = 0 · ดาว 5 = 100 · เคสน้อย คะแนนถูกดึงเข้าหาค่าเฉลี่ยทีม',
@@ -9603,6 +9620,55 @@ const LLB_BOARDS = {
     badges: [['⭐', 'ทันเวลาบ่อยสุด', p => p.rated >= 20 ? p.stars_avg : null]],
   },
 };
+// ── คุยโทรศัพท์: รายสายของคนนี้ (AI ตรวจตามสคริปต์) + ฟังเสียง ──
+const PBX_CHECK_LABEL = { greet: 'ทักทาย+ชื่อบริษัท+ชื่อ', shop: 'ถามร้าน/สาขา', contact: 'ถามชื่อ+เบอร์', probe: 'ถามรายละเอียด', can_sell: 'ถามขายได้ไหม',
+  recap: 'ทวนปัญหา', hold: 'พักสายถูกวิธี', remote: 'Remote ถูกวิธี', escalate: 'ส่งต่อ+เลขเคส', verify: 'ให้ลองใช้', more: 'ถามช่วยเพิ่ม', thanks: 'ขอบคุณ+ช่องทาง', empathy: 'เข้าใจลูกค้า' };
+const PBX_BAD_LABEL = { dont_know: 'พูด "ไม่รู้"', promise: 'รับปากเวลาไม่แน่ใจ', edit_data: 'แก้ยอดไม่ยืนยัน', secret: 'บอกข้อมูลลับ' };
+async function llbPhoneCalls(empId) {
+  const p = (_llbData?.b?.staff || []).find(x => x.id === empId) || (_llbData?.staff || []).find?.(x => x.id === empId);
+  const ext = p?.phone_ext;
+  const box = document.getElementById('llb-phone-body');
+  document.getElementById('llb-phone-title').textContent = `📞 ${p?.name || ''} · เบอร์ ${ext || '—'}`;
+  if (!ext) { box.innerHTML = '<div class="mt-meta">ยังไม่ได้ตั้งเบอร์ภายในของคนนี้ — ตั้งได้ในหน้าจัดการ User</div>'; openModal('modal-llb-phone'); return; }
+  box.innerHTML = '<div class="mt-meta">กำลังโหลด…</div>';
+  openModal('modal-llb-phone');
+  const f = _llbData?.from || _llbData?.b?.from, t = _llbData?.to || _llbData?.b?.to;
+  const rows = await api(`/api/pbx-ai/calls?ext=${encodeURIComponent(ext)}&from=${f || ''}&to=${t || ''}`, { silent: true });
+  if (!Array.isArray(rows)) { box.innerHTML = `<div class="mt-meta" style="color:#b04a40">${escHtml(rows?.error || 'โหลดไม่สำเร็จ')}</div>`; return; }
+  const scored = rows.filter(r => r.Score != null);
+  const tm = d => new Date(d).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+  const mmss = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  box.innerHTML = `<div class="mt-meta" style="margin-bottom:.6rem">${rows.length} สายในช่วงนี้ · AI ตรวจแล้ว ${scored.length} สาย (สุ่มตรวจ ไม่ได้ฟังทุกสาย) · เวลาเป็นเวลาไทย</div>` +
+    (scored.length ? scored.map(r => {
+      const a = r.a || {};
+      const chk = Object.entries(PBX_CHECK_LABEL).filter(([k]) => a[k] === true || a[k] === false)
+        .map(([k, l]) => `<span class="swu-chip" style="background:${a[k] ? '#e7f0ea' : '#fbeceb'};color:${a[k] ? '#2f7a52' : '#a23b33'}">${a[k] ? '✓' : '✗'} ${l}</span>`).join(' ');
+      const bad = (a.bad || []).map(k => `<span class="swu-chip" style="background:#a23b33;color:#fff">⚠ ${PBX_BAD_LABEL[k] || k}</span>`).join(' ');
+      const sc = r.Score;
+      return `<div style="border:1px solid var(--border);border-radius:10px;padding:.6rem .75rem;margin-bottom:.5rem">
+        <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap">
+          <b style="font-size:1.05rem;color:${sc >= 75 ? '#2f7a52' : sc < 55 ? '#b04a40' : '#9a6a12'}">${sc}</b>
+          <span class="mt-meta">${tm(r.CallDateTime)} · ${r.Direction === 'OUT' ? 'โทรออก' : 'โทรเข้า'} · ${mmss(r.DurationSec)} · ${escHtml(a.cat || r.Category || '')}${a.res ? ' · แก้จบในสาย' : ''}</span>
+          <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="llbPhonePlay(this, ${r.Id})">▶ ฟังเสียง</button>
+        </div>
+        <div style="font-size:.82rem;margin:.3rem 0">${escHtml(a.sum || '')}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:.25rem">${bad} ${chk}</div>
+        ${a.tip ? `<div class="mt-meta" style="font-size:.76rem;margin-top:.3rem">💡 ${escHtml(a.tip)}</div>` : ''}
+      </div>`;
+    }).join('') : '<div class="mt-meta">ยังไม่มีสายที่ AI ตรวจในช่วงนี้</div>');
+}
+async function llbPhonePlay(btn, id) {
+  btn.disabled = true; btn.textContent = 'กำลังโหลดเสียง…';
+  try {
+    const r = await fetch(`/api/pbx-ai/audio/${id}`, { headers: { Authorization: 'Bearer ' + authToken } });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'โหลดเสียงไม่สำเร็จ');
+    const url = URL.createObjectURL(await r.blob());
+    const au = document.createElement('audio');
+    au.controls = true; au.src = url; au.style.cssText = 'width:100%;margin-top:.4rem;height:36px';
+    btn.closest('div').after(au); btn.remove(); au.play().catch(() => {});
+  } catch (e) { btn.disabled = false; btn.textContent = '▶ ฟังเสียง'; showToast('❌ ' + e.message, 'error'); }
+}
+
 // บันทึก snapshot ของเดือนใหม่ (คิดด้วยการตั้งค่าปัจจุบัน) — ต้องรหัสผ่านตั้งค่าคะแนน
 async function llbSnapResave(period) {
   if (!_llbPw) { showToast('ปลดล็อก ⚙ ตั้งค่าคะแนนด้วยรหัสผ่านก่อน', 'warning'); llbGradeEdit(); return; }
@@ -9667,8 +9733,8 @@ function llbGradeEdit(force) {
     <div class="mt-meta" style="font-size:.74rem;margin-bottom:.55rem">SR บางคนเป็นพี่เลี้ยง งานน้อยกว่าน้อง จึงลดสัดส่วนงานเยอะลงแล้วเน้นคุณภาพ · คนที่ยังไม่ตั้งระดับใช้ชุด JR · ไม่จำเป็นต้องรวมได้ 100 (ระบบเทียบเป็นสัดส่วนให้)</div>
     ${['SR', 'JR'].map(lv => `<div style="display:flex;gap:.8rem;align-items:flex-end;flex-wrap:wrap;margin-bottom:.45rem">
       <div style="width:42px;font-weight:700;padding-bottom:.4rem">${lv}</div>
-      ${[['volume', 'งานเยอะ'], ['talk', 'คุยงานดี'], ['speed', 'ตอบไว'], ['sat', 'ดาวทันเวลา']].map(([k, lab]) => `<label style="display:flex;flex-direction:column;gap:.2rem;font-size:.74rem;color:#5b6068">${lab}
-        <input type="number" id="llb-lw-${lv}-${k}" min="0" max="100" step="5" value="${L[lv]?.[k] ?? ''}" oninput="llbLwSum()" style="width:80px;padding:.3rem .5rem;border:1px solid #d9d6ce;border-radius:8px"></label>`).join('')}
+      ${[['volume', 'งานเยอะ'], ['talk', 'คุยงานดี'], ['speed', 'ตอบไว'], ['sat', 'ดาวทันเวลา'], ['phone', 'คุยโทรศัพท์']].map(([k, lab]) => `<label style="display:flex;flex-direction:column;gap:.2rem;font-size:.74rem;color:#5b6068">${lab}
+        <input type="number" id="llb-lw-${lv}-${k}" min="0" max="100" step="5" value="${L[lv]?.[k] ?? (k === 'phone' ? 0 : '')}" oninput="llbLwSum()" style="width:80px;padding:.3rem .5rem;border:1px solid #d9d6ce;border-radius:8px"></label>`).join('')}
       <span class="mt-meta" id="llb-lw-sum-${lv}" style="padding-bottom:.4rem;font-size:.74rem"></span></div>`).join('')}
     <div style="display:flex;gap:.5rem;margin-top:.5rem">
       <button class="btn btn-primary btn-sm" onclick="llbGradeSave()">บันทึก</button>
@@ -9687,7 +9753,7 @@ async function llbGradeSave() {
   const lw = {};
   for (const lv of ['SR', 'JR']) {
     lw[lv] = {};
-    for (const k of ['volume', 'talk', 'speed', 'sat']) {
+    for (const k of ['volume', 'talk', 'speed', 'sat', 'phone']) {
       const v = parseFloat(document.getElementById(`llb-lw-${lv}-${k}`)?.value);
       if (!(v >= 0 && v <= 100)) { showToast('สัดส่วนต้องอยู่ระหว่าง 0–100', 'warning'); return; }
       lw[lv][k] = v;
@@ -21117,6 +21183,7 @@ function openAddPerson() {
   document.getElementById('p-calluserid').value = '';
   document.getElementById('p-line-names').value = '';
   document.getElementById('p-level').value = '';
+  document.getElementById('p-phone-ext').value = '';
   _fillPersonLineNames(null);
   _resetPersonAvatar(null);
   document.getElementById('p-pwd-label').textContent = 'รหัสผ่าน';
@@ -21146,6 +21213,7 @@ function openEditPerson(e, u) {
   document.getElementById('p-calluserid').value = u ? (u.calluserid || '') : '';
   document.getElementById('p-line-names').value = e.line_names || '';
   document.getElementById('p-level').value = e.level || '';
+  document.getElementById('p-phone-ext').value = e.phone_ext || '';
   _fillPersonLineNames(e.id);
   _resetPersonAvatar(e.avatar_url);
   document.getElementById('p-pwd-label').textContent = 'รหัสผ่านใหม่';
@@ -21200,7 +21268,8 @@ async function savePerson() {
     active:     parseInt(document.getElementById('p-emp-status').value || '1'),
     pod_id:     document.getElementById('p-pod').value ? parseInt(document.getElementById('p-pod').value) : null,
     line_names: document.getElementById('p-line-names').value.trim(),
-    level:      document.getElementById('p-level').value || null
+    level:      document.getElementById('p-level').value || null,
+    phone_ext:  document.getElementById('p-phone-ext').value.trim() || null
   };
   const uname   = document.getElementById('p-username').value.trim();
   const pwd     = document.getElementById('p-password').value;
@@ -29905,6 +29974,17 @@ async function generateFromPattern() {
       <button class="btn btn-primary" onclick="saveUatForm()">บันทึก</button>
       <button class="btn btn-ghost" onclick="closeModal('modal-uat-form')">ยกเลิก</button>
     </div>
+  </div>
+</div>
+
+<!-- ══════════ LEADERBOARD: รายสายโทรศัพท์ที่ AI ตรวจ ══════════ -->
+<div class="overlay" id="modal-llb-phone">
+  <div class="modal" style="max-width:760px;width:100%;max-height:92vh;overflow-y:auto;padding:1.1rem 1.25rem">
+    <div class="modal-head">
+      <div id="llb-phone-title" style="font-size:1.05rem;font-weight:600">📞 สายโทรศัพท์</div>
+      <button class="modal-close" onclick="closeModal('modal-llb-phone')">×</button>
+    </div>
+    <div id="llb-phone-body"></div>
   </div>
 </div>
 

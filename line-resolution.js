@@ -739,15 +739,19 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
     const GW = { A: 3, B: 2, C: 1, E: 3, other: 1, swu: 7, ...(B.gradeWeights || {}) };   // E = งานพิเศษ (Extra)
     const gradeOf = g => { g = String(g || '').trim().toUpperCase(); return ['A', 'B', 'C', 'E'].includes(g) ? g : 'other'; };
 
-    const buildStaff = (cases, calllog, teamLine, swuRows = []) => {
+    const buildStaff = (cases, calllog, teamLine, swuRows = [], phoneRows = []) => {
       const swuBy = new Map(swuRows.map(r => [r.employee_id, r.n]));
+      const phoneBy = new Map(phoneRows.map(r => [r.employee_id, r]));
+      // คะแนนโทรศัพท์เฉลี่ยทั้งทีม (ถ่วงตามจำนวนสาย) — ใช้ดึงคนที่สายน้อยเข้าหาค่าเฉลี่ย
+      const phN = phoneRows.reduce((a, r) => a + r.n, 0);
+      const teamPhone = phN ? phoneRows.reduce((a, r) => a + r.avg * r.n, 0) / phN : null;
       const m = new Map();
       const get = e => m.get(e.id) || m.set(e.id, { id: e.id, name: e.nickname || e.name, full_name: e.name, team: e.team,
         pod_id: e.pod_id ?? null, pod_name: e.pod_name || null, pod_color: e.pod_color || null, avatar_url: e.avatar_url || null, level: e.level || null,
         line_names: new Set(), cases: [], cl: [] }).get(e.id);
       for (const c of cases) { const e = empOfLine(c.answered_by); if (e) { const s = get(e); s.cases.push(c); s.line_names.add(c.answered_by); } }
       for (const r of calllog) { const e = byExt.get(String(r.user || '').toLowerCase()); if (e) get(e).cl.push(r); }
-      for (const e of emps) if (swuBy.get(e.id)) get(e);   // คนที่มีแต่งานอัปเดต SW ก็ขึ้นบอร์ด
+      for (const e of emps) if (swuBy.get(e.id) || phoneBy.get(e.id)) get(e);   // คนที่มีแต่งานอัปเดต SW / สายโทรศัพท์ ก็ขึ้นบอร์ด
       const list = [...m.values()].map(s => {
         const st = stats(s.cases), br = boardRaw(s.cases);
         const channels = {};
@@ -765,6 +769,11 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
           line_cases: s.cases.length, line_unlogged: unlogged, calllog_total: s.cl.length, channels,
           // งานทั้งหมด = เคสที่ลงในหน้าติดตามเคส (Calllog) ทุกช่องทางเท่านั้น · work_pts = ถ่วงตามเกรดหัวข้อ
           workload: s.cl.length, grades, work_pts, swu_jobs, swu_pts,
+          phone_ext: emps.find(e => e.id === s.id)?.phone_ext || null,
+          phone_n: phoneBy.get(s.id)?.n || 0,
+          phone_avg: phoneBy.get(s.id) ? Math.round(phoneBy.get(s.id).avg) : null,
+          phone_script: phoneBy.get(s.id)?.script != null ? Math.round(phoneBy.get(s.id).script) : null,
+          phone_bad: phoneBy.get(s.id)?.bad || 0,
           closed_pct: s.cl.length ? Math.round(closed.length / s.cl.length * 100) : null,
           close_median_min: median(closed.map(r => (new Date(r.closed_at) - new Date(r.opened_at)) / 60000).filter(v => v >= 0)),
           stars_avg: rated.length ? +(rated.reduce((a, r) => a + r.stars, 0) / rated.length).toFixed(2) : null, rated: rated.length,
@@ -797,30 +806,32 @@ function buildBoard(curRaw, prevRaw, B, S = null) {
         x.talk = lineOk ? shrink(x.talk_raw, x.talk_known, teamLine.talk) : null;
         x.speed = lineOk ? shrink(x.speed_raw, x.line_cases, teamLine.speed) : null;
         x.sat = x.rated ? shrink(satOf(x.stars_avg), x.rated, satOf(teamStars)) : null;
+        // คุยโทรศัพท์: ต้องมีสายที่ตรวจแล้วอย่างน้อย 3 สาย · ดึงเข้าหาค่าเฉลี่ยทีมเหมือนส่วนอื่น
+        x.phone = x.phone_n >= 3 ? shrink(x.phone_avg, x.phone_n, teamPhone) : null;
         x.vol_ceiling = vTop(x);
         // ถึงเส้น = 100 · เกินเส้นได้โบนัสแบบลดหลั่น (log) สูงสุด 110 ที่ 2 เท่าของเส้น — คนงานหนักมากได้เปรียบเล็กน้อย ไม่จูงใจให้แตกเคส
         const vr = x.vol_ceiling ? x.work_pts / x.vol_ceiling : 0;
         x.volume = vr <= 1 ? clamp(vr * 100) : Math.round(100 + Math.min(10, 10 * Math.log(vr) / Math.LN2));
         // ส่วนที่ไม่มีข้อมูล → ใช้ค่าเฉลี่ยทีม (เป็นกลาง ไม่ช่วยไม่ซ้ำเติม) ทุกคนจึงคิดครบทุกส่วนตามสัดส่วนเดียวกัน
-        const avgOf = { talk: teamLine.talk, speed: teamLine.speed, sat: satOf(teamStars) };
+        const avgOf = { talk: teamLine.talk, speed: teamLine.speed, sat: satOf(teamStars), phone: teamPhone };
         x.imputed = {};
-        const parts = ['volume', 'talk', 'speed', 'sat'].map(k => {
+        const parts = ['volume', 'talk', 'speed', 'sat', 'phone'].map(k => {
           let v = x[k];
           if (v == null && avgOf[k] != null) { v = Math.round(avgOf[k]); x.imputed[k] = v; }
           return [k, v];
         }).filter(([, v]) => v != null);
         const Wx = wOf(x);
         x.weights = Wx;
-        const wsum = parts.reduce((a, [k]) => a + Wx[k], 0);
-        x.overall = wsum ? Math.min(100, Math.round(parts.reduce((a, [k, v]) => a + v * Wx[k], 0) / wsum)) : null;   // คะแนนรวมเต็ม 100 เสมอ
+        const wsum = parts.reduce((a, [k]) => a + (Wx[k] || 0), 0);
+        x.overall = wsum ? Math.min(100, Math.round(parts.reduce((a, [k, v]) => a + v * (Wx[k] || 0), 0) / wsum)) : null;   // คะแนนรวมเต็ม 100 เสมอ
         x.tier = tierOf(x.overall);
         x.ranked = x.workload >= B.minCases && x.team !== 'management';   // หัวหน้าทีมแสดงไว้ แต่ไม่ติดอันดับ
       });
       return { list, teamStars };
     };
-    const curS = buildStaff(cur, S.calllog, teamRaw, S.swu || []), prevS = buildStaff(prevRows, S.prevCalllog || [], prevTeamRaw, S.prevSwu || []);
+    const curS = buildStaff(cur, S.calllog, teamRaw, S.swu || [], S.phone || []), prevS = buildStaff(prevRows, S.prevCalllog || [], prevTeamRaw, S.prevSwu || [], S.prevPhone || []);
     const rankOf = (lst, k) => lst.filter(x => x.ranked && x[k] != null).sort((a, z) => z[k] - a[k]).map(x => x.id);
-    const pr = Object.fromEntries(['overall', 'talk', 'speed', 'sat'].map(k => [k, rankOf(prevS.list, k)]));
+    const pr = Object.fromEntries(['overall', 'talk', 'speed', 'sat', 'phone'].map(k => [k, rankOf(prevS.list, k)]));
     curS.list.forEach(x => {
       const p = prevS.list.find(y => y.id === x.id && y.ranked);
       for (const k of ['overall', 'talk', 'speed', 'sat']) {

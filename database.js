@@ -357,6 +357,11 @@ async function init() {
       IF COL_LENGTH('employees','level') IS NULL
         ALTER TABLE employees ADD level NVARCHAR(10) NULL
     `);
+    // เบอร์ภายในโทรศัพท์ (PBX Extension) — ผูกสายโทรศัพท์ที่ AI ตรวจ เข้ากับพนักงาน
+    await pool.request().query(`
+      IF COL_LENGTH('employees','phone_ext') IS NULL
+        ALTER TABLE employees ADD phone_ext VARCHAR(10) NULL
+    `);
     console.log('✅ Migrations done');
   } catch (err) {
     console.error('❌ Migration error:', err.message);

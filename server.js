@@ -841,7 +841,7 @@ app.get('/api/employees', authRequired, async (request, res) => {
     const { team, include_inactive } = request.query;
     const role = request.user?.role;
     const r = req();
-    let q = `SELECT e.id, e.name, e.nickname, e.team, e.role, e.phone, e.start_date, e.active, e.created_at, e.line_names, e.avatar_url, e.level,
+    let q = `SELECT e.id, e.name, e.nickname, e.team, e.role, e.phone, e.start_date, e.active, e.created_at, e.line_names, e.avatar_url, e.level, e.phone_ext,
                     au.id AS user_id,
                     pod.pod_id, pod.pod_name, pod.pod_color, pod.role_in_pod
              FROM employees e
@@ -959,6 +959,7 @@ app.delete('/api/employees/:id/avatar', authRequired, managerRequired, async (re
 
 // ระดับพนักงาน: SR / JR เท่านั้น อย่างอื่น = ยังไม่ตั้ง
 const cleanLevel = v => { v = String(v || '').trim().toUpperCase(); return v === 'SR' || v === 'JR' ? v : null; };
+const cleanExt = v => { v = String(v ?? '').trim(); return /^\d{2,6}$/.test(v) ? v : null; };   // เบอร์ภายใน PBX
 app.post('/api/employees', authRequired, managerRequired, async (request, res) => {
   try {
     const { name, nickname, team, role, phone, start_date, pod_id } = request.body;
@@ -972,8 +973,9 @@ app.post('/api/employees', authRequired, managerRequired, async (request, res) =
       .input('role',       sql.NVarChar, role       || 'staff')
       .input('phone',      sql.NVarChar, phone      || null)
       .input('start_date', sql.Date,     start_date ? new Date(start_date) : null)
-      .query(`INSERT INTO employees (name,nickname,team,role,phone,start_date,line_names,level)
-              OUTPUT INSERTED.id VALUES (@name,@nickname,@team,@role,@phone,@start_date,@ln,@lv)`);
+      .input('px',         sql.VarChar,  cleanExt(request.body.phone_ext))
+      .query(`INSERT INTO employees (name,nickname,team,role,phone,start_date,line_names,level,phone_ext)
+              OUTPUT INSERTED.id VALUES (@name,@nickname,@team,@role,@phone,@start_date,@ln,@lv,@px)`);
     if (pod_id) await setEmployeePod(result.recordset[0].id, pod_id);
     res.json({ id: result.recordset[0].id });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -1002,6 +1004,9 @@ app.put('/api/employees/:id', authRequired, managerRequired, async (request, res
     if (request.body.level !== undefined)   // ไม่ส่งมา = ไม่แตะ
       await req().input('lv', sql.NVarChar, cleanLevel(request.body.level)).input('id', sql.Int, request.params.id)
         .query('UPDATE employees SET level=@lv WHERE id=@id');
+    if (request.body.phone_ext !== undefined)
+      await req().input('px', sql.VarChar, cleanExt(request.body.phone_ext)).input('id', sql.Int, request.params.id)
+        .query('UPDATE employees SET phone_ext=@px WHERE id=@id');
     if (pod_id !== undefined) await setEmployeePod(request.params.id, pod_id); // ไม่ส่งมา = ไม่แตะ Pod
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -9361,8 +9366,8 @@ async function getGradeWeights() {
 }
 // สัดส่วนคะแนนรวมแยกระดับ: SR เน้นคุณภาพ (บางคนเป็นพี่เลี้ยง งานน้อยกว่าน้อง) · JR / ยังไม่ตั้งระดับ ใช้ชุด JR
 const LEVEL_WEIGHTS_DEFAULT = {
-  SR: { volume: 20, talk: 35, speed: 25, sat: 20 },
-  JR: { volume: 40, talk: 30, speed: 20, sat: 10 },
+  SR: { volume: 20, talk: 35, speed: 25, sat: 20, phone: 0 },   // phone = คุยโทรศัพท์ (AI ตรวจตามสคริปต์) — 0 = แสดงแต่ยังไม่นับ
+  JR: { volume: 40, talk: 30, speed: 20, sat: 10, phone: 0 },
 };
 const cleanLevelWeights = w => Object.fromEntries(Object.entries(LEVEL_WEIGHTS_DEFAULT).map(([lv, d]) => {
   const o = Object.fromEntries(Object.entries(d).map(([k, dv]) => {
@@ -9429,7 +9434,7 @@ async function computeLineBoard(qFrom, qTo, pod) {
     let S = null;
     try {
       // Pod ของพนักงาน (ตามหน้าจัดการ User): แถว pod_members ก่อน ถ้าไม่มีใช้ pods.lead_employee_id
-      const employees = (await req().query(`SELECT e.id, e.name, e.nickname, e.team, e.line_names, e.avatar_url, e.level, au.ext_username,
+      const employees = (await req().query(`SELECT e.id, e.name, e.nickname, e.team, e.line_names, e.avatar_url, e.level, e.phone_ext, au.ext_username,
                pod.pod_id, pod.pod_name, pod.pod_color
         FROM employees e LEFT JOIN app_users au ON au.employee_id = e.id AND au.active = 1
         OUTER APPLY (
@@ -9452,7 +9457,17 @@ async function computeLineBoard(qFrom, qTo, pod) {
         WHERE done_at >= CAST(@f AS DATE) AND done_at < DATEADD(day, 1, CAST(@t AS DATE)) GROUP BY employee_id`)).recordset;
       let swu = [], prevSwu = [];
       try { swu = await swuLoad(from, to); prevSwu = await swuLoad(pf, shift(1)); } catch (e) { console.warn('line-board swu credits:', e.message); }
-      S = { employees, calllog: await clLoad(from, to), prevCalllog: await clLoad(pf, shift(1)), lineMap: LINE_STAFF_MAP, swu, prevSwu };
+      // คุยโทรศัพท์: คะแนนเฉลี่ยสายที่ AI ตรวจแล้ว (ผูกด้วย employees.phone_ext)
+      const phoneLoad = async (f, t) => t < f ? [] : (await req().input('f', sql.NVarChar, f).input('t', sql.NVarChar, t).query(`
+        SELECT e.id AS employee_id, COUNT(*) AS n, AVG(CAST(r.Score AS FLOAT)) AS avg,
+               AVG(TRY_CAST(JSON_VALUE(r.AnalysisJson, '$.script_pct') AS FLOAT)) AS script,
+               SUM(CASE WHEN ISNULL(JSON_QUERY(r.AnalysisJson, '$.bad'), '[]') <> '[]' THEN 1 ELSE 0 END) AS bad
+        FROM dbo.PBX_CallRecord r JOIN employees e ON e.phone_ext = r.Extension AND e.active = 1
+        WHERE r.Score IS NOT NULL AND r.CallDateTime >= CAST(@f AS DATE) AND r.CallDateTime < DATEADD(day, 1, CAST(@t AS DATE))
+        GROUP BY e.id`)).recordset;
+      let phone = [], prevPhone = [];
+      try { phone = await phoneLoad(from, to); prevPhone = await phoneLoad(pf, shift(1)); } catch (e) { if (!/Invalid object/i.test(e.message)) console.warn('line-board phone:', e.message); }
+      S = { employees, calllog: await clLoad(from, to), prevCalllog: await clLoad(pf, shift(1)), lineMap: LINE_STAFF_MAP, swu, prevSwu, phone, prevPhone };
     } catch (e) { console.error('line-board staff:', e.message); }
     // เกณฑ์ขั้นต่ำปรับตามจำนวนวันที่เลือก (ตั้งไว้สำหรับ 14 วัน) — ดูรายวันก็ยังมีคนติดอันดับ
     const scaleMin = (n, floor) => Math.max(floor, Math.min(n, Math.round(n * span / 14)));
@@ -9550,6 +9565,57 @@ async function pbxAiTick() {
 setInterval(pbxAiTick, 10 * 60 * 1000);
 setTimeout(pbxAiTick, 5 * 60 * 1000);
 app.get('/api/pbx-ai/status', authRequired, (request, res) => res.json({ ...pbxAi.status(), auto: PBX_AI_AUTO }));
+// สิทธิ์ดูสาย: หัวหน้า/ผู้จัดการดูได้ทุกเบอร์ · พนักงานดูได้เฉพาะเบอร์ของตัวเอง
+async function pbxCanSee(user, ext) {
+  if (['manager', 'team_lead', 'admin'].includes(user?.role)) return true;
+  if (!user?.employee_id) return false;
+  const r = (await req().input('id', sql.Int, user.employee_id).query('SELECT phone_ext FROM employees WHERE id=@id')).recordset[0];
+  return !!r?.phone_ext && r.phone_ext === String(ext);
+}
+const pbxDay = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : null;
+app.get('/api/pbx-ai/calls', authRequired, async (request, res) => {
+  try {
+    const ext = String(request.query.ext || '');
+    const from = pbxDay(request.query.from) || bangkokToday(), to = pbxDay(request.query.to) || from;
+    if (!/^\d{2,6}$/.test(ext)) return res.status(400).json({ error: 'เบอร์ภายในไม่ถูกต้อง' });
+    if (!(await pbxCanSee(request.user, ext))) return res.status(403).json({ error: 'ดูได้เฉพาะสายของตัวเอง' });
+    const rows = (await req().input('x', sql.VarChar, ext).input('f', sql.NVarChar, from).input('t', sql.NVarChar, to).query(`
+      SELECT r.Id, r.CallDateTime, RTRIM(r.Direction) AS Direction, r.CustomerNo, r.DurationSec, r.Score, r.Resolved, r.Sentiment,
+             r.Category, r.AnalysisJson, r.AnalyzedAt, l.status AS ai_status
+      FROM dbo.PBX_CallRecord r LEFT JOIN dbo.pbx_ai_log l ON l.record_id = r.Id
+      WHERE r.Extension = @x AND r.CallDateTime >= CAST(@f AS DATE) AND r.CallDateTime < DATEADD(day, 1, CAST(@t AS DATE))
+      ORDER BY r.CallDateTime DESC`)).recordset;
+    res.json(rows.map(r => ({ ...r, AnalysisJson: undefined, a: r.AnalysisJson ? JSON.parse(r.AnalysisJson) : null })));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+// ฟังเสียงสาย: แปลง .gsm → mp3 ส่งตรง (ไม่เก็บไฟล์) · ใช้ token ไม่ได้ใช้ AI
+app.get('/api/pbx-ai/audio/:id', authRequired, async (request, res) => {
+  try {
+    const r = (await req().input('id', sql.BigInt, request.params.id).query('SELECT Extension, LocalPath FROM dbo.PBX_CallRecord WHERE Id=@id')).recordset[0];
+    if (!r) return res.status(404).json({ error: 'ไม่พบสาย' });
+    if (!(await pbxCanSee(request.user, r.Extension))) return res.status(403).json({ error: 'ดูได้เฉพาะสายของตัวเอง' });
+    if (!r.LocalPath || !fs.existsSync(r.LocalPath)) return res.status(404).json({ error: 'ไม่พบไฟล์เสียง' });
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Cache-Control', 'no-store');
+    const ff = require('child_process').spawn('ffmpeg', ['-loglevel', 'error', '-i', r.LocalPath, '-ac', '1', '-ar', '16000', '-b:a', '32k', '-f', 'mp3', 'pipe:1']);
+    ff.stdout.pipe(res);
+    ff.on('error', () => { if (!res.headersSent) res.status(500).end(); else res.end(); });
+    request.on('close', () => ff.kill('SIGKILL'));
+  } catch (e) { if (!res.headersSent) res.status(500).json({ error: e.message }); }
+});
+// เบอร์ภายในที่มีสายแต่ยังไม่ผูกกับพนักงาน (ให้ไปตั้งในหน้าจัดการ User)
+app.get('/api/pbx-ai/unmapped', authRequired, async (request, res) => {
+  try {
+    const from = pbxDay(request.query.from) || bangkokToday(), to = pbxDay(request.query.to) || from;
+    const rows = (await req().input('f', sql.NVarChar, from).input('t', sql.NVarChar, to).query(`
+      SELECT r.Extension, COUNT(*) AS calls, SUM(CASE WHEN r.Score IS NOT NULL THEN 1 ELSE 0 END) AS scored
+      FROM dbo.PBX_CallRecord r
+      WHERE r.Extension IS NOT NULL AND r.CallDateTime >= CAST(@f AS DATE) AND r.CallDateTime < DATEADD(day, 1, CAST(@t AS DATE))
+        AND NOT EXISTS (SELECT 1 FROM employees e WHERE e.phone_ext = r.Extension AND e.active = 1)
+      GROUP BY r.Extension ORDER BY calls DESC`)).recordset;
+    res.json(rows);
+  } catch (e) { res.json([]); }
+});
 // สั่งรันเอง: { date: 'YYYY-MM-DD', limit?: N, all?: true (ไม่สุ่ม — ทุกสายที่ยังไม่วิเคราะห์) }
 app.post('/api/pbx-ai/run', authRequired, managerRequired, (request, res) => {
   const b = request.body || {};
