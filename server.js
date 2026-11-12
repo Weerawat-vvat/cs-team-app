@@ -12,6 +12,7 @@ const axios                      = require('axios');
 const { init, getPool, getExtPool, getInfoPool, getLineBotPool, sql } = require('./database');
 const { GoogleGenerativeAI, SchemaType } = require('@google/generative-ai');
 const { createLineResolution, buildBoard } = require('./line-resolution');
+const { createPbxAi } = require('./pbx-ai');
 
 const app        = express();
 const PORT       = process.env.PORT || 3010;
@@ -86,6 +87,7 @@ const aiTokensTodayAll = () => { const d = bangkokToday() + '|'; let t = 0; for 
 const AI_FEATURE_LIMITS = {
   triage_classify: 0, triage_screen: 0, line_resolution: 300000,
   case_draft: 150000, monitor_tag: 150000, empcal_summary: 60000,
+  pbx_call_qa: 400000,   // AI ฟังสายโทรศัพท์ (เสียง ~32 token/วินาที) — สุ่ม 5 สาย/เบอร์/วัน ใช้ราว 2–3 แสน
   ...Object.fromEntries(String(process.env.AI_LIMITS || '').split(',').map(x => x.split('=').map(v => v.trim()))
     .filter(([f, v]) => f && /^\d+$/.test(v || '')).map(([f, v]) => [f, +v])),
 };
@@ -9531,6 +9533,32 @@ async function lbSnapTick() {
 }
 setInterval(lbSnapTick, 30 * 60 * 1000);
 setTimeout(lbSnapTick, 3 * 60 * 1000);
+
+// ══ AI ฟังสายโทรศัพท์ Support (pbx-ai.js) ═══════════════════
+// รันอัตโนมัติ 02:00 (หลัง pbx_export ตี 1) ให้สายของ "เมื่อวาน" · PBX_AI_AUTO=off ปิดได้
+// ใช้ Gemini v1beta (audio + responseSchema + ปิด thinking)
+const pbxAi = createPbxAi({ req, sql, genAI: new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '', { apiVersion: 'v1beta' }), aiUsage, aiCheckLimit });
+const PBX_AI_AUTO = (process.env.PBX_AI_AUTO || 'on').toLowerCase() !== 'off';
+let _pbxAiLastDay = null;
+async function pbxAiTick() {
+  const day = bangkokToday(), bkk = new Date(Date.now() + 7 * 3600000);
+  if (!PBX_AI_AUTO || !process.env.GEMINI_API_KEY || _pbxAiLastDay === day || bkk.getUTCHours() < 2) return;
+  _pbxAiLastDay = day;
+  const y = new Date(Date.parse(day + 'T00:00:00Z') - 86400000).toISOString().slice(0, 10);
+  try { await pbxAi.run({ date: y }); } catch (e) { console.error('pbx-ai auto:', e.message); }
+}
+setInterval(pbxAiTick, 10 * 60 * 1000);
+setTimeout(pbxAiTick, 5 * 60 * 1000);
+app.get('/api/pbx-ai/status', authRequired, (request, res) => res.json({ ...pbxAi.status(), auto: PBX_AI_AUTO }));
+// สั่งรันเอง: { date: 'YYYY-MM-DD', limit?: N, all?: true (ไม่สุ่ม — ทุกสายที่ยังไม่วิเคราะห์) }
+app.post('/api/pbx-ai/run', authRequired, managerRequired, (request, res) => {
+  const b = request.body || {};
+  if (pbxAi.status().running) return res.status(409).json({ error: 'กำลังวิเคราะห์อยู่ — รอรอบนี้จบก่อน' });
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(b.date || ''))) return res.status(400).json({ error: 'วันที่ไม่ถูกต้อง' });
+  pbxAi.run({ date: b.date, limit: Math.min(500, parseInt(b.limit) || 0), all: !!b.all })
+    .catch(e => console.error('pbx-ai run:', e.message));
+  res.json({ ok: true, started: true });
+});
 
 app.get('/api/line-board/snapshots', authRequired, async (request, res) => {
   try {
