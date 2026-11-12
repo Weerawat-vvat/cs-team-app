@@ -2363,6 +2363,7 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
               <th>Username Login</th>
               <th>บทบาท</th>
               <th>Username LicenseDB</th>
+              <th title="เบอร์ภายในโทรศัพท์ (PBX) — ใช้ผูกสายที่ AI ตรวจกับพนักงาน">เบอร์ภายใน</th>
               <th>สถานะ</th>
               <th>จัดการ</th>
             </tr>
@@ -21048,7 +21049,7 @@ function renderPeopleTable(emps) {
   const countEl = document.getElementById('ppl-count');
   if (countEl) countEl.textContent = `${emps.length} คน`;
   if (!emps.length) {
-    tbody.innerHTML = '<tr><td colspan="8" class="empty">ไม่พบพนักงานที่ตรงเงื่อนไข</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="empty">ไม่พบพนักงานที่ตรงเงื่อนไข</td></tr>';
     return;
   }
   tbody.innerHTML = emps.map(e => {
@@ -21075,6 +21076,7 @@ function renderPeopleTable(emps) {
         ${u?.ext_username || '—'}
         ${u?.calluserid ? `<span style="font-size:.7rem;background:#f0eee9;border-radius:4px;padding:.05rem .35rem;margin-left:.3rem;color:#4d535b">ID:${u.calluserid}</span>` : ''}
       </td>
+      <td style="white-space:nowrap">${e.phone_ext ? `<span style="font-size:.8rem;background:#eaf0f7;color:#3f5f8f;border-radius:6px;padding:.1rem .45rem" title="เบอร์ภายใน">📞 ${escHtml(e.phone_ext)}</span>` : '<span style="color:#8a8f97">—</span>'}</td>
       <td>
         <span class="badge" style="${e.active ? 'background:#e7f0ea;color:#2f5e45' : 'background:#faf1ef;color:#963d34'}">
           ${e.active ? 'ทำงาน' : 'ออกแล้ว'}
