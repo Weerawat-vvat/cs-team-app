@@ -83,7 +83,8 @@ function buildPrompt(row, withTranscript) {
 ตอบตาม schema โดยอิงสิ่งที่ได้ยินจริงเท่านั้น ห้ามเดา
 เช็กลิสต์ตามสคริปต์ (true=ทำ, false=ไม่ทำ, null=ไม่เกี่ยวกับสายนี้):
 ${CHECKS.map(([k, d]) => `${k}: ${d}`).join('\n')}
-${row.Direction === 'OUT' ? 'สายโทรออก: greet/shop/contact ให้ประเมินว่าแนะนำตัวและยืนยันร้านปลายทาง\n' : ''}bad = ข้อห้ามที่พนักงานทำ: ${Object.entries(DONTS).map(([k, d]) => `${k}=${d}`).join(' · ')}
+${row.Direction === 'OUT' ? 'สายโทรออก: greet = แนะนำตัว+บริษัทเมื่อปลายสายรับ\n' : ''}ถ้าเป็นสายโทรกลับ/ติดตามเรื่องเดิมที่รู้ร้านและปัญหาอยู่แล้ว: shop, contact, can_sell, recap = null (ไม่ต้องถามซ้ำ)
+bad = ข้อห้ามที่พนักงานทำ: ${Object.entries(DONTS).map(([k, d]) => `${k}=${d}`).join(' · ')}
 pol/clr/sol ให้ 1-5 · ถ้าเสียงไม่ชัด/ไม่มีบทสนทนา ok=false${withTranscript ? '\ntx = ถอดความภาษาไทย' : ''}`;
 }
 
