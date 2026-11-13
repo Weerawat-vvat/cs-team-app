@@ -371,7 +371,7 @@ function switchTab(tab, btn){
 
 function renderStats(){ /* stats now rendered inside each tab */ }
 
-function caseStatsHtml(){
+function caseStatsHtml(noKind){
   if(!_data) return '';
   const t = _data.tickets||[];
   const total = t.length;
@@ -382,7 +382,7 @@ function caseStatsHtml(){
     <div class="stat-card"><div class="icon" style="background:#fef2f2">⏳</div><div><div class="label">ค้างอยู่ (OPEN)</div><div class="value" style="color:#dc2626">${open.toLocaleString()}</div></div></div>
     <div class="stat-card"><div class="icon" style="background:#f0fdf4">✅</div><div><div class="label">แก้ไขแล้ว (CLOSE)</div><div class="value" style="color:#16a34a">${close.toLocaleString()}</div></div></div>
   </div>
-  ${kindStatsHtml()}`;
+  ${noKind ? '' : kindStatsHtml()}`;
 }
 
 // ── กลุ่มงาน: Bug โปรแกรม / IT Service (จาก Monitor Tag ของทีม) ──
@@ -410,6 +410,64 @@ function kindStatsHtml(){
   };
   return `<div class="stat-grid" style="margin:-.35rem 0 .85rem">${card('bug')}${card('it')}${t.some(x => !x.kind) ? card('other') : ''}</div>`;
 }
+// ── หน้า Overview: Bug โปรแกรม / IT Service เป็นหลัก ──
+function kindHeroHtml(){
+  const t = _data?.tickets || [];
+  if (!t.some(x => x.kind)) return '';
+  const total = t.length;
+  const card = k => {
+    const K = KIND[k], L = t.filter(x => kindOf(x) === k), open = L.filter(x => !isClosed(x.status)).length;
+    const cnt = {};
+    L.forEach(x => (x.tags.length ? x.tags : ['อื่นๆ']).forEach(tag => cnt[tag] = (cnt[tag] || 0) + 1));
+    const top = Object.entries(cnt).sort((a, b) => b[1] - a[1]).slice(0, 6), max = top[0]?.[1] || 1;
+    const pct = total ? Math.round(L.length / total * 100) : 0;
+    return `<div class="card" style="border-top:4px solid ${K.color};padding:1rem 1.1rem">
+      <div style="display:flex;align-items:flex-start;gap:.8rem;flex-wrap:wrap">
+        <div style="font-size:2rem;line-height:1">${K.icon}</div>
+        <div style="flex:1;min-width:150px">
+          <div style="font-size:1rem;font-weight:700;color:${K.color}">${K.label}</div>
+          <div style="font-size:.74rem;color:#64748b">${esc(K.hint)}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:2.1rem;font-weight:800;color:${K.color};line-height:1">${L.length.toLocaleString()}</div>
+          <div style="font-size:.74rem;color:#64748b">${pct}% ของเคสทั้งหมด · <span style="color:${open ? '#dc2626' : '#16a34a'}">${open ? `ค้าง ${open}` : 'ไม่มีค้าง'}</span></div>
+        </div>
+      </div>
+      <div style="height:6px;background:#f1f5f9;border-radius:3px;margin:.7rem 0 .6rem;overflow:hidden"><div style="height:100%;width:${pct}%;background:${K.color}"></div></div>
+      <div style="font-size:.72rem;color:#94a3b8;margin-bottom:.2rem">เรื่องที่เจอบ่อย</div>
+      ${top.map(([n, c]) => `<div style="display:flex;align-items:center;gap:.5rem;padding:.2rem 0;font-size:.82rem">
+        <div style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(n)}">${esc(n)}</div>
+        <div style="width:110px;height:7px;background:#f1f5f9;border-radius:4px;overflow:hidden"><div style="height:100%;width:${Math.round(c / max * 100)}%;background:${K.color};opacity:.75"></div></div>
+        <div style="width:30px;text-align:right;font-weight:700">${c}</div></div>`).join('') || '<div style="color:#94a3b8;font-size:.82rem">ไม่มีเคสในช่วงนี้</div>'}
+      <div style="text-align:right;margin-top:.5rem"><a href="#" onclick="event.preventDefault();openKind('${k}')" style="font-size:.8rem;color:${K.color};font-weight:600;text-decoration:none">ดูรายการเคส ${K.label} ›</a></div>
+    </div>`;
+  };
+  return `<div class="chart-grid" style="margin-bottom:.85rem">${card('bug')}${card('it')}</div>
+    <div class="card" style="margin-bottom:.85rem">
+      <div class="card-title">📈 แนวโน้มรายวัน แยก ${KIND.bug.label} / ${KIND.it.label}</div>
+      <div class="chart-wrap-sm"><canvas id="c-kind-trend"></canvas></div>
+    </div>`;
+}
+function drawKindTrend(){
+  const el = document.getElementById('c-kind-trend');
+  if (!el || !window.Chart) return;
+  const t = _data?.tickets || [];
+  const days = [];
+  for (let d = parseD(_data.dateFrom), e = parseD(_data.dateTo); d && e && d <= e; d = new Date(d.getTime() + 86400000)) days.push(d);
+  const key = d => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  const cnt = { bug: {}, it: {} };
+  t.forEach(x => { const d = parseD(x.opened_at); const k = kindOf(x); if (d && cnt[k]) cnt[k][key(d)] = (cnt[k][key(d)] || 0) + 1; });
+  _charts.kindTrend = new Chart(el, {
+    type: 'bar',
+    data: { labels: days.map(d => d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })),
+      datasets: ['bug', 'it'].map(k => ({ label: KIND[k].icon + ' ' + KIND[k].label, data: days.map(d => cnt[k][key(d)] || 0),
+        backgroundColor: KIND[k].color, borderRadius: 2 })) },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: true, position: 'top', labels: { font: { size: 10 }, boxWidth: 10 } } },
+      scales: { x: { stacked: true, ticks: { font: { size: 8 }, color: '#64748b', maxRotation: 0, autoSkip: true }, grid: { display: false } },
+                y: { stacked: true, beginAtZero: true, ticks: { font: { size: 9 }, precision: 0 }, grid: { color: '#f1f5f9' } } } }
+  });
+}
 // Bug / IT Service แยกตามเรื่อง (Tag) — หน้า Overview
 function kindBreakdownHtml(){
   const t = _data?.tickets || [];
@@ -429,9 +487,83 @@ function kindBreakdownHtml(){
   };
   return `<div class="chart-grid">${col('bug')}${col('it')}</div>`;
 }
+// ── สาขา × กลุ่มงาน และ เรื่องที่เกิดซ้ำ (หน้า Overview) ──
+const shortBranch = n => String(n || '—').replace(/^ร้าน\s*/, '');
+function branchKindHtml(){
+  const d = _data, t = d?.tickets || [];
+  if (!d?.isGroup || !t.some(x => x.kind)) return '';
+  const by = {};
+  t.forEach(x => {
+    const b = by[x.CompanyName] ||= { name: x.CompanyName, bug: 0, it: 0, other: 0, open: 0, tags: {} };
+    b[kindOf(x)]++; if (!isClosed(x.status)) b.open++;
+    (x.tags || []).forEach(tag => { const k = kindOf(x) + '|' + tag; b.tags[k] = (b.tags[k] || 0) + 1; });
+  });
+  const rows = Object.values(by).map(b => ({ ...b, total: b.bug + b.it + b.other,
+    top: Object.entries(b.tags).sort((a, c) => c[1] - a[1])[0] })).sort((a, c) => c.total - a.total);
+  const hasOther = rows.some(r => r.other);
+  window._bkRows = [];
+  const cell = (n, k) => n ? `<a href="#" onclick="event.preventDefault();openBranchKind(${window._bkRows.push(k) - 1})" style="font-weight:600;color:${KIND[k[1]]?.color || '#334155'};text-decoration:none">${n}</a>` : '<span style="color:#cbd5e1">0</span>';
+  return `<div class="card" style="margin-bottom:.85rem">
+    <div class="card-title">🏪 แต่ละสาขา เป็นงานประเภทไหน <span style="font-weight:400;color:#94a3b8;font-size:.75rem">— คลิกตัวเลขเพื่อดูรายการเคส</span></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>สาขา</th><th style="text-align:right">${KIND.bug.icon} ${KIND.bug.label}</th><th style="text-align:right">${KIND.it.icon} ${KIND.it.label}</th>${hasOther ? `<th style="text-align:right">อื่นๆ</th>` : ''}<th style="text-align:right">รวม</th><th style="text-align:right">ค้าง</th><th>เรื่องที่เจอบ่อยสุด</th></tr></thead>
+      <tbody>${rows.map(r => {
+        const [tk, tn] = r.top || [];
+        const [tKind, tTag] = (tk || '|').split('|');
+        return `<tr>
+          <td style="max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.8rem" title="${esc(r.name)}">${esc(shortBranch(r.name))}</td>
+          <td style="text-align:right">${cell(r.bug, [r.name, 'bug'])}</td>
+          <td style="text-align:right">${cell(r.it, [r.name, 'it'])}</td>
+          ${hasOther ? `<td style="text-align:right">${cell(r.other, [r.name, 'other'])}</td>` : ''}
+          <td style="text-align:right;font-weight:600">${r.total}</td>
+          <td style="text-align:right;color:${r.open ? '#dc2626' : '#cbd5e1'}">${r.open}</td>
+          <td style="font-size:.78rem">${tTag ? `<span style="color:${KIND[tKind]?.color}">${KIND[tKind]?.icon || ''}</span> ${esc(tTag)} <span style="color:#94a3b8">× ${tn}</span>` : '<span style="color:#cbd5e1">—</span>'}</td>
+        </tr>`; }).join('')}</tbody>
+    </table></div>
+  </div>`;
+}
+// เรื่องเดิมเกิดซ้ำที่สาขาเดิม (Tag เดียวกัน ≥ 2 ครั้งในช่วงที่เลือก)
+function recurringHtml(){
+  const d = _data, t = d?.tickets || [];
+  if (!t.some(x => x.kind)) return '';
+  const grp = {};
+  t.forEach(x => (x.tags || []).forEach(tag => {
+    const key = (d.isGroup ? x.CompanyName : '') + '\u0001' + tag;
+    const g = grp[key] ||= { branch: x.CompanyName, tag, kind: kindOf(x), n: 0, open: 0, last: null };
+    g.n++; if (!isClosed(x.status)) g.open++;
+    const od = parseD(x.opened_at); if (od && (!g.last || od > g.last)) { g.last = od; g.lastRaw = x.opened_at; }
+  }));
+  const rows = Object.values(grp).filter(g => g.n >= 2).sort((a, c) => c.n - a.n || c.last - a.last).slice(0, 15);
+  window._recRows = rows.map(g => [d.isGroup ? g.branch : '', g.tag]);
+  return `<div class="card" style="margin-bottom:.85rem">
+    <div class="card-title">🔁 เรื่องที่เกิดซ้ำ${d.isGroup ? 'ที่สาขาเดิม' : ''} <span style="font-weight:400;color:#94a3b8;font-size:.75rem">— เรื่องเดียวกันเกิดตั้งแต่ 2 ครั้งขึ้นไปในช่วงที่เลือก · คลิกเพื่อดูเคส</span></div>
+    ${rows.length ? `<div class="tbl-wrap"><table>
+      <thead><tr>${d.isGroup ? '<th>สาขา</th>' : ''}<th>เรื่อง</th><th>กลุ่มงาน</th><th style="text-align:right">จำนวนครั้ง</th><th style="text-align:right">ค้าง</th><th>ล่าสุด</th></tr></thead>
+      <tbody>${rows.map((g, i) => `<tr style="cursor:pointer" onclick="openRecurring(${i})">
+        ${d.isGroup ? `<td style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.8rem" title="${esc(g.branch)}">${esc(shortBranch(g.branch))}</td>` : ''}
+        <td style="font-size:.8rem">${esc(g.tag)}</td>
+        <td><span style="background:${KIND[g.kind].bg};color:${KIND[g.kind].color};border:1px solid ${KIND[g.kind].bd};border-radius:4px;font-size:.68rem;padding:.02rem .35rem;white-space:nowrap">${KIND[g.kind].icon} ${KIND[g.kind].label}</span></td>
+        <td style="text-align:right;font-weight:700;color:${g.n >= 5 ? '#dc2626' : g.n >= 3 ? '#d97706' : '#334155'}">${g.n}</td>
+        <td style="text-align:right;color:${g.open ? '#dc2626' : '#cbd5e1'}">${g.open}</td>
+        <td style="white-space:nowrap;font-size:.77rem">${g.lastRaw ? fmtDate(g.lastRaw) : '—'}</td>
+      </tr>`).join('')}</tbody></table></div>` : '<div style="color:#94a3b8;font-size:.82rem;padding:.4rem 0">ไม่มีเรื่องที่เกิดซ้ำในช่วงนี้ 👍</div>'}
+  </div>`;
+}
+let _tagFilter = '';
+function goList(branch, kind, tag){
+  const btn = document.querySelector('.nav-tab[data-tab="list"]');
+  if (!btn) return;
+  _kindTab = kind || 'all'; _tagFilter = tag || '';
+  switchTab('list', btn);
+  const sel = document.getElementById('l-branch');
+  if (sel && branch) { sel.value = branch; listFilter(); }
+}
+function openBranchKind(i){ const [branch, kind] = window._bkRows[i] || []; goList(branch, kind, ''); }
+function openRecurring(i){ const [branch, tag] = window._recRows[i] || []; goList(branch, 'all', tag); }
+
 function openKind(k){
   const btn = document.querySelector('.nav-tab[data-tab="list"]');
-  if (btn) { _kindTab = k; switchTab('list', btn); }
+  if (btn) { _kindTab = k; _tagFilter = ''; switchTab('list', btn); }
 }
 
 // ── Overview Tab ─────────────────────────────────────────
@@ -457,8 +589,11 @@ function renderOverview(){
     </div>`).join('') || '<div style="color:#94a3b8;font-size:.82rem;padding:.5rem 0">ไม่มีข้อมูล</div>';
 
   document.getElementById('tab-content').innerHTML = `
-    ${caseStatsHtml()}
-    ${kindBreakdownHtml()}
+    ${kindHeroHtml()}
+    ${branchKindHtml()}
+    ${recurringHtml()}
+    ${(tickets.some(x => x.kind)) ? `<div style="display:flex;align-items:center;gap:.6rem;margin:1.2rem 0 .7rem;color:#94a3b8;font-size:.78rem"><div style="flex:1;height:1px;background:#e2e8f0"></div>ข้อมูลเคสทั้งหมด<div style="flex:1;height:1px;background:#e2e8f0"></div></div>` : ''}
+    ${caseStatsHtml(true)}
     ${isGrp ? `
     <div class="chart-grid">
       <div class="card">
@@ -518,6 +653,8 @@ function renderOverview(){
       y:{ beginAtZero:true, ticks:{font:{size:9},color:'#64748b'}, grid:{color:'#f1f5f9'} }
     }
   });
+
+  drawKindTrend();
 
   // Branch bar
   if(isGrp && document.getElementById('c-branch')){
@@ -674,6 +811,9 @@ function renderList(){
         `<button class="s-tab${_kindTab===k?' active':''}" onclick="setKindTab('${k}',this)">${l} <span class="s-tab-cnt" id="kcnt-${k}">0</span></button>`).join('')}
     </div>` : ''}
 
+    ${_tagFilter ? `<div style="margin:0 0 .45rem;font-size:.8rem">กรองเรื่อง: <span style="background:#fef3c7;color:#92400e;border-radius:6px;padding:.1rem .5rem">🔁 ${esc(_tagFilter)}</span>
+      <a href="#" onclick="event.preventDefault();_tagFilter='';renderList()" style="margin-left:.4rem;color:#2563eb">ล้าง</a></div>` : ''}
+
     <!-- Status tabs -->
     <div class="status-tabs" id="s-tabs">
       <button class="s-tab t-open" onclick="setStatusTab('open',this)">⏳ OPEN <span class="s-tab-cnt" id="cnt-open">0</span></button>
@@ -734,12 +874,14 @@ function getFilteredList(){
   if(type)    list = list.filter(t=>t.problem_type===type);
   if(subject) list = list.filter(t=>t.title===subject);
   if(_kindTab!=='all') list = list.filter(t=>kindOf(t)===_kindTab);
+  if(_tagFilter) list = list.filter(t=>(t.tags||[]).includes(_tagFilter));
   if(_statusTab==='open')  list = list.filter(t=>!isClosed(t.status));
   if(_statusTab==='close') list = list.filter(t=>isClosed(t.status));
   if(search)  list = list.filter(t=>
     (t.CompanyName||'').toLowerCase().includes(search)||
     (t.title||'').toLowerCase().includes(search)||
-    (t.problem_type||'').toLowerCase().includes(search));
+    (t.problem_type||'').toLowerCase().includes(search)||
+    (t.tags||[]).some(x=>x.toLowerCase().includes(search)));
   return list;
 }
 
