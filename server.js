@@ -11171,9 +11171,23 @@ app.get('/api/users', authRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/users', authRequired, async (request, res) => {
+// ── บัญชี User: เฉพาะ Team Lead / Manager / Admin · ตั้งหรือแก้บัญชี Admin ได้เฉพาะ Admin ──
+const USER_ROLES = ['staff', 'team_lead', 'department_head', 'manager', 'admin'];
+async function userAdminGuard(request, res, targetId) {
+  const isAdmin = request.user?.role === 'admin';
+  const role = request.body?.role;
+  if (role !== undefined && !USER_ROLES.includes(role)) { res.status(400).json({ error: 'บทบาทไม่ถูกต้อง' }); return false; }
+  if (role === 'admin' && !isAdmin) { res.status(403).json({ error: 'ตั้งบทบาท Admin ได้เฉพาะ Admin' }); return false; }
+  if (targetId && !isAdmin) {
+    const cur = (await req().input('id', sql.Int, targetId).query('SELECT role FROM app_users WHERE id=@id')).recordset[0];
+    if (cur?.role === 'admin') { res.status(403).json({ error: 'แก้ไขบัญชี Admin ได้เฉพาะ Admin' }); return false; }
+  }
+  return true;
+}
+app.post('/api/users', authRequired, managerRequired, async (request, res) => {
   const { employee_id, username, password, role, ext_username } = request.body;
   if (!username || !password) return res.status(400).json({ error: 'username and password required' });
+  if (!(await userAdminGuard(request, res, null))) return;
   try {
     const hash = await bcrypt.hash(password, 10);
     const result = await req()
@@ -11190,17 +11204,21 @@ app.post('/api/users', authRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.put('/api/users/:id', authRequired, async (request, res) => {
+app.put('/api/users/:id', authRequired, managerRequired, async (request, res) => {
   const { username, password, role, ext_username, active, calluserid } = request.body;
+  if (!(await userAdminGuard(request, res, parseInt(request.params.id)))) return;
   try {
     const r = req()
       .input('uname',    sql.NVarChar, username)
       .input('role',     sql.NVarChar, role)
       .input('extuname', sql.NVarChar, ext_username || null)
-      .input('calluid',  sql.Int,      calluserid   || null)
       .input('active',   sql.Bit,      active ?? 1)
       .input('id',       sql.Int,      request.params.id);
-    let q = 'UPDATE app_users SET username=@uname,role=@role,ext_username=@extuname,calluserid=@calluid,active=@active';
+    let q = 'UPDATE app_users SET username=@uname,role=@role,ext_username=@extuname,active=@active';
+    if (calluserid !== undefined) {   // ไม่ส่งมา = ไม่แตะ (หน้า mapping ไม่ได้ส่งค่านี้ — เดิมโดนล้างเป็นค่าว่าง)
+      r.input('calluid', sql.Int, calluserid || null);
+      q += ',calluserid=@calluid';
+    }
     if (password) {
       const hash = await bcrypt.hash(password, 10);
       r.input('hash', sql.NVarChar, hash);
@@ -11212,7 +11230,8 @@ app.put('/api/users/:id', authRequired, async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.delete('/api/users/:id', authRequired, async (request, res) => {
+app.delete('/api/users/:id', authRequired, managerRequired, async (request, res) => {
+  if (!(await userAdminGuard(request, res, parseInt(request.params.id)))) return;
   try {
     await req().input('id', sql.Int, request.params.id)
       .query('UPDATE app_users SET active=0 WHERE id=@id');
