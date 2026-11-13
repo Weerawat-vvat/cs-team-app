@@ -4365,7 +4365,7 @@ app.get('/api/public/track/:token', async (request, res) => {
       }));
       ticketRes.recordset.forEach(t => { t.attachments = attByCase[t.id] || []; });
 
-      // กลุ่มงานจาก Monitor Tag: problem = Bug โปรแกรม · service = IT Operation · ไม่มี Tag = อื่นๆ
+      // กลุ่มงานจาก Monitor Tag: problem = Bug โปรแกรม · service = IT Service · ไม่มี Tag = อื่นๆ
       try {
         const tr = req();
         ticketIds.forEach((id, i) => tr.input(`k${i}`, sql.Int, id));

@@ -385,10 +385,10 @@ function caseStatsHtml(){
   ${kindStatsHtml()}`;
 }
 
-// ── กลุ่มงาน: Bug โปรแกรม / IT Operation (จาก Monitor Tag ของทีม) ──
+// ── กลุ่มงาน: Bug โปรแกรม / IT Service (จาก Monitor Tag ของทีม) ──
 const KIND = {
   bug: { label: 'Bug โปรแกรม', icon: '🐞', color: '#b91c1c', bg: '#fef2f2', bd: '#fecaca', hint: 'ปัญหาจากตัวโปรแกรม — ทีมส่งต่อให้ทีมพัฒนาแก้ไข' },
-  it:  { label: 'IT Operation', icon: '🛠', color: '#1d4ed8', bg: '#eff6ff', bd: '#bfdbfe', hint: 'งานดูแลระบบ/อุปกรณ์/เครือข่าย/ตั้งค่า ที่หน้าร้าน' },
+  it:  { label: 'IT Service', icon: '🛠', color: '#1d4ed8', bg: '#eff6ff', bd: '#bfdbfe', hint: 'งานดูแลระบบ/อุปกรณ์/เครือข่าย/ตั้งค่า ที่หน้าร้าน' },
   other: { label: 'อื่นๆ', icon: '📋', color: '#475569', bg: '#f8fafc', bd: '#e2e8f0', hint: 'สอบถามการใช้งานและงานทั่วไป' },
 };
 const kindOf = t => t.kind || 'other';
@@ -410,7 +410,7 @@ function kindStatsHtml(){
   };
   return `<div class="stat-grid" style="margin:-.35rem 0 .85rem">${card('bug')}${card('it')}${t.some(x => !x.kind) ? card('other') : ''}</div>`;
 }
-// Bug / IT Operation แยกตามเรื่อง (Tag) — หน้า Overview
+// Bug / IT Service แยกตามเรื่อง (Tag) — หน้า Overview
 function kindBreakdownHtml(){
   const t = _data?.tickets || [];
   if (!t.some(x => x.kind)) return '';
@@ -668,7 +668,7 @@ function renderList(){
       </button>
     </div>
 
-    <!-- กลุ่มงาน: Bug / IT Operation -->
+    <!-- กลุ่มงาน: Bug / IT Service -->
     ${(d.tickets||[]).some(t=>t.kind) ? `<div class="status-tabs" id="k-tabs" style="margin-bottom:.4rem">
       ${[['all','📋 ทุกกลุ่มงาน'],['bug',KIND.bug.icon+' '+KIND.bug.label],['it',KIND.it.icon+' '+KIND.it.label],...((d.tickets||[]).some(t=>!t.kind)?[['other',KIND.other.icon+' '+KIND.other.label]]:[])].map(([k,l])=>
         `<button class="s-tab${_kindTab===k?' active':''}" onclick="setKindTab('${k}',this)">${l} <span class="s-tab-cnt" id="kcnt-${k}">0</span></button>`).join('')}
