@@ -4,153 +4,195 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Call log — CS Team</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Segoe UI',Tahoma,sans-serif;background:#f1f5f9;color:#1e293b;min-height:100vh}
-.top-bar{background:#1e293b;color:#fff;padding:.75rem 1.25rem;display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap}
+body{font-family:'Segoe UI',Tahoma,sans-serif;background:#f0eee9;color:#24272c;min-height:100vh}
+.top-bar{background:#24272c;color:#fff;padding:.75rem 1.25rem;display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap}
 .logo{font-size:.95rem;font-weight:800;color:#fff}
-.sub{font-size:.72rem;color:#94a3b8;margin-top:.1rem}
+.sub{font-size:.72rem;color:#8a8f97;margin-top:.1rem}
 .container{max-width:1100px;margin:0 auto;padding:1.25rem 1rem}
 
 /* Date filter */
-.date-bar{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.55rem 1rem;display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-bottom:1rem;box-shadow:0 1px 3px #0001}
-.drb-btn{border:1px solid #e2e8f0;background:#fff;color:#475569;padding:.28rem .7rem;border-radius:20px;font-size:.77rem;cursor:pointer;font-family:inherit;transition:.12s}
-.drb-btn:hover,.drb-btn.active{background:#2563eb;color:#fff;border-color:#2563eb;font-weight:600}
-.date-input{border:1px solid #e2e8f0;border-radius:7px;padding:.28rem .55rem;font-size:.78rem;color:#1e293b;outline:none}
-.date-input:focus{border-color:#2563eb}
-.date-range-label{font-size:.75rem;color:#64748b;margin-left:auto;white-space:nowrap}
+.date-bar{background:#fff;border:1px solid #e6e3dc;border-radius:10px;padding:.55rem 1rem;display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-bottom:1rem;box-shadow:0 1px 3px #0001}
+.drb-btn{border:1px solid #e6e3dc;background:#fff;color:#4d535b;padding:.28rem .7rem;border-radius:20px;font-size:.77rem;cursor:pointer;font-family:inherit;transition:.12s}
+.drb-btn:hover,.drb-btn.active{background:#35685f;color:#fff;border-color:#35685f;font-weight:600}
+.date-input{border:1px solid #e6e3dc;border-radius:7px;padding:.28rem .55rem;font-size:.78rem;color:#24272c;outline:none}
+.date-input:focus{border-color:#35685f}
+.date-range-label{font-size:.75rem;color:#5b616b;margin-left:auto;white-space:nowrap}
 
 /* Stat cards */
 .stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.45rem;margin-bottom:.75rem}
 @media(max-width:700px){.stat-grid{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:480px){.stat-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:480px){.req-stat-grid{grid-template-columns:1fr 1fr!important}}
-.stat-card{background:#fff;border-radius:9px;padding:.45rem .75rem;border:1px solid #e2e8f0;box-shadow:0 1px 3px #0001;display:flex;align-items:center;gap:.5rem}
+.stat-card{background:#fff;border-radius:9px;padding:.45rem .75rem;border:1px solid #e6e3dc;box-shadow:0 1px 3px #0001;display:flex;align-items:center;gap:.5rem}
 .stat-card .icon{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0}
-.stat-card .label{font-size:.67rem;color:#64748b;font-weight:500}
+.stat-card .label{font-size:.67rem;color:#5b616b;font-weight:500}
 .stat-card .value{font-size:1.2rem;font-weight:800;line-height:1.1;margin:.04rem 0}
-.stat-card .sub{font-size:.65rem;color:#94a3b8}
+.stat-card .sub{font-size:.65rem;color:#8a8f97}
 
 /* Page tabs */
-.nav-tabs{display:flex;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:.3rem;gap:.2rem;box-shadow:0 1px 4px #0001;margin-bottom:1rem;flex-wrap:wrap}
-.nav-tab{border:none;background:none;padding:.5rem 1rem;border-radius:8px;font-size:.82rem;cursor:pointer;color:#64748b;font-weight:500;font-family:inherit;transition:all .15s;display:flex;align-items:center;gap:.4rem;white-space:nowrap}
-.nav-tab:hover{background:#f1f5f9;color:#1e293b}
-.nav-tab.active{background:#2563eb;color:#fff;font-weight:700;box-shadow:0 2px 8px #2563eb33}
+.nav-tabs{display:flex;background:#fff;border:1px solid #e6e3dc;border-radius:12px;padding:.3rem;gap:.2rem;box-shadow:0 1px 4px #0001;margin-bottom:1rem;flex-wrap:wrap}
+.nav-tab{border:none;background:none;padding:.5rem 1rem;border-radius:8px;font-size:.82rem;cursor:pointer;color:#5b616b;font-weight:500;font-family:inherit;transition:all .15s;display:flex;align-items:center;gap:.4rem;white-space:nowrap}
+.nav-tab:hover{background:#f0eee9;color:#24272c}
+.nav-tab.active{background:#35685f;color:#fff;font-weight:700;box-shadow:0 2px 8px #35685f33}
 .nav-tab svg{width:15px;height:15px;flex-shrink:0;opacity:.8}
 .nav-tab.active svg{opacity:1}
 .nav-tab .tab-badge{background:rgba(255,255,255,.25);color:inherit;border-radius:20px;font-size:.68rem;padding:.05rem .35rem;font-weight:700;min-width:18px;text-align:center}
-.nav-tab:not(.active) .tab-badge{background:#e2e8f0;color:#475569}
+.nav-tab:not(.active) .tab-badge{background:#e6e3dc;color:#4d535b}
 
 /* Charts */
 .chart-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:.75rem;margin-bottom:.75rem}
 .chart-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.75rem;margin-bottom:.75rem}
 @media(max-width:800px){.chart-grid,.chart-grid-3{grid-template-columns:1fr}}
-.card{background:#fff;border-radius:12px;padding:.9rem 1.1rem;border:1px solid #e2e8f0;box-shadow:0 1px 4px #0001}
-.card-title{font-size:.82rem;font-weight:700;color:#475569;margin-bottom:.65rem;display:flex;align-items:center;gap:.35rem}
+.card{background:#fff;border-radius:12px;padding:.9rem 1.1rem;border:1px solid #e6e3dc;box-shadow:0 1px 4px #0001}
+.card-title{font-size:.82rem;font-weight:700;color:#4d535b;margin-bottom:.65rem;display:flex;align-items:center;gap:.35rem}
 .chart-wrap{position:relative;height:200px}
 .chart-wrap-sm{position:relative;height:160px}
 
 /* TOP5 */
-.top5-item{display:flex;align-items:center;gap:.6rem;padding:.45rem 0;border-bottom:1px solid #f1f5f9}
+.top5-item{display:flex;align-items:center;gap:.6rem;padding:.45rem 0;border-bottom:1px solid #f0eee9}
 .top5-item:last-child{border:none}
-.top5-rank{width:22px;height:22px;border-radius:50%;background:#f1f5f9;color:#64748b;font-size:.72rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.top5-rank.r1{background:#fef3c7;color:#92400e}
-.top5-rank.r2{background:#f1f5f9;color:#475569}
-.top5-rank.r3{background:#fef2f2;color:#b91c1c}
+.top5-rank{width:22px;height:22px;border-radius:50%;background:#f0eee9;color:#5b616b;font-size:.72rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.top5-rank.r1{background:#f6f0e2;color:#86671f}
+.top5-rank.r2{background:#f0eee9;color:#4d535b}
+.top5-rank.r3{background:#fbf3f1;color:#a3463c}
 .top5-bar-wrap{flex:1;min-width:0}
 .top5-name{font-size:.8rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.top5-sub{font-size:.7rem;color:#64748b}
-.top5-bar-track{height:5px;background:#f1f5f9;border-radius:3px;margin-top:.25rem}
-.top5-bar-fill{height:5px;border-radius:3px;background:#2563eb}
-.top5-cnt{font-size:.88rem;font-weight:800;color:#2563eb;flex-shrink:0}
+.top5-sub{font-size:.7rem;color:#5b616b}
+.top5-bar-track{height:5px;background:#f0eee9;border-radius:3px;margin-top:.25rem}
+.top5-bar-fill{height:5px;border-radius:3px;background:#35685f}
+.top5-cnt{font-size:.88rem;font-weight:800;color:#35685f;flex-shrink:0}
 
 /* Filter bar (list tab) */
 .filter-bar{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem;align-items:center}
-.filter-select{border:1px solid #e2e8f0;border-radius:8px;padding:.32rem .7rem;font-size:.8rem;background:#fff;color:#1e293b;outline:none}
-.filter-input{border:1px solid #e2e8f0;border-radius:8px;padding:.32rem .7rem;font-size:.8rem;flex:1;min-width:150px;outline:none}
-.filter-input:focus,.filter-select:focus{border-color:#2563eb}
+.filter-select{border:1px solid #e6e3dc;border-radius:8px;padding:.32rem .7rem;font-size:.8rem;background:#fff;color:#24272c;outline:none}
+.filter-input{border:1px solid #e6e3dc;border-radius:8px;padding:.32rem .7rem;font-size:.8rem;flex:1;min-width:150px;outline:none}
+.filter-input:focus,.filter-select:focus{border-color:#35685f}
 
 /* Status tabs */
 .status-tabs{display:flex;gap:.2rem;margin-bottom:.75rem;flex-wrap:wrap}
-.s-tab{border:none;background:#f1f5f9;color:#475569;padding:.32rem .85rem;border-radius:20px;font-size:.78rem;cursor:pointer;font-weight:500;font-family:inherit;transition:.12s;display:flex;align-items:center;gap:.3rem}
+.s-tab{border:none;background:#f0eee9;color:#4d535b;padding:.32rem .85rem;border-radius:20px;font-size:.78rem;cursor:pointer;font-weight:500;font-family:inherit;transition:.12s;display:flex;align-items:center;gap:.3rem}
 .s-tab.active{font-weight:700}
-.s-tab.t-open.active{background:#fee2e2;color:#b91c1c}
-.s-tab.t-close.active{background:#dcfce7;color:#15803d}
-.s-tab.t-all.active{background:#dbeafe;color:#1d4ed8}
+.s-tab.t-open.active{background:#f7ebe8;color:#a3463c}
+.s-tab.t-close.active{background:#e7f0ea;color:#356b4e}
+.s-tab.t-all.active{background:#e7efec;color:#2a544d}
 .s-tab-cnt{background:rgba(0,0,0,.08);border-radius:10px;padding:.05rem .35rem;font-size:.7rem;font-weight:700}
 
 /* Table */
 .tbl-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:.8rem}
-th{background:#f8fafc;padding:.45rem .65rem;text-align:left;font-size:.72rem;font-weight:700;color:#64748b;white-space:nowrap;border-bottom:2px solid #e2e8f0}
-td{padding:.42rem .65rem;border-bottom:1px solid #f1f5f9;vertical-align:middle}
-tr:hover td{background:#f8fafc}
+th{background:#faf9f6;padding:.45rem .65rem;text-align:left;font-size:.72rem;font-weight:700;color:#5b616b;white-space:nowrap;border-bottom:2px solid #e6e3dc}
+td{padding:.42rem .65rem;border-bottom:1px solid #f0eee9;vertical-align:middle}
+tr:hover td{background:#faf9f6}
 .badge{display:inline-block;padding:.15rem .55rem;border-radius:20px;font-size:.7rem;font-weight:700;white-space:nowrap}
-.b-close{background:#dcfce7;color:#15803d}
-.b-open{background:#fee2e2;color:#b91c1c}
-.b-other{background:#f1f5f9;color:#475569}
+.b-close{background:#e7f0ea;color:#356b4e}
+.b-open{background:#f7ebe8;color:#a3463c}
+.b-other{background:#f0eee9;color:#4d535b}
 
 /* Pagination */
 .pagi{display:flex;align-items:center;justify-content:center;gap:.3rem;margin-top:.75rem;flex-wrap:wrap}
-.pagi button{min-width:30px;height:30px;border:1px solid #e2e8f0;background:#fff;border-radius:6px;font-size:.78rem;cursor:pointer;font-family:inherit}
-.pagi button.active{background:#2563eb;color:#fff;border-color:#2563eb;font-weight:700}
+.pagi button{min-width:30px;height:30px;border:1px solid #e6e3dc;background:#fff;border-radius:6px;font-size:.78rem;cursor:pointer;font-family:inherit}
+.pagi button.active{background:#35685f;color:#fff;border-color:#35685f;font-weight:700}
 .pagi button:disabled{opacity:.4;cursor:not-allowed}
 
 /* Misc */
-.empty{text-align:center;padding:2.5rem;color:#94a3b8;font-size:.85rem}
-.loading{text-align:center;padding:4rem;color:#64748b}
-.error-box{background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:1.5rem;text-align:center;color:#b91c1c;margin-top:1rem}
+.empty{text-align:center;padding:2.5rem;color:#8a8f97;font-size:.85rem}
+.loading{text-align:center;padding:4rem;color:#5b616b}
+.error-box{background:#fbf3f1;border:1px solid #efcfca;border-radius:10px;padding:1.5rem;text-align:center;color:#a3463c;margin-top:1rem}
 .btn{border:none;border-radius:8px;padding:.42rem .95rem;font-size:.8rem;font-weight:600;cursor:pointer;font-family:inherit}
-.btn-red{background:#ef4444;color:#fff}
-.btn-red:hover{background:#dc2626}
+.btn-red{background:#c0584c;color:#fff}
+.btn-red:hover{background:#b04a40}
 
 /* Message */
-.msg-card{background:#fff;border-radius:12px;padding:1rem 1.2rem;border:1px solid #e2e8f0;margin-top:.75rem;box-shadow:0 1px 4px #0001}
-.msg-input{width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:.4rem .65rem;font-size:.82rem;font-family:inherit;resize:vertical;min-height:70px;outline:none;margin:.35rem 0}
-.msg-input:focus{border-color:#2563eb}
-.msg-name{width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:.35rem .65rem;font-size:.8rem;font-family:inherit;outline:none;margin-bottom:.35rem}
-.send-btn{background:#2563eb;color:#fff;border:none;border-radius:8px;padding:.42rem 1rem;font-size:.8rem;font-weight:600;cursor:pointer;width:100%}
+.msg-card{background:#fff;border-radius:12px;padding:1rem 1.2rem;border:1px solid #e6e3dc;margin-top:.75rem;box-shadow:0 1px 4px #0001}
+.msg-input{width:100%;border:1px solid #e6e3dc;border-radius:8px;padding:.4rem .65rem;font-size:.82rem;font-family:inherit;resize:vertical;min-height:70px;outline:none;margin:.35rem 0}
+.msg-input:focus{border-color:#35685f}
+.msg-name{width:100%;border:1px solid #e6e3dc;border-radius:8px;padding:.35rem .65rem;font-size:.8rem;font-family:inherit;outline:none;margin-bottom:.35rem}
+.send-btn{background:#35685f;color:#fff;border:none;border-radius:8px;padding:.42rem 1rem;font-size:.8rem;font-weight:600;cursor:pointer;width:100%}
 .bubble-wrap{max-height:220px;overflow-y:auto;margin-bottom:.5rem}
 .bubble{border-radius:10px;padding:.4rem .7rem;margin-bottom:.4rem;font-size:.82rem;line-height:1.55;max-width:85%}
-.bubble.cust{background:#f1f5f9;margin-right:auto}
-.bubble.admin{background:#dbeafe;margin-left:auto;text-align:right}
-.bubble .bfrom{font-size:.68rem;font-weight:700;color:#64748b;margin-bottom:.1rem}
-.bubble.admin .bfrom{color:#1d4ed8}
-.bubble .btime{font-size:.65rem;color:#94a3b8;margin-top:.15rem}
+.bubble.cust{background:#f0eee9;margin-right:auto}
+.bubble.admin{background:#e7efec;margin-left:auto;text-align:right}
+.bubble .bfrom{font-size:.68rem;font-weight:700;color:#5b616b;margin-bottom:.1rem}
+.bubble.admin .bfrom{color:#2a544d}
+.bubble .btime{font-size:.65rem;color:#8a8f97;margin-top:.15rem}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
 @keyframes slideIn{from{transform:translateX(110%);opacity:0}to{transform:translateX(0);opacity:1}}
 #repair-update-badge{display:none!important}
 #repair-update-badge.show{display:inline-flex!important}
 #track-toast-wrap{position:fixed;top:1rem;right:1rem;z-index:9999;display:flex;flex-direction:column;gap:.5rem;pointer-events:none}
-.track-toast{background:#1e293b;color:#fff;padding:.65rem 1rem;border-radius:10px;font-size:.82rem;font-weight:500;box-shadow:0 4px 16px #0003;animation:slideIn .3s ease;pointer-events:auto;display:flex;align-items:flex-start;gap:.5rem;max-width:300px}
-.track-toast.red{background:#dc2626}
-.track-toast.green{background:#16a34a}
+.track-toast{background:#24272c;color:#fff;padding:.65rem 1rem;border-radius:10px;font-size:.82rem;font-weight:500;box-shadow:0 4px 16px #0003;animation:slideIn .3s ease;pointer-events:auto;display:flex;align-items:flex-start;gap:.5rem;max-width:300px}
+.track-toast.red{background:#b04a40}
+.track-toast.green{background:#2f7a52}
 
 /* Issue table (public track) */
 .iss-tbl{width:100%;border-collapse:collapse;font-size:.8rem;background:#fff}
-.iss-tbl th{background:#f8fafc;padding:.45rem .6rem;text-align:left;font-size:.72rem;font-weight:700;color:#64748b;white-space:nowrap;border-bottom:2px solid #e2e8f0}
-.iss-tbl td{padding:.42rem .6rem;border-bottom:1px solid #f1f5f9;vertical-align:middle}
-.iss-tbl tr:hover td{background:#f8fafc}
-.iss-board-head td{background:#f1f5f9;font-size:.75rem;font-weight:700;color:#475569;padding:.35rem .7rem;border-top:2px solid #e2e8f0}
-.iss-expand-row td{background:#fafbff;padding:.6rem 1rem .8rem;border-bottom:1px solid #e2e8f0}
+.iss-tbl th{background:#faf9f6;padding:.45rem .6rem;text-align:left;font-size:.72rem;font-weight:700;color:#5b616b;white-space:nowrap;border-bottom:2px solid #e6e3dc}
+.iss-tbl td{padding:.42rem .6rem;border-bottom:1px solid #f0eee9;vertical-align:middle}
+.iss-tbl tr:hover td{background:#faf9f6}
+.iss-board-head td{background:#f0eee9;font-size:.75rem;font-weight:700;color:#4d535b;padding:.35rem .7rem;border-top:2px solid #e6e3dc}
+.iss-expand-row td{background:#fafbff;padding:.6rem 1rem .8rem;border-bottom:1px solid #e6e3dc}
 
 /* Track modals */
 .track-modal-overlay{display:none;position:fixed;inset:0;background:#0007;z-index:1000;align-items:center;justify-content:center}
 .track-modal-overlay.open{display:flex}
 .track-modal-box{background:#fff;border-radius:14px;padding:1.4rem;width:min(460px,95vw);max-height:90vh;overflow-y:auto}
-.track-modal-title{font-size:.95rem;font-weight:800;margin-bottom:1rem;color:#1e293b}
-.track-modal-label{display:block;font-size:.75rem;font-weight:600;color:#475569;margin-bottom:.22rem}
-.track-modal-input{width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:.38rem .65rem;font-size:.82rem;font-family:inherit;outline:none;color:#1e293b;background:#fff;transition:border .15s}
-.track-modal-input:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.track-modal-title{font-size:.95rem;font-weight:800;margin-bottom:1rem;color:#24272c}
+.track-modal-label{display:block;font-size:.75rem;font-weight:600;color:#4d535b;margin-bottom:.22rem}
+.track-modal-input{width:100%;border:1px solid #e6e3dc;border-radius:8px;padding:.38rem .65rem;font-size:.82rem;font-family:inherit;outline:none;color:#24272c;background:#fff;transition:border .15s}
+.track-modal-input:focus{border-color:#35685f;box-shadow:0 0 0 3px rgba(37,99,235,.1)}
 .track-modal-footer{display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem}
-.btn-primary{background:#2563eb;color:#fff;border:none;border-radius:8px;padding:.42rem 1rem;font-size:.82rem;font-weight:700;cursor:pointer;font-family:inherit}
-.btn-primary:hover{background:#1d4ed8}
-.btn-primary:disabled{background:#93c5fd;cursor:not-allowed}
-.btn-cancel{border:1px solid #e2e8f0;background:#fff;color:#475569;border-radius:8px;padding:.42rem .9rem;font-size:.82rem;cursor:pointer;font-family:inherit}
-.btn-cancel:hover{background:#f1f5f9}
+.btn-primary{background:#35685f;color:#fff;border:none;border-radius:8px;padding:.42rem 1rem;font-size:.82rem;font-weight:700;cursor:pointer;font-family:inherit}
+.btn-primary:hover{background:#2a544d}
+.btn-primary:disabled{background:#9fbdb6;cursor:not-allowed}
+.btn-cancel{border:1px solid #e6e3dc;background:#fff;color:#4d535b;border-radius:8px;padding:.42rem .9rem;font-size:.82rem;cursor:pointer;font-family:inherit}
+.btn-cancel:hover{background:#f0eee9}
 .track-form-group{margin-bottom:.75rem}
+
+/* ══ โทนเดียวกับหน้าหลัก CS Team (sage + warm neutral) ══ */
+:root{--primary:#35685f;--primary-dk:#2a544d;--primary-soft:#e7efec;--bg:#f6f5f1;--text:#24272c;--muted:#5b616b;--border:#e6e3dc;--line-2:#efede7}
+body{font-family:'IBM Plex Sans Thai','Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font-family:inherit}
+.top-bar{background:#fbfaf7;color:var(--text);border-bottom:1px solid var(--border);padding:1rem 1.25rem}
+.top-bar .logo{color:var(--text);font-weight:600;font-size:1.15rem;letter-spacing:-.01em}
+.top-bar .sub{font-family:'IBM Plex Mono',monospace;font-size:.64rem;letter-spacing:.14em;text-transform:uppercase;color:#6f747c;margin-top:.2rem}
+.top-bar .btn-red{background:#fff;color:#a3463c;border:1px solid #efcfca;font-weight:500}
+.top-bar .btn-red:hover{background:#fbf3f1}
+.container{max-width:1160px;padding:1.4rem 1.1rem}
+.card,.msg-card,.stat-card{box-shadow:none;border:1px solid var(--border)}
+.card{border-radius:16px;padding:1.05rem 1.2rem}
+.card-title{font-size:.86rem;font-weight:600;color:var(--text)}
+.stat-card{border-radius:14px;padding:.65rem .9rem}
+.stat-card .label{font-size:.72rem;color:#6f747c}
+.stat-card .value{font-weight:600}
+.date-bar{box-shadow:none;border-radius:14px;padding:.6rem .9rem}
+.drb-btn{border-color:var(--border);color:#4d535b;border-radius:999px}
+.drb-btn:hover{background:#f0eee9;color:var(--text);border-color:var(--border);font-weight:400}
+.drb-btn.active{background:var(--primary);border-color:var(--primary);color:#fff;font-weight:500}
+.nav-tabs{background:none;border:none;border-bottom:1px solid var(--border);border-radius:0;padding:0;box-shadow:none;gap:2px}
+.nav-tab{border-radius:0;padding:.6rem .9rem;margin-bottom:-1px;border-bottom:2px solid transparent;color:#5b616b;font-weight:400}
+.nav-tab:hover{background:none;color:var(--text)}
+.nav-tab.active{background:none;color:var(--text);font-weight:500;box-shadow:none;border-bottom-color:var(--primary)}
+.nav-tab.active svg{color:var(--primary)}
+.s-tab{background:#efede7;color:#5b616b;border-radius:999px}
+.s-tab.active{background:var(--primary-soft);color:var(--primary-dk);font-weight:500}
+.s-tab.t-open.active{background:#f7ebe8;color:#a3463c}
+.s-tab.t-close.active{background:#e7f0ea;color:#356b4e}
+.s-tab.t-all.active{background:var(--primary-soft);color:var(--primary-dk)}
+.filter-select,.filter-input,.date-input{border-color:var(--border);border-radius:9px}
+.filter-input:focus,.filter-select:focus,.date-input:focus{border-color:var(--primary)}
+th{background:none;color:#6f747c;font-weight:500;font-size:.72rem;border-bottom:1px solid var(--border);padding:.65rem .75rem}
+td{border-bottom:1px solid var(--line-2);padding:.55rem .75rem}
+tr:hover td{background:#faf9f6}
+.badge{font-weight:500}
+.pagi button{border-color:var(--border);border-radius:8px}
+.pagi button.active{background:var(--primary);border-color:var(--primary);font-weight:500}
+.top5-cnt{font-weight:600}
 </style>
 </head>
 <body>
@@ -172,18 +214,18 @@ tr:hover td{background:#f8fafc}
   <div style="background:#fff;border-radius:14px;padding:1.4rem;width:min(440px,95vw)">
     <div style="font-size:.95rem;font-weight:800;margin-bottom:.9rem">📣 แจ้งปัญหา / ร้องเรียน</div>
     <input type="hidden" id="c-ticket-id"/>
-    <div style="margin-bottom:.5rem"><label style="font-size:.75rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">ชื่อผู้ติดต่อ *</label>
-      <input type="text" id="c-name" placeholder="ชื่อ-นามสกุล" style="width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:.38rem .65rem;font-size:.82rem;outline:none"/></div>
+    <div style="margin-bottom:.5rem"><label style="font-size:.75rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.2rem">ชื่อผู้ติดต่อ *</label>
+      <input type="text" id="c-name" placeholder="ชื่อ-นามสกุล" style="width:100%;border:1px solid #e6e3dc;border-radius:8px;padding:.38rem .65rem;font-size:.82rem;outline:none"/></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.5rem">
-      <div><label style="font-size:.75rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">เบอร์โทร</label>
-        <input type="tel" id="c-tel" placeholder="0812345678" style="width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:.38rem .65rem;font-size:.82rem;outline:none"/></div>
-      <div><label style="font-size:.75rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">Email</label>
-        <input type="email" id="c-email" placeholder="your@email.com" style="width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:.38rem .65rem;font-size:.82rem;outline:none"/></div>
+      <div><label style="font-size:.75rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.2rem">เบอร์โทร</label>
+        <input type="tel" id="c-tel" placeholder="0812345678" style="width:100%;border:1px solid #e6e3dc;border-radius:8px;padding:.38rem .65rem;font-size:.82rem;outline:none"/></div>
+      <div><label style="font-size:.75rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.2rem">Email</label>
+        <input type="email" id="c-email" placeholder="your@email.com" style="width:100%;border:1px solid #e6e3dc;border-radius:8px;padding:.38rem .65rem;font-size:.82rem;outline:none"/></div>
     </div>
-    <div style="margin-bottom:.75rem"><label style="font-size:.75rem;font-weight:600;color:#475569;display:block;margin-bottom:.2rem">รายละเอียด *</label>
-      <textarea id="c-msg" rows="3" placeholder="อธิบายปัญหา..." style="width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:.38rem .65rem;font-size:.82rem;font-family:inherit;resize:vertical;outline:none"></textarea></div>
+    <div style="margin-bottom:.75rem"><label style="font-size:.75rem;font-weight:600;color:#4d535b;display:block;margin-bottom:.2rem">รายละเอียด *</label>
+      <textarea id="c-msg" rows="3" placeholder="อธิบายปัญหา..." style="width:100%;border:1px solid #e6e3dc;border-radius:8px;padding:.38rem .65rem;font-size:.82rem;font-family:inherit;resize:vertical;outline:none"></textarea></div>
     <div style="display:flex;gap:.5rem;justify-content:flex-end">
-      <button onclick="closeComplain()" style="border:1px solid #e2e8f0;background:#fff;border-radius:8px;padding:.38rem .85rem;font-size:.8rem;cursor:pointer">ยกเลิก</button>
+      <button onclick="closeComplain()" style="border:1px solid #e6e3dc;background:#fff;border-radius:8px;padding:.38rem .85rem;font-size:.8rem;cursor:pointer">ยกเลิก</button>
       <button class="btn btn-red" id="complain-submit-btn" onclick="submitComplain()">📤 ส่ง</button>
     </div>
   </div>
@@ -201,19 +243,19 @@ let _editIssueId  = null; // null = create mode, number = edit mode
 
 // ── Requirements helpers ──────────────────────────────────
 const REQ_STATUS_STYLE = {
-  'รับเรื่อง':       'background:#dbeafe;color:#1d4ed8',
+  'รับเรื่อง':       'background:#e7efec;color:#2a544d',
   'วิเคราะห์':        'background:#ede9fe;color:#5b21b6',
   'กำลังดำเนินการ':   'background:#fef9c3;color:#854d0e',
   'ทดสอบ':           'background:#ffedd5;color:#c2410c',
   'รอส่งมอบ':        'background:#e0f2fe;color:#0369a1',
-  'เสร็จสิ้น':        'background:#dcfce7;color:#15803d',
-  'ยกเลิก':           'background:#f1f5f9;color:#64748b',
+  'เสร็จสิ้น':        'background:#e7f0ea;color:#356b4e',
+  'ยกเลิก':           'background:#f0eee9;color:#5b616b',
 };
 const REQ_PRIORITY_STYLE = {
-  critical:'background:#fee2e2;color:#b91c1c',
+  critical:'background:#f7ebe8;color:#a3463c',
   high:    'background:#ffedd5;color:#c2410c',
   medium:  'background:#fef9c3;color:#854d0e',
-  low:     'background:#dcfce7;color:#15803d',
+  low:     'background:#e7f0ea;color:#356b4e',
 };
 const REQ_PRIORITY_LABEL = { critical:'🔴 Critical', high:'🟠 High', medium:'🟡 Medium', low:'🟢 Low' };
 
@@ -229,7 +271,7 @@ const REQ_STATUS_PROGRESS = {
 function reqAutoProgress(status){ return REQ_STATUS_PROGRESS[status] ?? 0; }
 
 function reqStatusBadge(s){
-  const style = REQ_STATUS_STYLE[s]||'background:#f1f5f9;color:#475569';
+  const style = REQ_STATUS_STYLE[s]||'background:#f0eee9;color:#4d535b';
   return `<span style="${style};padding:.15rem .5rem;border-radius:20px;font-size:.7rem;font-weight:700;white-space:nowrap">${esc(s||'—')}</span>`;
 }
 function reqPriBadge(p){
@@ -238,9 +280,9 @@ function reqPriBadge(p){
 }
 function reqProgressBar(pct){
   const p = Math.max(0,Math.min(100,pct||0));
-  const col = p>=100?'#16a34a':p>=60?'#2563eb':p>=30?'#d97706':'#94a3b8';
+  const col = p>=100?'#2f7a52':p>=60?'#35685f':p>=30?'#9a6a12':'#8a8f97';
   return `<div style="display:flex;align-items:center;gap:.5rem;margin:.3rem 0">
-    <div style="flex:1;height:7px;background:#e2e8f0;border-radius:4px;overflow:hidden">
+    <div style="flex:1;height:7px;background:#e6e3dc;border-radius:4px;overflow:hidden">
       <div style="width:${p}%;height:100%;background:${col};border-radius:4px;transition:width .4s"></div>
     </div>
     <span style="font-size:.75rem;font-weight:700;color:${col};min-width:32px">${p}%</span>
@@ -326,7 +368,7 @@ async function init(){
       <button class="drb-btn active" onclick="setRange('30d',this)">30 วัน</button>
       <button class="drb-btn" onclick="setRange('month',this)">เดือนนี้</button>
       <input type="date" id="df" class="date-input" value="${_dateFrom}"/>
-      <span style="color:#94a3b8;font-size:.8rem">–</span>
+      <span style="color:#8a8f97;font-size:.8rem">–</span>
       <input type="date" id="dt" class="date-input" value="${_dateTo}" onchange="applyCustom()"/>
       <button class="drb-btn" onclick="applyCustom()">ค้นหา</button>
       <span class="date-range-label" id="date-label"></span>
@@ -345,7 +387,7 @@ async function init(){
       <button class="nav-tab" data-tab="repair" onclick="switchTab('repair',this)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
         งานซ่อม
-        <span id="repair-update-badge" style="display:none;background:#ef4444;color:#fff;border-radius:50%;width:16px;height:16px;font-size:.65rem;font-weight:800;display:none;align-items:center;justify-content:center;animation:pulse 1s infinite">!</span>
+        <span id="repair-update-badge" style="display:none;background:#c0584c;color:#fff;border-radius:50%;width:16px;height:16px;font-size:.65rem;font-weight:800;display:none;align-items:center;justify-content:center;animation:pulse 1s infinite">!</span>
       </button>
       <button class="nav-tab" data-tab="issues" onclick="switchTab('issues',this)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -378,18 +420,18 @@ function caseStatsHtml(noKind){
   const open  = t.filter(x=>!isClosed(x.status)).length;
   const close = t.filter(x=>isClosed(x.status)).length;
   return `<div class="stat-grid" style="margin-bottom:.85rem">
-    <div class="stat-card"><div class="icon" style="background:#eff6ff">📋</div><div><div class="label">Case ทั้งหมด</div><div class="value" style="color:#2563eb">${total.toLocaleString()}</div></div></div>
-    <div class="stat-card"><div class="icon" style="background:#fef2f2">⏳</div><div><div class="label">ค้างอยู่ (OPEN)</div><div class="value" style="color:#dc2626">${open.toLocaleString()}</div></div></div>
-    <div class="stat-card"><div class="icon" style="background:#f0fdf4">✅</div><div><div class="label">แก้ไขแล้ว (CLOSE)</div><div class="value" style="color:#16a34a">${close.toLocaleString()}</div></div></div>
+    <div class="stat-card"><div class="icon" style="background:#f2f6f4">📋</div><div><div class="label">Case ทั้งหมด</div><div class="value" style="color:#35685f">${total.toLocaleString()}</div></div></div>
+    <div class="stat-card"><div class="icon" style="background:#fbf3f1">⏳</div><div><div class="label">ค้างอยู่ (OPEN)</div><div class="value" style="color:#b04a40">${open.toLocaleString()}</div></div></div>
+    <div class="stat-card"><div class="icon" style="background:#f2f7f3">✅</div><div><div class="label">แก้ไขแล้ว (CLOSE)</div><div class="value" style="color:#2f7a52">${close.toLocaleString()}</div></div></div>
   </div>
   ${noKind ? '' : kindStatsHtml()}`;
 }
 
 // ── กลุ่มงาน: Bug โปรแกรม / IT Service (จาก Monitor Tag ของทีม) ──
 const KIND = {
-  bug: { label: 'Bug โปรแกรม', icon: '🐞', color: '#b91c1c', bg: '#fef2f2', bd: '#fecaca', hint: 'ปัญหาจากตัวโปรแกรม — ทีมส่งต่อให้ทีมพัฒนาแก้ไข' },
-  it:  { label: 'IT Service', icon: '🛠', color: '#1d4ed8', bg: '#eff6ff', bd: '#bfdbfe', hint: 'งานดูแลระบบ/อุปกรณ์/เครือข่าย/ตั้งค่า ที่หน้าร้าน' },
-  other: { label: 'อื่นๆ', icon: '📋', color: '#475569', bg: '#f8fafc', bd: '#e2e8f0', hint: 'สอบถามการใช้งานและงานทั่วไป' },
+  bug: { label: 'Bug โปรแกรม', icon: '🐞', color: '#a3463c', bg: '#f7ebe8', bd: '#efcfca', hint: 'ปัญหาจากตัวโปรแกรม — ทีมส่งต่อให้ทีมพัฒนาแก้ไข' },
+  it:  { label: 'IT Service', icon: '🛠', color: '#3f5f8f', bg: '#eaf0f7', bd: '#c9d6e8', hint: 'งานดูแลระบบ/อุปกรณ์/เครือข่าย/ตั้งค่า ที่หน้าร้าน' },
+  other: { label: 'อื่นๆ', icon: '📋', color: '#4d535b', bg: '#faf9f6', bd: '#e6e3dc', hint: 'สอบถามการใช้งานและงานทั่วไป' },
 };
 const kindOf = t => t.kind || 'other';
 function kindChip(t){
@@ -406,7 +448,7 @@ function kindStatsHtml(){
     return `<div class="stat-card" style="cursor:pointer" title="${esc(K.hint)} — คลิกเพื่อดูรายการ" onclick="openKind('${k}')">
       <div class="icon" style="background:${K.bg}">${K.icon}</div>
       <div><div class="label">${K.label}</div><div class="value" style="color:${K.color}">${L.length.toLocaleString()}</div>
-      <div style="font-size:.7rem;color:#94a3b8">${open ? `ค้าง ${open}` : 'ไม่มีค้าง'}</div></div></div>`;
+      <div style="font-size:.7rem;color:#8a8f97">${open ? `ค้าง ${open}` : 'ไม่มีค้าง'}</div></div></div>`;
   };
   return `<div class="stat-grid" style="margin:-.35rem 0 .85rem">${card('bug')}${card('it')}${t.some(x => !x.kind) ? card('other') : ''}</div>`;
 }
@@ -426,19 +468,19 @@ function kindHeroHtml(){
         <div style="font-size:2rem;line-height:1">${K.icon}</div>
         <div style="flex:1;min-width:150px">
           <div style="font-size:1rem;font-weight:700;color:${K.color}">${K.label}</div>
-          <div style="font-size:.74rem;color:#64748b">${esc(K.hint)}</div>
+          <div style="font-size:.74rem;color:#5b616b">${esc(K.hint)}</div>
         </div>
         <div style="text-align:right">
           <div style="font-size:2.1rem;font-weight:800;color:${K.color};line-height:1">${L.length.toLocaleString()}</div>
-          <div style="font-size:.74rem;color:#64748b">${pct}% ของเคสทั้งหมด · <span style="color:${open ? '#dc2626' : '#16a34a'}">${open ? `ค้าง ${open}` : 'ไม่มีค้าง'}</span></div>
+          <div style="font-size:.74rem;color:#5b616b">${pct}% ของเคสทั้งหมด · <span style="color:${open ? '#b04a40' : '#2f7a52'}">${open ? `ค้าง ${open}` : 'ไม่มีค้าง'}</span></div>
         </div>
       </div>
-      <div style="height:6px;background:#f1f5f9;border-radius:3px;margin:.7rem 0 .6rem;overflow:hidden"><div style="height:100%;width:${pct}%;background:${K.color}"></div></div>
-      <div style="font-size:.72rem;color:#94a3b8;margin-bottom:.2rem">เรื่องที่เจอบ่อย</div>
+      <div style="height:6px;background:#f0eee9;border-radius:3px;margin:.7rem 0 .6rem;overflow:hidden"><div style="height:100%;width:${pct}%;background:${K.color}"></div></div>
+      <div style="font-size:.72rem;color:#8a8f97;margin-bottom:.2rem">เรื่องที่เจอบ่อย</div>
       ${top.map(([n, c]) => `<div style="display:flex;align-items:center;gap:.5rem;padding:.2rem 0;font-size:.82rem">
         <div style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(n)}">${esc(n)}</div>
-        <div style="width:110px;height:7px;background:#f1f5f9;border-radius:4px;overflow:hidden"><div style="height:100%;width:${Math.round(c / max * 100)}%;background:${K.color};opacity:.75"></div></div>
-        <div style="width:30px;text-align:right;font-weight:700">${c}</div></div>`).join('') || '<div style="color:#94a3b8;font-size:.82rem">ไม่มีเคสในช่วงนี้</div>'}
+        <div style="width:110px;height:7px;background:#f0eee9;border-radius:4px;overflow:hidden"><div style="height:100%;width:${Math.round(c / max * 100)}%;background:${K.color};opacity:.75"></div></div>
+        <div style="width:30px;text-align:right;font-weight:700">${c}</div></div>`).join('') || '<div style="color:#8a8f97;font-size:.82rem">ไม่มีเคสในช่วงนี้</div>'}
       <div style="text-align:right;margin-top:.5rem"><a href="#" onclick="event.preventDefault();openKind('${k}')" style="font-size:.8rem;color:${K.color};font-weight:600;text-decoration:none">ดูรายการเคส ${K.label} ›</a></div>
     </div>`;
   };
@@ -464,8 +506,8 @@ function drawKindTrend(){
         backgroundColor: KIND[k].color, borderRadius: 2 })) },
     options: { responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: true, position: 'top', labels: { font: { size: 10 }, boxWidth: 10 } } },
-      scales: { x: { stacked: true, ticks: { font: { size: 8 }, color: '#64748b', maxRotation: 0, autoSkip: true }, grid: { display: false } },
-                y: { stacked: true, beginAtZero: true, ticks: { font: { size: 9 }, precision: 0 }, grid: { color: '#f1f5f9' } } } }
+      scales: { x: { stacked: true, ticks: { font: { size: 8 }, color: '#5b616b', maxRotation: 0, autoSkip: true }, grid: { display: false } },
+                y: { stacked: true, beginAtZero: true, ticks: { font: { size: 9 }, precision: 0 }, grid: { color: '#f0eee9' } } } }
   });
 }
 // Bug / IT Service แยกตามเรื่อง (Tag) — หน้า Overview
@@ -478,11 +520,11 @@ function kindBreakdownHtml(){
     const rows = Object.entries(cnt).sort((a, b) => b[1] - a[1]).slice(0, 8);
     const max = rows[0]?.[1] || 1, K = KIND[k];
     return `<div class="card">
-      <div class="card-title">${K.icon} ${K.label} <span style="font-weight:400;color:#94a3b8;font-size:.75rem">— ${esc(K.hint)}</span></div>
+      <div class="card-title">${K.icon} ${K.label} <span style="font-weight:400;color:#8a8f97;font-size:.75rem">— ${esc(K.hint)}</span></div>
       ${rows.map(([n, c]) => `<div style="display:flex;align-items:center;gap:.5rem;padding:.22rem 0;font-size:.8rem">
         <div style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(n)}">${esc(n)}</div>
-        <div style="width:90px;height:6px;background:#f1f5f9;border-radius:3px;overflow:hidden"><div style="height:100%;width:${Math.round(c / max * 100)}%;background:${K.color}"></div></div>
-        <div style="width:28px;text-align:right;font-weight:600">${c}</div></div>`).join('') || '<div style="color:#94a3b8;font-size:.82rem;padding:.4rem 0">ไม่มีเคสในช่วงนี้</div>'}
+        <div style="width:90px;height:6px;background:#f0eee9;border-radius:3px;overflow:hidden"><div style="height:100%;width:${Math.round(c / max * 100)}%;background:${K.color}"></div></div>
+        <div style="width:28px;text-align:right;font-weight:600">${c}</div></div>`).join('') || '<div style="color:#8a8f97;font-size:.82rem;padding:.4rem 0">ไม่มีเคสในช่วงนี้</div>'}
     </div>`;
   };
   return `<div class="chart-grid">${col('bug')}${col('it')}</div>`;
@@ -502,9 +544,9 @@ function branchKindHtml(){
     top: Object.entries(b.tags).sort((a, c) => c[1] - a[1])[0] })).sort((a, c) => c.total - a.total);
   const hasOther = rows.some(r => r.other);
   window._bkRows = [];
-  const cell = (n, k) => n ? `<a href="#" onclick="event.preventDefault();openBranchKind(${window._bkRows.push(k) - 1})" style="font-weight:600;color:${KIND[k[1]]?.color || '#334155'};text-decoration:none">${n}</a>` : '<span style="color:#cbd5e1">0</span>';
+  const cell = (n, k) => n ? `<a href="#" onclick="event.preventDefault();openBranchKind(${window._bkRows.push(k) - 1})" style="font-weight:600;color:${KIND[k[1]]?.color || '#3a3f46'};text-decoration:none">${n}</a>` : '<span style="color:#d6d2c9">0</span>';
   return `<div class="card" style="margin-bottom:.85rem">
-    <div class="card-title">🏪 แต่ละสาขา เป็นงานประเภทไหน <span style="font-weight:400;color:#94a3b8;font-size:.75rem">— คลิกตัวเลขเพื่อดูรายการเคส</span></div>
+    <div class="card-title">🏪 แต่ละสาขา เป็นงานประเภทไหน <span style="font-weight:400;color:#8a8f97;font-size:.75rem">— คลิกตัวเลขเพื่อดูรายการเคส</span></div>
     <div class="tbl-wrap"><table>
       <thead><tr><th>สาขา</th><th style="text-align:right">${KIND.bug.icon} ${KIND.bug.label}</th><th style="text-align:right">${KIND.it.icon} ${KIND.it.label}</th>${hasOther ? `<th style="text-align:right">อื่นๆ</th>` : ''}<th style="text-align:right">รวม</th><th style="text-align:right">ค้าง</th><th>เรื่องที่เจอบ่อยสุด</th></tr></thead>
       <tbody>${rows.map(r => {
@@ -516,8 +558,8 @@ function branchKindHtml(){
           <td style="text-align:right">${cell(r.it, [r.name, 'it'])}</td>
           ${hasOther ? `<td style="text-align:right">${cell(r.other, [r.name, 'other'])}</td>` : ''}
           <td style="text-align:right;font-weight:600">${r.total}</td>
-          <td style="text-align:right;color:${r.open ? '#dc2626' : '#cbd5e1'}">${r.open}</td>
-          <td style="font-size:.78rem">${tTag ? `<span style="color:${KIND[tKind]?.color}">${KIND[tKind]?.icon || ''}</span> ${esc(tTag)} <span style="color:#94a3b8">× ${tn}</span>` : '<span style="color:#cbd5e1">—</span>'}</td>
+          <td style="text-align:right;color:${r.open ? '#b04a40' : '#d6d2c9'}">${r.open}</td>
+          <td style="font-size:.78rem">${tTag ? `<span style="color:${KIND[tKind]?.color}">${KIND[tKind]?.icon || ''}</span> ${esc(tTag)} <span style="color:#8a8f97">× ${tn}</span>` : '<span style="color:#d6d2c9">—</span>'}</td>
         </tr>`; }).join('')}</tbody>
     </table></div>
   </div>`;
@@ -536,17 +578,17 @@ function recurringHtml(){
   const rows = Object.values(grp).filter(g => g.n >= 2).sort((a, c) => c.n - a.n || c.last - a.last).slice(0, 15);
   window._recRows = rows.map(g => [d.isGroup ? g.branch : '', g.tag]);
   return `<div class="card" style="margin-bottom:.85rem">
-    <div class="card-title">🔁 เรื่องที่เกิดซ้ำ${d.isGroup ? 'ที่สาขาเดิม' : ''} <span style="font-weight:400;color:#94a3b8;font-size:.75rem">— เรื่องเดียวกันเกิดตั้งแต่ 2 ครั้งขึ้นไปในช่วงที่เลือก · คลิกเพื่อดูเคส</span></div>
+    <div class="card-title">🔁 เรื่องที่เกิดซ้ำ${d.isGroup ? 'ที่สาขาเดิม' : ''} <span style="font-weight:400;color:#8a8f97;font-size:.75rem">— เรื่องเดียวกันเกิดตั้งแต่ 2 ครั้งขึ้นไปในช่วงที่เลือก · คลิกเพื่อดูเคส</span></div>
     ${rows.length ? `<div class="tbl-wrap"><table>
       <thead><tr>${d.isGroup ? '<th>สาขา</th>' : ''}<th>เรื่อง</th><th>กลุ่มงาน</th><th style="text-align:right">จำนวนครั้ง</th><th style="text-align:right">ค้าง</th><th>ล่าสุด</th></tr></thead>
       <tbody>${rows.map((g, i) => `<tr style="cursor:pointer" onclick="openRecurring(${i})">
         ${d.isGroup ? `<td style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.8rem" title="${esc(g.branch)}">${esc(shortBranch(g.branch))}</td>` : ''}
         <td style="font-size:.8rem">${esc(g.tag)}</td>
         <td><span style="background:${KIND[g.kind].bg};color:${KIND[g.kind].color};border:1px solid ${KIND[g.kind].bd};border-radius:4px;font-size:.68rem;padding:.02rem .35rem;white-space:nowrap">${KIND[g.kind].icon} ${KIND[g.kind].label}</span></td>
-        <td style="text-align:right;font-weight:700;color:${g.n >= 5 ? '#dc2626' : g.n >= 3 ? '#d97706' : '#334155'}">${g.n}</td>
-        <td style="text-align:right;color:${g.open ? '#dc2626' : '#cbd5e1'}">${g.open}</td>
+        <td style="text-align:right;font-weight:700;color:${g.n >= 5 ? '#b04a40' : g.n >= 3 ? '#9a6a12' : '#3a3f46'}">${g.n}</td>
+        <td style="text-align:right;color:${g.open ? '#b04a40' : '#d6d2c9'}">${g.open}</td>
         <td style="white-space:nowrap;font-size:.77rem">${g.lastRaw ? fmtDate(g.lastRaw) : '—'}</td>
-      </tr>`).join('')}</tbody></table></div>` : '<div style="color:#94a3b8;font-size:.82rem;padding:.4rem 0">ไม่มีเรื่องที่เกิดซ้ำในช่วงนี้ 👍</div>'}
+      </tr>`).join('')}</tbody></table></div>` : '<div style="color:#8a8f97;font-size:.82rem;padding:.4rem 0">ไม่มีเรื่องที่เกิดซ้ำในช่วงนี้ 👍</div>'}
   </div>`;
 }
 let _tagFilter = '';
@@ -582,17 +624,17 @@ function renderOverview(){
       <div class="top5-rank ${i===0?'r1':i===1?'r2':i===2?'r3':''}">${i+1}</div>
       <div class="top5-bar-wrap">
         <div class="top5-name" title="${esc(b.CompanyName)}">${esc(b.CompanyName)}</div>
-        <div class="top5-sub">${b.open_count>0?`<span style="color:#dc2626">${b.open_count} open</span> / `:''} ${b.total} close</div>
+        <div class="top5-sub">${b.open_count>0?`<span style="color:#b04a40">${b.open_count} open</span> / `:''} ${b.total} close</div>
         <div class="top5-bar-track"><div class="top5-bar-fill" style="width:${Math.round(b.total/maxT*100)}%"></div></div>
       </div>
       <div class="top5-cnt">${b.total}</div>
-    </div>`).join('') || '<div style="color:#94a3b8;font-size:.82rem;padding:.5rem 0">ไม่มีข้อมูล</div>';
+    </div>`).join('') || '<div style="color:#8a8f97;font-size:.82rem;padding:.5rem 0">ไม่มีข้อมูล</div>';
 
   document.getElementById('tab-content').innerHTML = `
     ${kindHeroHtml()}
     ${branchKindHtml()}
     ${recurringHtml()}
-    ${(tickets.some(x => x.kind)) ? `<div style="display:flex;align-items:center;gap:.6rem;margin:1.2rem 0 .7rem;color:#94a3b8;font-size:.78rem"><div style="flex:1;height:1px;background:#e2e8f0"></div>ข้อมูลเคสทั้งหมด<div style="flex:1;height:1px;background:#e2e8f0"></div></div>` : ''}
+    ${(tickets.some(x => x.kind)) ? `<div style="display:flex;align-items:center;gap:.6rem;margin:1.2rem 0 .7rem;color:#8a8f97;font-size:.78rem"><div style="flex:1;height:1px;background:#e6e3dc"></div>ข้อมูลเคสทั้งหมด<div style="flex:1;height:1px;background:#e6e3dc"></div></div>` : ''}
     ${caseStatsHtml(true)}
     ${isGrp ? `
     <div class="chart-grid">
@@ -618,13 +660,13 @@ function renderOverview(){
       ${!isGrp?`<div class="card">
         <div class="card-title">⏰ 5 เคสล่าสุด</div>
         ${tickets.slice(0,5).map(t=>`
-          <div style="padding:.3rem 0;border-bottom:1px solid #f1f5f9;font-size:.78rem">
+          <div style="padding:.3rem 0;border-bottom:1px solid #f0eee9;font-size:.78rem">
             <div style="display:flex;justify-content:space-between">
               <span style="font-weight:600">#${t.id}</span>
               <span class="badge ${badgeCls(t.status)}">${esc(t.status||'—')}</span>
             </div>
-            <div style="color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title||'—')}</div>
-            <div style="color:#94a3b8;font-size:.7rem">${fmtDate(t.opened_at)}</div>
+            <div style="color:#4d535b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title||'—')}</div>
+            <div style="color:#8a8f97;font-size:.7rem">${fmtDate(t.opened_at)}</div>
           </div>`).join('')||'<div class="empty">ไม่มีข้อมูล</div>'}
       </div>`:''}
     </div>
@@ -649,8 +691,8 @@ function renderOverview(){
     responsive:true, maintainAspectRatio:false,
     plugins:{ legend:{ display:type==='doughnut', position:'bottom', labels:{ font:{size:10}, boxWidth:10, padding:8 } } },
     scales: type==='doughnut' ? undefined : {
-      x:{ ticks:{font:{size:9},color:'#64748b'}, grid:{display:false} },
-      y:{ beginAtZero:true, ticks:{font:{size:9},color:'#64748b'}, grid:{color:'#f1f5f9'} }
+      x:{ ticks:{font:{size:9},color:'#5b616b'}, grid:{display:false} },
+      y:{ beginAtZero:true, ticks:{font:{size:9},color:'#5b616b'}, grid:{color:'#f0eee9'} }
     }
   });
 
@@ -663,12 +705,12 @@ function renderOverview(){
       type:'bar',
       data:{ labels:bs.map(b=>b.CompanyName.replace(/^(.*?)\s*\(.*\)$/,'$1').substring(0,20)),
         datasets:[
-          { label:'CLOSE', data:bs.map(b=>b.total-b.open_count), backgroundColor:'#4ade80', borderRadius:3 },
-          { label:'OPEN',  data:bs.map(b=>b.open_count), backgroundColor:'#f87171', borderRadius:3 }
+          { label:'CLOSE', data:bs.map(b=>b.total-b.open_count), backgroundColor:'#7fb79a', borderRadius:3 },
+          { label:'OPEN',  data:bs.map(b=>b.open_count), backgroundColor:'#d98b82', borderRadius:3 }
         ]},
       options:{ ...chartOpts(), plugins:{ legend:{ display:true,position:'top',labels:{font:{size:10},boxWidth:10} } },
-        scales:{ x:{ stacked:true, ticks:{font:{size:8},color:'#64748b',maxRotation:40}, grid:{display:false} },
-                 y:{ stacked:true, beginAtZero:true, ticks:{font:{size:9}}, grid:{color:'#f1f5f9'} } } }
+        scales:{ x:{ stacked:true, ticks:{font:{size:8},color:'#5b616b',maxRotation:40}, grid:{display:false} },
+                 y:{ stacked:true, beginAtZero:true, ticks:{font:{size:9}}, grid:{color:'#f0eee9'} } } }
     });
   }
 
@@ -678,8 +720,8 @@ function renderOverview(){
     _charts.trend = new Chart(document.getElementById('c-trend'), {
       type:'line',
       data:{ labels:td.map(r=>{ const d=parseD(r.day); return d?d.toLocaleDateString('th-TH',{day:'numeric',month:'short'}):r.day; }),
-        datasets:[{ label:'เคส', data:td.map(r=>r.cnt), borderColor:'#2563eb', backgroundColor:'rgba(37,99,235,.1)',
-          fill:true, tension:.4, pointRadius:3, pointBackgroundColor:'#2563eb' }]},
+        datasets:[{ label:'เคส', data:td.map(r=>r.cnt), borderColor:'#35685f', backgroundColor:'rgba(37,99,235,.1)',
+          fill:true, tension:.4, pointRadius:3, pointBackgroundColor:'#35685f' }]},
       options: chartOpts('line')
     });
   }
@@ -687,7 +729,7 @@ function renderOverview(){
   // Problem type donut
   if(document.getElementById('c-pt')){
     const pt = (d.problemTypes||[]).slice(0,6);
-    const colors = ['#38bdf8','#818cf8','#34d399','#fb923c','#f472b6','#a78bfa'];
+    const colors = ['#7fa89f','#818cf8','#34d399','#fb923c','#f472b6','#a78bfa'];
     _charts.pt = new Chart(document.getElementById('c-pt'), {
       type:'doughnut',
       data:{ labels:pt.map(p=>p.problem_type||'อื่นๆ'),
@@ -715,9 +757,9 @@ function renderOverview(){
 
   // Color bars: red for peak, amber for near-peak, blue for normal
   const hourColors = hourCounts.map(c => {
-    if(c >= maxHour * .75) return '#ef4444';
-    if(c >= maxHour * .45) return '#f59e0b';
-    return '#93c5fd';
+    if(c >= maxHour * .75) return '#c0584c';
+    if(c >= maxHour * .45) return '#c29a3c';
+    return '#9fbdb6';
   });
 
   if(document.getElementById('c-peak-hour')){
@@ -732,10 +774,10 @@ function renderOverview(){
         plugins:{ legend:{ display:false },
           tooltip:{ callbacks:{ label: ctx => ` ${ctx.parsed.y} case` } } },
         scales:{
-          x:{ ticks:{ font:{size:8}, color:'#64748b', maxRotation:0,
+          x:{ ticks:{ font:{size:8}, color:'#5b616b', maxRotation:0,
                 callback:(_, i) => (i%3===0 ? `${String(i).padStart(2,'0')}:00` : '') },
               grid:{display:false} },
-          y:{ beginAtZero:true, ticks:{font:{size:9},color:'#64748b',stepSize:1}, grid:{color:'#f1f5f9'} }
+          y:{ beginAtZero:true, ticks:{font:{size:9},color:'#5b616b',stepSize:1}, grid:{color:'#f0eee9'} }
         }
       }
     });
@@ -751,14 +793,14 @@ function renderOverview(){
       const cnt  = dayCounts[i];
       const pct  = Math.round(cnt / maxDay * 100);
       const isPeak = cnt === maxDay && cnt > 0;
-      const barCol = isPeak ? '#ef4444' : pct >= 60 ? '#f59e0b' : '#93c5fd';
+      const barCol = isPeak ? '#c0584c' : pct >= 60 ? '#c29a3c' : '#9fbdb6';
       return `<div style="display:flex;align-items:center;gap:.5rem">
-        <span style="font-size:.8rem;width:56px;flex-shrink:0;font-weight:${isPeak?'700':'400'};color:${isPeak?'#dc2626':'#475569'}">${dayEmoji[i]} ${name}</span>
-        <div style="flex:1;height:16px;background:#f1f5f9;border-radius:4px;overflow:hidden">
+        <span style="font-size:.8rem;width:56px;flex-shrink:0;font-weight:${isPeak?'700':'400'};color:${isPeak?'#b04a40':'#4d535b'}">${dayEmoji[i]} ${name}</span>
+        <div style="flex:1;height:16px;background:#f0eee9;border-radius:4px;overflow:hidden">
           <div style="width:${pct}%;height:100%;background:${barCol};border-radius:4px;transition:width .4s"></div>
         </div>
         <span style="font-size:.8rem;font-weight:700;color:${barCol};min-width:28px;text-align:right">${cnt}</span>
-        ${isPeak?'<span style="font-size:.68rem;background:#fee2e2;color:#b91c1c;padding:.1rem .35rem;border-radius:20px;font-weight:700">🔥 Peak</span>':''}
+        ${isPeak?'<span style="font-size:.68rem;background:#f7ebe8;color:#a3463c;padding:.1rem .35rem;border-radius:20px;font-weight:700">🔥 Peak</span>':''}
       </div>`;
     }).join('');
   }
@@ -799,7 +841,7 @@ function renderList(){
         <option value="25">25/หน้า</option><option value="50">50/หน้า</option><option value="100">100/หน้า</option>
       </select>
       <button onclick="exportListExcel()" id="btn-export-excel"
-        style="border:1px solid #16a34a;background:#f0fdf4;color:#16a34a;border-radius:8px;padding:.32rem .8rem;font-size:.8rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.3rem;white-space:nowrap;font-family:inherit;flex-shrink:0">
+        style="border:1px solid #2f7a52;background:#f2f7f3;color:#2f7a52;border-radius:8px;padding:.32rem .8rem;font-size:.8rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.3rem;white-space:nowrap;font-family:inherit;flex-shrink:0">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Export Excel
       </button>
@@ -811,8 +853,8 @@ function renderList(){
         `<button class="s-tab${_kindTab===k?' active':''}" onclick="setKindTab('${k}',this)">${l} <span class="s-tab-cnt" id="kcnt-${k}">0</span></button>`).join('')}
     </div>` : ''}
 
-    ${_tagFilter ? `<div style="margin:0 0 .45rem;font-size:.8rem">กรองเรื่อง: <span style="background:#fef3c7;color:#92400e;border-radius:6px;padding:.1rem .5rem">🔁 ${esc(_tagFilter)}</span>
-      <a href="#" onclick="event.preventDefault();_tagFilter='';renderList()" style="margin-left:.4rem;color:#2563eb">ล้าง</a></div>` : ''}
+    ${_tagFilter ? `<div style="margin:0 0 .45rem;font-size:.8rem">กรองเรื่อง: <span style="background:#f6f0e2;color:#86671f;border-radius:6px;padding:.1rem .5rem">🔁 ${esc(_tagFilter)}</span>
+      <a href="#" onclick="event.preventDefault();_tagFilter='';renderList()" style="margin-left:.4rem;color:#35685f">ล้าง</a></div>` : ''}
 
     <!-- Status tabs -->
     <div class="status-tabs" id="s-tabs">
@@ -979,10 +1021,10 @@ function renderListTable(){
   if(!page.length){ tbody.innerHTML=`<tr><td colspan="${isGrp?7:6}" class="empty">ไม่พบเคส</td></tr>`; }
   else tbody.innerHTML = page.map((t,i)=>`
     <tr>
-      <td style="color:#94a3b8">${start+i+1}</td>
+      <td style="color:#8a8f97">${start+i+1}</td>
       ${isGrp?`<td style="max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.77rem" title="${esc(t.CompanyName)}">${esc(t.CompanyName||'—')}</td>`:''}
       <td>
-        ${kindChip(t)}${t.problem_type?`<span style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;font-size:.68rem;padding:.02rem .35rem;margin-right:.3rem">${esc(t.problem_type)}</span>`:''}
+        ${kindChip(t)}${t.problem_type?`<span style="background:#f2f7f3;color:#356b4e;border:1px solid #cfe3d6;border-radius:4px;font-size:.68rem;padding:.02rem .35rem;margin-right:.3rem">${esc(t.problem_type)}</span>`:''}
         <span style="font-size:.8rem">${esc(t.title||'—')}</span>
       </td>
       <td style="white-space:nowrap;font-size:.77rem">${fmtDate(t.opened_at)}</td>
@@ -992,14 +1034,14 @@ function renderListTable(){
     </tr>
     ${t.description||t.Solution||t.attachments?.length?`<tr style="background:#fafafa">
       <td colspan="${isGrp?7:6}" style="padding:.35rem .65rem .55rem 1.5rem">
-        ${t.description?`<div style="font-size:.77rem;color:#475569;margin-bottom:.2rem"><b>ปัญหา:</b> ${esc(t.description)}</div>`:''}
-        ${t.Solution?`<div style="font-size:.77rem;color:#15803d"><b>แก้ไข:</b> ${esc(t.Solution)}</div>`:''}
+        ${t.description?`<div style="font-size:.77rem;color:#4d535b;margin-bottom:.2rem"><b>ปัญหา:</b> ${esc(t.description)}</div>`:''}
+        ${t.Solution?`<div style="font-size:.77rem;color:#356b4e"><b>แก้ไข:</b> ${esc(t.Solution)}</div>`:''}
         ${t.attachments?.length?`<div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.35rem">
           ${t.attachments.map(a=>(a.mime_type||'').startsWith('image/')?`
             <a href="${a.url}" target="_blank" title="${esc(a.original_name)}">
-              <img src="${a.url}" style="width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0"/>
+              <img src="${a.url}" style="width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid #e6e3dc"/>
             </a>` : `
-            <a href="${a.url}" target="_blank" style="display:inline-flex;align-items:center;gap:.3rem;background:#f1f5f9;border-radius:6px;padding:.25rem .55rem;font-size:.73rem;color:#2563eb;text-decoration:none">
+            <a href="${a.url}" target="_blank" style="display:inline-flex;align-items:center;gap:.3rem;background:#f0eee9;border-radius:6px;padding:.25rem .55rem;font-size:.73rem;color:#35685f;text-decoration:none">
               📄 ${esc(a.original_name)}
             </a>`).join('')}
         </div>`:''}
@@ -1015,10 +1057,10 @@ function renderListTable(){
   const pages=[];
   if(totalPages<=7){for(let i=1;i<=totalPages;i++)pages.push(i);}
   else{pages.push(1);if(_page>4)pages.push('…');for(let i=Math.max(2,_page-2);i<=Math.min(totalPages-1,_page+2);i++)pages.push(i);if(_page<totalPages-3)pages.push('…');pages.push(totalPages);}
-  pages.forEach(p=>{ html+=p==='…'?`<span style="padding:0 .2rem;color:#94a3b8">…</span>`:
+  pages.forEach(p=>{ html+=p==='…'?`<span style="padding:0 .2rem;color:#8a8f97">…</span>`:
     `<button class="${p===_page?'active':''}" onclick="goPage(${p})">${p}</button>`; });
   html+=`<button ${_page===totalPages?'disabled':''} onclick="goPage(${_page+1})">›</button>`;
-  html+=`<span style="font-size:.75rem;color:#64748b;margin-left:.3rem">หน้า ${_page}/${totalPages} · ${total} รายการ</span>`;
+  html+=`<span style="font-size:.75rem;color:#5b616b;margin-left:.3rem">หน้า ${_page}/${totalPages} · ${total} รายการ</span>`;
   pagi.innerHTML=html;
 }
 function goPage(p){ _page=p; renderListTable(); document.getElementById('tab-content').scrollIntoView({behavior:'smooth',block:'start'}); }
@@ -1083,26 +1125,26 @@ const REPAIR_STATUS = {
   closed:                   'ปิดงาน',
 };
 const REPAIR_COLOR = {
-  received:         '#dbeafe|#1d4ed8',
+  received:         '#e7efec|#2a544d',
   spared:           '#e0f2fe|#0369a1',
-  assessing:        '#fef3c7|#92400e',
+  assessing:        '#f6f0e2|#86671f',
   quoted:           '#ede9fe|#6d28d9',
   waiting_approval: '#fef9c3|#854d0e',
   repairing:        '#fff7ed|#c2410c',
-  waiting_return:   '#dcfce7|#15803d',
-  returned:         '#bbf7d0|#15803d',
-  cancelled:        '#fee2e2|#b91c1c',
+  waiting_return:   '#e7f0ea|#356b4e',
+  returned:         '#cfe3d6|#356b4e',
+  cancelled:        '#f7ebe8|#a3463c',
   // legacy
-  device_received:          '#dcfce7|#166534',
+  device_received:          '#e7f0ea|#166534',
   sent_supplier:            '#e0f2fe|#0369a1',
-  returned_from_supplier:   '#d1fae5|#15803d',
-  returned_to_customer:     '#bbf7d0|#15803d',
-  closed:                   '#f0fdf4|#166534',
+  returned_from_supplier:   '#d1fae5|#356b4e',
+  returned_to_customer:     '#cfe3d6|#356b4e',
+  closed:                   '#f2f7f3|#166534',
 };
 const DONE_ST = ['returned','cancelled','closed','returned_to_customer'];
 
 function repairBadge(st){
-  const [bg,col]=(REPAIR_COLOR[st]||'#f1f5f9|#475569').split('|');
+  const [bg,col]=(REPAIR_COLOR[st]||'#f0eee9|#4d535b').split('|');
   return `<span style="background:${bg};color:${col};padding:.15rem .5rem;border-radius:20px;font-size:.7rem;font-weight:700;white-space:nowrap">${REPAIR_STATUS[st]||st}</span>`;
 }
 
@@ -1125,19 +1167,19 @@ async function renderRepair(){
     wrap.innerHTML = `
       <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:.85rem">
         <div class="stat-card" style="flex:1;min-width:120px;padding:.7rem .9rem">
-          <div class="label">🔧 ทั้งหมด</div><div class="value" style="color:#2563eb;font-size:1.5rem">${total}</div>
+          <div class="label">🔧 ทั้งหมด</div><div class="value" style="color:#35685f;font-size:1.5rem">${total}</div>
         </div>
         <div class="stat-card" style="flex:1;min-width:120px;padding:.7rem .9rem">
           <div class="label">🔄 กำลังดำเนินการ</div><div class="value" style="color:#b45309;font-size:1.5rem">${active}</div>
         </div>
         <div class="stat-card" style="flex:1;min-width:120px;padding:.7rem .9rem">
-          <div class="label">✅ เสร็จแล้ว</div><div class="value" style="color:#16a34a;font-size:1.5rem">${done}</div>
+          <div class="label">✅ เสร็จแล้ว</div><div class="value" style="color:#2f7a52;font-size:1.5rem">${done}</div>
         </div>
       </div>
       <div style="margin-bottom:.75rem">
         <input id="rp-q" type="text" placeholder="🔍 ค้นหา Job No / ร้าน / ประเภทอุปกรณ์ / S/N..." oninput="rpSearch()"
-          style="width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:.52rem .85rem;font-size:.88rem;outline:none"
-          onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'"/>
+          style="width:100%;border:1px solid #e6e3dc;border-radius:8px;padding:.52rem .85rem;font-size:.88rem;outline:none"
+          onfocus="this.style.borderColor='#4d7f75'" onblur="this.style.borderColor='#e6e3dc'"/>
       </div>
       <div id="rp-jobs-list">${repairJobsHtml(jobs)}</div>`;
   } catch(e){
@@ -1151,31 +1193,31 @@ function repairJobsHtml(jobs){
     <div class="card" style="margin-bottom:.6rem;padding:0;overflow:hidden">
       <div onclick="toggleRepairDetail('rd-${j.id}')" style="padding:.85rem 1rem;cursor:pointer;display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem;flex-wrap:wrap">
         <div style="flex:1;min-width:0">
-          <div style="font-size:.88rem;font-weight:700;color:#2563eb">${esc(j.job_no)}</div>
-          <div style="font-size:.78rem;color:#475569;margin-top:.15rem">
+          <div style="font-size:.88rem;font-weight:700;color:#35685f">${esc(j.job_no)}</div>
+          <div style="font-size:.78rem;color:#4d535b;margin-top:.15rem">
             ${j.device_type?`📦 ${esc(j.device_type)}`:''}
             ${j.device_model?` · ${esc(j.device_model)}`:''}
             ${j.serial_no?` · <span style="font-family:monospace">S/N: ${esc(j.serial_no)}</span>`:''}
           </div>
-          ${_data?.isGroup?`<div style="font-size:.73rem;color:#64748b;margin-top:.1rem">🏢 ${esc(j.company_name||'')}</div>`:''}
-          ${j.symptom?`<div style="font-size:.75rem;color:#64748b;margin-top:.2rem">🔍 <b>อาการ:</b> ${esc(j.symptom)}</div>`:''}
+          ${_data?.isGroup?`<div style="font-size:.73rem;color:#5b616b;margin-top:.1rem">🏢 ${esc(j.company_name||'')}</div>`:''}
+          ${j.symptom?`<div style="font-size:.75rem;color:#5b616b;margin-top:.2rem">🔍 <b>อาการ:</b> ${esc(j.symptom)}</div>`:''}
           ${j.remark?`<div style="font-size:.75rem;color:#b45309;margin-top:.1rem;background:#fffbeb;border-radius:5px;padding:.1rem .4rem;display:inline-block">📝 ${esc(j.remark)}</div>`:''}
         </div>
         <div style="text-align:right">
           ${repairBadge(j.status)}
-          <div style="font-size:.7rem;color:#94a3b8;margin-top:.2rem">${fmtDate(j.reported_at)}</div>
+          <div style="font-size:.7rem;color:#8a8f97;margin-top:.2rem">${fmtDate(j.reported_at)}</div>
         </div>
       </div>
-      <div id="rd-${j.id}" onclick="event.stopPropagation()" style="display:none;border-top:1px solid #f1f5f9;padding:.75rem 1rem .9rem">
+      <div id="rd-${j.id}" onclick="event.stopPropagation()" style="display:none;border-top:1px solid #f0eee9;padding:.75rem 1rem .9rem">
         ${renderRepairTimeline(j)}
         ${j.public_token && !DONE_ST.includes(j.status) ? `
-        <div style="margin-top:.65rem;background:#f8fafc;border-radius:8px;padding:.65rem .8rem">
-          <div style="font-size:.75rem;font-weight:700;color:#64748b;margin-bottom:.4rem">📩 ส่งข้อความถึงทีม CS</div>
+        <div style="margin-top:.65rem;background:#faf9f6;border-radius:8px;padding:.65rem .8rem">
+          <div style="font-size:.75rem;font-weight:700;color:#5b616b;margin-bottom:.4rem">📩 ส่งข้อความถึงทีม CS</div>
           <input class="msg-name" id="rn-${j.id}" placeholder="ชื่อของคุณ (ไม่บังคับ)" style="margin-bottom:.3rem"/>
           <textarea class="msg-input" id="rm-${j.id}" rows="2" placeholder="พิมพ์ข้อความ..." style="min-height:55px;margin-bottom:.35rem"></textarea>
           <button class="send-btn" onclick="sendRepairMsg('${j.public_token}',${j.id})">📤 ส่ง</button>
         </div>` : j.public_token && DONE_ST.includes(j.status) ? `
-        <div style="text-align:center;color:${j.status==='cancelled'?'#b91c1c':'#16a34a'};font-size:.82rem;font-weight:600;margin-top:.5rem;background:${j.status==='cancelled'?'#fef2f2':'#f0fdf4'};border-radius:8px;padding:.5rem">
+        <div style="text-align:center;color:${j.status==='cancelled'?'#a3463c':'#2f7a52'};font-size:.82rem;font-weight:600;margin-top:.5rem;background:${j.status==='cancelled'?'#fbf3f1':'#f2f7f3'};border-radius:8px;padding:.5rem">
           ${j.status==='cancelled'?'❌ งานนี้ถูกยกเลิก':'✅ งานนี้เสร็จสิ้นแล้ว — ขอบคุณที่ใช้บริการครับ'}
         </div>` : ''}
       </div>
@@ -1222,16 +1264,16 @@ function renderRepairTimeline(j){
   return `<div style="display:flex;gap:0;overflow-x:auto;padding:.35rem 0 .1rem">${steps.map((s,i)=>{
     const done=curIdx>=0&&i<=curIdx;
     const active=s.key===j.status;
-    const col=done?'#16a34a':active?'#2563eb':'#e2e8f0';
-    const txtCol=done?'#15803d':active?'#2563eb':'#94a3b8';
-    const lineL=done&&i>0?'#16a34a':'#e2e8f0';
-    const lineR=curIdx>i?'#16a34a':'#e2e8f0';
+    const col=done?'#2f7a52':active?'#35685f':'#e6e3dc';
+    const txtCol=done?'#356b4e':active?'#35685f':'#8a8f97';
+    const lineL=done&&i>0?'#2f7a52':'#e6e3dc';
+    const lineR=curIdx>i?'#2f7a52':'#e6e3dc';
     return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:52px;position:relative">
       ${i>0?`<div style="position:absolute;left:0;top:12px;width:50%;height:2px;background:${lineL}"></div>`:''}
       ${i<steps.length-1?`<div style="position:absolute;right:0;top:12px;width:50%;height:2px;background:${lineR}"></div>`:''}
-      <div style="width:26px;height:26px;border-radius:50%;background:${col};color:${col==='#e2e8f0'?'#94a3b8':'#fff'};border:2px solid ${col==='#e2e8f0'?'#d1d5db':col};display:flex;align-items:center;justify-content:center;font-size:.7rem;z-index:1;position:relative;font-weight:700">${done?'✓':active?'●':'○'}</div>
+      <div style="width:26px;height:26px;border-radius:50%;background:${col};color:${col==='#e6e3dc'?'#8a8f97':'#fff'};border:2px solid ${col==='#e6e3dc'?'#d1d5db':col};display:flex;align-items:center;justify-content:center;font-size:.7rem;z-index:1;position:relative;font-weight:700">${done?'✓':active?'●':'○'}</div>
       <div style="font-size:.62rem;text-align:center;margin-top:.25rem;color:${txtCol};font-weight:${active?'700':'400'};line-height:1.3;padding:0 .1rem">${s.label}</div>
-      ${(s.date&&done)?`<div style="font-size:.58rem;color:#94a3b8;margin-top:.1rem">${fmtD(s.date)}</div>`:''}
+      ${(s.date&&done)?`<div style="font-size:.58rem;color:#8a8f97;margin-top:.1rem">${fmtD(s.date)}</div>`:''}
     </div>`;
   }).join('')}</div>`;
 }
@@ -1275,16 +1317,16 @@ async function renderRequirements(){
 
     wrap.innerHTML = `
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem;margin-bottom:.85rem">
-        <div class="stat-card"><div class="icon" style="background:#eff6ff">📋</div><div><div class="label">ทั้งหมด</div><div class="value" style="color:#2563eb">${reqs.length}</div></div></div>
+        <div class="stat-card"><div class="icon" style="background:#f2f6f4">📋</div><div><div class="label">ทั้งหมด</div><div class="value" style="color:#35685f">${reqs.length}</div></div></div>
         <div class="stat-card"><div class="icon" style="background:#fef9c3">⚙️</div><div><div class="label">กำลังดำเนินการ</div><div class="value" style="color:#854d0e">${inProg}</div></div></div>
-        <div class="stat-card"><div class="icon" style="background:#dcfce7">✅</div><div><div class="label">เสร็จสิ้น</div><div class="value" style="color:#16a34a">${done}</div></div></div>
-        <div class="stat-card"><div class="icon" style="background:#fee2e2">⚠️</div><div><div class="label">เกินกำหนด</div><div class="value" style="color:#dc2626">${overdue}</div></div></div>
+        <div class="stat-card"><div class="icon" style="background:#e7f0ea">✅</div><div><div class="label">เสร็จสิ้น</div><div class="value" style="color:#2f7a52">${done}</div></div></div>
+        <div class="stat-card"><div class="icon" style="background:#f7ebe8">⚠️</div><div><div class="label">เกินกำหนด</div><div class="value" style="color:#b04a40">${overdue}</div></div></div>
       </div>
 
       <div style="margin-bottom:.75rem">
         <input id="rq-q" type="text" placeholder="🔍 ค้นหาหัวข้อ / Req No / SO..." oninput="rqSearch()"
-          style="width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:.52rem .85rem;font-size:.88rem;outline:none"
-          onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'"/>
+          style="width:100%;border:1px solid #e6e3dc;border-radius:8px;padding:.52rem .85rem;font-size:.88rem;outline:none"
+          onfocus="this.style.borderColor='#4d7f75'" onblur="this.style.borderColor='#e6e3dc'"/>
       </div>
       <div id="rq-items-list">${reqItemsHtml(reqs)}</div>`;
   } catch(e){
@@ -1300,34 +1342,34 @@ function reqItemsHtml(reqs){
           const dueDate = r.contract_end ? new Date(String(r.contract_end).replace('Z','')) : null;
           const isOvd = dueDate && !closed && dueDate < today;
           const links = [
-            r.estimate_time ? `<a href="${esc(r.estimate_time)}" target="_blank" style="display:inline-flex;align-items:center;gap:.25rem;font-size:.77rem;color:#2563eb;text-decoration:none;background:#eff6ff;padding:.2rem .55rem;border-radius:6px">🔗 Estimate</a>` : '',
-            r.spec_doc      ? `<a href="${esc(r.spec_doc)}" target="_blank" style="display:inline-flex;align-items:center;gap:.25rem;font-size:.77rem;color:#2563eb;text-decoration:none;background:#eff6ff;padding:.2rem .55rem;border-radius:6px">🔗 Spec</a>` : '',
-            r.azure_id      ? `<a href="${esc(r.azure_id)}" target="_blank" style="display:inline-flex;align-items:center;gap:.25rem;font-size:.77rem;color:#2563eb;text-decoration:none;background:#eff6ff;padding:.2rem .55rem;border-radius:6px">🔗 Azure</a>` : '',
-            r.user_manual   ? `<a href="${esc(r.user_manual)}" target="_blank" style="display:inline-flex;align-items:center;gap:.25rem;font-size:.77rem;color:#2563eb;text-decoration:none;background:#eff6ff;padding:.2rem .55rem;border-radius:6px">🔗 คู่มือ</a>` : '',
-            r.delivery_doc  ? `<a href="${esc(r.delivery_doc)}" target="_blank" style="display:inline-flex;align-items:center;gap:.25rem;font-size:.77rem;color:#2563eb;text-decoration:none;background:#eff6ff;padding:.2rem .55rem;border-radius:6px">🔗 เอกสารส่งมอบ</a>` : '',
+            r.estimate_time ? `<a href="${esc(r.estimate_time)}" target="_blank" style="display:inline-flex;align-items:center;gap:.25rem;font-size:.77rem;color:#35685f;text-decoration:none;background:#f2f6f4;padding:.2rem .55rem;border-radius:6px">🔗 Estimate</a>` : '',
+            r.spec_doc      ? `<a href="${esc(r.spec_doc)}" target="_blank" style="display:inline-flex;align-items:center;gap:.25rem;font-size:.77rem;color:#35685f;text-decoration:none;background:#f2f6f4;padding:.2rem .55rem;border-radius:6px">🔗 Spec</a>` : '',
+            r.azure_id      ? `<a href="${esc(r.azure_id)}" target="_blank" style="display:inline-flex;align-items:center;gap:.25rem;font-size:.77rem;color:#35685f;text-decoration:none;background:#f2f6f4;padding:.2rem .55rem;border-radius:6px">🔗 Azure</a>` : '',
+            r.user_manual   ? `<a href="${esc(r.user_manual)}" target="_blank" style="display:inline-flex;align-items:center;gap:.25rem;font-size:.77rem;color:#35685f;text-decoration:none;background:#f2f6f4;padding:.2rem .55rem;border-radius:6px">🔗 คู่มือ</a>` : '',
+            r.delivery_doc  ? `<a href="${esc(r.delivery_doc)}" target="_blank" style="display:inline-flex;align-items:center;gap:.25rem;font-size:.77rem;color:#35685f;text-decoration:none;background:#f2f6f4;padding:.2rem .55rem;border-radius:6px">🔗 เอกสารส่งมอบ</a>` : '',
           ].filter(Boolean);
           return `<div class="card" style="margin-bottom:.6rem;padding:0;overflow:hidden">
             <div onclick="toggleReqDetail('rq-${i}',${i})" style="padding:.85rem 1rem;cursor:pointer;display:flex;align-items:flex-start;gap:.75rem">
-              <div style="font-size:.75rem;font-weight:800;color:#64748b;padding-top:.1rem;flex-shrink:0;min-width:70px">${esc(r.req_no||'')}</div>
+              <div style="font-size:.75rem;font-weight:800;color:#5b616b;padding-top:.1rem;flex-shrink:0;min-width:70px">${esc(r.req_no||'')}</div>
               <div style="flex:1;min-width:0">
-                <div style="font-size:.88rem;font-weight:700;color:#1e293b">${esc(r.title||'')}</div>
+                <div style="font-size:.88rem;font-weight:700;color:#24272c">${esc(r.title||'')}</div>
                 <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.35rem">
                   ${reqPriBadge(r.priority)}
                   ${reqStatusBadge(r.work_status)}
-                  ${r.work_type?`<span style="background:#f1f5f9;color:#475569;padding:.15rem .5rem;border-radius:20px;font-size:.7rem;font-weight:700">${esc(r.work_type)}</span>`:''}
-                  ${isOvd?`<span style="background:#fee2e2;color:#b91c1c;padding:.15rem .5rem;border-radius:20px;font-size:.7rem;font-weight:700">⚠️ เกินกำหนด</span>`:''}
+                  ${r.work_type?`<span style="background:#f0eee9;color:#4d535b;padding:.15rem .5rem;border-radius:20px;font-size:.7rem;font-weight:700">${esc(r.work_type)}</span>`:''}
+                  ${isOvd?`<span style="background:#f7ebe8;color:#a3463c;padding:.15rem .5rem;border-radius:20px;font-size:.7rem;font-weight:700">⚠️ เกินกำหนด</span>`:''}
                 </div>
               </div>
-              <span style="font-size:.72rem;color:#94a3b8;flex-shrink:0;padding-top:.15rem" id="rq-arr-${i}">▼</span>
+              <span style="font-size:.72rem;color:#8a8f97;flex-shrink:0;padding-top:.15rem" id="rq-arr-${i}">▼</span>
             </div>
-            <div id="rq-${i}" onclick="event.stopPropagation()" style="display:none;border-top:1px solid #f1f5f9;padding:.75rem 1rem .9rem">
-              <div style="font-size:.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.2rem">ความคืบหน้า</div>
+            <div id="rq-${i}" onclick="event.stopPropagation()" style="display:none;border-top:1px solid #f0eee9;padding:.75rem 1rem .9rem">
+              <div style="font-size:.72rem;font-weight:700;color:#5b616b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.2rem">ความคืบหน้า</div>
               ${reqProgressBar(reqAutoProgress(r.work_status))}
-              ${r.description?`<div style="font-size:.72rem;font-weight:700;color:#64748b;margin-top:.5rem;margin-bottom:.25rem;text-transform:uppercase;letter-spacing:.04em">รายละเอียด</div>
-              <div style="font-size:.82rem;color:#1e293b;white-space:pre-wrap;word-break:break-word">${esc(r.description)}</div>`:''}
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:.35rem;font-size:.78rem;color:#64748b;margin-top:.6rem">
+              ${r.description?`<div style="font-size:.72rem;font-weight:700;color:#5b616b;margin-top:.5rem;margin-bottom:.25rem;text-transform:uppercase;letter-spacing:.04em">รายละเอียด</div>
+              <div style="font-size:.82rem;color:#24272c;white-space:pre-wrap;word-break:break-word">${esc(r.description)}</div>`:''}
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:.35rem;font-size:.78rem;color:#5b616b;margin-top:.6rem">
                 ${r.reported_date?`<div>📅 วันที่แจ้ง: ${fmtD(r.reported_date)}</div>`:''}
-                ${r.contract_end?`<div${isOvd?' style="color:#b91c1c;font-weight:600"':''}>🗓 กำหนด: ${fmtD(r.contract_end)}${isOvd?' ⚠️':''}</div>`:''}
+                ${r.contract_end?`<div${isOvd?' style="color:#a3463c;font-weight:600"':''}>🗓 กำหนด: ${fmtD(r.contract_end)}${isOvd?' ⚠️':''}</div>`:''}
                 ${r.so_no?`<div>📄 SO: ${esc(r.so_no)}</div>`:''}
                 ${r.sales_person?`<div>👤 ฝ่ายขาย: ${esc(r.sales_person)}</div>`:''}
                 ${r.update_version?`<div>🏷 เวอร์ชั่น: ${esc(r.update_version)}</div>`:''}
@@ -1363,20 +1405,20 @@ function toggleReqDetail(id, idx){
 // ── Issues Tab ────────────────────────────────────────────
 const FU_STATUS_MAP = {
   pending:     { label:'รอดำเนินการ',   bg:'#fef9c3', col:'#854d0e' },
-  in_progress: { label:'กำลังตรวจสอบ', bg:'#dbeafe', col:'#1d4ed8' },
+  in_progress: { label:'กำลังตรวจสอบ', bg:'#e7efec', col:'#2a544d' },
   waiting:     { label:'รอข้อมูล',      bg:'#fff7ed', col:'#c2410c' },
-  resolved:    { label:'แก้ไขแล้ว',     bg:'#dcfce7', col:'#15803d' },
-  cancelled:   { label:'ยกเลิก',        bg:'#f1f5f9', col:'#64748b' },
+  resolved:    { label:'แก้ไขแล้ว',     bg:'#e7f0ea', col:'#356b4e' },
+  cancelled:   { label:'ยกเลิก',        bg:'#f0eee9', col:'#5b616b' },
 };
 const FU_PRI_MAP = {
-  urgent: { label:'🔴 เร่งด่วน', col:'#ef4444' },
+  urgent: { label:'🔴 เร่งด่วน', col:'#c0584c' },
   high:   { label:'🟠 สูง',      col:'#f97316' },
-  normal: { label:'🟡 ปกติ',     col:'#f59e0b' },
-  low:    { label:'🔵 ต่ำ',      col:'#3b82f6' },
+  normal: { label:'🟡 ปกติ',     col:'#c29a3c' },
+  low:    { label:'🔵 ต่ำ',      col:'#4d7f75' },
 };
 
 function fuStatusBadge(s){
-  const m = FU_STATUS_MAP[s] || { label:s||'—', bg:'#f1f5f9', col:'#475569' };
+  const m = FU_STATUS_MAP[s] || { label:s||'—', bg:'#f0eee9', col:'#4d535b' };
   return `<span style="background:${m.bg};color:${m.col};padding:.15rem .5rem;border-radius:20px;font-size:.7rem;font-weight:700;white-space:nowrap">${esc(m.label)}</span>`;
 }
 function fuPriBadge(p){
@@ -1416,7 +1458,7 @@ function renderIssueTable(){
 
   if(!filtered.length){
     el.innerHTML=`<div class="empty">ไม่พบงานติดตาม Issue
-      <br><button onclick="openAddIssue()" style="margin-top:.75rem;background:#2563eb;color:#fff;border:none;border-radius:8px;padding:.42rem 1rem;font-size:.8rem;font-weight:700;cursor:pointer">➕ เพิ่ม Issue แรก</button>
+      <br><button onclick="openAddIssue()" style="margin-top:.75rem;background:#35685f;color:#fff;border:none;border-radius:8px;padding:.42rem 1rem;font-size:.8rem;font-weight:700;cursor:pointer">➕ เพิ่ม Issue แรก</button>
     </div>`;
     return;
   }
@@ -1445,32 +1487,32 @@ function renderIssueTable(){
   groupOrder.forEach(key => {
     const items = groups[key];
     tbody += `<tr class="iss-board-head">
-      <td colspan="12">📋 ${esc(key)} <span style="background:#e2e8f0;color:#64748b;border-radius:20px;padding:.02rem .45rem;font-size:.68rem;font-weight:700;margin-left:.3rem">${items.length}</span></td>
+      <td colspan="12">📋 ${esc(key)} <span style="background:#e6e3dc;color:#5b616b;border-radius:20px;padding:.02rem .45rem;font-size:.68rem;font-weight:700;margin-left:.3rem">${items.length}</span></td>
     </tr>`;
     items.forEach(s => {
-      const st  = FU_STATUS_MAP[s.status] || {label:s.status,bg:'#f1f5f9',col:'#475569'};
+      const st  = FU_STATUS_MAP[s.status] || {label:s.status,bg:'#f0eee9',col:'#4d535b'};
       const pri = FU_PRI_MAP[s.priority]  || FU_PRI_MAP.normal;
       tbody += `<tr data-iid="${s.id}" onclick="toggleIssueDetail(${s.id})" style="cursor:pointer">
-        <td style="color:#94a3b8;font-size:.72rem">${s.id}</td>
+        <td style="color:#8a8f97;font-size:.72rem">${s.id}</td>
         <td>
-          <div style="font-weight:600;color:#1e293b;line-height:1.4">${esc(s.detail||'—')}</div>
-          ${s.note?`<div style="font-size:.68rem;color:#94a3b8;margin-top:.08rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px">${esc(s.note)}</div>`:''}
+          <div style="font-weight:600;color:#24272c;line-height:1.4">${esc(s.detail||'—')}</div>
+          ${s.note?`<div style="font-size:.68rem;color:#8a8f97;margin-top:.08rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px">${esc(s.note)}</div>`:''}
         </td>
-        <td>${s.category?`<span style="background:#f0f9ff;color:#0369a1;border-radius:5px;padding:.1rem .4rem;font-size:.72rem;white-space:nowrap">${esc(s.category)}</span>`:'<span style="color:#cbd5e1">—</span>'}</td>
+        <td>${s.category?`<span style="background:#f0f9ff;color:#0369a1;border-radius:5px;padding:.1rem .4rem;font-size:.72rem;white-space:nowrap">${esc(s.category)}</span>`:'<span style="color:#d6d2c9">—</span>'}</td>
         <td><span style="color:${pri.col};font-size:.75rem;font-weight:600">${pri.label}</span></td>
         <td><span style="background:${st.bg};color:${st.col};border-radius:20px;padding:.15rem .55rem;font-size:.7rem;font-weight:700;white-space:nowrap">${esc(st.label)}</span>${
-          resolvedStamp(s) ? `<div style="font-size:.66rem;color:#15803d;font-weight:600;margin-top:.15rem;white-space:nowrap">${resolvedStamp(s)}</div>` : ''}</td>
+          resolvedStamp(s) ? `<div style="font-size:.66rem;color:#356b4e;font-weight:600;margin-top:.15rem;white-space:nowrap">${resolvedStamp(s)}</div>` : ''}</td>
         ${releasePlanCells(s)}
-        <td>${s.assigned_to_name?`<span style="font-size:.75rem">👤 ${esc(s.assigned_to_name)}</span>`:'<span style="color:#cbd5e1;font-size:.72rem">—</span>'}</td>
-        <td onclick="event.stopPropagation();openEditIssue(${s.id})" title="แก้ไข" style="text-align:center;cursor:pointer;color:#94a3b8;font-size:.85rem" onmouseover="this.style.color='#2563eb'" onmouseout="this.style.color='#94a3b8'">✏️</td>
+        <td>${s.assigned_to_name?`<span style="font-size:.75rem">👤 ${esc(s.assigned_to_name)}</span>`:'<span style="color:#d6d2c9;font-size:.72rem">—</span>'}</td>
+        <td onclick="event.stopPropagation();openEditIssue(${s.id})" title="แก้ไข" style="text-align:center;cursor:pointer;color:#8a8f97;font-size:.85rem" onmouseover="this.style.color='#35685f'" onmouseout="this.style.color='#8a8f97'">✏️</td>
       </tr>
       <tr id="isd-${s.id}" style="display:none">
         <td colspan="12" class="iss-expand-row">
-          ${s.note?`<div style="font-size:.8rem;color:#1e293b;white-space:pre-wrap;word-break:break-word;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:.5rem .75rem;margin-bottom:.5rem">${esc(s.note)}</div>`:''}
-          <div style="display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;font-size:.72rem;color:#94a3b8">
+          ${s.note?`<div style="font-size:.8rem;color:#24272c;white-space:pre-wrap;word-break:break-word;background:#fff;border:1px solid #e6e3dc;border-radius:8px;padding:.5rem .75rem;margin-bottom:.5rem">${esc(s.note)}</div>`:''}
+          <div style="display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;font-size:.72rem;color:#8a8f97">
             ${s.created_at?`<span>📅 สร้างเมื่อ: ${fmtDate(s.created_at)}</span>`:''}
             ${s.updated_at?`<span>🔄 อัปเดต: ${fmtDate(s.updated_at)}</span>`:''}
-            <button onclick="event.stopPropagation();openEditIssue(${s.id})" style="margin-left:auto;background:#2563eb;color:#fff;border:none;border-radius:7px;padding:.3rem .8rem;font-size:.75rem;font-weight:600;cursor:pointer;font-family:inherit">✏️ แก้ไข Issue</button>
+            <button onclick="event.stopPropagation();openEditIssue(${s.id})" style="margin-left:auto;background:#35685f;color:#fff;border:none;border-radius:7px;padding:.3rem .8rem;font-size:.75rem;font-weight:600;cursor:pointer;font-family:inherit">✏️ แก้ไข Issue</button>
           </div>
         </td>
       </tr>`;
@@ -1504,9 +1546,9 @@ function releasePlanHeads(){
 }
 
 function releasePlanCells(s){
-  return RELEASE_PLAN_FIELDS.map(f => `<td style="font-size:.74rem;color:#475569;white-space:nowrap">${
+  return RELEASE_PLAN_FIELDS.map(f => `<td style="font-size:.74rem;color:#4d535b;white-space:nowrap">${
     s[f.key] ? (f.text ? esc(s[f.key]) : parseD(s[f.key]).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}))
-             : '<span style="color:#cbd5e1">—</span>'
+             : '<span style="color:#d6d2c9">—</span>'
   }</td>`).join('');
 }
 
@@ -1597,18 +1639,18 @@ async function renderIssues(){
     wrap.innerHTML = `
       <!-- Action bar -->
       <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem;flex-wrap:wrap">
-        <div style="font-size:.82rem;font-weight:700;color:#1e293b;flex:1">
+        <div style="font-size:.82rem;font-weight:700;color:#24272c;flex:1">
           📌 Issues
-          <span style="background:#e2e8f0;color:#475569;border-radius:20px;padding:.05rem .5rem;font-size:.72rem;font-weight:700;margin-left:.3rem">${(_issues||[]).length}</span>
+          <span style="background:#e6e3dc;color:#4d535b;border-radius:20px;padding:.05rem .5rem;font-size:.72rem;font-weight:700;margin-left:.3rem">${(_issues||[]).length}</span>
         </div>
-        <button onclick="openAddIssue()" style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:.38rem .9rem;font-size:.8rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:.3rem;font-family:inherit">
+        <button onclick="openAddIssue()" style="background:#35685f;color:#fff;border:none;border-radius:8px;padding:.38rem .9rem;font-size:.8rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:.3rem;font-family:inherit">
           ➕ เพิ่ม Issue
         </button>
-        <button onclick="openCreateBoard()" style="background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:8px;padding:.38rem .9rem;font-size:.8rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.3rem;font-family:inherit">
+        <button onclick="openCreateBoard()" style="background:#f0eee9;color:#4d535b;border:1px solid #e6e3dc;border-radius:8px;padding:.38rem .9rem;font-size:.8rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.3rem;font-family:inherit">
           📋 สร้าง Board
         </button>
         <button id="btn-iss-export" onclick="exportIssuesExcel()"
-          style="border:1px solid #16a34a;background:#f0fdf4;color:#16a34a;border-radius:8px;padding:.38rem .8rem;font-size:.8rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.3rem;white-space:nowrap;font-family:inherit;flex-shrink:0">
+          style="border:1px solid #2f7a52;background:#f2f7f3;color:#2f7a52;border-radius:8px;padding:.38rem .8rem;font-size:.8rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:.3rem;white-space:nowrap;font-family:inherit;flex-shrink:0">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Export
         </button>
@@ -1892,14 +1934,14 @@ async function submitTrackBoard(){
   <div class="track-modal-box">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
       <div id="ti-modal-title" class="track-modal-title" style="margin-bottom:0">➕ เพิ่ม Issue ใหม่</div>
-      <button onclick="closeTrackModal('modal-track-issue')" style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:#94a3b8;line-height:1;padding:.1rem .3rem" title="ปิด">✕</button>
+      <button onclick="closeTrackModal('modal-track-issue')" style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:#8a8f97;line-height:1;padding:.1rem .3rem" title="ปิด">✕</button>
     </div>
     <div id="ti-board-group" class="track-form-group">
-      <label class="track-modal-label">Board <span style="color:#ef4444">*</span></label>
+      <label class="track-modal-label">Board <span style="color:#c0584c">*</span></label>
       <select id="ti-board" class="track-modal-input"></select>
     </div>
     <div class="track-form-group">
-      <label class="track-modal-label">หัวข้อปัญหา <span style="color:#ef4444">*</span></label>
+      <label class="track-modal-label">หัวข้อปัญหา <span style="color:#c0584c">*</span></label>
       <input type="text" id="ti-detail" class="track-modal-input" placeholder="อธิบายปัญหาสั้นๆ..."/>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:.65rem">
@@ -1921,7 +1963,7 @@ async function submitTrackBoard(){
       <label class="track-modal-label">รายละเอียดเพิ่มเติม</label>
       <textarea id="ti-note" class="track-modal-input" rows="3" placeholder="อธิบายรายละเอียดเพิ่มเติม..." style="resize:vertical;min-height:70px"></textarea>
     </div>
-    <div id="ti-err" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:7px;padding:.5rem .8rem;font-size:.78rem;color:#dc2626;margin-bottom:.5rem"></div>
+    <div id="ti-err" style="display:none;background:#fbf3f1;border:1px solid #efcfca;border-radius:7px;padding:.5rem .8rem;font-size:.78rem;color:#b04a40;margin-bottom:.5rem"></div>
     <div class="track-modal-footer">
       <button class="btn-cancel" onclick="closeTrackModal('modal-track-issue')">ยกเลิก</button>
       <button id="ti-submit-btn" class="btn-primary" onclick="submitTrackIssue()">💾 บันทึก</button>
@@ -1934,17 +1976,17 @@ async function submitTrackBoard(){
   <div class="track-modal-box">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
       <div class="track-modal-title" style="margin-bottom:0">📋 สร้าง Board ใหม่</div>
-      <button onclick="closeTrackModal('modal-track-board')" style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:#94a3b8;line-height:1;padding:.1rem .3rem" title="ปิด">✕</button>
+      <button onclick="closeTrackModal('modal-track-board')" style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:#8a8f97;line-height:1;padding:.1rem .3rem" title="ปิด">✕</button>
     </div>
     <div class="track-form-group">
-      <label class="track-modal-label">Folder <span style="color:#ef4444">*</span></label>
+      <label class="track-modal-label">Folder <span style="color:#c0584c">*</span></label>
       <select id="tb-folder" class="track-modal-input"></select>
     </div>
     <div class="track-form-group">
-      <label class="track-modal-label">ชื่อ Board <span style="color:#ef4444">*</span></label>
+      <label class="track-modal-label">ชื่อ Board <span style="color:#c0584c">*</span></label>
       <input type="text" id="tb-name" class="track-modal-input" placeholder="ชื่อ Board ใหม่..."/>
     </div>
-    <div id="tb-err" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:7px;padding:.5rem .8rem;font-size:.78rem;color:#dc2626;margin-bottom:.5rem"></div>
+    <div id="tb-err" style="display:none;background:#fbf3f1;border:1px solid #efcfca;border-radius:7px;padding:.5rem .8rem;font-size:.78rem;color:#b04a40;margin-bottom:.5rem"></div>
     <div class="track-modal-footer">
       <button class="btn-cancel" onclick="closeTrackModal('modal-track-board')">ยกเลิก</button>
       <button id="tb-submit-btn" class="btn-primary" onclick="submitTrackBoard()">✅ สร้าง Board</button>
