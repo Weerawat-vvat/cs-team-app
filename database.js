@@ -362,6 +362,11 @@ async function init() {
       IF COL_LENGTH('employees','phone_ext') IS NULL
         ALTER TABLE employees ADD phone_ext VARCHAR(10) NULL
     `);
+    // สิทธิ์ดู Leaderboard ทีมงาน (ช่วงรีวิวกับผู้บริหาร) — admin ดูได้เสมอ
+    await pool.request().query(`
+      IF COL_LENGTH('app_users','lb_access') IS NULL
+        ALTER TABLE app_users ADD lb_access BIT NULL
+    `);
     console.log('✅ Migrations done');
   } catch (err) {
     console.error('❌ Migration error:', err.message);

@@ -9350,7 +9350,35 @@ async function lbSettingsPw(request, res, next) {
   await new Promise(ok => setTimeout(ok, 800));
   res.status(403).json({ error: 'รหัสผ่านไม่ถูกต้อง', need_password: true });
 }
-app.post('/api/line-board/settings/unlock', authRequired, managerRequired, lbSettingsPw, (request, res) => res.json({ ok: true }));
+// ── สิทธิ์ดู Leaderboard ทีมงาน (ช่วงรีวิวกับผู้บริหาร) ──
+// admin ดูได้เสมอ · คนอื่นต้องติ๊ก "ดู Leaderboard ได้" ในหน้าจัดการ User (app_users.lb_access)
+// ปิดการล็อกทั้งหมดได้ด้วย LB_OPEN=on ใน .env (ทุกคนดูได้)
+const LB_OPEN = (process.env.LB_OPEN || 'off').toLowerCase() === 'on';
+const _lbAccCache = new Map();   // user id → { v, t } (30 วินาที)
+async function lbCanView(user) {
+  if (LB_OPEN || user?.role === 'admin') return true;
+  if (!user?.id) return false;
+  const c = _lbAccCache.get(user.id);
+  if (c && Date.now() - c.t < 30000) return c.v;
+  let v = false;
+  try { v = !!(await req().input('id', sql.Int, user.id).query('SELECT lb_access FROM app_users WHERE id=@id')).recordset[0]?.lb_access; } catch {}
+  _lbAccCache.set(user.id, { v, t: Date.now() });
+  return v;
+}
+async function lbAccess(request, res, next) {
+  if (await lbCanView(request.user)) return next();
+  res.status(403).json({ error: 'Leaderboard ทีมงานยังไม่เปิดให้ใช้งาน', lb_locked: true });
+}
+// บันทึกสิทธิ์จากฟอร์ม User — เฉพาะหัวหน้า/ผู้จัดการ/admin เท่านั้นที่ให้สิทธิ์ได้
+async function lbAccessSet(request, userId) {
+  if (request.body?.lb_access === undefined || !userId) return;
+  if (!['manager', 'team_lead', 'admin'].includes(request.user?.role)) return;
+  await req().input('id', sql.Int, userId).input('v', sql.Bit, request.body.lb_access ? 1 : 0)
+    .query('UPDATE app_users SET lb_access=@v WHERE id=@id');
+  _lbAccCache.delete(userId);
+}
+
+app.post('/api/line-board/settings/unlock', authRequired, managerRequired, lbAccess, lbSettingsPw, (request, res) => res.json({ ok: true }));
 
 // E = งานพิเศษ (Extra) เช่น หัวข้อ Update Software
 const GRADE_WEIGHTS_DEFAULT = { A: 3, B: 2, C: 1, E: 3, other: 1, swu: 7 };   // swu = แต้มต่อคน ต่อการปิดงานอัปเดต SW 1 ครั้ง
@@ -9382,7 +9410,7 @@ async function getLevelWeights() {
     return cleanLevelWeights(r ? JSON.parse(r.v) : null);
   } catch { return cleanLevelWeights(null); }
 }
-app.put('/api/line-board/level-weights', authRequired, managerRequired, lbSettingsPw, async (request, res) => {
+app.put('/api/line-board/level-weights', authRequired, managerRequired, lbAccess, lbSettingsPw, async (request, res) => {
   try {
     const w = cleanLevelWeights(request.body?.weights || request.body);
     await req().input('v', sql.NVarChar, JSON.stringify(w)).input('by', sql.NVarChar, request.user?.username || null).query(`
@@ -9392,10 +9420,10 @@ app.put('/api/line-board/level-weights', authRequired, managerRequired, lbSettin
     res.json({ ok: true, weights: w });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
-app.get('/api/line-board/grade-weights', authRequired, async (request, res) => {
+app.get('/api/line-board/grade-weights', authRequired, lbAccess, async (request, res) => {
   res.json({ weights: await getGradeWeights(), defaults: GRADE_WEIGHTS_DEFAULT });
 });
-app.put('/api/line-board/grade-weights', authRequired, managerRequired, lbSettingsPw, async (request, res) => {
+app.put('/api/line-board/grade-weights', authRequired, managerRequired, lbAccess, lbSettingsPw, async (request, res) => {
   try {
     const w = cleanGradeWeights(request.body?.weights || request.body);
     await req().input('v', sql.NVarChar, JSON.stringify(w)).input('by', sql.NVarChar, request.user?.username || null).query(`
@@ -9483,7 +9511,7 @@ async function computeLineBoard(qFrom, qTo, pod) {
 
     return { from, to, start: LINE_RESOLVE_START, config: cfg, prev_from: pf, not_judged: cov, ...board };
 }
-app.get('/api/line-board', authRequired, async (request, res) => {
+app.get('/api/line-board', authRequired, lbAccess, async (request, res) => {
   try { res.json(await computeLineBoard(request.query.from, request.query.to, request.query.pod)); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -9626,14 +9654,14 @@ app.post('/api/pbx-ai/run', authRequired, managerRequired, (request, res) => {
   res.json({ ok: true, started: true });
 });
 
-app.get('/api/line-board/snapshots', authRequired, async (request, res) => {
+app.get('/api/line-board/snapshots', authRequired, lbAccess, async (request, res) => {
   try {
     await lbSnapEnsure();
     res.json((await req().query(`SELECT period, CONVERT(char(10), from_d, 23) AS [from], CONVERT(char(10), to_d, 23) AS [to], created_by, created_at
       FROM lb_snapshots ORDER BY period DESC`)).recordset.map(r => ({ ...r, period: r.period.trim() })));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
-app.get('/api/line-board/snapshots/:period', authRequired, async (request, res) => {
+app.get('/api/line-board/snapshots/:period', authRequired, lbAccess, async (request, res) => {
   try {
     await lbSnapEnsure();
     const r = (await req().input('p', sql.Char, String(request.params.period).slice(0, 7))
@@ -9643,7 +9671,7 @@ app.get('/api/line-board/snapshots/:period', authRequired, async (request, res) 
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 // บันทึก (ใหม่) ของเดือนที่จบแล้ว — ใช้น้ำหนักที่ตั้งอยู่ตอนนี้ · ต้องรหัสผ่านตั้งค่าคะแนน
-app.post('/api/line-board/snapshots/:period', authRequired, managerRequired, lbSettingsPw, async (request, res) => {
+app.post('/api/line-board/snapshots/:period', authRequired, managerRequired, lbAccess, lbSettingsPw, async (request, res) => {
   try {
     const period = String(request.params.period);
     if (!lbClosedMonths().includes(period)) return res.status(400).json({ error: 'บันทึกได้เฉพาะเดือนที่จบแล้ว (ตั้งแต่วันที่ 3 ของเดือนถัดไป)' });
@@ -11106,8 +11134,8 @@ app.post('/api/auth/login', async (request, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.get('/api/auth/me', authRequired, (request, res) => {
-  res.json(request.user);
+app.get('/api/auth/me', authRequired, async (request, res) => {
+  res.json({ ...request.user, lb_access: await lbCanView(request.user) });
 });
 
 // ── Change own password ────────────────────────────────────
@@ -11135,7 +11163,7 @@ app.get('/api/users', authRequired, async (request, res) => {
   try {
     const result = await req().query(`
       SELECT au.id, au.username, au.role, au.ext_username, au.calluserid, au.active, au.created_at,
-             au.employee_id, e.name, e.team, e.nickname
+             au.employee_id, e.name, e.team, e.nickname, au.lb_access
       FROM app_users au
       LEFT JOIN employees e ON e.id = au.employee_id
       ORDER BY e.team, au.username`);
@@ -11157,6 +11185,7 @@ app.post('/api/users', authRequired, async (request, res) => {
       .input('calluid',  sql.Int,      request.body.calluserid || null)
       .query(`INSERT INTO app_users (employee_id, username, password_hash, role, ext_username, calluserid)
               OUTPUT INSERTED.id VALUES (@eid,@uname,@hash,@role,@extuname,@calluid)`);
+    await lbAccessSet(request, result.recordset[0].id);
     res.json({ id: result.recordset[0].id });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -11178,6 +11207,7 @@ app.put('/api/users/:id', authRequired, async (request, res) => {
       q += ',password_hash=@hash';
     }
     await r.query(q + ' WHERE id=@id');
+    await lbAccessSet(request, parseInt(request.params.id));
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

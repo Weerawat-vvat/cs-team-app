@@ -6281,6 +6281,8 @@ select.mt-move{appearance:auto;padding:.14rem .4rem;height:auto;max-width:170px}
           <option value="manager">Manager</option>
           <option value="admin">Admin</option>
         </select>
+        <label style="display:flex;align-items:center;gap:.4rem;font-size:.78rem;margin-top:.45rem;cursor:pointer;font-weight:400" title="ช่วงรีวิวกับผู้บริหาร — คนที่ไม่ได้ติ๊กจะเห็นข้อความว่ายังไม่เปิดให้ใช้งาน (Admin ดูได้เสมอ)">
+          <input type="checkbox" id="p-lb-access" style="width:auto"> ดู Leaderboard ทีมงานได้</label>
       </div>
       <div class="form-group">
         <label>Username LicenseDB</label>
@@ -9464,7 +9466,23 @@ async function loadDashboardAll() {
 //  Leaderboard ทีมงาน: LINE + หน้าติดตามเคส + ดาวทันเวลา → คะแนนรวม + ยศ (/api/line-board — ตัวเลขล้วน ไม่ใช้ AI)
 // ══════════════════════════════════════════════════════════
 let _llbSeq = 0;   // กดเปลี่ยนวันที่รัวๆ — ใช้แค่ผลของครั้งล่าสุด
+// Leaderboard ยังไม่เปิดให้ทุกคน (รีวิวกับผู้บริหาร) — server ตอบ 403 lb_locked
+function llbLockedHtml() {
+  return `<div style="max-width:520px;margin:2.5rem auto;text-align:center;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:2rem 1.5rem">
+    <div style="font-size:2.2rem;line-height:1">🏅</div>
+    <div style="font-size:1.1rem;font-weight:600;margin:.6rem 0 .35rem">Leaderboard ทีมงาน ยังไม่เปิดให้ใช้งาน</div>
+    <div class="mt-meta" style="font-size:.86rem;line-height:1.7">อยู่ระหว่างรีวิววิธีคิดคะแนนกับทีมผู้บริหาร<br>จะแจ้งให้ทราบอีกครั้งเมื่อเปิดใช้งานครับ</div>
+  </div>`;
+}
+function llbShowLocked() {
+  const box = document.getElementById('llb-body');
+  if (box) box.innerHTML = llbLockedHtml();
+  const bar = box?.previousElementSibling;
+  if (bar) bar.style.display = 'none';
+}
 async function llbLoad() {
+  if (currentUser && currentUser.lb_access === false) { llbShowLocked(); return; }
+  { const bar = document.getElementById('llb-body')?.previousElementSibling; if (bar) bar.style.display = ''; }
   const box = document.getElementById('llb-body');
   if (!box) return;
   const seq = ++_llbSeq;
@@ -9490,6 +9508,7 @@ async function llbLoad() {
   const b = await api(snapP ? `/api/line-board/snapshots/${snapP}` : `/api/line-board?from=${f}&to=${t}`, { silent: true });
   if (seq !== _llbSeq) return;
   box.style.opacity = '';
+  if (b?.error && /ยังไม่เปิดให้ใช้งาน/.test(b.error)) { if (currentUser) currentUser.lb_access = false; llbShowLocked(); return; }
   if (!b || b.error) { box.innerHTML = `<div class="mt-meta" style="text-align:center;padding:2rem">โหลดไม่สำเร็จ: ${escHtml(b?.error || '')}</div>`; return; }
 
   const cfg = b.config;
@@ -21071,6 +21090,7 @@ function renderPeopleTable(emps) {
       </td>
       <td>
         ${u ? `<span class="role-badge role-${u.role}">${roleLbl[u.role]||u.role}</span>` : '—'}
+        ${u && (u.lb_access || u.role === 'admin') ? `<span title="ดู Leaderboard ทีมงานได้" style="font-size:.72rem;margin-left:.25rem">🏅</span>` : ''}
       </td>
       <td style="font-size:.8rem;color:var(--muted)">
         ${u?.ext_username || '—'}
@@ -21211,6 +21231,7 @@ function openEditPerson(e, u) {
   document.getElementById('p-username').value  = u ? u.username : '';
   document.getElementById('p-password').value  = '';
   document.getElementById('p-sys-role').value  = u ? u.role : 'staff';
+  document.getElementById('p-lb-access').checked = !!u?.lb_access;
   document.getElementById('p-ext-username').value = u ? (u.ext_username || '') : '';
   document.getElementById('p-calluserid').value = u ? (u.calluserid || '') : '';
   document.getElementById('p-line-names').value = e.line_names || '';
@@ -21295,7 +21316,8 @@ async function savePerson() {
     if (editPersonUserId) {
       // Update existing account
       const userBody = { username: uname || undefined, role: sysRole, ext_username: extUser,
-                         calluserid: callUid, active: empBody.active };
+                         calluserid: callUid, active: empBody.active,
+                         lb_access: document.getElementById('p-lb-access').checked };
       if (pwd) userBody.password = pwd;
       if (uname) userBody.username = uname;
       await api(`/api/users/${editPersonUserId}`, { method:'PUT', body: userBody });
@@ -21303,7 +21325,8 @@ async function savePerson() {
       // Create new account only if both username + password are given
       await api('/api/users', { method:'POST', body: {
         employee_id: empId, username: uname, password: pwd,
-        role: sysRole, ext_username: extUser, calluserid: callUid
+        role: sysRole, ext_username: extUser, calluserid: callUid,
+        lb_access: document.getElementById('p-lb-access').checked
       }});
     }
 
