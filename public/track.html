@@ -381,7 +381,57 @@ function caseStatsHtml(){
     <div class="stat-card"><div class="icon" style="background:#eff6ff">📋</div><div><div class="label">Case ทั้งหมด</div><div class="value" style="color:#2563eb">${total.toLocaleString()}</div></div></div>
     <div class="stat-card"><div class="icon" style="background:#fef2f2">⏳</div><div><div class="label">ค้างอยู่ (OPEN)</div><div class="value" style="color:#dc2626">${open.toLocaleString()}</div></div></div>
     <div class="stat-card"><div class="icon" style="background:#f0fdf4">✅</div><div><div class="label">แก้ไขแล้ว (CLOSE)</div><div class="value" style="color:#16a34a">${close.toLocaleString()}</div></div></div>
-  </div>`;
+  </div>
+  ${kindStatsHtml()}`;
+}
+
+// ── กลุ่มงาน: Bug โปรแกรม / IT Operation (จาก Monitor Tag ของทีม) ──
+const KIND = {
+  bug: { label: 'Bug โปรแกรม', icon: '🐞', color: '#b91c1c', bg: '#fef2f2', bd: '#fecaca', hint: 'ปัญหาจากตัวโปรแกรม — ทีมส่งต่อให้ทีมพัฒนาแก้ไข' },
+  it:  { label: 'IT Operation', icon: '🛠', color: '#1d4ed8', bg: '#eff6ff', bd: '#bfdbfe', hint: 'งานดูแลระบบ/อุปกรณ์/เครือข่าย/ตั้งค่า ที่หน้าร้าน' },
+  other: { label: 'อื่นๆ', icon: '📋', color: '#475569', bg: '#f8fafc', bd: '#e2e8f0', hint: 'สอบถามการใช้งานและงานทั่วไป' },
+};
+const kindOf = t => t.kind || 'other';
+function kindChip(t){
+  const k = KIND[kindOf(t)];
+  if (kindOf(t) === 'other') return '';
+  return `<span title="${esc((t.tags||[]).join(', ') || k.hint)}" style="background:${k.bg};color:${k.color};border:1px solid ${k.bd};border-radius:4px;font-size:.68rem;padding:.02rem .35rem;margin-right:.3rem;white-space:nowrap">${k.icon} ${k.label}</span>`;
+}
+function kindStatsHtml(){
+  const t = _data?.tickets || [];
+  if (!t.some(x => x.kind)) return '';
+  const card = k => {
+    const L = t.filter(x => kindOf(x) === k), open = L.filter(x => !isClosed(x.status)).length;
+    const K = KIND[k];
+    return `<div class="stat-card" style="cursor:pointer" title="${esc(K.hint)} — คลิกเพื่อดูรายการ" onclick="openKind('${k}')">
+      <div class="icon" style="background:${K.bg}">${K.icon}</div>
+      <div><div class="label">${K.label}</div><div class="value" style="color:${K.color}">${L.length.toLocaleString()}</div>
+      <div style="font-size:.7rem;color:#94a3b8">${open ? `ค้าง ${open}` : 'ไม่มีค้าง'}</div></div></div>`;
+  };
+  return `<div class="stat-grid" style="margin:-.35rem 0 .85rem">${card('bug')}${card('it')}${t.some(x => !x.kind) ? card('other') : ''}</div>`;
+}
+// Bug / IT Operation แยกตามเรื่อง (Tag) — หน้า Overview
+function kindBreakdownHtml(){
+  const t = _data?.tickets || [];
+  if (!t.some(x => x.kind)) return '';
+  const col = k => {
+    const cnt = {};
+    t.filter(x => kindOf(x) === k).forEach(x => (x.tags.length ? x.tags : ['อื่นๆ']).forEach(tag => cnt[tag] = (cnt[tag] || 0) + 1));
+    const rows = Object.entries(cnt).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    const max = rows[0]?.[1] || 1, K = KIND[k];
+    return `<div class="card">
+      <div class="card-title">${K.icon} ${K.label} <span style="font-weight:400;color:#94a3b8;font-size:.75rem">— ${esc(K.hint)}</span></div>
+      ${rows.map(([n, c]) => `<div style="display:flex;align-items:center;gap:.5rem;padding:.22rem 0;font-size:.8rem">
+        <div style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(n)}">${esc(n)}</div>
+        <div style="width:90px;height:6px;background:#f1f5f9;border-radius:3px;overflow:hidden"><div style="height:100%;width:${Math.round(c / max * 100)}%;background:${K.color}"></div></div>
+        <div style="width:28px;text-align:right;font-weight:600">${c}</div></div>`).join('') || '<div style="color:#94a3b8;font-size:.82rem;padding:.4rem 0">ไม่มีเคสในช่วงนี้</div>'}
+    </div>`;
+  };
+  return `<div class="chart-grid">${col('bug')}${col('it')}</div>`;
+}
+function openKind(k){
+  const btn = document.querySelector('.nav-tab[data-tab="list"]');
+  if (btn) { _kindTab = k; switchTab('list', btn); }
 }
 
 // ── Overview Tab ─────────────────────────────────────────
@@ -408,6 +458,7 @@ function renderOverview(){
 
   document.getElementById('tab-content').innerHTML = `
     ${caseStatsHtml()}
+    ${kindBreakdownHtml()}
     ${isGrp ? `
     <div class="chart-grid">
       <div class="card">
@@ -617,6 +668,12 @@ function renderList(){
       </button>
     </div>
 
+    <!-- กลุ่มงาน: Bug / IT Operation -->
+    ${(d.tickets||[]).some(t=>t.kind) ? `<div class="status-tabs" id="k-tabs" style="margin-bottom:.4rem">
+      ${[['all','📋 ทุกกลุ่มงาน'],['bug',KIND.bug.icon+' '+KIND.bug.label],['it',KIND.it.icon+' '+KIND.it.label],...((d.tickets||[]).some(t=>!t.kind)?[['other',KIND.other.icon+' '+KIND.other.label]]:[])].map(([k,l])=>
+        `<button class="s-tab${_kindTab===k?' active':''}" onclick="setKindTab('${k}',this)">${l} <span class="s-tab-cnt" id="kcnt-${k}">0</span></button>`).join('')}
+    </div>` : ''}
+
     <!-- Status tabs -->
     <div class="status-tabs" id="s-tabs">
       <button class="s-tab t-open" onclick="setStatusTab('open',this)">⏳ OPEN <span class="s-tab-cnt" id="cnt-open">0</span></button>
@@ -645,8 +702,16 @@ function renderList(){
 
   _statusTab='all'; _page=1;
   renderListTable();
+  _kindTab = _kindTab || 'all';
 }
 
+let _kindTab = 'all';
+function setKindTab(k, btn){
+  document.querySelectorAll('#k-tabs .s-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  _kindTab = k; _page = 1;
+  renderListTable();
+}
 function setStatusTab(tab, btn){
   document.querySelectorAll('#s-tabs .s-tab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
@@ -668,6 +733,7 @@ function getFilteredList(){
   if(status)  list = list.filter(t=>t.status===status);
   if(type)    list = list.filter(t=>t.problem_type===type);
   if(subject) list = list.filter(t=>t.title===subject);
+  if(_kindTab!=='all') list = list.filter(t=>kindOf(t)===_kindTab);
   if(_statusTab==='open')  list = list.filter(t=>!isClosed(t.status));
   if(_statusTab==='close') list = list.filter(t=>isClosed(t.status));
   if(search)  list = list.filter(t=>
@@ -695,6 +761,8 @@ function exportListExcel(){
     const rows = list.map((t, i) => {
       const row = { 'ลำดับ': i+1 };
       if(isGrp) row['สาขา'] = t.CompanyName||'';
+      row['กลุ่มงาน']       = KIND[kindOf(t)].label;
+      row['เรื่อง (Tag)']    = (t.tags||[]).join(', ');
       row['ประเภทปัญหา']   = t.problem_type||'';
       row['หัวข้อ']          = t.title||'';
       row['รายละเอียดปัญหา'] = t.description||'';
@@ -712,7 +780,7 @@ function exportListExcel(){
     const colDefs = [
       {wch:6},
       ...(isGrp?[{wch:28}]:[]),
-      {wch:18},{wch:35},{wch:45},{wch:45},{wch:14},{wch:22},{wch:14},{wch:22}
+      {wch:14},{wch:24},{wch:18},{wch:35},{wch:45},{wch:45},{wch:14},{wch:22},{wch:14},{wch:22}
     ];
     ws['!cols'] = colDefs;
 
@@ -755,6 +823,8 @@ function renderListTable(){
   setC('cnt-open',  base.filter(t=>!isClosed(t.status)).length);
   setC('cnt-close', base.filter(t=>isClosed(t.status)).length);
   setC('cnt-all',   base.length);
+  setC('kcnt-all', base.length);
+  ['bug','it','other'].forEach(k=>setC('kcnt-'+k, base.filter(t=>kindOf(t)===k).length));
 
   const total = list.length;
   const totalPages = Math.max(1, Math.ceil(total/perPage));
@@ -770,7 +840,7 @@ function renderListTable(){
       <td style="color:#94a3b8">${start+i+1}</td>
       ${isGrp?`<td style="max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.77rem" title="${esc(t.CompanyName)}">${esc(t.CompanyName||'—')}</td>`:''}
       <td>
-        ${t.problem_type?`<span style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;font-size:.68rem;padding:.02rem .35rem;margin-right:.3rem">${esc(t.problem_type)}</span>`:''}
+        ${kindChip(t)}${t.problem_type?`<span style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:4px;font-size:.68rem;padding:.02rem .35rem;margin-right:.3rem">${esc(t.problem_type)}</span>`:''}
         <span style="font-size:.8rem">${esc(t.title||'—')}</span>
       </td>
       <td style="white-space:nowrap;font-size:.77rem">${fmtDate(t.opened_at)}</td>

@@ -4364,6 +4364,22 @@ app.get('/api/public/track/:token', async (request, res) => {
         url: `/uploads/cases/${a.calllog_id}/${a.filename}`,
       }));
       ticketRes.recordset.forEach(t => { t.attachments = attByCase[t.id] || []; });
+
+      // กลุ่มงานจาก Monitor Tag: problem = Bug โปรแกรม · service = IT Operation · ไม่มี Tag = อื่นๆ
+      try {
+        const tr = req();
+        ticketIds.forEach((id, i) => tr.input(`k${i}`, sql.Int, id));
+        const tagRows = (await tr.query(`SELECT c.calllog_id, t.tag_group, t.title FROM monitor_tag_cases c
+          JOIN monitor_tags t ON t.id = c.tag_id AND t.status = 'active'
+          WHERE c.calllog_id IN (${ticketIds.map((_, i) => `@k${i}`).join(',')})`)).recordset;
+        const byCase = {};
+        tagRows.forEach(r => (byCase[r.calllog_id] ||= []).push(r));
+        ticketRes.recordset.forEach(t => {
+          const tg = byCase[t.id] || [];
+          t.kind = tg.some(x => (x.tag_group || 'problem') === 'problem') ? 'bug' : tg.length ? 'it' : null;
+          t.tags = [...new Set(tg.map(x => x.title))];
+        });
+      } catch (e) { console.warn('track kind:', e.message); }
     }
 
     res.json({
